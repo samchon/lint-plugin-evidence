@@ -260,8 +260,8 @@ func TestAnUndecodableClaimStillLeavesItsSiblingsDeclared(t *testing.T) {
  * convert one rule's misconfiguration into a failed build for the whole project.
  *
  *  1. Publish project inputs for options that are not an object at all.
- *  2. Publish project inputs for absent options.
- *  3. Assert both declare nothing without panicking.
+ *  2. Repeat for an empty claim array and for absent options.
+ *  3. Assert each declares nothing without panicking.
  */
 func TestUnusableOptionsDeclareNothingWithoutPanicking(t *testing.T) {
 	for _, options := range []string{`"not-an-object"`, `{"claims":[]}`, ``} {
