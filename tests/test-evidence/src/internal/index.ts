@@ -7,6 +7,8 @@ export * from "./ICreateProjectProps.ts";
 export * from "./IEvidenceProject.ts";
 export * from "./IRunResult.ts";
 export * from "./IWatchSession.ts";
+export * from "./linkDirectory.ts";
 export * from "./pluginCacheDirectory.ts";
+export * from "./privatizeLibrary.ts";
 export * from "./runCheck.ts";
 export * from "./startWatch.ts";

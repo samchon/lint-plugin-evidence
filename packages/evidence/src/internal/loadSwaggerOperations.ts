@@ -1,4 +1,5 @@
 import type { OpenApi } from "@typia/interface";
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { parse } from "yaml";
@@ -22,16 +23,31 @@ const METHODS = [
 interface ISwaggerDocumentInventory {
   source: string;
   operations: ISwaggerOperation[];
+  digest: string;
 }
 
 interface ISwaggerDocumentProblem {
   source: string;
   message: string;
+  digest: string;
 }
 
 interface ISwaggerOperation {
   method: string;
   path: string;
+}
+
+/**
+ * One source read, with the identity of the bytes it came from.
+ *
+ * The digest is empty for a remote source. A URL has nothing the native side
+ * can hash without fetching it again, so it never participates in reuse, and
+ * reporting a digest for one would let it into a cache that cannot revalidate
+ * it.
+ */
+interface IReadSource {
+  text: string;
+  digest: string;
 }
 
 /**
@@ -50,18 +66,22 @@ export const loadSwaggerOperations = async (request: {
   const loaded: Array<ISwaggerDocumentInventory | ISwaggerDocumentProblem> =
     await Promise.all(
       request.sources.map(async (source) => {
+        let digest: string = "";
         try {
-          const text: string = await readSource(request.root, source);
-          const input: unknown = parse(text);
+          const read: IReadSource = await readSource(request.root, source);
+          digest = read.digest;
+          const input: unknown = parse(read.text);
           const document: OpenApi.IDocument = normalizeSwaggerDocument(input);
           return {
             source,
             operations: operationsOf(document),
+            digest,
           } satisfies ISwaggerDocumentInventory;
         } catch (error) {
           return {
             source,
             message: errorMessage(error),
+            digest,
           } satisfies ISwaggerDocumentProblem;
         }
       }),
@@ -72,9 +92,12 @@ export const loadSwaggerOperations = async (request: {
   };
 };
 
-const readSource = async (root: string, source: string): Promise<string> => {
+const readSource = async (
+  root: string,
+  source: string,
+): Promise<IReadSource> => {
   if (source.startsWith("http://") || source.startsWith("https://"))
-    return readRemoteSource(source);
+    return { text: await readRemoteSource(source), digest: "" };
   if (source.includes("://"))
     throw new Error("only http: and https: URLs are supported");
   if (path.isAbsolute(source))
@@ -95,7 +118,16 @@ const readSource = async (root: string, source: string): Promise<string> => {
     throw new Error(
       `the Swagger document exceeds the ${MAX_DOCUMENT_BYTES} byte limit`,
     );
-  return decodeUtf8(await fs.readFile(location));
+
+  // Hashed before decoding, over the bytes as they were read. The native side
+  // hashes the file's bytes too, so the two agree by construction; hashing the
+  // decoded string instead would agree only for inputs where the round trip
+  // happens to be exact.
+  const content: Buffer = await fs.readFile(location);
+  return {
+    text: decodeUtf8(content),
+    digest: createHash("sha256").update(content).digest("hex"),
+  };
 };
 
 const readRemoteSource = async (source: string): Promise<string> => {
