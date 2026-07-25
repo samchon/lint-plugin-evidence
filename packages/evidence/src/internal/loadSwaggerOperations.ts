@@ -38,6 +38,19 @@ interface ISwaggerOperation {
 }
 
 /**
+ * One source read, with the identity of the bytes it came from.
+ *
+ * The digest is empty for a remote source. A URL has nothing the native side
+ * can hash without fetching it again, so it never participates in reuse, and
+ * reporting a digest for one would let it into a cache that cannot revalidate
+ * it.
+ */
+interface IReadSource {
+  text: string;
+  digest: string;
+}
+
+/**
  * Loads and normalizes every configured Swagger source for the native rule.
  *
  * The native contributor is Go, while the version converter is JavaScript. This
@@ -78,19 +91,6 @@ export const loadSwaggerOperations = async (request: {
     problems: loaded.filter(isProblem),
   };
 };
-
-/**
- * One source read, with the identity of the bytes it came from.
- *
- * The digest is empty for a remote source. A URL has nothing the native side
- * can hash without fetching it again, so it never participates in reuse, and
- * reporting a digest for one would let it into a cache that cannot revalidate
- * it.
- */
-interface IReadSource {
-  text: string;
-  digest: string;
-}
 
 const readSource = async (
   root: string,
