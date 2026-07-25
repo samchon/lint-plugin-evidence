@@ -413,7 +413,7 @@ func TestSwaggerReusesARejectedDocumentWithoutSpawning(t *testing.T) {
 	root := writeInventoryFixture(t, "swagger.json", swaggerCacheDocument)
 	swaggerDocuments.store(
 		swaggerContentDigest(root, "swagger.json"),
-		swaggerDocumentOutcome{Problem: "unsupported OpenAPI version"},
+		swaggerDocumentOutcome{Rejected: true, Problem: "unsupported OpenAPI version"},
 	)
 
 	t.Setenv("TTSC_NODE_BINARY", filepath.Join(t.TempDir(), "node-that-does-not-exist"))
@@ -447,7 +447,7 @@ func TestSwaggerForgetsARejectedDocumentOnceItIsFixed(t *testing.T) {
 	root := writeInventoryFixture(t, "swagger.json", swaggerCacheDocument)
 	swaggerDocuments.store(
 		swaggerContentDigest(root, "swagger.json"),
-		swaggerDocumentOutcome{Problem: "unsupported OpenAPI version"},
+		swaggerDocumentOutcome{Rejected: true, Problem: "unsupported OpenAPI version"},
 	)
 
 	repaired := `{"openapi":"3.1.0","paths":{"/members":{"post":{}},"/orders":{"get":{}}}}`
@@ -462,6 +462,41 @@ func TestSwaggerForgetsARejectedDocumentOnceItIsFixed(t *testing.T) {
 	}
 	if !strings.Contains(joined, "could not run its Swagger normalizer") {
 		t.Fatalf("a repaired document must be re-normalized, got: %v", problems)
+	}
+}
+
+/**
+ * Verifies a rejection with no reason is still a rejection.
+ *
+ * The reason is a string from another process and nothing guarantees it is
+ * non-empty. If emptiness were what marked an outcome as a failure, a
+ * reason-less rejection would materialize zero operations and report nothing —
+ * a refused document that reads exactly like an empty document the graph is
+ * content with, which is the shape `test_evidence_graph_reports_swagger_source_failures`
+ * exists to forbid.
+ *
+ *  1. Remember a rejection carrying no message.
+ *  2. Load with an unusable normalizer so the entry is what answers.
+ *  3. Assert a diagnostic is still reported and no unit materializes.
+ */
+func TestSwaggerReportsARejectionThatCarriesNoReason(t *testing.T) {
+	isolateSwaggerCache(t)
+	root := writeInventoryFixture(t, "swagger.json", swaggerCacheDocument)
+	swaggerDocuments.store(
+		swaggerContentDigest(root, "swagger.json"),
+		swaggerDocumentOutcome{Rejected: true},
+	)
+
+	t.Setenv("TTSC_NODE_BINARY", filepath.Join(t.TempDir(), "node-that-does-not-exist"))
+	inventories, problems := loadSwaggerInventories(root, swaggerCacheConfig(t, "swagger.json"))
+	if len(problems) == 0 {
+		t.Fatal("a reason-less rejection must still fail the build")
+	}
+	if !strings.Contains(strings.Join(problems, "\n"), "swagger.json") {
+		t.Fatalf("the diagnostic must name the refused source, got: %v", problems)
+	}
+	if len(inventories["swagger.json"].Units) != 0 {
+		t.Fatal("a refused document must materialize no evidence units")
 	}
 }
 

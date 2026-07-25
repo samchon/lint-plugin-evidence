@@ -40,8 +40,16 @@ var swaggerDocuments = newSwaggerCache()
 // every unrelated TypeScript save would otherwise pay a fresh process start to
 // be told the same thing again. Nothing is cached forever: repairing the
 // document changes its bytes, which changes the key, which misses.
+//
+// Rejected is a separate flag rather than a non-empty Problem, because the
+// reason is the normalizer's string and this rule does not get to assume it is
+// non-empty. Inferring rejection from the message would turn a reason-less
+// failure into zero operations and no diagnostic — a rejected document that
+// reads exactly like an empty but passing one, which is the shape
+// `test_evidence_graph_reports_swagger_source_failures` exists to forbid.
 type swaggerDocumentOutcome struct {
 	Operations []swaggerOperation
+	Rejected   bool
 	Problem    string
 }
 
@@ -69,6 +77,7 @@ func (cache *swaggerCache) lookup(digest string) (swaggerDocumentOutcome, bool) 
 	// may be reading the same entry.
 	return swaggerDocumentOutcome{
 		Operations: append([]swaggerOperation(nil), outcome.Operations...),
+		Rejected:   outcome.Rejected,
 		Problem:    outcome.Problem,
 	}, true
 }
@@ -88,6 +97,7 @@ func (cache *swaggerCache) store(digest string, outcome swaggerDocumentOutcome) 
 	}
 	cache.entries[digest] = swaggerDocumentOutcome{
 		Operations: append([]swaggerOperation(nil), outcome.Operations...),
+		Rejected:   outcome.Rejected,
 		Problem:    outcome.Problem,
 	}
 	cache.order = append(cache.order, digest)
@@ -174,7 +184,7 @@ func swaggerUnitsFromOutcome(
 	if inventory == nil {
 		return nil
 	}
-	if outcome.Problem != "" {
+	if outcome.Rejected {
 		message := swaggerNormalizationFailure(source, outcome.Problem)
 		inventory.Problems = append(inventory.Problems, inventoryProblem{
 			Symbol:  "operation",
@@ -202,10 +212,19 @@ func swaggerUnitsFromOutcome(
 // swaggerNormalizationFailure words a rejected source identically whether the
 // rejection arrived from the normalizer this cycle or from memory, so a reader
 // cannot tell the two apart and has no reason to want to.
+//
+// A reason-less rejection still gets a sentence. The reason comes from another
+// process and this rule cannot require it to be non-empty, and a diagnostic
+// that trails off after a colon reads like a formatting bug rather than a
+// broken document.
 func swaggerNormalizationFailure(source string, message string) string {
+	reason := strings.TrimSpace(message)
+	if reason == "" {
+		reason = "the normalizer reported no reason"
+	}
 	return "Evidence graph could not normalize Swagger source '" +
 		displaySwaggerSource(source) +
 		"' to @typia/interface OpenApi.IDocument: " +
-		strings.TrimSpace(message) +
+		reason +
 		". Fix the file or URL so @typia/utils can upgrade it."
 }

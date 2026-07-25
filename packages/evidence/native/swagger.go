@@ -170,7 +170,10 @@ func loadSwaggerInventories(
 			continue
 		}
 		seen[problem.Source] = true
-		outcome := swaggerDocumentOutcome{Problem: problem.Message}
+		outcome := swaggerDocumentOutcome{
+			Rejected: true,
+			Problem:  problem.Message,
+		}
 		problems = append(
 			problems,
 			swaggerUnitsFromOutcome(problem.Source, inventory, outcome)...,
