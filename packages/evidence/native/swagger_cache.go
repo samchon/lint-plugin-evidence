@@ -16,7 +16,7 @@ import (
 // a project sitting exactly on the limit still gets hits.
 const swaggerCacheLimit = 64
 
-// swaggerDocuments remembers normalized operations by document content.
+// swaggerDocuments remembers normalization outcomes by document content.
 //
 // This is the rule's own state, not the project state the host publishes. The
 // lint-rule-authoring skill forbids caching a `SetState` value across Program
@@ -26,30 +26,54 @@ const swaggerCacheLimit = 64
 // walk — it is because a resident host may hold several projects at once, and
 // paying for a lock on a path that skips a process spawn is not a trade worth
 // thinking about.
-var swaggerDocuments = &swaggerCache{entries: map[string][]swaggerOperation{}}
+//
+// The entry lives as long as the process does. Both hosts that reuse it are
+// line-protocol loops in one process, so exit disposes it; the contributor API
+// exposes no earlier disposal hook, which is why the bound above exists rather
+// than being a tuning knob.
+var swaggerDocuments = newSwaggerCache()
+
+// swaggerDocumentOutcome is what one document's bytes normalized to.
+//
+// Failure is remembered as deliberately as success. A document the normalizer
+// rejects is one the author is midway through fixing, and while they fix it
+// every unrelated TypeScript save would otherwise pay a fresh process start to
+// be told the same thing again. Nothing is cached forever: repairing the
+// document changes its bytes, which changes the key, which misses.
+type swaggerDocumentOutcome struct {
+	Operations []swaggerOperation
+	Problem    string
+}
+
+func newSwaggerCache() *swaggerCache {
+	return &swaggerCache{entries: map[string]swaggerDocumentOutcome{}}
+}
 
 type swaggerCache struct {
 	mutex   sync.Mutex
-	entries map[string][]swaggerOperation
+	entries map[string]swaggerDocumentOutcome
 	order   []string
 }
 
-func (cache *swaggerCache) lookup(digest string) ([]swaggerOperation, bool) {
+func (cache *swaggerCache) lookup(digest string) (swaggerDocumentOutcome, bool) {
 	if digest == "" {
-		return nil, false
+		return swaggerDocumentOutcome{}, false
 	}
 	cache.mutex.Lock()
 	defer cache.mutex.Unlock()
-	operations, hit := cache.entries[digest]
+	outcome, hit := cache.entries[digest]
 	if !hit {
-		return nil, false
+		return swaggerDocumentOutcome{}, false
 	}
 	// Copied out because the caller builds units from it while another cycle
 	// may be reading the same entry.
-	return append([]swaggerOperation(nil), operations...), true
+	return swaggerDocumentOutcome{
+		Operations: append([]swaggerOperation(nil), outcome.Operations...),
+		Problem:    outcome.Problem,
+	}, true
 }
 
-func (cache *swaggerCache) store(digest string, operations []swaggerOperation) {
+func (cache *swaggerCache) store(digest string, outcome swaggerDocumentOutcome) {
 	if digest == "" {
 		return
 	}
@@ -62,7 +86,10 @@ func (cache *swaggerCache) store(digest string, operations []swaggerOperation) {
 		delete(cache.entries, cache.order[0])
 		cache.order = cache.order[1:]
 	}
-	cache.entries[digest] = append([]swaggerOperation(nil), operations...)
+	cache.entries[digest] = swaggerDocumentOutcome{
+		Operations: append([]swaggerOperation(nil), outcome.Operations...),
+		Problem:    outcome.Problem,
+	}
 	cache.order = append(cache.order, digest)
 }
 
@@ -78,7 +105,6 @@ func (cache *swaggerCache) store(digest string, operations []swaggerOperation) {
 // An HTTP(S) source never participates. A URL has no validator without a
 // fetch, and the fetch is most of what the normalizer costs, so a remote
 // document cannot be shown unchanged without paying the price of finding out.
-// That half needs the external-input policy tracked upstream.
 func swaggerContentDigests(root string, sources []string) map[string]string {
 	digests := map[string]string{}
 	for _, source := range sources {
@@ -98,71 +124,88 @@ func swaggerContentDigest(root string, source string) string {
 	if err != nil {
 		return ""
 	}
-	sum := sha256.Sum256(content)
-	return hex.EncodeToString(sum[:])
+	return swaggerDigestOf(content)
 }
 
-func isRemoteSwaggerSource(source string) bool {
-	lowered := strings.ToLower(source)
-	return strings.HasPrefix(lowered, "http://") ||
-		strings.HasPrefix(lowered, "https://")
+func swaggerDigestOf(content []byte) string {
+	sum := sha256.Sum256(content)
+	return hex.EncodeToString(sum[:])
 }
 
 func swaggerSourcePath(root string, source string) string {
 	return filepath.Join(root, filepath.FromSlash(source))
 }
 
-// rememberSwaggerDocument records a normalization result under the content it
-// came from, and only when that content held still around the normalizer.
+// rememberSwaggerDocument records an outcome under the bytes it was produced
+// from, as reported by the process that produced it.
 //
-// The digest is taken again afterwards because the normalizer reads the file
-// itself, in another process, after this one read it. Storing on the first
-// digest alone would let a write landing inside that window bind one document's
-// operations to another document's bytes — a hit that returns a stale answer
-// forever, which is the one failure a cache must not be able to produce.
+// The digest is the normalizer's own, never the one this process took
+// beforehand. The normalizer opens the file again, in another process, after
+// this one read it — so keying on the earlier digest would let a write landing
+// inside that window bind one document's operations to another document's
+// bytes. That is a hit which answers with the wrong document and keeps doing
+// so, which is the one failure a cache must not be able to produce.
+//
+// A source is skipped when the normalizer reports no digest, which is how a
+// remote document stays out of the cache no matter what it returns.
 func rememberSwaggerDocument(
-	root string,
-	document swaggerDocumentInventory,
+	source string,
 	digest string,
+	outcome swaggerDocumentOutcome,
 ) {
-	if digest == "" {
+	if digest == "" || isRemoteSwaggerSource(source) {
 		return
 	}
-	if swaggerContentDigest(root, document.Source) != digest {
-		return
-	}
-	swaggerDocuments.store(digest, document.Operations)
+	swaggerDocuments.store(digest, outcome)
 }
 
-// swaggerUnitsFromCache rebuilds one source's units from remembered operations.
+// swaggerUnitsFromOutcome rebuilds one source's units from a remembered
+// outcome.
 //
 // Units are rebuilt per source rather than remembered, because a unit carries
 // its source in its identity while the operations do not. That is also what
 // lets two sources holding identical bytes share one entry: what was cached is
 // a property of the document, not of where it was found.
-func swaggerUnitsFromCache(
-	inventories map[string]*artifactInventory,
-	cached map[string][]swaggerOperation,
+func swaggerUnitsFromOutcome(
+	source string,
+	inventory *artifactInventory,
+	outcome swaggerDocumentOutcome,
 ) []string {
+	if inventory == nil {
+		return nil
+	}
+	if outcome.Problem != "" {
+		message := swaggerNormalizationFailure(source, outcome.Problem)
+		inventory.Problems = append(inventory.Problems, inventoryProblem{
+			Symbol:  "operation",
+			Message: message,
+		})
+		return []string{message}
+	}
 	problems := []string{}
-	for source, operations := range cached {
-		inventory := inventories[source]
-		if inventory == nil {
+	for _, operation := range outcome.Operations {
+		unit, problem := swaggerOperationUnit(source, operation)
+		if problem != "" {
+			inventory.Problems = append(inventory.Problems, inventoryProblem{
+				Symbol:  "operation",
+				Message: problem,
+			})
+			problems = append(problems, problem)
 			continue
 		}
-		for _, operation := range operations {
-			unit, problem := swaggerOperationUnit(source, operation)
-			if problem != "" {
-				inventory.Problems = append(inventory.Problems, inventoryProblem{
-					Symbol:  "operation",
-					Message: problem,
-				})
-				problems = append(problems, problem)
-				continue
-			}
-			inventory.Units = append(inventory.Units, unit)
-		}
-		sortUnits(inventory.Units)
+		inventory.Units = append(inventory.Units, unit)
 	}
+	sortUnits(inventory.Units)
 	return problems
+}
+
+// swaggerNormalizationFailure words a rejected source identically whether the
+// rejection arrived from the normalizer this cycle or from memory, so a reader
+// cannot tell the two apart and has no reason to want to.
+func swaggerNormalizationFailure(source string, message string) string {
+	return "Evidence graph could not normalize Swagger source '" +
+		displaySwaggerSource(source) +
+		"' to @typia/interface OpenApi.IDocument: " +
+		strings.TrimSpace(message) +
+		". Fix the file or URL so @typia/utils can upgrade it."
 }

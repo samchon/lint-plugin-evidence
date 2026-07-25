@@ -35,10 +35,17 @@ const REBUILD_TIMEOUT: number = 120_000;
  * from one reloaded every time. Freshness and residency are separate
  * properties, and a rebuild that discards the Program satisfies every freshness
  * case in this suite while being the regression that makes watch mode useless.
+ *
+ * `env` reaches the resident lint process, which is what makes a case able to
+ * change the toolchain out from under a running session — the only way to prove
+ * a later cycle did not run something an earlier one did.
  */
 export const startWatch = (
   directory: string,
-  options: { readonly diagnostics?: boolean } = {},
+  options: {
+    readonly diagnostics?: boolean;
+    readonly env?: Readonly<Record<string, string>>;
+  } = {},
 ): IWatchSession => {
   const launcher: string = path.join(
     resolveDependency("ttsc"),
@@ -63,6 +70,7 @@ export const startWatch = (
         ...process.env,
         TTSC_CACHE_DIR: pluginCacheDirectory(),
         TTSC_WATCH_DEBUG_INPUTS: "1",
+        ...(options.env ?? {}),
       },
       stdio: ["ignore", "pipe", "pipe"],
     },

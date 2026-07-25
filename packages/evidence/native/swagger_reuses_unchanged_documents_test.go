@@ -19,7 +19,7 @@ const swaggerCacheDocument = `{"openapi":"3.1.0","paths":{"/members":{"post":{}}
 func isolateSwaggerCache(t *testing.T) *swaggerCache {
 	t.Helper()
 	previous := swaggerDocuments
-	swaggerDocuments = &swaggerCache{entries: map[string][]swaggerOperation{}}
+	swaggerDocuments = newSwaggerCache()
 	t.Cleanup(func() { swaggerDocuments = previous })
 	return swaggerDocuments
 }
@@ -32,8 +32,8 @@ func warmSwaggerCache(t *testing.T, root string, source string) {
 	if digest == "" {
 		t.Fatalf("fixture source %q must hash", source)
 	}
-	swaggerDocuments.store(digest, []swaggerOperation{
-		{Method: "post", Path: "/members"},
+	swaggerDocuments.store(digest, swaggerDocumentOutcome{
+		Operations: []swaggerOperation{{Method: "post", Path: "/members"}},
 	})
 }
 
@@ -345,7 +345,9 @@ func TestSwaggerCacheIsBoundedAndEvictsTheOldest(t *testing.T) {
 	for index := 0; index <= swaggerCacheLimit; index++ {
 		cache.store(
 			"digest-"+decimal(index),
-			[]swaggerOperation{{Method: "get", Path: "/" + decimal(index)}},
+			swaggerDocumentOutcome{
+				Operations: []swaggerOperation{{Method: "get", Path: "/" + decimal(index)}},
+			},
 		)
 	}
 	if _, hit := cache.lookup("digest-0"); hit {
@@ -373,19 +375,157 @@ func TestSwaggerCacheIsBoundedAndEvictsTheOldest(t *testing.T) {
  */
 func TestSwaggerCacheLookupReturnsACopy(t *testing.T) {
 	cache := isolateSwaggerCache(t)
-	cache.store("digest", []swaggerOperation{{Method: "post", Path: "/members"}})
+	cache.store("digest", swaggerDocumentOutcome{
+		Operations: []swaggerOperation{{Method: "post", Path: "/members"}},
+	})
 
 	first, hit := cache.lookup("digest")
 	if !hit {
 		t.Fatal("the stored entry must be found")
 	}
-	first[0] = swaggerOperation{Method: "delete", Path: "/wrong"}
+	first.Operations[0] = swaggerOperation{Method: "delete", Path: "/wrong"}
 
 	second, hit := cache.lookup("digest")
 	if !hit {
 		t.Fatal("the stored entry must still be found")
 	}
-	if second[0].Method != "post" || second[0].Path != "/members" {
-		t.Fatalf("a caller must not be able to corrupt the entry, got %+v", second[0])
+	if second.Operations[0].Method != "post" ||
+		second.Operations[0].Path != "/members" {
+		t.Fatalf("a caller must not be able to corrupt the entry, got %+v", second.Operations[0])
+	}
+}
+
+/**
+ * Verifies a rejected document is answered from memory without a second spawn.
+ *
+ * A document the normalizer refuses is one the author is midway through fixing,
+ * and while they fix it every unrelated TypeScript save would otherwise pay a
+ * fresh process start to be told the same thing again — the state where the
+ * cache is least allowed to give up, because it is where the edit loop is
+ * tightest.
+ *
+ *  1. Remember a rejection under the bytes on disk.
+ *  2. Point `TTSC_NODE_BINARY` at a nonexistent executable and load again.
+ *  3. Assert the original diagnostic is reported, not a normalizer failure.
+ */
+func TestSwaggerReusesARejectedDocumentWithoutSpawning(t *testing.T) {
+	isolateSwaggerCache(t)
+	root := writeInventoryFixture(t, "swagger.json", swaggerCacheDocument)
+	swaggerDocuments.store(
+		swaggerContentDigest(root, "swagger.json"),
+		swaggerDocumentOutcome{Problem: "unsupported OpenAPI version"},
+	)
+
+	t.Setenv("TTSC_NODE_BINARY", filepath.Join(t.TempDir(), "node-that-does-not-exist"))
+	inventories, problems := loadSwaggerInventories(root, swaggerCacheConfig(t, "swagger.json"))
+	joined := strings.Join(problems, "\n")
+	if !strings.Contains(joined, "unsupported OpenAPI version") {
+		t.Fatalf("the remembered rejection must be reported verbatim, got: %v", problems)
+	}
+	if strings.Contains(joined, "could not run its Swagger normalizer") {
+		t.Fatalf("a remembered rejection must not start the normalizer, got: %v", problems)
+	}
+	if len(inventories["swagger.json"].Units) != 0 {
+		t.Fatal("a rejected document must materialize no evidence units")
+	}
+}
+
+/**
+ * Verifies a remembered rejection is dropped the moment the document is fixed.
+ *
+ * The negative twin of the case above, and the one that decides whether caching
+ * failures is safe at all. A rejection kept past its bytes would leave an author
+ * staring at a diagnostic for a document they have already repaired, with
+ * nothing but a restart to clear it — worse than the spawn it saved.
+ *
+ *  1. Remember a rejection under the bytes on disk.
+ *  2. Rewrite the document and load with an unusable normalizer.
+ *  3. Assert the normalizer was attempted rather than the rejection replayed.
+ */
+func TestSwaggerForgetsARejectedDocumentOnceItIsFixed(t *testing.T) {
+	isolateSwaggerCache(t)
+	root := writeInventoryFixture(t, "swagger.json", swaggerCacheDocument)
+	swaggerDocuments.store(
+		swaggerContentDigest(root, "swagger.json"),
+		swaggerDocumentOutcome{Problem: "unsupported OpenAPI version"},
+	)
+
+	repaired := `{"openapi":"3.1.0","paths":{"/members":{"post":{}},"/orders":{"get":{}}}}`
+	if err := os.WriteFile(filepath.Join(root, "swagger.json"), []byte(repaired), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TTSC_NODE_BINARY", filepath.Join(t.TempDir(), "node-that-does-not-exist"))
+	_, problems := loadSwaggerInventories(root, swaggerCacheConfig(t, "swagger.json"))
+	joined := strings.Join(problems, "\n")
+	if strings.Contains(joined, "unsupported OpenAPI version") {
+		t.Fatalf("a repaired document must not replay its rejection, got: %v", problems)
+	}
+	if !strings.Contains(joined, "could not run its Swagger normalizer") {
+		t.Fatalf("a repaired document must be re-normalized, got: %v", problems)
+	}
+}
+
+/**
+ * Verifies an entry is keyed on the digest the normalizer reported, not on one
+ * taken here.
+ *
+ * The normalizer opens the file again, in its own process, after this one read
+ * it. Keying on the earlier digest would let a write landing inside that window
+ * bind one document's operations to another document's bytes — and unlike a
+ * miss, that entry answers every later cycle with the wrong document. Keying on
+ * the reported digest makes the pairing exact by construction.
+ *
+ * The two digests are deliberately different here, which is the whole point: a
+ * lookup by what is on disk now must miss, and a lookup by what the normalizer
+ * actually read must hit.
+ *
+ *  1. Remember an outcome under a digest that is not the file's.
+ *  2. Look the entry up both ways.
+ *  3. Assert only the reported digest finds it.
+ */
+func TestSwaggerRemembersUnderTheNormalizersReportedDigest(t *testing.T) {
+	isolateSwaggerCache(t)
+	root := writeInventoryFixture(t, "swagger.json", swaggerCacheDocument)
+	reported := swaggerDigestOf([]byte(`{"openapi":"3.1.0","paths":{"/orders":{"get":{}}}}`))
+	onDisk := swaggerContentDigest(root, "swagger.json")
+	if reported == onDisk {
+		t.Fatal("the fixture must use two distinct digests to mean anything")
+	}
+
+	rememberSwaggerDocument("swagger.json", reported, swaggerDocumentOutcome{
+		Operations: []swaggerOperation{{Method: "get", Path: "/orders"}},
+	})
+	if _, hit := swaggerDocuments.lookup(onDisk); hit {
+		t.Fatal("the entry must not answer to the bytes this process read")
+	}
+	if _, hit := swaggerDocuments.lookup(reported); !hit {
+		t.Fatal("the entry must answer to the bytes the normalizer read")
+	}
+}
+
+/**
+ * Verifies a remote document is never remembered, whatever it reports.
+ *
+ * A URL cannot be revalidated without fetching it, so an entry for one could
+ * only ever be a guess that the served document has not changed. The normalizer
+ * withholds a digest for a URL, and this refuses one independently — two
+ * defenses because a single missing check here would be invisible: the cache
+ * would answer, the answer would usually be right, and the day it was wrong
+ * nothing would say so.
+ *
+ *  1. Offer an outcome for an HTTP source, once with a digest and once without.
+ *  2. Look both up.
+ *  3. Assert neither was remembered.
+ */
+func TestSwaggerNeverRemembersARemoteDocument(t *testing.T) {
+	isolateSwaggerCache(t)
+	digest := swaggerDigestOf([]byte(swaggerCacheDocument))
+	outcome := swaggerDocumentOutcome{
+		Operations: []swaggerOperation{{Method: "post", Path: "/members"}},
+	}
+	rememberSwaggerDocument("https://example.com/swagger.json", digest, outcome)
+	rememberSwaggerDocument("https://example.com/swagger.json", "", outcome)
+	if _, hit := swaggerDocuments.lookup(digest); hit {
+		t.Fatal("a remote document must never be remembered")
 	}
 }

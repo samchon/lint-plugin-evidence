@@ -1,7 +1,6 @@
 package evidence
 
 import (
-	"net/url"
 	"strings"
 
 	"github.com/samchon/ttsc/packages/lint/rule"
@@ -103,16 +102,4 @@ func localSwaggerInputs(source string) []rule.ProjectInput {
 		Kind:    rule.ProjectInputFile,
 		Pattern: source,
 	}}
-}
-
-// isRemoteSwaggerSource reports whether a normalized Swagger source names a URL
-// rather than a project-relative file.
-//
-// The scheme is read through `url.Parse` rather than matched as a prefix
-// because `normalizeSwaggerSource` stores the author's spelling, and a scheme
-// is case-insensitive — `HTTPS://host/s.json` is accepted there and would slip
-// past a literal `https://` comparison.
-func isRemoteSwaggerSource(source string) bool {
-	parsed, err := url.Parse(source)
-	return err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https")
 }

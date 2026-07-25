@@ -53,14 +53,30 @@ type swaggerNormalizationResult struct {
 	Problems  []swaggerDocumentProblem   `json:"problems"`
 }
 
+// swaggerDocumentInventory is one normalized document.
+//
+// Digest is the SHA-256 of the bytes the normalizer itself read, and it is what
+// the result is remembered under. Hashing here rather than trusting the digest
+// this process took beforehand is what makes the key exact: the normalizer runs
+// in another process and opens the file again, so a write landing between the
+// two reads would otherwise bind one document's operations to another
+// document's bytes — an entry that answers a later cycle with the wrong
+// document, forever.
+//
+// It is empty for a remote source, which never participates in reuse.
 type swaggerDocumentInventory struct {
 	Source     string             `json:"source"`
 	Operations []swaggerOperation `json:"operations"`
+	Digest     string             `json:"digest"`
 }
 
+// swaggerDocumentProblem is one source the normalizer refused. Digest carries
+// the same meaning as on an inventory, so a document that cannot be normalized
+// is remembered as a failure rather than re-normalized on every later cycle.
 type swaggerDocumentProblem struct {
 	Source  string `json:"source"`
 	Message string `json:"message"`
+	Digest  string `json:"digest"`
 }
 
 type swaggerOperation struct {
@@ -91,21 +107,18 @@ func loadSwaggerInventories(
 	// TypeScript keystroke that triggers a rebuild.
 	digests := swaggerContentDigests(root, sources)
 	pending := []string{}
-	cached := map[string][]swaggerOperation{}
+	problems := []string{}
 	for _, source := range sources {
-		digest := digests[source]
-		if digest == "" {
-			pending = append(pending, source)
-			continue
-		}
-		operations, hit := swaggerDocuments.lookup(digest)
+		outcome, hit := swaggerDocuments.lookup(digests[source])
 		if !hit {
 			pending = append(pending, source)
 			continue
 		}
-		cached[source] = operations
+		problems = append(
+			problems,
+			swaggerUnitsFromOutcome(source, inventories[source], outcome)...,
+		)
 	}
-	problems := swaggerUnitsFromCache(inventories, cached)
 	if len(pending) == 0 {
 		return inventories, problems
 	}
@@ -140,24 +153,12 @@ func loadSwaggerInventories(
 			continue
 		}
 		seen[document.Source] = true
-		clean := true
-		for _, operation := range document.Operations {
-			unit, problem := swaggerOperationUnit(document.Source, operation)
-			if problem != "" {
-				inventory.Problems = append(inventory.Problems, inventoryProblem{
-					Symbol:  "operation",
-					Message: problem,
-				})
-				problems = append(problems, problem)
-				clean = false
-				continue
-			}
-			inventory.Units = append(inventory.Units, unit)
-		}
-		sortUnits(inventory.Units)
-		if clean {
-			rememberSwaggerDocument(root, document, digests[document.Source])
-		}
+		outcome := swaggerDocumentOutcome{Operations: document.Operations}
+		problems = append(
+			problems,
+			swaggerUnitsFromOutcome(document.Source, inventory, outcome)...,
+		)
+		rememberSwaggerDocument(document.Source, document.Digest, outcome)
 	}
 	for _, problem := range result.Problems {
 		inventory := inventories[problem.Source]
@@ -169,12 +170,12 @@ func loadSwaggerInventories(
 			continue
 		}
 		seen[problem.Source] = true
-		message := "Evidence graph could not normalize Swagger source '" + displaySwaggerSource(problem.Source) + "' to @typia/interface OpenApi.IDocument: " + strings.TrimSpace(problem.Message) + ". Fix the file or URL so @typia/utils can upgrade it."
-		inventory.Problems = append(inventory.Problems, inventoryProblem{
-			Symbol:  "operation",
-			Message: message,
-		})
-		problems = append(problems, message)
+		outcome := swaggerDocumentOutcome{Problem: problem.Message}
+		problems = append(
+			problems,
+			swaggerUnitsFromOutcome(problem.Source, inventory, outcome)...,
+		)
+		rememberSwaggerDocument(problem.Source, problem.Digest, outcome)
 	}
 	for _, source := range pending {
 		if seen[source] {
@@ -275,6 +276,23 @@ func swaggerOperationUnit(
 		Path:     displaySwaggerSource(source),
 		Readable: readable,
 	}, ""
+}
+
+// isRemoteSwaggerSource reports whether a normalized Swagger source names a URL
+// rather than a project-relative file.
+//
+// Two callers depend on it and both fail quietly when it is wrong: a remote
+// source declared as a project input is rejected by the host and takes the
+// whole snapshot down with it, and a remote source admitted to the content
+// cache would be answered from bytes that were never fetched.
+//
+// The scheme is read through `url.Parse` rather than matched as a prefix
+// because `normalizeSwaggerSource` stores the author's spelling, and a scheme
+// is case-insensitive — `HTTPS://host/s.json` is accepted there and would slip
+// past a literal `https://` comparison.
+func isRemoteSwaggerSource(source string) bool {
+	parsed, err := url.Parse(source)
+	return err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https")
 }
 
 func displaySwaggerSource(source string) string {
