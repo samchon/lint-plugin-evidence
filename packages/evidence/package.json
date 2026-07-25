@@ -50,7 +50,7 @@
     "url": "https://github.com/samchon/lint-plugin-evidence/issues"
   },
   "peerDependencies": {
-    "@ttsc/lint": ">=0.20.0"
+    "@ttsc/lint": ">=0.22.0"
   },
   "devDependencies": {
     "@ttsc/lint": "catalog:typescript",

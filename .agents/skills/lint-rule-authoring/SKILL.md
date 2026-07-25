@@ -87,7 +87,24 @@ A second registry, `rule.RegisterProject`, runs once per Program **before any fi
 - **Project findings have no file, no range, and no fix.** A markdown-side error cannot point at a line. Report TypeScript-side violations on the JSDoc node instead, where a position exists.
 - **Project rules cannot be configured in an entry with `files`.** Such an entry is rejected even when empty or `off`.
 - **`SetState` values live for one Program cycle.** Do not cache across cycles.
-- **A project rule that declines the checker keeps the whole run parallel.** The opt-out shipped and is in the peer-required `@ttsc/lint@0.20.0`: `engine.go:646-649` raises `eng.needsTypeChecker` only when `projectRuleNeedsTypeChecker(name)` agrees, that helper reads the rule's own declaration (`project_rules.go:114-116`), and a declining rule is handed a nil checker outright (`project_engine.go:192-195`). `runsSerial()` (`engine.go:610`) still reads one engine-wide flag, so the declaration is all-or-nothing for the run: `evidence/graph` declares `NeedsTypeChecker() false` and every rule here therefore walks in parallel today. Taking the checker for any one of them gives that up for all of them.
+- **A project rule that declines the checker keeps the whole run parallel.** The opt-out is in the peer-required `@ttsc/lint@0.22.0`: `engine.go:647-648` raises `eng.needsTypeChecker` only when `projectRuleNeedsTypeChecker(name)` agrees, that helper reads the rule's own declaration (`project_rules.go:114-116`), and a declining rule is handed a nil checker outright (`project_engine.go:192-195`). `runsSerial()` (`engine.go:609`) still reads one engine-wide flag, so the declaration is all-or-nothing for the run: `evidence/graph` declares `NeedsTypeChecker() false` and every rule here therefore walks in parallel today. Taking the checker for any one of them gives that up for all of them.
+
+## Declaring External Inputs
+
+A project rule that reads files outside the Program is invisible to watch and editor hosts until it says so. Implement `rule.ProjectInputRule` — one optional method returning exact paths and glob populations — and both the CLI launcher and the editor server observe them. `@ttsc/lint` already advertises the `projectInputs` capability, so a contributor needs no descriptor change.
+
+```go
+func (graphRule) ProjectInputs(ctx *rule.ProjectInputContext) []rule.ProjectInput
+```
+
+Four properties decide whether the declaration is correct, and three of them fail silently.
+
+- **The host discovers this by type assertion.** A signature that drifts is skipped with no warning (`linthost/project_inputs.go:97-100`), so the rule keeps building and stops watching. Pin it with `var _ rule.ProjectInputRule = yourRule{}`.
+- **It runs before a Program exists**, after options and project identity resolve. Declare configured topology, never the files a successful load happened to reach — an exact path missing today and a glob matching nothing today must both stay dependencies, or the create that fixes them is unobservable.
+- **One bad input discards the whole snapshot.** `collectProjectInputs` joins every rule's errors and returns nothing on the first failure (`linthost/project_inputs.go:113-135`), so an HTTP(S) URL — which it rejects outright (`:159-161`) — takes every other rule's declarations down with it. Remote sources are not filesystem inputs; withhold them.
+- **The model has no negation.** Publishing an exclusion glob asks the host to watch exactly what the rule refuses to read. Publish positives only and accept the over-selection: a spurious rebuild costs a cycle, a missing one ships a stale green build.
+
+Kind is not cosmetic. The resident check keeps its warm Program only for a changed path it can recognize as a declared data input and treats anything else as a compiler-topology change (`linthost/check_serve.go:84-91`), so a misdeclared input stays fresh while quietly costing a full reload per edit.
 
 ## Options
 

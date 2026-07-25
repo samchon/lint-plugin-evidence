@@ -53,7 +53,7 @@ npm install -D typescript ttsc @ttsc/lint
 npm install -D @samchon/lint-plugin-evidence
 ```
 
-This is a lint plugin for [`@ttsc/lint`](https://github.com/samchon/ttsc/tree/master/packages/lint). It runs on [`ttsc`](https://github.com/samchon/ttsc), not on stock `tsc` with ESLint. If your build does not run `ttsc` yet, adopt that toolchain first.
+This is a lint plugin for [`@ttsc/lint`](https://github.com/samchon/ttsc/tree/master/packages/lint), version 0.22 or newer. It runs on [`ttsc`](https://github.com/samchon/ttsc), not on stock `tsc` with ESLint. If your build does not run `ttsc` yet, adopt that toolchain first.
 
 The first build can take several minutes; it links the rule into the lint binary once, and later builds reuse it.
 
@@ -226,7 +226,9 @@ Swagger 2.0 and OpenAPI 3.0, 3.1, and 3.2 JSON or YAML documents are normalized 
 
 Only operations under `paths` become evidence units. Webhooks and component schemas are outside this reference type. Standard and additional operation methods use the same target identity.
 
-One-shot checks always evaluate the current Markdown, TypeScript, and Swagger sources. The current `ttsc check --watch` host does not start a new cycle for a standalone Markdown or local Swagger edit, and its LSP invalidates external changes without immediately republishing project diagnostics; the next TypeScript-triggered cycle is fresh. Upstream tracking lives in [the external-input contract](https://github.com/samchon/ttsc/issues/971), [CLI watch integration](https://github.com/samchon/ttsc/issues/973), and [LSP diagnostic refresh](https://github.com/samchon/ttsc/issues/974).
+One-shot checks always evaluate the current Markdown, TypeScript, and Swagger sources. `ttsc check --watch` and the editor server do too: the rule declares its configured Markdown globs and local Swagger paths to the host, so editing a spec section or regenerating an OpenAPI document starts the next cycle on its own, with no TypeScript file touched. A path stays declared while it is missing, which is what lets a document that has not been generated yet be observed the moment it appears.
+
+An `http:`/`https:` Swagger source is the one exception, and it is not a gap that will close. A URL has no filesystem event to observe, so its freshness is per-evaluation: every cycle refetches it, and nothing wakes the watcher when the served document changes.
 
 ## Evidence Tags
 
