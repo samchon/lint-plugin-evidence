@@ -153,24 +153,12 @@ func loadPrismaInventories(
 	result, err := normalizePrismaSet(root, sources)
 	if err != nil {
 		message := "Evidence graph could not run its Prisma schema loader: " + err.Error() + ". Prisma references require Node.js and a resolvable @prisma/prisma-schema-wasm."
-		for _, source := range sources {
-			inventories[source].Problems = append(
-				inventories[source].Problems,
-				inventoryProblem{Symbol: "model", Message: message},
-			)
-		}
-		return inventories, append(problems, message)
+		return inventories, append(problems, failPrismaSet(inventories, sources, message))
 	}
 
 	outcome, problem := prismaOutcomeOf(result)
 	if problem != "" {
-		for _, source := range sources {
-			inventories[source].Problems = append(
-				inventories[source].Problems,
-				inventoryProblem{Symbol: "model", Message: problem},
-			)
-		}
-		return inventories, append(problems, problem)
+		return inventories, append(problems, failPrismaSet(inventories, sources, problem))
 	}
 	problems = append(
 		problems,
@@ -261,6 +249,33 @@ func configuredPrismaFiles(
 	}
 	sort.Strings(sources)
 	return sources, problems
+}
+
+// failPrismaSet records one whole-set failure against every file of the set.
+//
+// The symbol is `*` rather than `model`, and the difference is load-bearing. A
+// reference reads an inventory problem only when it selects that problem's
+// symbol (`graph.go:169-174`), so a set that failed to parse would look
+// problem-free to a reference selecting only columns or relations — which then
+// reports that its globs "materialized no selected evidence units", sending the
+// author to widen a selector when the schema is what could not be read. A
+// failure that belongs to the whole set belongs to every selector over it.
+func failPrismaSet(
+	inventories map[string]*artifactInventory,
+	sources []string,
+	message string,
+) string {
+	for _, source := range sources {
+		inventory := inventories[source]
+		if inventory == nil {
+			continue
+		}
+		inventory.Problems = append(inventory.Problems, inventoryProblem{
+			Symbol:  "*",
+			Message: message,
+		})
+	}
+	return message
 }
 
 // configuresPrisma reports whether any claim or reference selects this artifact

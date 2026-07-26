@@ -340,6 +340,16 @@ func TestPrismaLoaderReportsAnUnparseableSchema(t *testing.T) {
 	if len(inventory.Problems) == 0 {
 		t.Fatal("the inventory must carry the failure so a selecting reference sees it")
 	}
+	// A reference reads an inventory problem only when it selects that
+	// problem's symbol, so a set-wide failure filed under `model` would look
+	// problem-free to a reference selecting only columns — which then blames
+	// the selector for materializing nothing, on a schema that could not be
+	// read at all.
+	for _, problem := range inventory.Problems {
+		if problem.Symbol != "*" {
+			t.Fatalf("a whole-set failure must reach every selector, got symbol %q", problem.Symbol)
+		}
+	}
 }
 
 /**

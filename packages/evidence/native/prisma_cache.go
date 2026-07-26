@@ -165,16 +165,11 @@ func prismaUnitsFromOutcome(
 	outcome prismaSetOutcome,
 ) []string {
 	if outcome.Rejected {
-		message := prismaNormalizationFailure(outcome.Problem)
-		for _, source := range sources {
-			if inventory := inventories[source]; inventory != nil {
-				inventory.Problems = append(inventory.Problems, inventoryProblem{
-					Symbol:  "model",
-					Message: message,
-				})
-			}
-		}
-		return []string{message}
+		return []string{failPrismaSet(
+			inventories,
+			sources,
+			prismaNormalizationFailure(outcome.Problem),
+		)}
 	}
 	locations := locatePrismaDeclarations(root, sources)
 	fallback := ""
