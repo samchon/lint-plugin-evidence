@@ -14,11 +14,12 @@ import type { IEvidenceGraphReference } from "./IEvidenceGraphReference";
  * <reason>` and `@evidenceExclude <target> <reason>` require a target and a
  * non-empty explanation.
  *
- * A triple-slash comment is the only form that hosts a citation. Prisma
- * discards a double-slash line comment outright, and a block comment reaches
- * Prisma's documentation but is not read here — so a citation written in either
- * is reported rather than ignored, because a tag that silently does nothing is
- * the exact failure this rule exists to remove.
+ * A triple-slash comment and a block comment both host a citation, because
+ * Prisma documents a declaration with either and both reach the generated
+ * client types. A double-slash line comment is discarded by Prisma itself and
+ * hosts nothing — a citation written in one is reported rather than ignored,
+ * because a tag that silently does nothing is the exact failure this rule
+ * exists to remove.
  *
  * A comment documents the declaration that immediately follows it, which is
  * Prisma's own rule. A blank line before a top-level block detaches the comment

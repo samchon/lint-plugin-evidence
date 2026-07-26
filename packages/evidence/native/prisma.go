@@ -411,11 +411,13 @@ func prismaModelUnits(model prismaModel) []*evidenceUnit {
 // declarations, and reports every citation that cannot become one.
 //
 // Silence is the failure this rule exists to remove, so a tag is never simply
-// skipped. Prisma keeps three comment forms and discards none of them from the
-// file an author reads, but only `///` documents a declaration — a block
-// comment even reaches the parser's `documentation`, so a citation written
-// there looks honoured in the parsed output while doing nothing at all. Each
-// unusable placement therefore names the move that fixes it.
+// skipped. Which forms may host was settled by measurement rather than by
+// preference: `///` and `/* */` both reach the parser's `documentation` and
+// both are emitted into the generated client and into prisma-markdown's ERD,
+// so both host a citation here. `//` is discarded by Prisma itself and is the
+// only form that cannot. Every other unusable placement — documenting nothing,
+// documenting something this graph does not address, or burying the tag behind
+// an extra slash — names the move that fixes it.
 func prismaDeclarationsFromComments(
 	comments []prismaCommentRun,
 	hosts map[string]*evidenceUnit,
@@ -429,7 +431,7 @@ func prismaDeclarationsFromComments(
 			if prismaCommentCarriesTag(run.Body) {
 				problems = append(
 					problems,
-					"Evidence tag at "+location+" sits in a "+prismaCommentFormName(run.Form)+", which does not document a Prisma declaration. Write the citation on a '///' documentation comment directly above the model, column, or relation it grounds.",
+					"Evidence tag at "+location+" sits in a '//' line comment, which Prisma discards rather than attaching to the declaration below it. Write the citation on a '///' or '/* */' documentation comment directly above the model, column, or relation it grounds.",
 				)
 			}
 			continue
@@ -521,9 +523,18 @@ func prismaBuriedTagLines(body string) []int {
 }
 
 // prismaBuriedTag reports whether a line would open a citation once its leading
-// slashes are removed.
+// comment punctuation is removed.
 //
-// Only leading slashes are stripped, so prose that merely mentions the tag
+// Two shapes bury a tag, and both are one keystroke from a citation that works.
+// A fourth slash makes `//// @evidence` a doc comment whose text begins with a
+// slash, and a JSDoc-style block hands Prisma its own asterisks as content:
+// measured, `/** @evidence x */` reaches the parser's documentation as
+// `* @evidence x`, and the multi-line form keeps a leading asterisk on every
+// line of it. In both the tag no longer opens its line, so nothing parses it —
+// and until this stripped asterisks too, nothing reported it either. A schema
+// author arriving from JSDoc writes the second shape by habit.
+//
+// Only leading punctuation is stripped, so prose that merely mentions the tag
 // somewhere in a sentence is untouched. Over-reporting an ordinary comment
 // would teach an author to stop reading these diagnostics, which costs more
 // than the case being caught.
@@ -534,13 +545,6 @@ func prismaBuriedTag(trimmed string) bool {
 	}
 	_, _, found := declarationLine(stripped)
 	return found
-}
-
-func prismaCommentFormName(form prismaCommentForm) string {
-	if form == prismaBlockComment {
-		return "'/* */' block comment"
-	}
-	return "'//' line comment"
 }
 
 // prismaNormalizationFailure words a rejected schema identically whether the
