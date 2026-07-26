@@ -186,21 +186,46 @@ model Seller {
  *  3. Assert it is malformed rather than silently accepted.
  */
 func TestPrismaCitationWithoutAReasonIsMalformed(t *testing.T) {
-	declarations, problems := prismaClaimOf(`/// @evidence docs/spec.md#pricing
+	inventories := map[string]*artifactInventory{
+		"prisma/schema.prisma": {Path: "prisma/schema.prisma", Type: artifactPrisma},
+	}
+	scan := scanPrismaFile("prisma/schema.prisma", `/// @evidence docs/spec.md#amounts
 model Sale {
   price Int
-  seller Seller
 }
-`, prismaClaimModels)
-	if len(problems) != 0 {
-		t.Fatalf("the malformed declaration is reported by the graph, not the scan: %v", problems)
+`, map[string]prismaLocation{})
+	hosts := map[string]*evidenceUnit{}
+	for _, unit := range prismaModelUnits(prismaModel{Name: "Sale"}) {
+		unit.Path = "prisma/schema.prisma"
+		hosts[joinPrismaIdentity(unit.Identity)] = unit
 	}
-	if len(declarations) != 1 {
-		t.Fatalf("expected the declaration to be collected, got %d", len(declarations))
+	if problems := prismaDeclarationsFromComments(scan.Comments, hosts, inventories); len(problems) != 0 {
+		t.Fatalf("validity belongs to the graph, not the scan: %v", problems)
 	}
-	if declarations[0].valid() {
-		t.Fatalf("a citation with no reason must not be valid: %+v", declarations[0])
-	}
+	document, _ := scanMarkdownInventory("docs/spec.md", "## Amounts {#amounts}\n")
+	loader := newTypeScriptLoader("", map[string]*artifactInventory{})
+	states, problems := materializeClaimStates(
+		graphConfig{Claims: []claimSpec{{
+			Type:    artifactPrisma,
+			Files:   mustGlobSet(t, []string{"prisma/**/*.prisma"}),
+			Symbols: symbolSet{"model": true},
+			References: []referenceSpec{{
+				Type:    artifactMarkdown,
+				Files:   mustGlobSet(t, []string{"docs/spec.md"}),
+				Symbols: symbolSet{"h2": true},
+			}},
+		}}},
+		map[string]*artifactInventory{"docs/spec.md": document},
+		inventories,
+		map[string]*artifactInventory{},
+		map[string]*artifactInventory{},
+		loader,
+	)
+	messages := append(problems, evaluateEvidenceGraph(states, loader)...)
+	assertProblemContains(t, messages, "Malformed @evidence declaration at prisma/schema.prisma:1")
+	// The reasonless citation must not quietly count either, or an author could
+	// discharge an obligation with a target and nothing a reviewer can read.
+	assertProblemContains(t, messages, "Missing acknowledgement for 'docs/spec.md#amounts'")
 }
 
 /**
