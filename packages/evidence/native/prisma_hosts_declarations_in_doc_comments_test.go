@@ -434,3 +434,63 @@ model Sale {
 		t.Fatalf("prose declares nothing: %s", prismaDeclarationIndex(declarations))
 	}
 }
+
+/**
+ * Verifies a citation written in a JSDoc-style block is reported.
+ *
+ * This is the shape a schema author arriving from TypeScript writes by habit,
+ * and it produced no declaration and no diagnostic. Prisma keeps the block as
+ * documentation and hands its own asterisks over as content — measured,
+ * `/** @evidence x *\/` reaches the parser as `* @evidence x` — so the tag no
+ * longer opens its line. Nothing parsed it, and the detector stripped only
+ * leading slashes, so nothing reported it either.
+ *
+ * Both spellings matter: the single-line form buries one asterisk, and the
+ * multi-line form buries one on every line of the run.
+ *
+ *  1. Write a citation in each JSDoc-style form.
+ *  2. Assert neither hosts a declaration.
+ *  3. Assert each is reported as a block comment rather than dropped.
+ */
+func TestPrismaReportsACitationInAJSDocStyleBlock(t *testing.T) {
+	for name, schema := range map[string]string{
+		"single line": "/** @evidence docs/spec.md#a Written JSDoc style. */\nmodel Sale {\n  price Int\n  seller Seller\n}\n",
+		"multi line":  "/**\n * @evidence docs/spec.md#a Written JSDoc style.\n */\nmodel Sale {\n  price Int\n  seller Seller\n}\n",
+	} {
+		declarations, problems := prismaClaimOf(schema, prismaClaimModels)
+		if len(declarations) != 0 {
+			t.Fatalf("%s: a block comment hosts nothing: %s", name, prismaDeclarationIndex(declarations))
+		}
+		if len(problems) != 1 {
+			t.Fatalf("%s: expected one problem, got %d:\n%s", name, len(problems), strings.Join(problems, "\n"))
+		}
+		if !strings.Contains(problems[0], "block comment") {
+			t.Fatalf("%s: the problem must name the comment form: %q", name, problems[0])
+		}
+	}
+}
+
+/**
+ * Verifies an asterisk in ordinary prose is not mistaken for a buried citation.
+ *
+ * The negative twin of the case above, and the reason the detector strips only
+ * *leading* punctuation. A bulleted doc comment is ordinary documentation, and
+ * reporting it would teach an author to stop reading these diagnostics — which
+ * costs more than the case being caught.
+ *
+ *  1. Write a bulleted list and a mid-sentence mention in a doc comment.
+ *  2. Assert nothing is reported.
+ */
+func TestPrismaAsteriskProseIsNotBuried(t *testing.T) {
+	_, problems := prismaClaimOf(`/// Notes:
+/// * write @evidence above the model it grounds
+/// * keep the reason reviewable
+model Sale {
+  price Int
+  seller Seller
+}
+`, prismaClaimModels)
+	if len(problems) != 0 {
+		t.Fatalf("a bulleted note is not a buried citation: %v", problems)
+	}
+}

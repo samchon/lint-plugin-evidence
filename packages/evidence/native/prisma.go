@@ -521,14 +521,23 @@ func prismaBuriedTagLines(body string) []int {
 }
 
 // prismaBuriedTag reports whether a line would open a citation once its leading
-// slashes are removed.
+// comment punctuation is removed.
 //
-// Only leading slashes are stripped, so prose that merely mentions the tag
+// Two shapes bury a tag, and both are one keystroke from a citation that works.
+// A fourth slash makes `//// @evidence` a doc comment whose text begins with a
+// slash, and a JSDoc-style block hands Prisma its own asterisks as content:
+// measured, `/** @evidence x */` reaches the parser's documentation as
+// `* @evidence x`, and the multi-line form keeps a leading asterisk on every
+// line of it. In both the tag no longer opens its line, so nothing parses it —
+// and until this stripped asterisks too, nothing reported it either. A schema
+// author arriving from JSDoc writes the second shape by habit.
+//
+// Only leading punctuation is stripped, so prose that merely mentions the tag
 // somewhere in a sentence is untouched. Over-reporting an ordinary comment
 // would teach an author to stop reading these diagnostics, which costs more
 // than the case being caught.
 func prismaBuriedTag(trimmed string) bool {
-	stripped := strings.TrimSpace(strings.TrimLeft(trimmed, "/"))
+	stripped := strings.TrimSpace(strings.TrimLeft(trimmed, "/*"))
 	if stripped == trimmed {
 		return false
 	}
