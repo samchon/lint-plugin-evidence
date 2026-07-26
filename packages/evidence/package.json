@@ -38,7 +38,8 @@
     "jsdoc",
     "typescript",
     "openapi",
-    "swagger"
+    "swagger",
+    "prisma"
   ],
   "repository": {
     "type": "git",
