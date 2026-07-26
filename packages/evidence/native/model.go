@@ -17,6 +17,7 @@ type artifactKind string
 
 const (
 	artifactMarkdown   artifactKind = "markdown"
+	artifactPrisma     artifactKind = "prisma"
 	artifactSwagger    artifactKind = "swagger"
 	artifactTypeScript artifactKind = "typescript"
 )
@@ -78,7 +79,7 @@ func (set symbolSet) intersects(other symbolSet) bool {
 }
 
 func (set symbolSet) names() string {
-	order := []string{"file", "h1", "h2", "h3", "h4", "operation", "type", "function", "property"}
+	order := []string{"file", "h1", "h2", "h3", "h4", "operation", "model", "column", "relation", "type", "function", "property"}
 	names := make([]string, 0, len(set))
 	known := map[string]bool{}
 	for _, name := range order {

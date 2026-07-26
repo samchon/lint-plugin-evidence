@@ -233,6 +233,7 @@ func TestSwaggerOperationsParticipateInCoverage(t *testing.T) {
 	states, stateProblems := materializeClaimStates(
 		config,
 		map[string]*artifactInventory{},
+		map[string]*artifactInventory{},
 		map[string]*artifactInventory{
 			"api/openapi.json": {
 				Path:  "api/openapi.json",

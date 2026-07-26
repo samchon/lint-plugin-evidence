@@ -274,7 +274,12 @@ func TestHintsRankSwaggerOperationsLast(t *testing.T) {
 			}},
 		},
 	}
-	units := selectedCompletionUnits(config, markdown, swagger)
+	units := selectedCompletionUnits(
+		config,
+		markdown,
+		map[string]*artifactInventory{},
+		swagger,
+	)
 	targets := make([]string, 0, len(units))
 	for _, unit := range units {
 		targets = append(targets, unit.Target)

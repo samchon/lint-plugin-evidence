@@ -3,6 +3,12 @@ packages:
   - 'packages/*'
   - 'tests/*'
 catalogs:
+  prisma:
+    # Pinned exactly: Prisma publishes this package under an engine-hash version
+    # rather than a semver range, so a caret would express nothing. The bridge
+    # prefers a copy resolvable from the consumer's own project and falls back
+    # to this one, so the pin decides the default parser, not the only one.
+    '@prisma/prisma-schema-wasm': 7.10.0-2.d0368e25c88e68caa4d283b5f2d88d1b76ed9356
   typia:
     '@typia/interface': &typia ^13.2.0
     '@typia/utils': *typia

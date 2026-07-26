@@ -1,0 +1,424 @@
+package evidence
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"io/fs"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+)
+
+const prismaBridgeTimeout = 60 * time.Second
+const prismaBridgeOutputLimit = 64 * 1024 * 1024
+const prismaBridgeErrorLimit = 64 * 1024
+
+// prismaSetID names the one schema set this graph parses.
+//
+// A project declares one Prisma schema. Prisma itself enforces that — two
+// `datasource` blocks in one parse are its own error — so splitting the
+// configured files into several independent parses would invent a topology the
+// tool being wrapped does not have. Every configured Prisma glob, claim and
+// reference alike, therefore contributes to a single ordered set, and the
+// identity round-trips through the bridge so a contract drift is caught rather
+// than silently reassigned.
+const prismaSetID = "schema"
+
+const prismaBridgeScript = `
+const path = require("node:path");
+const { createRequire } = require("node:module");
+
+const root = process.argv[1];
+const projectRequire = createRequire(path.join(root, "package.json"));
+const manifest = projectRequire.resolve("@samchon/lint-plugin-evidence/package.json");
+const pluginRequire = createRequire(manifest);
+const loader = pluginRequire(
+  path.join(path.dirname(manifest), "lib", "internal", "loadPrismaModels.js"),
+);
+
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => { input += chunk; });
+process.stdin.on("end", async () => {
+  try {
+    const result = await loader.loadPrismaModels(JSON.parse(input));
+    process.stdout.write(JSON.stringify(result));
+  } catch (error) {
+    process.stderr.write(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  }
+});
+`
+
+type prismaNormalizationRequest struct {
+	Root string             `json:"root"`
+	Sets []prismaSetRequest `json:"sets"`
+}
+
+type prismaSetRequest struct {
+	ID    string   `json:"id"`
+	Files []string `json:"files"`
+}
+
+type prismaNormalizationResult struct {
+	Documents []prismaSetInventory `json:"documents"`
+	Problems  []prismaSetProblem   `json:"problems"`
+}
+
+// prismaSetInventory is one parsed schema set.
+//
+// Digest is the composition the loader itself computed from the bytes it read,
+// and it is what the result is remembered under. Hashing there rather than
+// trusting the digest this process took beforehand is what makes the key exact:
+// the loader runs in another process and opens the files again, so a write
+// landing between the two reads would otherwise bind one schema's models to
+// another schema's bytes.
+type prismaSetInventory struct {
+	ID     string        `json:"id"`
+	Models []prismaModel `json:"models"`
+	Digest string        `json:"digest"`
+}
+
+// prismaSetProblem is a set the parser refused. Digest carries the same meaning
+// as on an inventory, so a schema that cannot be parsed is remembered as a
+// failure rather than re-parsed on every later cycle.
+type prismaSetProblem struct {
+	ID      string `json:"id"`
+	Message string `json:"message"`
+	Digest  string `json:"digest"`
+}
+
+type prismaModel struct {
+	Name          string        `json:"name"`
+	Documentation string        `json:"documentation"`
+	Fields        []prismaField `json:"fields"`
+}
+
+type prismaField struct {
+	Name          string `json:"name"`
+	Symbol        string `json:"symbol"`
+	Documentation string `json:"documentation"`
+}
+
+// loadPrismaInventories materializes one inventory per configured schema file.
+//
+// The population comes from Prisma's own parser and the locations come from a
+// native scan, and the split is load-bearing rather than convenient. The parser
+// answers what exists — including which fields are relations, which no amount
+// of reading text recovers cheaply, because a back-reference carries no
+// attribute at all — but its payload has no line, column, or even file for
+// anything it returns. The scan answers only where a name is written, and it
+// can neither add a unit nor remove one, so a scan that misses costs a precise
+// location and never a silently smaller coverage denominator.
+func loadPrismaInventories(
+	root string,
+	config graphConfig,
+) (map[string]*artifactInventory, []string) {
+	// A graph that names no Prisma glob never pays for one. The walk below is
+	// cheap on such a project — every directory fails the descendant test and is
+	// skipped at once — but "cheap" is still a full listing of the project root
+	// on every cycle of every consumer who does not use this artifact kind.
+	if !configuresPrisma(config) {
+		return map[string]*artifactInventory{}, nil
+	}
+	sources, problems := configuredPrismaFiles(root, config)
+	inventories := map[string]*artifactInventory{}
+	for _, source := range sources {
+		inventories[source] = &artifactInventory{
+			Path: source,
+			Type: artifactPrisma,
+		}
+	}
+	if len(sources) == 0 {
+		return inventories, problems
+	}
+
+	// Parsing costs a Node process, and the process start dominates it — a
+	// ten-model schema and a two-hundred-model one pay nearly the same. A
+	// resident host repeats this every cycle, so an unchanged schema would
+	// otherwise be re-parsed on every TypeScript keystroke that rebuilds.
+	digest := prismaContentDigest(root, sources)
+	if outcome, hit := prismaSchemas.lookup(digest); hit {
+		return inventories, append(
+			problems,
+			prismaUnitsFromOutcome(root, sources, inventories, outcome)...,
+		)
+	}
+
+	result, err := normalizePrismaSet(root, sources)
+	if err != nil {
+		message := "Evidence graph could not run its Prisma schema loader: " + err.Error() + ". Prisma references require Node.js and a resolvable @prisma/prisma-schema-wasm."
+		return inventories, append(problems, failPrismaSet(inventories, sources, message))
+	}
+
+	outcome, problem := prismaOutcomeOf(result)
+	if problem != "" {
+		return inventories, append(problems, failPrismaSet(inventories, sources, problem))
+	}
+	problems = append(
+		problems,
+		prismaUnitsFromOutcome(root, sources, inventories, outcome)...,
+	)
+	rememberPrismaSchema(outcome.digest, outcome)
+	return inventories, problems
+}
+
+// prismaOutcomeOf reduces one bridge answer to the single set that was asked
+// for, and reports a contract drift rather than guessing past it.
+//
+// Every branch here describes a bridge that answered something other than what
+// it was asked. None of them can be repaired by editing a schema, so each names
+// the installation instead — and none may fall through to "no models", which is
+// a schema whose every obligation is vacuously satisfied.
+func prismaOutcomeOf(result prismaNormalizationResult) (prismaSetOutcome, string) {
+	drift := "Reinstall @samchon/lint-plugin-evidence; the native and JavaScript bridge contracts disagree."
+	if len(result.Documents)+len(result.Problems) != 1 {
+		return prismaSetOutcome{}, "Evidence graph Prisma loader answered " +
+			decimal(len(result.Documents)+len(result.Problems)) +
+			" schema sets for one request. " + drift
+	}
+	for _, document := range result.Documents {
+		if document.ID != prismaSetID {
+			return prismaSetOutcome{}, "Evidence graph Prisma loader returned an unconfigured schema set '" + document.ID + "'. " + drift
+		}
+		return prismaSetOutcome{Models: document.Models, digest: document.Digest}, ""
+	}
+	problem := result.Problems[0]
+	if problem.ID != prismaSetID {
+		return prismaSetOutcome{}, "Evidence graph Prisma loader rejected an unconfigured schema set '" + problem.ID + "'. " + drift
+	}
+	return prismaSetOutcome{
+		Rejected: true,
+		Problem:  problem.Message,
+		digest:   problem.Digest,
+	}, ""
+}
+
+// configuredPrismaFiles lists the schema files every configured Prisma glob
+// selects, claim and reference alike, in one sorted order.
+//
+// Order is the digest's, so it must not depend on filesystem enumeration.
+func configuredPrismaFiles(
+	root string,
+	config graphConfig,
+) ([]string, []string) {
+	sources := []string{}
+	problems := []string{}
+	err := filepath.WalkDir(root, func(current string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			relative, ok := relativeProjectPath(root, current)
+			relevant := ok &&
+				(matchesConfiguredPrismaFile(config, relative) ||
+					couldContainConfiguredPrisma(config, relative))
+			if !relevant {
+				if entry != nil && entry.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			problems = append(problems, "Evidence graph could not inspect '"+current+"': "+walkErr.Error()+". Fix filesystem access so configured Prisma sources can be indexed.")
+			if entry != nil && entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if entry.IsDir() {
+			if current == root {
+				return nil
+			}
+			relative, ok := relativeProjectPath(root, current)
+			if !ok || !couldContainConfiguredPrisma(config, relative) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		relative, ok := relativeProjectPath(root, current)
+		if !ok || !matchesConfiguredPrismaFile(config, relative) {
+			return nil
+		}
+		sources = append(sources, relative)
+		return nil
+	})
+	if err != nil {
+		problems = append(problems, "Evidence graph could not walk project root '"+root+"': "+err.Error()+".")
+	}
+	sort.Strings(sources)
+	return sources, problems
+}
+
+// failPrismaSet records one whole-set failure against every file of the set.
+//
+// The symbol is `*` rather than `model`, and the difference is load-bearing. A
+// reference reads an inventory problem only when it selects that problem's
+// symbol (`graph.go:169-174`), so a set that failed to parse would look
+// problem-free to a reference selecting only columns or relations — which then
+// reports that its globs "materialized no selected evidence units", sending the
+// author to widen a selector when the schema is what could not be read. A
+// failure that belongs to the whole set belongs to every selector over it.
+func failPrismaSet(
+	inventories map[string]*artifactInventory,
+	sources []string,
+	message string,
+) string {
+	for _, source := range sources {
+		inventory := inventories[source]
+		if inventory == nil {
+			continue
+		}
+		inventory.Problems = append(inventory.Problems, inventoryProblem{
+			Symbol:  "*",
+			Message: message,
+		})
+	}
+	return message
+}
+
+// configuresPrisma reports whether any claim or reference selects this artifact
+// kind at all.
+func configuresPrisma(config graphConfig) bool {
+	for _, claim := range config.Claims {
+		if claim.Type == artifactPrisma {
+			return true
+		}
+		for _, reference := range claim.References {
+			if reference.Type == artifactPrisma {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func matchesConfiguredPrismaFile(config graphConfig, path string) bool {
+	for _, claim := range config.Claims {
+		if claim.Type == artifactPrisma && claim.Files.matches(path) {
+			return true
+		}
+		for _, reference := range claim.References {
+			if reference.Type == artifactPrisma && reference.Files.matches(path) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func couldContainConfiguredPrisma(config graphConfig, directory string) bool {
+	for _, claim := range config.Claims {
+		if claim.Type == artifactPrisma &&
+			claim.Files.couldMatchDescendant(directory) {
+			return true
+		}
+		for _, reference := range claim.References {
+			if reference.Type == artifactPrisma &&
+				reference.Files.couldMatchDescendant(directory) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func normalizePrismaSet(
+	root string,
+	sources []string,
+) (prismaNormalizationResult, error) {
+	request, err := json.Marshal(prismaNormalizationRequest{
+		Root: root,
+		Sets: []prismaSetRequest{{ID: prismaSetID, Files: sources}},
+	})
+	if err != nil {
+		return prismaNormalizationResult{}, err
+	}
+	node := os.Getenv("TTSC_NODE_BINARY")
+	if node == "" {
+		node, err = exec.LookPath("node")
+		if err != nil {
+			return prismaNormalizationResult{}, errors.New("Node.js executable was not found")
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), prismaBridgeTimeout)
+	defer cancel()
+	command := exec.CommandContext(ctx, node, "-e", prismaBridgeScript, root)
+	command.Dir = root
+	command.Stdin = bytes.NewReader(request)
+	stdout := &limitedBuffer{Limit: prismaBridgeOutputLimit}
+	stderr := &limitedBuffer{Limit: prismaBridgeErrorLimit}
+	command.Stdout = stdout
+	command.Stderr = stderr
+	if err := command.Run(); err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return prismaNormalizationResult{}, errors.New("Prisma schema loader exceeded its 60 second timeout")
+		}
+		detail := strings.TrimSpace(stderr.String())
+		if detail == "" {
+			detail = err.Error()
+		}
+		return prismaNormalizationResult{}, errors.New(detail)
+	}
+	var result prismaNormalizationResult
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		return prismaNormalizationResult{}, errors.New("Prisma schema loader returned invalid JSON: " + err.Error())
+	}
+	return result, nil
+}
+
+// prismaModelUnits turns one parsed model into its unit and its members'.
+//
+// A relation is a field, so a two-sided relation is two units, one owned by
+// each model — including a self-relation, where both sides belong to the same
+// model and share one relation name. Collapsing them by that shared name would
+// give one unit two parents, which the hierarchy has no way to express.
+func prismaModelUnits(model prismaModel) []*evidenceUnit {
+	modelID := "prisma:" + model.Name
+	units := []*evidenceUnit{{
+		ID:       modelID,
+		Target:   modelID,
+		Identity: []string{model.Name},
+		Type:     artifactPrisma,
+		Symbol:   "model",
+		Readable: "Prisma model '" + model.Name + "'",
+	}}
+	seen := map[string]bool{}
+	for _, field := range model.Fields {
+		if field.Symbol != "column" && field.Symbol != "relation" {
+			continue
+		}
+		target := modelID + "." + field.Name
+		if seen[target] {
+			continue
+		}
+		seen[target] = true
+		units = append(units, &evidenceUnit{
+			ID:       target,
+			ParentID: modelID,
+			Target:   target,
+			Identity: []string{model.Name, field.Name},
+			Type:     artifactPrisma,
+			Symbol:   field.Symbol,
+			Readable: "Prisma " + field.Symbol + " '" + model.Name + "." + field.Name + "'",
+		})
+	}
+	return units
+}
+
+// prismaNormalizationFailure words a rejected schema identically whether the
+// rejection arrived from the parser this cycle or from memory.
+//
+// The parser's own report is preserved rather than summarized, because it is
+// the only place a location survives: a successful parse carries no positions
+// at all, while a rejection names the file and line the author has to open.
+func prismaNormalizationFailure(message string) string {
+	reason := strings.TrimSpace(message)
+	if reason == "" {
+		reason = "the parser reported no reason"
+	}
+	return "Evidence graph could not parse the configured Prisma schema: " +
+		reason +
+		". Fix the schema so Prisma can read it."
+}

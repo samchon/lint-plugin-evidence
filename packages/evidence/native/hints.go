@@ -23,6 +23,7 @@ import (
 type graphCorpus struct {
 	Config   graphConfig
 	Markdown map[string]*artifactInventory
+	Prisma   map[string]*artifactInventory
 	Swagger  map[string]*artifactInventory
 }
 
@@ -50,7 +51,12 @@ func (graphRule) Hints(ctx *rule.HintContext) []rule.Hint {
 	if !published {
 		return nil
 	}
-	units := selectedCompletionUnits(corpus.Config, corpus.Markdown, corpus.Swagger)
+	units := selectedCompletionUnits(
+		corpus.Config,
+		corpus.Markdown,
+		corpus.Prisma,
+		corpus.Swagger,
+	)
 	routes := selectsTypeScriptReference(corpus.Config)
 	hints := make([]rule.Hint, 0, (len(units)+1)*len(evidenceHintTriggers))
 	for _, trigger := range evidenceHintTriggers {
@@ -152,6 +158,7 @@ func selectsTypeScriptReference(config graphConfig) bool {
 func selectedCompletionUnits(
 	config graphConfig,
 	markdown map[string]*artifactInventory,
+	prisma map[string]*artifactInventory,
 	swagger map[string]*artifactInventory,
 ) []*evidenceUnit {
 	ranked := map[string][]*evidenceUnit{}
@@ -161,6 +168,7 @@ func selectedCompletionUnits(
 			inventories := inventoriesOf(
 				reference.Type,
 				markdown,
+				prisma,
 				swagger,
 				map[string]*artifactInventory{},
 			)
@@ -181,7 +189,7 @@ func selectedCompletionUnits(
 		}
 	}
 	units := []*evidenceUnit{}
-	for _, group := range []string{"heading", "file", "operation"} {
+	for _, group := range []string{"heading", "file", "operation", "model"} {
 		tier := ranked[group]
 		sort.SliceStable(tier, func(left int, right int) bool {
 			if tier[left].Path != tier[right].Path {
@@ -198,6 +206,8 @@ func completionRank(unit *evidenceUnit) string {
 	switch {
 	case unit.Type == artifactSwagger:
 		return "operation"
+	case unit.Type == artifactPrisma:
+		return "model"
 	case unit.Symbol == "file":
 		return "file"
 	default:
