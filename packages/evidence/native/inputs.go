@@ -8,13 +8,13 @@ import (
 
 // ProjectInputs declares the files this rule reads from outside the Program.
 //
-// Markdown and Swagger evidence never enters the TypeScript Program, so until
-// `@ttsc/lint@0.22.0` shipped this contract the host had no way to learn that
-// the graph depended on them. The resulting asymmetry was invisible rather than
-// merely inconvenient: a developer editing code saw fresh diagnostics, because
-// the TypeScript event drove a cycle that reloaded the documents along with it,
-// while a developer editing only a spec section saw the citation that had just
-// gone stale keep reporting green.
+// Markdown, Prisma, and Swagger evidence never enters the TypeScript Program,
+// so until `@ttsc/lint@0.22.0` shipped this contract the host had no way to
+// learn that the graph depended on them. The resulting asymmetry was invisible
+// rather than merely inconvenient: a developer editing code saw fresh
+// diagnostics, because the TypeScript event drove a cycle that reloaded the
+// documents along with it, while a developer editing only a spec section or a
+// schema saw the citation that had just gone stale keep reporting green.
 //
 // The host calls this after resolving options and project identity but before
 // loading a Program, so nothing here may read `ctx.Sources`, and nothing here
@@ -42,13 +42,14 @@ func (graphRule) ProjectInputs(ctx *rule.ProjectInputContext) []rule.ProjectInpu
 func graphProjectInputs(config graphConfig) []rule.ProjectInput {
 	inputs := []rule.ProjectInput{}
 	for _, claim := range config.Claims {
-		if claim.Type == artifactMarkdown {
-			inputs = append(inputs, markdownGlobInputs(claim.Files)...)
+		switch claim.Type {
+		case artifactMarkdown, artifactPrisma:
+			inputs = append(inputs, globInputs(claim.Files)...)
 		}
 		for _, reference := range claim.References {
 			switch reference.Type {
-			case artifactMarkdown:
-				inputs = append(inputs, markdownGlobInputs(reference.Files)...)
+			case artifactMarkdown, artifactPrisma:
+				inputs = append(inputs, globInputs(reference.Files)...)
 			case artifactSwagger:
 				inputs = append(inputs, localSwaggerInputs(reference.Source)...)
 			}
@@ -57,7 +58,7 @@ func graphProjectInputs(config graphConfig) []rule.ProjectInput {
 	return inputs
 }
 
-// markdownGlobInputs publishes the positive half of one Markdown glob set.
+// globInputs publishes the positive half of one glob set.
 //
 // Exclusions are dropped rather than translated, because the host's dependency
 // model has no negation — declaring `!docs/private/**` as a glob would watch
@@ -69,7 +70,7 @@ func graphProjectInputs(config graphConfig) []rule.ProjectInput {
 // The declared pattern is the compiled segment form rather than `Raw`, so the
 // host receives a project-relative pattern with the exclusion marker already
 // stripped, `\` already normalized to `/`, and a leading `./` already gone.
-func markdownGlobInputs(globs globSet) []rule.ProjectInput {
+func globInputs(globs globSet) []rule.ProjectInput {
 	inputs := make([]rule.ProjectInput, 0, len(globs.Patterns))
 	for _, pattern := range globs.Patterns {
 		if pattern.Exclude {

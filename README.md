@@ -156,6 +156,7 @@ A graph is one `claims` array, and every claim-reference pair is an independent 
 | Kind | `symbol` values | Default |
 | --- | --- | --- |
 | `"markdown"` | `"file"`, `"h1"`, `"h2"`, `"h3"`, `"h4"` | `["file", "h1", "h2", "h3", "h4"]` |
+| `"prisma"` | `"model"`, `"column"`, `"relation"` | all three for claims, `["model"]` for references |
 | `"swagger"` | No `symbol` property; every operation under `paths` is selected | every operation |
 | `"typescript"` | `"type"`, `"function"`, `"property"` | all three for claims, `"type"` for references |
 
@@ -167,11 +168,13 @@ A reference's `symbol` selects the evidence units one obligation covers, and an 
 
 A claim's `symbol` uses the same selector for the opposite side: it restricts which symbol kinds may host an `@evidence` tag. Namespaces are type hosts, exported data variables are property hosts, and a mixed variable statement can host either of its resident kinds. Omit either selector to accept its documented default.
 
+For Prisma, `"model"` selects a declared model, `"column"` a stored field of one, and `"relation"` a relation field. A model contains its members, so one `@evidence prisma:Sale ...` discharges every selected column and relation beneath it.
+
 Swagger is reference-only. It cannot host declarations and has no `symbol` selector: each operation under the normalized document's `paths` object is one independent obligation.
 
 ### File patterns
 
-Every Markdown or TypeScript `files` property takes project-relative glob patterns, not regular expressions. `*` matches inside one path segment, `**` crosses segments, and `?` matches one character. A bare directory such as `docs` does not select its descendants; write `docs/**` for the subtree.
+Every Markdown, Prisma, or TypeScript `files` property takes project-relative glob patterns, not regular expressions. `*` matches inside one path segment, `**` crosses segments, and `?` matches one character. A bare directory such as `docs` does not select its descendants; write `docs/**` for the subtree.
 
 - `docs/**/*.md` selects every document below `docs`.
 - `backend/src/**/*.ts` selects every backend source file.
@@ -231,6 +234,57 @@ Only operations under `paths` become evidence units. Webhooks and component sche
 One-shot checks always evaluate the current Markdown, TypeScript, and Swagger sources. `ttsc check --watch` and the editor server do too: the rule declares its configured Markdown globs and local Swagger paths to the host, so editing a spec section or regenerating an OpenAPI document starts the next cycle on its own, with no TypeScript file touched. A path stays declared while it is missing, which is what lets a document that has not been generated yet be observed the moment it appears.
 
 An `http:`/`https:` Swagger source is the one exception, and it is not a gap that will close. A URL has no filesystem event to observe, so its freshness is per-evaluation: every cycle refetches it, and nothing wakes the watcher when the served document changes.
+
+### Prisma schema references and claims
+
+A Prisma schema works in both directions. A model can ground a claim, and the schema itself can carry citations back to the requirements that asked for it:
+
+```ts
+const graph: IEvidenceGraphConfig = {
+  claims: [
+    {
+      type: "prisma",
+      name: "Every model justifies itself",
+      files: ["prisma/schema/**/*.prisma"],
+      symbol: "model",
+      reference: {
+        type: "markdown",
+        files: ["docs/requirements/**/*.md"],
+        symbol: "h2",
+      },
+    },
+    {
+      type: "typescript",
+      files: ["src/providers/**/*.ts"],
+      symbol: "function",
+      reference: {
+        type: "prisma",
+        files: ["prisma/schema/**/*.prisma"],
+      },
+    },
+  ],
+};
+```
+
+Every matched file is parsed together as one schema, because a Prisma schema folder is a single namespace whose files reference each other. Targets carry a `prisma:` prefix and are one whitespace-free token: `prisma:Sale` for a model and `prisma:Sale.price` for a member. A model name is unique across the whole folder, so a target never names the file its model is declared in — moving a model between files cannot break a citation.
+
+Three symbols select evidence units and declaration hosts: `"model"`, `"column"` for a stored field, and `"relation"` for a relation field. That split follows Prisma's own resolution rather than the schema text, which is what makes a relation back-reference such as `Seller.sales` classify correctly even though it carries no `@relation` attribute. A view is a `"model"` unit, which is Prisma's own shape rather than a choice made here: its parser returns a view among the datamodel's models. A reference selects `["model"]` by default, and a claim selects all three. Selecting `"column"` puts every `id`, `created_at`, and back-reference into the denominator, so turn it on where a claim really does owe an answer per member and reach for `@evidenceExclude` on the ones it deliberately does not use.
+
+Citations live in `///` documentation comments:
+
+```prisma
+/// @evidence docs/requirements/pricing.md#discount-policy Discount columns exist for this policy.
+model Sale {
+  /// @evidence docs/requirements/pricing.md#coupon-stacking The stacking limit is stored here.
+  coupon_limit Int
+}
+```
+
+That is the only comment form that hosts one. Prisma discards a `//` line comment, and a block comment reaches Prisma's documentation without being read here, so a citation in either is reported rather than ignored. A comment documents whatever declaration immediately follows it, which is Prisma's own rule: a blank line before a top-level block detaches it, and a comment above a block attribute or a closing brace documents nothing. Each of those placements is reported with the move that fixes it.
+
+The schema is parsed by Prisma itself, resolved from your project when your project can resolve one and from this package's pinned `@prisma/prisma-schema-wasm` otherwise. A rejection names which of the two judged the schema, because a parser build validates what it parses and Prisma's rules move between major versions. A schema Prisma rejects fails the build with Prisma's own message and location; it never becomes an empty population whose obligations are all vacuously satisfied.
+
+Parsing costs a Node process, so an unchanged schema is re-parsed only when its bytes change — keyed on the content of the whole ordered file set, so adding a file, editing one, or moving a model between two of them all miss. Configured Prisma globs are declared to the host alongside the Markdown ones, so editing only a schema starts the next watch cycle on its own.
 
 ## Evidence Tags
 

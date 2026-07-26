@@ -615,7 +615,7 @@ func resolveInlineLinkDeclaration(
 ) (string, string) {
 	target := inlineLinkTarget(declaration.Target)
 	if declaration.Type != artifactTypeScript {
-		return "", "Inline link target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + ": only a TypeScript declaration can cite through an inline link, because resolution runs through the citing module's imports and Markdown has none. Write the symbol as a plain target here."
+		return "", "Inline link target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + ": only a TypeScript declaration can cite through an inline link, because resolution runs through the citing module's imports and a " + string(declaration.Type) + " comment has none. Write the symbol as a plain target here."
 	}
 	inventory := loader.inventory(declaration.Path)
 	if inventory == nil {

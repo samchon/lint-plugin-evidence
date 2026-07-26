@@ -407,6 +407,142 @@ func prismaModelUnits(model prismaModel) []*evidenceUnit {
 	return units
 }
 
+// prismaDeclarationsFromComments turns the scanned comment runs into
+// declarations, and reports every citation that cannot become one.
+//
+// Silence is the failure this rule exists to remove, so a tag is never simply
+// skipped. Prisma keeps three comment forms and discards none of them from the
+// file an author reads, but only `///` documents a declaration — a block
+// comment even reaches the parser's `documentation`, so a citation written
+// there looks honoured in the parsed output while doing nothing at all. Each
+// unusable placement therefore names the move that fixes it.
+func prismaDeclarationsFromComments(
+	comments []prismaCommentRun,
+	hosts map[string]*evidenceUnit,
+	inventories map[string]*artifactInventory,
+) []string {
+	problems := []string{}
+	sequence := 0
+	for _, run := range comments {
+		location := run.Path + ":" + decimal(run.Line)
+		if run.Form != prismaDocComment {
+			if prismaCommentCarriesTag(run.Body) {
+				problems = append(
+					problems,
+					"Evidence tag at "+location+" sits in a "+prismaCommentFormName(run.Form)+", which does not document a Prisma declaration. Write the citation on a '///' documentation comment directly above the model, column, or relation it grounds.",
+				)
+			}
+			continue
+		}
+		if run.Key == "" {
+			if prismaCommentCarriesTag(run.Body) {
+				problems = append(
+					problems,
+					"Evidence tag at "+location+" documents no declaration. Prisma attaches a '///' comment to the declaration that immediately follows it, so a blank line before a top-level block, a block attribute, or a closing brace leaves the comment documenting nothing. Move the citation directly above the model, column, or relation it grounds.",
+				)
+			}
+			continue
+		}
+		host := hosts[run.Key]
+		if host == nil {
+			if prismaCommentCarriesTag(run.Body) {
+				problems = append(
+					problems,
+					"Evidence tag at "+location+" documents '"+run.Key+"', which is not a model, column, or relation. A model or a view and their members host an evidence citation; an enum, a composite type, and a datasource or generator setting do not.",
+				)
+			}
+			continue
+		}
+		inventory := inventories[run.Path]
+		if inventory == nil {
+			continue
+		}
+		for _, offset := range prismaBuriedTagLines(run.Body) {
+			problems = append(
+				problems,
+				"Evidence tag at "+run.Path+":"+decimal(run.Line+offset)+" is buried behind an extra slash. Prisma reads a fourth slash as content, so the tag no longer opens its documentation line and nothing resolves it. Write exactly three slashes.",
+			)
+		}
+		for _, parsed := range parseCommentDeclarations(run.Body, true) {
+			sequence++
+			line := run.Line + parsed.LineOffset
+			inventory.Declarations = append(inventory.Declarations, &evidenceDeclaration{
+				ID:       "prisma:" + run.Path + ":" + decimal(line) + ":" + decimal(sequence),
+				Type:     artifactPrisma,
+				Tag:      parsed.Tag,
+				Target:   parsed.Target,
+				Reason:   parsed.Reason,
+				Hosts:    symbolSet{host.Symbol: true},
+				Path:     run.Path,
+				Line:     line,
+				Sequence: sequence,
+			})
+		}
+	}
+	return problems
+}
+
+// prismaCommentCarriesTag reports whether a comment body opens a citation on
+// any of its lines.
+func prismaCommentCarriesTag(body string) bool {
+	for _, line := range strings.Split(body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if _, _, found := declarationLine(trimmed); found {
+			return true
+		}
+		if prismaBuriedTag(trimmed) {
+			return true
+		}
+	}
+	return false
+}
+
+// prismaBuriedTagLines lists the offsets of lines whose citation is buried
+// behind extra slashes.
+//
+// A fourth slash is content, not syntax: Prisma's `(!"///") ~ "//"` lookahead
+// makes `//// @evidence ...` a doc comment whose text begins `/ @evidence ...`.
+// The tag therefore no longer opens its line, so nothing parses it — and
+// nothing reported it either, which made a one-keystroke slip the quietest
+// failure in this artifact kind. The comment is real, the schema keeps it, and
+// an author reading the file sees a citation that does nothing.
+func prismaBuriedTagLines(body string) []int {
+	offsets := []int{}
+	for offset, line := range strings.Split(body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if _, _, found := declarationLine(trimmed); found {
+			continue
+		}
+		if prismaBuriedTag(trimmed) {
+			offsets = append(offsets, offset)
+		}
+	}
+	return offsets
+}
+
+// prismaBuriedTag reports whether a line would open a citation once its leading
+// slashes are removed.
+//
+// Only leading slashes are stripped, so prose that merely mentions the tag
+// somewhere in a sentence is untouched. Over-reporting an ordinary comment
+// would teach an author to stop reading these diagnostics, which costs more
+// than the case being caught.
+func prismaBuriedTag(trimmed string) bool {
+	stripped := strings.TrimSpace(strings.TrimLeft(trimmed, "/"))
+	if stripped == trimmed {
+		return false
+	}
+	_, _, found := declarationLine(stripped)
+	return found
+}
+
+func prismaCommentFormName(form prismaCommentForm) string {
+	if form == prismaBlockComment {
+		return "'/* */' block comment"
+	}
+	return "'//' line comment"
+}
+
 // prismaNormalizationFailure words a rejected schema identically whether the
 // rejection arrived from the parser this cycle or from memory.
 //

@@ -38,13 +38,14 @@ The reason exists for review, not machine judgment. Do not add a rule that guess
 
 ## Units And Hierarchy
 
-Three artifact kinds materialize evidence units.
+Four artifact kinds materialize evidence units.
 
 - **Markdown** — a file addressed as `<path>` or an H1-H4 ATX section addressed as `<path>#<anchor>`.
+- **Prisma** — a model addressed as `prisma:<Model>` and one of its members addressed as `prisma:<Model>.<member>`.
 - **Swagger** — a reference-only Swagger/OpenAPI document whose operations under `paths` are addressed as `<UPPERCASE_METHOD>:<path>`.
 - **TypeScript** — an exported type, function, or property addressed by its qualified public name.
 
-Units form structural containment scopes. A Markdown file contains its heading outline; a heading contains lower-level headings until the next heading of equal or higher level. A TypeScript interface or object-shaped type alias contains its direct properties, and a namespace contains every nested public unit. Top-level TypeScript functions and properties have no aggregate file node. Swagger operations are independent leaves with no document or path aggregate target.
+Units form structural containment scopes. A Markdown file contains its heading outline; a heading contains lower-level headings until the next heading of equal or higher level. A Prisma model contains its columns and relations. A TypeScript interface or object-shaped type alias contains its direct properties, and a namespace contains every nested public unit. Top-level TypeScript functions and properties have no aggregate file node. Swagger operations are independent leaves with no document or path aggregate target.
 
 An `@evidence` or `@evidenceExclude` target acknowledges the selected target and every selected descendant. The reference's `symbol` selector defines the obligation denominator, not the only addressable targets: every structural ancestor of a selected unit remains resolvable as an aggregate scope.
 
@@ -59,6 +60,18 @@ Swagger is reference-only. One `IEvidenceGraphSwaggerReference` owns one exact p
 Normalize Swagger 2.0 and OpenAPI 3.x JSON/YAML inputs with `@typia/utils` to `@typia/interface`'s `OpenApi.IDocument` before materializing operations. Standard and additional operation methods become uppercase targets such as `POST:/members`; preserve the OpenAPI path exactly. Webhooks and component schemas are outside this artifact kind.
 
 Keep the target one whitespace-delimited token. Do not parse `POST /members` as a two-token target: the parser has no reference context, and doing so would reinterpret a TypeScript target `POST` whose reason begins with `/members`.
+
+## Prisma Classification
+
+A Prisma schema works in both directions: its models ground claims, and its `///` comments host them. Selectors are `model`, `column` for a stored field, and `relation` for a relation field. A reference defaults to `["model"]` and a claim to all three, because a reference default promises a denominator while a claim default only decides where a tag may sit.
+
+**The classification is Prisma's, not ours.** Every configured file is parsed together as one schema by Prisma's own parser, which is what separates a column from a relation — a relation has two sides, only one usually carries `@relation`, and the back-reference carries no attribute at all. A **view** arrives among that parser's models and is therefore a `model` unit; the name argues otherwise, which is exactly why it was measured. Enums, composite types, and indexes are outside the unit model.
+
+**That parser returns no position for anything, so a native scan supplies every location.** The scan is subordinate: it may not add a unit, remove one, or change a symbol kind, so a scan that misses costs a precise line and never a smaller coverage denominator. Keep it that way — the moment it decides what exists, a mis-scan turns into a silently passing build.
+
+A model name is unique across the whole schema folder, so a target never names the declaring file and moving a model between files cannot break a citation. A Prisma identifier can never contain a dot, so joining a member address on one is unambiguous — the hazard that keeps TypeScript identities segmented does not exist here.
+
+Only `///` hosts a declaration. A `//` comment is discarded by Prisma and a block comment reaches its `documentation` without being read here, so a citation in either is **reported** rather than ignored. Attachment follows Prisma's own measured rules, recorded in `.wiki/references/prisma.md`: a blank line detaches a top-level comment but not a field's, an intervening `//` line does not break a run, and a comment above a block attribute or a closing brace documents nothing. Do not re-derive these from the grammar; both directions are silent when wrong.
 
 ## TypeScript Classification
 
@@ -113,6 +126,7 @@ Most users meet this plugin only through an error message. State what is wrong, 
 - **Paths are case-sensitive identity on every host.** Case-insensitive comparison may improve a diagnostic but never decides equality.
 - **Markdown separators normalize only for Markdown targets.** Do not rewrite TypeScript literal symbol names.
 - **Swagger methods canonicalize to uppercase; Swagger paths do not normalize.** `POST:/members` and `POST:/Members` are distinct.
+- **A Prisma target carries its `prisma:` prefix and never a file path.** The prefix is what stops a model named `Sale` from competing with a TypeScript type of the same name in the one address map every reference shares.
 - **Qualified TypeScript segments stay encoded internally.** This prevents a literal dot from collapsing into namespace or property qualification.
 - **A merged identity reports the declaration encountered first.** Order is source position, never declaration kind, so `namespace ISale` written above `interface ISale` is the one every diagnostic names.
 - **A citation may sit on any declaration of a merged identity.** The relation is judged on the identity, so placement changes neither resolution nor coverage and is not worth a diagnostic.

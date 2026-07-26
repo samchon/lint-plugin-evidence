@@ -1,4 +1,5 @@
 import type { IEvidenceGraphMarkdownReference } from "./IEvidenceGraphMarkdownReference";
+import type { IEvidenceGraphPrismaReference } from "./IEvidenceGraphPrismaReference";
 import type { IEvidenceGraphSwaggerReference } from "./IEvidenceGraphSwaggerReference";
 import type { IEvidenceGraphTypeScriptReference } from "./IEvidenceGraphTypeScriptReference";
 
@@ -13,5 +14,6 @@ import type { IEvidenceGraphTypeScriptReference } from "./IEvidenceGraphTypeScri
  */
 export type IEvidenceGraphReference =
   | IEvidenceGraphMarkdownReference
+  | IEvidenceGraphPrismaReference
   | IEvidenceGraphSwaggerReference
   | IEvidenceGraphTypeScriptReference;

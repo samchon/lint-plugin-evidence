@@ -1,4 +1,5 @@
 import type { IEvidenceGraphMarkdownClaim } from "./IEvidenceGraphMarkdownClaim";
+import type { IEvidenceGraphPrismaClaim } from "./IEvidenceGraphPrismaClaim";
 import type { IEvidenceGraphTypeScriptClaim } from "./IEvidenceGraphTypeScriptClaim";
 
 /**
@@ -12,4 +13,6 @@ import type { IEvidenceGraphTypeScriptClaim } from "./IEvidenceGraphTypeScriptCl
  * one complete use.
  */
 export type IEvidenceGraphClaim =
-  IEvidenceGraphMarkdownClaim | IEvidenceGraphTypeScriptClaim;
+  | IEvidenceGraphMarkdownClaim
+  | IEvidenceGraphPrismaClaim
+  | IEvidenceGraphTypeScriptClaim;

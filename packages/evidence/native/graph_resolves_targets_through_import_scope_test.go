@@ -283,7 +283,7 @@ func TestGraphRejectsInlineLinksInMarkdownClaims(t *testing.T) {
 		"symbol":"file",
 		"reference":{"type":"typescript","files":["src/api/**"],"symbol":"function"}
 	}]}`)
-	assertProblemContains(t, messages, "Markdown has none")
+	assertProblemContains(t, messages, "a markdown comment has none")
 }
 
 /**
