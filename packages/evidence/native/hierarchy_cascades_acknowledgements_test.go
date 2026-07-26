@@ -168,12 +168,15 @@ export interface Shape {
   height: number;
 }
 `,
-		"docs/ledger.md": `<!-- @evidence Shape The complete shape contract is documented. -->
+		"src/ledger.ts": `import type { Shape } from "./contracts";
+
+/** @evidence {@link Shape} The complete shape contract is documented. */
+export interface ILedger {}
 `,
 	}, `{"claims":[{
-		"type":"markdown",
-		"files":["docs/ledger.md"],
-		"symbol":"file",
+		"type":"typescript",
+		"files":["src/ledger.ts"],
+		"symbol":"type",
 		"reference":{"type":"typescript","files":["src/contracts.ts"],"symbol":"property"}
 	}]}`)
 	assertNoProblems(t, messages)
@@ -188,7 +191,7 @@ export interface Shape {
  * scope would erase unrelated public contracts.
  *
  *  1. Put function and property units under one namespace plus one root value.
- *  2. Exclude the namespace while selecting only child kinds.
+ *  2. Exclude the namespace by link while selecting only child kinds.
  *  3. Assert only the root sibling remains missing.
  */
 func TestTypeScriptNamespaceExclusionCoversOnlyNestedUnits(t *testing.T) {
@@ -206,12 +209,15 @@ export namespace Orders {
 }
 export const version = 1;
 `,
-		"docs/ledger.md": `<!-- @evidenceExclude Orders This document intentionally omits the Orders API. -->
+		"src/ledger.ts": `import type { Orders } from "./contracts";
+
+/** @evidenceExclude {@link Orders} This contract intentionally omits the Orders API. */
+export interface ILedger {}
 `,
 	}, `{"claims":[{
-		"type":"markdown",
-		"files":["docs/ledger.md"],
-		"symbol":"file",
+		"type":"typescript",
+		"files":["src/ledger.ts"],
+		"symbol":"type",
 		"reference":{"type":"typescript","files":["src/contracts.ts"],"symbol":["function","property"]}
 	}]}`)
 	if got := countProblemsContaining(messages, "Missing acknowledgement"); got != 1 {
@@ -239,12 +245,15 @@ export interface Shared {
 }
 export function Shared(): void {}
 `,
-		"docs/ledger.md": `<!-- @evidence Shared The type contract is documented as one scope. -->
+		"src/ledger.ts": `import type { Shared } from "./contracts";
+
+/** @evidence {@link Shared} The type contract is documented as one scope. */
+export interface ILedger {}
 `,
 	}, `{"claims":[{
-		"type":"markdown",
-		"files":["docs/ledger.md"],
-		"symbol":"file",
+		"type":"typescript",
+		"files":["src/ledger.ts"],
+		"symbol":"type",
 		"reference":{"type":"typescript","files":["src/contracts.ts"],"symbol":"property"}
 	}]}`)
 	assertNoProblems(t, messages)

@@ -249,7 +249,7 @@ export interface Ref {}
  * selector and indexed every discovered declaration anyway.
  *
  *  1. Put types, a namespace, properties, and callables in one source file.
- *  2. Acknowledge only the three type identities from Markdown.
+ *  2. Acknowledge only the three type identities from a TypeScript claim.
  *  3. Assert the omitted source selector creates no additional obligation.
  */
 func TestTypeScriptSourceDefaultMaterializesOnlyTypes(t *testing.T) {
@@ -264,17 +264,19 @@ export namespace Api {
 export function draw(): void {}
 export const render = (): void => {};
 `,
-		"docs/ledger.md": `# Contracts
-<!--
-@evidence Shape Shape is documented here.
-@evidence Options Options are documented here.
-@evidence Api The namespace contract is documented here.
--->
+		"src/ledger.ts": `import type { Api, Options, Shape } from "./contracts";
+
+/**
+ * @evidence {@link Shape} Shape is documented here.
+ * @evidence {@link Options} Options are documented here.
+ * @evidence {@link Api} The namespace contract is documented here.
+ */
+export interface ILedger {}
 `,
 	}, `{"claims":[{
-		"type":"markdown",
-		"files":["docs/ledger.md"],
-		"symbol":"h1",
+		"type":"typescript",
+		"files":["src/ledger.ts"],
+		"symbol":"type",
 		"reference":{"type":"typescript","files":["src/contracts.ts"]}
 	}]}`)
 	assertNoProblems(t, messages)
@@ -290,7 +292,7 @@ export const render = (): void => {};
  * configured symbol union is applied.
  *
  *  1. Select `"type"`, `"function"`, and `"property"` from one source file.
- *  2. Acknowledge the interface scope and arrow-function identity.
+ *  2. Acknowledge the interface scope and arrow-function identity by link.
  *  3. Assert the source selector materializes all three kinds.
  */
 func TestTypeScriptSourceAcceptsEverySymbolKind(t *testing.T) {
@@ -301,15 +303,18 @@ export interface Shape {
 }
 export const draw = (): void => {};
 `,
-		"docs/ledger.md": `<!--
-@evidence Shape The interface is documented.
-@evidence draw The callable is documented.
--->
+		"src/ledger.ts": `import type { Shape, draw } from "./contracts";
+
+/**
+ * @evidence {@link Shape} The interface is documented.
+ * @evidence {@link draw} The callable is documented.
+ */
+export interface ILedger {}
 `,
 	}, `{"claims":[{
-		"type":"markdown",
-		"files":["docs/ledger.md"],
-		"symbol":"file",
+		"type":"typescript",
+		"files":["src/ledger.ts"],
+		"symbol":"type",
 		"reference":{"type":"typescript","files":["src/contracts.ts"],"symbol":["type","function","property"]}
 	}]}`)
 	assertNoProblems(t, messages)
@@ -497,23 +502,27 @@ export interface Shared {
 }
 export const Shared = (): void => {};
 `,
-		"docs/ledger.md": "<!-- @evidence Shared The public callable is documented. -->\n",
+		"src/ledger.ts": `import type { Shared } from "./contracts";
+
+/** @evidence {@link Shared} The public callable is documented. */
+export interface ILedger {}
+`,
 	}
 	functionOnly := runIndexRule(t, files, `{"claims":[{
-		"type":"markdown",
-		"files":["docs/ledger.md"],
-		"symbol":"file",
+		"type":"typescript",
+		"files":["src/ledger.ts"],
+		"symbol":"type",
 		"reference":{"type":"typescript","files":["src/contracts.ts"],"symbol":"function"}
 	}]}`)
 	assertNoProblems(t, functionOnly)
 
 	bothKinds := runIndexRule(t, files, `{"claims":[{
-		"type":"markdown",
-		"files":["docs/ledger.md"],
-		"symbol":"file",
+		"type":"typescript",
+		"files":["src/ledger.ts"],
+		"symbol":"type",
 		"reference":{"type":"typescript","files":["src/contracts.ts"],"symbol":["type","function"]}
 	}]}`)
-	assertProblemContains(t, bothKinds, "Ambiguous evidence target 'Shared'")
+	assertProblemContains(t, bothKinds, "Ambiguous evidence target '{@link Shared}'")
 }
 
 /**
@@ -536,28 +545,38 @@ func TestTypeScriptIdentityPreservesLiteralSegmentBoundaries(t *testing.T) {
   static "prototype.run"(): void {}
 }
 `,
-		"docs/ledger.md": "<!-- @evidence Service.prototype.run This target cannot choose a callable. -->\n",
+		"src/ledger.ts": `import type { Service } from "./contracts";
+
+/** @evidence {@link Service.prototype.run} This target cannot choose a callable. */
+export interface ILedger {}
+`,
 	}, `{"claims":[{
-		"type":"markdown",
-		"files":["docs/ledger.md"],
-		"symbol":"file",
+		"type":"typescript",
+		"files":["src/ledger.ts"],
+		"symbol":"type",
 		"reference":{"type":"typescript","files":["src/contracts.ts"],"symbol":"function"}
 	}]}`)
-	assertProblemContains(t, messages, "Ambiguous evidence target 'Service.prototype.run'")
+	assertProblemContains(t, messages, "Ambiguous evidence target '{@link Service.prototype.run}'")
 	assertProblemContains(t, messages, "src/contracts.ts:2")
 	assertProblemContains(t, messages, "src/contracts.ts:3")
 }
 
 /**
  * Verifies slash and backslash characters in TypeScript literal names remain
- * exact symbol identity rather than receiving Markdown path normalization.
+ * exact symbol identity.
  *
- * Both literals are legal public method names. Rewriting the backslash globally
- * makes two distinct callable units ambiguous and leaves neither exact target
- * independently acknowledgeable.
+ * Both literals are legal public method names, and treating either separator as
+ * structure makes two distinct callable units ambiguous, leaving neither exact
+ * target independently acknowledgeable.
+ *
+ * The path-normalization half of this hazard is now structural rather than
+ * tested: a code target reaches resolution only as an inline link from a
+ * TypeScript claim, and `normalizeMarkdownTarget` is never applied to one. What
+ * remains worth pinning is that the segment boundary itself survives a
+ * separator inside a literal name.
  *
  *  1. Export slash and backslash static literal methods.
- *  2. Acknowledge each exact target from one Markdown claim group.
+ *  2. Acknowledge each exact target by link from one TypeScript claim.
  *  3. Assert both callable units resolve without collision.
  */
 func TestTypeScriptLiteralTargetsKeepExactSeparators(t *testing.T) {
@@ -567,15 +586,18 @@ func TestTypeScriptLiteralTargetsKeepExactSeparators(t *testing.T) {
   static "a/b"(): void {}
 }
 `,
-		"docs/ledger.md": `<!--
-@evidence Service.a\b The backslash-named callable is documented.
-@evidence Service.a/b The slash-named callable is documented.
--->
+		"src/ledger.ts": `import type { Service } from "./contracts";
+
+/**
+ * @evidence {@link Service.a\b} The backslash-named callable is documented.
+ * @evidence {@link Service.a/b} The slash-named callable is documented.
+ */
+export interface ILedger {}
 `,
 	}, `{"claims":[{
-		"type":"markdown",
-		"files":["docs/ledger.md"],
-		"symbol":"file",
+		"type":"typescript",
+		"files":["src/ledger.ts"],
+		"symbol":"type",
 		"reference":{"type":"typescript","files":["src/contracts.ts"],"symbol":"function"}
 	}]}`)
 	assertNoProblems(t, messages)

@@ -10,10 +10,10 @@ const mergedIdentityGraphConfig = `{"claims":[{
 }]}`
 
 const mergedIdentityReferenceConfig = `{"claims":[{
-	"type":"markdown",
-	"files":["docs/spec.md"],
-	"symbol":"file",
-	"reference":{"type":"typescript","files":["src/**"],"symbol":"type"}
+	"type":"typescript",
+	"files":["src/claim.ts"],
+	"symbol":"type",
+	"reference":{"type":"typescript","files":["src/subject.ts"],"symbol":"type"}
 }]}`
 
 /**
@@ -151,7 +151,7 @@ export namespace ISale {
  * to be the identity's first declaration no matter which half was written
  * first.
  *
- *  1. Obligate a merged identity from a Markdown claim, in both orders.
+ *  1. Obligate a merged identity from a TypeScript claim, in both orders.
  *  2. Leave it unacknowledged.
  *  3. Assert the diagnostic points at line 2 either way.
  */
@@ -175,7 +175,7 @@ export interface ISale {
 `,
 	} {
 		messages := runIndexRule(t, map[string]string{
-			"docs/spec.md":   "## Sale Price {#sale-price}\n",
+			"src/claim.ts":   "export interface IClaim {}\n",
 			"src/subject.ts": source,
 		}, mergedIdentityReferenceConfig)
 		assertProblemContains(t, messages, "Missing acknowledgement for 'ISale'")

@@ -72,7 +72,7 @@ func decodeClaim(raw json.RawMessage, index int) (claimSpec, []string) {
 	problems = append(problems, fileProblems...)
 	symbols, symbolProblems := decodeSymbols(object["symbol"], kind, false, graphRuleName, path+".symbol")
 	problems = append(problems, symbolProblems...)
-	references, referenceProblems := decodeReferences(object["reference"], path+".reference")
+	references, referenceProblems := decodeReferences(kind, object["reference"], path+".reference")
 	problems = append(problems, referenceProblems...)
 	if len(problems) != 0 {
 		return claimSpec{}, problems
@@ -87,7 +87,11 @@ func decodeClaim(raw json.RawMessage, index int) (claimSpec, []string) {
 	}, nil
 }
 
-func decodeReferences(raw json.RawMessage, path string) ([]referenceSpec, []string) {
+func decodeReferences(
+	claimKind artifactKind,
+	raw json.RawMessage,
+	path string,
+) ([]referenceSpec, []string) {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return nil, []string{"Invalid evidence/graph configuration at " + path + ": the required evidence reference is missing."}
 	}
@@ -113,7 +117,12 @@ func decodeReferences(raw json.RawMessage, path string) ([]referenceSpec, []stri
 		if len(elements) > 1 || trimmed[0] == '[' {
 			referencePath += "[" + decimal(index) + "]"
 		}
-		reference, referenceProblems := decodeReference(element, index, referencePath)
+		reference, referenceProblems := decodeReference(
+			claimKind,
+			element,
+			index,
+			referencePath,
+		)
 		problems = append(problems, referenceProblems...)
 		if len(referenceProblems) == 0 {
 			references = append(references, reference)
@@ -122,7 +131,12 @@ func decodeReferences(raw json.RawMessage, path string) ([]referenceSpec, []stri
 	return references, problems
 }
 
-func decodeReference(raw json.RawMessage, index int, path string) (referenceSpec, []string) {
+func decodeReference(
+	claimKind artifactKind,
+	raw json.RawMessage,
+	index int,
+	path string,
+) (referenceSpec, []string) {
 	object, problem := decodeObject(raw, path)
 	if problem != "" {
 		return referenceSpec{}, []string{problem}
@@ -136,6 +150,9 @@ func decodeReference(raw json.RawMessage, index int, path string) (referenceSpec
 	kind, kindProblem := decodeArtifactKind(object["type"], path+".type", true)
 	if kindProblem != "" {
 		problems = append(problems, kindProblem)
+	}
+	if problem := rejectForeignTypeScriptReference(claimKind, kind, path); problem != "" {
+		problems = append(problems, problem)
 	}
 	files := globSet{}
 	source := ""
@@ -204,6 +221,41 @@ func decodeReference(raw json.RawMessage, index int, path string) (referenceSpec
 		Package: packageName,
 		Symbols: symbols,
 	}, nil
+}
+
+// rejectForeignTypeScriptReference refuses a code population to a claim that
+// cannot address one.
+//
+// A symbol is cited through an inline link, and that link resolves in the
+// citing module's import scope — which only a TypeScript file has. Every other
+// claim would have to fall back to matching the bare name against one
+// repository-wide table, and that makes symbol-name uniqueness across the whole
+// repository load-bearing: two modules exporting `IPage` make the citation
+// impossible, and the only repair such a diagnostic can offer is renaming
+// production code to suit a lint rule.
+//
+// The check is here rather than at resolution because a configuration error
+// belongs where the configuration is read. Reported once per reference, before
+// any file is opened, instead of once per citation that later fails to resolve.
+//
+// What this gives up is stated in issue #82 and in `.wiki/design/decisions.md`
+// beside the decision it reverses: documentation can no longer cite code, and
+// the inverse obligation is not the same one. Do not restore the fallback
+// without restoring that record.
+func rejectForeignTypeScriptReference(
+	claimKind artifactKind,
+	referenceKind artifactKind,
+	path string,
+) string {
+	if referenceKind != artifactTypeScript ||
+		claimKind == artifactTypeScript ||
+		claimKind == "" {
+		return ""
+	}
+	return "Invalid evidence/graph configuration at " + path +
+		".type: only a TypeScript claim can cite TypeScript evidence, because a symbol citation resolves through the citing module's imports and a " +
+		string(claimKind) +
+		" comment has none. Invert the obligation so the code cites this artifact, or move the citation into TypeScript."
 }
 
 // decodeTypeScriptReference reads the four ways a TypeScript population is

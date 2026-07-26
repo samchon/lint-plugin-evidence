@@ -166,6 +166,8 @@ Ambient namespace members follow TypeScript's implicit export semantics. Exporte
 
 A reference's `symbol` selects the evidence units one obligation covers, and an array widens that unit set without creating a second obligation. The units retain their hierarchy: a Markdown file contains its heading outline, a TypeScript interface or object type contains its properties, and a namespace contains every nested public unit. A target acknowledges itself and every selected descendant. An ancestor remains addressable even when its own kind is omitted from the selector, so `symbol: "property"` can still be covered by one `@evidence IShoppingSale ...`.
 
+**Only a TypeScript claim may cite TypeScript evidence.** A symbol citation is written as an inline link and resolves in the citing module's import scope, which no other artifact has. Any other claim would have to match a bare name against every exported symbol in the repository, so two modules exporting `IPage` would make the citation impossible and the only repair would be renaming your code. Configure the obligation the other way round: let the code cite the document, the schema, or the operation.
+
 A claim's `symbol` uses the same selector for the opposite side: it restricts which symbol kinds may host an `@evidence` tag. Namespaces are type hosts, exported data variables are property hosts, and a mixed variable statement can host either of its resident kinds. Omit either selector to accept its documented default.
 
 For Prisma, `"model"` selects a declared model, `"column"` a stored field of one, and `"relation"` a relation field. A model contains its members, so one `@evidence prisma:Sale ...` discharges every selected column and relation beneath it.

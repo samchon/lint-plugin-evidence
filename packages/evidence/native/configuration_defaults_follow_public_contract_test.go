@@ -24,12 +24,12 @@ func TestConfigurationDefaultsFollowPublicContract(t *testing.T) {
 			{
 				"type": "markdown",
 				"files": ["docs/**"],
-				"reference": {"type": "typescript", "files": ["src/**"]}
+				"reference": {"type": "markdown", "files": ["spec/**"]}
 			},
 			{
 				"type": "typescript",
 				"files": ["src/**"],
-				"reference": {"type": "markdown", "files": ["docs/**"]}
+				"reference": {"type": "typescript", "files": ["lib/**"]}
 			}
 		]
 	}`))
@@ -39,14 +39,14 @@ func TestConfigurationDefaultsFollowPublicContract(t *testing.T) {
 	if got := config.Claims[0].Symbols.names(); got != "file, h1, h2, h3, h4" {
 		t.Fatalf("Markdown claim host default = %q", got)
 	}
-	if got := config.Claims[0].References[0].Symbols.names(); got != "type" {
-		t.Fatalf("TypeScript reference unit default = %q", got)
+	if got := config.Claims[0].References[0].Symbols.names(); got != "file, h1, h2, h3, h4" {
+		t.Fatalf("Markdown reference unit default = %q", got)
 	}
 	if got := config.Claims[1].Symbols.names(); got != "type, function, property" {
 		t.Fatalf("TypeScript claim host default = %q", got)
 	}
-	if got := config.Claims[1].References[0].Symbols.names(); got != "file, h1, h2, h3, h4" {
-		t.Fatalf("Markdown reference unit default = %q", got)
+	if got := config.Claims[1].References[0].Symbols.names(); got != "type" {
+		t.Fatalf("TypeScript reference unit default = %q", got)
 	}
 }
 

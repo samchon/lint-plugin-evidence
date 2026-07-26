@@ -240,18 +240,26 @@ export function detail(): void {}
 }
 
 /**
- * Verifies a Markdown claim keeps plain-token TypeScript targets.
+ * Verifies a claim that cannot address code is refused the population outright.
  *
- * Markdown has no import scope, so the global resolution stays in place for
- * that one edge. Removing it there would leave documentation unable to cite
- * code at all.
+ * This case is the inversion of one that asserted the opposite (issue #82).
+ * Markdown has no import scope, so a code target there could only be matched by
+ * name against one repository-wide table — which made symbol-name uniqueness
+ * across the whole repository load-bearing. Two modules exporting `IPage` made
+ * such a citation impossible, and the only repair the diagnostic could offer
+ * was renaming production code to suit a lint rule.
  *
- *  1. Cite a TypeScript symbol from a Markdown claim, unbraced.
+ * What it costs is real and recorded: documentation can no longer cite code,
+ * and the inverse obligation is not the same one. The rejection lands at
+ * configuration decode rather than at resolution, because an author who
+ * configured this needs to hear it before any file is read.
+ *
+ *  1. Configure a Markdown claim over a TypeScript reference.
  *  2. Evaluate the graph.
- *  3. Assert silence.
+ *  3. Assert the configuration is rejected, naming the reason and the repair.
  */
-func TestGraphKeepsGlobalResolutionForMarkdownClaims(t *testing.T) {
-	assertNoProblems(t, runIndexRule(t, map[string]string{
+func TestGraphRefusesCodeEvidenceToAClaimThatCannotAddressIt(t *testing.T) {
+	messages := runIndexRule(t, map[string]string{
 		"src/api/questions.ts": "export function get(): void {}\n",
 		"docs/spec.md":         "<!-- @evidence get Documents this operation. -->\n",
 	}, `{"claims":[{
@@ -259,30 +267,40 @@ func TestGraphKeepsGlobalResolutionForMarkdownClaims(t *testing.T) {
 		"files":["docs/spec.md"],
 		"symbol":"file",
 		"reference":{"type":"typescript","files":["src/api/**"],"symbol":"function"}
-	}]}`))
+	}]}`)
+	assertProblemContains(t, messages, "only a TypeScript claim can cite TypeScript evidence")
+	assertProblemContains(t, messages, "a markdown comment has none")
+	assertProblemContains(t, messages, "Invert the obligation")
 }
 
 /**
  * Verifies a Markdown claim is told why it cannot use an inline link.
  *
- * The twin of the case above. A braced target in Markdown would otherwise fall
- * through to a resolver that has nothing to resolve against, and the author
- * needs to hear the reason rather than a generic failure.
+ * A braced target in Markdown would otherwise fall through to a resolver that
+ * has nothing to resolve against, and the author needs to hear the reason
+ * rather than a generic failure.
  *
- *  1. Cite a TypeScript symbol from a Markdown claim, braced.
+ * The reference here is Markdown rather than TypeScript, and deliberately so:
+ * a TypeScript reference is now refused to this claim at configuration decode,
+ * and that rejection happens to carry the same sentence. The case would have
+ * kept passing while testing nothing — so the fixture cites a document, where
+ * the braced form is still the author's mistake to hear about.
+ *
+ *  1. Cite a Markdown section from a Markdown claim, braced.
  *  2. Evaluate the graph.
- *  3. Assert the explanatory rejection.
+ *  3. Assert the explanatory rejection names the inline link itself.
  */
 func TestGraphRejectsInlineLinksInMarkdownClaims(t *testing.T) {
 	messages := runIndexRule(t, map[string]string{
-		"src/api/questions.ts": "export function get(): void {}\n",
-		"docs/spec.md":         "<!-- @evidence {@link get} Documents this operation. -->\n",
+		"docs/spec.md":   "## Pricing {#pricing}\n",
+		"docs/reader.md": "<!-- @evidence {@link pricing} Documents this section. -->\n",
 	}, `{"claims":[{
 		"type":"markdown",
-		"files":["docs/spec.md"],
+		"files":["docs/reader.md"],
 		"symbol":"file",
-		"reference":{"type":"typescript","files":["src/api/**"],"symbol":"function"}
+		"reference":{"type":"markdown","files":["docs/spec.md"],"symbol":"h2"}
 	}]}`)
+	assertProblemContains(t, messages, "Inline link target '{@link pricing}'")
 	assertProblemContains(t, messages, "a markdown comment has none")
 }
 

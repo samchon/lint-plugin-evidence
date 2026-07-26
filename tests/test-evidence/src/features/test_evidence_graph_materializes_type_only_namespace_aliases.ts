@@ -29,9 +29,9 @@ export const test_evidence_graph_materializes_type_only_namespace_aliases =
         "  rules: {",
         '    "evidence/graph": ["error", {',
         "      claims: [{",
-        '        type: "markdown",',
-        '        files: ["docs/contracts.md"],',
-        '        symbol: "file",',
+        '        type: "typescript",',
+        '        files: ["src/claim.ts"],',
+        '        symbol: "type",',
         "        reference: {",
         '          type: "typescript",',
         '          files: ["src/contracts.ts"],',
@@ -61,8 +61,13 @@ export const test_evidence_graph_materializes_type_only_namespace_aliases =
           "export const options: Public.Options = { enabled: true };",
           "",
         ].join("\n"),
-        "docs/contracts.md":
-          "<!-- @evidence Public Documents the complete imported type namespace. -->\n",
+        "src/claim.ts": [
+          'import type { Public } from "./contracts.js";',
+          "",
+          "/** @evidence {@link Public} Documents the complete imported type namespace. */",
+          "export interface IClaim {}",
+          "",
+        ].join("\n"),
       },
     });
     try {

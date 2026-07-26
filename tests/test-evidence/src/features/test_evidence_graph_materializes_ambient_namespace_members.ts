@@ -29,9 +29,9 @@ export const test_evidence_graph_materializes_ambient_namespace_members =
         "  rules: {",
         '    "evidence/graph": ["error", {',
         "      claims: [{",
-        '        type: "markdown",',
-        '        files: ["docs/contracts.md"],',
-        '        symbol: "file",',
+        '        type: "typescript",',
+        '        files: ["src/claim.ts"],',
+        '        symbol: "type",',
         "        reference: {",
         '          type: "typescript",',
         '          files: ["src/contracts.d.ts"],',
@@ -64,8 +64,13 @@ export const test_evidence_graph_materializes_ambient_namespace_members =
           "export const state: string = Ambient.state;",
           "",
         ].join("\n"),
-        "docs/contracts.md":
-          "<!-- @evidence Ambient Documents the complete ambient namespace contract. -->\n",
+        "src/claim.ts": [
+          'import type { Ambient } from "./contracts.js";',
+          "",
+          "/** @evidence {@link Ambient} Documents the complete ambient namespace contract. */",
+          "export interface IClaim {}",
+          "",
+        ].join("\n"),
       },
     });
     try {
