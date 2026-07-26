@@ -342,6 +342,66 @@ view SaleSummary {
 }
 
 /**
+ * Verifies a citation buried behind a fourth slash is reported.
+ *
+ * This was the quietest failure in the artifact kind, and it is one keystroke
+ * from a citation that works. Prisma's `(!"///") ~ "//"` lookahead makes
+ * `//// @evidence ...` a doc comment whose text begins `/ @evidence ...`, so
+ * the tag no longer opens its line: nothing parsed it, and nothing reported it
+ * either. The comment is real and the schema keeps it, so an author reading
+ * the file sees a citation that does nothing at all.
+ *
+ *  1. Bury one citation behind a fourth slash and write a valid one beside it.
+ *  2. Assert the valid one still hosts.
+ *  3. Assert the buried one is reported with the repair named.
+ */
+func TestPrismaReportsACitationBuriedBehindASlash(t *testing.T) {
+	declarations, problems := prismaClaimOf(`//// @evidence docs/spec.md#buried Written with a fourth slash.
+/// @evidence docs/spec.md#pricing Written correctly.
+model Sale {
+  price Int
+  seller Seller
+}
+`, prismaClaimModels)
+	if len(declarations) != 1 || declarations[0].Target != "docs/spec.md#pricing" {
+		t.Fatalf("only the well-formed citation hosts: %s", prismaDeclarationIndex(declarations))
+	}
+	if len(problems) != 1 {
+		t.Fatalf("expected one problem, got %d:\n%s", len(problems), strings.Join(problems, "\n"))
+	}
+	if !strings.Contains(problems[0], "prisma/schema.prisma:1") ||
+		!strings.Contains(problems[0], "exactly three slashes") {
+		t.Fatalf("the problem must name the line and the repair: %q", problems[0])
+	}
+}
+
+/**
+ * Verifies prose that merely mentions the tag is not mistaken for a buried
+ * citation.
+ *
+ * The negative twin of the case above, and the reason its detection strips only
+ * *leading* slashes. A comment explaining the convention, or a sentence with a
+ * tag name in the middle of it, is ordinary documentation — reporting it would
+ * teach an author to stop reading these diagnostics, which costs more than the
+ * case being caught.
+ *
+ *  1. Mention the tag inside a sentence and after a non-slash prefix.
+ *  2. Assert nothing is reported.
+ */
+func TestPrismaProseMentioningATagIsNotBuried(t *testing.T) {
+	_, problems := prismaClaimOf(`/// Write @evidence above the model it grounds.
+/// - @evidence is the tag this schema uses.
+model Sale {
+  price Int
+  seller Seller
+}
+`, prismaClaimModels)
+	if len(problems) != 0 {
+		t.Fatalf("prose naming the tag is not a buried citation: %v", problems)
+	}
+}
+
+/**
  * Verifies an ordinary comment without a citation is never reported.
  *
  * The negative twin of the discarded-citation cases. A schema is full of

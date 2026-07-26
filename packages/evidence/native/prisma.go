@@ -457,6 +457,12 @@ func prismaDeclarationsFromComments(
 		if inventory == nil {
 			continue
 		}
+		for _, offset := range prismaBuriedTagLines(run.Body) {
+			problems = append(
+				problems,
+				"Evidence tag at "+run.Path+":"+decimal(run.Line+offset)+" is buried behind an extra slash. Prisma reads a fourth slash as content, so the tag no longer opens its documentation line and nothing resolves it. Write exactly three slashes.",
+			)
+		}
 		for _, parsed := range parseCommentDeclarations(run.Body, true) {
 			sequence++
 			line := run.Line + parsed.LineOffset
@@ -480,11 +486,54 @@ func prismaDeclarationsFromComments(
 // any of its lines.
 func prismaCommentCarriesTag(body string) bool {
 	for _, line := range strings.Split(body, "\n") {
-		if _, _, found := declarationLine(strings.TrimSpace(line)); found {
+		trimmed := strings.TrimSpace(line)
+		if _, _, found := declarationLine(trimmed); found {
+			return true
+		}
+		if prismaBuriedTag(trimmed) {
 			return true
 		}
 	}
 	return false
+}
+
+// prismaBuriedTagLines lists the offsets of lines whose citation is buried
+// behind extra slashes.
+//
+// A fourth slash is content, not syntax: Prisma's `(!"///") ~ "//"` lookahead
+// makes `//// @evidence ...` a doc comment whose text begins `/ @evidence ...`.
+// The tag therefore no longer opens its line, so nothing parses it — and
+// nothing reported it either, which made a one-keystroke slip the quietest
+// failure in this artifact kind. The comment is real, the schema keeps it, and
+// an author reading the file sees a citation that does nothing.
+func prismaBuriedTagLines(body string) []int {
+	offsets := []int{}
+	for offset, line := range strings.Split(body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if _, _, found := declarationLine(trimmed); found {
+			continue
+		}
+		if prismaBuriedTag(trimmed) {
+			offsets = append(offsets, offset)
+		}
+	}
+	return offsets
+}
+
+// prismaBuriedTag reports whether a line would open a citation once its leading
+// slashes are removed.
+//
+// Only leading slashes are stripped, so prose that merely mentions the tag
+// somewhere in a sentence is untouched. Over-reporting an ordinary comment
+// would teach an author to stop reading these diagnostics, which costs more
+// than the case being caught.
+func prismaBuriedTag(trimmed string) bool {
+	stripped := strings.TrimSpace(strings.TrimLeft(trimmed, "/"))
+	if stripped == trimmed {
+		return false
+	}
+	_, _, found := declarationLine(stripped)
+	return found
 }
 
 func prismaCommentFormName(form prismaCommentForm) string {
