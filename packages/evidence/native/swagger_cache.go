@@ -33,6 +33,26 @@ const swaggerCacheLimit = 64
 // than being a tuning knob.
 var swaggerDocuments = newSwaggerCache()
 
+// swaggerRemoteDocuments remembers a URL's operations for the process lifetime,
+// keyed by the address rather than by content.
+//
+// A remote document has no key without fetching it, so it cannot be revalidated
+// the way a local file is. The choice is therefore not "cache or revalidate" but
+// "fetch once or fetch forever", and a resident session that refetched on every
+// rebuild would put a network round trip on the edit loop — and make an editor
+// depend on connectivity to report anything at all.
+//
+// The freshness this gives up is real and bounded by the process: a served
+// document that changes mid-session is not seen until the session restarts. A
+// one-shot `ttsc check` is a fresh process, so it always fetches.
+//
+// **A rejection is never remembered here.** The key is the address, so nothing
+// an author can do would clear it — one refused connection would poison the URL
+// for the whole session with no edit able to invalidate the entry. Failure stays
+// per-evaluation, which is also what makes a transient outage recoverable
+// without restarting the editor.
+var swaggerRemoteDocuments = newSwaggerCache()
+
 // swaggerDocumentOutcome is what one document's bytes normalized to.
 //
 // Failure is remembered as deliberately as success. A document the normalizer
@@ -163,10 +183,33 @@ func rememberSwaggerDocument(
 	digest string,
 	outcome swaggerDocumentOutcome,
 ) {
-	if digest == "" || isRemoteSwaggerSource(source) {
+	if isRemoteSwaggerSource(source) {
+		if !outcome.Rejected {
+			swaggerRemoteDocuments.store(source, outcome)
+		}
+		return
+	}
+	if digest == "" {
 		return
 	}
 	swaggerDocuments.store(digest, outcome)
+}
+
+// lookupSwaggerDocument answers from whichever memory owns this source.
+//
+// The two are separate caches rather than one map with two key shapes, because
+// they answer different questions: a local entry means "these bytes normalize
+// to this", which stays true forever, while a remote entry means "this address
+// answered this, once", which is a decision about freshness rather than a fact
+// about content.
+func lookupSwaggerDocument(
+	source string,
+	digest string,
+) (swaggerDocumentOutcome, bool) {
+	if isRemoteSwaggerSource(source) {
+		return swaggerRemoteDocuments.lookup(source)
+	}
+	return swaggerDocuments.lookup(digest)
 }
 
 // swaggerUnitsFromOutcome rebuilds one source's units from a remembered

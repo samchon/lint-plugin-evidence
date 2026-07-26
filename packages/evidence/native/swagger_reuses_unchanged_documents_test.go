@@ -564,3 +564,83 @@ func TestSwaggerNeverRemembersARemoteDocument(t *testing.T) {
 		t.Fatal("a remote document must never be remembered")
 	}
 }
+
+/**
+ * Verifies a URL is fetched once per process and then answered from memory.
+ *
+ * A remote document has no key without fetching it, so it cannot be revalidated
+ * the way a local file is: the choice is fetch once or fetch forever. A
+ * resident session that refetched on every rebuild would put a network round
+ * trip on the edit loop and make an editor depend on connectivity to report
+ * anything at all.
+ *
+ *  1. Remember a URL's operations.
+ *  2. Look the same URL up again.
+ *  3. Assert the second answer comes from memory rather than another fetch.
+ */
+func TestSwaggerRemoteDocumentIsFetchedOncePerProcess(t *testing.T) {
+	source := "https://example.com/openapi.json"
+	swaggerRemoteDocuments = newSwaggerCache()
+	rememberSwaggerDocument(source, "", swaggerDocumentOutcome{
+		Operations: []swaggerOperation{{Method: "POST", Path: "/members"}},
+	})
+	outcome, hit := lookupSwaggerDocument(source, "")
+	if !hit {
+		t.Fatal("a URL answered once must be answered from memory afterwards")
+	}
+	if len(outcome.Operations) != 1 || outcome.Operations[0].Path != "/members" {
+		t.Fatalf("the remembered document must survive intact: %+v", outcome)
+	}
+}
+
+/**
+ * Verifies a refused URL is not remembered.
+ *
+ * This is the asymmetry that makes remembering a URL survivable at all. A local
+ * rejection is keyed by the bytes that caused it, so repairing the document
+ * changes the key and clears the entry. A URL is keyed by its address, and
+ * nothing an author can do changes that — so one refused connection would
+ * poison the URL for the whole session, with no edit able to invalidate it and
+ * a restart the only way out.
+ *
+ *  1. Remember a rejected URL outcome.
+ *  2. Look the same URL up.
+ *  3. Assert nothing was remembered, so the next cycle tries again.
+ */
+func TestSwaggerRefusedRemoteDocumentIsNotRemembered(t *testing.T) {
+	source := "https://example.com/openapi.json"
+	swaggerRemoteDocuments = newSwaggerCache()
+	rememberSwaggerDocument(source, "", swaggerDocumentOutcome{
+		Rejected: true,
+		Problem:  "connection refused",
+	})
+	if _, hit := lookupSwaggerDocument(source, ""); hit {
+		t.Fatal("a transient failure must not outlive the evaluation that saw it")
+	}
+}
+
+/**
+ * Verifies a local document still keys on its content rather than its path.
+ *
+ * The negative twin of the two cases above, and the reason they are separate
+ * caches. A local entry means "these bytes normalize to this", which stays true
+ * forever; keying it by path would make an edited file answer with its previous
+ * meaning, which is the one thing a cache may never do.
+ *
+ *  1. Remember a local document under its content digest.
+ *  2. Look it up by its path.
+ *  3. Assert the path is not a key, and the digest is.
+ */
+func TestSwaggerLocalDocumentStillKeysOnContent(t *testing.T) {
+	swaggerDocuments = newSwaggerCache()
+	swaggerRemoteDocuments = newSwaggerCache()
+	rememberSwaggerDocument("api/openapi.json", "digest", swaggerDocumentOutcome{
+		Operations: []swaggerOperation{{Method: "GET", Path: "/members"}},
+	})
+	if _, hit := lookupSwaggerDocument("api/openapi.json", ""); hit {
+		t.Fatal("a local document must not be answered without its content key")
+	}
+	if _, hit := lookupSwaggerDocument("api/openapi.json", "digest"); !hit {
+		t.Fatal("a local document must be answered from its content key")
+	}
+}
