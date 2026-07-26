@@ -250,33 +250,56 @@ export interface SecondRef {}
 }
 
 /**
- * Verifies ambiguous resolution: two distinct TypeScript declarations with the
- * same public target cannot be selected by declaration order.
+ * Verifies a claim that cannot address code does not reach a symbol through
+ * another claim's reference.
  *
- * TypeScript targets intentionally omit file paths. When separate files export
- * the same qualified name, choosing the first would make filesystem order part
- * of graph identity and silently redirect evidence.
+ * This replaces a case asserting that a plain-token code target from Markdown
+ * is ambiguous when two files export one name (issue #82). That hazard is gone
+ * by construction — such a claim cannot declare a TypeScript reference at all —
+ * but the configuration guard alone did not finish the job, and what it left
+ * was silent. Addresses are indexed from every claim at once, so a Markdown
+ * claim citing a document could still land on a symbol some OTHER claim's
+ * TypeScript reference had materialized. Measured before the fix: it resolved
+ * and reported nothing, which left repository-wide symbol-name uniqueness
+ * load-bearing through a door the guard does not cover.
  *
- *  1. Materialize `Shared` from two source files.
- *  2. Cite `Shared` from a Markdown claim.
- *  3. Assert the target is ambiguous and names both declarations.
+ * The message must not be "unresolved", which would be true and useless: the
+ * unit exists, and the author needs to hear why naming it here cannot work.
+ *
+ *  1. Configure a TypeScript claim over TypeScript, and a Markdown claim over
+ *     Markdown, in one graph.
+ *  2. Cite the code symbol by plain token from the Markdown claim.
+ *  3. Assert it is refused, naming the citing artifact and the repair.
  */
-func TestDeclarationsRejectAmbiguousTypeScriptTargets(t *testing.T) {
+func TestDeclarationsRefuseCodeTargetsFromAnotherClaimsReference(t *testing.T) {
 	messages := runIndexRule(t, map[string]string{
-		"src/a.ts": "export interface Shared {}\n",
-		"src/b.ts": "export interface Shared {}\n",
-		"docs/ref.md": `# Claim
+		"src/contracts.ts": "export interface Shared {}\n",
+		"src/claim.ts": `import type { Shared } from "./contracts";
+
+/** @evidence {@link Shared} The code cites its own reference. */
+export interface IClaim {}
+`,
+		"docs/spec.md": "## Pricing {#pricing}\n",
+		"docs/ref.md": `<!-- @evidence docs/spec.md#pricing This document relies on the section. -->
 <!-- @evidence Shared This document relies on the shared type. -->
 `,
-	}, `{"claims":[{
-		"type":"markdown",
-		"files":["docs/ref.md"],
-		"symbol":"h1",
-		"reference":{"type":"typescript","files":["src/*.ts"]}
-	}]}`)
-	assertProblemContains(t, messages, "Ambiguous evidence target 'Shared'")
-	assertProblemContains(t, messages, "src/a.ts")
-	assertProblemContains(t, messages, "src/b.ts")
+	}, `{"claims":[
+		{
+			"type":"typescript",
+			"files":["src/claim.ts"],
+			"symbol":"type",
+			"reference":{"type":"typescript","files":["src/contracts.ts"],"symbol":"type"}
+		},
+		{
+			"type":"markdown",
+			"files":["docs/ref.md"],
+			"symbol":"file",
+			"reference":{"type":"markdown","files":["docs/spec.md"],"symbol":"h2"}
+		}
+	]}`)
+	assertProblemContains(t, messages, "Code evidence target 'Shared'")
+	assertProblemContains(t, messages, "a markdown claim cannot cite a TypeScript symbol")
+	assertProblemContains(t, messages, "Invert the obligation")
 }
 
 /**

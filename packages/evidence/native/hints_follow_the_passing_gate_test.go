@@ -5,17 +5,20 @@ import (
 	"testing"
 )
 
-// hintsTypeScriptConfig cites a TypeScript population from Markdown.
+// hintsTypeScriptConfig cites a TypeScript population from TypeScript, which
+// is the only claim kind that can address one.
 const hintsTypeScriptConfig = `{"claims":[{
-	"type":"markdown",
-	"files":["docs/**"],
-	"reference":{"type":"typescript","files":["src/**"],"symbol":"type"}
+	"type":"typescript",
+	"files":["src/ledger.ts"],
+	"symbol":"type",
+	"reference":{"type":"typescript","files":["src/sale.ts"],"symbol":"type"}
 }]}`
 
-// hintsSatisfiedDocument acknowledges the exported type, so the graph passes.
-const hintsSatisfiedDocument = `## Sale Price {#sale-price}
+// hintsSatisfiedLedger acknowledges the exported type, so the graph passes.
+const hintsSatisfiedLedger = `import type { ISale } from "./sale";
 
-<!-- @evidence ISale Documents the sale contract. -->
+/** @evidence {@link ISale} Documents the sale contract. */
+export interface ILedger {}
 `
 
 /**
@@ -99,8 +102,8 @@ func TestHintsAreWithheldFromAnUndecodableConfiguration(t *testing.T) {
  */
 func TestHintsRouteIntoTypeScriptCompletion(t *testing.T) {
 	hints, messages := runGraphHints(t, map[string]string{
-		"docs/pricing.md": hintsSatisfiedDocument,
-		"src/sale.ts":     "export interface ISale {\n  price: number;\n}\n",
+		"src/ledger.ts": hintsSatisfiedLedger,
+		"src/sale.ts":   "export interface ISale {\n  price: number;\n}\n",
 	}, hintsTypeScriptConfig)
 	assertSilent(t, messages)
 	cited := targetHintsAt(hints, "@evidence ")
@@ -154,8 +157,8 @@ func TestHintsWithholdTheLinkEntryWithoutATypeScriptReference(t *testing.T) {
  */
 func TestHintsOfferNoTypeScriptSymbols(t *testing.T) {
 	hints, messages := runGraphHints(t, map[string]string{
-		"docs/pricing.md": hintsSatisfiedDocument,
-		"src/sale.ts":     "export interface ISale {\n  price: number;\n}\n",
+		"src/ledger.ts": hintsSatisfiedLedger,
+		"src/sale.ts":   "export interface ISale {\n  price: number;\n}\n",
 	}, hintsTypeScriptConfig)
 	assertSilent(t, messages)
 	for _, hint := range hints {

@@ -318,6 +318,25 @@ func evaluateEvidenceGraph(
 			continue
 		}
 		candidates := declarationCandidates(declaration.Target, targets, markdownTargets)
+		// The configuration guard refuses a code population to a claim that
+		// cannot address one, but the address map is built from every claim at
+		// once — so a Markdown claim could still land on a symbol materialized
+		// by some *other* claim's TypeScript reference. Measured: it resolved
+		// silently, which left repository-wide name uniqueness load-bearing
+		// through a door the guard does not cover. Closing it here rather than
+		// by scoping the whole map keeps resolution global for the artifacts
+		// that are addressed by path, where a shared map costs nothing.
+		if declaration.Type != artifactTypeScript {
+			addressable, code := splitCodeCandidates(candidates)
+			if len(addressable) == 0 && len(code) != 0 {
+				problems = append(
+					problems,
+					"Code evidence target '"+declaration.Target+"' at "+declaration.location()+": a "+string(declaration.Type)+" claim cannot cite a TypeScript symbol, because a symbol citation resolves through the citing module's imports and this artifact has none. Invert the obligation so the code cites this artifact, or move the citation into TypeScript.",
+				)
+				continue
+			}
+			candidates = addressable
+		}
 		switch len(candidates) {
 		case 0:
 			problems = append(
@@ -680,6 +699,29 @@ func declarationCandidates(
 		}
 	}
 	return candidates
+}
+
+// splitCodeCandidates separates the units a non-TypeScript claim may address
+// from the ones only an inline link can reach.
+//
+// Both halves are returned because the caller has to tell "this target names
+// something else entirely" from "this target names a symbol, and that is the
+// problem". Reporting the second as an unresolved target would be true and
+// useless: the unit exists, and nothing in the message would say why naming it
+// here cannot work.
+func splitCodeCandidates(
+	candidates map[string]*evidenceUnit,
+) (map[string]*evidenceUnit, map[string]*evidenceUnit) {
+	addressable := map[string]*evidenceUnit{}
+	code := map[string]*evidenceUnit{}
+	for id, unit := range candidates {
+		if unit.Type == artifactTypeScript {
+			code[id] = unit
+			continue
+		}
+		addressable[id] = unit
+	}
+	return addressable, code
 }
 
 func inventoriesOf(

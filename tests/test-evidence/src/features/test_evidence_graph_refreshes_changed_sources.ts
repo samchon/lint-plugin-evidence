@@ -40,9 +40,9 @@ export const test_evidence_graph_refreshes_changed_sources = (): void => {
       '          reference: { type: "markdown", files: ["docs/spec.md"], symbol: "h2" },',
       "        },",
       "        {",
-      '          type: "markdown",',
-      '          files: ["docs/ledger.md"],',
-      '          symbol: "file",',
+      '          type: "typescript",',
+      '          files: ["src/ledger.ts"],',
+      '          symbol: "type",',
       '          reference: { type: "typescript", files: ["src/contracts.ts"], symbol: ["function", "property"] },',
       "        },",
       "      ],",
@@ -55,7 +55,7 @@ export const test_evidence_graph_refreshes_changed_sources = (): void => {
       "docs/spec.md": "## Alpha\n",
       "src/implementation.ts": implementationFor("alpha"),
       "src/contracts.ts": contractsFor("state", "run"),
-      "docs/ledger.md": ledgerFor("state", "run"),
+      "src/ledger.ts": ledgerFor("state", "run"),
     },
   });
   try {
@@ -97,7 +97,7 @@ export const test_evidence_graph_refreshes_changed_sources = (): void => {
     );
     assertIncludes(
       staleTypeScript,
-      "Unresolved evidence target 'Api.state'",
+      "Unreachable evidence target '{@link Api.state}'",
       "The next Program must replace the old namespace property inventory.",
     );
     assertIncludes(
@@ -106,7 +106,7 @@ export const test_evidence_graph_refreshes_changed_sources = (): void => {
       "The renamed class method must become a current callable obligation.",
     );
 
-    write(project, "docs/ledger.md", ledgerFor("status", "execute"));
+    write(project, "src/ledger.ts", ledgerFor("status", "execute"));
     assertStatus(
       runCheck(project.directory),
       0,
@@ -138,8 +138,13 @@ const contractsFor = (property: string, method: string): string =>
 
 const ledgerFor = (property: string, method: string): string =>
   [
-    `<!-- @evidence Api.${property} Documents the current namespace state. -->`,
-    `<!-- @evidence Service.prototype.${method} Documents the current class operation. -->`,
+    `import type { Api, Service } from "./contracts.js";`,
+    "",
+    "/**",
+    ` * @evidence {@link Api.${property}} Documents the current namespace state.`,
+    ` * @evidence {@link Service.prototype.${method}} Documents the current class operation.`,
+    " */",
+    "export interface ILedger {}",
     "",
   ].join("\n");
 

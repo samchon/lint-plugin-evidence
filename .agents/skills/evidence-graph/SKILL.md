@@ -34,6 +34,8 @@ The two forms are two resolvers, and the token itself says which. A path address
 
 Keeping the discrimination in the token is what preserves the parser's independence from reference context. Without a boundary character, `POST /members` would have to be guessed at, which is why a path target stays one token and only a code target may spend braces to buy one.
 
+**Only a TypeScript claim may cite TypeScript evidence.** An inline link resolves in the citing module's import scope, which no other artifact has, so any other claim would have to match a bare name against one repository-wide table — and that makes symbol-name uniqueness across the whole repository load-bearing. The configuration refuses the pairing at decode, and resolution refuses a code target reached through another claim's reference, because addresses are indexed from every claim at once and the guard alone left that door open. Both halves are needed; either alone is silent. What this gives up is that documentation can no longer cite code, and the inverse obligation is not the same one — `.wiki/design/decisions.md` records the reversal and its cost.
+
 The reason exists for review, not machine judgment. Do not add a rule that guesses whether prose is sincere; it will teach authors to write filler that passes.
 
 ## Units And Hierarchy
