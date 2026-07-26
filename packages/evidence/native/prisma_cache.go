@@ -171,14 +171,16 @@ func prismaUnitsFromOutcome(
 			prismaNormalizationFailure(outcome.Problem),
 		)}
 	}
-	locations := locatePrismaDeclarations(root, sources)
+	locations, comments := locatePrismaDeclarations(root, sources)
 	fallback := ""
 	if len(sources) != 0 {
 		fallback = sources[0]
 	}
+	hosts := map[string]*evidenceUnit{}
 	for _, model := range outcome.Models {
 		for _, unit := range prismaModelUnits(model) {
-			location, found := locations[joinPrismaIdentity(unit.Identity)]
+			key := joinPrismaIdentity(unit.Identity)
+			location, found := locations[key]
 			if !found {
 				// Locating is subordinate: a name the scan did not find keeps a
 				// file-level location and its full participation in coverage,
@@ -188,6 +190,7 @@ func prismaUnitsFromOutcome(
 			}
 			unit.Path = location.Path
 			unit.Line = location.Line
+			hosts[key] = unit
 			if inventory := inventories[unit.Path]; inventory != nil {
 				inventory.Units = append(inventory.Units, unit)
 			}
@@ -196,7 +199,7 @@ func prismaUnitsFromOutcome(
 	for _, inventory := range inventories {
 		sortUnits(inventory.Units)
 	}
-	return nil
+	return prismaDeclarationsFromComments(comments, hosts, inventories)
 }
 
 // joinPrismaIdentity renders a unit's identity the way the locator keys one.

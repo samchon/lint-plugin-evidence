@@ -326,17 +326,17 @@ func decodeArtifactKind(
 		return "", "Invalid evidence/graph configuration at " + path + ": expected a supported artifact type string."
 	}
 	switch artifactKind(value) {
-	case artifactMarkdown, artifactTypeScript:
+	case artifactMarkdown, artifactPrisma, artifactTypeScript:
 		return artifactKind(value), ""
 	case artifactSwagger:
 		if allowSwagger {
 			return artifactSwagger, ""
 		}
-		return "", "Invalid evidence/graph configuration at " + path + ": Swagger is evidence-only and cannot be a claim; expected 'markdown' or 'typescript'."
+		return "", "Invalid evidence/graph configuration at " + path + ": Swagger is evidence-only and cannot be a claim; expected 'markdown', 'prisma', or 'typescript'."
 	default:
-		expected := "'markdown' or 'typescript'"
+		expected := "'markdown', 'prisma', or 'typescript'"
 		if allowSwagger {
-			expected = "'markdown', 'swagger', or 'typescript'"
+			expected = "'markdown', 'prisma', 'swagger', or 'typescript'"
 		}
 		return "", "Invalid evidence/graph configuration at " + path + ": unsupported artifact type '" + value + "'; expected " + expected + "."
 	}
@@ -430,6 +430,17 @@ func decodeSymbols(
 		switch {
 		case kind == artifactMarkdown:
 			values = []string{"file", "h1", "h2", "h3", "h4"}
+		// A Prisma reference owes coverage per model, not per column. The
+		// prior art cites at model granularity for the same reason
+		// (`AutoBeDatabase.IModel.evidence`), and defaulting to every member
+		// would put `id`, `created_at`, and every back-reference into the
+		// denominator — which teaches an author to write filler reasons. A
+		// claim keeps every host, because there the selector narrows where a
+		// tag may sit rather than what must be covered.
+		case kind == artifactPrisma && unit:
+			values = []string{"model"}
+		case kind == artifactPrisma:
+			values = []string{"model", "column", "relation"}
 		case kind == artifactTypeScript && unit:
 			values = []string{"type"}
 		default:
@@ -456,14 +467,15 @@ func decodeSymbols(
 		}
 	}
 	allowed := map[string]bool{}
-	if kind == artifactMarkdown {
-		for _, symbol := range []string{"file", "h1", "h2", "h3", "h4"} {
-			allowed[symbol] = true
-		}
-	} else {
-		for _, symbol := range []string{"type", "function", "property"} {
-			allowed[symbol] = true
-		}
+	supported := []string{"type", "function", "property"}
+	switch kind {
+	case artifactMarkdown:
+		supported = []string{"file", "h1", "h2", "h3", "h4"}
+	case artifactPrisma:
+		supported = []string{"model", "column", "relation"}
+	}
+	for _, symbol := range supported {
+		allowed[symbol] = true
 	}
 	set := symbolSet{}
 	problems := []string{}

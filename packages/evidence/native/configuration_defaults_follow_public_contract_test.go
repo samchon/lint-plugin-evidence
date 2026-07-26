@@ -156,13 +156,18 @@ func TestConfigurationRejectsMalformedPublicBoundaries(t *testing.T) {
 			want: "configuration: expected an object",
 		},
 		{
+			// Re-pointed from `prisma`, which this graph now supports. The case
+			// exists to pin that an unknown discriminator is named back to its
+			// author rather than silently ignored, so it needs a kind the graph
+			// does not have — not whichever one it happened to lack when the
+			// case was written.
 			name: "unsupported discriminator",
 			raw: `{"claims":[{
-				"type":"prisma",
-				"files":["schema.prisma"],
+				"type":"graphql",
+				"files":["schema.graphql"],
 				"reference":{"type":"markdown","files":["docs/**"]}
 			}]}`,
-			want: "unsupported artifact type 'prisma'",
+			want: "unsupported artifact type 'graphql'",
 		},
 		{
 			name: "missing files",

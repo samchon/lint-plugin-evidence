@@ -13,10 +13,25 @@ type parsedDeclaration struct {
 }
 
 func parseDeclarations(comment string) []parsedDeclaration {
+	return parseCommentDeclarations(comment, false)
+}
+
+// parseCommentDeclarations reads every declaration one comment body carries.
+//
+// tagBoundaries decides whether a line opening with some other `@tag` ends the
+// declaration above it. A JSDoc block sets it by its own syntax, and a Prisma
+// doc comment needs it set for the same reason without carrying that syntax:
+// `///` comments routinely hold `@stance`, `@namespace`, and other tools' tags,
+// and without a boundary the first of them is swallowed into the reason of the
+// citation above it.
+func parseCommentDeclarations(
+	comment string,
+	tagBoundaries bool,
+) []parsedDeclaration {
 	trimmed := strings.TrimLeftFunc(comment, unicode.IsSpace)
 	leadingLines := strings.Count(comment[:len(comment)-len(trimmed)], "\n")
 	comment = trimmed
-	jsdoc := strings.HasPrefix(comment, "/**")
+	jsdoc := strings.HasPrefix(comment, "/**") || tagBoundaries
 	comment = strings.TrimPrefix(comment, "/**")
 	comment = strings.TrimPrefix(comment, "/*")
 	comment = strings.TrimSuffix(comment, "*/")

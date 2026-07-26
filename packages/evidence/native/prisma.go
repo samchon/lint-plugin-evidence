@@ -407,6 +407,93 @@ func prismaModelUnits(model prismaModel) []*evidenceUnit {
 	return units
 }
 
+// prismaDeclarationsFromComments turns the scanned comment runs into
+// declarations, and reports every citation that cannot become one.
+//
+// Silence is the failure this rule exists to remove, so a tag is never simply
+// skipped. Prisma keeps three comment forms and discards none of them from the
+// file an author reads, but only `///` documents a declaration — a block
+// comment even reaches the parser's `documentation`, so a citation written
+// there looks honoured in the parsed output while doing nothing at all. Each
+// unusable placement therefore names the move that fixes it.
+func prismaDeclarationsFromComments(
+	comments []prismaCommentRun,
+	hosts map[string]*evidenceUnit,
+	inventories map[string]*artifactInventory,
+) []string {
+	problems := []string{}
+	sequence := 0
+	for _, run := range comments {
+		location := run.Path + ":" + decimal(run.Line)
+		if run.Form != prismaDocComment {
+			if prismaCommentCarriesTag(run.Body) {
+				problems = append(
+					problems,
+					"Evidence tag at "+location+" sits in a "+prismaCommentFormName(run.Form)+", which does not document a Prisma declaration. Write the citation on a '///' documentation comment directly above the model, column, or relation it grounds.",
+				)
+			}
+			continue
+		}
+		if run.Key == "" {
+			if prismaCommentCarriesTag(run.Body) {
+				problems = append(
+					problems,
+					"Evidence tag at "+location+" documents no declaration. Prisma attaches a '///' comment to the declaration that immediately follows it, so a blank line before a top-level block, a block attribute, or a closing brace leaves the comment documenting nothing. Move the citation directly above the model, column, or relation it grounds.",
+				)
+			}
+			continue
+		}
+		host := hosts[run.Key]
+		if host == nil {
+			if prismaCommentCarriesTag(run.Body) {
+				problems = append(
+					problems,
+					"Evidence tag at "+location+" documents '"+run.Key+"', which is not a model, column, or relation. Only a model and its members host an evidence citation; an enum, a view, a composite type, and a datasource setting do not.",
+				)
+			}
+			continue
+		}
+		inventory := inventories[run.Path]
+		if inventory == nil {
+			continue
+		}
+		for _, parsed := range parseCommentDeclarations(run.Body, true) {
+			sequence++
+			line := run.Line + parsed.LineOffset
+			inventory.Declarations = append(inventory.Declarations, &evidenceDeclaration{
+				ID:       "prisma:" + run.Path + ":" + decimal(line) + ":" + decimal(sequence),
+				Type:     artifactPrisma,
+				Tag:      parsed.Tag,
+				Target:   parsed.Target,
+				Reason:   parsed.Reason,
+				Hosts:    symbolSet{host.Symbol: true},
+				Path:     run.Path,
+				Line:     line,
+				Sequence: sequence,
+			})
+		}
+	}
+	return problems
+}
+
+// prismaCommentCarriesTag reports whether a comment body opens a citation on
+// any of its lines.
+func prismaCommentCarriesTag(body string) bool {
+	for _, line := range strings.Split(body, "\n") {
+		if _, _, found := declarationLine(strings.TrimSpace(line)); found {
+			return true
+		}
+	}
+	return false
+}
+
+func prismaCommentFormName(form prismaCommentForm) string {
+	if form == prismaBlockComment {
+		return "'/* */' block comment"
+	}
+	return "'//' line comment"
+}
+
 // prismaNormalizationFailure words a rejected schema identically whether the
 // rejection arrived from the parser this cycle or from memory.
 //

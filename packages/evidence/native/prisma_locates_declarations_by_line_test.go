@@ -3,14 +3,37 @@ package evidence
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
 
 func prismaLocationsOf(content string) map[string]prismaLocation {
 	locations := map[string]prismaLocation{}
-	scanPrismaLocations("prisma/schema.prisma", content, locations)
+	scanPrismaFile("prisma/schema.prisma", content, locations)
 	return locations
+}
+
+// prismaCommentsOf renders each scanned comment run as
+// `form@line->key: body`, so a case can assert attachment and grouping in one
+// comparison instead of reaching into the slice.
+func prismaCommentsOf(content string) string {
+	scan := scanPrismaFile(
+		"prisma/schema.prisma",
+		content,
+		map[string]prismaLocation{},
+	)
+	// Ordered by starting line so a case reads in file order rather than in
+	// whatever order grouping happened to append.
+	runs := append([]prismaCommentRun(nil), scan.Comments...)
+	sort.SliceStable(runs, func(left int, right int) bool {
+		return runs[left].Line < runs[right].Line
+	})
+	rendered := make([]string, 0, len(runs))
+	for _, run := range runs {
+		rendered = append(rendered, string(run.Form)+"@"+decimal(run.Line)+"->"+run.Key+": "+strings.ReplaceAll(run.Body, "\n", "|"))
+	}
+	return strings.Join(rendered, "\n")
 }
 
 func assertPrismaLine(
@@ -254,7 +277,7 @@ func TestPrismaLocatesAcrossAMultiFileSet(t *testing.T) {
 	}
 	write("prisma/sale.prisma", "model Sale {\n  id String @id\n}\n")
 	write("prisma/seller.prisma", "model Seller {\n  id String @id\n}\n")
-	locations := locatePrismaDeclarations(root, []string{
+	locations, _ := locatePrismaDeclarations(root, []string{
 		"prisma/sale.prisma",
 		"prisma/seller.prisma",
 	})
