@@ -411,11 +411,13 @@ func prismaModelUnits(model prismaModel) []*evidenceUnit {
 // declarations, and reports every citation that cannot become one.
 //
 // Silence is the failure this rule exists to remove, so a tag is never simply
-// skipped. Prisma keeps three comment forms and discards none of them from the
-// file an author reads, but only `///` documents a declaration — a block
-// comment even reaches the parser's `documentation`, so a citation written
-// there looks honoured in the parsed output while doing nothing at all. Each
-// unusable placement therefore names the move that fixes it.
+// skipped. Which forms may host was settled by measurement rather than by
+// preference: `///` and `/* */` both reach the parser's `documentation` and
+// both are emitted into the generated client and into prisma-markdown's ERD,
+// so both host a citation here. `//` is discarded by Prisma itself and is the
+// only form that cannot. Every other unusable placement — documenting nothing,
+// documenting something this graph does not address, or burying the tag behind
+// an extra slash — names the move that fixes it.
 func prismaDeclarationsFromComments(
 	comments []prismaCommentRun,
 	hosts map[string]*evidenceUnit,
@@ -429,7 +431,7 @@ func prismaDeclarationsFromComments(
 			if prismaCommentCarriesTag(run.Body) {
 				problems = append(
 					problems,
-					"Evidence tag at "+location+" sits in a "+prismaCommentFormName(run.Form)+", which does not document a Prisma declaration. Write the citation on a '///' documentation comment directly above the model, column, or relation it grounds.",
+					"Evidence tag at "+location+" sits in a '//' line comment, which Prisma discards rather than attaching to the declaration below it. Write the citation on a '///' or '/* */' documentation comment directly above the model, column, or relation it grounds.",
 				)
 			}
 			continue
@@ -537,19 +539,12 @@ func prismaBuriedTagLines(body string) []int {
 // would teach an author to stop reading these diagnostics, which costs more
 // than the case being caught.
 func prismaBuriedTag(trimmed string) bool {
-	stripped := strings.TrimSpace(strings.TrimLeft(trimmed, "/*"))
+	stripped := strings.TrimSpace(strings.TrimLeft(trimmed, "/"))
 	if stripped == trimmed {
 		return false
 	}
 	_, _, found := declarationLine(stripped)
 	return found
-}
-
-func prismaCommentFormName(form prismaCommentForm) string {
-	if form == prismaBlockComment {
-		return "'/* */' block comment"
-	}
-	return "'//' line comment"
 }
 
 // prismaNormalizationFailure words a rejected schema identically whether the

@@ -240,10 +240,14 @@ func prismaCommentRuns(
 		return nil
 	}
 	runs := []prismaCommentRun{}
-	doc := []prismaPendingComment{}
+	documenting := []prismaPendingComment{}
 	for _, comment := range pending {
-		if comment.Form == prismaDocComment && !comment.Trailing {
-			doc = append(doc, comment)
+		// `///` and `/* */` are both documentation to Prisma — measured, both
+		// reach the parser's `documentation` and both are emitted into the
+		// generated client and into prisma-markdown's ERD. Only `//` is
+		// discarded, so only `//` cannot carry a citation.
+		if comment.Form != prismaLineComment && !comment.Trailing {
+			documenting = append(documenting, comment)
 			continue
 		}
 		runs = append(runs, prismaCommentRun{
@@ -254,10 +258,10 @@ func prismaCommentRuns(
 			Key:  "",
 		})
 	}
-	if len(doc) != 0 {
-		first := doc[0].Line
-		body := make([]string, doc[len(doc)-1].Line-first+1)
-		for _, comment := range doc {
+	if len(documenting) != 0 {
+		first := documenting[0].Line
+		body := make([]string, documenting[len(documenting)-1].Line-first+1)
+		for _, comment := range documenting {
 			body[comment.Line-first] = comment.Text
 		}
 		runs = append(runs, prismaCommentRun{

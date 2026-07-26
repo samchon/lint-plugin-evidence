@@ -171,23 +171,23 @@ model Sale {
 /**
  * Verifies a citation Prisma would discard is reported rather than ignored.
  *
- * Each placement below fails differently and all three fail quietly. A `//`
- * comment is dropped by Prisma outright. A block comment is the treacherous one
- * — Prisma keeps its text as documentation, so a citation there looks honoured
- * in the parsed output while this rule never reads it. And a `///` run detached
- * by a blank line at top level documents nothing at all, which is measured
- * behaviour that does not hold one level down inside a block.
+ * Both placements below fail quietly and differently. A `//` comment is
+ * dropped by Prisma outright, so nothing downstream ever sees the tag. A `///`
+ * run detached by a blank line at top level documents nothing at all, which is
+ * measured behaviour that does not hold one level down inside a block.
+ *
+ * A block comment is deliberately absent from this list: Prisma documents a
+ * declaration with one, so it hosts a citation here too.
  *
  * A tag that silently does nothing is the exact failure this product exists to
  * remove, so each names the move that fixes it.
  *
  *  1. Write one citation in each unusable position.
- *  2. Assert three problems and no declarations.
+ *  2. Assert two problems and no declarations.
  *  3. Assert each names its own repair.
  */
 func TestPrismaReportsACitationPrismaWouldDiscard(t *testing.T) {
 	declarations, problems := prismaClaimOf(`// @evidence docs/spec.md#a Written in a line comment.
-/* @evidence docs/spec.md#b Written in a block comment. */
 
 /// @evidence docs/spec.md#c Detached by a blank line.
 
@@ -199,16 +199,14 @@ model Sale {
 	if len(declarations) != 0 {
 		t.Fatalf("an unusable placement hosts nothing: %s", prismaDeclarationIndex(declarations))
 	}
-	if len(problems) != 3 {
+	if len(problems) != 2 {
 		t.Fatalf("expected one problem per placement, got %d:\n%s", len(problems), strings.Join(problems, "\n"))
 	}
 	joined := strings.Join(problems, "\n")
 	for _, expected := range []string{
 		"prisma/schema.prisma:1",
 		"'//' line comment",
-		"prisma/schema.prisma:2",
-		"'/* */' block comment",
-		"prisma/schema.prisma:4",
+		"prisma/schema.prisma:3",
 		"documents no declaration",
 	} {
 		if !strings.Contains(joined, expected) {
@@ -436,37 +434,66 @@ model Sale {
 }
 
 /**
- * Verifies a citation written in a JSDoc-style block is reported.
+ * Verifies a citation written in a JSDoc-style block hosts like any other.
  *
- * This is the shape a schema author arriving from TypeScript writes by habit,
- * and it produced no declaration and no diagnostic. Prisma keeps the block as
- * documentation and hands its own asterisks over as content — measured,
- * `/** @evidence x *\/` reaches the parser as `* @evidence x` — so the tag no
- * longer opens its line. Nothing parsed it, and the detector stripped only
- * leading slashes, so nothing reported it either.
+ * Prisma keeps a block comment as documentation exactly as it keeps a `///`
+ * one — measured by running `prisma generate`, both reach the generated client
+ * types and prisma-markdown's ERD, indistinguishably. Refusing one of them
+ * would be this rule inventing a distinction the artifact does not have, and
+ * the diagnostic that did so claimed a block comment "does not document a
+ * Prisma declaration", which is false.
  *
- * Both spellings matter: the single-line form buries one asterisk, and the
- * multi-line form buries one on every line of the run.
+ * The asterisks Prisma hands over as content are what makes this non-obvious:
+ * the single-line form arrives as `* @evidence x` and the multi-line form
+ * keeps an asterisk on every line, so the tag never opens its line. The shared
+ * declaration parser already strips a leading asterisk, which is why honouring
+ * the form costs nothing beyond letting it through.
  *
  *  1. Write a citation in each JSDoc-style form.
- *  2. Assert neither hosts a declaration.
- *  3. Assert each is reported as a block comment rather than dropped.
+ *  2. Assert each hosts on the model below it.
+ *  3. Assert nothing is reported.
  */
-func TestPrismaReportsACitationInAJSDocStyleBlock(t *testing.T) {
+func TestPrismaJSDocStyleBlockHostsACitation(t *testing.T) {
 	for name, schema := range map[string]string{
 		"single line": "/** @evidence docs/spec.md#a Written JSDoc style. */\nmodel Sale {\n  price Int\n  seller Seller\n}\n",
 		"multi line":  "/**\n * @evidence docs/spec.md#a Written JSDoc style.\n */\nmodel Sale {\n  price Int\n  seller Seller\n}\n",
 	} {
 		declarations, problems := prismaClaimOf(schema, prismaClaimModels)
-		if len(declarations) != 0 {
-			t.Fatalf("%s: a block comment hosts nothing: %s", name, prismaDeclarationIndex(declarations))
+		if len(problems) != 0 {
+			t.Fatalf("%s: a documentation comment is not a problem: %v", name, problems)
 		}
-		if len(problems) != 1 {
-			t.Fatalf("%s: expected one problem, got %d:\n%s", name, len(problems), strings.Join(problems, "\n"))
+		if len(declarations) != 1 {
+			t.Fatalf("%s: expected one citation, got %d", name, len(declarations))
 		}
-		if !strings.Contains(problems[0], "block comment") {
-			t.Fatalf("%s: the problem must name the comment form: %q", name, problems[0])
+		if declarations[0].Hosts.names() != "model" ||
+			declarations[0].Target != "docs/spec.md#a" {
+			t.Fatalf("%s: %s", name, prismaDeclarationIndex(declarations))
 		}
+	}
+}
+
+/**
+ * Verifies a plain block comment hosts a citation too.
+ *
+ * `/* *\/` without the extra asterisk is the same documentation to Prisma, and
+ * treating the two block spellings differently would be a distinction only
+ * this rule could see.
+ *
+ *  1. Cite from a plain block comment.
+ *  2. Assert it hosts and nothing is reported.
+ */
+func TestPrismaPlainBlockCommentHostsACitation(t *testing.T) {
+	declarations, problems := prismaClaimOf(`/* @evidence docs/spec.md#a Written as a plain block. */
+model Sale {
+  price Int
+  seller Seller
+}
+`, prismaClaimModels)
+	if len(problems) != 0 {
+		t.Fatalf("a documentation comment is not a problem: %v", problems)
+	}
+	if len(declarations) != 1 || declarations[0].Target != "docs/spec.md#a" {
+		t.Fatalf("declarations: %s", prismaDeclarationIndex(declarations))
 	}
 }
 

@@ -282,7 +282,7 @@ model Sale {
 }
 ```
 
-That is the only comment form that hosts one. Prisma discards a `//` line comment, and a block comment reaches Prisma's documentation without being read here, so a citation in either is reported rather than ignored. A comment documents whatever declaration immediately follows it, which is Prisma's own rule: a blank line before a top-level block detaches it, and a comment above a block attribute or a closing brace documents nothing. Each of those placements is reported with the move that fixes it.
+A `/* */` block comment hosts one too: Prisma documents a declaration with either form, and both reach the generated client types. A `//` line comment is discarded by Prisma itself and cannot host a citation, so a tag written in one is reported rather than ignored. A comment documents whatever declaration immediately follows it, which is Prisma's own rule: a blank line before a top-level block detaches it, and a comment above a block attribute or a closing brace documents nothing. Each of those placements is reported with the move that fixes it.
 
 The schema is parsed by Prisma itself, resolved from your project when your project can resolve one and from this package's pinned `@prisma/prisma-schema-wasm` otherwise. A rejection names which of the two judged the schema, because a parser build validates what it parses and Prisma's rules move between major versions. A schema Prisma rejects fails the build with Prisma's own message and location; it never becomes an empty population whose obligations are all vacuously satisfied.
 
