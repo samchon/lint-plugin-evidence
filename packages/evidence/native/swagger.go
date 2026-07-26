@@ -109,7 +109,7 @@ func loadSwaggerInventories(
 	pending := []string{}
 	problems := []string{}
 	for _, source := range sources {
-		outcome, hit := swaggerDocuments.lookup(digests[source])
+		outcome, hit := lookupSwaggerDocument(source, digests[source])
 		if !hit {
 			pending = append(pending, source)
 			continue
