@@ -60,6 +60,7 @@
     "typescript": "catalog:typescript"
   },
   "dependencies": {
+    "@prisma/prisma-schema-wasm": "catalog:prisma",
     "@typia/interface": "catalog:typia",
     "@typia/utils": "catalog:typia",
     "yaml": "catalog:utils"
