@@ -10,11 +10,11 @@ import (
 //
 // Markdown, Prisma, and Swagger evidence never enters the TypeScript Program,
 // so until `@ttsc/lint@0.22.0` shipped this contract the host had no way to
-// learn that the graph depended on them. The resulting asymmetry was invisible rather than
-// merely inconvenient: a developer editing code saw fresh diagnostics, because
-// the TypeScript event drove a cycle that reloaded the documents along with it,
-// while a developer editing only a spec section saw the citation that had just
-// gone stale keep reporting green.
+// learn that the graph depended on them. The resulting asymmetry was invisible
+// rather than merely inconvenient: a developer editing code saw fresh
+// diagnostics, because the TypeScript event drove a cycle that reloaded the
+// documents along with it, while a developer editing only a spec section or a
+// schema saw the citation that had just gone stale keep reporting green.
 //
 // The host calls this after resolving options and project identity but before
 // loading a Program, so nothing here may read `ctx.Sources`, and nothing here
