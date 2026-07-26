@@ -448,7 +448,7 @@ func prismaDeclarationsFromComments(
 			if prismaCommentCarriesTag(run.Body) {
 				problems = append(
 					problems,
-					"Evidence tag at "+location+" documents '"+run.Key+"', which is not a model, column, or relation. Only a model and its members host an evidence citation; an enum, a view, a composite type, and a datasource setting do not.",
+					"Evidence tag at "+location+" documents '"+run.Key+"', which is not a model, column, or relation. A model or a view and their members host an evidence citation; an enum, a composite type, and a datasource or generator setting do not.",
 				)
 			}
 			continue

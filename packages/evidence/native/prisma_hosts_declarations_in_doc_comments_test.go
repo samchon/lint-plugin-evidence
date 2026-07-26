@@ -309,6 +309,39 @@ model Sale {
 }
 
 /**
+ * Verifies a view hosts a citation exactly as a table does.
+ *
+ * Prisma returns a view among the datamodel's models — measured, and the
+ * opposite of what "view" suggests — so a view is a `model` unit here. A scan
+ * that recognized only `model` blocks would leave every citation on a view
+ * reported as documenting nothing, on a schema that is entirely valid.
+ *
+ *  1. Cite from a view and from one of its columns.
+ *  2. Assert both host, with the symbols the population gives them.
+ */
+func TestPrismaViewHostsACitation(t *testing.T) {
+	declarations, problems := prismaClaimOf(`/// @evidence docs/spec.md#summary The summary projection comes from here.
+view SaleSummary {
+  /// @evidence docs/spec.md#totals The total is projected here.
+  total Int
+}
+`, []prismaModel{{
+		Name:   "SaleSummary",
+		Fields: []prismaField{{Name: "total", Symbol: "column"}},
+	}})
+	if len(problems) != 0 {
+		t.Fatalf("a view is a model unit, so its citations are ordinary: %v", problems)
+	}
+	want := strings.Join([]string{
+		"evidence@1 host=model target=docs/spec.md#summary reason=The summary projection comes from here.",
+		"evidence@3 host=column target=docs/spec.md#totals reason=The total is projected here.",
+	}, "\n")
+	if got := prismaDeclarationIndex(declarations); got != want {
+		t.Fatalf("declarations:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+/**
  * Verifies an ordinary comment without a citation is never reported.
  *
  * The negative twin of the discarded-citation cases. A schema is full of

@@ -24,7 +24,12 @@
  * names the file a model is declared in and moving a model between files of one
  * schema cannot break a citation.
  *
- * Enums, views, composite types, indexes, and datasource or generator settings
- * are outside this contract. They materialize no unit and host no declaration.
+ * A view is a `"model"` unit. That is Prisma's own shape rather than a choice
+ * made here — its parser returns a view among the datamodel's models, with the
+ * same fields and documentation a table has — so `prisma:SaleSummary` addresses
+ * a view exactly as it addresses a table.
+ *
+ * Enums, composite types, indexes, and datasource or generator settings are
+ * outside this contract. They materialize no unit and host no declaration.
  */
 export type EvidenceGraphPrismaSymbol = "model" | "column" | "relation";
