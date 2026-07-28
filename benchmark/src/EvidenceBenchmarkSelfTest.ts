@@ -9,6 +9,7 @@ import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkProtocolValidatorTest } from "./EvidenceBenchmarkProtocolValidatorTest.ts";
 import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
@@ -27,6 +28,9 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     let preserveFailure: boolean = false;
     try {
+      EvidenceBenchmarkProtocolValidatorTest.main(
+        path.join(benchmarkRoot, "protocol"),
+      );
       const fixture: string = path.join(temporary, "fixture");
       createFixture(repository, fixture);
       await testPinnedPnpm(repository);
