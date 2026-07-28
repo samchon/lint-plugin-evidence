@@ -145,6 +145,37 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         }),
       /Provider total/,
     );
+    const censoredLedger = JSON.parse(
+      Buffer.from(fixture.input.sourceUsageLedgerBytes).toString("utf8"),
+    ) as Record<string, unknown>;
+    censoredLedger.exactUsageComplete = false;
+    const censoredLedgerBytes: Buffer = Buffer.from(
+      `${JSON.stringify(censoredLedger)}\n`,
+      "utf8",
+    );
+    const censoredCore = JSON.parse(
+      Buffer.from(fixture.input.parentCoreSealBytes).toString("utf8"),
+    ) as Record<string, unknown>;
+    censoredCore.usageSha256 =
+      EvidenceBenchmarkActivityCanonical.sha256(censoredLedgerBytes);
+    const censoredCoreBytes: Buffer = Buffer.from(
+      `${JSON.stringify(censoredCore)}\n`,
+      "utf8",
+    );
+    const censored: IEvidenceBenchmarkActivity.IObservations =
+      EvidenceBenchmarkActivityObservations.create({
+        ...fixture.input,
+        binding: {
+          ...fixture.input.binding,
+          sourceUsageLedgerSha256:
+            EvidenceBenchmarkActivityCanonical.sha256(censoredLedgerBytes),
+          parentCoreSealSha256:
+            EvidenceBenchmarkActivityCanonical.sha256(censoredCoreBytes),
+        },
+        parentCoreSealBytes: censoredCoreBytes,
+        sourceUsageLedgerBytes: censoredLedgerBytes,
+      });
+    assert.equal(censored.sourceExactUsageComplete, false);
   }
 
   /**
@@ -409,6 +440,9 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       experiment: {
         runId: "todo-plain-r1",
         blockId: "todo-reddit-r1",
+        subject: "todo",
+        arm: "plain",
+        replicate: 1,
         projectInputSha256: digest("materialization-input"),
         protocolRevisionSha256: digest("protocol"),
       },
@@ -441,6 +475,10 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       frozenInputTreeAlgorithm: "sha256-posix-path-nul-bytes-v1",
       runId: "todo-plain-r1",
       blockId: "todo-reddit-r1",
+      subject: "todo",
+      arm: "plain",
+      replicate: 1,
+      milestone: "t_dry",
       baseTreeSha256: digest("base-tree"),
       armTreeSha256: digest("arm-tree"),
       requirementsTreeSha256: digest("requirements-tree"),

@@ -70,16 +70,15 @@ export namespace EvidenceBenchmarkActivityObservations {
     );
     retainedChain(input);
     wall(input.wall);
-    const ledgerResponses: readonly unknown[] = sourceResponses(
-      input.sourceUsageLedgerBytes,
-    );
-    responses(input.responses, ledgerResponses);
+    const ledger: ISourceLedger = sourceLedger(input.sourceUsageLedgerBytes);
+    responses(input.responses, ledger.responses);
     items(input.items, input.responses, input.wall);
     const body = {
       schemaVersion: 1 as const,
       binding: input.binding,
       wall: input.wall,
       responses: input.responses,
+      sourceExactUsageComplete: ledger.exactUsageComplete,
       items: input.items,
     };
     return {
@@ -148,14 +147,27 @@ export namespace EvidenceBenchmarkActivityObservations {
     };
   }
 
-  function sourceResponses(bytes: Uint8Array): readonly unknown[] {
+  interface ISourceLedger {
+    exactUsageComplete: boolean;
+    responses: readonly unknown[];
+  }
+
+  function sourceLedger(bytes: Uint8Array): ISourceLedger {
     const root: unknown = JSON.parse(Buffer.from(bytes).toString("utf8"));
     if (typeof root !== "object" || root === null || Array.isArray(root))
       throw new Error("Source usage ledger must be an object.");
-    const result: unknown = (root as Record<string, unknown>).responses;
+    const source: Record<string, unknown> = root as Record<string, unknown>;
+    if (typeof source.exactUsageComplete !== "boolean")
+      throw new Error(
+        "Source usage ledger must expose exactUsageComplete as a boolean.",
+      );
+    const result: unknown = source.responses;
     if (!Array.isArray(result))
       throw new Error("Source usage ledger must expose a responses array.");
-    return result;
+    return {
+      exactUsageComplete: source.exactUsageComplete,
+      responses: result,
+    };
   }
 
   function retainedChain(input: IInput): void {
@@ -189,6 +201,9 @@ export namespace EvidenceBenchmarkActivityObservations {
     if (
       experiment.runId !== input.binding.runId ||
       experiment.blockId !== input.binding.blockId ||
+      experiment.subject !== input.binding.subject ||
+      experiment.arm !== input.binding.arm ||
+      experiment.replicate !== input.binding.replicate ||
       experiment.projectInputSha256 !==
         input.binding.materializationInputSha256 ||
       experiment.protocolRevisionSha256 !==

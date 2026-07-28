@@ -50,8 +50,8 @@ export namespace EvidenceBenchmarkActivityJudgments {
       artifact.raterId.length === 0 ||
       artifact.threadId.length === 0 ||
       artifact.sessionId.length === 0 ||
-      artifact.model.length === 0 ||
-      artifact.effort.length === 0
+      artifact.model !== "gpt-5.6-terra" ||
+      artifact.effort !== "high"
     )
       throw new Error("Activity rater must complete with full provenance.");
     if (
@@ -132,6 +132,13 @@ export namespace EvidenceBenchmarkActivityJudgments {
     for (const field of ["raterId", "threadId", "sessionId"] as const)
       if (left.artifact[field] === right.artifact[field])
         throw new Error(`Independent raters share ${field}.`);
+    if (
+      [...left.artifact.allowedEvidenceEventIds].sort().join("\0") !==
+      [...right.artifact.allowedEvidenceEventIds].sort().join("\0")
+    )
+      throw new Error(
+        "Independent raters received different evidence windows.",
+      );
   }
 
   /** Deterministically constructs the queue before adjudicator execution. */
@@ -220,6 +227,10 @@ export namespace EvidenceBenchmarkActivityJudgments {
       artifact.providerOutput.schemaVersion !== 1 ||
       artifact.providerOutput.role !== "llm_adjudicator" ||
       artifact.providerOutput.population !== "activity" ||
+      artifact.providerOutput.subject !== observations.binding.subject ||
+      artifact.providerOutput.phase !== observations.binding.milestone ||
+      artifact.model !== "gpt-5.6-terra" ||
+      artifact.effort !== "high" ||
       artifact.providerOutput.status !== "completed"
     )
       throw new Error("Activity adjudicator output did not complete.");

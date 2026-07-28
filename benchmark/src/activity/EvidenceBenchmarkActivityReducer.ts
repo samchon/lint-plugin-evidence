@@ -103,7 +103,7 @@ export namespace EvidenceBenchmarkActivityReducer {
     const burdenPoint: Map<IEvidenceBenchmarkActivity.CausalRole, Numerator> =
       roleNumeratorTable();
     const unresolvedResponseIds: string[] = [];
-    let hasNullUsage: boolean = false;
+    let hasNullUsage: boolean = !input.observations.sourceExactUsageComplete;
     for (const response of input.observations.responses) {
       const resolution: IResolution = requiredResolution(
         resolutions,
@@ -128,7 +128,7 @@ export namespace EvidenceBenchmarkActivityReducer {
         weighted(vector, 10_000),
       );
     }
-    const timing: Timing = time(input.observations, resolutions, burdenPoint);
+    const timing: Timing = time(input.observations, resolutions);
     const exactTokenReconciled: boolean =
       equalVector(exactTotal, sumVectors([...whole.values()])) &&
       equalNumerator(
@@ -209,7 +209,6 @@ export namespace EvidenceBenchmarkActivityReducer {
   function time(
     observations: IEvidenceBenchmarkActivity.IObservations,
     resolutions: ReadonlyMap<string, IResolution>,
-    burdenPoint: Map<IEvidenceBenchmarkActivity.CausalRole, Numerator>,
   ): Timing {
     const wallStart: bigint = BigInt(observations.wall.startedMonotonicNs);
     const wallEnd: bigint = BigInt(observations.wall.completedMonotonicNs);
@@ -370,7 +369,6 @@ export namespace EvidenceBenchmarkActivityReducer {
         ];
         return { left, right, overlapWallNs: overlapWallNs.toString() };
       });
-    void burdenPoint;
     return {
       wall,
       coveredUnion,

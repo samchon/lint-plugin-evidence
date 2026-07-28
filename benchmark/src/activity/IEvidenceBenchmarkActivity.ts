@@ -110,6 +110,18 @@ export namespace IEvidenceBenchmarkActivity {
     /** Concurrent campaign block identity. */
     blockId: string;
 
+    /** Frozen benchmark subject. */
+    subject: "todo" | "reddit" | "shopping" | "erp";
+
+    /** Frozen mechanism arm. */
+    arm: "plain" | "evidence";
+
+    /** Frozen replicate number. */
+    replicate: number;
+
+    /** Snapshot milestone whose activity is being attributed. */
+    milestone: "t_done" | "t_dry";
+
     /** Frozen shared-template tree identity. */
     baseTreeSha256: string;
 
@@ -232,6 +244,9 @@ export namespace IEvidenceBenchmarkActivity {
 
     /** Exact usage rows, including nullable right-censored rows. */
     responses: readonly IResponseUsage[];
+
+    /** Source-ledger completeness flag retained without reconstruction. */
+    sourceExactUsageComplete: boolean;
 
     /** Exact and censored item lifecycle observations. */
     items: readonly IItemObservation[];
