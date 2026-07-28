@@ -1,12 +1,16 @@
 # Test Campaign
 
-Read [SKILL.md](SKILL.md) first. This campaign discharges `docs/analysis/ -> tests` and `API -> tests`.
+Read [SKILL.md](SKILL.md) first. This campaign discharges three edges: `docs/analysis/ -> tests`, `API -> tests`, and `DTO type -> tests`.
 
-## Why Both Edges
+## Why Three Edges
 
-The API edge alone produces a suite with one test per endpoint that proves the endpoints exist. The requirements edge is what makes the suite prove the product.
+Each denominator finds what the other two cannot, so walking one and calling it done leaves the other two unmeasured.
 
-Many requirements are not one endpoint. A rule that spans operations, a journey that crosses several, a constraint that must hold after an unrelated action: none of them appear when you walk the route tree, and all of them are requirements.
+**The API edge** produces a suite with one test per endpoint. On its own that proves the endpoints exist.
+
+**The requirements edge** is what makes the suite prove the product. Many requirements are not one endpoint: a rule that spans operations, a journey that crosses several, a constraint that must hold after an unrelated action. None of them appear when you walk the route tree, and all of them are requirements.
+
+**The DTO edge** is the one people forget, because a type feels like something the compiler already handles. It does not handle whether anything ever exercised the shape. A variant no test ever builds or reads is a shape that has never been exercised end to end, and the two ways that happens are both defects: either an operation returns it and nothing tested that operation, or nothing returns it at all and it should not exist.
 
 ## Requirements To Tests
 

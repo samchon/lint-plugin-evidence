@@ -202,6 +202,8 @@ export const create = async (props: {
 
 Read what that does. The collector assembles the identity row, its first snapshot, and the pointer to that snapshot as one nested create, so the write is atomic and no window exists where a sale has no history. The response is read back through the same selection the DTO is built from, not from a narrower read.
 
+**This call is where the actor narrows.** The provider holds a `SellerPayload` and the collector's parameter is `IEntity`, so passing it through hands the collector the identifier and nothing else. That is deliberate and it type-checks without a cast, because a payload carries an `id`. [authorization.md](authorization.md) has the whole path an actor takes through the layers, and this is the step where it stops being an identity and becomes a reference.
+
 **Never assemble a creation payload inline here.** The collector is the one place that knows the assembly, and a second copy diverges the moment either side gains a field.
 
 An update creates a **new snapshot** and repoints the materialized pointer, rather than mutating the row:

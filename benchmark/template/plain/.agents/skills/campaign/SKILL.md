@@ -41,6 +41,8 @@ database        ->  business logic
 
 column          ->  DTO property      (the value it carries)
 
+DTO type        ->  tests             (the shape it exchanges)
+
 API             ->  tests
 API             ->  business logic
 ```
@@ -65,7 +67,7 @@ Each campaign has its own document.
 - [database.md](database.md): requirements to schema, both directions.
 - [api.md](api.md): requirements and schema to the public contract.
 - [logic.md](logic.md): requirements, schema, and contract to the implementation.
-- [test.md](test.md): requirements and contract to the tests.
+- [test.md](test.md): requirements, the generated contract, and the DTO shapes to the tests.
 - [frontend.md](frontend.md): requirements and contract to the screens, plus the frontend's own subgraph.
 - [ledger.md](ledger.md): where campaign state is written down, because none of this survives in your head.
 

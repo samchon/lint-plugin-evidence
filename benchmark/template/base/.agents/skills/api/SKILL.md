@@ -102,53 +102,7 @@ export namespace UniqueDiagnoser {
 }
 ```
 
-`IDiagnosis` is declared here, in `src/structures/common`, and it is the same shape the server's error responses carry.
-
-```ts
-/**
- * Result of a diagnosis.
- *
- * One problem found by a client-side check or reported by a server-side
- * rejection. Both speak this shape, so a screen renders either without
- * branching on where it came from.
- */
-export interface IDiagnosis {
-  /**
-   * Access path of the value that caused the problem.
-   *
-   * Dotted, from the root of the submitted body, as in
-   * `units[0].stocks[1].price`. A field-level error lands on its own field
-   * because of this. Use `"unknown"` when no single value is at fault.
-   */
-  accessor: string;
-
-  /**
-   * What is wrong, written for the person who has to fix it.
-   */
-  message: string;
-}
-```
-
-That shared shape is the whole point: a client-side check and a server-side rejection speak one vocabulary, and a field-level error lands on the right field because `accessor` says which one.
-
-`IEntity` lives beside it, and is the other type the whole repository leans on.
-
-```ts
-/**
- * A reference to one row.
- *
- * Every table in this product has a UUID primary key named `id`, so anything
- * that only needs to point at a row takes this rather than the full type.
- */
-export interface IEntity {
-  /**
-   * Primary Key.
-   */
-  id: string & tags.Format<"uuid">;
-}
-```
-
-It is what a collector takes for each row it connects to, and what a DTO uses when a caller sends a reference rather than a nested object. Taking the full type there would force every caller to load a row to name one.
+`IDiagnosis` is the return shape, declared in `src/structures/common` and used by the server's error responses too. One vocabulary for a client-side check and a server-side rejection means a screen renders either without branching, and its `accessor` path is what lands a field error on its field.
 
 Writing the rule twice guarantees the two drift, and the drift surfaces as a form that accepts what the server then rejects.
 
@@ -203,15 +157,7 @@ Two consequences. A caller cannot pass an arbitrary string where a uuid is requi
 
 ## Connections
 
-`IConnection` is the object every accessor takes first. It carries the host and, once authenticated, the headers.
-
-```ts
-export interface IConnection {
-  host: string;
-  headers?: Record<string, string>;
-  simulate?: boolean;
-}
-```
+`IConnection` is the object every accessor takes first. It carries the host, the headers once authenticated, and the simulation flag.
 
 Authenticating means calling a lifecycle accessor with the connection. **The accessor writes the token into it**, because the controller method behind it declares `@setHeader token.access Authorization`:
 

@@ -2,6 +2,20 @@
 
 The end-to-end suite is the only artifact that proves the product behaves as the requirements say.
 
+## Read Three Things Before Writing One Test
+
+A test is written from three sources, and skipping any of them produces a test that compiles and proves the wrong thing.
+
+| Source | Answers |
+| --- | --- |
+| `docs/analysis/` | what must be true, and what must be refused |
+| `packages/api/src/functional/**` | which accessor to call, and what it takes |
+| `packages/api/src/structures/**` | what a body must contain, and what a response carries |
+
+**The structures are the half most often skipped**, and skipping them is what produces a test asserting a property no DTO declares or building a body from fields someone assumed. Read the type and its JSDoc, including each property's, before writing the object literal. If a property you expect is absent, it is absent: the contract is the fact, and inventing around it makes a test that proves a product nobody shipped.
+
+The requirements half is what the other two cannot supply. The SDK tells you what the product can do; only the documents tell you what it must do, and a suite written from the SDK alone proves the endpoints exist.
+
 ## Layout
 
 ```
@@ -89,7 +103,7 @@ const sellerConnection: api.IConnection = { host: connection.host };
 await authorize_seller_join(sellerConnection, {});
 ```
 
-**The authorization helper does not touch headers, and neither do you.** A lifecycle accessor writes the issued token into the connection it was given, because of the `@setHeader` tag [its controller method declares](controllers.md).
+**The authorization helper does not touch headers, and neither do you.** A lifecycle accessor writes the issued token into the connection it was given, which [the API skill](../api/SKILL.md) covers along with the rest of the connection contract. Nothing here needs to open a controller to know that: the accessor is the contract a test consumes.
 
 So authenticating an actor means calling its authorize helper with that actor's connection. A connection created later and never passed to an authorize helper is anonymous, and the failure arrives as a 401 on a call that looks unrelated.
 

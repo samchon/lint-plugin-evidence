@@ -11,7 +11,7 @@ Each configured section of each document must be acknowledged by an artifact tha
 
 That makes the reading easier, not optional. The build tells you which sections are unaccounted for; it cannot tell you that you misread one you did cite.
 
-Read [the campaign skill](../campaign/SKILL.md) before you start.
+Read [the evidence skill](../evidence/SKILL.md) before you start.
 
 {{base}}
 

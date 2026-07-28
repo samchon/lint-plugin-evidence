@@ -4,6 +4,29 @@ This document owns identity, sessions, and every check that decides whether a ca
 
 The requirement documents under `docs/analysis/` are the specification for all of it: which actors exist, what each may do, and which flows persist anything. Find the sections that state those and read them before designing any of the storage below.
 
+## One Actor, Four Layers
+
+An authenticated caller crosses every backend layer, and it narrows at each one. Read this before the rest of the document, because every rule below is about one step of it.
+
+| Step | What holds the actor | Why that type |
+| --- | --- | --- |
+| the request | a bearer token in a header | nothing has been resolved yet |
+| the decorator | `@SellerAuth()` on the route parameter | it calls the authorize provider and declares the security requirement on the operation |
+| the controller method | `seller: SellerPayload` | the route needs to know who, and nothing more |
+| the provider | `props.seller: SellerPayload`, or `props.actor` typed as a union | the business rule branches on `type` and reads `id` |
+| the collector | `seller: IEntity` | it only connects a row, so it takes the identifier and not the identity |
+| the transformer | nothing | it maps a row that was already selected under the caller's visibility rule |
+
+**The narrowing is the design, not an accident.** Each layer takes the least it can do its job with, so a change to what authentication carries stops at the layer that reads it. Widening any step is what makes an actor's shape a dependency of code that never asked who the caller was.
+
+Two steps are worth reading twice.
+
+**The collector takes `IEntity`, not the payload.** A collector writes `connect: { id }`, so the identifier is the whole of what it needs. Handing it the payload gives it a `session_id` and a `type` it will never read, and the next person to edit it will reasonably assume those are there because something uses them.
+
+**The transformer takes no actor at all.** Which rows this caller may see was decided by the provider's visibility clause before the query ran. A transformer that re-checks the caller is enforcing a rule in a second place, and the two will disagree.
+
+One naming collision is worth knowing before it confuses you. A transformer declares a type called `Payload`, and it is the shape of a selected database row, unrelated to the actor payloads here. The actor ones always carry the actor's name: `SellerPayload`, `CustomerPayload`.
+
 ## Authentication Is Not Authorization
 
 A valid session proves who the caller is. Grade, membership, ownership, approval state, and row scope prove whether the caller may perform this behavior. Implement both, and never let one stand in for the other.
@@ -232,29 +255,6 @@ export namespace SellerProvider {
 Both checks are needed. The token check proves the claim was minted for this actor; the row read proves the account still exists and has not been withdrawn, banned, or suspended. A token outlives the account it names, so verifying the signature alone authorizes a caller the requirements say is gone.
 
 Every actor's authorize provider is that same shape, differing only in the discriminant it checks and the table it reads. The token half is shared, in `src/utils` beside the other helpers that own no entity:
-
-```ts
-// src/utils/JwtUtil.ts
-const BEARER = "Bearer ";
-
-export namespace JwtUtil {
-  export function authorize(props: {
-    request: { headers: { authorization?: string } };
-  }): unknown {
-    const header: string | undefined = props.request.headers.authorization;
-    if (header === undefined || header.length === 0)
-      throw ErrorUtil.unauthorized("No token was supplied.");
-    const token: string = header.startsWith(BEARER)
-      ? header.slice(BEARER.length)
-      : header;
-    try {
-      return jwt.verify(token, MyGlobal.env().JWT_SECRET_KEY);
-    } catch {
-      throw ErrorUtil.unauthorized("The token is invalid or has expired.");
-    }
-  }
-}
-```
 
 **The prefix is optional, and that is not leniency.** The generated SDK writes the bare token into the connection, while a browser tool or a curl command sends `Bearer <token>`. Requiring the prefix rejects every call the SDK makes, which is every test in the suite, and the failure reads as an authentication defect rather than a parsing one.
 

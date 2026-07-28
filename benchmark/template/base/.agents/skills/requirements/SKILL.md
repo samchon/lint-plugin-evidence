@@ -105,4 +105,4 @@ Completeness is not established by walking the code and finding a requirement fo
 
 Walk from the documents to the artifacts as the primary direction: every section, in order, to the model, endpoint, provider, screen, and test that realize it. Then walk back from the artifacts to the documents to catch behavior nothing asked for.
 
-The [campaign skill](../campaign/SKILL.md) owns how far to carry that traversal and how to know when it is finished, and the [review skill](../review/SKILL.md) owns whether what you found there is actually true.
+This repository has a skill that owns how far to carry that traversal and how to know when it is finished, and a review skill that owns whether what you found there is actually true. AGENTS.md names both.

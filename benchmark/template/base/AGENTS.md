@@ -35,21 +35,3 @@ The stack, how the generated SDK is consumed, screen structure, required interfa
 ### API SDK
 
 What `packages/api` is, why it is never edited by hand, and how to consume it, `.agents/skills/api/SKILL.md`. Read before importing from it or before wondering where a contract comes from.
-
-### Campaign
-
-**Mandatory.** How completeness is established: the obligation graph every artifact owes, what discharges each edge, and how a finding anywhere re-opens the work downstream of it, `.agents/skills/campaign/SKILL.md`.
-
-This is not optional and not a final checklist. Read it **before starting any work at all**, again **whenever any artifact changes**, and again **whenever you believe the work is finished**. Every other skill teaches how to build one thing well; this one is the only thing that tells you whether the specification is actually realized. A repository that satisfies every other skill and skips this one looks complete and is not.
-
-### Review
-
-**Mandatory.** How the truth of what you built is established: reading each claim against both the artifact making it and the source it names, why the source is under review too, and where that lands in the work, `.agents/skills/review/SKILL.md`.
-
-The campaign establishes that nothing is **missing**. This establishes that what is there is **true**, and those are different states: every artifact can be present, every obligation discharged, and every claim still wrong, because nothing that reports completeness examines meaning.
-
-Read it **before you start**, not once the campaign is quiet. The skill itself says where it belongs relative to those rounds, and getting that placement wrong is how a completeness pass becomes something you race through intending to check properly later.
-
-## Language
-
-Repository artifacts are English: source, tests, documents, and commit messages.

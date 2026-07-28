@@ -13,7 +13,7 @@ Picture the tag written to clear a diagnostic. It names a real requirement secti
 
 That is why this skill exists. The graph hands you a complete inventory of claims and a verdict on none of them. Producing the verdict is yours, and it is not work you do if time permits: an unreviewed green build is a repository whose every claim is unexamined and whose report says the opposite.
 
-The [campaign skill](../campaign/SKILL.md) establishes that nothing is **missing**. This skill establishes that what is there is **true**. Neither substitutes for the other, and the work is finished only when both hold.
+The [evidence skill](../evidence/SKILL.md) establishes that nothing is **missing**, because the build refuses to pass while an obligation is unacknowledged. This skill establishes that what is there is **true**. Neither substitutes for the other, and the work is finished only when both hold.
 
 ## The Unit Of Review Is A Triple
 
@@ -49,7 +49,7 @@ closed_at DateTime?
  * Whether this sale has ended.
  *
  * @evidence prisma:shopping_sales.closed_at Ended once the closing time has
- * passed.
+ *           passed.
  */
 closed: boolean;
 ```
@@ -71,7 +71,7 @@ A reason survives a reader comparing it to the code. That is the entire standard
 ```ts
 /**
  * @evidence docs/analysis/04-business-rules.md#coupon-stacking Implements this
- * requirement.
+ *           requirement.
  */
 ```
 
@@ -80,7 +80,7 @@ A reason survives a reader comparing it to the code. That is the entire standard
 ```ts
 /**
  * @evidence docs/analysis/04-business-rules.md#coupon-stacking The coupon
- * stacking rule.
+ *           stacking rule.
  */
 ```
 
@@ -89,7 +89,7 @@ A reason survives a reader comparing it to the code. That is the entire standard
 ```ts
 /**
  * @evidence docs/analysis/04-business-rules.md#coupon-stacking Rejects a second
- * coupon of a kind the order already carries, at checkout.
+ *           coupon of a kind the order already carries, at checkout.
  */
 ```
 
@@ -154,6 +154,6 @@ The build will never ask you to do this.
 
 ## What This Skill Cannot Do Either
 
-It cannot tell you that an artifact nobody thought to write is missing. That is the campaign's job, and the two are complements: the campaign establishes the inventory, this skill establishes its truth.
+It cannot tell you that an artifact nobody thought to write is missing. The build does that, and the two are complements: the graph establishes the inventory, this skill establishes its truth.
 
 It also cannot find a defect nobody reads for. Type-correct is not correct and cited is not correct, and the defects that survive both are catalogued in [the provider topic](../backend/providers.md). Each of them carries a valid citation and satisfies every check, so the only thing that finds one is a reader holding the code against the claim.

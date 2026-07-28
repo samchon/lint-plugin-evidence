@@ -10,14 +10,15 @@ So the obligation is not a discipline you maintain. It is a compile error you cl
 /// Seller **sales** products.
 ///
 /// @evidence docs/analysis/02-domain-model.md#sales Stores the sale identity
-/// and its lifecycle timestamps; the revisable content lives in the snapshot.
+///           and its lifecycle timestamps; the revisable content lives in the
+///           snapshot.
 model shopping_sales {
 }
 ```
 
 A citation sits in the `///` block, which is the same block the generated types and the ERD publish. Write which part of the section this model is responsible for, not a restatement of the section's name.
 
-Read [the campaign skill](../campaign/SKILL.md) before starting, especially the part about discharging a diagnostic at the layer that owns it. A requirement you cannot cite from any model is usually not a missing tag.
+Read [the evidence skill](../evidence/SKILL.md) before starting, especially the part about discharging a diagnostic at the layer that owns it. A requirement you cannot cite from any model is usually not a missing tag.
 
 {{base}}
 

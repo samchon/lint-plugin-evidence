@@ -7,12 +7,12 @@ Every configured requirement section must be acknowledged by a screen that claim
 ```tsx
 /**
  * @evidence docs/analysis/03-functional-requirements.md#browse-sales Renders the
- * catalog with the search, filter, and pagination the section describes.
+ *           catalog with the search, filter, and pagination the section describes.
  */
 export function CatalogPage() {}
 ```
 
-Read [the campaign skill](../campaign/SKILL.md) before starting.
+Read [the evidence skill](../evidence/SKILL.md) before starting.
 
 {{base}}
 
@@ -38,7 +38,7 @@ Add them to the configuration when the structure appears. An edge nobody configu
 
 ## When The Diagnostic Points Here But The Hole Is Upstream
 
-A screen that cannot cite a requirement is often a requirement no operation exposes. Check before writing anything: does the SDK have an accessor for it? If not, the finding belongs to the API campaign.
+A screen that cannot cite a requirement is often a requirement no operation exposes. Check before writing anything: does the SDK have an accessor for it? If not, the finding belongs to the contract, and [controllers.md](../backend/controllers.md) owns it.
 
 Never build a frontend-only path to make a citation resolve. It produces a screen that satisfies the graph and a backend that still does not implement the requirement.
 

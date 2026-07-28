@@ -15,27 +15,7 @@ prisma/schema/
 
 The numeric prefix orders domains from foundational to dependent, so a reader meets a table before the tables that reference it. Prisma parses the folder as one schema, so a model may reference a model in another file and a model name is unique across the whole folder. Add a new domain as a new numbered file.
 
-`main.prisma` holds the datasource and both generators, and nothing else. **It declares the provider and not the connection**, which lives in `prisma.config.ts` beside the package and is owned by [wiring.md](wiring.md):
-
-```prisma
-datasource db {
-  provider = "sqlite"
-}
-
-generator client {
-  provider     = "prisma-client"
-  output       = "../../src/prisma"
-  moduleFormat = "cjs"
-}
-
-generator markdown {
-  provider = "prisma-markdown"
-  title    = "{{name}}"
-  output   = "../../docs/ERD.md"
-}
-```
-
-The second generator is why schema comments are published documentation rather than internal notes: they become `docs/ERD.md`, which a reader sees without opening the schema.
+`main.prisma` holds the datasource and both generators, and nothing else. **It declares the provider and not the connection**, which lives in `prisma.config.ts` beside the package and is owned by [wiring.md](wiring.md). It declares the SQLite provider, the client generator with its output path, and `prisma-markdown`, which is why schema comments are published documentation rather than internal notes: they become `docs/ERD.md`, which a reader sees without opening the schema.
 
 ## Field Types
 

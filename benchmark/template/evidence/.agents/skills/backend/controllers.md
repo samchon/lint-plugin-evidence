@@ -9,9 +9,9 @@ Every configured requirement section must be acknowledged by an operation that c
  * List the seller's own sales.
  *
  * @evidence docs/analysis/03-functional-requirements.md#browse-sales Serves the
- * catalog browsing journey, including the visibility rule for each actor.
+ *           catalog browsing journey, including the visibility rule for each actor.
  * @evidence prisma:shopping_sales Exposes the sale identity and its lifecycle
- * state to the actors permitted to see it.
+ *           state to the actors permitted to see it.
  */
 @core.TypedRoute.Patch()
 public async index(
@@ -26,7 +26,7 @@ The block is shortened to the two tags. The published documentation this method 
 
 A declaration may carry several citations, and each is judged independently. Cite the requirement this operation serves and the model it exposes, and say which part of each it is responsible for.
 
-Read [the campaign skill](../campaign/SKILL.md) before starting, especially the section on discharging a diagnostic at the layer that owns it.
+Read [the evidence skill](../evidence/SKILL.md) before starting, especially the section on discharging a diagnostic at the layer that owns it.
 
 {{base}}
 

@@ -1,52 +1,35 @@
 # Providers
 
-The implementation answers to three upstream sources, and the build checks that it acknowledges all of them.
+**This layer carries no `@evidence` tags, and that is deliberate.**
 
-Every configured requirement section, every selected model, and every operation must be acknowledged by the provider that claims to implement it. The lint stage fails until they are.
+The graph tracks whether a requirement reached an artifact a consumer can see: a table that stores it, an operation that exposes it, a DTO that carries it, a test that proves it, a screen that delivers it. A provider is none of those. It implements an operation that already cites the requirement, so a citation here would acknowledge the same section a second time from a layer nobody outside this package reads.
 
-```ts
-/**
- * @evidence docs/analysis/04-business-rules.md#coupon-stacking Rejects a second
- * coupon of a kind the order already carries.
- * @evidence prisma:shopping_coupons Reads each coupon's issuer and validity
- * window to decide the refusal.
- * @evidence POST:/shopping/customer/order Implements the creation contract,
- * including the rejection it documents.
- */
-export const create = async (props: {
-  customer: CustomerPayload;
-  body: IShoppingOrder.ICreate;
-}): Promise<IShoppingOrder> => {};
-```
+So the build says nothing about this layer at all. Every other layer gets a diagnostic when it is short; this one gets silence whether the work is done or not.
 
-Three tags for three obligations, and the third is the one most often left off: an operation with no provider citing it is a contract nothing implements, and the diagnostic for it names this layer.
-
-The test for the same rule cites that same operation, and the two never collide. They are separate claims, so each counts its acknowledgements in its own tally.
-
-Read [the campaign skill](../campaign/SKILL.md) before starting.
+Read [the evidence skill](../evidence/SKILL.md) before starting.
 
 {{base}}
 
-## The Citation Is A Claim About Behavior, Not About Presence
+## What The Silence Costs You
 
-This layer is where a citation is easiest to write and hardest to justify.
+The obligations the graph does check pass straight through this layer without touching it, and each one leaves a gap here that nothing reports.
 
-A tag saying a provider enforces a rule is a claim that the code enforces it. The build cannot check that; a reviewer comparing the two can, and will. So write the reason as which part of the rule this function is responsible for, and make it a sentence that would be visibly false if the code did not do it.
+**An operation cites a requirement; the provider behind it may implement none of it.** The citation is on the contract, and the contract is a promise about behavior that lives here. A green build means the promise was made, not kept.
 
-**Cite from the function that does the work.** A tag on a wrapper that delegates records the wrong location, and the next reader looking for the enforcement finds a pass-through.
+**A model is cited by an operation that exposes it; the provider may never read the column that matters.** The obligation was discharged at the contract, one layer above the code that would have had to use it.
 
-**A cross-cutting rule needs a citation everywhere it applies.** One citation satisfies the obligation, so the build goes quiet after the first. That is exactly why the remaining ten places are the ones that get missed here: the report stops before the work does.
+**A test cites an operation; the provider may satisfy the test and not the requirement.** That is the ordinary case rather than a perverse one, because a test proves what it asserts and the requirement usually says more.
 
-## When The Diagnostic Points Here But The Hole Is Upstream
+## Where The Real Check Is
 
-A provider that cannot cite a rule is often a provider whose schema has no state for that rule. Check before writing the tag: does the schema hold what the rule needs? If not, the finding belongs to the database campaign.
+Two things, and neither is the build.
 
-Fix it there and let the build re-run.
+**The reason on the operation's citation.** It states what the contract promises, so reading it against this provider is the closest thing to a mechanical check that exists for this layer. [The review skill](../review/SKILL.md) owns that reading.
 
-## The Build Cannot See These
+**The test that would fail if the behavior were removed.** For a behavioral requirement it is the only proof, and it is the reason a rule can be cited from three layers and demonstrated by none of them.
 
-A green lint stage means every obligation is acknowledged. It says nothing about whether the acknowledgement is true, and the defects listed below carry a valid, resolving citation while doing the wrong thing.
+## After Any Implementation Change
 
-That is the whole limit of the mechanism at this layer. It removes "nobody implemented this rule at all" and leaves every one of those untouched.
+Nothing in the graph moves, because nothing here is in it. What moves is whether the citations upstream are still true: the operation still claims this behavior, and the test still proves it.
 
-This is the layer where a reason is easiest to write and hardest to keep true, because a provider's citation claims a behavior rather than a shape, and behavior drifts without changing anything a checker inspects. The [review skill](../review/SKILL.md) reads each of these reasons against the code that is there now.
+Re-read both against the code you just changed. A change here that quietly narrows what an operation does leaves two true-looking citations describing a product that no longer works that way, and the build reports neither.

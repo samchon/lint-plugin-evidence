@@ -1,6 +1,6 @@
 ---
-name: campaign
-description: Defines how completeness is established here: the build reports every unmet obligation, what each diagnostic means, and how to discharge one at the layer that actually owns it. Use before starting any work, whenever any artifact changes, and again whenever you believe the work is done.
+name: evidence
+description: Defines the evidence graph this repository is checked against: what each obligation means, how a citation is written and where it belongs, what each diagnostic is telling you, and which failures the build cannot see. Use before any work, whenever a diagnostic appears, and again before believing a green build.
 ---
 
 # Campaign
@@ -33,6 +33,8 @@ database        ->  business logic
 
 column          ->  DTO property      (the value it carries)
 
+DTO type        ->  tests             (the shape it exchanges)
+
 API             ->  tests
 API             ->  business logic
 ```
@@ -57,17 +59,11 @@ Every example in this arm's topic documents is trimmed to the citation it is mak
 
 **A declaration whose entire comment is an `@evidence` tag is the failure to watch for.** It satisfies the graph and publishes an operation, a type, or a property that reaches its consumers with a machine-readable claim and no human-readable meaning.
 
-## Each Edge Has Its Own Document
+## Each Layer Owns Its Own Diagnostics
 
-The graph above is configured as a set of claims, and each group of them has a document covering what its diagnostics mean and where the repair usually belongs.
+This document covers the graph as a whole. What a diagnostic at one layer means, and where its repair usually belongs, is owned by that layer: [the schema](../backend/database.md), [the DTOs](../backend/dtos.md), [the operations](../backend/controllers.md), [the tests](../backend/testing.md), and [the screens](../frontend/screens.md). [The provider topic](../backend/providers.md) is the one that carries no citations, and it says what that silence costs.
 
-- [requirements.md](requirements.md): the edges out of `docs/analysis/`, which is given input and never edited to make a diagnostic stop.
-- [database.md](database.md): into and out of the schema.
-- [api.md](api.md): requirements and schema to the public contract.
-- [logic.md](logic.md): requirements, schema, and contract to the implementation.
-- [test.md](test.md): requirements and contract to the tests.
-- [frontend.md](frontend.md): requirements and contract to the screens, plus the frontend's own subgraph.
-- [ledger.md](ledger.md): what still has to be written down even though the build tracks the obligations.
+[ledger.md](ledger.md) holds what still has to be written down even though the build tracks the obligations.
 
 When the build reports nothing, the [review skill](../review/SKILL.md) takes over. It owns the question this one cannot ask: whether each citation is true.
 

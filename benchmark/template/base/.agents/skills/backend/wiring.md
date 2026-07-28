@@ -40,35 +40,9 @@ The module file sits beside the controllers it declares, named for the same grou
 
 ## The Global Singleton
 
-One module owns the environment and the database client, and everything else reads it from there. Providers do not construct their own client.
+`MyGlobal` in the backend root owns the environment and the database client, and everything else reads them from there. Providers never construct their own client, and nothing reads `process.env` directly.
 
-```ts
-interface IEnvironments {
-  MODE: "local" | "dev" | "real";
-  API_PORT: `${number}`;
-  JWT_SECRET_KEY: string;
-  JWT_REFRESH_KEY: string;
-}
-
-// `Singleton` defers the work until the first `get()` and caches the result,
-// so the environment is read and validated once, on demand, rather than at
-// import time where the order of module evaluation would decide whether the
-// file had been loaded yet.
-const environments = new Singleton(() => {
-  const env = dotenv.config();
-  dotenvExpand.expand(env);
-  return typia.assert<IEnvironments>(process.env);
-});
-
-export namespace MyGlobal {
-  export const prisma: PrismaClient = new PrismaClient(/* adapter */);
-  export function env(): IEnvironments {
-    return environments.get();
-  }
-}
-```
-
-Two things here are load-bearing.
+Two things about it are load-bearing.
 
 **The environment is a typed interface, validated at first read.** A missing secret then fails at startup with the name of the variable, rather than at the first request that needs it, in a stack trace that names a cipher function.
 
@@ -78,90 +52,19 @@ Declare every variable the application needs in that interface, and keep an exam
 
 ## The Bootstrap
 
-The application class owns startup order. The executable is a bootstrap that does nothing but call it.
+`MyBackend` owns startup order: seed an empty database, mount the controllers, listen. `src/executable/server.ts` is the entry point that calls it and handles the termination signal.
 
-```ts
-export class MyBackend {
-  private application_?: NestFastifyApplication;
-
-  public async open(): Promise<void> {
-    // seed when the database is empty
-    const count: number = await MyGlobal.prisma.channels.count();
-    if (count === 0) await SetupWizard.seed();
-
-    // mount controllers
-    this.application_ = await NestFactory.create(
-      MyModule,
-      new FastifyAdapter(),
-    );
-    await this.application_.listen(Number(MyGlobal.env().API_PORT), "0.0.0.0");
-  }
-
-  public async close(): Promise<void> {
-    if (this.application_ === undefined) return;
-    await this.application_.close();
-  }
-}
-```
-
-```ts
-// src/executable/server.ts
-async function main(): Promise<void> {
-  const backend: MyBackend = new MyBackend();
-  await backend.open();
-  process.on("SIGTERM", async () => {
-    await backend.close();
-    process.exit(0);
-  });
-}
-main().catch((exp: unknown) => {
-  console.log(exp);
-  process.exit(-1);
-});
-```
-
-Keep the executable to that shape. It imports one class and calls one method; parsing, orchestration, and setup live in the class.
+The executable imports one class and calls one method. Parsing, orchestration, and setup live in the class, never in the entry point.
 
 Seeding on an empty database is what makes a fresh checkout runnable. It is not test fixture data: it is the minimum a person needs to see the product work.
 
 ## Database Errors Are Mapped At The Boundary, Once
 
-A provider that uses the throwing finder expects a missing row to become a `404`. That does not happen by itself. Without the registration below it is a `500`, and something worse also happens.
+A provider that uses the throwing finder expects a missing row to become a `404`. That does not happen by itself. `PrismaErrorUtil` maps the client codes and `MyConfiguration` registers it; without that registration a missing row is a `500`, and something worse also happens.
 
 **A Prisma error message interpolates the model, the field, the constraint, the table, the column, the offending value, and query fragments.** That message must never reach an HTTP client. Registering the mapper is what stops your schema from being readable from the outside.
 
-```ts
-// src/utils/PrismaErrorUtil.ts
-export namespace PrismaErrorUtil {
-  export function from(error: PrismaClientKnownRequestError): HttpException {
-    switch (error.code) {
-      case "P2025": // record not found
-        return ErrorUtil.notFound("The requested resource was not found.", {
-          cause: error,
-        });
-      case "P2002": // unique constraint
-        return ErrorUtil.conflict(
-          "The request conflicts with an existing resource.",
-          { cause: error },
-        );
-      default:
-        return ErrorUtil.internal("The request could not be completed.", {
-          cause: error,
-        });
-    }
-  }
-}
-```
-
-```ts
-// src/MyConfiguration.ts, at module scope so it runs on import
-ExceptionManager.insert(
-  PrismaClientKnownRequestError,
-  PrismaErrorUtil.from,
-);
-```
-
-Three details are load-bearing.
+Three details of that registration are load-bearing.
 
 - **The message is replaced, not passed through.** Every branch returns a stable, application-controlled sentence.
 - **The original survives as `cause`.** The framework's default response and its accessor both exclude it, so it remains available to server-side diagnostics and invisible to the client.
@@ -169,40 +72,7 @@ Three details are load-bearing.
 
 `ErrorUtil` is what both halves throw through, so a business refusal and a database failure reach the client in one shape.
 
-```ts
-// src/utils/ErrorUtil.ts
-export namespace ErrorUtil {
-  export interface IOptions {
-    cause?: unknown;
-  }
-
-  export function of(
-    status: number,
-    reason: string | IDiagnosis | IDiagnosis[],
-    options?: IOptions,
-  ): HttpException {
-    const diagnoses: IDiagnosis[] =
-      typeof reason === "string"
-        ? [{ accessor: "unknown", message: reason }]
-        : Array.isArray(reason)
-          ? reason
-          : [reason];
-    return new HttpException(diagnoses, status, options);
-  }
-
-  export const badRequest = (r: Reason, o?: IOptions) => of(400, r, o);
-  export const unauthorized = (r: Reason, o?: IOptions) => of(401, r, o);
-  export const forbidden = (r: Reason, o?: IOptions) => of(403, r, o);
-  export const notFound = (r: Reason, o?: IOptions) => of(404, r, o);
-  export const conflict = (r: Reason, o?: IOptions) => of(409, r, o);
-  export const unprocessable = (r: Reason, o?: IOptions) => of(422, r, o);
-  export const internal = (r: Reason, o?: IOptions) => of(500, r, o);
-}
-
-type Reason = string | IDiagnosis | IDiagnosis[];
-```
-
-Three things here are the convention.
+Three things about it are the convention rather than the implementation.
 
 **The body is always a diagnosis array**, even for a one-sentence refusal. A client that renders errors writes one renderer instead of branching on whether the body happens to be a string, and a field-level failure lands on its field because `accessor` names it. `IDiagnosis` is declared in `packages/api/src/structures/common`, so the frontend's pre-submit checks and the server's rejections speak the same vocabulary.
 
@@ -218,40 +88,11 @@ Two generators produce code that the rest of the repository imports, and both re
 
 **Prisma** is configured in two places, and the split is not optional. `main.prisma` declares the datasource provider and the two generators. **The connection lives in `prisma.config.ts` at the backend root**, because a schema file no longer accepts a `url`:
 
-```ts
-import dotenv from "dotenv";
-import dotenvExpand from "dotenv-expand";
-import { defineConfig } from "prisma/config";
-
-dotenvExpand.expand(dotenv.config());
-
-export default defineConfig({
-  schema: "prisma/schema",
-  datasource: {
-    url: "file:prisma/db.sqlite",
-  },
-});
-```
-
-`schema` points at the folder, not a file, which is what makes the split-by-domain layout work. The url is the SQLite file, so cloning the repository and running `prepare` is the whole setup. Writing `url` into `main.prisma` instead is rejected, and the message names the property rather than the mistake.
+Its `schema` points at the folder rather than a file, which is what makes the split-by-domain layout work. The url is the SQLite file, so cloning the repository and running `prepare` is the whole setup. Writing `url` into `main.prisma` instead is rejected, and the message names the property rather than the mistake.
 
 **Nestia** is configured in `nestia.config.ts` at the backend root:
 
-```ts
-export default {
-  input: () => NestFactory.create(MyModule, new FastifyAdapter()),
-  output: "../api/src",
-  swagger: {
-    servers: [{ url: "http://localhost:37001", description: "Local" }],
-    security: { bearer: { type: "apiKey", name: "Authorization", in: "header" } },
-    output: "../api/swagger.json",
-  },
-  simulate: true,
-  primitive: false,
-} satisfies INestiaConfig;
-```
-
-Three settings matter beyond the paths.
+Three of its settings matter beyond the paths.
 
 - **`input` builds the real application.** The generator reads the same module tree the server runs, which is why an unregistered controller is missing from the SDK too.
 - **`security`** is what puts the bearer scheme into the published document, so a consumer knows a token is needed.

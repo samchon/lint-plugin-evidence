@@ -11,7 +11,7 @@ A DTO carries two obligations, and they sit at different granularities. Every co
  * Seller sales products.
  *
  * @evidence docs/analysis/02-domain-model.md#sales The sale concept this document
- * describes, as a caller receives it.
+ *           describes, as a caller receives it.
  * @evidence prisma:shopping_sales Represents one sale identity row.
  */
 export interface IShoppingSale {
@@ -35,7 +35,7 @@ export interface IShoppingSale {
    * Registering seller.
    *
    * @evidence prisma:shopping_sales.shopping_seller_id The seller this
-   * sale belongs to, loaded through the foreign key.
+   *           sale belongs to, loaded through the foreign key.
    */
   seller: IShoppingSeller.ISummary;
 }
@@ -43,7 +43,7 @@ export interface IShoppingSale {
 
 The build fails until every selected property carries one. That is the mechanism that removes the phantom: a property with no column has nothing to cite, and it cannot be argued into existence.
 
-Read [the campaign skill](../campaign/SKILL.md) before starting.
+Read [the evidence skill](../evidence/SKILL.md) before starting.
 
 {{base}}
 
@@ -64,9 +64,9 @@ Read [the campaign skill](../campaign/SKILL.md) before starting.
  * Number of customers who have favorited this sale.
  *
  * @evidence prisma:shopping_sale_favorites.shopping_sale_id Counted over the
- * favorite rows pointing at this sale.
+ *           favorite rows pointing at this sale.
  * @evidence prisma:shopping_sale_favorites.deleted_at Rows a customer has
- * un-favorited are excluded from the count.
+ *           un-favorited are excluded from the count.
  */
 favoriteCount: number & tags.Type<"uint32">;
 ```

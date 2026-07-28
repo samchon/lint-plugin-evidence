@@ -9,9 +9,9 @@ Every configured requirement section and every operation must be acknowledged by
  * Verify that two coupons of the same kind cannot be combined.
  *
  * @evidence docs/analysis/04-business-rules.md#coupon-stacking Attempts the
- * forbidden combination and asserts the refusal.
- * @evidence POST:/shopping/customer/order Exercises the operation where the combination
- * is rejected.
+ *           forbidden combination and asserts the refusal.
+ * @evidence api.functional.shopping.customer.order.create Exercises the
+ *           operation where the combination is rejected.
  */
 export async function test_api_order_coupon_stacking_is_refused(
   connection: api.IConnection,
@@ -20,9 +20,9 @@ export async function test_api_order_coupon_stacking_is_refused(
 }
 ```
 
-The operation citation is the method and the path exactly as the generated document carries them. It is not the accessor name and not the controller method.
+**The operation citation is the accessor**, the exported function this test calls. It is an ordinary TypeScript symbol, so a renamed operation breaks the citation instead of leaving a path string that quietly resolves to nothing.
 
-Read [the campaign skill](../campaign/SKILL.md) before starting.
+Read [the evidence skill](../evidence/SKILL.md) before starting.
 
 {{base}}
 
