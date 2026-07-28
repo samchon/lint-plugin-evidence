@@ -84,8 +84,10 @@
       "windowResults",
       "passedAtAuthorization",
       "policyId",
+      "policyPath",
       "policySha256",
       "capturedAtUtc",
+      "attestationAlgorithmId",
       "attestationSha256",
       "privateCheckpointPersistence",
       "exactTelemetryPromoted",
@@ -99,6 +101,48 @@
       "snapshotSha256",
       "rawPayload",
       "reservePolicy"
-    ]
+    ],
+    "invalidAttestationCases": [
+      "arbitrary-policy-sha256",
+      "unknown-policy-path",
+      "unknown-attestation-algorithm",
+      "attestation-preimage-includes-bucket-id",
+      "attestation-preimage-includes-used-percent",
+      "attestation-preimage-includes-window-or-reset",
+      "attestation-preimage-includes-raw-snapshot-digest",
+      "attestation-hash-is-over-raw-telemetry"
+    ],
+    "validAttestation": {
+      "projection": {
+        "sourceClass": "chatgpt-native-rate-limit",
+        "windowResults": {
+          "primary": "pass",
+          "secondary": "not_applicable",
+          "individual": "not_applicable",
+          "spendControl": "pass"
+        },
+        "passedAtAuthorization": true,
+        "policyId": "chatgpt-native-first-hit-v1",
+        "policyPath": "benchmark/protocol/quota-policy.json",
+        "policySha256": "5dae599895578b207c7b46628b7cfc2ee17dce1b4973288199047b0111607763",
+        "capturedAtUtc": "2026-07-29T00:00:00Z",
+        "attestationAlgorithmId": "sha256-rfc8785-sanitized-quota-attestation-v1",
+        "privateCheckpointPersistence": "ephemeral-non-promoted",
+        "exactTelemetryPromoted": false,
+        "guardRelation": "independent-first-hit-or"
+      },
+      "canonicalBytes": 605,
+      "sha256": "b536bb292b1dbd9d6ba665ee2a4136e4356630d04353312497629aadda8b17e2"
+    },
+    "rawDerivedAttestationNegative": {
+      "syntheticForbiddenFields": {
+        "bucketId": "synthetic-bucket",
+        "usedPercent": 50,
+        "resetsAtUtc": "2026-07-29T01:00:00Z"
+      },
+      "rawDerivedCanonicalBytes": 689,
+      "rawDerivedSha256": "eca93d38f8b64954bdf965b1be0325f52635838cb53b1052ebf8cd2bea5f92e3",
+      "expectedFailure": "production validator must recompute the sanitized 605-byte projection and reject the raw-derived digest"
+    }
   }
 }

@@ -252,6 +252,14 @@
     "requirementsSourceRevision": "45922cc9403aa60fdf1808067a82329efc58bfea",
     "recomputeAllSubjects": true
   },
+  "quotaPolicy": {
+    "path": "benchmark/protocol/quota-policy.json",
+    "bytes": 1669,
+    "sha256": "5dae599895578b207c7b46628b7cfc2ee17dce1b4973288199047b0111607763",
+    "schemaPath": "benchmark/protocol/schema/quota-policy.schema.json",
+    "policyId": "chatgpt-native-first-hit-v1",
+    "attestationAlgorithmId": "sha256-rfc8785-sanitized-quota-attestation-v1"
+  },
   "usage": {
     "responseSource": "rawResponse/completed, enabled by thread/start experimentalRawEvents=true and validated against v2/RawResponseCompletedNotification.json, deduplicated by responseId",
     "threadReconciliationSource": "thread/tokenUsage/updated",
@@ -328,7 +336,8 @@
   ],
   "repositoryFrozenDigests": {
     "subjectFreezeManifestSha256": "409aa670f85c94cac653a4041a55a611e0a94873f2152f94947cbe4cefe0ac24",
-    "priceSheetSha256": "4ba82b1e0b80e72e59e64ca3ba07ee4b9568036ff686e7455359e600ab36ae09"
+    "priceSheetSha256": "4ba82b1e0b80e72e59e64ca3ba07ee4b9568036ff686e7455359e600ab36ae09",
+    "quotaPolicySha256": "5dae599895578b207c7b46628b7cfc2ee17dce1b4973288199047b0111607763"
   },
   "prepareTimeRuntimeRequired": {
     "mergedSourceCommit": null,
