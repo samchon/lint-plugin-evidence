@@ -481,7 +481,7 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
             serverRawLog: transport.serverRawLog,
           },
         ),
-      "final item",
+      "exhaustively close",
     );
     for (const invalidProvider of [
       {
@@ -491,6 +491,10 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
       {
         options: { providerType: "commandExecution" },
         message: "pinned vendor schema",
+      },
+      {
+        options: { extraCompletion: true },
+        message: "exhaustively close",
       },
     ]) {
       const invalidTransport = adjudicatorTransport(
@@ -698,7 +702,7 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
             serverRawLog: transport.serverRawLog,
           },
         ),
-      "final item",
+      "exhaustively close",
     );
     const substitutedProcess = `${JSON.stringify(
       {
@@ -1470,6 +1474,7 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
     _protocolRoot: string,
     providerOutput: string,
     options: {
+      extraCompletion?: boolean;
       providerPhase?: string;
       providerType?: string;
     } = {},
@@ -1506,11 +1511,21 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
       },
     });
     const completionBytes = Buffer.from(completionFrame, "utf8");
+    const extraCompletionFrame = JSON.stringify({
+      method: "rawResponse/completed",
+      params: {
+        responseId: "response-adjudicator-omitted",
+        threadId: "thread-adjudicator",
+        turnId: "turn-adjudicator",
+        usage: exactUsage,
+      },
+    });
+    const extraCompletionBytes = Buffer.from(extraCompletionFrame, "utf8");
     const providerBytes = Buffer.from(providerFrame, "utf8");
-    const serverRawLog = Buffer.from(
-      `${completionFrame}\n${providerFrame}\n`,
-      "utf8",
-    );
+    const frames = options.extraCompletion
+      ? [completionFrame, extraCompletionFrame, providerFrame]
+      : [completionFrame, providerFrame];
+    const serverRawLog = Buffer.from(`${frames.join("\n")}\n`, "utf8");
     const completionRawRef = {
       direction: "server",
       path: "server.raw.jsonl",
@@ -1521,7 +1536,10 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
     const providerRawRef = {
       direction: "server",
       path: "server.raw.jsonl",
-      byteOffset: completionBytes.byteLength + 1,
+      byteOffset:
+        completionBytes.byteLength +
+        1 +
+        (options.extraCompletion ? extraCompletionBytes.byteLength + 1 : 0),
       byteLength: providerBytes.byteLength,
       sha256: EvidenceBenchmarkHash.bytes(providerBytes),
     };
@@ -1552,17 +1570,44 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
       payload: { parseError: null },
       rawRef: completionRawRef,
     });
-    const providerEvent = event(3, completionEvent.eventSha256 as string, {
+    const extraCompletionEvent = options.extraCompletion
+      ? event(3, completionEvent.eventSha256 as string, {
+          utc: "2026-07-29T00:00:01.750Z",
+          monotonicNs: "2500",
+          phase: "agent",
+          actor: "app-server",
+          type: "app_server_frame",
+          payload: { parseError: null },
+          rawRef: {
+            direction: "server",
+            path: "server.raw.jsonl",
+            byteOffset: completionBytes.byteLength + 1,
+            byteLength: extraCompletionBytes.byteLength,
+            sha256: EvidenceBenchmarkHash.bytes(extraCompletionBytes),
+          },
+        })
+      : null;
+    const providerEvent = event(
+      options.extraCompletion ? 4 : 3,
+      (extraCompletionEvent?.eventSha256 ??
+        completionEvent.eventSha256) as string,
+      {
       utc: "2026-07-29T00:00:02.000Z",
-      monotonicNs: "3000",
+      monotonicNs: options.extraCompletion ? "3500" : "3000",
       phase: "agent",
       actor: "app-server",
       type: "app_server_frame",
       payload: { parseError: null },
       rawRef: providerRawRef,
-    });
+      },
+    );
     const runnerEventLog = Buffer.from(
-      [processStartEvent, completionEvent, providerEvent]
+      [
+        processStartEvent,
+        completionEvent,
+        ...(extraCompletionEvent === null ? [] : [extraCompletionEvent]),
+        providerEvent,
+      ]
         .map((entry) => JSON.stringify(entry))
         .join("\n") + "\n",
       "utf8",
@@ -1669,9 +1714,9 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
       ],
       providerOutputEvent: {
         sequence: 1,
-        runnerEventSequence: 3,
+        runnerEventSequence: transport.providerEvent.seq,
         runnerEventSha256: transport.providerEvent.eventSha256,
-        monotonicNs: "3000",
+        monotonicNs: transport.providerEvent.monotonicNs,
         method: "item/completed",
         vendorSchemaPath: "v2/ItemCompletedNotification.json",
         vendorSchemaSha256: vendor("ItemCompletedNotification.json"),

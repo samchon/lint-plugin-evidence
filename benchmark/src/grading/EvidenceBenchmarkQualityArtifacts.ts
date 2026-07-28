@@ -720,7 +720,15 @@ export namespace EvidenceBenchmarkQualityArtifacts {
     );
     const providerTurnResponseIds = completions
       .filter((entry) => entry.turnId === providerEvent.turnId)
-      .map((entry) => entry.responseId);
+      .map((entry) =>
+        text(entry.responseId, "adjudicator provider-turn response id"),
+      );
+    const derived = deriveProcessRawEvents(
+      protocolRoot,
+      runnerEvents,
+      artifacts.serverRawLog,
+      text(processValue.threadId, "adjudicator process thread"),
+    );
     if (
       providerEvent.method !== "item/completed" ||
       providerEvent.structuredOutput !==
@@ -728,10 +736,37 @@ export namespace EvidenceBenchmarkQualityArtifacts {
       providerCompletion === undefined ||
       providerEvent.responseId !== null ||
       JSON.stringify(providerEvent.responseIds) !==
-        JSON.stringify(providerTurnResponseIds)
+        JSON.stringify(providerTurnResponseIds) ||
+      providerTurnResponseIds.length !== completions.length ||
+      JSON.stringify(
+        completions.map((entry) => ({
+          responseId: entry.responseId,
+          turnId: entry.turnId,
+          runnerEventSequence: entry.runnerEventSequence,
+          runnerEventSha256: entry.runnerEventSha256,
+          monotonicNs: entry.monotonicNs,
+        })),
+      ) !==
+        JSON.stringify(
+          derived.completions.map((entry) => ({
+            responseId: entry.responseId,
+            turnId: entry.turnId,
+            runnerEventSequence: entry.runnerEventSequence,
+            runnerEventSha256: entry.runnerEventSha256,
+            monotonicNs: entry.monotonicNs,
+          })),
+        ) ||
+      derived.finalAnswers.length !== 1 ||
+      derived.finalAnswers[0]!.runnerEventSha256 !==
+        providerEvent.runnerEventSha256 ||
+      derived.completions.some(
+        (entry) =>
+          entry.runnerEventSequence >= providerEvent.runnerEventSequence ||
+          BigInt(entry.monotonicNs) >= BigInt(providerEvent.monotonicNs),
+      )
     )
       throw new Error(
-        "Adjudicator provider output is not the final item of its response turn.",
+        "Adjudicator provider output does not exhaustively close its raw response turn.",
       );
     validateUsageProjection(
       usage,
@@ -1004,6 +1039,7 @@ export namespace EvidenceBenchmarkQualityArtifacts {
     responseId: string | null;
     responseIds: string[] | null;
     turnId: string;
+    runnerEventSequence: number;
     runnerEventSha256: string;
     monotonicNs: string;
     usage: Record<string, number> | null;
@@ -1101,6 +1137,10 @@ export namespace EvidenceBenchmarkQualityArtifacts {
         responseId,
         responseIds: null,
         turnId,
+        runnerEventSequence: integer(
+          event.runnerEventSequence,
+          "completion runner event sequence",
+        ),
         runnerEventSha256: text(
           runner.eventSha256,
           "completion runner event hash",
@@ -1131,6 +1171,10 @@ export namespace EvidenceBenchmarkQualityArtifacts {
         "adjudicator provider response ids",
       ),
       turnId,
+      runnerEventSequence: integer(
+        event.runnerEventSequence,
+        "provider runner event sequence",
+      ),
       runnerEventSha256: text(runner.eventSha256, "provider runner event hash"),
       monotonicNs: text(runner.monotonicNs, "provider monotonic time"),
       usage: null,
@@ -1160,6 +1204,126 @@ export namespace EvidenceBenchmarkQualityArtifacts {
       throw new Error(
         `${label} raw params violate the exact pinned vendor schema.`,
       );
+  }
+
+  function deriveProcessRawEvents(
+    protocolRoot: string,
+    runnerEvents: readonly Record<string, unknown>[],
+    serverRawLog: Uint8Array,
+    threadId: string,
+  ): {
+    completions: IRawEventResult[];
+    finalAnswers: IRawEventResult[];
+  } {
+    const completions: IRawEventResult[] = [];
+    const finalAnswers: IRawEventResult[] = [];
+    for (const runner of runnerEvents) {
+      if (
+        runner.type !== "app_server_frame" ||
+        runner.actor !== "app-server"
+      )
+        continue;
+      const rawRef = record(
+        runner.rawRef,
+        "adjudicator derived runner raw reference",
+      );
+      const offset = integer(
+        rawRef.byteOffset,
+        "derived raw-event byte offset",
+      );
+      const length = integer(
+        rawRef.byteLength,
+        "derived raw-event byte length",
+      );
+      const rawFrame: Uint8Array = serverRawLog.subarray(
+        offset,
+        offset + length,
+      );
+      if (
+        rawRef.direction !== "server" ||
+        rawRef.path !== "server.raw.jsonl" ||
+        rawFrame.byteLength !== length ||
+        rawRef.sha256 !== EvidenceBenchmarkHash.bytes(rawFrame)
+      )
+        throw new Error(
+          "Adjudicator derived raw reference does not match exact app-server bytes.",
+        );
+      const frame = record(
+        EvidenceBenchmarkProtocolValidator.parse(
+          decodeBytes(rawFrame, "derived adjudicator app-server frame"),
+          `derived adjudicator app-server frame ${String(runner.seq)}`,
+        ),
+        "derived adjudicator app-server frame",
+      );
+      if (
+        frame.method !== "rawResponse/completed" &&
+        frame.method !== "item/completed"
+      )
+        continue;
+      const params = record(
+        frame.params,
+        "derived adjudicator app-server params",
+      );
+      if (params.threadId !== threadId) continue;
+      const method = frame.method as IRawEventResult["method"];
+      const schemaPath =
+        method === "rawResponse/completed"
+          ? "v2/RawResponseCompletedNotification.json"
+          : "v2/ItemCompletedNotification.json";
+      const vendorSchema = fs.readFileSync(
+        path.join(
+          path.resolve(protocolRoot),
+          "vendor",
+          "codex",
+          "0.145.0",
+          "app-server-schema-experimental",
+          ...schemaPath.split("/"),
+        ),
+      );
+      validateVendorParams(vendorSchema, params, schemaPath);
+      const base = {
+        method,
+        responseIds: null,
+        turnId: text(params.turnId, "derived adjudicator turn id"),
+        runnerEventSequence: integer(
+          runner.seq,
+          "derived runner event sequence",
+        ),
+        runnerEventSha256: text(
+          runner.eventSha256,
+          "derived runner event hash",
+        ),
+        monotonicNs: text(
+          runner.monotonicNs,
+          "derived runner monotonic time",
+        ),
+      };
+      if (method === "rawResponse/completed") {
+        const responseId = text(
+          params.responseId,
+          "derived adjudicator response id",
+        );
+        completions.push({
+          ...base,
+          responseId,
+          usage: tokenUsage(params.usage, `derived response ${responseId}`),
+          structuredOutput: null,
+        });
+        continue;
+      }
+      const item = record(params.item, "derived adjudicator item");
+      if (item.type !== "agentMessage" || item.phase !== "final_answer")
+        continue;
+      if (typeof item.text !== "string")
+        throw new Error("Derived final answer text must be a string.");
+      finalAnswers.push({
+        ...base,
+        responseId: null,
+        usage: null,
+        structuredOutput: item.text,
+      });
+    }
+    return { completions, finalAnswers };
   }
 
   function validateUsageProjection(
