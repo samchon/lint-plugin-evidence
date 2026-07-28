@@ -14,7 +14,7 @@ Every heading in every file under `docs/analysis/`, in order, including the ones
 
 Read every document, not the ones that seem relevant to what you are building right now. A concern lands in exactly one document, so the rule an endpoint must enforce is in the business-rules document and the actor allowed to call it is in the actors document. Reading only the functional requirements produces an application with every endpoint and no rules, and it looks finished.
 
-`00-toc.md` is navigation and requires nothing. Everything else requires something.
+**Do not exclude a document because its name reads as navigation or preamble.** A file that looks like a table of contents still gets a complete pass, because the one statement nothing else repeats is exactly the kind of thing that lands there, and skipping it costs nothing to check and everything to miss.
 
 ## A Round
 
