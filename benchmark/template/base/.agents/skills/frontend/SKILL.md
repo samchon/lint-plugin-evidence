@@ -1,92 +1,63 @@
 ---
 name: frontend
-description: Defines the frontend stack, the SDK adapter boundary, page and component structure, required interface states, testing through SDK simulation, and the review a screen must pass. Use before writing or changing a page, a component, or a data call.
+description: Indexes the frontend conventions and states the rules that cross all of them: the stack, reading the SDK first, building a product rather than an endpoint list, and what done means. Use before any frontend work, then read the linked topic document.
 ---
 
 # Frontend
 
-## Goal
+The frontend is where a requirement becomes something a user can actually do. An operation nobody can reach from a screen is a requirement that was built and never delivered.
 
-Produce an application that understands the SDK well, and do not let raw SDK shapes take over the interface.
+Read this file first, then the topic document for what you are about to touch.
 
-Keep SDK-specific code in an adapter layer and let screens depend on normalized domain models. When the contract changes, the cost should land in the adapter, not in forty components.
+## Topics
+
+- [sdk.md](sdk.md): consuming the generated SDK, authentication and connections, and the simulation-first development flow that closes with live integration. Read before writing any data call.
+- [architecture.md](architecture.md): layering, how far SDK types are allowed to reach, view models, hooks, and query keys. Read before adding a route, a data path, or shared state.
+- [screens.md](screens.md): screen structure, the states every screen owes, and how a screen traces to a requirement. Read before building a screen.
+- [verification.md](verification.md): what proves the frontend works, and the record that proof leaves. Read before claiming anything is finished.
 
 ## Stack
 
-Use TypeScript with Vite, a router, and a component library, unless the requirements or the user direct otherwise. Read the API host from an environment variable. Add a library only when it solves a real problem you have already met.
+TypeScript with Vite, React Router for routing, Tailwind with a small set of local primitives for styling, a query library for client-side query and mutation orchestration, and Playwright for browser verification.
 
-Explain any non-default choice for routing, state, fetching, styling, or forms rather than making it silently.
+The API host, the simulation flag, and any bootstrap identifiers come from environment variables with documented defaults, recorded in an example environment file. Never hardcode a host.
 
-## Start By Reading The SDK
+Add a library only when it solves a problem you have already met, and explain any departure from the stack above rather than making it silently.
 
-Before designing any screen, make the API surface clear to yourself.
+## Read The SDK Before Designing Anything
 
-Read `packages/api/src/**/*.ts` carefully, including the comments. The types, their JSDoc, and the `typia` tags are the source of truth for what the product can do, what each field means, and which values are legal. Map the operations, the DTOs, and the constraints before laying out a single page.
+The generated SDK is the contract and the source of truth for what the product can do.
+
+Read `packages/api/src/**/*.ts` before laying out a single screen, JSDoc included. The types, their comments, and their value constraints tell you what each field means, which values are legal, and which operations exist at all. Map the operations, the DTOs, and the constraints first.
 
 A screen designed before reading the contract gets rebuilt after reading it.
 
-## The Adapter Boundary
+## Build The Product, Not The Endpoint List
 
-```ts
-import Api, { ISale, IPage } from "{{apiPackageName}}";
+Do not turn every operation into a feature. Prefer a coherent product over exhaustive coverage, and leave out operations that are diagnostic, redundant, or that expose backend mechanics no user benefits from.
 
-const page: IPage<ISale.ISummary> = await Api.functional.sales.index(
-  connection,
-  { limit: 20 },
-);
+Record every deliberate omission with its reason in the project's notes, the way a real project keeps an omissions log:
+
+```markdown
+## Omitted On Purpose
+
+- Review, question, answer, and comment surfaces
+- Deep seller operations such as raw SKU authoring and inventory updates
+- Manual payment vendor selection
+
+## Why
+
+- The product goal is a coherent buyer flow plus practical operator tooling.
+- The omitted areas add operational complexity, duplicate an existing path,
+  or expose backend mechanics that do not help a shopper.
 ```
 
-- **Never hand-write a fetch or a URL.** The SDK is regenerated from the controllers, so a hand-written call silently survives a route change that the SDK would have failed to compile against.
-- **Never redeclare a request or response type.** Import it. A locally redeclared DTO is the second copy that drifts.
-- **Normalize at the boundary.** Convert to the shape screens want in the adapter, so a nested payload does not dictate a component tree.
+An unrecorded omission is indistinguishable from an oversight. The next reader re-derives the decision, or reverses it by accident.
 
-## Structure
+Never invent a feature the SDK does not support. If a requirement needs behavior the contract does not expose, that is a finding against the API, not an invitation to build a frontend-only path.
 
-- One route, one page component. A page owns its data loading and passes plain values down.
-- Components below a page are presentational and take data as props. A component that fetches on its own makes the page's loading state unknowable and its errors unhandleable.
-- Shared state that outlives a route lives in one place, not in a context created per feature.
+## Done Means The Product Works
 
-## Every Screen Handles Every State
+The frontend is not finished when it compiles, and a green build says nothing about whether a control does anything.
 
-A screen is not the success case with the rest deferred. Handle loading, empty, error, retry, and invalidation after a mutation. An interface that renders a spinner forever when a request fails is a defect the requirements did not have to state.
-
-Where an operation can be refused, the refusal has a visible outcome. The business rules state what the refusal means; the screen says it in words a user can act on.
-
-## Requirements Map To Reachable Behavior
-
-A requirement is not realized because an endpoint exists. It is realized when a user can reach the behavior the document describes.
-
-Read the requirement for a workflow before building its screen, and check the flow end to end: what the user sees before acting, while it is in flight, when it succeeds, and when it is refused. A screen that renders data but offers no path to the action the document names does not satisfy it.
-
-Do not turn every endpoint into a feature. Prefer a coherent product over exhaustive endpoint coverage, leave out operations that are diagnostic or redundant, and never invent a feature the SDK does not support. Record a deliberate omission where a reader will find it rather than leaving it to look like an oversight.
-
-## Responsive By Default
-
-The interface works on mobile, tablet, and desktop. Build from real parts: lists, tables, forms, detail views, dialogs, pagination. Keep the layout content-first, and avoid decoration that costs clarity.
-
-## Testing
-
-Keep the frontend test program focused on the frontend. Do not boot the backend or add server health checks to it.
-
-The SDK simulates at its own boundary, which is the mocking seam:
-
-```ts
-const connection: IConnection = {
-  host: "http://127.0.0.1:37001",
-  simulate: true,
-};
-```
-
-With `simulate: true` the SDK returns generated responses instead of calling the server, so a screen can be tested against the real contract without a running backend. Keep a browser-driven program covering the main user flows, and keep integration testing that needs a live server as a separate program.
-
-## Review Before Calling It Done
-
-Frontend work is not done when it compiles.
-
-- Run the flow yourself, in a browser.
-- Check mobile, tablet, and desktop widths.
-- Confirm every control causes an observable change.
-- Confirm search, sort, pagination, page size, toggles, dialogs, and forms actually work wherever they appear.
-- Make one final pass over layout and copy.
-
-Done means the application starts, the core flows work, the interface is coherent, and the tests match the code.
+Done means the application starts, the core flows work when a person performs them, the interface is coherent at every width, deliberate omissions are recorded, and the verification document reflects what was actually run against a real backend. The verification topic owns what that requires.

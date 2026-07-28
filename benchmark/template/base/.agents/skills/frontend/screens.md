@@ -1,0 +1,53 @@
+# Screens
+
+Read [SKILL.md](SKILL.md) first. This document owns what a screen is and what it owes.
+
+## A Screen Traces To A Requirement
+
+Before building anything, write a screen plan: for each screen, the requirement it serves and the operations it consumes.
+
+A screen with no requirement is a feature someone invented. A requirement with no screen is a requirement that was built into the backend and never delivered. Both are findings, and the plan is what makes either visible before the work is done rather than after.
+
+A screen that needs an operation the SDK does not expose reveals a gap in the API contract. Send it back there. Do not improvise a frontend-only path around it.
+
+## Walk The Journey, Not The Endpoint
+
+Read the requirement for a workflow before building its screen, then walk the journey the document describes end to end as the actor performing it.
+
+What does the user see before acting? While the request is in flight? When it succeeds? When it is refused? A screen that renders the data but offers no path to the action the requirement names does not satisfy it, and it will pass every check that only looks at whether the data appears.
+
+The journey matters more than the screen. A flow whose every step works individually can still be impossible to complete in sequence: a value the next step needs is never shown, an actor loses their session halfway, a confirmation leaves the user somewhere they cannot continue from. Only performing the whole journey finds those.
+
+## Every State Is Owned
+
+A screen is not the success case with the rest deferred. Each one handles all five:
+
+| State        | What it owes                                               |
+| ------------ | ---------------------------------------------------------- |
+| loading      | something that says work is happening, not an empty frame  |
+| empty        | the difference between "nothing yet" and "nothing matched" |
+| error        | what failed, in words the user can act on                  |
+| retry        | a way back that does not require a reload                  |
+| invalidation | fresh data after a mutation that changed it                |
+
+The error state is where the requirement usually is. Every rejection the contract states has a visible outcome, and the business rules say what that outcome means. A screen that shows a spinner forever when a request fails is a defect no requirement had to state.
+
+Empty and error are different, and conflating them tells the user their search matched nothing when the request actually failed.
+
+## Preserve What The Contract Says
+
+Nullable and union states come from the contract and mean something. A field the contract says can be absent is absent for a reason the requirements usually state, and rendering a placeholder in its place discards that meaning.
+
+When a value genuinely is not available, say so rather than inventing one. A summary endpoint that does not carry a timestamp is not a reason to fabricate a timestamp; the screen says the timestamp is unavailable, and the architecture note records why.
+
+## Responsive Is Not Optional
+
+The interface works on mobile, tablet, and desktop. Build from real parts: lists, tables, forms, detail views, dialogs, pagination.
+
+Keep the layout content-first and readable, and avoid decoration that costs clarity. A default of a plain, prototype-quality interface is correct unless the requirements or the user give a different direction; if the existing product already has a clear visual style, follow that instead.
+
+## Authorization Shapes The Interface, It Does Not Enforce It
+
+Hide or disable a command the current actor cannot use, because showing it is a usability failure. Then keep the denial path anyway.
+
+The server is authoritative and can still refuse: a session goes stale, a role is revoked, ownership changes between the render and the click. An interface built on the assumption that a hidden button is security will show an unhandled failure the first time any of those happens.
