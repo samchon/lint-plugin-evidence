@@ -218,6 +218,38 @@ Four rules are visible here.
 
 A field the requirements say is mutated in place, such as a state timestamp, is an ordinary update and does not create a snapshot. Decide from the requirement, not from convenience.
 
+## Stance Decides What A Write May Do
+
+The kind a table was given in the schema is not a label. It governs which operations a provider may perform on it.
+
+| Stance | Permitted |
+| --- | --- |
+| `primary`, `subsidiary`, `actor`, `session` | anything the business logic requires |
+| `snapshot` | reads and inserts only, because it is immutable history |
+| `material` | reads only, except the current pointer a provider maintains beside a snapshot append |
+
+An update or a delete against a snapshot row is a defect regardless of what the code needs, because the row is the evidence something else depends on. When a snapshot appears to need editing, the entity needs a new snapshot instead.
+
+The one write a `material` table accepts is the maintained current pointer, upserted in the same transaction as the snapshot it points at.
+
+## Scheduled Work Is An Operation
+
+The backend owns no scheduler. There is no timer, no queue, and no jobs directory, and the bootstrap only creates the application and listens.
+
+A requirement that says something runs nightly, at a period boundary, or when a queue drains is realized as **an ordinary operation that performs one run**. Recurrence belongs to whatever already schedules work in the deployment: a platform cron entry, a CI workflow, an operator command calling that endpoint.
+
+An in-process timer would have no operation, no test, and no requirement owner, so the requirement stays reported as unrealized while the code runs unproven. The operation gives it a contract, a body, a scenario, and a coverage owner, and it preserves the on-demand rerun such a process always turns out to need.
+
+**Make the run idempotent per period.** Key the run row on its scope and period, guard it with a unique constraint, and reject or no-op a period already completed rather than executing it twice.
+
+```prisma
+@@unique([organization_id, period_started_at])
+```
+
+A retried cron, an operator rerun, and a redelivered queue message all arrive as a second call, and without the key each posts the work again. Assert that with a second call in the test.
+
+Record the trigger in the operation's own documentation and in the requirement it serves. Omitting both silently turns a scheduled obligation into a manual endpoint nobody knows to schedule.
+
 ## Do Not Revalidate The Boundary
 
 Never add runtime type or format checks on parameters. The generated validator already enforced every type, format, and length the DTO declares, so a repeated check is dead code that drifts from the contract. Delete duplicates you find.

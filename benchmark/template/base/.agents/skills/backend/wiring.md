@@ -208,9 +208,56 @@ pnpm --filter <backend> start          # run it
 pnpm --filter <backend> test           # run the e2e suite
 ```
 
-The order is a dependency chain, not a preference. Nothing that imports the database client compiles before `build:prisma`. Nothing that imports the SDK sees a new endpoint before `build:sdk`, so a controller change that is not regenerated appears to work locally and fails on the next clean build.
+The order is a dependency chain, not a preference. Nothing that imports the database client compiles before `build:prisma`. Nothing that imports the SDK sees a new endpoint before `build:sdk`.
 
-Run `build:sdk` after **any** controller or DTO change, including a JSDoc edit, because the published documentation comes from it.
+## The SDK Build, End To End
+
+This is the loop everything else depends on, and getting it wrong produces failures that look like they came from somewhere else.
+
+**1. The schema generates the client.** `build:prisma` reads `prisma/schema/`, writes the typed client into the backend's source tree, and regenerates `docs/ERD.md` from the same comments. Every provider, transformer, and collector imports from that output, so none of them compile before it runs.
+
+**2. `prepare` pushes the schema to the database file.** SQLite means this creates or updates a local file with nothing to install and nothing to connect to. Run it after any schema change, or the running server queries columns that do not exist.
+
+**3. The controllers generate the SDK.** `build:sdk` builds the real application in memory, walks its module tree, and emits `packages/api/src/functional/**` and `swagger.json`. Two consequences follow directly:
+
+- **A controller not registered in a module is absent from the SDK**, for the same reason it is absent from the running server. Both read the same tree.
+- **The JSDoc on each method becomes the SDK function's documentation and the OpenAPI description.** A documentation edit is a contract change, so it needs this step too.
+
+**4. Everything downstream consumes the regenerated SDK.** The e2e tests import their accessors from it, and the frontend imports its accessors and its types from it.
+
+That is why an unregenerated change appears to work. The backend still compiles, the server still runs, and only a consumer notices, on the next clean build, in a package nobody was editing.
+
+## When To Regenerate
+
+| Change                                   | Run                            |
+| ---------------------------------------- | ------------------------------ |
+| a model, a column, or a schema comment   | `build:prisma`, then `prepare` |
+| a controller signature, route, or method | `build:sdk`                    |
+| a DTO in `packages/api/src/structures`   | `build:sdk`                    |
+| JSDoc on a controller method             | `build:sdk`                    |
+| a provider body only                     | nothing                        |
+
+When in doubt, run the workspace-root `build`. It performs the whole chain in order, and it is cheaper than diagnosing a stale SDK.
+
+## Consuming The SDK
+
+The tests and the frontend consume the same package and the same way.
+
+```ts
+import api, { IShoppingSale, IPage } from "{{apiPackageName}}";
+
+const connection: api.IConnection = { host: "http://127.0.0.1:37001" };
+const page: IPage<IShoppingSale.ISummary> =
+  await api.functional.shoppings.customers.sales.index(connection, {
+    limit: 20,
+  });
+```
+
+The default export is `api`, and accessors live under `api.functional` along the route path. Types are named exports from the same package.
+
+Authentication is not something a consumer wires up. A lifecycle accessor writes the issued token into the connection it was given, because its controller method declares `@setHeader token.access Authorization`. The caller passes the same connection object to later calls and is authenticated.
+
+The API skill owns the full consumption contract, including simulation mode.
 
 ## The Order Of A First Run
 

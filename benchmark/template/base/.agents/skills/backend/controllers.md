@@ -151,6 +151,51 @@ Enumerate only fields with a real ordering use case: the entity timestamps, a na
 
 Do not enumerate every column, and do not split the concept into `sortBy` and `sortOrder`. Two properties can disagree; one cannot.
 
+## Prerequisites
+
+An operation's prerequisites are the ordered list of creations that must happen before it can be called at all. They are not authentication and not test setup.
+
+Only a creation establishes a prerequisite. A read or an update of existing state does not bring a resource into existence, so no `get`, `put`, `patch`, or `delete` is ever one.
+
+Extract them from both sides of the request. A path parameter names an ancestor that must exist, and a foreign key inside the body names one too: an identifier referencing another resource is a prerequisite even though it arrives in the body rather than the path. Optional and context-dependent references are not, because only what must already exist qualifies.
+
+Order creators first: independent resources, then parents, then children.
+
+For `PUT /order/{orderId}/item/{id}` the list is:
+
+```
+POST /product          the referenced product
+POST /order            the parent order
+POST /order/{orderId}/item   the row being updated
+```
+
+Analyze only direct dependencies. Transitive chains resolve when the same procedure is applied to each operation in turn, and the graph must stay acyclic: if creating one resource must precede another, the second can never be a prerequisite of the first at any length.
+
+This list is what a test's setup order comes from, and what tells a consumer which calls to make first.
+
+## Every Schema Reaches The API, Or Is Excluded On Purpose
+
+Keep a ledger of the schemas a group touches. Each one lands in exactly one of four places.
+
+1. Exposed through its own endpoints.
+2. Reached as a parent or child inside a nested endpoint.
+3. Used as a query or projection source behind a workflow endpoint.
+4. Deliberately internal, with the reason written down.
+
+A table with no entry is either an endpoint nobody designed or an unrecorded decision, and on the next pass those look identical.
+
+Coverage is by exact method and path. A trash listing does not cover the ordinary listing, an item endpoint does not cover its collection, and a mention in a description covers nothing.
+
+Exposure follows the stance the schema was given.
+
+| Stance | Surface |
+| --- | --- |
+| `actor` | the lifecycle owns creation; add browsing or self-profile only where a requirement asks |
+| `session` | visibility where it belongs to this group; revocation only where the requirements describe it |
+| `snapshot` | detail and history reads; an append only where a requirement calls for it, never update or delete |
+| `subsidiary` under a composition parent | created through the parent; nested read, update, or delete only where the child is separately callable |
+| `material` | read-only projections |
+
 ## Not Every Operation Maps To A Table
 
 Totals, averages, and trends are statistics. Patterns across entities are analytics. An at-a-glance view is a dashboard. Search across everything is unified search. These use descriptive DTO names of their own and never borrow an entity DTO.
