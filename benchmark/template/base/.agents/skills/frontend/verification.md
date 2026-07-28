@@ -8,49 +8,82 @@ The compiler cannot tell you that a button does nothing, that a filter returns t
 
 Every one of those ships from a green build. Browser verification is the only thing that finds them, and it is part of done-ness rather than a step after it.
 
-## Two Programs, Two Meanings
+## Where The Programs Live
 
-Keep them separate and name them for what they prove.
+All browser programs live in `tests/` at the package root, one spec file per purpose, driven by one runner with a mode argument.
 
-**The simulation program** runs against the SDK's simulation mode with no server. It proves that accessors bundle, that typed responses render, that navigation works, and that screen states appear. It is deterministic, so it is what browser tests and screenshots run against without depending on backend uptime or random data.
+```
+packages/frontend/
+  playwright.config.ts
+  scripts/run-playwright.mjs
+  tests/
+    e2e.spec.ts          the main user journeys
+    ui-review.spec.ts    layout and interaction review across viewports
+    readme.spec.ts       screenshots for the documentation
+```
+
+```json
+"test:e2e": "node scripts/run-playwright.mjs e2e",
+"ui:review": "node scripts/run-playwright.mjs ui-review",
+"readme:screens": "node scripts/run-playwright.mjs readme",
+"playwright:install": "pnpm exec playwright install chromium"
+```
+
+The runner serves the production build on a fixed local port and points the browser at it, so every mode tests what actually ships rather than the development server. Take the port from the environment with a validated default, and fail loudly on a bad value rather than silently binding somewhere else.
+
+Install the browser before the first run. In Linux CI the install needs its system dependencies explicitly, run from the frontend package directory.
+
+## Two Meanings, Named Apart
+
+**The simulation program** runs against the SDK's simulation mode with no server. It proves that accessors bundle, that typed responses render, that navigation works, and that screen states appear. It is deterministic, which is why browser tests and screenshots run against it without depending on backend uptime or random data.
 
 **The live program** runs with simulation off, against the real host, with a prepared backend and real authentication. It is the only thing that proves persistence, sessions, authorization, refresh, and side effects.
 
-Never point the live program at the simulated path. The name is what a later reader trusts, and a live-named program that quietly simulates is worse than having no live program at all.
+Never point the live program at the simulated path. The name is what a later reader trusts, and a live-named program that quietly simulates is worse than having no live program.
 
 Development happens against the simulation program and closes with the live one. Neither replaces the other.
 
 ## Keep The Frontend Program Frontend-Only
 
-The frontend test program does not boot the backend, assert backend health, or check server state. Those belong to the live integration program, and mixing them makes a frontend failure indistinguishable from an environment failure.
+The frontend test program does not boot the backend, assert backend health, or check server state. Those belong to the live integration program.
 
-## Run The Flows Yourself
+Mixing them makes a frontend failure indistinguishable from an environment failure, and a suite that goes red because a database was not seeded teaches everyone to ignore it.
 
-Automation is not a substitute for using the product.
+## Drive The Browser Yourself
 
-Each round, drive the main journeys in a browser and confirm:
+Automation covers what you told it to cover. It cannot notice that a layout is unusable or that a label says the wrong thing.
+
+Each round, drive the main journeys interactively and confirm:
 
 - every control causes an observable change;
 - search, sort, pagination, page size, toggles, dialogs, and forms actually work wherever they appear;
 - the layout holds at mobile, tablet, and desktop widths;
 - the copy says what it means.
 
-Install browser automation rather than falling back to screenshots or raw API checks. Fall back only when automation genuinely is not available, and say so in the record.
+Use a browser automation tool you can steer step by step rather than a fixed script for this pass. When a browser MCP server is available, drive it through that: navigate, click, fill, resize the viewport, and read the rendered page back. The value is being able to look at the next thing based on what the last thing showed, which a pre-written spec cannot do.
+
+Turn whatever that pass finds into a spec in `tests/` so it stays covered. The interactive pass finds the defect; the spec keeps it found.
+
+Fall back to screenshots or raw API checks only when no automation is available at all, and say so in the record.
 
 ## The Record
 
 Verification that leaves no record cannot be trusted later, because a reader cannot tell whether a gap was checked and clean or never checked.
 
-Keep a verification document in the project's notes with:
-
-- the date it was verified and what was running;
-- the automated checks that were run, by command name;
-- the flows that were exercised, per viewport, in the order they were performed;
-- what could not be verified and why.
-
-Write the flows concretely enough to be repeated. "Verified the checkout flow" is not a record; the list of steps someone actually performed is.
+Keep `wiki/verification.md` with the date, what was running, the automated checks by command name, the flows exercised per viewport in the order performed, and what could not be verified and why.
 
 ```markdown
+## Date
+
+- Verified on April 14, 2026
+- Ran against the production build served locally in deterministic simulation mode
+
+## Automated Checks
+
+- `pnpm check`
+- `pnpm test:e2e`
+- `pnpm ui:review`
+
 ## Browser Flows
 
 - Desktop 1440x900
@@ -64,6 +97,8 @@ Write the flows concretely enough to be repeated. "Verified the checkout flow" i
   - verified catalog layout and category filtering
 ```
 
+Write the flows concretely enough to repeat. "Verified the checkout flow" is not a record; the list of steps someone actually performed is.
+
 Update the record when the flows change. A verification document dated before the last three features is a record of a product that no longer exists.
 
 ## Preserve Failure Diagnostics, Not As Evidence
@@ -72,6 +107,6 @@ Keep traces and screenshots from failing runs while you diagnose them. They are 
 
 ## What Done Requires
 
-The application starts. The core flows work when a person performs them. The interface is coherent at every width. The simulation program passes and the live program has been run against a real backend. Deliberate omissions are recorded with reasons. The verification document reflects what was actually run, including what could not be.
+The application starts. The core flows work when a person performs them. The interface is coherent at every width. The simulation program passes and the live program has been run against a real backend. Deliberate omissions are recorded with reasons. `wiki/verification.md` reflects what was actually run, including what could not be.
 
 Passing a type check, a production build, or a seeded smoke test proves that the application mounts. It does not prove the product exists.

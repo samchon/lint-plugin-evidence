@@ -64,11 +64,91 @@ const keys = {
 
 A mutation that changes something invalidates every key that shows it. Stale data after a successful action is the most common frontend defect and the least likely to be reported as one, because the interface looks like it worked.
 
-## Structure
+## The Folder Layout
+
+This is the whole package, and every directory below has one job.
+
+```
+packages/frontend/
+  index.html
+  vite.config.ts             client build
+  vite.server.config.ts      server bundle build, when there is a server tier
+  playwright.config.ts       browser test configuration
+  scripts/
+    run-playwright.mjs       one runner, several modes
+  src/
+    main.tsx                 client entry
+    App.tsx                  router and layout shell
+    styles.css
+    components/
+      ui/                    local primitives: button, input, dialog, table
+      providers/             app-wide providers, composed in one file
+      <domain>/              one folder per product area
+    lib/
+      utils.ts               generic helpers with no domain meaning
+      <domain>/
+        types.ts             normalized view models the interface consumes
+        hooks.ts             queries and mutations, plus the query keys
+        client.ts            the fetch wrapper the hooks call
+    server/                  only when there is a server tier
+      index.ts               server entry
+      api.ts                 internal route table
+      http.ts                request and response plumbing
+      <domain>/
+        config.ts            environment reading
+        errors.ts            failure translation
+        mappers.ts           SDK payload to view model
+        <area>.ts            one file per area: account, cart, catalog, orders
+  tests/
+    *.spec.ts                browser programs, one per purpose
+  wiki/
+    architecture.md          this project's stack, layering, routes, choices
+    omissions.md             what was deliberately left out and why
+    verification.md          what was verified, when, and how
+```
+
+**Components split by domain, not by kind.** `components/cart` holds everything the cart renders. Do not create `components/forms` or `components/lists`, because nobody looks for a cart control under "forms" and every domain then reaches into every folder.
+
+Two folders are the exception and are named for their kind rather than a domain:
+
+- `components/ui` holds the local primitives: the button, input, dialog, table, and pagination pieces every domain composes. Nothing in here knows what the product is.
+- `components/providers` holds the app-wide providers, composed in one file so the provider order is readable in one place rather than nested across the tree.
+
+**`lib/<domain>` is the interface's own vocabulary.** `types.ts` names shapes for what a screen needs rather than what a table holds. `hooks.ts` exposes the queries and mutations and owns the query keys. `client.ts` is the one place a request is issued.
+
+**`server/<domain>` exists only when there is a server tier**, and it mirrors the domain split. `config.ts` reads the environment, `errors.ts` translates failures, `mappers.ts` turns SDK payloads into view models, and one file per area owns that area's calls.
+
+**Tests live in `tests/` at the package root**, not beside components. Browser programs test flows rather than units, so they belong to the package, not to a folder inside it.
+
+**`wiki/` is the project's own notes**, and the verification topic owns what goes in it.
+
+## Structure Rules
 
 - One route, one page component. The page owns its data loading and passes plain values down.
 - Components below a page are presentational and take their data as props. A component that fetches on its own makes the page's loading state unknowable and its errors unhandleable.
-- Shared state that outlives a route lives in one provider, not in a context invented per feature.
+- Shared state that outlives a route lives in one provider, composed in `components/providers`, not in a context invented per feature.
+- A file that would sit in two domain folders belongs in `lib` or `components/ui`. Duplicating it into both is how two versions drift.
+
+## Scripts
+
+Name them for what they do, and keep the composite ones explicit about what they run.
+
+```json
+{
+  "dev": "vite --host 0.0.0.0",
+  "build": "rimraf dist && pnpm typecheck && vite build",
+  "start": "node dist/server/server.mjs",
+  "typecheck": "tsc -p tsconfig.json --noEmit",
+  "lint": "ttsc -p tsconfig.json --noEmit",
+  "check": "pnpm run typecheck && pnpm run lint",
+  "test:e2e": "node scripts/run-playwright.mjs e2e",
+  "ui:review": "node scripts/run-playwright.mjs ui-review",
+  "readme:screens": "node scripts/run-playwright.mjs readme",
+  "playwright:install": "pnpm exec playwright install chromium"
+}
+```
+
+One runner script with a mode argument beats several near-identical configurations. `build` runs the type check before bundling, so a broken type fails the build rather than shipping.
 
 ## Record The Notable Choices
 
