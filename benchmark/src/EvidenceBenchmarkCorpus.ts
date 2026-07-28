@@ -7,6 +7,11 @@ import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 
 /** Reads and validates one complete benchmark requirement corpus. */
 export namespace EvidenceBenchmarkCorpus {
+  const DUAL_PROTOCOL_DOCUMENTS: ReadonlySet<string> = new Set([
+    "00-corpus-contract.md",
+    "00-toc.md",
+  ]);
+
   /** Validated subject files and inventory counts bound into run provenance. */
   export interface IResult {
     /** Every regular subject file, including machine-readable inventories. */
@@ -46,7 +51,6 @@ export namespace EvidenceBenchmarkCorpus {
     if (files.size === 0)
       throw new Error(`Benchmark requirement corpus is empty: ${root}.`);
     const parserFiles: Map<string, Uint8Array> = normalizeText(files);
-    const markdown: IMarkdownInventory = readMarkdown(parserFiles);
     const hasJsonLines: boolean = parserFiles.has("acceptance-criteria.jsonl");
     const hasMetadata: boolean = parserFiles.has("metadata.json");
     const hasContext: boolean = parserFiles.has("context-criteria.jsonl");
@@ -55,17 +59,38 @@ export namespace EvidenceBenchmarkCorpus {
       throw new Error(
         "Requirement corpus must select exactly one inventory adapter, not both acceptance-criteria.jsonl and metadata.json.",
       );
+    if (hasJsonLines && hasContext !== hasManifest)
+      throw new Error(
+        "Dual-denominator corpus requires both context-criteria.jsonl and corpus-manifest.json.",
+      );
+    if (hasMetadata && (hasContext || hasManifest))
+      throw new Error(
+        "metadata.json corpus cannot also declare the dual-denominator contract.",
+      );
+    if (!hasJsonLines && !hasMetadata && (hasContext || hasManifest))
+      throw new Error(
+        "Dual-denominator corpus requires acceptance-criteria.jsonl.",
+      );
+    const manifest: Record<string, unknown> | undefined = hasManifest
+      ? readCorpusManifest(files)
+      : undefined;
+    const markdown: IMarkdownInventory = readMarkdown(parserFiles, {
+      manifestOwnedProtocol:
+        manifest === undefined ? undefined : DUAL_PROTOCOL_DOCUMENTS,
+    });
     if (hasJsonLines) {
       const clauses: number = validateJsonLines(parserFiles, markdown);
-      if (hasContext !== hasManifest)
-        throw new Error(
-          "Dual-denominator corpus requires both context-criteria.jsonl and corpus-manifest.json.",
-        );
       const contextCriteria: number = hasContext
         ? validateContextJsonLines(parserFiles, markdown)
         : 0;
-      if (hasManifest) {
-        validateCorpusManifest(files, markdown, clauses, contextCriteria);
+      if (manifest !== undefined) {
+        validateCorpusManifest(
+          parserFiles,
+          manifest,
+          markdown,
+          clauses,
+          contextCriteria,
+        );
         validateCorpusExecutable(root);
       }
       return result(
@@ -78,10 +103,6 @@ export namespace EvidenceBenchmarkCorpus {
       );
     }
     if (hasMetadata) {
-      if (hasContext || hasManifest)
-        throw new Error(
-          "metadata.json corpus cannot also declare the dual-denominator contract.",
-        );
       const clauses: number = validateMetadata(
         parserFiles,
         markdown,
@@ -106,6 +127,10 @@ export namespace EvidenceBenchmarkCorpus {
     groups: ReadonlyMap<string, string>;
     h2: number;
     h3: number;
+  }
+
+  interface IMarkdownPolicy {
+    manifestOwnedProtocol: ReadonlySet<string> | undefined;
   }
 
   function result(
@@ -146,9 +171,10 @@ export namespace EvidenceBenchmarkCorpus {
 
   function readMarkdown(
     files: ReadonlyMap<string, Uint8Array>,
+    policy: IMarkdownPolicy,
   ): IMarkdownInventory {
     const documents: Map<string, IMarkdownDocument> = new Map();
-    const numbers: Set<string> = new Set();
+    const numbers: Map<string, string> = new Map();
     const groups: Map<string, string> = new Map();
     let h2: number = 0;
     let h3: number = 0;
@@ -161,11 +187,19 @@ export namespace EvidenceBenchmarkCorpus {
           `Requirement Markdown must be a root-level numbered document: ${relative}.`,
         );
       const number: string = filename.groups!.number!;
-      if (number !== "00" && numbers.has(number))
+      const previous: string | undefined = numbers.get(number);
+      if (
+        previous !== undefined &&
+        !(
+          number === "00" &&
+          policy.manifestOwnedProtocol?.has(previous) === true &&
+          policy.manifestOwnedProtocol.has(relative)
+        )
+      )
         throw new Error(
-          `Requirement Markdown number is duplicated: ${number} (${relative}).`,
+          `Requirement Markdown number is duplicated: ${number} (${previous}, ${relative}).`,
         );
-      numbers.add(number);
+      numbers.set(number, relative);
       const source: string = Buffer.from(content).toString("utf8");
       const lines: string[] = EvidenceBenchmarkMarkdown.lines(source);
       const documentGroups: Set<string> = new Set();
@@ -299,34 +333,15 @@ export namespace EvidenceBenchmarkCorpus {
     return records.length;
   }
 
-  function validateCorpusManifest(
+  function readCorpusManifest(
     files: ReadonlyMap<string, Uint8Array>,
-    markdown: IMarkdownInventory,
-    acceptanceCriteria: number,
-    contextCriteria: number,
-  ): void {
+  ): Record<string, unknown> {
     const manifest: Record<string, unknown> = object(
       JSON.parse(textFile(files, "corpus-manifest.json")),
       "corpus-manifest.json",
     );
     if (manifest.schemaVersion !== 1)
       throw new Error("corpus-manifest.json schemaVersion must be 1.");
-    manifestCount(manifest.h2, markdown.groups.size, "h2");
-    manifestCount(manifest.h3, markdown.h3, "h3");
-    manifestCount(
-      manifest.acceptanceCriteria,
-      acceptanceCriteria,
-      "acceptanceCriteria",
-    );
-    manifestCount(manifest.contextCriteria, contextCriteria, "contextCriteria");
-    if ("links" in manifest) {
-      const links: number = jsonLineRecords(
-        files,
-        "requirement-links.jsonl",
-      ).length;
-      manifestCount(manifest.links, links, "links");
-    }
-
     const expectedPaths: string[] = [...files.keys()]
       .filter((relative) => relative !== "corpus-manifest.json")
       .sort();
@@ -381,6 +396,31 @@ export namespace EvidenceBenchmarkCorpus {
       throw new Error(
         `corpus-manifest.json aggregateSha256 must be ${aggregate}.`,
       );
+    return manifest;
+  }
+
+  function validateCorpusManifest(
+    files: ReadonlyMap<string, Uint8Array>,
+    manifest: Record<string, unknown>,
+    markdown: IMarkdownInventory,
+    acceptanceCriteria: number,
+    contextCriteria: number,
+  ): void {
+    manifestCount(manifest.h2, markdown.groups.size, "h2");
+    manifestCount(manifest.h3, markdown.h3, "h3");
+    manifestCount(
+      manifest.acceptanceCriteria,
+      acceptanceCriteria,
+      "acceptanceCriteria",
+    );
+    manifestCount(manifest.contextCriteria, contextCriteria, "contextCriteria");
+    if ("links" in manifest) {
+      const links: number = jsonLineRecords(
+        files,
+        "requirement-links.jsonl",
+      ).length;
+      manifestCount(manifest.links, links, "links");
+    }
   }
 
   function validateCorpusExecutable(root: string): void {
