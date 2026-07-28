@@ -237,7 +237,7 @@ For actor-owned resources, distinguish public browsing from authenticated self-m
 
 The JSDoc on a controller method becomes the Swagger operation description and the SDK function's documentation. Its readers never open this repository.
 
-The controller example above shows the shape. What each part of the block owes:
+The example in the Controllers section below shows the shape. What each part of the block owes:
 
 | Part | Owes |
 | --- | --- |

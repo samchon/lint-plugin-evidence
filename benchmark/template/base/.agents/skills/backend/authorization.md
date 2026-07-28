@@ -4,9 +4,9 @@ This document owns identity, sessions, and every check that decides whether a ca
 
 The requirement documents under `docs/analysis/` are the specification for all of it: which actors exist, what each may do, and which flows persist anything. Find the sections that state those and read them before designing any of the storage below.
 
-## One Actor, Four Layers
+## The Actor Narrows At Every Layer
 
-An authenticated caller crosses every backend layer, and it narrows at each one. Read this before the rest of the document, because every rule below is about one step of it.
+An authenticated caller crosses six steps, and it carries less at each one. Read this before the rest of the document, because every rule below is about one step of it.
 
 | Step | What holds the actor | Why that type |
 | --- | --- | --- |
@@ -254,7 +254,7 @@ export namespace SellerProvider {
 
 Both checks are needed. The token check proves the claim was minted for this actor; the row read proves the account still exists and has not been withdrawn, banned, or suspended. A token outlives the account it names, so verifying the signature alone authorizes a caller the requirements say is gone.
 
-Every actor's authorize provider is that same shape, differing only in the discriminant it checks and the table it reads. The token half is shared, in `src/utils` beside the other helpers that own no entity:
+Every actor's authorize provider is that same shape, differing only in the discriminant it checks and the table it reads. The token half is shared: `JwtUtil` in `src/utils`, beside the other helpers that own no entity.
 
 **The prefix is optional, and that is not leniency.** The generated SDK writes the bare token into the connection, while a browser tool or a curl command sends `Bearer <token>`. Requiring the prefix rejects every call the SDK makes, which is every test in the suite, and the failure reads as an authentication defect rather than a parsing one.
 

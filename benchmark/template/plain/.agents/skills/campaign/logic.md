@@ -34,7 +34,7 @@ Then the harder direction: for every invariant the schema implies, find the code
 
 Everything above walks structure: which operation, which rule, which column. This walk asks whether the code means what the requirement means, and it is where most surviving defects are, because a type-correct value can invert the behavior.
 
-A default that means the opposite of unset is the shortest example, and [the provider topic](../backend/providers.md) catalogues the rest with the four questions to ask of each. Walk that list against every provider in the round rather than only where something looks suspicious, because the whole point is that none of them look suspicious.
+A default that means the opposite of unset is the shortest example, and [the pitfalls topic](../backend/pitfalls.md) catalogues the rest with the four questions to ask of each. Walk that list against every provider in the round rather than only where something looks suspicious, because the whole point is that none of them look suspicious.
 
 ## Rounds
 

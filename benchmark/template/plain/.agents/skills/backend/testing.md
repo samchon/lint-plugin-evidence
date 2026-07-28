@@ -1,8 +1,8 @@
 # Testing
 
-The suite answers to two upstream sources, and only one of them is visible from the route tree.
+The suite answers to three upstream sources, and only one of them is visible from the route tree.
 
-Every operation needs its success path and each rejection its contract states. That much you can find by walking the SDK. But many requirements are not one endpoint: a rule spanning operations, a journey crossing several, a constraint that must hold after an unrelated action. None of those appear when you walk the routes, and all of them are requirements.
+Every operation needs its success path and each rejection its contract states. That much you can find by walking the SDK. Every DTO shape needs a test that has built or read it, which the route walk shows only indirectly. And many requirements are not one endpoint at all: a rule spanning operations, a journey crossing several, a constraint that must hold after an unrelated action. None of those appear when you walk the routes, and all of them are requirements.
 
 **Nothing tells you which requirement has no test.** A green suite proves the assertions you wrote hold. It says nothing about the requirement you never read.
 

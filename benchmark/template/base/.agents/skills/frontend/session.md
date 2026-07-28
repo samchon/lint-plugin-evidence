@@ -28,7 +28,7 @@ An interface that branches on signed-in or signed-out is wrong for the first pai
 
 ## Expiry Arrives As A Refusal, Not A Timer
 
-A session ends when the server says so. The interface does not count down, does not decode the token, and does not decide expiry on its own; [testing.md](../backend/testing.md) covers why token contents are not part of the contract.
+A session ends when the server says so. The interface does not count down, does not decode the token, and does not decide expiry on its own; [assertions.md](../backend/assertions.md) covers why token contents are not part of the contract.
 
 So the flow is: a call is refused, the interface refreshes once, and either the retry succeeds or the session is genuinely over.
 

@@ -24,20 +24,19 @@ docs/analysis/  ->  database
 docs/analysis/  ->  DTO type
 docs/analysis/  ->  API operation
 docs/analysis/  ->  tests
-docs/analysis/  ->  business logic
 docs/analysis/  ->  frontend
 
 database        ->  DTO type          (the table it represents)
 database        ->  API operation     (the table it exposes)
-database        ->  business logic
 
 column          ->  DTO property      (the value it carries)
 
 DTO type        ->  tests             (the shape it exchanges)
 
 API             ->  tests
-API             ->  business logic
 ```
+
+**The business-logic edges are deliberately absent.** A provider carries no citations, because the operation it implements already cites the requirement and the model, and a second acknowledgement of the same target from an unpublished layer would be a duplicate. So the build checks every edge above and says nothing about the providers at all; [the provider topic](../backend/providers.md) owns what that silence costs and where the real check for that layer lives.
 
 Granularity is part of the configuration. A DTO **type** is a claim over requirements and models; a DTO **property** is a separate claim over columns alone, and it does not answer to a requirement. Configuring only the type level leaves every property unchecked, and the silence reads exactly like coverage.
 

@@ -12,14 +12,17 @@ Read this file first, then the topic document for the layer you are about to tou
 ## Topics
 
 - [wiring.md](wiring.md): module registration, the global singleton, the bootstrap, the environment, the generators, and the order of a first run. **Read this first if the repository is empty**, and again whenever you add a controller, because a controller that is not registered produces a route that does not exist.
-- [database.md](database.md): schema organization, naming, the documentation-comment contract, stance, temporal and deletion rules, snapshots, ownership. Read before adding or changing a model.
+- [database.md](database.md): schema organization, field types, stance, naming, temporal and deletion rules, and the documentation-comment contract. Read before adding or changing a model.
+- [modeling.md](modeling.md): relations, composition, subtypes, retained state, ownership, and the review lenses a model passes before it is finished. Read whenever a model gains a relation or a review is due.
 - [dtos.md](dtos.md): what a DTO is named, what each variant means, how every property earns its place, and how relations are shaped. **DTOs live in `packages/api/src/structures`, not in this package.** Read before declaring any type a caller will see.
 - [controllers.md](controllers.md): endpoint shape, response cardinality, the request grammar, and the JSDoc that becomes the published contract. Read before adding or changing an endpoint.
 - [transformers.md](transformers.md): the read side, one namespace per DTO, holding the selection and the row-to-DTO mapping. Read before returning any DTO.
 - [collectors.md](collectors.md): the write side, one namespace per creation DTO, holding the payload assembly. Read before writing any row.
-- [providers.md](providers.md): provider structure, pagination, visibility, persistence, error behavior, and the Prisma traps. Read before writing business logic.
+- [providers.md](providers.md): provider structure, pagination, visibility, and persistence. Read before writing business logic.
+- [pitfalls.md](pitfalls.md): the boundary mechanics beneath the providers: error behavior, nullability across the boundary, the Prisma traps, the SQLite limits, and the defects no checker sees. Read beside providers.md, and whenever a query misbehaves.
 - [authorization.md](authorization.md): actors, sessions, grades, ownership and scope guards, and where each check belongs. Read before anything that reads the caller's identity.
-- [testing.md](testing.md): end-to-end test structure, composition, and what a test must prove beyond its happy path. Read before writing a test.
+- [testing.md](testing.md): end-to-end test structure and composition: the helper folders, connections, scenarios, and setup order. Read before writing a test.
+- [assertions.md](assertions.md): what a test proves: the minimum each kind of operation owes, what may be asserted, and what never may. Read with testing.md before asserting anything.
 - [typescript.md](typescript.md): the recurring TypeScript and typia diagnostics, what causes each, and the one correct fix. Read when a type error repeats, and always before choosing a default for a nullable conversion.
 - [debugging.md](debugging.md): how to assign a failure to the layer that owns it before editing anything. Read when something fails and the cause is not obvious.
 

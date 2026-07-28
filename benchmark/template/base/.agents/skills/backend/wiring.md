@@ -86,11 +86,11 @@ It lives in `src/utils` rather than `src/providers` because it owns no entity an
 
 Two generators produce code that the rest of the repository imports, and both read a configuration file rather than command-line flags.
 
-**Prisma** is configured in two places, and the split is not optional. `main.prisma` declares the datasource provider and the two generators. **The connection lives in `prisma.config.ts` at the backend root**, because a schema file no longer accepts a `url`:
+**Prisma** is configured in two places, and the split is not optional. `main.prisma` declares the datasource provider and the two generators. **The connection lives in `prisma.config.ts` at the backend root**, because a schema file no longer accepts a `url`.
 
 Its `schema` points at the folder rather than a file, which is what makes the split-by-domain layout work. The url is the SQLite file, so cloning the repository and running `prepare` is the whole setup. Writing `url` into `main.prisma` instead is rejected, and the message names the property rather than the mistake.
 
-**Nestia** is configured in `nestia.config.ts` at the backend root:
+**Nestia** is configured in `nestia.config.ts` at the backend root.
 
 Three of its settings matter beyond the paths.
 

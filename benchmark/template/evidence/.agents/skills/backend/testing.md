@@ -1,8 +1,8 @@
 # Testing
 
-The suite answers to two upstream sources, and the build checks that it acknowledges both.
+The suite answers to three upstream sources, and the build checks that it acknowledges all of them.
 
-Every configured requirement section and every operation must be acknowledged by a test that claims to verify it. The lint stage fails until they are, so an endpoint nobody tested and a rule nothing exercises are compile errors rather than gaps someone has to notice.
+Every configured requirement section, every operation, and every DTO type must be acknowledged by a test that claims to verify it. The lint stage fails until they are, so an endpoint nobody tested, a rule nothing exercises, and a shape nothing ever built or read are compile errors rather than gaps someone has to notice.
 
 ```ts
 /**
