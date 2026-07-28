@@ -7,7 +7,7 @@
 node_modules/
 
 # Build outputs
-lib/
+/packages/evidence/lib/
 dist/
 coverage/
 /packages/evidence/README.md
