@@ -367,7 +367,7 @@ The braces are not decoration. They are what makes the import legitimate, and th
 
 ```text
 $ npx ttsc check
-error TS16411: [evidence/graph] Unimported evidence target '{@link contracts.ISale}' at src/ui/SalePrice.ts:2: 'contracts' is not imported by this module, so the citation names a symbol this file does not reference. Import it; 'import type' is enough and is erased at emit.
+error TS16411: [evidence/graph] Unimported evidence target '{@link contracts.ISale}' at src/ui/SalePrice.ts:2 for Claim 1 across reference 1 (typescript, symbols: type): 'contracts' is not imported by this module, so the citation names a symbol this file does not reference. Import it; 'import type' is enough and is erased at emit.
 ```
 
 TypeScript counts a symbol referenced from `{@link}` as used, so an import that exists only to carry a citation survives `noUnusedLocals`. It does not resolve names inside an unknown tag, so a bare `@evidence sales.IShoppingSale` would leave that import unreferenced and raise `TS6133`. Use `import type`, which is erased at emit and adds no runtime edge.
@@ -387,14 +387,14 @@ export function SalePrice({ sale }: { sale: IShoppingSale }) {
 A React component cites the same way, and one declaration stacks as many disjoint `@evidence` tags as the rules or scopes it honors. The screen that mirrors a rule names the rule it mirrors. A narrow target documents a narrow implementation; a parent target deliberately accepts responsibility for the complete selected subtree.
 
 ```md
-## Sale Price {#sale-price}
+# Pricing Guide
 
-<!-- @evidence IShoppingSale Sale contract exposes this pricing rule. -->
+<!-- @evidence docs/requirements/pricing.md#sale-price Uses the approved sale-price definition. -->
 ```
 
-A Markdown document cites in an HTML comment, so rendered prose stays clean. A heading-level citation sits right below its heading. A file-level citation sits at the top of the document. The target here is a TypeScript symbol name; this is the shape a graph uses when documentation owes the citations.
+A Markdown document cites path-addressed evidence in an HTML comment, so rendered prose stays clean. A heading-level citation sits right below its heading. A file-level citation sits at the top of the document. The example makes a guide answer to a requirements section selected by that Markdown claim's reference.
 
-Markdown keeps the plain token for a TypeScript target, because a document has no imports to resolve through. That is the one edge where a name must be unique across the repository for the citation to land — which is also what `evidence/singular` is for.
+Markdown cannot cite a TypeScript symbol: it has no import scope in which `{@link}` can resolve, and matching a plain name repository-wide would make unrelated symbol collisions decide whether the citation works. Reverse that relation and let the TypeScript declaration cite the document, schema, or operation that justifies it.
 
 ```md
 ## Editorial Terminology

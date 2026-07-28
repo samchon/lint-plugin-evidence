@@ -126,8 +126,11 @@ func loadPrismaInventories(
 	if !configuresPrisma(config) {
 		return map[string]*artifactInventory{}, nil
 	}
-	addresses, problems := configuredPrismaAddresses(config)
+	addresses, failedBases, problems := configuredPrismaAddressesWithHealth(config)
 	inventories := map[string]*artifactInventory{}
+	for _, base := range failedBases {
+		recordPopulationFailure(inventories, artifactPrisma, base)
+	}
 	for _, address := range addresses {
 		inventories[address.Key] = &artifactInventory{
 			Path: address.Display,
@@ -211,13 +214,23 @@ func prismaOutcomeOf(result prismaNormalizationResult) (prismaSetOutcome, string
 func configuredPrismaAddresses(
 	config graphConfig,
 ) ([]artifactAddress, []string) {
+	addresses, _, problems := configuredPrismaAddressesWithHealth(config)
+	return addresses, problems
+}
+
+func configuredPrismaAddressesWithHealth(
+	config graphConfig,
+) ([]artifactAddress, []populationBase, []string) {
 	addresses := []artifactAddress{}
+	failedBases := []populationBase{}
 	problems := []string{}
 	for _, base := range configuredBases(config, artifactPrisma) {
 		if problem := unreadableBaseProblem(base, artifactPrisma); problem != "" {
 			problems = append(problems, problem)
+			failedBases = append(failedBases, base)
 			continue
 		}
+		baseFailed := false
 		err := filepath.WalkDir(base.Absolute, func(current string, entry fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
 				relative, ok := relativeProjectPath(base.Absolute, current)
@@ -230,6 +243,7 @@ func configuredPrismaAddresses(
 					}
 					return nil
 				}
+				baseFailed = true
 				problems = append(problems, "Evidence graph could not inspect '"+current+"': "+walkErr.Error()+". Fix filesystem access so configured Prisma sources can be indexed.")
 				if entry != nil && entry.IsDir() {
 					return filepath.SkipDir
@@ -254,13 +268,17 @@ func configuredPrismaAddresses(
 			return nil
 		})
 		if err != nil {
+			baseFailed = true
 			problems = append(problems, "Evidence graph could not walk Prisma root '"+populationRootLabel(base)+"': "+err.Error()+".")
+		}
+		if baseFailed {
+			failedBases = append(failedBases, base)
 		}
 	}
 	sort.Slice(addresses, func(left int, right int) bool {
 		return addresses[left].Key < addresses[right].Key
 	})
-	return addresses, problems
+	return addresses, failedBases, problems
 }
 
 // distinctPrismaSources reduces the configured addresses to the physical files
@@ -321,6 +339,7 @@ func failPrismaSet(
 				Symbol:  "*",
 				Message: message,
 			})
+			inventory.LoadFailed = true
 		}
 	}
 	return message

@@ -1,4 +1,5 @@
 import {
+  assertExcludes,
   assertFailure,
   assertIncludes,
   createProject,
@@ -15,7 +16,7 @@ import {
  *
  * 1. Configure one local Swagger source whose version is unsupported.
  * 2. Run the linked project rule through `ttsc check`.
- * 3. Assert a build failure names the source and typia normalization boundary.
+ * 3. Assert the direct failure remains without empty-population derivatives.
  */
 export const test_evidence_graph_reports_swagger_source_failures = (): void => {
   const project: IEvidenceProject = createProject({
@@ -61,6 +62,16 @@ export const test_evidence_graph_reports_swagger_source_failures = (): void => {
       result,
       "@typia/interface OpenApi.IDocument",
       "The diagnostic must name the normalization contract that rejected the source.",
+    );
+    assertExcludes(
+      result,
+      "materialized no selected evidence units",
+      "A rejected source is incomplete, not a healthy empty operation set.",
+    );
+    assertExcludes(
+      result,
+      "Missing acknowledgement",
+      "Coverage cannot be derived while the reference loader is unhealthy.",
     );
   } finally {
     project.cleanup();
