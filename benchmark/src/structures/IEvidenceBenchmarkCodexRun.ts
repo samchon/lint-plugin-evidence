@@ -13,10 +13,11 @@ export namespace IEvidenceBenchmarkCodexRun {
   export type Effort = "high";
 
   /** Service tier frozen for every request in the registered matrix. */
-  export type ServiceTier = "priority";
+  export type ServiceTier = "default";
 
   /** Overall runner states; no failure state is collapsed into completion. */
-  export type Status = "running" | "interrupted" | "failed" | "completed";
+  export type Status =
+    "running" | "interrupted" | "safety_limit" | "failed" | "completed";
 
   /** Goal states exposed by Codex 0.145 app-server. */
   export type GoalStatus =
@@ -135,11 +136,143 @@ export namespace IEvidenceBenchmarkCodexRun {
     /** UTC timestamp at which the authorized operator approved the run. */
     approvedAtUtc: string;
 
-    /** Maximum authorized spend in the price sheet's currency. */
-    maximumCost: number;
+    /** Response-observed inclusive provider-token stop threshold. */
+    maximumObservedTotalTokens: number;
 
-    /** ISO 4217 currency code used by the frozen price sheet. */
-    currency: string;
+    /** Outer four-cell response-observed token threshold. */
+    maximumObservedBlockTotalTokens: number;
+
+    /** Per-cell hard wall duration derived from exact t0. */
+    hardWallDurationSeconds: number;
+
+    /** Outer block hard wall duration derived from block launch. */
+    blockHardWallDurationSeconds: number;
+
+    /** Neither response-observed threshold is a provider-side hard ceiling. */
+    hardCeilingGuaranteed: false;
+
+    /** No evidence-backed monetary conversion is available for this run. */
+    monetaryStatus: "unavailable";
+  }
+
+  /** Frozen price-source record, including unresolved monetary categories. */
+  export interface IPriceSheet {
+    /** Price sheet schema version. */
+    schemaVersion: 1;
+
+    /** Exact measured model. */
+    model: Model;
+
+    /** Symbolic manifest tier; `default` is omitted on the wire. */
+    serviceTier: ServiceTier;
+
+    /** Exact price unit; no unavailable USD conversion is invented. */
+    unit: "provider_credits";
+
+    /** Token denominator for every rate, normally one million. */
+    tokenUnit: number;
+
+    /** Non-overlapping rates after inclusive-input normalization. */
+    ratesPerMillionTokens: {
+      /** Input excluding cached and cache-write subsets. */
+      uncachedInput: number;
+
+      /** Cached input subset. */
+      cachedInput: number;
+
+      /** Cache-write rate is unresolved without a direct ChatGPT source. */
+      cacheWriteInput: null;
+
+      /** Inclusive output, including the reasoning subset. */
+      output: number;
+    };
+
+    /** Prevents reasoning-output tokens from being charged a second time. */
+    reasoningTokensIncludedInOutput: true;
+
+    /** Monetary conversion status kept separate from primary token measures. */
+    monetaryUse: {
+      /** Exact monetary availability status. */
+      status: "unavailable";
+
+      /** Token, time, and quality measurement may still launch. */
+      launchBlocking: false;
+    };
+  }
+
+  /** Live observed-token stop report written beside exact usage. */
+  export interface ICostReport {
+    /** Cost report schema version. */
+    schemaVersion: 1;
+
+    /** Stop threshold uses inclusive upstream response totals. */
+    unit: "provider_total_tokens";
+
+    /** Authorized response-observed provider-token stop threshold. */
+    maximumObservedTotalTokens: number;
+
+    /** Deduplicated sum of `rawResponse.usage.totalTokens`. */
+    observedTotalTokens: number;
+
+    /**
+     * Aggregate overshoot first observable after one or more in-flight provider
+     * responses completed.
+     */
+    responseObservedOvershootTokens: number;
+
+    /** Unique response ids counted in first-seen order. */
+    responseIds: string[];
+
+    /** Whether the response-observed threshold has been reached. */
+    thresholdReached: boolean;
+
+    /** Frozen cell hard-wall duration from the immutable block plan. */
+    hardWallDurationSeconds: number;
+
+    /** Runtime deadline derived once from exact t0. */
+    hardDeadlineUtc: string | null;
+
+    /** Outer block response-observed token threshold. */
+    maximumObservedBlockTotalTokens: number;
+
+    /** Outer block duration; the outer coordinator derives its deadline. */
+    blockHardWallDurationSeconds: number;
+
+    /** Whether the absolute hard deadline was reached. */
+    hardDeadlineReached: boolean;
+
+    /** Whether the runner initiated a global hard-deadline stop. */
+    wallClockStopTriggered: boolean;
+
+    /** App-server exposes no exact pre-request monetary approval hook. */
+    hardCeilingGuaranteed: false;
+
+    /** Whether the runner initiated an interrupt after observing the cap. */
+    responseObservedStopTriggered: boolean;
+
+    /**
+     * Only top-level harness `turn/start` requests are gated; app-server
+     * internal retries, tool loops, and descendant requests are not.
+     */
+    controllerTurnStartGateOnly: true;
+
+    /** Forced stop may make final usage only a right-censored lower bound. */
+    usageAfterStopLowerBound: boolean;
+
+    /** Monetary conversion was unavailable for this attempt. */
+    monetaryStatus: "unavailable";
+
+    /** No provider-credit total is invented. */
+    providerCredits: null;
+
+    /** No USD total is invented. */
+    usd: null;
+
+    /** Outer four-cell safety-stop digest, null for a cell-local stop. */
+    sharedStopDigest: string | null;
+
+    /** Write-once t0-derived execution-safety artifact SHA-256. */
+    executionSafetySha256: string | null;
   }
 
   /** Experiment identity and frozen non-runner inputs surrounding one runner. */
@@ -158,6 +291,9 @@ export namespace IEvidenceBenchmarkCodexRun {
 
     /** Randomization or scheduling block identifier. */
     blockId: string;
+
+    /** SHA-256 of the immutable block plan that authorized this cell. */
+    blockPlanSha256: string;
 
     /** Validated merged product source revision. */
     sourceRevision: string;
@@ -210,6 +346,12 @@ export namespace IEvidenceBenchmarkCodexRun {
     /** SHA-256 of the experimental app-server JSON schema archived for the run. */
     codexSchemaSha256: string;
 
+    /** Exact preservation mode for the nondeterministic generated schema. */
+    codexSchemaPreservationMode: "tracked-extracted-tree";
+
+    /** Repository-relative owned path of the preserved exact schema bytes. */
+    codexSchemaOwnedPath: string;
+
     /** Exact number of regular files in the extracted schema tree. */
     codexSchemaFileCount: 347;
 
@@ -230,6 +372,9 @@ export namespace IEvidenceBenchmarkCodexRun {
 
     /** Frozen model; the runner rejects every value except `gpt-5.6-terra`. */
     model: Model;
+
+    /** Frozen app-server provider identity returned with effective settings. */
+    modelProvider: "openai";
 
     /** Frozen reasoning effort applied to the first and all subsequent turns. */
     effort: Effort;
@@ -258,7 +403,10 @@ export namespace IEvidenceBenchmarkCodexRun {
     /** SHA-256 of the same-session completion challenge bytes. */
     completionChallengeSha256: string;
 
-    /** SHA-256 of the deterministic restart continuation message. */
+    /**
+     * SHA-256 of the retained recovery diagnostic. It is never sent after
+     * app-server death because restart continuation is forbidden.
+     */
     recoveryPromptSha256: string;
 
     /** SHA-256 of the three registered Phase 2 prompts. */
@@ -271,6 +419,27 @@ export namespace IEvidenceBenchmarkCodexRun {
 
       /** Original-thread fixer prompt. */
       fixer: string;
+    };
+
+    /** Provider/local schema pairs for fresh finders and verifiers. */
+    phase2SchemaSha256: {
+      /** Fresh finder output schema pair. */
+      finding: {
+        /** Provider-compatible schema. */
+        provider: string;
+
+        /** Strict local validator/schema. */
+        local: string;
+      };
+
+      /** Fresh adversarial verifier output schema pair. */
+      verification: {
+        /** Provider-compatible schema. */
+        provider: string;
+
+        /** Strict local validator/schema. */
+        local: string;
+      };
     };
 
     /** SHA-256 of the strict generation outcome JSON schema. */
@@ -336,7 +505,7 @@ export namespace IEvidenceBenchmarkCodexRun {
     /** Exact challenge injected after the first completion claim. */
     completionChallenge: string;
 
-    /** Frozen message used only after process failure and thread resume. */
+    /** Frozen recovery diagnostic retained for audit and never transmitted. */
     recoveryPrompt: string;
 
     /** Strict JSON Schema applied to all generation-class turns. */
@@ -353,6 +522,45 @@ export namespace IEvidenceBenchmarkCodexRun {
 
     /** Extracted schema tree corresponding exactly to the immutable archive. */
     codexSchemaDirectory: string;
+
+    /** Exact frozen artifact paths whose bytes must match every manifest pin. */
+    frozenArtifacts: {
+      /** Template tree manifest. */
+      templateManifestPath: string;
+
+      /** Selected requirement corpus manifest. */
+      requirementsManifestPath: string;
+
+      /** Primary leaf acceptance catalog. */
+      acceptanceCatalogPath: string;
+
+      /** Context-only catalog, null when the subject has none. */
+      contextCatalogPath: string | null;
+
+      /** Complete materialized project-input manifest. */
+      projectInputManifestPath: string;
+
+      /** Locally packed measured product tarball. */
+      productTgzPath: string;
+
+      /** Frozen host and toolchain environment manifest. */
+      environmentManifestPath: string;
+
+      /** Exact Phase 2 prompt files. */
+      phase2PromptPaths: {
+        /** Fresh finder prompt. */
+        finder: string;
+
+        /** Fresh verifier prompt. */
+        verifier: string;
+
+        /** Original-thread fixer prompt. */
+        fixer: string;
+      };
+
+      /** Frozen price sheet used for live spend enforcement and reduction. */
+      priceSheetPath: string;
+    };
 
     /** Independent build and test commands that decide `t_green`. */
     gates: IGate[];
@@ -483,6 +691,42 @@ export namespace IEvidenceBenchmarkCodexRun {
     /** Every observed primary and descendant thread keyed by thread id. */
     threads: Record<string, IThreadState>;
 
+    /** Effective settings returned by thread/start and later update events. */
+    effectiveThreadSettings: {
+      /** Primary thread owning these settings. */
+      threadId: string;
+
+      /** Absolute normalized effective working directory. */
+      cwd: string;
+
+      /** Exact effective model. */
+      model: Model;
+
+      /** Exact effective model provider. */
+      modelProvider: "openai";
+
+      /** Effective service tier; null proves the omitted default wire value. */
+      serviceTier: null;
+
+      /** Effective reasoning effort. */
+      effort: Effort;
+
+      /** Effective approval policy. */
+      approvalPolicy: "never";
+
+      /** Effective sandbox policy discriminator. */
+      sandboxType: "workspaceWrite";
+
+      /** Active permission profile id when app-server reports one. */
+      activePermissionProfileId: string | null;
+
+      /** UTC time at which the setting surface was last reconciled. */
+      observedAtUtc: string;
+
+      /** Response or notification that produced the observation. */
+      source: "thread/start" | "thread/settings/updated";
+    } | null;
+
     /** Latest durable Goal observation, or null before Goal creation. */
     goal: {
       /** SHA-256 of the exact objective bytes. */
@@ -522,6 +766,9 @@ export namespace IEvidenceBenchmarkCodexRun {
     /** Whether independent build and test gates have both passed. */
     green: boolean;
 
+    /** Canonical build and test outcome immediately after the `t_done` seal. */
+    gateAtDone: IEvidenceBenchmarkCodexRecord.IGateResult[];
+
     /** Registered milestones recorded exactly once and snapshotted atomically. */
     milestones: Partial<
       Record<
@@ -548,6 +795,9 @@ export namespace IEvidenceBenchmarkCodexRun {
     /** Deterministic retained-source snapshot SHA-256 captured at `t_dry`. */
     tDrySourceSnapshotSha256: string | null;
 
+    /** Write-once t0-derived execution-safety artifact SHA-256. */
+    executionSafetySha256: string | null;
+
     /** Explicit terminal seal, null while running. */
     terminal: {
       /** UTC terminal timestamp. */
@@ -564,7 +814,15 @@ export namespace IEvidenceBenchmarkCodexRun {
         | "host"
         | "watchdog"
         | "user_abort"
-        | "harness";
+        | "harness"
+        | "budget_exhausted"
+        | "safety_limit";
+
+      /** Exact safety boundary, present only for `safety_limit`. */
+      safetyLimitReason: null | "observed_total_tokens" | "hard_deadline";
+
+      /** Outer four-cell safety-stop digest, null for a cell-local terminal. */
+      sharedStopDigest: string | null;
 
       /** SHA-256 of final pre-seal checkpoint. */
       lastCheckpointSha256: string;
@@ -596,5 +854,11 @@ export namespace IEvidenceBenchmarkCodexRun {
 
     /** Absolute activity annotation ledger path. */
     activityPath: string;
+
+    /** Absolute live cost-ceiling report path. */
+    costPath: string;
+
+    /** Absolute immutable terminal-core seal path. */
+    coreSealPath: string;
   }
 }

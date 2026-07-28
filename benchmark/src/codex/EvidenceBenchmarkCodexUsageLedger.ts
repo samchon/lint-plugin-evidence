@@ -129,7 +129,7 @@ export class EvidenceBenchmarkCodexUsageLedger {
     }
     const latestThreadUsage = Object.fromEntries(
       [...this.latestThreadUsage.entries()].sort(([left], [right]): number =>
-        left.localeCompare(right),
+        EvidenceBenchmarkCodexValue.utf8Compare(left, right),
       ),
     );
     const reconciliation: IEvidenceBenchmarkCodexRecord.IUsageDifference[] =

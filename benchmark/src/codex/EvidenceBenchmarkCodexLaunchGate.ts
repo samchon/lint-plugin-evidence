@@ -4,6 +4,7 @@ import path from "node:path";
 
 import type { IEvidenceBenchmarkCodexRun } from "../structures/IEvidenceBenchmarkCodexRun.ts";
 import { EvidenceBenchmarkCodexCompletion } from "./EvidenceBenchmarkCodexCompletion.ts";
+import { EvidenceBenchmarkCodexCostLedger } from "./EvidenceBenchmarkCodexCostLedger.ts";
 import { EvidenceBenchmarkCodexProtocol } from "./EvidenceBenchmarkCodexProtocol.ts";
 import { EvidenceBenchmarkCodexValue } from "./EvidenceBenchmarkCodexValue.ts";
 
@@ -31,16 +32,32 @@ export namespace EvidenceBenchmarkCodexLaunchGate {
       runner.codexExecutableSha256 !== CODEX_EXECUTABLE_SHA256 ||
       runner.codexSchemaSha256 !==
         EvidenceBenchmarkCodexProtocol.CODEX_SCHEMA_SHA256 ||
+      runner.codexSchemaPreservationMode !== "tracked-extracted-tree" ||
       runner.codexSchemaTreeAlgorithm !==
         "sha256(sorted-posix-path-nul-bytes-nul)" ||
       runner.codexSchemaFileCount !== 347 ||
       runner.codexSchemaByteLength !== 3_303_877
     )
       throw new Error("Codex executable or experimental schema pin drifted");
+    const repositoryRoot = await findRepositoryRoot(
+      options.codexSchemaDirectory,
+    );
+    const ownedSchemaPath = path.resolve(
+      repositoryRoot,
+      ...runner.codexSchemaOwnedPath.split("/"),
+    );
+    if (
+      path.resolve(options.codexSchemaDirectory) !== ownedSchemaPath ||
+      !runner.codexSchemaOwnedPath.startsWith(
+        "benchmark/protocol/vendor/codex/",
+      )
+    )
+      throw new Error("schema directory is not the tracked owned snapshot");
     if (
       runner.model !== "gpt-5.6-terra" ||
+      runner.modelProvider !== "openai" ||
       runner.effort !== "high" ||
-      runner.serviceTier !== "priority" ||
+      runner.serviceTier !== "default" ||
       runner.allowProviderModelFallback !== false
     )
       throw new Error("model, effort, tier, or fallback policy drifted");
@@ -112,6 +129,7 @@ export namespace EvidenceBenchmarkCodexLaunchGate {
       throw new Error(
         "extracted experimental schema tree does not match archive pins",
       );
+    await validateFrozenArtifacts(options);
     if (
       !options.gates.some((gate): boolean => gate.kind === "build") ||
       !options.gates.some((gate): boolean => gate.kind === "test")
@@ -140,7 +158,7 @@ export namespace EvidenceBenchmarkCodexLaunchGate {
         withFileTypes: true,
       });
       children.sort((left, right): number =>
-        left.name.localeCompare(right.name),
+        EvidenceBenchmarkCodexValue.utf8Compare(left.name, right.name),
       );
       for (const child of children) {
         const target = path.join(directory, child.name);
@@ -153,18 +171,19 @@ export namespace EvidenceBenchmarkCodexLaunchGate {
         if (!child.isFile())
           throw new Error(`schema archive contains a non-file: ${target}`);
         entries.push({
-          path: path
-            .relative(root, target)
-            .split(path.sep)
-            .join("/")
-            .normalize("NFC"),
+          path: path.relative(root, target).split(path.sep).join("/"),
           target,
           byteLength: (await fs.promises.stat(target)).size,
         });
       }
     };
     await visit(path.resolve(root));
-    entries.sort((left, right): number => left.path.localeCompare(right.path));
+    entries.sort((left, right): number =>
+      Buffer.compare(
+        Buffer.from(left.path, "utf8"),
+        Buffer.from(right.path, "utf8"),
+      ),
+    );
     const digest = crypto.createHash("sha256");
     let byteLength = 0;
     for (const entry of entries) {
@@ -207,11 +226,133 @@ export namespace EvidenceBenchmarkCodexLaunchGate {
   ): void {
     if (
       authorization.id.trim().length === 0 ||
-      !Number.isFinite(authorization.maximumCost) ||
-      authorization.maximumCost <= 0 ||
-      !/^[A-Z]{3}$/.test(authorization.currency) ||
-      !Number.isFinite(Date.parse(authorization.approvedAtUtc))
+      !Number.isSafeInteger(authorization.maximumObservedTotalTokens) ||
+      authorization.maximumObservedTotalTokens <= 0 ||
+      !Number.isSafeInteger(authorization.maximumObservedBlockTotalTokens) ||
+      authorization.maximumObservedBlockTotalTokens <
+        authorization.maximumObservedTotalTokens ||
+      !Number.isSafeInteger(authorization.hardWallDurationSeconds) ||
+      authorization.hardWallDurationSeconds <= 0 ||
+      !Number.isSafeInteger(authorization.blockHardWallDurationSeconds) ||
+      authorization.blockHardWallDurationSeconds <
+        authorization.hardWallDurationSeconds ||
+      !Number.isFinite(Date.parse(authorization.approvedAtUtc)) ||
+      authorization.hardCeilingGuaranteed !== false ||
+      authorization.monetaryStatus !== "unavailable"
     )
-      throw new Error("explicit positive cost authorization is invalid");
+      throw new Error("explicit token and hard-wall authorization is invalid");
+  }
+
+  async function validateFrozenArtifacts(
+    options: IEvidenceBenchmarkCodexRun.IOptions,
+  ): Promise<void> {
+    const { experiment, runner } = options.manifest;
+    const artifacts = options.frozenArtifacts;
+    const assertHash = async (
+      target: string,
+      expected: string,
+      label: string,
+    ): Promise<void> => {
+      const actual = EvidenceBenchmarkCodexValue.sha256(
+        await fs.promises.readFile(target),
+      );
+      if (actual !== expected)
+        throw new Error(`${label} bytes do not match the manifest pin`);
+    };
+    await Promise.all([
+      assertHash(
+        artifacts.templateManifestPath,
+        experiment.templateSha256,
+        "template manifest",
+      ),
+      assertHash(
+        artifacts.requirementsManifestPath,
+        experiment.requirementsSha256,
+        "requirements manifest",
+      ),
+      assertHash(
+        artifacts.acceptanceCatalogPath,
+        experiment.acceptanceCatalogSha256,
+        "acceptance catalog",
+      ),
+      assertHash(
+        artifacts.projectInputManifestPath,
+        experiment.projectInputSha256,
+        "project input manifest",
+      ),
+      assertHash(
+        artifacts.productTgzPath,
+        experiment.productTgzSha256,
+        "product tarball",
+      ),
+      assertHash(
+        artifacts.environmentManifestPath,
+        experiment.environmentSha256,
+        "environment manifest",
+      ),
+      assertHash(
+        artifacts.phase2PromptPaths.finder,
+        runner.phase2PromptSha256.finder,
+        "finder prompt",
+      ),
+      assertHash(
+        artifacts.phase2PromptPaths.verifier,
+        runner.phase2PromptSha256.verifier,
+        "verifier prompt",
+      ),
+      assertHash(
+        artifacts.phase2PromptPaths.fixer,
+        runner.phase2PromptSha256.fixer,
+        "fixer prompt",
+      ),
+      assertHash(
+        artifacts.priceSheetPath,
+        runner.priceSheetSha256,
+        "price sheet",
+      ),
+    ]);
+    if (
+      experiment.contextCatalogSha256 === null ||
+      artifacts.contextCatalogPath === null
+    ) {
+      if (
+        experiment.contextCatalogSha256 !== null ||
+        artifacts.contextCatalogPath !== null
+      )
+        throw new Error("context catalog path and pin presence differ");
+    } else
+      await assertHash(
+        artifacts.contextCatalogPath,
+        experiment.contextCatalogSha256,
+        "context catalog",
+      );
+    const priceSheet = EvidenceBenchmarkCodexCostLedger.priceSheet(
+      JSON.parse(await fs.promises.readFile(artifacts.priceSheetPath, "utf8")),
+    );
+    if (
+      priceSheet.model !== options.manifest.runner.model ||
+      priceSheet.serviceTier !== options.manifest.runner.serviceTier
+    )
+      throw new Error("price sheet model or service tier drifted");
+  }
+
+  async function findRepositoryRoot(start: string): Promise<string> {
+    let cursor = path.resolve(start);
+    while (true) {
+      try {
+        await fs.promises.lstat(path.join(cursor, ".git"));
+        return cursor;
+      } catch (error) {
+        if (
+          !EvidenceBenchmarkCodexValue.isRecord(error) ||
+          error.code !== "ENOENT"
+        )
+          throw error;
+      }
+      const parent = path.dirname(cursor);
+      if (parent === cursor)
+        throw new Error("tracked schema has no containing Git repository");
+      cursor = parent;
+    }
   }
 }

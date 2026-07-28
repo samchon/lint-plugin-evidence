@@ -292,7 +292,7 @@ export namespace EvidenceBenchmarkCodexPromotion {
         withFileTypes: true,
       });
       children.sort((left, right): number =>
-        left.name.localeCompare(right.name),
+        EvidenceBenchmarkCodexValue.utf8Compare(left.name, right.name),
       );
       for (const child of children) {
         const target = path.join(directory, child.name);
@@ -317,7 +317,9 @@ export namespace EvidenceBenchmarkCodexPromotion {
       }
     };
     await visit(root);
-    entries.sort((left, right): number => left.path.localeCompare(right.path));
+    entries.sort((left, right): number =>
+      EvidenceBenchmarkCodexValue.utf8Compare(left.path, right.path),
+    );
     return EvidenceBenchmarkCodexValue.sha256(
       EvidenceBenchmarkCodexValue.canonicalJson(entries),
     );

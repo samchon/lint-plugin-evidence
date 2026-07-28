@@ -31,6 +31,29 @@ export namespace EvidenceBenchmarkCodexCheckpoint {
     }
   }
 
+  /** Creates one immutable JSON seal atomically and rejects every overwrite. */
+  export async function writeOnce(
+    target: string,
+    value: unknown,
+  ): Promise<void> {
+    await fs.promises.mkdir(path.dirname(target), { recursive: true });
+    const temporary = `${target}.${process.pid}.${EvidenceBenchmarkCodexValue.sha256(
+      `${process.hrtime.bigint()}`,
+    ).slice(0, 12)}.next`;
+    const handle = await fs.promises.open(temporary, "wx");
+    try {
+      await handle.writeFile(`${JSON.stringify(value, null, 2)}\n`, "utf8");
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    try {
+      await fs.promises.link(temporary, target);
+    } finally {
+      await fs.promises.rm(temporary, { force: true });
+    }
+  }
+
   /** Reads and parses a checkpoint, returning undefined when it does not exist. */
   export async function read<T>(target: string): Promise<T | undefined> {
     try {

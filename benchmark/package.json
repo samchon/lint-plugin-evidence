@@ -7,10 +7,11 @@
   "scripts": {
     "check": "pnpm run check:source && tsc --noEmit -p tsconfig.json",
     "check:source": "node --experimental-transform-types src/executable/check-source-contract.ts",
-    "test": "pnpm run test:unit && pnpm run test:package",
+    "test": "pnpm run test:unit && pnpm run test:package && pnpm run test:codex",
     "test:baseline": "node --experimental-transform-types src/executable/self-test.ts --baseline",
     "test:unit": "node --experimental-transform-types src/executable/self-test.ts",
-    "test:package": "node --experimental-transform-types src/executable/self-test.ts --package"
+    "test:package": "node --experimental-transform-types src/executable/self-test.ts --package",
+    "test:codex": "node --experimental-transform-types src/executable/test-codex-process.ts && node --experimental-transform-types src/executable/test-codex-campaign.ts && node --experimental-transform-types src/executable/test-codex-runner.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:utils",

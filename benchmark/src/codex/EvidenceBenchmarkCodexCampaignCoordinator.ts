@@ -47,9 +47,10 @@ export class EvidenceBenchmarkCodexCampaignCoordinator {
     private readonly hooks: EvidenceBenchmarkCodexCampaignCoordinator.IHooks = {},
   ) {}
 
-  /** Requests a graceful interrupted outcome at the next round boundary. */
+  /** Aborts active work and requests an interrupted terminal outcome. */
   public interrupt(reason: string): void {
     this.interruptionReason = reason;
+    this.abortController.abort(reason);
   }
 
   /** Runs or resumes until two valid clean rounds share one authored digest. */
@@ -80,7 +81,7 @@ export class EvidenceBenchmarkCodexCampaignCoordinator {
         state.tDryAuthoredDigest === undefined
       )
         throw new Error("completed campaign is missing t_dry proof");
-      await this.adapter.quiesce(this.abortController.signal);
+      await this.quiesce("campaign completed");
       await this.log.flush();
       state.status = "completed";
       state.updatedAtUtc = new Date().toISOString();
@@ -788,13 +789,6 @@ export class EvidenceBenchmarkCodexCampaignCoordinator {
     >();
     for (const lifecycle of this.state!.findingLifecycles)
       latestLifecycle.set(lifecycle.canonicalFindingId, lifecycle);
-    const fixedCanonicalIds = new Set(
-      this.state!.findingClosures.filter(
-        (closure): boolean =>
-          this.state!.activeDedupeIndex?.authoredDigest ===
-          closure.authoredDigest,
-      ).map((closure): string => closure.canonicalFindingId),
-    );
     const observed = new Set<string>();
     for (const decision of decisions) {
       const finding = findingsById.get(decision.candidateId);
@@ -804,11 +798,17 @@ export class EvidenceBenchmarkCodexCampaignCoordinator {
       if (
         decision.fingerprint !== finding.fingerprint ||
         decision.behavior !== finding.behavior ||
+        decision.lens !== finding.lens ||
+        decision.expectedBehavior !== finding.expectedBehavior ||
+        decision.observedBehavior !== finding.observedBehavior ||
         decision.reproduction !== finding.reproduction ||
+        decision.claim !== finding.claim ||
         EvidenceBenchmarkCodexValue.canonicalJson(decision.clauseIds) !==
           EvidenceBenchmarkCodexValue.canonicalJson(finding.clauseIds) ||
         EvidenceBenchmarkCodexValue.canonicalJson(decision.locations) !==
           EvidenceBenchmarkCodexValue.canonicalJson(finding.locations) ||
+        EvidenceBenchmarkCodexValue.canonicalJson(decision.evidence) !==
+          EvidenceBenchmarkCodexValue.canonicalJson(finding.evidence) ||
         decision.basis.trim().length === 0 ||
         decision.canonicalFindingId.length === 0
       )
@@ -834,8 +834,7 @@ export class EvidenceBenchmarkCodexCampaignCoordinator {
           !activeCanonicalIds.has(decision.duplicateOf) ||
           (priorLifecycle !== undefined &&
             (priorLifecycle.disposition === "unverifiable" ||
-              (priorLifecycle.disposition === "repair_pending" &&
-                !fixedCanonicalIds.has(decision.duplicateOf)))) ||
+              priorLifecycle.disposition === "repair_pending")) ||
           !EvidenceBenchmarkCodexCampaignCoordinator.sameStructure(
             decision,
             catalog.get(decision.duplicateOf)!,
@@ -878,13 +877,6 @@ export class EvidenceBenchmarkCodexCampaignCoordinator {
     >();
     for (const lifecycle of this.state!.findingLifecycles)
       latestLifecycle.set(lifecycle.canonicalFindingId, lifecycle);
-    const fixedCanonicalIds = new Set(
-      this.state!.findingClosures.filter(
-        (closure): boolean =>
-          this.state!.activeDedupeIndex?.authoredDigest ===
-          closure.authoredDigest,
-      ).map((closure): string => closure.canonicalFindingId),
-    );
     const observed = new Set<string>();
     for (const verification of verifications) {
       const decision = expected.get(verification.candidateId);
@@ -933,8 +925,7 @@ export class EvidenceBenchmarkCodexCampaignCoordinator {
           !canonicalIds.has(verification.canonicalFindingId) ||
           (targetLifecycle !== undefined &&
             (targetLifecycle.disposition === "unverifiable" ||
-              (targetLifecycle.disposition === "repair_pending" &&
-                !fixedCanonicalIds.has(verification.canonicalFindingId))))
+              targetLifecycle.disposition === "repair_pending"))
         )
           throw new Error(
             `verifier duplicate ${verification.candidateId} lacks a canonical target`,
@@ -1320,18 +1311,9 @@ export class EvidenceBenchmarkCodexCampaignCoordinator {
       };
       return;
     }
-    const resolvedIds = new Set(
-      fixResolution?.findings
-        .filter((finding): boolean => finding.verdict === "fixed")
-        .map((finding): string => finding.canonicalFindingId) ?? [],
-    );
     this.state!.activeDedupeIndex = {
       authoredDigest: endDigest,
-      entries: decisions.filter(
-        (decision): boolean =>
-          decision.decision === "new" &&
-          resolvedIds.has(decision.canonicalFindingId),
-      ),
+      entries: [],
     };
   }
 
@@ -1359,7 +1341,7 @@ export class EvidenceBenchmarkCodexCampaignCoordinator {
   ): Promise<void> {
     const state = this.state!;
     this.abortController.abort(terminalReason);
-    await this.adapter.quiesce(this.abortController.signal);
+    await this.quiesce(terminalReason);
     await this.log.flush();
     state.status = fatal ? "failed" : "interrupted";
     state.terminalReason = terminalReason;
@@ -1460,7 +1442,7 @@ export class EvidenceBenchmarkCodexCampaignCoordinator {
   ): Promise<void> {
     const state = this.state!;
     this.abortController.abort(terminalReason);
-    await this.adapter.quiesce(this.abortController.signal);
+    await this.quiesce(terminalReason);
     await this.log.flush();
     state.status = status;
     state.terminalReason = terminalReason;
@@ -1478,6 +1460,26 @@ export class EvidenceBenchmarkCodexCampaignCoordinator {
       this.options.checkpointPath,
       this.state,
     );
+  }
+
+  private async quiesce(reason: string): Promise<void> {
+    const cleanup = new AbortController();
+    let timeout: NodeJS.Timeout | undefined;
+    try {
+      await Promise.race([
+        this.adapter.quiesce(cleanup.signal),
+        new Promise<never>((_resolve, reject): void => {
+          timeout = setTimeout((): void => {
+            const message = `adapter quiescence timed out after ${reason}`;
+            cleanup.abort(message);
+            reject(new Error(message));
+          }, 30_000);
+          timeout.unref();
+        }),
+      ]);
+    } finally {
+      if (timeout !== undefined) clearTimeout(timeout);
+    }
   }
 
   private async step<T>(promise: Promise<T>, label: string): Promise<T> {
@@ -1510,15 +1512,25 @@ export class EvidenceBenchmarkCodexCampaignCoordinator {
     return (
       EvidenceBenchmarkCodexValue.canonicalJson({
         clauseIds: left.clauseIds,
+        lens: left.lens,
         behavior: left.behavior,
+        expectedBehavior: left.expectedBehavior,
+        observedBehavior: left.observedBehavior,
         locations: left.locations,
         reproduction: left.reproduction,
+        claim: left.claim,
+        evidence: left.evidence,
       }) ===
       EvidenceBenchmarkCodexValue.canonicalJson({
         clauseIds: right.clauseIds,
+        lens: right.lens,
         behavior: right.behavior,
+        expectedBehavior: right.expectedBehavior,
+        observedBehavior: right.observedBehavior,
         locations: right.locations,
         reproduction: right.reproduction,
+        claim: right.claim,
+        evidence: right.evidence,
       })
     );
   }

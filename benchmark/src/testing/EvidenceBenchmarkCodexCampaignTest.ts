@@ -22,6 +22,7 @@ export namespace EvidenceBenchmarkCodexCampaignTest {
       await testTwoCleanRounds(root);
       await testUnverifiableRequiresReplacement(root);
       await testFixResetsDigest(root);
+      await testFixedFindingRediscoveryReopens(root);
       await testMutationSurvivorRequiresReplay(root);
       await testFinderFailureIsIncomplete(root);
       await testNoOpFixerCannotDry(root);
@@ -63,7 +64,7 @@ export namespace EvidenceBenchmarkCodexCampaignTest {
       state.rounds[0]!.findingLifecycles.filter(
         (lifecycle): boolean => lifecycle.disposition === "duplicate",
       ).length,
-      1,
+      0,
     );
     assert.equal(state.rounds[0]!.consecutiveCleanRounds, 1);
     assert.equal(state.rounds[1]!.establishesTDry, true);
@@ -90,7 +91,7 @@ export namespace EvidenceBenchmarkCodexCampaignTest {
       },
     });
     const state = await harness.coordinator.run();
-    assert.equal(state.status, "completed");
+    assert.equal(state.status, "completed", state.terminalReason);
     assert.equal(verifierCount, 2);
     assert.equal(state.rounds.length, 3);
     assert.equal(state.rounds[0]!.valid, false);
@@ -122,6 +123,37 @@ export namespace EvidenceBenchmarkCodexCampaignTest {
     assert.notEqual(state.rounds[0]!.startDigest, state.rounds[0]!.endDigest);
     assert.equal(state.rounds[0]!.fixResolution?.allResolved, true);
     assert.equal(state.rounds[1]!.consecutiveCleanRounds, 1);
+  }
+
+  async function testFixedFindingRediscoveryReopens(
+    root: string,
+  ): Promise<void> {
+    let verifierCount = 0;
+    const harness = await createHarness(path.join(root, "repair-rediscovery"), {
+      findings: (
+        round,
+        assignment,
+      ): IEvidenceBenchmarkCodexCampaign.IFinding[] =>
+        round <= 2 && assignment === "F2-api-logic"
+          ? [finding(`repair-rediscovered-${round}`, "api")]
+          : [],
+      verdict: (): IEvidenceBenchmarkCodexCampaign.IVerification["verdict"] => {
+        ++verifierCount;
+        return "verified";
+      },
+      changeDigestOnFix: true,
+    });
+    const state = await harness.coordinator.run();
+    assert.equal(state.status, "completed", state.terminalReason);
+    assert.equal(verifierCount, 2);
+    assert.equal(
+      state.rounds[1]!.findingLifecycles[0]!.dedupeDecision.decision,
+      "new",
+    );
+    assert.equal(
+      state.rounds[1]!.findingLifecycles[0]!.verification?.verdict,
+      "verified",
+    );
   }
 
   async function testMutationSurvivorRequiresReplay(
@@ -437,15 +469,25 @@ export namespace EvidenceBenchmarkCodexCampaignTest {
               (entry): boolean =>
                 EvidenceBenchmarkCodexValue.canonicalJson({
                   clauseIds: entry.clauseIds,
+                  lens: entry.lens,
                   behavior: entry.behavior,
+                  expectedBehavior: entry.expectedBehavior,
+                  observedBehavior: entry.observedBehavior,
                   locations: entry.locations,
                   reproduction: entry.reproduction,
+                  claim: entry.claim,
+                  evidence: entry.evidence,
                 }) ===
                 EvidenceBenchmarkCodexValue.canonicalJson({
                   clauseIds: candidate.clauseIds,
+                  lens: candidate.lens,
                   behavior: candidate.behavior,
+                  expectedBehavior: candidate.expectedBehavior,
+                  observedBehavior: candidate.observedBehavior,
                   locations: candidate.locations,
                   reproduction: candidate.reproduction,
+                  claim: candidate.claim,
+                  evidence: candidate.evidence,
                 }),
             );
             const decision: IEvidenceBenchmarkCodexCampaign.IDedupeDecision =
@@ -455,8 +497,13 @@ export namespace EvidenceBenchmarkCodexCampaignTest {
                     fingerprint: candidate.fingerprint,
                     clauseIds: [...candidate.clauseIds],
                     behavior: candidate.behavior,
+                    lens: candidate.lens,
+                    expectedBehavior: candidate.expectedBehavior,
+                    observedBehavior: candidate.observedBehavior,
                     locations: [...candidate.locations],
                     reproduction: candidate.reproduction,
+                    claim: candidate.claim,
+                    evidence: [...candidate.evidence],
                     decision: "new",
                     canonicalFindingId: `canonical-${candidate.candidateId}`,
                     duplicateOf: null,
@@ -467,8 +514,13 @@ export namespace EvidenceBenchmarkCodexCampaignTest {
                     fingerprint: candidate.fingerprint,
                     clauseIds: [...candidate.clauseIds],
                     behavior: candidate.behavior,
+                    lens: candidate.lens,
+                    expectedBehavior: candidate.expectedBehavior,
+                    observedBehavior: candidate.observedBehavior,
                     locations: [...candidate.locations],
                     reproduction: candidate.reproduction,
+                    claim: candidate.claim,
+                    evidence: [...candidate.evidence],
                     decision: "duplicate",
                     canonicalFindingId: duplicate.canonicalFindingId,
                     duplicateOf: duplicate.canonicalFindingId,
@@ -532,7 +584,10 @@ export namespace EvidenceBenchmarkCodexCampaignTest {
             if (signal.aborted) abort();
             else signal.addEventListener("abort", abort, { once: true });
           });
-        if (scenario.changeDigestOnFix) digest = "b".repeat(64);
+        if (scenario.changeDigestOnFix)
+          digest = EvidenceBenchmarkCodexValue.sha256(
+            `fix-round-${manifest.round}`,
+          );
         return {
           threadId: "phase1-thread",
           round: manifest.round,
@@ -591,7 +646,13 @@ export namespace EvidenceBenchmarkCodexCampaignTest {
         gateResult(round, "build", "build"),
         gateResult(round, "test", "test"),
       ],
-      quiesce: async (): Promise<void> => {},
+      quiesce: async (signal): Promise<void> => {
+        assert.equal(
+          signal.aborted,
+          false,
+          "quiesce requires a fresh cleanup signal",
+        );
+      },
     };
     const hash = "f".repeat(64);
     const phase1Boundary = {

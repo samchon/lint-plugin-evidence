@@ -31,6 +31,14 @@ export namespace EvidenceBenchmarkCodexValue {
     return crypto.createHash("sha256").update(input).digest("hex");
   }
 
+  /** Compares exact UTF-8 bytes without host locale or normalization. */
+  export function utf8Compare(left: string, right: string): number {
+    return Buffer.compare(
+      Buffer.from(left, "utf8"),
+      Buffer.from(right, "utf8"),
+    );
+  }
+
   /** Rejects shell shims and unresolved PATH commands before direct spawning. */
   export function assertDirectExecutable(command: string, label: string): void {
     if (!path.isAbsolute(command))

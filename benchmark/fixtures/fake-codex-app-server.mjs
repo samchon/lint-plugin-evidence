@@ -17,8 +17,6 @@ const primaryThread = {
   ephemeral: false,
   cliVersion: "0.145.0",
   modelProvider: "openai",
-  model: "gpt-5.6-terra",
-  serviceTier: "priority",
   preview: "",
   turns: [],
   createdAt: 1,
@@ -242,13 +240,46 @@ async function handle(message) {
       error(id, "allowProviderModelFallback must be false");
       return;
     }
-    if (params.serviceTier !== "priority") {
-      error(id, "serviceTier must be priority");
+    if (params.serviceTier !== undefined) {
+      error(id, "default serviceTier must be omitted");
       return;
     }
     rawEventsEnabled = true;
-    response(id, { thread: primaryThread });
+    response(id, {
+      thread: primaryThread,
+      model: "gpt-5.6-terra",
+      modelProvider: "openai",
+      serviceTier: null,
+      cwd: process.cwd(),
+      approvalPolicy: "never",
+      approvalsReviewer: "user",
+      sandbox: { type: "workspaceWrite", writableRoots: [process.cwd()] },
+      reasoningEffort: scenarios.has("settings-drift") ? "low" : "high",
+      activePermissionProfile: { id: ":workspace", extends: null },
+    });
     emit({ method: "thread/started", params: { thread: primaryThread } });
+    if (scenarios.has("settings-update-drift"))
+      emit({
+        method: "thread/settings/updated",
+        params: {
+          threadId: primaryThread.id,
+          threadSettings: {
+            activePermissionProfile: { id: ":workspace", extends: null },
+            approvalPolicy: "never",
+            approvalsReviewer: "user",
+            collaborationMode: { mode: "default" },
+            cwd: process.cwd(),
+            effort: "high",
+            model: "gpt-5.6-terra",
+            modelProvider: "openai",
+            sandboxPolicy: {
+              type: "workspaceWrite",
+              writableRoots: [process.cwd()],
+            },
+            serviceTier: "priority",
+          },
+        },
+      });
   } else if (method === "thread/resume") {
     // Codex 0.145.0 hard-codes raw_events_enabled=false on a resumed listener.
     rawEventsEnabled = false;
@@ -287,7 +318,7 @@ async function handle(message) {
       },
     });
   } else if (method === "turn/start") {
-    if (params.serviceTier !== undefined && params.serviceTier !== "priority") {
+    if (params.serviceTier !== undefined) {
       error(id, "turn serviceTier drift");
       return;
     }

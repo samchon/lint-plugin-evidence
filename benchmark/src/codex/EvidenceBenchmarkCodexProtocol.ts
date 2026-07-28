@@ -115,7 +115,9 @@ export namespace EvidenceBenchmarkCodexProtocol {
         allowProviderModelFallback:
           options.manifest.runner.allowProviderModelFallback,
         model: options.manifest.runner.model,
-        serviceTier: options.manifest.runner.serviceTier,
+        ...(options.manifest.runner.serviceTier === "default"
+          ? {}
+          : { serviceTier: options.manifest.runner.serviceTier }),
         sandbox: "workspace-write",
         config: {
           features: {
@@ -140,7 +142,9 @@ export namespace EvidenceBenchmarkCodexProtocol {
         approvalPolicy: "never",
         cwd: options.workspace,
         model: options.manifest.runner.model,
-        serviceTier: options.manifest.runner.serviceTier,
+        ...(options.manifest.runner.serviceTier === "default"
+          ? {}
+          : { serviceTier: options.manifest.runner.serviceTier }),
         sandbox: "workspace-write",
         threadId,
         config: {
@@ -195,7 +199,9 @@ export namespace EvidenceBenchmarkCodexProtocol {
         threadId,
         model: manifest.runner.model,
         effort: manifest.runner.effort,
-        serviceTier: manifest.runner.serviceTier,
+        ...(manifest.runner.serviceTier === "default"
+          ? {}
+          : { serviceTier: manifest.runner.serviceTier }),
         input: [{ type: "text", text, text_elements: [] }],
         outputSchema,
       },
@@ -296,6 +302,116 @@ export namespace EvidenceBenchmarkCodexProtocol {
     return thread;
   }
 
+  /** Extracts effective model/provider/tier from a thread/start response. */
+  export function responseThreadStartIdentity(response: IResponse): {
+    model: string;
+    modelProvider: string;
+    serviceTier: string | null;
+    cwd: string;
+    approvalPolicy: unknown;
+    sandboxPolicy: Readonly<Record<string, unknown>>;
+    effort: string | null;
+    activePermissionProfileId: string | null;
+  } {
+    if (!EvidenceBenchmarkCodexValue.isRecord(response.result))
+      throw new Error("thread/start result must be an object");
+    const model = EvidenceBenchmarkCodexValue.string(
+      response.result.model,
+      "thread/start.model",
+    );
+    const modelProvider = EvidenceBenchmarkCodexValue.string(
+      response.result.modelProvider,
+      "thread/start.modelProvider",
+    );
+    const serviceTier = response.result.serviceTier;
+    if (serviceTier !== null && typeof serviceTier !== "string")
+      throw new Error("thread/start.serviceTier must be string or null");
+    const cwd = EvidenceBenchmarkCodexValue.string(
+      response.result.cwd,
+      "thread/start.cwd",
+    );
+    const sandboxPolicy = response.result.sandbox;
+    if (!EvidenceBenchmarkCodexValue.isRecord(sandboxPolicy))
+      throw new Error("thread/start.sandbox must be a policy object");
+    const effort = response.result.reasoningEffort;
+    if (effort !== null && typeof effort !== "string")
+      throw new Error("thread/start.reasoningEffort must be string or null");
+    return {
+      model,
+      modelProvider,
+      serviceTier,
+      cwd,
+      approvalPolicy: response.result.approvalPolicy,
+      sandboxPolicy,
+      effort,
+      activePermissionProfileId: permissionProfileId(
+        response.result.activePermissionProfile,
+        "thread/start.activePermissionProfile",
+      ),
+    };
+  }
+
+  /** Extracts the complete mutable effective-setting notification surface. */
+  export function notificationThreadSettings(
+    params: Readonly<Record<string, unknown>>,
+  ): {
+    threadId: string;
+    model: string;
+    modelProvider: string;
+    serviceTier: string | null;
+    cwd: string;
+    approvalPolicy: unknown;
+    sandboxPolicy: Readonly<Record<string, unknown>>;
+    effort: string | null;
+    activePermissionProfileId: string | null;
+  } {
+    const threadId = EvidenceBenchmarkCodexValue.string(
+      params.threadId,
+      "thread/settings/updated.threadId",
+    );
+    if (!EvidenceBenchmarkCodexValue.isRecord(params.threadSettings))
+      throw new Error(
+        "thread/settings/updated.threadSettings must be an object",
+      );
+    const settings = params.threadSettings;
+    const sandboxPolicy = settings.sandboxPolicy;
+    if (!EvidenceBenchmarkCodexValue.isRecord(sandboxPolicy))
+      throw new Error(
+        "thread/settings/updated.sandboxPolicy must be an object",
+      );
+    const serviceTier = settings.serviceTier;
+    if (serviceTier !== null && typeof serviceTier !== "string")
+      throw new Error(
+        "thread/settings/updated.serviceTier must be string or null",
+      );
+    const effort = settings.effort;
+    if (effort !== null && typeof effort !== "string")
+      throw new Error("thread/settings/updated.effort must be string or null");
+    return {
+      threadId,
+      model: EvidenceBenchmarkCodexValue.string(
+        settings.model,
+        "thread/settings/updated.model",
+      ),
+      modelProvider: EvidenceBenchmarkCodexValue.string(
+        settings.modelProvider,
+        "thread/settings/updated.modelProvider",
+      ),
+      serviceTier,
+      cwd: EvidenceBenchmarkCodexValue.string(
+        settings.cwd,
+        "thread/settings/updated.cwd",
+      ),
+      approvalPolicy: settings.approvalPolicy,
+      sandboxPolicy,
+      effort,
+      activePermissionProfileId: permissionProfileId(
+        settings.activePermissionProfile,
+        "thread/settings/updated.activePermissionProfile",
+      ),
+    };
+  }
+
   /** Extracts the turn id from a start or steer response. */
   export function responseTurnId(response: IResponse): string {
     if (!EvidenceBenchmarkCodexValue.isRecord(response.result))
@@ -317,5 +433,12 @@ export namespace EvidenceBenchmarkCodexProtocol {
     if (!EvidenceBenchmarkCodexValue.isRecord(response.result.goal))
       throw new Error("Goal response requires result.goal");
     return response.result.goal;
+  }
+
+  function permissionProfileId(input: unknown, label: string): string | null {
+    if (input === null || input === undefined) return null;
+    if (!EvidenceBenchmarkCodexValue.isRecord(input))
+      throw new Error(`${label} must be an object or null`);
+    return EvidenceBenchmarkCodexValue.string(input.id, `${label}.id`);
   }
 }

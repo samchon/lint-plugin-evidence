@@ -370,7 +370,7 @@ export namespace EvidenceBenchmarkCodexSourceSnapshot {
           withFileTypes: true,
         });
         children.sort((left, right): number =>
-          left.name.localeCompare(right.name),
+          EvidenceBenchmarkCodexValue.utf8Compare(left.name, right.name),
         );
         for (const child of children)
           await visit(

@@ -51,6 +51,8 @@ export class EvidenceBenchmarkCodexNeutralStripper {
           package: "typescript",
           version: this.typescript.version,
           sourceSha256: typescript.sourceSha256,
+          resolvedPackageRoot: typescript.packageRoot,
+          resolvedEntryPath: typescript.entryPath,
           grammarSha256: EvidenceBenchmarkCodexValue.sha256(
             "ts.createSourceFile+ts.getJSDocTags:evidence,evidenceExclude:v1",
           ),
@@ -61,6 +63,8 @@ export class EvidenceBenchmarkCodexNeutralStripper {
           sourceSha256: EvidenceBenchmarkCodexValue.sha256(
             fs.readFileSync(import.meta.filename),
           ),
+          resolvedPackageRoot: path.dirname(import.meta.filename),
+          resolvedEntryPath: path.basename(import.meta.filename),
           grammarSha256: EvidenceBenchmarkCodexValue.sha256(
             "CommonMark-HTML-comment-token:evidence,evidenceExclude:v1",
           ),
@@ -69,6 +73,8 @@ export class EvidenceBenchmarkCodexNeutralStripper {
           package: "@prisma/prisma-schema-wasm",
           version: prismaManifest.version,
           sourceSha256: prismaModule.sourceSha256,
+          resolvedPackageRoot: prismaModule.packageRoot,
+          resolvedEntryPath: prismaModule.entryPath,
           grammarSha256: EvidenceBenchmarkCodexValue.sha256(
             "prisma-wasm-get_datamodel+triple-slash-tag-record:v1",
           ),
@@ -79,6 +85,8 @@ export class EvidenceBenchmarkCodexNeutralStripper {
           sourceSha256: EvidenceBenchmarkCodexValue.sha256(
             fs.readFileSync(process.execPath),
           ),
+          resolvedPackageRoot: path.dirname(process.execPath),
+          resolvedEntryPath: path.basename(process.execPath),
           grammarSha256: EvidenceBenchmarkCodexValue.sha256(
             "recursive-arm-key-value-elision:v1",
           ),
@@ -87,6 +95,8 @@ export class EvidenceBenchmarkCodexNeutralStripper {
           package: "yaml",
           version: yamlManifest.version,
           sourceSha256: yaml.sourceSha256,
+          resolvedPackageRoot: yaml.packageRoot,
+          resolvedEntryPath: yaml.entryPath,
           grammarSha256: EvidenceBenchmarkCodexValue.sha256(
             "yaml-parseDocument+recursive-arm-key-value-elision:v1",
           ),
@@ -302,16 +312,25 @@ export class EvidenceBenchmarkCodexNeutralStripper {
   private resolveWithPath<T>(specifier: string): {
     value: T;
     sourceSha256: string;
+    packageRoot: string;
+    entryPath: string;
   } {
     const failures: string[] = [];
     for (const manifest of this.resolverManifests()) {
       try {
         const resolver = createRequire(manifest);
         const resolved = resolver.resolve(specifier);
+        const packageRoot =
+          EvidenceBenchmarkCodexNeutralStripper.packageRoot(resolved);
         return {
           value: resolver(specifier) as T,
           sourceSha256:
             EvidenceBenchmarkCodexNeutralStripper.packageTreeSha256(resolved),
+          packageRoot,
+          entryPath: path
+            .relative(packageRoot, resolved)
+            .split(path.sep)
+            .join("/"),
         };
       } catch (error) {
         failures.push(
@@ -327,6 +346,8 @@ export class EvidenceBenchmarkCodexNeutralStripper {
   private resolveTypeScript(): {
     value: EvidenceBenchmarkCodexNeutralStripper.ITypeScript;
     sourceSha256: string;
+    packageRoot: string;
+    entryPath: string;
   } {
     const failures: string[] = [];
     for (const manifest of this.resolverManifests()) {
@@ -341,14 +362,23 @@ export class EvidenceBenchmarkCodexNeutralStripper {
             typeof candidate.createSourceFile === "function" &&
             typeof candidate.getJSDocTags === "function" &&
             typeof candidate.forEachChild === "function"
-          )
+          ) {
+            const resolved = resolver.resolve(specifier);
+            const packageRoot =
+              EvidenceBenchmarkCodexNeutralStripper.packageRoot(resolved);
             return {
               value: candidate,
               sourceSha256:
                 EvidenceBenchmarkCodexNeutralStripper.packageTreeSha256(
-                  resolver.resolve(specifier),
+                  resolved,
                 ),
+              packageRoot,
+              entryPath: path
+                .relative(packageRoot, resolved)
+                .split(path.sep)
+                .join("/"),
             };
+          }
           failures.push(`${manifest}:${specifier}: no compiler AST API`);
         } catch (error) {
           failures.push(
@@ -377,14 +407,22 @@ export class EvidenceBenchmarkCodexNeutralStripper {
           if (
             candidate.version === "5.9.3" &&
             typeof candidate.createSourceFile === "function"
-          )
+          ) {
+            const packageRoot =
+              EvidenceBenchmarkCodexNeutralStripper.packageRoot(candidatePath);
             return {
               value: candidate,
               sourceSha256:
                 EvidenceBenchmarkCodexNeutralStripper.packageTreeSha256(
                   candidatePath,
                 ),
+              packageRoot,
+              entryPath: path
+                .relative(packageRoot, candidatePath)
+                .split(path.sep)
+                .join("/"),
             };
+          }
         }
         const parent = path.dirname(cursor);
         if (parent === cursor) break;
@@ -437,14 +475,7 @@ export class EvidenceBenchmarkCodexNeutralStripper {
   }
 
   private static packageTreeSha256(entryPath: string): string {
-    let cursor = path.dirname(entryPath);
-    while (!fs.existsSync(path.join(cursor, "package.json"))) {
-      const parent = path.dirname(cursor);
-      if (parent === cursor)
-        throw new Error(`parser package root not found for ${entryPath}`);
-      cursor = parent;
-    }
-    const root = cursor;
+    const root = EvidenceBenchmarkCodexNeutralStripper.packageRoot(entryPath);
     const entries: Array<{
       path: string;
       kind: "file" | "symlink";
@@ -454,7 +485,12 @@ export class EvidenceBenchmarkCodexNeutralStripper {
     const visit = (directory: string): void => {
       const children = fs
         .readdirSync(directory, { withFileTypes: true })
-        .sort((left, right): number => left.name.localeCompare(right.name));
+        .sort((left, right): number =>
+          EvidenceBenchmarkCodexNeutralStripper.utf8Compare(
+            left.name,
+            right.name,
+          ),
+        );
       for (const child of children) {
         if (child.name === "node_modules") continue;
         const target = path.join(directory, child.name);
@@ -478,9 +514,29 @@ export class EvidenceBenchmarkCodexNeutralStripper {
       }
     };
     visit(root);
-    entries.sort((left, right): number => left.path.localeCompare(right.path));
+    entries.sort((left, right): number =>
+      EvidenceBenchmarkCodexNeutralStripper.utf8Compare(left.path, right.path),
+    );
     return EvidenceBenchmarkCodexValue.sha256(
       EvidenceBenchmarkCodexValue.canonicalJson(entries),
+    );
+  }
+
+  private static packageRoot(entryPath: string): string {
+    let cursor = path.dirname(entryPath);
+    while (!fs.existsSync(path.join(cursor, "package.json"))) {
+      const parent = path.dirname(cursor);
+      if (parent === cursor)
+        throw new Error(`parser package root not found for ${entryPath}`);
+      cursor = parent;
+    }
+    return cursor;
+  }
+
+  private static utf8Compare(left: string, right: string): number {
+    return Buffer.compare(
+      Buffer.from(left, "utf8"),
+      Buffer.from(right, "utf8"),
     );
   }
 
@@ -550,6 +606,12 @@ export namespace EvidenceBenchmarkCodexNeutralStripper {
 
         /** SHA-256 of the exact parser or in-runner implementation bytes. */
         sourceSha256: string;
+
+        /** Exact package or runtime root from which the entry was resolved. */
+        resolvedPackageRoot: string;
+
+        /** POSIX path of the loaded entry relative to the resolved root. */
+        resolvedEntryPath: string;
 
         /** SHA-256 of the frozen accepted grammar contract. */
         grammarSha256: string;

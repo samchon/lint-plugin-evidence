@@ -97,6 +97,7 @@ export class EvidenceBenchmarkCodexProcess {
     method: string,
     params: Readonly<Record<string, unknown>>,
   ): Promise<EvidenceBenchmarkCodexProtocol.IResponse> {
+    await this.options.beforeRequest?.(method, params);
     const id = ++this.requestId;
     const request: EvidenceBenchmarkCodexProtocol.IRequest = {
       id,
@@ -183,7 +184,20 @@ export class EvidenceBenchmarkCodexProcess {
       ]);
       if (!exited) await EvidenceBenchmarkCodexProcess.killTree(child.pid);
     }
-    await this.wait();
+    const terminated = await Promise.race([
+      this.wait().then((): boolean => true),
+      new Promise<boolean>((resolve): void => {
+        const timer = setTimeout(
+          (): void => resolve(false),
+          this.options.shutdownGraceMs,
+        );
+        timer.unref();
+      }),
+    ]);
+    if (!terminated)
+      throw new Error(
+        `app-server process tree ${String(child.pid)} remained live after forced termination`,
+      );
   }
 
   private async writeMessage(
@@ -383,14 +397,34 @@ export class EvidenceBenchmarkCodexProcess {
   private static async killTree(pid: number | undefined): Promise<void> {
     if (pid === undefined) return;
     if (process.platform === "win32") {
-      await new Promise<void>((resolve): void => {
+      await new Promise<void>((resolve, reject): void => {
         const killer = spawn("taskkill", ["/pid", String(pid), "/t", "/f"], {
           shell: false,
-          stdio: "ignore",
+          stdio: ["ignore", "ignore", "pipe"],
           windowsHide: true,
         });
-        killer.once("error", (): void => resolve());
-        killer.once("close", (): void => resolve());
+        let stderr = "";
+        killer.stderr.setEncoding("utf8");
+        killer.stderr.on("data", (chunk: string): void => {
+          stderr += chunk;
+        });
+        killer.once("error", reject);
+        killer.once("close", (code): void => {
+          if (code === 0) resolve();
+          else {
+            try {
+              process.kill(pid, 0);
+            } catch {
+              resolve();
+              return;
+            }
+            reject(
+              new Error(
+                `taskkill failed for process tree ${pid} with code ${String(code)}: ${stderr.trim()}`,
+              ),
+            );
+          }
+        });
       });
       return;
     }
@@ -447,6 +481,12 @@ export namespace EvidenceBenchmarkCodexProcess {
 
     /** Receives protocol anomalies that must remain visible in the final report. */
     onProtocolAnomaly: (message: string) => Promise<void>;
+
+    /** Optional fail-closed request guard, including live spend ceilings. */
+    beforeRequest?: (
+      method: string,
+      params: Readonly<Record<string, unknown>>,
+    ) => Promise<void>;
   }
 
   /** Callback for one complete raw-linked JSONL frame. */

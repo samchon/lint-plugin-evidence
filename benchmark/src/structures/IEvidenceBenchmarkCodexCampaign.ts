@@ -189,11 +189,26 @@ export namespace IEvidenceBenchmarkCodexCampaign {
     /** Structured behavior used in comparison. */
     behavior: string;
 
+    /** Registered lens used in the canonical comparison. */
+    lens: Lens;
+
+    /** Expected behavior used in the canonical comparison. */
+    expectedBehavior: string;
+
+    /** Observed behavior used in the canonical comparison. */
+    observedBehavior: string;
+
     /** Structured locations used in comparison. */
     locations: string[];
 
     /** Structured reproduction used in comparison. */
     reproduction: string;
+
+    /** Exact defect claim used in the canonical comparison. */
+    claim: string;
+
+    /** Concrete evidence rows used in the canonical comparison. */
+    evidence: string[];
 
     /** Whether the candidate enters or references the canonical catalog. */
     decision: "new" | "duplicate";
