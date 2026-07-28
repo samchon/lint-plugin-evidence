@@ -102,7 +102,34 @@ export namespace UniqueDiagnoser {
 
 **Everything published carries JSDoc, down to each property.** This package is the API reference: its types reach consumers who never open this repository, and a property documented only by its name tells them nothing about what value belongs there.
 
-`IDiagnosis` is the same shape the server's error responses carry. That is the point: a client-side check and a server-side rejection speak one vocabulary, so a screen renders either without branching, and a field-level error lands on the right field because `accessor` says which one.
+`IDiagnosis` is declared here, in `src/structures/common`, and it is the same shape the server's error responses carry.
+
+```ts
+/**
+ * Result of a diagnosis.
+ *
+ * One problem found by a client-side check or reported by a server-side
+ * rejection. Both speak this shape, so a screen renders either without
+ * branching on where it came from.
+ */
+export interface IDiagnosis {
+  /**
+   * Access path of the value that caused the problem.
+   *
+   * Dotted, from the root of the submitted body, as in
+   * `units[0].stocks[1].price`. A field-level error lands on its own field
+   * because of this. Use `"unknown"` when no single value is at fault.
+   */
+  accessor: string;
+
+  /**
+   * What is wrong, written for the person who has to fix it.
+   */
+  message: string;
+}
+```
+
+That shared shape is the whole point: a client-side check and a server-side rejection speak one vocabulary, and a field-level error lands on the right field because `accessor` says which one.
 
 Writing the rule twice guarantees the two drift, and the drift surfaces as a form that accepts what the server then rejects.
 

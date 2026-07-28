@@ -136,16 +136,16 @@ export namespace PrismaErrorProvider {
   export function from(error: PrismaClientKnownRequestError): HttpException {
     switch (error.code) {
       case "P2025": // record not found
-        return ErrorProvider.notFound("The requested resource was not found.", {
+        return ErrorUtil.notFound("The requested resource was not found.", {
           cause: error,
         });
       case "P2002": // unique constraint
-        return ErrorProvider.conflict(
+        return ErrorUtil.conflict(
           "The request conflicts with an existing resource.",
           { cause: error },
         );
       default:
-        return ErrorProvider.internal("The request could not be completed.", {
+        return ErrorUtil.internal("The request could not be completed.", {
           cause: error,
         });
     }
@@ -167,7 +167,50 @@ Three details are load-bearing.
 - **The original survives as `cause`.** The framework's default response and its accessor both exclude it, so it remains available to server-side diagnostics and invisible to the client.
 - **The registration is at module scope in a file the bootstrap imports**, so it is in place before the first request rather than after the first failure.
 
-`ErrorProvider` is the shared constructor that wraps a message or a diagnosis list into an exception with a numeric status. Providers throw through it for business failures; this mapper uses it for database ones, so both arrive in the same shape.
+`ErrorUtil` is what both halves throw through, so a business refusal and a database failure reach the client in one shape.
+
+```ts
+// src/utils/ErrorUtil.ts
+export namespace ErrorUtil {
+  export interface IOptions {
+    cause?: unknown;
+  }
+
+  export function of(
+    status: number,
+    reason: string | IDiagnosis | IDiagnosis[],
+    options?: IOptions,
+  ): HttpException {
+    const diagnoses: IDiagnosis[] =
+      typeof reason === "string"
+        ? [{ accessor: "unknown", message: reason }]
+        : Array.isArray(reason)
+          ? reason
+          : [reason];
+    return new HttpException(diagnoses, status, options);
+  }
+
+  export const badRequest = (r: Reason, o?: IOptions) => of(400, r, o);
+  export const unauthorized = (r: Reason, o?: IOptions) => of(401, r, o);
+  export const forbidden = (r: Reason, o?: IOptions) => of(403, r, o);
+  export const notFound = (r: Reason, o?: IOptions) => of(404, r, o);
+  export const conflict = (r: Reason, o?: IOptions) => of(409, r, o);
+  export const unprocessable = (r: Reason, o?: IOptions) => of(422, r, o);
+  export const internal = (r: Reason, o?: IOptions) => of(500, r, o);
+}
+
+type Reason = string | IDiagnosis | IDiagnosis[];
+```
+
+Three things here are the convention.
+
+**The body is always a diagnosis array**, even for a one-sentence refusal. A client that renders errors writes one renderer instead of branching on whether the body happens to be a string, and a field-level failure lands on its field because `accessor` names it. `IDiagnosis` is declared in `packages/api/src/structures/common`, so the frontend's pre-submit checks and the server's rejections speak the same vocabulary.
+
+**The status is chosen by the caller, from meaning.** These are named constructors rather than one function taking a number, so a call site reads as the decision it made.
+
+**`cause` is carried, never rendered.** The framework's response excludes it, which is what lets the mapper above attach the original Prisma error for server-side diagnosis without leaking the schema.
+
+It lives in `src/utils` rather than `src/providers` because it owns no entity and reads no table. The same is true of `PasswordUtil` and the date helpers.
 
 ## Generation Is Configured, Not Improvised
 

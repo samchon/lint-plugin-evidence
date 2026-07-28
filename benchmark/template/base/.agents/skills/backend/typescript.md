@@ -76,7 +76,7 @@ Picking the wrong one produces an error that looks like the check did not happen
 ## `never` Means You Already Checked
 
 ```ts
-if (record.deleted_at !== null) throw ErrorProvider.forbidden("Deleted.");
+if (record.deleted_at !== null) throw ErrorUtil.forbidden("Deleted.");
 // from here down, deleted_at is null on every path
 ```
 

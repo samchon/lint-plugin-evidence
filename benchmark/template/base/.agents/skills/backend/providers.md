@@ -263,9 +263,9 @@ Business-constraint validation is still yours: a quantity above a configured max
 Throw through the shared helper, with the status the requirement implies.
 
 ```ts
-throw ErrorProvider.forbidden("Only the owning seller may edit this sale.");
-throw ErrorProvider.notFound("No such sale.");
-throw ErrorProvider.unprocessable(diagnoses);
+throw ErrorUtil.forbidden("Only the owning seller may edit this sale.");
+throw ErrorUtil.notFound("No such sale.");
+throw ErrorUtil.unprocessable(diagnoses);
 ```
 
 The helper wraps a string or a diagnosis list into a structured body, so the client receives something it can act on rather than a bare status. Never throw a plain `Error`.

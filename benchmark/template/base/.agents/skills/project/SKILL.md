@@ -53,7 +53,9 @@ The backend imports its own DTOs from this package. That direction is deliberate
 
 - `src/controllers/` routing, authorization, and delegation, grouped by domain then by actor.
 - `src/providers/` business logic and every database access, one namespace per entity.
-- `src/decorators/` the per-actor authentication parameter decorators.
+- `src/transformers/` one namespace per DTO: its Prisma selection and its row-to-DTO mapping.
+- `src/collectors/` one namespace per creation DTO: the Prisma creation payload it assembles.
+- `src/decorators/` the per-actor authentication parameter decorators, and their payload types.
 - `src/utils/` cross-cutting helpers: error construction, pagination, dates, tokens, hashing.
 - `src/services/` integrations with anything outside this process.
 - `src/setup/` schema setup and seeding.

@@ -102,7 +102,7 @@ const record = await MyGlobal.prisma.shopping_sales.findFirstOrThrow({
   select: { id: true, shopping_seller_id: true },
 });
 if (record.shopping_seller_id !== props.seller.id)
-  throw ErrorProvider.forbidden("Only the owning seller may edit this sale.");
+  throw ErrorUtil.forbidden("Only the owning seller may edit this sale.");
 ```
 
 The narrow `select` is deliberate. This read exists to answer one question, and loading the full row here invites building the response from it, which then omits everything the response select would have fetched.
@@ -123,7 +123,7 @@ const permitted: boolean =
     },
   })) !== 0;
 if (!permitted)
-  throw ErrorProvider.forbidden("Not a moderator of this section.");
+  throw ErrorUtil.forbidden("Not a moderator of this section.");
 ```
 
 Checking only the join table gives the legitimate owner a wrongful `403`. No happy-path test finds it, because the tests that exercise the resource are usually written as the owner, and the owner is exactly who it breaks for.
@@ -210,24 +210,48 @@ export namespace SellerProvider {
   export async function authorize(props: {
     request: { headers: { authorization?: string } };
   }): Promise<SellerPayload> {
-    const payload: SellerPayload = JwtProvider.authorize({
+    const payload: SellerPayload = JwtUtil.authorize({
       request: props.request,
     }) as SellerPayload;
     if (payload.type !== "seller")
-      throw ErrorProvider.forbidden(`Not a seller, but a ${payload.type}.`);
+      throw ErrorUtil.forbidden(`Not a seller, but a ${payload.type}.`);
 
     const seller = await MyGlobal.prisma.shopping_sellers.findFirst({
       where: { id: payload.id, deleted_at: null },
       select: { id: true },
     });
     if (seller === null)
-      throw ErrorProvider.forbidden("Not an active seller.");
+      throw ErrorUtil.forbidden("Not an active seller.");
     return payload;
   }
 }
 ```
 
 Both checks are needed. The token check proves the claim was minted for this actor; the row read proves the account still exists and has not been withdrawn, banned, or suspended. A token outlives the account it names, so verifying the signature alone authorizes a caller the requirements say is gone.
+
+Every actor's authorize provider is that same shape, differing only in the discriminant it checks and the table it reads. The token half is shared, in `src/utils` beside the other helpers that own no entity:
+
+```ts
+// src/utils/JwtUtil.ts
+export namespace JwtUtil {
+  export function authorize(props: {
+    request: { headers: { authorization?: string } };
+  }): unknown {
+    const header: string | undefined = props.request.headers.authorization;
+    if (header === undefined || header.startsWith("Bearer ") === false)
+      throw ErrorUtil.unauthorized("No bearer token was supplied.");
+    try {
+      return jwt.verify(header.slice("Bearer ".length), MyGlobal.env().JWT_SECRET_KEY);
+    } catch {
+      throw ErrorUtil.unauthorized("The token is invalid or has expired.");
+    }
+  }
+}
+```
+
+**It returns `unknown` deliberately.** The caller narrows to its own payload after checking `type`, so a token minted for one actor cannot be read as another's simply because the shapes happen to match.
+
+**The catch returns one message for every failure.** Expired, forged, malformed, and wrong-secret are the same answer to a caller, and distinguishing them tells an attacker which half of the guess was right.
 
 The decorator then does two things at once, and both halves are load-bearing.
 
