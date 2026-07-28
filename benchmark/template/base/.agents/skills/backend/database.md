@@ -79,7 +79,7 @@ A snapshot is named as the `_snapshots` form of a base table and is never declar
 ## Naming
 
 - Tables are snake_case and plural with the project's entity-family prefix: `shopping_sales`, `shopping_sale_snapshots`.
-- Columns are snake_case. A foreign key is the target table's name plus `_id`.
+- Columns are snake_case. A foreign key is the target table's name, singularized, plus `_id`: `shopping_sections` is referenced as `shopping_section_id`.
 - Timestamps are a past-participle verb plus `_at`: `created_at`, `opened_at`, `deleted_at`.
 - Primary keys are `id String @id`, assigned as UUIDs by the application so an entity has identity before it is written.
 
@@ -140,8 +140,8 @@ model shopping_sales {
   /// Belonged section's {@link shopping_sections.id}
   shopping_section_id String
 
-  /// Registering seller's {@link shopping_customers.id}
-  shopping_seller_customer_id String
+  /// Registering seller's {@link shopping_sellers.id}
+  shopping_seller_id String
 
   /// Creation time of record.
   created_at DateTime
@@ -163,7 +163,7 @@ model shopping_sales {
   section shopping_sections @relation(fields: [shopping_section_id], references: [id], onDelete: Cascade)
 
   /// Registering seller.
-  sellerCustomer shopping_customers @relation(fields: [shopping_seller_customer_id], references: [id], onDelete: Cascade)
+  seller shopping_sellers @relation(fields: [shopping_seller_id], references: [id], onDelete: Cascade)
 
   /// Every revision of this sale.
   snapshots shopping_sale_snapshots[]
@@ -172,12 +172,12 @@ model shopping_sales {
   mv_last mv_shopping_sale_last_snapshots?
 
   @@index([shopping_section_id])
-  @@index([shopping_seller_customer_id])
+  @@index([shopping_seller_id])
   @@index([created_at])
 }
 ```
 
-Read what the shape encodes. The foreign key column and its relation are separate declarations: the column stores the value, the relation names how code traverses it. The relation name is camelCase and says which side it is, so `sellerCustomer` reads as the seller's customer row rather than as a bag of customers.
+Read what the shape encodes. The foreign key column and its relation are separate declarations: the column stores the value under the target table's name plus `_id`, and the relation names how code traverses it, in camelCase. A provider writes `{ shopping_seller_id: id }` in a filter and `seller: { connect: { id } }` in a creation, and both spellings are load-bearing in their own place.
 
 ## Relations
 

@@ -34,7 +34,7 @@ export interface IShoppingSale {
   /**
    * Registering seller.
    *
-   * @evidence prisma:shopping_sales.shopping_seller_customer_id The seller this
+   * @evidence prisma:shopping_sales.shopping_seller_id The seller this
    * sale belongs to, loaded through the foreign key.
    */
   seller: IShoppingSeller.ISummary;
