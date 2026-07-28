@@ -227,9 +227,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 ```json
 {
   "dev": "vite --host 0.0.0.0",
-  "build": "rimraf dist && pnpm run check && vite build",
+  "build": "rimraf dist && pnpm run lint && vite build",
   "preview": "vite preview",
-  "check": "ttsc -p tsconfig.json --noEmit",
+  "lint": "ttsc -p tsconfig.json --noEmit",
   "format": "ttsc format -p tsconfig.json",
   "test:e2e": "node scripts/run-playwright.mjs e2e",
   "ui:review": "node scripts/run-playwright.mjs ui-review",
@@ -238,9 +238,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 }
 ```
 
-**`check` is one command because the compile is one pass.** `ttsc` emits type errors and lint diagnostics in the same stream and sums both into the exit code, so a separate `typecheck` script running stock `tsc` would report green over failures this project treats as errors. There is no `tsc` here and no separate lint invocation; the project skill owns why.
+**`lint` is one command because the compile is one pass.** `ttsc` emits type errors and lint diagnostics in the same stream and sums both into the exit code, so a separate `typecheck` script running stock `tsc` would report green over failures this project treats as errors. There is no `tsc` here and no separate lint invocation; the project skill owns why.
 
-One runner with a mode argument beats several near-identical configurations. `build` runs `check` before bundling, so a broken type or a lint failure stops the build rather than shipping.
+One runner with a mode argument beats several near-identical configurations. `build` runs `lint` before bundling, so a broken type or a lint failure stops the build rather than shipping.
 
 ## Record The Notable Choices
 

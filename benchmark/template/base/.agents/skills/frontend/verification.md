@@ -80,7 +80,7 @@ Keep `wiki/verification.md` with the date, what was running, the automated check
 
 ## Automated Checks
 
-- `pnpm check`
+- `pnpm lint`
 - `pnpm test:e2e`
 - `pnpm ui:review`
 
