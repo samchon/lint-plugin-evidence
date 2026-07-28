@@ -541,6 +541,16 @@ export namespace EvidenceBenchmarkSelfTest {
       fs.readFileSync(path.join(root, "00-corpus-contract.md")),
       "parser normalization must never rewrite copied corpus bytes",
     );
+    const duplicateZero: string = path.join(temporary, "duplicate-zero-corpus");
+    fs.cpSync(root, duplicateZero, { recursive: true });
+    write(
+      path.join(duplicateZero, "00-toc.md"),
+      "# Corpus Contents\n\nThis file has no manifest owner.\n",
+    );
+    await expectFailure(
+      () => EvidenceBenchmarkCorpus.read(duplicateZero),
+      "Markdown number is duplicated: 00",
+    );
 
     const raw: string = path.join(temporary, "raw-corpus");
     fs.cpSync(root, raw, { recursive: true });
@@ -608,6 +618,23 @@ export namespace EvidenceBenchmarkSelfTest {
     await expectFailure(
       () => EvidenceBenchmarkCorpus.read(wrongSource),
       "does not own REQ H2",
+    );
+
+    const manifestDrift: string = path.join(temporary, "manifest-drift");
+    fs.cpSync(dual, manifestDrift, { recursive: true });
+    const driftedManifest = JSON.parse(
+      fs.readFileSync(path.join(manifestDrift, "corpus-manifest.json"), "utf8"),
+    ) as { files: Array<{ path: string; sha256: string }> };
+    driftedManifest.files = driftedManifest.files.filter(
+      (entry) => entry.path !== "00-toc.md",
+    );
+    write(
+      path.join(manifestDrift, "corpus-manifest.json"),
+      `${JSON.stringify(driftedManifest, null, 2)}\n`,
+    );
+    await expectFailure(
+      () => EvidenceBenchmarkCorpus.read(manifestDrift),
+      "file inventory must exactly match",
     );
 
     const drifted: string = path.join(temporary, "drifted-corpus");
