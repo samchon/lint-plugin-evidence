@@ -1,0 +1,10 @@
+{
+  "$defs": {
+    "sha256": {
+      "type": "string"
+    },
+    "sha256": {
+      "type": "null"
+    }
+  }
+}
