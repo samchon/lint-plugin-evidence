@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "validExpected": {
+    "formalIdentityKind": "merged-git-commit-and-formal-review",
+    "runtimeAlgorithmId": "sha256-posix-path-nul-bytes-v1",
+    "runtimeDigest": null
+  },
+  "invalidCases": [
+    {
+      "id": "formal-self-reference",
+      "target": "formal",
+      "field": "protocolRevisionSha256",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expectedPattern": "self-referential"
+    },
+    {
+      "id": "duplicate-runtime-digest-fields",
+      "target": "runtime",
+      "field": "protocolTreeSha256",
+      "value": null,
+      "expectedPattern": "legacy protocol digest"
+    },
+    {
+      "id": "sealed-tree-mutation",
+      "sealedTree": {
+        "algorithmId": "sha256-posix-path-nul-bytes-v1",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "actualSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "expectedPattern": "Sealed protocol raw-tree digest drifted"
+    }
+  ]
+}

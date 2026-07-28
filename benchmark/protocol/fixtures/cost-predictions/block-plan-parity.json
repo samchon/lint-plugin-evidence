@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "validCells": [
+    {
+      "subject": "todo",
+      "arm": "evidence"
+    },
+    {
+      "subject": "todo",
+      "arm": "plain"
+    },
+    {
+      "subject": "reddit",
+      "arm": "evidence"
+    },
+    {
+      "subject": "reddit",
+      "arm": "plain"
+    }
+  ],
+  "invalidCases": [
+    {
+      "id": "selected-row-milestone-drift",
+      "operation": "replace",
+      "path": "/cells/0/predicted/milestones/t_done/providerTokensMillions/p50",
+      "value": 179,
+      "expectedPattern": "milestones drifted from the artifact"
+    },
+    {
+      "id": "selected-row-unit-drift",
+      "operation": "replace",
+      "path": "/cells/0/predicted/providerTokensUnit",
+      "value": "provider-total-tokens",
+      "expectedPattern": "units drifted"
+    },
+    {
+      "id": "selected-row-identity-drift",
+      "operation": "replace",
+      "path": "/cells/0/predicted/arm",
+      "value": "plain",
+      "expectedPattern": "identity drifted"
+    }
+  ]
+}

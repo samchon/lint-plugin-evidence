@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "artifactPath": "cost-predictions.json",
+  "schemaPath": "cost-predictions.schema.json",
+  "validExpected": {
+    "rowCount": 8,
+    "observationCount": 0,
+    "monetaryStatus": "unavailable"
+  },
+  "invalidCases": [
+    {
+      "id": "markdown-value-drift",
+      "operation": "replace",
+      "path": "/rows/0/milestones/t_done/wallClockHours/p50",
+      "value": 10,
+      "expectedPattern": "drifted from"
+    },
+    {
+      "id": "duplicate-subject-arm-row",
+      "operation": "copy",
+      "from": "/rows/0",
+      "path": "/rows/1",
+      "expectedPattern": "protocol validation"
+    },
+    {
+      "id": "untracked-subject-row",
+      "operation": "replace",
+      "path": "/rows/0/subject",
+      "value": "untracked",
+      "expectedPattern": "protocol validation"
+    },
+    {
+      "id": "source-digest-drift",
+      "operation": "replace",
+      "path": "/sourceChain/0/sha256",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expectedPattern": "source byte pin drifted"
+    },
+    {
+      "id": "observation-contamination",
+      "operation": "replace",
+      "path": "/zeroObservationProvenance/observationCount",
+      "value": 1,
+      "expectedPattern": "protocol validation"
+    },
+    {
+      "id": "invented-provider-credit",
+      "operation": "replace",
+      "path": "/rows/0/milestones/t_done/providerCredits/p50",
+      "value": 1,
+      "expectedPattern": "protocol validation"
+    }
+  ]
+}

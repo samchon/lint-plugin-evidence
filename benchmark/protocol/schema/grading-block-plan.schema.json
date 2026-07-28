@@ -21,7 +21,8 @@
     "armGuessProviderSchemaSha256",
     "armGuessLocalSchemaSha256",
     "providerOutputRegistrySha256",
-    "protocolRevisionSha256",
+    "protocolRawTreeAlgorithmId",
+    "protocolRawTreeSha256",
     "blockSize",
     "graderAssignments",
     "populations",
@@ -87,7 +88,10 @@
     "providerOutputRegistrySha256": {
       "$ref": "#/$defs/sha256"
     },
-    "protocolRevisionSha256": {
+    "protocolRawTreeAlgorithmId": {
+      "const": "sha256-posix-path-nul-bytes-v1"
+    },
+    "protocolRawTreeSha256": {
       "$ref": "#/$defs/sha256"
     },
     "blockSize": {

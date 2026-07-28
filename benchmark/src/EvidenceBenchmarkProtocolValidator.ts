@@ -211,6 +211,627 @@ export namespace EvidenceBenchmarkProtocolValidator {
     }
   }
 
+  /**
+   * Proves that the machine-readable cost prior is byte-bound to its active
+   * append-only Markdown chain and reproduces the selected P50/P90 tables.
+   */
+  export function preflightCostPredictions(protocolRoot: string): void {
+    const root: string = path.resolve(protocolRoot);
+    const artifactPath: string = path.join(root, "cost-predictions.json");
+    const artifactBytes: Buffer = fs.readFileSync(artifactPath);
+    const value = validateText<Record<string, unknown>>(
+      root,
+      "cost-predictions.schema.json",
+      artifactBytes.toString("utf8"),
+      artifactPath,
+    );
+    validateCostPredictionsValue(root, value);
+    const pinsPath: string = path.join(root, "pins.json");
+    const pins = record(
+      parse(fs.readFileSync(pinsPath, "utf8"), pinsPath),
+      "protocol pins",
+    );
+    const pin = record(pins.costPredictions, "cost prediction pin");
+    const digest: string = sha256(artifactBytes);
+    if (
+      pin.path !== "benchmark/protocol/cost-predictions.json" ||
+      pin.schemaPath !==
+        "benchmark/protocol/schema/cost-predictions.schema.json" ||
+      pin.bytes !== artifactBytes.byteLength ||
+      pin.sha256 !== digest ||
+      pin.freezeId !== value.freezeId ||
+      pin.observationCount !== 0
+    )
+      throw new Error("Cost prediction artifact pin drifted.");
+    const repositoryDigests = record(
+      pins.repositoryFrozenDigests,
+      "repository frozen digests",
+    );
+    if (repositoryDigests.costPredictionsSha256 !== digest)
+      throw new Error("Repository cost prediction digest pin drifted.");
+  }
+
+  /**
+   * Proves that the null-by-default safety pins are complete by subject and
+   * wave and that every populated wave is internally authorized.
+   */
+  export function preflightSafetyAuthorizationPins(
+    protocolRoot: string,
+  ): void {
+    const root: string = path.resolve(protocolRoot);
+    const pinsPath: string = path.join(root, "pins.json");
+    const pins = record(
+      parse(fs.readFileSync(pinsPath, "utf8"), pinsPath),
+      "protocol pins",
+    );
+    validateSafetyAuthorizationValue(root, pins.safetyAuthorization);
+  }
+
+  /** Validates one safety authorization and optionally requires one wave. */
+  export function validateSafetyAuthorizationValue(
+    protocolRoot: string,
+    input: unknown,
+    selectedWave: string | null = null,
+  ): void {
+    const value = validateValue<Record<string, unknown>>(
+      protocolRoot,
+      "safety-authorization.schema.json",
+      input,
+      "safety authorization",
+    );
+    const tokens = record(
+      value.maximumObservedTotalTokensBySubject,
+      "subject token limits",
+    );
+    const walls = record(
+      value.hardWallDurationSecondsBySubject,
+      "subject wall limits",
+    );
+    const blockTokens = record(
+      value.maximumObservedBlockTotalTokensByWave,
+      "wave token limits",
+    );
+    const blockWalls = record(
+      value.blockHardWallDurationSecondsByWave,
+      "wave wall limits",
+    );
+    const waves: ReadonlyArray<readonly [string, string, string]> = [
+      ["todo-reddit", "todo", "reddit"],
+      ["shopping-erp", "shopping", "erp"],
+    ];
+    for (const [wave, left, right] of waves) {
+      const entries: unknown[] = [
+        tokens[left],
+        tokens[right],
+        walls[left],
+        walls[right],
+        blockTokens[wave],
+        blockWalls[wave],
+      ];
+      const nullCount: number = entries.filter(
+        (entry) => entry === null,
+      ).length;
+      if (nullCount !== 0 && nullCount !== entries.length)
+        throw new Error(
+          `Safety authorization wave ${wave} must be all null or all positive.`,
+        );
+      if (nullCount === entries.length) {
+        if (selectedWave === wave)
+          throw new Error(
+            `Safety authorization selected wave remains unauthorized: ${wave}.`,
+          );
+        continue;
+      }
+      const leftTokens: number = integer(
+        tokens[left],
+        `${left} token limit`,
+      );
+      const rightTokens: number = integer(
+        tokens[right],
+        `${right} token limit`,
+      );
+      const leftWall: number = integer(walls[left], `${left} wall limit`);
+      const rightWall: number = integer(walls[right], `${right} wall limit`);
+      const waveTokens: number = integer(
+        blockTokens[wave],
+        `${wave} block token limit`,
+      );
+      const waveWall: number = integer(
+        blockWalls[wave],
+        `${wave} block wall limit`,
+      );
+      if (waveTokens > 2 * (leftTokens + rightTokens))
+        throw new Error(
+          `Safety authorization ${wave} block token limit exceeds the four-cell token sum.`,
+        );
+      if (waveWall > 2 * (leftWall + rightWall))
+        throw new Error(
+          `Safety authorization ${wave} block wall limit exceeds the four-cell wall-duration sum.`,
+        );
+    }
+    if (
+      selectedWave !== null &&
+      !waves.some(([wave]) => wave === selectedWave)
+    )
+      throw new Error(`Safety authorization wave is unknown: ${selectedWave}.`);
+  }
+
+  /**
+   * Rejects impossible protocol self-digests while preserving formal review
+   * identity and a runtime-only digest slot for the sealed raw tree.
+   */
+  export function preflightProtocolIdentityPins(protocolRoot: string): void {
+    const root: string = path.resolve(protocolRoot);
+    const pinsPath: string = path.join(root, "pins.json");
+    const pins = record(
+      parse(fs.readFileSync(pinsPath, "utf8"), pinsPath),
+      "protocol pins",
+    );
+    validateProtocolIdentityValue(
+      pins.formalProtocolRevision,
+      pins.prepareTimeRuntimeRequired,
+    );
+  }
+
+  /** Validates the separation between formal and runtime protocol identity. */
+  export function validateProtocolIdentityValue(
+    formalInput: unknown,
+    runtimeInput: unknown,
+  ): void {
+    const formal = record(formalInput, "formal protocol identity");
+    const runtime = record(runtimeInput, "runtime protocol identity");
+    for (const legacy of [
+      "protocolRevisionSha256",
+      "protocolTreeSha256",
+    ] as const)
+      if (Object.hasOwn(formal, legacy) || Object.hasOwn(runtime, legacy))
+        throw new Error(
+          `Protocol identity contains a legacy protocol digest field (${legacy}); a self-referential protocol digest is forbidden.`,
+        );
+    if (
+      formal.identityKind !== "merged-git-commit-and-formal-review" ||
+      !Object.hasOwn(formal, "reviewedMergedCommit")
+    )
+      throw new Error("Formal protocol identity contract drifted.");
+    if (
+      runtime.sealedProtocolRawTreeAlgorithmId !==
+        "sha256-posix-path-nul-bytes-v1" ||
+      !Object.hasOwn(runtime, "sealedProtocolRawTreeSha256")
+    )
+      throw new Error("Runtime sealed protocol raw-tree contract drifted.");
+  }
+
+  /** Verifies a runtime-sealed protocol raw-tree digest after sealing. */
+  export function validateSealedProtocolRawTree(
+    sealedInput: unknown,
+    actualSha256: string,
+  ): void {
+    const sealed = record(sealedInput, "sealed protocol raw tree");
+    if (sealed.algorithmId !== "sha256-posix-path-nul-bytes-v1")
+      throw new Error("Sealed protocol raw-tree algorithm drifted.");
+    const expected: string = nonblank(
+      sealed.sha256,
+      "sealed protocol raw-tree SHA-256",
+    );
+    if (expected !== actualSha256)
+      throw new Error("Sealed protocol raw-tree digest drifted.");
+  }
+
+  /**
+   * Proves that each block-plan cell embeds the exact selected prediction row,
+   * including both milestones and their explicit units.
+   */
+  export function validateBlockPlanCostPredictions(
+    protocolRoot: string,
+    input: unknown,
+  ): void {
+    const root: string = path.resolve(protocolRoot);
+    const plan = record(input, "block plan cost binding");
+    const artifactPath: string = path.join(root, "cost-predictions.json");
+    const artifactBytes: Buffer = fs.readFileSync(artifactPath);
+    const artifactSha256: string = sha256(artifactBytes);
+    if (plan.costPredictionsSha256 !== artifactSha256)
+      throw new Error("Block plan cost-predictions artifact digest drifted.");
+    const artifact = record(
+      parse(artifactBytes.toString("utf8"), artifactPath),
+      "cost predictions",
+    );
+    validateCostPredictionsValue(root, artifact);
+    const rows: Map<string, Record<string, unknown>> = new Map();
+    for (const inputRow of array(artifact.rows, "cost prediction rows")) {
+      const row = record(inputRow, "cost prediction row");
+      rows.set(
+        `${nonblank(row.subject, "prediction subject")}\0${nonblank(
+          row.arm,
+          "prediction arm",
+        )}`,
+        row,
+      );
+    }
+    for (const inputCell of array(plan.cells, "block plan cells")) {
+      const cell = record(inputCell, "block plan cell");
+      const subject: string = nonblank(cell.subject, "block plan subject");
+      const arm: string = nonblank(cell.arm, "block plan arm");
+      const prediction = record(cell.predicted, "block plan prediction");
+      if (
+        prediction.artifactSha256 !== artifactSha256 ||
+        prediction.subject !== subject ||
+        prediction.arm !== arm
+      )
+        throw new Error(
+          `Block plan prediction identity drifted for ${subject}/${arm}.`,
+        );
+      if (
+        prediction.wallClockUnit !== "hours" ||
+        prediction.providerTokensUnit !==
+          "millions-of-provider-total-tokens"
+      )
+        throw new Error(
+          `Block plan prediction units drifted for ${subject}/${arm}.`,
+        );
+      const source = rows.get(`${subject}\0${arm}`);
+      if (
+        source === undefined ||
+        canonical(prediction.milestones) !== canonical(source.milestones)
+      )
+        throw new Error(
+          `Block plan prediction milestones drifted from the artifact for ${subject}/${arm}.`,
+        );
+    }
+  }
+
+  /** Validates one cost-prior value against the frozen Markdown source chain. */
+  export function validateCostPredictionsValue(
+    protocolRoot: string,
+    input: unknown,
+  ): void {
+    const root: string = path.resolve(protocolRoot);
+    const prediction = validateValue<Record<string, unknown>>(
+      root,
+      "cost-predictions.schema.json",
+      input,
+      "cost predictions",
+    );
+    const sources: Map<string, ICostPredictionSource> = new Map();
+    for (const [index, entry] of array(
+      prediction.sourceChain,
+      "cost prediction source chain",
+    ).entries()) {
+      const source = costPredictionSource(
+        root,
+        entry,
+        `cost prediction source ${index + 1}`,
+      );
+      if (source.order !== index + 1)
+        throw new Error(
+          `Cost prediction source order drifted at ${source.path}.`,
+        );
+      if (sources.has(source.path))
+        throw new Error(`Cost prediction source is duplicated: ${source.path}.`);
+      sources.set(source.path, source);
+    }
+    const activeLeaf = costPredictionSource(
+      root,
+      prediction.activeLeaf,
+      "cost prediction active leaf",
+      false,
+    );
+    const last: ICostPredictionSource | undefined = [...sources.values()].at(
+      -1,
+    );
+    if (
+      last === undefined ||
+      activeLeaf.path !== last.path ||
+      activeLeaf.bytes !== last.bytes ||
+      activeLeaf.sha256 !== last.sha256 ||
+      activeLeaf.reviewId !== last.reviewId
+    )
+      throw new Error(
+        "Cost prediction active leaf does not match the final source-chain entry.",
+      );
+
+    const selection = record(
+      prediction.valueSelection,
+      "cost prediction value selection",
+    );
+    const wallSelection = costTableSelection(
+      sources,
+      selection.wallClock,
+      "wall-clock selection",
+    );
+    const tokenSelection = costTableSelection(
+      sources,
+      selection.providerTokens,
+      "provider-token selection",
+    );
+    const monetary = record(selection.monetary, "monetary selection");
+    const monetarySource = declaredSource(
+      sources,
+      monetary.sourcePath,
+      monetary.sourceSha256,
+      "monetary selection",
+    );
+    const monetaryAssertion: string = nonblank(
+      monetary.assertionText,
+      "monetary assertion",
+    );
+    if (!monetarySource.text.includes(monetaryAssertion))
+      throw new Error(
+        "Monetary-unavailable assertion drifted from its Markdown source.",
+      );
+    const zero = record(
+      prediction.zeroObservationProvenance,
+      "zero-observation provenance",
+    );
+    const zeroSource = declaredSource(
+      sources,
+      zero.assertionSourcePath,
+      zero.assertionSourceSha256,
+      "zero-observation provenance",
+    );
+    const zeroAssertion: string = nonblank(
+      zero.assertionText,
+      "zero-observation assertion",
+    );
+    if (!zeroSource.text.includes(zeroAssertion))
+      throw new Error(
+        "Zero-observation assertion drifted from its Markdown source.",
+      );
+
+    const wallRows: ReadonlyMap<string, ISelectedQuantiles> =
+      extractPredictionTable(
+        wallSelection.source.text,
+        wallSelection.heading,
+        true,
+      );
+    const tokenRows: ReadonlyMap<string, ISelectedQuantiles> =
+      extractPredictionTable(
+        tokenSelection.source.text,
+        tokenSelection.heading,
+        false,
+      );
+    const seen: Set<string> = new Set();
+    for (const entry of array(prediction.rows, "cost prediction rows")) {
+      const row = record(entry, "cost prediction row");
+      const subject: string = nonblank(row.subject, "cost prediction subject");
+      const arm: string = nonblank(row.arm, "cost prediction arm");
+      const key: string = `${subject}\0${arm}`;
+      if (seen.has(key))
+        throw new Error(
+          `Cost prediction subject/arm row is duplicated: ${subject}/${arm}.`,
+        );
+      seen.add(key);
+      const expectedWall = wallRows.get(key);
+      const expectedTokens = tokenRows.get(key);
+      if (expectedWall === undefined || expectedTokens === undefined)
+        throw new Error(
+          `Cost prediction row is not tracked by both Markdown tables: ${subject}/${arm}.`,
+        );
+      const milestones = record(
+        row.milestones,
+        `${subject}/${arm} milestones`,
+      );
+      compareMilestone(
+        milestones.t_done,
+        expectedWall.tDone,
+        expectedTokens.tDone,
+        `${subject}/${arm}/t_done`,
+      );
+      compareMilestone(
+        milestones.t_dry,
+        expectedWall.tDry,
+        expectedTokens.tDry,
+        `${subject}/${arm}/t_dry`,
+      );
+    }
+    const expectedKeys: Set<string> = new Set([
+      ...wallRows.keys(),
+      ...tokenRows.keys(),
+    ]);
+    if (
+      seen.size !== expectedKeys.size ||
+      [...expectedKeys].some((key) => !seen.has(key))
+    )
+      throw new Error(
+        "Cost prediction rows do not cover the exact Markdown subject/arm population.",
+      );
+  }
+
+  interface ICostPredictionSource {
+    order: number | null;
+    path: string;
+    bytes: number;
+    sha256: string;
+    reviewId: number;
+    text: string;
+  }
+
+  interface ICostTableSelection {
+    source: ICostPredictionSource;
+    heading: string;
+  }
+
+  interface IQuantilePair {
+    p50: number;
+    p90: number;
+  }
+
+  interface ISelectedQuantiles {
+    tDone: IQuantilePair;
+    tDry: IQuantilePair;
+  }
+
+  function costPredictionSource(
+    root: string,
+    input: unknown,
+    label: string,
+    requireOrder: boolean = true,
+  ): ICostPredictionSource {
+    const source = record(input, label);
+    const relative: string = nonblank(source.path, `${label} path`);
+    const file: string = resolveProtocolPath(root, relative);
+    const bytes: Buffer = fs.readFileSync(file);
+    const expectedBytes: number = integer(source.bytes, `${label} bytes`);
+    const expectedSha256: string = nonblank(
+      source.sha256,
+      `${label} SHA-256`,
+    );
+    if (
+      bytes.byteLength !== expectedBytes ||
+      sha256(bytes) !== expectedSha256
+    )
+      throw new Error(`${label} source byte pin drifted: ${relative}.`);
+    return {
+      order: requireOrder ? integer(source.order, `${label} order`) : null,
+      path: relative,
+      bytes: expectedBytes,
+      sha256: expectedSha256,
+      reviewId: integer(source.reviewId, `${label} review id`),
+      text: bytes.toString("utf8"),
+    };
+  }
+
+  function costTableSelection(
+    sources: ReadonlyMap<string, ICostPredictionSource>,
+    input: unknown,
+    label: string,
+  ): ICostTableSelection {
+    const selection = record(input, label);
+    return {
+      source: declaredSource(
+        sources,
+        selection.sourcePath,
+        selection.sourceSha256,
+        label,
+      ),
+      heading: nonblank(selection.sectionHeading, `${label} heading`),
+    };
+  }
+
+  function declaredSource(
+    sources: ReadonlyMap<string, ICostPredictionSource>,
+    pathValue: unknown,
+    shaValue: unknown,
+    label: string,
+  ): ICostPredictionSource {
+    const relative: string = nonblank(pathValue, `${label} source path`);
+    const digest: string = nonblank(shaValue, `${label} source SHA-256`);
+    const source = sources.get(relative);
+    if (source === undefined)
+      throw new Error(`${label} names an untracked source: ${relative}.`);
+    if (source.sha256 !== digest)
+      throw new Error(`${label} source digest disagrees with the source chain.`);
+    return source;
+  }
+
+  function extractPredictionTable(
+    markdown: string,
+    heading: string,
+    hours: boolean,
+  ): ReadonlyMap<string, ISelectedQuantiles> {
+    const lines: string[] = markdown.split(/\r?\n/u);
+    const headingIndex: number = lines.indexOf(heading);
+    if (headingIndex < 0)
+      throw new Error(`Cost prediction Markdown heading is absent: ${heading}.`);
+    if (lines.lastIndexOf(heading) !== headingIndex)
+      throw new Error(
+        `Cost prediction Markdown heading is duplicated: ${heading}.`,
+      );
+    const nextHeadingIndex: number = lines.findIndex(
+      (line, index) => index > headingIndex && line.startsWith("## "),
+    );
+    const sectionEnd: number =
+      nextHeadingIndex < 0 ? lines.length : nextHeadingIndex;
+    const headerIndex: number = lines.findIndex(
+      (line, index) =>
+        index > headingIndex &&
+        index < sectionEnd &&
+        line.startsWith("| Subject | Arm | `t_done` P10/P50/P90 |"),
+    );
+    if (headerIndex < 0)
+      throw new Error(`Cost prediction Markdown table is absent: ${heading}.`);
+    const rows: Map<string, ISelectedQuantiles> = new Map();
+    for (let index: number = headerIndex + 2; index < sectionEnd; ++index) {
+      const line: string | undefined = lines[index];
+      if (line === undefined) break;
+      if (!line.startsWith("|")) break;
+      const columns: string[] = line
+        .slice(1, -1)
+        .split("|")
+        .map((column) => column.trim());
+      if (columns.length !== 4)
+        throw new Error(`Malformed cost prediction table row: ${line}.`);
+      const subject: string = columns[0]!.toLowerCase();
+      const arm: string = columns[1]!.toLowerCase();
+      const key: string = `${subject}\0${arm}`;
+      if (rows.has(key))
+        throw new Error(
+          `Markdown cost prediction row is duplicated: ${subject}/${arm}.`,
+        );
+      rows.set(key, {
+        tDone: parsePredictionTriplet(columns[2]!, hours, line),
+        tDry: parsePredictionTriplet(columns[3]!, hours, line),
+      });
+    }
+    if (rows.size === 0)
+      throw new Error(`Cost prediction Markdown table is empty: ${heading}.`);
+    return rows;
+  }
+
+  function parsePredictionTriplet(
+    input: string,
+    hours: boolean,
+    label: string,
+  ): IQuantilePair {
+    const normalized: string = hours
+      ? input.replace(/\s+h$/u, "")
+      : input;
+    const values: number[] = normalized.split("/").map((part) => {
+      const token: string = part.trim().replaceAll(",", "");
+      if (!/^[0-9]+$/u.test(token))
+        throw new Error(`Malformed cost prediction quantile in ${label}.`);
+      return Number(token);
+    });
+    if (values.length !== 3)
+      throw new Error(`Cost prediction row does not contain P10/P50/P90.`);
+    return { p50: values[1]!, p90: values[2]! };
+  }
+
+  function compareMilestone(
+    input: unknown,
+    expectedWall: IQuantilePair,
+    expectedTokens: IQuantilePair,
+    label: string,
+  ): void {
+    const milestone = record(input, label);
+    compareQuantiles(
+      milestone.wallClockHours,
+      expectedWall,
+      `${label} wall clock`,
+    );
+    compareQuantiles(
+      milestone.providerTokensMillions,
+      expectedTokens,
+      `${label} provider tokens`,
+    );
+  }
+
+  function compareQuantiles(
+    input: unknown,
+    expected: IQuantilePair,
+    label: string,
+  ): void {
+    const quantiles = record(input, label);
+    const actual: IQuantilePair = {
+      p50: integer(quantiles.p50, `${label} P50`),
+      p90: integer(quantiles.p90, `${label} P90`),
+    };
+    if (actual.p50 !== expected.p50 || actual.p90 !== expected.p90)
+      throw new Error(
+        `${label} drifted from Markdown: expected P50/P90 ${expected.p50}/${expected.p90}, got ${actual.p50}/${actual.p90}.`,
+      );
+  }
+
   interface ILoadedSchema {
     path: string;
     id: string;
@@ -496,6 +1117,28 @@ export namespace EvidenceBenchmarkProtocolValidator {
     return resolved;
   }
 
+  function resolveProtocolPath(root: string, relative: string): string {
+    if (
+      path.isAbsolute(relative) ||
+      relative.includes("\\") ||
+      relative.includes("\0")
+    )
+      throw new Error(`Protocol artifact path is not canonical: ${relative}.`);
+    const segments: string[] = relative.split("/");
+    if (
+      segments.length === 0 ||
+      segments.some(
+        (segment) => segment === "" || segment === "." || segment === "..",
+      )
+    )
+      throw new Error(`Protocol artifact path is not canonical: ${relative}.`);
+    const absoluteRoot: string = path.resolve(root);
+    const resolved: string = path.resolve(absoluteRoot, ...segments);
+    if (!resolved.startsWith(`${absoluteRoot}${path.sep}`))
+      throw new Error(`Protocol artifact path escapes its root: ${relative}.`);
+    return resolved;
+  }
+
   function diagnostics(errors: readonly ErrorObject[]): IDiagnostic[] {
     return errors
       .map((error) => ({
@@ -574,6 +1217,12 @@ export namespace EvidenceBenchmarkProtocolValidator {
       value !== value.trim()
     )
       throw new Error(`${label} must be a nonblank string.`);
+    return value;
+  }
+
+  function integer(value: unknown, label: string): number {
+    if (typeof value !== "number" || !Number.isSafeInteger(value))
+      throw new Error(`${label} must be a safe integer.`);
     return value;
   }
 

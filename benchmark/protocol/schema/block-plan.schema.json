@@ -12,10 +12,13 @@
     "replicate",
     "subjects",
     "protocolRevision",
-    "protocolRevisionSha256",
+    "protocolRawTreeAlgorithmId",
+    "protocolRawTreeSha256",
+    "formalProtocolReviewId",
     "sourceMergedCommit",
     "priceSheetSha256",
     "subjectFreezeManifestSha256",
+    "costPredictionsSha256",
     "randomizationSeed",
     "sourceAdmission",
     "productProvenance",
@@ -77,8 +80,15 @@
       "type": "string",
       "minLength": 1
     },
-    "protocolRevisionSha256": {
+    "protocolRawTreeAlgorithmId": {
+      "const": "sha256-posix-path-nul-bytes-v1"
+    },
+    "protocolRawTreeSha256": {
       "$ref": "#/$defs/sha256"
+    },
+    "formalProtocolReviewId": {
+      "type": "integer",
+      "minimum": 1
     },
     "sourceMergedCommit": {
       "type": "string",
@@ -88,6 +98,9 @@
       "$ref": "#/$defs/sha256"
     },
     "subjectFreezeManifestSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "costPredictionsSha256": {
       "$ref": "#/$defs/sha256"
     },
     "randomizationSeed": {
@@ -394,39 +407,107 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "p50WallClockHours",
-        "p90WallClockHours",
-        "p50ProviderTokens",
-        "p90ProviderTokens",
-        "p50ProviderCredits",
-        "p90ProviderCredits",
+        "artifactSha256",
+        "subject",
+        "arm",
+        "wallClockUnit",
+        "providerTokensUnit",
+        "milestones"
+      ],
+      "properties": {
+        "artifactSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "subject": {
+          "enum": [
+            "todo",
+            "reddit",
+            "shopping",
+            "erp"
+          ]
+        },
+        "arm": {
+          "enum": [
+            "plain",
+            "evidence"
+          ]
+        },
+        "wallClockUnit": {
+          "const": "hours"
+        },
+        "providerTokensUnit": {
+          "const": "millions-of-provider-total-tokens"
+        },
+        "milestones": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "t_done",
+            "t_dry"
+          ],
+          "properties": {
+            "t_done": {
+              "$ref": "#/$defs/costMilestone"
+            },
+            "t_dry": {
+              "$ref": "#/$defs/costMilestone"
+            }
+          }
+        }
+      }
+    },
+    "costMilestone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wallClockHours",
+        "providerTokensMillions",
+        "providerCredits",
         "monetaryStatus"
       ],
       "properties": {
-        "p50WallClockHours": {
-          "type": "number",
-          "minimum": 0
+        "wallClockHours": {
+          "$ref": "#/$defs/quantiles"
         },
-        "p90WallClockHours": {
-          "type": "number",
-          "minimum": 0
+        "providerTokensMillions": {
+          "$ref": "#/$defs/quantiles"
         },
-        "p50ProviderTokens": {
-          "type": "number",
-          "minimum": 0
-        },
-        "p90ProviderTokens": {
-          "type": "number",
-          "minimum": 0
-        },
-        "p50ProviderCredits": {
-          "const": null
-        },
-        "p90ProviderCredits": {
-          "const": null
+        "providerCredits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "p50",
+            "p90"
+          ],
+          "properties": {
+            "p50": {
+              "const": null
+            },
+            "p90": {
+              "const": null
+            }
+          }
         },
         "monetaryStatus": {
           "const": "unavailable"
+        }
+      }
+    },
+    "quantiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "p50",
+        "p90"
+      ],
+      "properties": {
+        "p50": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "p90": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     }
