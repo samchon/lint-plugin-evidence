@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 1,
+  "validAdmission": {
+    "schemaVersion": 1,
+    "blockId": "block-todo-reddit-r1",
+    "planSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "subjects": [
+      "todo",
+      "reddit"
+    ],
+    "prepareAuthorityRequestId": "1111111111111111111111111111111111111111111111111111111111111111",
+    "authorization": {
+      "quotaState": {
+        "authorityRequestId": "2222222222222222222222222222222222222222222222222222222222222222",
+        "authorityRequestSha256": "64b83f549fec4fd57354c19076cc7a325fff53919c3e325331dc57e50bf04687",
+        "phase": "start",
+        "blockId": "block-todo-reddit-r1",
+        "planSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "subjects": [
+          "todo",
+          "reddit"
+        ],
+        "sourceClass": "chatgpt-native-rate-limit",
+        "windowResults": {
+          "primary": "pass",
+          "secondary": "not_applicable",
+          "individual": "not_applicable",
+          "spendControl": "pass"
+        },
+        "passedAtAuthorization": true,
+        "policyId": "chatgpt-native-first-hit-v1",
+        "policyPath": "benchmark/protocol/quota-policy.json",
+        "policySha256": "04d18a23379260b2f899c1620a775a48f20b1463cb4b82a59454d09f2e4989d4",
+        "capturedAtUtc": "2026-07-29T00:05:01Z",
+        "attestationAlgorithmId": "sha256-rfc8785-sanitized-quota-attestation-v1",
+        "attestationSha256": "71c8e1eb2d219f561187b5473003a32fd5a7d94c35db4a98d02270a43206cc14",
+        "privateCheckpointPersistence": "ephemeral-non-promoted",
+        "exactTelemetryPromoted": false,
+        "guardRelation": "independent-first-hit-or"
+      },
+      "quotaAuthorityBoundary": {
+        "authorityRequestId": "2222222222222222222222222222222222222222222222222222222222222222",
+        "authorityRequestSha256": "64b83f549fec4fd57354c19076cc7a325fff53919c3e325331dc57e50bf04687",
+        "phase": "start",
+        "blockId": "block-todo-reddit-r1",
+        "planSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "subjects": [
+          "todo",
+          "reddit"
+        ],
+        "requestStartedAtUtc": "2026-07-29T00:05:00Z",
+        "responseReceivedAtUtc": "2026-07-29T00:05:02Z",
+        "elapsedMonotonicNs": "2000000000",
+        "maximumDurationMs": 60000,
+        "capturedWithinLiveInterval": true,
+        "attestationSha256": "71c8e1eb2d219f561187b5473003a32fd5a7d94c35db4a98d02270a43206cc14"
+      }
+    }
+  },
+  "invalidCases": [
+    {
+      "id": "prepare-nonce-replayed-at-start",
+      "operation": "replaceMany",
+      "changes": [
+        {
+          "path": "/authorization/quotaState/authorityRequestId",
+          "value": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "path": "/authorization/quotaAuthorityBoundary/authorityRequestId",
+          "value": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ],
+      "expectedPattern": "fresh request nonce"
+    },
+    {
+      "id": "prepare-phase-replayed-at-start",
+      "operation": "replaceMany",
+      "changes": [
+        {
+          "path": "/authorization/quotaState/phase",
+          "value": "prepare"
+        },
+        {
+          "path": "/authorization/quotaAuthorityBoundary/phase",
+          "value": "prepare"
+        }
+      ],
+      "expectedPattern": "start quota authority admission failed"
+    },
+    {
+      "id": "other-plan-at-start",
+      "operation": "replaceMany",
+      "changes": [
+        {
+          "path": "/authorization/quotaState/planSha256",
+          "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+          "path": "/authorization/quotaAuthorityBoundary/planSha256",
+          "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ],
+      "expectedPattern": "exact closed plan"
+    },
+    {
+      "id": "other-block-at-start",
+      "operation": "replaceMany",
+      "changes": [
+        {
+          "path": "/authorization/quotaState/blockId",
+          "value": "other-block-r1"
+        },
+        {
+          "path": "/authorization/quotaAuthorityBoundary/blockId",
+          "value": "other-block-r1"
+        }
+      ],
+      "expectedPattern": "block identity disagrees"
+    },
+    {
+      "id": "other-wave-at-start",
+      "operation": "replaceMany",
+      "changes": [
+        {
+          "path": "/authorization/quotaState/subjects",
+          "value": [
+            "shopping",
+            "erp"
+          ]
+        },
+        {
+          "path": "/authorization/quotaAuthorityBoundary/subjects",
+          "value": [
+            "shopping",
+            "erp"
+          ]
+        }
+      ],
+      "expectedPattern": "subject wave disagrees"
+    },
+    {
+      "id": "stale-start-capture",
+      "operation": "replace",
+      "path": "/authorization/quotaState/capturedAtUtc",
+      "value": "2026-07-29T00:04:59Z",
+      "expectedPattern": "capture is stale"
+    },
+    {
+      "id": "start-request-timeout",
+      "operation": "replaceMany",
+      "changes": [
+        {
+          "path": "/authorization/quotaAuthorityBoundary/responseReceivedAtUtc",
+          "value": "2026-07-29T00:06:01Z"
+        },
+        {
+          "path": "/authorization/quotaAuthorityBoundary/elapsedMonotonicNs",
+          "value": "61000000000"
+        }
+      ],
+      "expectedPattern": "exceeded its timeout"
+    },
+    {
+      "id": "wrong-start-request-digest",
+      "operation": "replaceMany",
+      "changes": [
+        {
+          "path": "/authorization/quotaState/authorityRequestSha256",
+          "value": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        },
+        {
+          "path": "/authorization/quotaAuthorityBoundary/authorityRequestSha256",
+          "value": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        }
+      ],
+      "expectedPattern": "RFC 8785 controller request"
+    },
+    {
+      "id": "missing-start-boundary",
+      "operation": "remove",
+      "path": "/authorization/quotaAuthorityBoundary",
+      "expectedPattern": "start quota authority admission failed"
+    }
+  ]
+}

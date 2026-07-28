@@ -36,10 +36,32 @@
     "promoted": false,
     "destroyAfterAttestation": true
   },
+  "authorityRequest": {
+    "requestIdEncoding": "lowercase-hex-256-bit-random-nonce",
+    "digestAlgorithmId": "sha256-rfc8785-controller-quota-request-v1",
+    "canonicalization": "RFC8785",
+    "implementationScope": "rfc8785-equivalent-closed-ascii-projection-v1",
+    "projectionFields": [
+      "authorityRequestId",
+      "phase",
+      "blockId",
+      "planSha256",
+      "subjects"
+    ],
+    "preparePlanSha256": null,
+    "startPlanSha256": "exact-closed-block-plan-sha256"
+  },
   "sanitizedAttestation": {
     "algorithmId": "sha256-rfc8785-sanitized-quota-attestation-v1",
     "canonicalization": "RFC8785",
+    "implementationScope": "rfc8785-equivalent-closed-ascii-projection-v1",
     "projectionFields": [
+      "authorityRequestId",
+      "authorityRequestSha256",
+      "phase",
+      "blockId",
+      "planSha256",
+      "subjects",
       "sourceClass",
       "windowResults",
       "passedAtAuthorization",

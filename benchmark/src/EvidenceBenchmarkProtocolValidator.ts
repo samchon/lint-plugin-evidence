@@ -270,6 +270,16 @@ export namespace EvidenceBenchmarkProtocolValidator {
     validateSafetyAuthorizationValue(root, pins.safetyAuthorization);
   }
 
+  /**
+   * Proves that prepare-time quota freshness has one stable retained boundary
+   * and that execution reuses the same contract without promoting raw clocks.
+   */
+  export function preflightQuotaAuthorityBoundaryPins(
+    protocolRoot: string,
+  ): void {
+    quotaAuthorityBoundaryPolicy(path.resolve(protocolRoot));
+  }
+
   /** Validates one safety authorization and optionally requires one wave. */
   export function validateSafetyAuthorizationValue(
     protocolRoot: string,
@@ -351,6 +361,245 @@ export namespace EvidenceBenchmarkProtocolValidator {
     }
     if (selectedWave !== null && !waves.some(([wave]) => wave === selectedWave))
       throw new Error(`Safety authorization wave is unknown: ${selectedWave}.`);
+  }
+
+  /**
+   * Validates one plan's prepare-time quota authority interval. JSON Schema
+   * owns the retained shape; this closes chronology, duration, and digest
+   * relationships that schema keywords cannot express.
+   */
+  export function validateQuotaAuthorityBoundaryValue(
+    protocolRoot: string,
+    input: unknown,
+  ): void {
+    const value = validateValue<Record<string, unknown>>(
+      protocolRoot,
+      "quota-prepare-authority.schema.json",
+      input,
+      "prepare quota authority admission",
+    );
+    validateQuotaAuthorityAdmissionValue(protocolRoot, value, "prepare");
+  }
+
+  /**
+   * Validates the CLI's start-time authority record against the exact closed
+   * plan and the prepare nonce that it must not replay.
+   */
+  export function validateStartQuotaAuthorityAdmissionValue(
+    protocolRoot: string,
+    input: unknown,
+  ): void {
+    const value = validateValue<Record<string, unknown>>(
+      protocolRoot,
+      "quota-start-authority.schema.json",
+      input,
+      "start quota authority admission",
+    );
+    validateQuotaAuthorityAdmissionValue(protocolRoot, value, "start");
+  }
+
+  function validateQuotaAuthorityAdmissionValue(
+    protocolRoot: string,
+    input: unknown,
+    phase: "prepare" | "start",
+  ): void {
+    const policy = quotaAuthorityBoundaryPolicy(path.resolve(protocolRoot));
+    const plan = record(input, "quota authority plan");
+    const authorization = record(
+      plan.authorization,
+      "quota authority authorization",
+    );
+    const quotaState = record(
+      authorization.quotaState,
+      "quota authority state",
+    );
+    const boundary = record(
+      authorization.quotaAuthorityBoundary,
+      "quota authority boundary",
+    );
+    const blockId: string = nonblank(plan.blockId, "quota authority block id");
+    const subjects: string[] = stringArray(
+      plan.subjects,
+      "quota authority subject wave",
+    );
+    if (
+      ![
+        JSON.stringify(["todo", "reddit"]),
+        JSON.stringify(["shopping", "erp"]),
+      ].includes(JSON.stringify(subjects))
+    )
+      throw new Error("Quota authority subject wave is invalid.");
+    if (
+      quotaState.phase !== phase ||
+      boundary.phase !== phase ||
+      boundary.capturedWithinLiveInterval !== true
+    )
+      throw new Error("Quota authority boundary policy drifted.");
+    const planSha256: string | null =
+      phase === "prepare"
+        ? null
+        : digest(plan.planSha256, "closed block plan SHA-256");
+    if (
+      quotaState.planSha256 !== planSha256 ||
+      boundary.planSha256 !== planSha256
+    )
+      throw new Error(
+        phase === "prepare"
+          ? "Prepare quota authority must not bind a closed plan SHA-256."
+          : "Start quota authority must bind the exact closed plan SHA-256.",
+      );
+    if (quotaState.blockId !== blockId || boundary.blockId !== blockId)
+      throw new Error(
+        "Quota authority block identity disagrees with the plan.",
+      );
+    if (
+      canonical(quotaState.subjects) !== canonical(subjects) ||
+      canonical(boundary.subjects) !== canonical(subjects)
+    )
+      throw new Error("Quota authority subject wave disagrees with the plan.");
+    const requestId: string = nonblank(
+      quotaState.authorityRequestId,
+      "quota authority request id",
+    );
+    if (!/^[a-f0-9]{64}$/u.test(requestId))
+      throw new Error(
+        "Quota authority request id must be a lowercase 256-bit random nonce.",
+      );
+    if (boundary.authorityRequestId !== requestId)
+      throw new Error(
+        "Quota authority boundary request id disagrees with quota state.",
+      );
+    if (
+      phase === "start" &&
+      requestId ===
+        nonblank(
+          plan.prepareAuthorityRequestId,
+          "prepare quota authority request id",
+        )
+    )
+      throw new Error(
+        "Start quota authority must use a fresh request nonce distinct from prepare.",
+      );
+    const requestProjection = {
+      authorityRequestId: requestId,
+      phase,
+      blockId,
+      planSha256,
+      subjects,
+    };
+    assertClosedAsciiJson(
+      requestProjection,
+      "quota authority request projection",
+    );
+    const expectedRequestSha256: string = sha256(
+      Buffer.from(canonical(requestProjection), "utf8"),
+    );
+    const requestSha256: string = digest(
+      quotaState.authorityRequestSha256,
+      "quota authority request SHA-256",
+    );
+    if (requestSha256 !== expectedRequestSha256)
+      throw new Error(
+        "Quota authority request SHA-256 disagrees with the RFC 8785 controller request.",
+      );
+    if (boundary.authorityRequestSha256 !== requestSha256)
+      throw new Error(
+        "Quota authority boundary request SHA-256 disagrees with quota state.",
+      );
+    const maximumDurationMs: number = positiveInteger(
+      boundary.maximumDurationMs,
+      "quota authority maximum duration",
+    );
+    if (maximumDurationMs !== policy.maximumDurationMs)
+      throw new Error(
+        "Quota authority maximum duration drifted from protocol pins.",
+      );
+    const requestStartedAt: number = dateTime(
+      boundary.requestStartedAtUtc,
+      "quota authority request start",
+    );
+    const responseReceivedAt: number = dateTime(
+      boundary.responseReceivedAtUtc,
+      "quota authority response receipt",
+    );
+    const capturedAt: number = dateTime(
+      quotaState.capturedAtUtc,
+      "quota authority capture time",
+    );
+    if (requestStartedAt > responseReceivedAt)
+      throw new Error(
+        "Quota authority response receipt must not precede request start.",
+      );
+    if (capturedAt < requestStartedAt)
+      throw new Error(
+        "Quota authority capture is stale relative to the live request interval.",
+      );
+    if (capturedAt > responseReceivedAt)
+      throw new Error(
+        "Quota authority capture is later than the live response interval.",
+      );
+    if (
+      typeof boundary.elapsedMonotonicNs !== "string" ||
+      !/^(?:0|[1-9][0-9]*)$/u.test(boundary.elapsedMonotonicNs)
+    )
+      throw new Error(
+        "Quota authority monotonic elapsed duration must be a nonnegative decimal string.",
+      );
+    const elapsedText: string = boundary.elapsedMonotonicNs;
+    const elapsedNs: bigint = BigInt(elapsedText);
+    if (elapsedNs > BigInt(Number.MAX_SAFE_INTEGER))
+      throw new Error(
+        "Quota authority monotonic elapsed duration exceeds the safe retained range.",
+      );
+    const maximumDurationNs: bigint = BigInt(maximumDurationMs) * 1_000_000n;
+    const utcElapsedMs: number = responseReceivedAt - requestStartedAt;
+    if (utcElapsedMs > maximumDurationMs || elapsedNs > maximumDurationNs)
+      throw new Error("Quota authority live request exceeded its timeout.");
+    const utcElapsedNs: bigint = BigInt(utcElapsedMs) * 1_000_000n;
+    const disagreementNs: bigint =
+      utcElapsedNs >= elapsedNs
+        ? utcElapsedNs - elapsedNs
+        : elapsedNs - utcElapsedNs;
+    if (disagreementNs > BigInt(policy.utcMonotonicToleranceMs) * 1_000_000n)
+      throw new Error(
+        "Quota authority UTC and monotonic durations exceed the pinned tolerance.",
+      );
+    const stateAttestation: string = digest(
+      quotaState.attestationSha256,
+      "quota authority state attestation SHA-256",
+    );
+    if (quotaState.policySha256 !== policy.policySha256)
+      throw new Error(
+        "Quota authority state policy SHA-256 drifted from protocol pins.",
+      );
+    const attestationProjection: Record<string, unknown> = {};
+    for (const field of policy.attestationProjectionFields) {
+      if (!Object.hasOwn(quotaState, field))
+        throw new Error(
+          `Quota authority state omits attestation projection field: ${field}.`,
+        );
+      attestationProjection[field] = quotaState[field];
+    }
+    assertClosedAsciiJson(
+      attestationProjection,
+      "quota authority attestation projection",
+    );
+    const expectedAttestation: string = sha256(
+      Buffer.from(canonical(attestationProjection), "utf8"),
+    );
+    if (stateAttestation !== expectedAttestation)
+      throw new Error(
+        "Quota authority sanitized attestation does not bind the controller request and policy projection.",
+      );
+    if (
+      digest(
+        boundary.attestationSha256,
+        "quota authority boundary attestation SHA-256",
+      ) !== stateAttestation
+    )
+      throw new Error(
+        "Quota authority boundary attestation disagrees with quota state.",
+      );
   }
 
   /**
@@ -937,6 +1186,130 @@ export namespace EvidenceBenchmarkProtocolValidator {
       );
   }
 
+  function quotaAuthorityBoundaryPolicy(protocolRoot: string): {
+    maximumDurationMs: number;
+    utcMonotonicToleranceMs: number;
+    policySha256: string;
+    attestationProjectionFields: string[];
+  } {
+    const pinsPath: string = path.join(protocolRoot, "pins.json");
+    const pins = record(
+      parseBytes(fs.readFileSync(pinsPath), pinsPath),
+      "protocol pins",
+    );
+    const policy = record(
+      pins.quotaAuthorityBoundary,
+      "quota authority boundary pins",
+    );
+    const quotaPolicyPath: string = path.join(
+      protocolRoot,
+      "quota-policy.json",
+    );
+    const quotaPolicyBytes: Buffer = fs.readFileSync(quotaPolicyPath);
+    const quotaPolicy = validateValue<Record<string, unknown>>(
+      protocolRoot,
+      "quota-policy.schema.json",
+      parseBytes(quotaPolicyBytes, quotaPolicyPath),
+      "quota policy",
+    );
+    const quotaPolicyPin = record(pins.quotaPolicy, "quota policy pins");
+    const policySha256: string = sha256(quotaPolicyBytes);
+    const repositoryDigests = record(
+      pins.repositoryFrozenDigests,
+      "repository frozen digests",
+    );
+    if (
+      quotaPolicyPin.path !== "benchmark/protocol/quota-policy.json" ||
+      quotaPolicyPin.schemaPath !==
+        "benchmark/protocol/schema/quota-policy.schema.json" ||
+      quotaPolicyPin.bytes !== quotaPolicyBytes.byteLength ||
+      quotaPolicyPin.sha256 !== policySha256 ||
+      quotaPolicyPin.policyId !== quotaPolicy.policyId ||
+      quotaPolicyPin.attestationAlgorithmId !==
+        "sha256-rfc8785-sanitized-quota-attestation-v1" ||
+      quotaPolicyPin.authorityRequestDigestAlgorithmId !==
+        "sha256-rfc8785-controller-quota-request-v1" ||
+      quotaPolicyPin.canonicalImplementationScope !==
+        "rfc8785-equivalent-closed-ascii-projection-v1" ||
+      repositoryDigests.quotaPolicySha256 !== policySha256
+    )
+      throw new Error("Quota policy artifact pin drifted.");
+    const authorityRequest = record(
+      quotaPolicy.authorityRequest,
+      "quota authority request policy",
+    );
+    const attestation = record(
+      quotaPolicy.sanitizedAttestation,
+      "sanitized quota attestation policy",
+    );
+    if (
+      authorityRequest.digestAlgorithmId !==
+        "sha256-rfc8785-controller-quota-request-v1" ||
+      authorityRequest.canonicalization !== "RFC8785" ||
+      authorityRequest.implementationScope !==
+        "rfc8785-equivalent-closed-ascii-projection-v1" ||
+      canonical(authorityRequest.projectionFields) !==
+        canonical([
+          "authorityRequestId",
+          "phase",
+          "blockId",
+          "planSha256",
+          "subjects",
+        ]) ||
+      authorityRequest.preparePlanSha256 !== null ||
+      authorityRequest.startPlanSha256 !== "exact-closed-block-plan-sha256" ||
+      attestation.canonicalization !== "RFC8785" ||
+      attestation.implementationScope !==
+        "rfc8785-equivalent-closed-ascii-projection-v1"
+    )
+      throw new Error("Quota authority request digest policy drifted.");
+    const attestationProjectionFields: string[] = stringArray(
+      attestation.projectionFields,
+      "quota attestation projection fields",
+    );
+    const maximumDurationMs: number = positiveInteger(
+      policy.maximumDurationMs,
+      "quota authority pinned maximum duration",
+    );
+    const utcMonotonicToleranceMs: number = positiveInteger(
+      policy.utcMonotonicToleranceMs,
+      "quota authority UTC/monotonic tolerance",
+    );
+    if (
+      policy.schemaRef !==
+        "benchmark/protocol/schema/block-plan.schema.json#/$defs/quotaAuthorityBoundary" ||
+      policy.prepareAdmissionSchema !==
+        "benchmark/protocol/schema/quota-prepare-authority.schema.json" ||
+      policy.prepareAdmissionValidator !==
+        "EvidenceBenchmarkProtocolValidator.validateQuotaAuthorityBoundaryValue" ||
+      policy.phase !== "prepare" ||
+      maximumDurationMs !== 60_000 ||
+      utcMonotonicToleranceMs !== 2_000 ||
+      policy.elapsedMonotonicNsEncoding !== "nonnegative-decimal-string" ||
+      policy.rawMonotonicAbsoluteValuesRetained !== false ||
+      policy.capturedWithinLiveIntervalRequired !== true ||
+      policy.attestationBinding !==
+        "authorization.quotaState.attestationSha256" ||
+      policy.authorityRequestDigestAlgorithmId !==
+        "sha256-rfc8785-controller-quota-request-v1" ||
+      policy.authorityRequestProjection !==
+        "authorityRequestId,phase,blockId,planSha256,subjects" ||
+      policy.canonicalImplementationScope !==
+        "rfc8785-equivalent-closed-ascii-projection-v1" ||
+      policy.startExecutionAdmissionConsumer !==
+        "benchmark/protocol/schema/quota-start-authority.schema.json" ||
+      policy.startExecutionAdmissionValidator !==
+        "EvidenceBenchmarkProtocolValidator.validateStartQuotaAuthorityAdmissionValue"
+    )
+      throw new Error("Quota authority boundary protocol pins drifted.");
+    return {
+      maximumDurationMs,
+      utcMonotonicToleranceMs,
+      policySha256,
+      attestationProjectionFields,
+    };
+  }
+
   interface ILoadedSchema {
     path: string;
     id: string;
@@ -1273,6 +1646,41 @@ export namespace EvidenceBenchmarkProtocolValidator {
       );
   }
 
+  function assertClosedAsciiJson(
+    value: unknown,
+    label: string,
+    location: string = "$",
+  ): void {
+    if (value === null || typeof value === "boolean") return;
+    if (typeof value === "string") {
+      if (
+        [...value].some((character) => {
+          const code: number = character.charCodeAt(0);
+          return code < 0x20 || code > 0x7e;
+        })
+      )
+        throw new Error(
+          `${label} escapes the closed printable-ASCII domain at ${location}.`,
+        );
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((child, index) =>
+        assertClosedAsciiJson(child, label, `${location}/${String(index)}`),
+      );
+      return;
+    }
+    if (!isRecord(value))
+      throw new Error(
+        `${label} contains a non-closed JSON value at ${location}.`,
+      );
+    for (const [key, child] of Object.entries(value)) {
+      if ([...key].some((character) => character.charCodeAt(0) > 0x7f))
+        throw new Error(`${label} has a non-ASCII member name at ${location}.`);
+      assertClosedAsciiJson(child, label, `${location}/${key}`);
+    }
+  }
+
   function canonical(value: unknown): string {
     if (value === null || typeof value !== "object")
       return JSON.stringify(value);
@@ -1366,7 +1774,7 @@ export namespace EvidenceBenchmarkProtocolValidator {
   function dateTime(value: unknown, label: string): number {
     const result: string = nonblank(value, label);
     const match: RegExpMatchArray | null = result.match(
-      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/u,
+      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?(?:Z|[+-](\d{2}):(\d{2}))$/u,
     );
     if (match === null)
       throw new Error(`${label} must be an RFC 3339 date-time.`);
@@ -1378,6 +1786,7 @@ export namespace EvidenceBenchmarkProtocolValidator {
       hourText,
       minuteText,
       secondText,
+      ,
       offsetHourText,
       offsetMinuteText,
     ] = match;

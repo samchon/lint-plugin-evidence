@@ -188,6 +188,13 @@
       "expectedPattern": "must not be later than"
     },
     {
+      "id": "runtime-review-submillisecond-after-pull-request-merge",
+      "operation": "replace",
+      "path": "/sourceAdmission/formalReview/submittedAtUtc",
+      "value": "2026-07-29T11:00:00.0001Z",
+      "expectedPattern": "must be an RFC 3339"
+    },
+    {
       "id": "runtime-pull-request-merge-time-invalid",
       "operation": "replace",
       "path": "/sourceAdmission/formalReview/pullRequestMergedAtUtc",

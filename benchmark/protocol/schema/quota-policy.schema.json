@@ -16,6 +16,7 @@
     "resetSemantics",
     "numericConversion",
     "privateCheckpoint",
+    "authorityRequest",
     "sanitizedAttestation"
   ],
   "properties": {
@@ -111,12 +112,55 @@
         }
       }
     },
+    "authorityRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requestIdEncoding",
+        "digestAlgorithmId",
+        "canonicalization",
+        "implementationScope",
+        "projectionFields",
+        "preparePlanSha256",
+        "startPlanSha256"
+      ],
+      "properties": {
+        "requestIdEncoding": {
+          "const": "lowercase-hex-256-bit-random-nonce"
+        },
+        "digestAlgorithmId": {
+          "const": "sha256-rfc8785-controller-quota-request-v1"
+        },
+        "canonicalization": {
+          "const": "RFC8785"
+        },
+        "implementationScope": {
+          "const": "rfc8785-equivalent-closed-ascii-projection-v1"
+        },
+        "projectionFields": {
+          "const": [
+            "authorityRequestId",
+            "phase",
+            "blockId",
+            "planSha256",
+            "subjects"
+          ]
+        },
+        "preparePlanSha256": {
+          "const": null
+        },
+        "startPlanSha256": {
+          "const": "exact-closed-block-plan-sha256"
+        }
+      }
+    },
     "sanitizedAttestation": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "algorithmId",
         "canonicalization",
+        "implementationScope",
         "projectionFields",
         "rawTelemetryFieldsForbidden"
       ],
@@ -127,8 +171,17 @@
         "canonicalization": {
           "const": "RFC8785"
         },
+        "implementationScope": {
+          "const": "rfc8785-equivalent-closed-ascii-projection-v1"
+        },
         "projectionFields": {
           "const": [
+            "authorityRequestId",
+            "authorityRequestSha256",
+            "phase",
+            "blockId",
+            "planSha256",
+            "subjects",
             "sourceClass",
             "windowResults",
             "passedAtAuthorization",

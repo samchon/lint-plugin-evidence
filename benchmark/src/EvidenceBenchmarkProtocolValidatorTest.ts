@@ -14,6 +14,7 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
     EvidenceBenchmarkProtocolValidator.preflightProviderRegistry(protocolRoot);
     testCostPredictionParity(protocolRoot);
     testSafetyAuthorization(protocolRoot);
+    testQuotaAuthorityBoundary(protocolRoot);
     testProtocolIdentity(protocolRoot);
     const freezeText: string = fs.readFileSync(
       path.join(protocolRoot, "subject-freeze-manifest.json"),
@@ -401,6 +402,87 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
     )[wave] = population.blockWallLimit;
   }
 
+  function testQuotaAuthorityBoundary(protocolRoot: string): void {
+    EvidenceBenchmarkProtocolValidator.preflightQuotaAuthorityBoundaryPins(
+      protocolRoot,
+    );
+    const fixture = object(
+      EvidenceBenchmarkProtocolValidator.parseBytes(
+        fs.readFileSync(
+          path.join(
+            protocolRoot,
+            "fixtures",
+            "quota-authority-boundary",
+            "cases.json",
+          ),
+        ),
+        "quota authority boundary fixture",
+      ),
+      "quota authority boundary fixture",
+    );
+    const baseline = object(fixture.validPlan, "valid quota authority plan");
+    EvidenceBenchmarkProtocolValidator.validateQuotaAuthorityBoundaryValue(
+      protocolRoot,
+      baseline,
+    );
+    for (const input of list(
+      fixture.invalidCases,
+      "invalid quota boundaries",
+    )) {
+      const invalid = object(input, "invalid quota boundary");
+      const value: Record<string, unknown> = structuredClone(baseline);
+      applyMutation(value, invalid);
+      assert.throws(
+        () =>
+          EvidenceBenchmarkProtocolValidator.validateQuotaAuthorityBoundaryValue(
+            protocolRoot,
+            value,
+          ),
+        new RegExp(text(invalid.expectedPattern, "expected failure pattern")),
+        text(invalid.id, "quota boundary id"),
+      );
+    }
+    const startFixture = object(
+      EvidenceBenchmarkProtocolValidator.parseBytes(
+        fs.readFileSync(
+          path.join(
+            protocolRoot,
+            "fixtures",
+            "quota-start-authority",
+            "cases.json",
+          ),
+        ),
+        "start quota authority fixture",
+      ),
+      "start quota authority fixture",
+    );
+    const startBaseline = object(
+      startFixture.validAdmission,
+      "valid start quota authority admission",
+    );
+    EvidenceBenchmarkProtocolValidator.validateStartQuotaAuthorityAdmissionValue(
+      protocolRoot,
+      startBaseline,
+    );
+    for (const input of list(
+      startFixture.invalidCases,
+      "invalid start quota authority admissions",
+    )) {
+      const invalid = object(input, "invalid start quota authority admission");
+      const value: Record<string, unknown> = structuredClone(startBaseline);
+      applyMutation(value, invalid);
+      assert.throws(
+        () =>
+          EvidenceBenchmarkProtocolValidator.validateStartQuotaAuthorityAdmissionValue(
+            protocolRoot,
+            value,
+          ),
+        new RegExp(text(invalid.expectedPattern, "expected failure pattern")),
+        text(invalid.id, "start quota authority admission id"),
+      );
+    }
+  }
+
   function testProtocolIdentity(protocolRoot: string): void {
     EvidenceBenchmarkProtocolValidator.preflightProtocolIdentityPins(
       protocolRoot,
@@ -523,7 +605,15 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
       target,
       text(mutation.path, "mutation path"),
     );
-    if (operation === "replace") {
+    if (operation === "replace" || operation === "add") {
+      if (
+        operation === "add" &&
+        !Array.isArray(destination.parent) &&
+        Object.hasOwn(destination.parent, destination.key)
+      )
+        throw new Error(
+          `Fixture add member already exists: ${destination.key}.`,
+        );
       setChild(
         destination.parent,
         destination.key,

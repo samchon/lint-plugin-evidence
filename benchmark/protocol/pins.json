@@ -27,6 +27,23 @@
     "issue99CommentId": 5109239236,
     "issue99CommentUrl": "https://github.com/samchon/lint-plugin-evidence/issues/99#issuecomment-5109239236"
   },
+  "quotaAuthorityBoundary": {
+    "schemaRef": "benchmark/protocol/schema/block-plan.schema.json#/$defs/quotaAuthorityBoundary",
+    "prepareAdmissionSchema": "benchmark/protocol/schema/quota-prepare-authority.schema.json",
+    "prepareAdmissionValidator": "EvidenceBenchmarkProtocolValidator.validateQuotaAuthorityBoundaryValue",
+    "phase": "prepare",
+    "maximumDurationMs": 60000,
+    "utcMonotonicToleranceMs": 2000,
+    "elapsedMonotonicNsEncoding": "nonnegative-decimal-string",
+    "rawMonotonicAbsoluteValuesRetained": false,
+    "capturedWithinLiveIntervalRequired": true,
+    "attestationBinding": "authorization.quotaState.attestationSha256",
+    "authorityRequestDigestAlgorithmId": "sha256-rfc8785-controller-quota-request-v1",
+    "authorityRequestProjection": "authorityRequestId,phase,blockId,planSha256,subjects",
+    "canonicalImplementationScope": "rfc8785-equivalent-closed-ascii-projection-v1",
+    "startExecutionAdmissionConsumer": "benchmark/protocol/schema/quota-start-authority.schema.json",
+    "startExecutionAdmissionValidator": "EvidenceBenchmarkProtocolValidator.validateStartQuotaAuthorityAdmissionValue"
+  },
   "armMap": {
     "plain": {
       "registered": "A",
@@ -269,11 +286,13 @@
   },
   "quotaPolicy": {
     "path": "benchmark/protocol/quota-policy.json",
-    "bytes": 1669,
-    "sha256": "5dae599895578b207c7b46628b7cfc2ee17dce1b4973288199047b0111607763",
+    "bytes": 2366,
+    "sha256": "04d18a23379260b2f899c1620a775a48f20b1463cb4b82a59454d09f2e4989d4",
     "schemaPath": "benchmark/protocol/schema/quota-policy.schema.json",
     "policyId": "chatgpt-native-first-hit-v1",
-    "attestationAlgorithmId": "sha256-rfc8785-sanitized-quota-attestation-v1"
+    "attestationAlgorithmId": "sha256-rfc8785-sanitized-quota-attestation-v1",
+    "authorityRequestDigestAlgorithmId": "sha256-rfc8785-controller-quota-request-v1",
+    "canonicalImplementationScope": "rfc8785-equivalent-closed-ascii-projection-v1"
   },
   "usage": {
     "responseSource": "rawResponse/completed, enabled by thread/start experimentalRawEvents=true and validated against v2/RawResponseCompletedNotification.json, deduplicated by responseId",
@@ -377,7 +396,7 @@
   "repositoryFrozenDigests": {
     "subjectFreezeManifestSha256": "409aa670f85c94cac653a4041a55a611e0a94873f2152f94947cbe4cefe0ac24",
     "priceSheetSha256": "4ba82b1e0b80e72e59e64ca3ba07ee4b9568036ff686e7455359e600ab36ae09",
-    "quotaPolicySha256": "5dae599895578b207c7b46628b7cfc2ee17dce1b4973288199047b0111607763",
+    "quotaPolicySha256": "04d18a23379260b2f899c1620a775a48f20b1463cb4b82a59454d09f2e4989d4",
     "costPredictionsSha256": "fe5e57a3c3bd95a969d96c4ce1dad44b74007b97ac1731b50b2bf5c54ed03e6c"
   },
   "prepareTimeRuntimeRequired": {

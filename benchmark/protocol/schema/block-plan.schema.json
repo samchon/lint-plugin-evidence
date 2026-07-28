@@ -257,6 +257,7 @@
         "authorizedBy",
         "authorizedAtUtc",
         "quotaState",
+        "quotaAuthorityBoundary",
         "statement",
         "maximumObservedBlockTotalTokens",
         "blockHardWallDurationSeconds",
@@ -276,6 +277,12 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "authorityRequestId",
+            "authorityRequestSha256",
+            "phase",
+            "blockId",
+            "planSha256",
+            "subjects",
             "sourceClass",
             "windowResults",
             "passedAtAuthorization",
@@ -290,6 +297,26 @@
             "guardRelation"
           ],
           "properties": {
+            "authorityRequestId": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "authorityRequestSha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "phase": {
+              "const": "prepare"
+            },
+            "blockId": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{5,127}$"
+            },
+            "planSha256": {
+              "const": null
+            },
+            "subjects": {
+              "$ref": "#/$defs/subjectWave"
+            },
             "sourceClass": {
               "const": "chatgpt-native-rate-limit"
             },
@@ -327,11 +354,12 @@
               "const": "benchmark/protocol/quota-policy.json"
             },
             "policySha256": {
-              "const": "5dae599895578b207c7b46628b7cfc2ee17dce1b4973288199047b0111607763"
+              "const": "04d18a23379260b2f899c1620a775a48f20b1463cb4b82a59454d09f2e4989d4"
             },
             "capturedAtUtc": {
               "type": "string",
-              "format": "date-time"
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?(?:Z|[+-]\\d{2}:\\d{2})$"
             },
             "attestationAlgorithmId": {
               "const": "sha256-rfc8785-sanitized-quota-attestation-v1"
@@ -349,6 +377,23 @@
               "const": "independent-first-hit-or"
             }
           }
+        },
+        "quotaAuthorityBoundary": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/quotaAuthorityBoundary"
+            },
+            {
+              "properties": {
+                "phase": {
+                  "const": "prepare"
+                },
+                "planSha256": {
+                  "const": null
+                }
+              }
+            }
+          ]
         },
         "statement": {
           "type": "string",
@@ -376,6 +421,138 @@
       "enum": [
         "not_applicable",
         "pass"
+      ]
+    },
+    "quotaAuthorityBoundary": {
+      "description": "Retained prepare-time proof that the quota attestation was captured during one live bounded request. The producer may use absolute monotonic readings in memory but must retain only their elapsed delta.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authorityRequestId",
+        "authorityRequestSha256",
+        "phase",
+        "blockId",
+        "planSha256",
+        "subjects",
+        "requestStartedAtUtc",
+        "responseReceivedAtUtc",
+        "elapsedMonotonicNs",
+        "maximumDurationMs",
+        "capturedWithinLiveInterval",
+        "attestationSha256"
+      ],
+      "properties": {
+        "authorityRequestId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "authorityRequestSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "phase": {
+          "enum": [
+            "prepare",
+            "start"
+          ]
+        },
+        "blockId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{5,127}$"
+        },
+        "planSha256": {
+          "oneOf": [
+            {
+              "const": null
+            },
+            {
+              "$ref": "#/$defs/sha256"
+            }
+          ]
+        },
+        "subjects": {
+          "$ref": "#/$defs/subjectWave"
+        },
+        "requestStartedAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?(?:Z|[+-]\\d{2}:\\d{2})$"
+        },
+        "responseReceivedAtUtc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?(?:Z|[+-]\\d{2}:\\d{2})$"
+        },
+        "elapsedMonotonicNs": {
+          "description": "Nonnegative decimal elapsed duration from a monotonic clock. Absolute monotonic start/end readings are forbidden from retained artifacts.",
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$"
+        },
+        "maximumDurationMs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "capturedWithinLiveInterval": {
+          "const": true
+        },
+        "attestationSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "phase": {
+                "const": "prepare"
+              }
+            },
+            "required": [
+              "phase"
+            ]
+          },
+          "then": {
+            "properties": {
+              "planSha256": {
+                "const": null
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "phase": {
+                "const": "start"
+              }
+            },
+            "required": [
+              "phase"
+            ]
+          },
+          "then": {
+            "properties": {
+              "planSha256": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "subjectWave": {
+      "oneOf": [
+        {
+          "const": [
+            "todo",
+            "reddit"
+          ]
+        },
+        {
+          "const": [
+            "shopping",
+            "erp"
+          ]
+        }
       ]
     },
     "formalReviewAdmission": {
@@ -437,12 +614,14 @@
         "submittedAtUtc": {
           "description": "Exact submitted_at field returned by the GitHub review payload.",
           "type": "string",
-          "format": "date-time"
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?(?:Z|[+-]\\d{2}:\\d{2})$"
         },
         "pullRequestMergedAtUtc": {
           "description": "Exact merged_at field returned by GitHub REST for pullRequestNumber; semantic validation requires submittedAtUtc to be no later than this value.",
           "type": "string",
-          "format": "date-time"
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?(?:Z|[+-]\\d{2}:\\d{2})$"
         },
         "reviewBodyDigestAlgorithmId": {
           "description": "Hash the decoded body JSON string returned by the GitHub review endpoint after UTF-8 encoding it exactly, with no LF, CR, Unicode, or other normalization.",
