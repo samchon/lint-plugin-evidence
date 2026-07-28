@@ -1,0 +1,245 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/result-promotion.schema.json",
+  "title": "Append-only benchmark result promotion",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "subject",
+    "arm",
+    "runId",
+    "terminalStatus",
+    "sourceRunRoot",
+    "sourceManifestSha256",
+    "retainedRun",
+    "latestPointer",
+    "demoWorkspace",
+    "gitRoundTrip",
+    "priorRunSet",
+    "promotedAtUtc",
+    "manifestSha256"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "subject": {
+      "enum": [
+        "todo",
+        "reddit",
+        "shopping",
+        "erp"
+      ]
+    },
+    "arm": {
+      "enum": [
+        "plain",
+        "evidence"
+      ]
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{5,127}$"
+    },
+    "terminalStatus": {
+      "const": "completed"
+    },
+    "sourceRunRoot": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sourceManifestSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "retainedRun": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "recordTreeSha256",
+        "workspacePath",
+        "snapshotManifestSha256",
+        "liveWorkspaceInventorySha256",
+        "retainedTreeSha256",
+        "eventChainVerified",
+        "rawReferencesVerified",
+        "orphanTailsAbsent"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^benchmark/result/(todo|reddit|shopping|erp)/(plain|evidence)/runs/[a-z0-9][a-z0-9._-]{5,127}$"
+        },
+        "recordTreeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "workspacePath": {
+          "type": "string",
+          "pattern": "^benchmark/result/(todo|reddit|shopping|erp)/(plain|evidence)/runs/[a-z0-9][a-z0-9._-]{5,127}/workspace$"
+        },
+        "snapshotManifestSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "liveWorkspaceInventorySha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "retainedTreeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "eventChainVerified": {
+          "const": true
+        },
+        "rawReferencesVerified": {
+          "const": true
+        },
+        "orphanTailsAbsent": {
+          "const": true
+        }
+      }
+    },
+    "latestPointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "previousRunId",
+        "currentRunId",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^benchmark/result/(todo|reddit|shopping|erp)/(plain|evidence)/latest\\.json$"
+        },
+        "previousRunId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "currentRunId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "demoWorkspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceMilestone",
+        "sourceSnapshotManifestSha256",
+        "path",
+        "retainedTreeSha256"
+      ],
+      "properties": {
+        "sourceMilestone": {
+          "const": "t_dry"
+        },
+        "sourceSnapshotManifestSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^benchmark/result/(todo|reddit|shopping|erp)/(plain|evidence)/workspace$"
+        },
+        "retainedTreeSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "gitRoundTrip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "objectFormat",
+        "temporaryCommitOid",
+        "sourceTreeSha256",
+        "cloneTreeSha256",
+        "sourceSnapshotManifestSha256",
+        "cloneSnapshotManifestSha256",
+        "sourceTerminalSealSha256",
+        "cloneTerminalSealSha256",
+        "allDigestsMatch"
+      ],
+      "properties": {
+        "objectFormat": {
+          "const": "sha1"
+        },
+        "temporaryCommitOid": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "sourceTreeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "cloneTreeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sourceSnapshotManifestSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "cloneSnapshotManifestSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sourceTerminalSealSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "cloneTerminalSealSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "allDigestsMatch": {
+          "const": true
+        }
+      }
+    },
+    "priorRunSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "beforeCount",
+        "afterExistingCount",
+        "beforeSha256",
+        "afterExistingSha256",
+        "preserved"
+      ],
+      "properties": {
+        "beforeCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "afterExistingCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "beforeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "afterExistingSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "preserved": {
+          "const": true
+        }
+      }
+    },
+    "promotedAtUtc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "manifestSha256": {
+      "description": "SHA-256 of RFC 8785 canonical JSON for this manifest with manifestSha256 omitted.",
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

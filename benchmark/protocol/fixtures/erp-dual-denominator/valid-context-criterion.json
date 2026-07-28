@@ -1,0 +1,6 @@
+{
+  "id": "REQ-AUTH-PROVISION.CTX-01",
+  "requirement": "REQ-AUTH-PROVISION",
+  "source": "01-actors-and-auth.md",
+  "criterion": "Provisioning behavior remains consistent across the child authentication requirements."
+}

@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/verification-local.schema.json",
+  "title": "Local Phase 2 verifier semantic adjudication",
+  "allOf": [
+    {
+      "$ref": "verification-provider.schema.json"
+    },
+    {
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "role": {
+          "const": "verifier"
+        },
+        "round": {
+          "minimum": 1
+        },
+        "candidateId": {
+          "minLength": 1
+        },
+        "canonicalFindingId": {
+          "minLength": 1
+        },
+        "interruption": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "reason": {
+                  "minLength": 1
+                },
+                "lastCompletedStep": {
+                  "minLength": 1
+                }
+              }
+            }
+          ]
+        },
+        "rationale": {
+          "minLength": 1
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "completed"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "interruption": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "interruption": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "verified"
+          }
+        },
+        "required": [
+          "verdict"
+        ]
+      },
+      "then": {
+        "properties": {
+          "classification": {
+            "enum": [
+              "requirement_omission",
+              "partial_implementation",
+              "semantic_defect",
+              "false_acknowledgement",
+              "configuration_coverage",
+              "test_oracle_gap"
+            ]
+          },
+          "severity": {
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          "duplicateOf": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "rejected"
+          }
+        },
+        "required": [
+          "verdict"
+        ]
+      },
+      "then": {
+        "properties": {
+          "classification": {
+            "const": "non_defect"
+          },
+          "severity": {
+            "type": "null"
+          },
+          "duplicateOf": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "duplicate"
+          }
+        },
+        "required": [
+          "verdict"
+        ]
+      },
+      "then": {
+        "properties": {
+          "classification": {
+            "const": "non_defect"
+          },
+          "severity": {
+            "type": "null"
+          },
+          "duplicateOf": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "unverifiable"
+          }
+        },
+        "required": [
+          "verdict"
+        ]
+      },
+      "then": {
+        "properties": {
+          "classification": {
+            "type": "null"
+          },
+          "severity": {
+            "type": "null"
+          },
+          "duplicateOf": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

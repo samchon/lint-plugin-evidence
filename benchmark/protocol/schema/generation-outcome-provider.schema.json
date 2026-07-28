@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/generation-outcome-provider.schema.json",
+  "title": "Provider-facing terminal generation outcome",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "outcome",
+    "summary",
+    "unfinished"
+  ],
+  "properties": {
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "complete",
+        "interrupted"
+      ]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "unfinished": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

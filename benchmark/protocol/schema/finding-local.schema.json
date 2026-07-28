@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/finding-local.schema.json",
+  "title": "Local Phase 2 finder semantic adjudication",
+  "allOf": [
+    {
+      "$ref": "finding-provider.schema.json"
+    },
+    {
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "role": {
+          "const": "finder"
+        },
+        "round": {
+          "minimum": 1
+        },
+        "lenses": {
+          "uniqueItems": true
+        },
+        "interruption": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "reason": {
+                  "minLength": 1
+                },
+                "lastCompletedStep": {
+                  "minLength": 1
+                }
+              }
+            }
+          ]
+        },
+        "findings": {
+          "items": {
+            "properties": {
+              "candidateId": {
+                "pattern": "^r[0-9]+-[a-z0-9-]+-[0-9]{3,}$"
+              },
+              "atomicClauseIds": {
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "minLength": 1
+                }
+              },
+              "artifactLocations": {
+                "minItems": 1,
+                "items": {
+                  "properties": {
+                    "path": {
+                      "minLength": 1
+                    },
+                    "line": {
+                      "minimum": 1
+                    }
+                  }
+                }
+              },
+              "expectedBehavior": {
+                "minLength": 1
+              },
+              "observedBehavior": {
+                "minLength": 1
+              },
+              "verificationProcedure": {
+                "minLength": 1
+              },
+              "finderConfidence": {
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "assignmentId": {
+              "const": "F1-requirements-database"
+            },
+            "lenses": {
+              "const": [
+                "requirements",
+                "database"
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "assignmentId": {
+              "const": "F2-api-logic"
+            },
+            "lenses": {
+              "const": [
+                "api",
+                "logic"
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "assignmentId": {
+              "const": "F3-tests"
+            },
+            "lenses": {
+              "const": [
+                "tests"
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "assignmentId": {
+              "const": "F4-frontend"
+            },
+            "lenses": {
+              "const": [
+                "frontend"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "completed"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "interruption": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "interruption": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  ]
+}

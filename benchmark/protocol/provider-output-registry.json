@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "providerKeywordAllowlist": [
+    "$schema",
+    "$id",
+    "title",
+    "type",
+    "additionalProperties",
+    "required",
+    "properties",
+    "enum",
+    "items"
+  ],
+  "contracts": [
+    {
+      "id": "generation-outcome",
+      "turns": [
+        "phase1-generation",
+        "phase1-completion-challenge"
+      ],
+      "providerSchema": "schema/generation-outcome-provider.schema.json",
+      "localSchema": "schema/generation-outcome-local.schema.json"
+    },
+    {
+      "id": "phase2-finder",
+      "turns": [
+        "phase2-finder"
+      ],
+      "providerSchema": "schema/finding-provider.schema.json",
+      "localSchema": "schema/finding-local.schema.json"
+    },
+    {
+      "id": "phase2-verifier",
+      "turns": [
+        "phase2-verifier"
+      ],
+      "providerSchema": "schema/verification-provider.schema.json",
+      "localSchema": "schema/verification-local.schema.json"
+    }
+  ]
+}

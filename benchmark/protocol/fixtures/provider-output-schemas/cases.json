@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "registry": "benchmark/protocol/provider-output-registry.json",
+  "valid": [
+    {
+      "id": "core-subset",
+      "path": "benchmark/protocol/fixtures/provider-output-schemas/valid-provider.schema.json"
+    }
+  ],
+  "invalid": [
+    {
+      "id": "unsupported-direct",
+      "path": "benchmark/protocol/fixtures/provider-output-schemas/unsupported-direct.schema.json",
+      "expectedKeyword": "minLength",
+      "expectedPointer": "/properties/value/minLength"
+    },
+    {
+      "id": "unsupported-through-ref-closure",
+      "path": "benchmark/protocol/fixtures/provider-output-schemas/unsupported-via-ref-root.schema.json",
+      "expectedKeywords": [
+        "$ref",
+        "pattern"
+      ],
+      "expectedReferencedPath": "benchmark/protocol/fixtures/provider-output-schemas/unsupported-via-ref-child.schema.json",
+      "expectedReferencedPointer": "/properties/value/pattern"
+    },
+    {
+      "id": "missing-ref",
+      "path": "benchmark/protocol/fixtures/provider-output-schemas/missing-ref.schema.json",
+      "expectedFailure": "missing-local-reference"
+    }
+  ]
+}

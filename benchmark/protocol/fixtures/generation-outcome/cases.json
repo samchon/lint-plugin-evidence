@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "providerSchema": "benchmark/protocol/schema/generation-outcome-provider.schema.json",
+  "localSchema": "benchmark/protocol/schema/generation-outcome-local.schema.json",
+  "providerKeywordAllowlist": [
+    "$schema",
+    "$id",
+    "title",
+    "type",
+    "additionalProperties",
+    "required",
+    "properties",
+    "enum",
+    "items"
+  ],
+  "cases": [
+    {
+      "id": "complete-empty",
+      "value": {
+        "outcome": "complete",
+        "summary": "All requested work is complete.",
+        "unfinished": []
+      },
+      "expectedLocalValid": true
+    },
+    {
+      "id": "interrupted-nonempty",
+      "value": {
+        "outcome": "interrupted",
+        "summary": "External quota stopped the run.",
+        "unfinished": [
+          "Complete the browser journey."
+        ]
+      },
+      "expectedLocalValid": true
+    },
+    {
+      "id": "complete-with-unfinished",
+      "value": {
+        "outcome": "complete",
+        "summary": "Contradictory completion.",
+        "unfinished": [
+          "A task remains."
+        ]
+      },
+      "expectedLocalValid": false
+    },
+    {
+      "id": "interrupted-empty",
+      "value": {
+        "outcome": "interrupted",
+        "summary": "No unfinished work was named.",
+        "unfinished": []
+      },
+      "expectedLocalValid": false
+    },
+    {
+      "id": "blank-summary",
+      "value": {
+        "outcome": "complete",
+        "summary": "",
+        "unfinished": []
+      },
+      "expectedLocalValid": false
+    },
+    {
+      "id": "blank-unfinished-item",
+      "value": {
+        "outcome": "interrupted",
+        "summary": "An item is blank.",
+        "unfinished": [
+          ""
+        ]
+      },
+      "expectedLocalValid": false
+    },
+    {
+      "id": "duplicate-unfinished",
+      "value": {
+        "outcome": "interrupted",
+        "summary": "The list repeats an item.",
+        "unfinished": [
+          "Run tests.",
+          "Run tests."
+        ]
+      },
+      "expectedLocalValid": false
+    }
+  ]
+}

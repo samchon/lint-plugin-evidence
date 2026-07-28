@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/completion-adjudication.schema.json",
+  "title": "Mechanical terminal completion adjudication",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "threadId",
+    "turnId",
+    "context",
+    "responseId",
+    "assistantItemId",
+    "turnStatus",
+    "outputSchemaSha256",
+    "localValidationSchemaSha256",
+    "localValidationPassed",
+    "output",
+    "goalStatus",
+    "goalConsistency",
+    "decision",
+    "eventSeq",
+    "eventSha256",
+    "adjudicatedAtUtc"
+  ],
+  "properties": {
+    "threadId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "turnId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "context": {
+      "enum": [
+        "phase1",
+        "completion_challenge"
+      ]
+    },
+    "responseId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "assistantItemId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "turnStatus": {
+      "const": "completed"
+    },
+    "outputSchemaSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "localValidationSchemaSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "localValidationPassed": {
+      "const": true
+    },
+    "output": {
+      "$ref": "generation-outcome-local.schema.json"
+    },
+    "goalStatus": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "enum": [
+            "active",
+            "paused",
+            "blocked",
+            "usageLimited",
+            "budgetLimited",
+            "complete"
+          ]
+        }
+      ]
+    },
+    "goalConsistency": {
+      "enum": [
+        "consistent",
+        "mismatch",
+        "unavailable"
+      ]
+    },
+    "decision": {
+      "enum": [
+        "complete",
+        "interrupted"
+      ]
+    },
+    "eventSeq": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "eventSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "adjudicatedAtUtc": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "const": "complete"
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "then": {
+        "properties": {
+          "output": {
+            "properties": {
+              "outcome": {
+                "const": "complete"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "output": {
+            "properties": {
+              "outcome": {
+                "const": "interrupted"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}
