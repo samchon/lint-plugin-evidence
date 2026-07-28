@@ -12,6 +12,8 @@ Every configured requirement section, every operation, and every DTO type must b
  *           forbidden combination and asserts the refusal.
  * @evidence {@link api.functional.shopping.customer.order.create} Exercises
  *           the operation where the combination is rejected.
+ * @evidence {@link IShoppingOrder} Builds this shape's creation input and
+ *           reads the created order back through it.
  */
 export async function test_api_order_coupon_stacking_is_refused(
   connection: api.IConnection,
@@ -20,7 +22,7 @@ export async function test_api_order_coupon_stacking_is_refused(
 }
 ```
 
-**The operation citation is a `{@link}` to the accessor**, resolved through this file's own `api` import, so it is an ordinary TypeScript symbol: a renamed operation breaks the citation instead of leaving a path string that quietly resolves to nothing.
+**Both TypeScript citations are `{@link}`s resolved through this file's own imports**: the accessor from `api.functional`, the DTO type from the structures. Ordinary symbols, so a rename breaks the citation instead of leaving a path string that quietly resolves to nothing, and the DTO edge is discharged by the tests that genuinely build and read the shape.
 
 Read [the evidence skill](../evidence/SKILL.md) before starting.
 
