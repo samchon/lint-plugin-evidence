@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import childProcess from "node:child_process";
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -58,6 +59,21 @@ export namespace EvidenceBenchmarkProtocolValidator {
     return new StrictJsonParser(text, label).parse();
   }
 
+  /** Fatally decodes exact UTF-8 bytes before strict JSON parsing. */
+  export function parseBytes(bytes: Uint8Array, label: string): unknown {
+    let text: string;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch (error) {
+      throw new SyntaxError(
+        `${label} is not UTF-8: ${
+          error instanceof Error ? error.message : String(error)
+        }.`,
+      );
+    }
+    return parse(text, label);
+  }
+
   /** Parses and validates exact artifact text against one protocol schema. */
   export function validateText<T>(
     protocolRoot: string,
@@ -69,6 +85,21 @@ export namespace EvidenceBenchmarkProtocolValidator {
       protocolRoot,
       schemaRelativePath,
       parse(text, label),
+      label,
+    );
+  }
+
+  /** Fatally decodes and validates exact artifact bytes. */
+  export function validateBytes<T>(
+    protocolRoot: string,
+    schemaRelativePath: string,
+    bytes: Uint8Array,
+    label: string = schemaRelativePath,
+  ): T {
+    return validateValue<T>(
+      protocolRoot,
+      schemaRelativePath,
+      parseBytes(bytes, label),
       label,
     );
   }
@@ -108,7 +139,7 @@ export namespace EvidenceBenchmarkProtocolValidator {
       "provider-output-registry.json",
     );
     const registry = record(
-      parse(fs.readFileSync(registryPath, "utf8"), registryPath),
+      parseBytes(fs.readFileSync(registryPath), registryPath),
       "provider output registry",
     );
     const allowlist = stringArray(
@@ -120,6 +151,12 @@ export namespace EvidenceBenchmarkProtocolValidator {
     const allowed: ReadonlySet<string> = new Set(allowlist);
     const contracts = array(registry.contracts, "provider contracts");
     const schemas: ISchemaRegistry = loadSchemas(root);
+    validateLoaded(
+      schemas,
+      "provider-output-registry.schema.json",
+      registry,
+      "provider output registry",
+    );
     const seenIds: Set<string> = new Set();
     for (const [index, input] of contracts.entries()) {
       const contract = record(input, `provider contract ${index}`);
@@ -194,9 +231,10 @@ export namespace EvidenceBenchmarkProtocolValidator {
       .filter((entry) => entry.isFile() && entry.name.endsWith(".schema.json"))
       .map((entry) => path.join(schemaRoot, entry.name))
       .sort((left, right) => Buffer.from(left).compare(Buffer.from(right)));
+    assertTrackedSchemaInventory(protocolRoot, schemaRoot, files);
     const loaded: ILoadedSchema[] = files.map((file) => {
       const value = record(
-        parse(fs.readFileSync(file, "utf8"), file),
+        parseBytes(fs.readFileSync(file), file),
         `${file} schema`,
       );
       return {
@@ -225,7 +263,87 @@ export namespace EvidenceBenchmarkProtocolValidator {
     });
     addFormats(ajv);
     for (const schema of loaded) ajv.addSchema(schema.value, schema.id);
+    for (const schema of loaded)
+      if (ajv.getSchema(schema.id) === undefined)
+        throw new Error(`Protocol schema did not compile: ${schema.path}.`);
     return { schemaRoot, byPath, byId, ajv };
+  }
+
+  function assertTrackedSchemaInventory(
+    protocolRoot: string,
+    schemaRoot: string,
+    files: readonly string[],
+  ): void {
+    const repository: string = childProcess
+      .execFileSync(
+        "git",
+        ["-C", path.resolve(protocolRoot), "rev-parse", "--show-toplevel"],
+        { encoding: "utf8", windowsHide: true },
+      )
+      .trim();
+    const relativeRoot: string = path
+      .relative(repository, schemaRoot)
+      .split(path.sep)
+      .join("/");
+    if (
+      relativeRoot.length === 0 ||
+      relativeRoot === ".." ||
+      relativeRoot.startsWith("../") ||
+      path.isAbsolute(relativeRoot)
+    )
+      throw new Error(
+        `Protocol schema root escapes its Git repository: ${schemaRoot}.`,
+      );
+    const tracked: string[] = childProcess
+      .execFileSync(
+        "git",
+        ["-C", repository, "ls-files", "-z", "--", relativeRoot],
+        { encoding: "utf8", windowsHide: true },
+      )
+      .split("\0")
+      .filter(
+        (entry) =>
+          entry.length !== 0 &&
+          path.posix.dirname(entry) === relativeRoot &&
+          entry.endsWith(".schema.json"),
+      )
+      .sort(compareUtf8);
+    const present: string[] = files
+      .map((file) => path.relative(repository, file).split(path.sep).join("/"))
+      .sort(compareUtf8);
+    if (
+      tracked.length === 0 ||
+      JSON.stringify(tracked) !== JSON.stringify(present)
+    )
+      throw new Error(
+        `Protocol schema inventory differs from Git: tracked ${tracked.length}, present ${present.length}.`,
+      );
+  }
+
+  function validateLoaded(
+    registry: ISchemaRegistry,
+    schemaRelativePath: string,
+    value: unknown,
+    label: string,
+  ): void {
+    const schemaPath: string = resolveSchemaPath(
+      registry.schemaRoot,
+      schemaRelativePath,
+    );
+    const schema = registry.byPath.get(schemaPath);
+    if (schema === undefined)
+      throw new Error(
+        `${label} names an untracked protocol schema: ${schemaRelativePath}.`,
+      );
+    const validate: ValidateFunction | undefined = registry.ajv.getSchema(
+      schema.id,
+    );
+    if (validate === undefined)
+      throw new Error(
+        `${label} schema did not compile: ${schemaRelativePath}.`,
+      );
+    if (!validate(value))
+      throw new ValidationError(label, diagnostics(validate.errors ?? []));
   }
 
   function inspectReferences(
@@ -385,24 +503,22 @@ export namespace EvidenceBenchmarkProtocolValidator {
         params: canonical(error.params),
       }))
       .sort((left, right) =>
-        [
-          left.instancePath,
-          left.schemaPath,
-          left.keyword,
-          left.message,
-          left.params,
-        ]
-          .join("\0")
-          .localeCompare(
-            [
-              right.instancePath,
-              right.schemaPath,
-              right.keyword,
-              right.message,
-              right.params,
-            ].join("\0"),
-            "en",
-          ),
+        compareUtf8(
+          [
+            left.instancePath,
+            left.schemaPath,
+            left.keyword,
+            left.message,
+            left.params,
+          ].join("\0"),
+          [
+            right.instancePath,
+            right.schemaPath,
+            right.keyword,
+            right.message,
+            right.params,
+          ].join("\0"),
+        ),
       );
   }
 
@@ -412,9 +528,16 @@ export namespace EvidenceBenchmarkProtocolValidator {
     if (Array.isArray(value))
       return `[${value.map((entry) => canonical(entry)).join(",")}]`;
     return `{${Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right, "en"))
+      .sort(([left], [right]) => compareUtf8(left, right))
       .map(([key, child]) => `${JSON.stringify(key)}:${canonical(child)}`)
       .join(",")}}`;
+  }
+
+  function compareUtf8(left: string, right: string): number {
+    return Buffer.compare(
+      Buffer.from(left, "utf8"),
+      Buffer.from(right, "utf8"),
+    );
   }
 
   function sha256(bytes: Uint8Array): string {
