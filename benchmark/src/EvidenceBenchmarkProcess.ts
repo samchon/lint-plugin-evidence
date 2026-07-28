@@ -92,6 +92,64 @@ export namespace EvidenceBenchmarkProcess {
     const selector: string = `pnpm@${PNPM_VERSION}`;
     if (process.platform !== "win32")
       return run("corepack", [selector, ...arguments_], options);
+    const entrypoint: string = corepackEntrypoint();
+    return run(
+      process.execPath,
+      [entrypoint, selector, ...arguments_],
+      options,
+    );
+  }
+
+  /**
+   * Prepends a cell-owned pnpm launcher for lifecycle and agent subprocesses.
+   *
+   * Top-level harness calls bypass a shell through {@link pnpm}; generated
+   * package scripts necessarily use the platform shell, so their PATH receives
+   * this exact-version launcher instead of a machine-global pnpm.
+   */
+  export function pinEnvironment(
+    environment: NodeJS.ProcessEnv,
+    root: string,
+  ): void {
+    fs.mkdirSync(root, { recursive: true });
+    const currentPath: string = environment.PATH ?? process.env.PATH ?? "";
+    let launcher: string;
+    let content: string;
+    if (process.platform === "win32") {
+      launcher = path.join(root, "pnpm.cmd");
+      content = [
+        "@ECHO OFF",
+        `"${process.execPath}" "${corepackEntrypoint()}" "pnpm@${PNPM_VERSION}" %*`,
+        "",
+      ].join("\r\n");
+    } else {
+      launcher = path.join(root, "pnpm");
+      content = [
+        "#!/bin/sh",
+        `exec corepack "pnpm@${PNPM_VERSION}" "$@"`,
+        "",
+      ].join("\n");
+    }
+    if (fs.existsSync(launcher)) {
+      if (fs.readFileSync(launcher, "utf8") !== content)
+        throw new Error(
+          `Pinned pnpm launcher content drifted after creation: ${launcher}.`,
+        );
+    } else
+      fs.writeFileSync(launcher, content, {
+        encoding: "utf8",
+        flag: "wx",
+        ...(process.platform === "win32" ? {} : { mode: 0o755 }),
+      });
+    environment.PATH = [
+      root,
+      ...currentPath
+        .split(path.delimiter)
+        .filter((entry) => entry.length !== 0 && entry !== root),
+    ].join(path.delimiter);
+  }
+
+  function corepackEntrypoint(): string {
     const entrypoint: string = path.join(
       path.dirname(process.execPath),
       "node_modules",
@@ -103,10 +161,6 @@ export namespace EvidenceBenchmarkProcess {
       throw new Error(
         `Pinned pnpm requires the Corepack entrypoint beside Node.js: ${entrypoint}.`,
       );
-    return run(
-      process.execPath,
-      [entrypoint, selector, ...arguments_],
-      options,
-    );
+    return entrypoint;
   }
 }

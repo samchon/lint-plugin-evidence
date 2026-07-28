@@ -34,10 +34,33 @@ export namespace EvidenceBenchmarkTemplate {
     "package.json",
     "packages/api/lint.config.ts",
     "packages/api/package.json",
+    "packages/api/scripts/ensure-nestia-exports.cjs",
+    "packages/api/src/index.ts",
+    "packages/api/tsconfig.json",
     "packages/backend/lint.config.ts",
     "packages/backend/package.json",
+    "packages/backend/prisma.config.ts",
+    "packages/backend/prisma/schema/main.prisma",
+    "packages/backend/src/MyBackend.ts",
+    "packages/backend/src/MyModule.ts",
+    "packages/backend/src/executable/server.ts",
+    "packages/backend/src/executable/swagger.ts",
+    "packages/backend/test/index.ts",
+    "packages/backend/test/tsconfig.json",
+    "packages/backend/tsconfig.json",
+    "packages/backend/tsconfig.lint.json",
+    "packages/frontend/index.html",
     "packages/frontend/lint.config.ts",
     "packages/frontend/package.json",
+    "packages/frontend/playwright.config.ts",
+    "packages/frontend/scripts/run-playwright.mjs",
+    "packages/frontend/src/App.tsx",
+    "packages/frontend/src/lib/client.ts",
+    "packages/frontend/src/lib/config.ts",
+    "packages/frontend/src/main.tsx",
+    "packages/frontend/tests/journeys/scaffold.spec.ts",
+    "packages/frontend/tsconfig.json",
+    "packages/frontend/vite.config.ts",
     "pnpm-workspace.yaml",
   ];
   const ARM_REQUIRED_PATHS: Readonly<
@@ -69,6 +92,56 @@ export namespace EvidenceBenchmarkTemplate {
 
     /** SHA-256 identity of normalized arm template source files. */
     armTreeSha256: string;
+  }
+
+  /** Rendered neutral scaffold and its template-source identity. */
+  export interface IBaseComposition {
+    /** Fully rendered base files before any arm overlay or requirements. */
+    files: ReadonlyMap<string, Uint8Array>;
+
+    /** SHA-256 identity of normalized base template source files. */
+    baseTreeSha256: string;
+  }
+
+  /**
+   * Renders the neutral scaffold while auditing both arm overlay protocols.
+   *
+   * The template-revision gate uses this before either benchmark mechanism is
+   * present, so a broken shared scaffold cannot be mistaken for an arm effect.
+   */
+  export function composeBase(props: {
+    /** Absolute benchmark/template directory containing base and both arms. */
+    template: string;
+
+    /** Exact package identities accepted by scaffold placeholders. */
+    variables: IEvidenceBenchmarkMaterialization.IVariables;
+  }): IBaseComposition {
+    validateVariables(props.variables);
+    const base: Map<string, Uint8Array> = readTextTree(
+      path.join(props.template, "base"),
+    );
+    const overlays: Record<
+      IEvidenceBenchmarkMaterialization.Arm,
+      Map<string, Uint8Array>
+    > = {
+      evidence: readTextTree(path.join(props.template, "evidence")),
+      plain: readTextTree(path.join(props.template, "plain")),
+    };
+    validateRequiredPaths("base", base, BASE_REQUIRED_PATHS);
+    validatePortablePaths("base", base);
+    validateOverlayProtocol(base, overlays);
+    const rendered: Map<string, Uint8Array> = new Map();
+    for (const [relative, content] of base)
+      rendered.set(
+        relative,
+        encode(renderVariables(decode(content, relative), props.variables)),
+      );
+    validatePortablePaths("rendered neutral scaffold", rendered);
+    validateMarkdown(rendered);
+    return {
+      files: rendered,
+      baseTreeSha256: EvidenceBenchmarkHash.tree(base),
+    };
   }
 
   /**

@@ -20,6 +20,10 @@ export namespace EvidenceBenchmarkSetup {
   ): Promise<IEvidenceBenchmarkSetup> {
     const workspace: string = request.materialization.workspace;
     const environment: NodeJS.ProcessEnv = request.materialization.environment;
+    EvidenceBenchmarkProcess.pinEnvironment(
+      environment,
+      path.join(request.materialization.root, "cache", "toolchain-bin"),
+    );
     fs.mkdirSync(environment.npm_config_store_dir!, { recursive: true });
     fs.mkdirSync(environment.TTSC_CACHE_DIR!, { recursive: true });
     fs.mkdirSync(environment.TTSC_GO_CACHE_DIR!, { recursive: true });
