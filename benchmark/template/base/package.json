@@ -1,0 +1,37 @@
+{
+  "private": true,
+  "name": "{{name}}",
+  "version": "0.1.0",
+  "description": "Backend and frontend realizing the requirements under docs/analysis",
+  "packageManager": "pnpm@{{version:pnpm}}",
+  "engines": {
+    "node": "{{version:nodeEngines}}"
+  },
+  "scripts": {
+    "build": "pnpm --filter {{backendPackageName}} build:prisma && pnpm --filter {{apiPackageName}} build && pnpm --filter {{backendPackageName}} build:main && pnpm --filter {{frontendPackageName}} build",
+    "build:prisma": "pnpm --filter {{backendPackageName}} build:prisma",
+    "build:sdk": "pnpm --filter {{backendPackageName}} build:sdk",
+    "prepare:db": "pnpm --filter {{backendPackageName}} prepare",
+    "lint": "pnpm -r --if-present lint",
+    "format": "pnpm -r --if-present format",
+    "start": "pnpm --filter {{backendPackageName}} start",
+    "dev:frontend": "pnpm --filter {{frontendPackageName}} dev",
+    "test": "pnpm test:backend && pnpm test:frontend",
+    "test:backend": "pnpm --filter {{backendPackageName}} test",
+    "test:frontend": "pnpm --filter {{frontendPackageName}} test:e2e"
+  },
+  "devDependencies": {
+    "@ttsc/lint": "catalog:typescript",
+    "rimraf": "catalog:typescript",
+    "ttsc": "catalog:typescript",
+    "typescript": "catalog:typescript"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "better-sqlite3",
+      "esbuild",
+      "prisma"
+    ]
+  }
+}

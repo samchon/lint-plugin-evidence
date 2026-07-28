@@ -1,6 +1,6 @@
 ---
 name: api
-description: Explains what packages/api is, which parts are generated and which are authored, where logic shared between the frontend and the backend belongs, and how to consume the SDK. Use before importing from it, before deciding where a shared rule lives, or when tracing where a contract comes from.
+description: Explains what packages/api is, which parts are generated and which are authored, where logic shared between the frontend and the backend belongs, how connections and authentication work, and what simulation mode actually does. Use before importing from it, before deciding where a shared rule lives, or when tracing where a contract comes from.
 ---
 
 # API SDK
@@ -19,7 +19,7 @@ packages/api/
 
 ## Generated Versus Authored
 
-The SDK generator's configuration lives in `packages/backend/nestia.config.ts` and its output directory is this package's `src`.
+Nestia's configuration lives in `packages/backend/nestia.config.ts` and its output directory is this package's `src`. That does not mean it owns the whole tree.
 
 | Path | Origin | Editing it |
 | --- | --- | --- |
@@ -30,31 +30,63 @@ The SDK generator's configuration lives in `packages/backend/nestia.config.ts` a
 
 An edit to a generated path survives until the next generation and then disappears without a message. The disappearance looks like someone else's bug, and the change that caused it was committed long before.
 
-To change what an operation exposes, change the controller signature, its DTO, or its JSDoc, then regenerate. The backend skill's operations document owns those conventions.
+To change what an operation exposes, change the controller signature, its DTO, or its JSDoc, then run the SDK generation. The backend skill's operations and wiring topics own those conventions.
 
-## `diagnosers` Is Where Shared Logic Lives
+## What A Generated Accessor Looks Like
 
-This is the part that has no obvious home and therefore gets duplicated. Any pure rule that **both the frontend and the backend must apply identically** belongs in `src/diagnosers`, exported from the package, and imported by both.
-
-Three kinds show up repeatedly.
-
-**Validation that produces diagnoses.** A rule the client should check before submitting and the server must enforce on arrival. Writing it twice guarantees the two drift, and the drift shows up as a form that accepts what the server then rejects.
+Reading one explains most of what follows.
 
 ```ts
-export namespace UniqueDiagnoser {
-  export interface IProps<Element> {
-    key(x: Element): string;
-    message(elem: Element, index: number): IDiagnosis;
-    filter?(elem: Element): boolean;
-    items: Element[];
-  }
-  export const validate = <Element>(props: IProps<Element>): IDiagnosis[] => {};
+export async function at(
+  connection: IConnection,
+  id: string & Format<"uuid">,
+): Promise<IShoppingSale> {
+  return true === connection.simulate
+    ? at.simulate(connection, id)
+    : PlainFetcher.fetch(connection, { ...at.METADATA, path: at.path(id) });
+}
+export namespace at {
+  export const random = (): IShoppingSale => typia.random<IShoppingSale>();
+  export const simulate = (connection: IConnection, id: string): IShoppingSale => {
+    const assert = NestiaSimulator.assert({ method: METADATA.method, path: path(id) });
+    assert.param("id")(() => typia.assert(id));
+    return random();
+  };
 }
 ```
 
-The return type is the same diagnosis shape the error responses carry, so a client-side check and a server-side rejection speak one vocabulary and a screen can render either without branching.
+The accessor is a function whose path mirrors the route, whose parameters carry the contract's own constrained types, and which branches on the connection. Everything the frontend and the tests do with the SDK follows from that shape.
 
-**Entity to input mappers.** Turning a fetched entity back into the body that would recreate it. A form that edits an existing resource needs exactly this, and so does a server-side duplication feature.
+## `diagnosers` Is Where Shared Logic Lives
+
+This is the part with no obvious home, which is why it gets duplicated. Any pure rule that **both the frontend and the backend must apply identically** belongs in `src/diagnosers`, exported from the package, imported by both.
+
+Three kinds recur.
+
+**Validation that produces diagnoses.** A rule the client should check before submitting and the server must enforce on arrival.
+
+```ts
+export interface IDiagnosis {
+  /** Where the problem is, as an accessor path into the submitted value. */
+  accessor: string;
+  /** What is wrong, in words the user can act on. */
+  message: string;
+}
+
+export namespace UniqueDiagnoser {
+  export const validate = <Element>(props: {
+    key(x: Element): string;
+    message(elem: Element, index: number): IDiagnosis;
+    items: Element[];
+  }): IDiagnosis[] => {};
+}
+```
+
+`IDiagnosis` is the same shape the server's error responses carry. That is the point: a client-side check and a server-side rejection speak one vocabulary, so a screen renders either without branching, and a field-level error lands on the right field because `accessor` says which one.
+
+Writing the rule twice guarantees the two drift, and the drift surfaces as a form that accepts what the server then rejects.
+
+**Entity to input mappers.** Turning a fetched entity back into the body that would recreate it. An edit form needs exactly this, and so does a server-side duplicate feature.
 
 ```ts
 export namespace AttachmentFileDiagnoser {
@@ -66,15 +98,13 @@ export namespace AttachmentFileDiagnoser {
 }
 ```
 
-**Relation inverters and derivations.** Reading a nested actor out of a composed response, or deriving a display value from a contract, when both sides need the same answer.
+**Relation inverters and derivations.** Reading a nested actor out of a composed response, or deriving a display value, when both sides need the same answer.
 
-The rule for deciding: if the frontend and the backend would each need to write the same function, it belongs here. If only one side needs it, keep it there. A helper moved here that only one side uses becomes a published API surface nobody asked for.
+The test for whether something belongs here: would the frontend and the backend each need to write this function? If only one side needs it, keep it there. A helper moved here that one side uses becomes a published API surface nobody asked for.
 
-Consume it symmetrically. The frontend imports it from the package like any other export; the backend re-exports it through a barrel in `src/utils` so its providers import one local name rather than reaching across the package boundary in forty files.
+The frontend imports it from the package like any other export. The backend re-exports it through a barrel in `src/utils`, so its providers import one local name rather than reaching across the package boundary in forty files.
 
-## How To Consume The SDK
-
-Call an accessor by importing it, never by assembling a URL.
+## Consuming An Accessor
 
 ```ts
 import Api, { IShoppingSale, IPage } from "{{apiPackageName}}";
@@ -85,30 +115,77 @@ const page: IPage<IShoppingSale.ISummary> =
   });
 ```
 
-The accessor path mirrors the route, and the request and response types come with it. A hand-written fetch compiles fine after a route changes; an accessor does not, which is the entire point.
+Take accessor names from the generated exports, never from a path or a verb. If the accessor you expect is absent, find the operation whose method and path match and use the one generated for it. Inventing a name, or casting the namespace to reach a missing member, hides a contract mismatch instead of reporting it.
 
 Import every request and response type from here. A locally redeclared DTO is the second copy that drifts.
 
-The generated JSDoc carries the operation's purpose, its authorization rule, and what its response means. Read it rather than guessing from the accessor name.
-
-## The Connection
-
-A connection carries the host and the headers. An authenticated call needs the token in those headers, and whoever authenticates is responsible for putting it there.
+A multi-item response always arrives in the page wrapper:
 
 ```ts
-const connection: IConnection = { host: "http://127.0.0.1:37001" };
+export interface IPage<T> {
+  pagination: IPage.IPagination; // current, limit, records, pages
+  data: T[];
+}
+```
+
+The generated JSDoc carries the operation's purpose, its authorization rule, and what its response means. Read it rather than guessing from the name.
+
+## Constrained Types Come With The Contract
+
+Parameters and DTO properties are not bare primitives. They carry `typia` tags, which are compile-time refinements the boundary validates at runtime.
+
+```ts
+id: string & tags.Format<"uuid">;
+quantity: number & tags.Type<"uint32"> & tags.Minimum<1>;
+email: string & tags.Format<"email">;
+```
+
+Two consequences. A caller cannot pass an arbitrary string where a uuid is required, so a fabricated identifier fails at the type level rather than at the database. And the boundary already enforces every one of these, so re-checking them in a provider or a screen is dead code that drifts from the contract.
+
+## Connections
+
+`IConnection` is the object every accessor takes first. It carries the host and, once authenticated, the headers.
+
+```ts
+export interface IConnection {
+  host: string;
+  headers?: Record<string, string>;
+  simulate?: boolean;
+}
+```
+
+Authenticating means putting the issued token into that connection's headers, and whoever authenticates owns doing it:
+
+```ts
+const connection: IConnection = { host: apiHost };
 connection.headers ??= {};
 connection.headers.Authorization = `Bearer ${authorized.token.access}`;
 ```
 
-Reuse one connection per actor. A fresh connection object built from the same host is anonymous.
+**One connection per actor, authenticated once, reused for every call by that actor.** The SDK copies the token nowhere else, so a fresh `{ host }` object is anonymous. The resulting failure appears on the second call rather than the first, which is why it reads as a puzzle rather than a mistake.
 
-## Simulation
+## Simulation Mode
 
-The SDK can answer from generated data instead of calling the server.
+Setting one flag makes every accessor answer locally instead of calling the server.
 
 ```ts
 const connection: IConnection = { host, simulate: true };
 ```
 
-This is the mocking seam at the contract boundary, which is what makes it useful: a screen tested this way is tested against the real types. It proves shape and flow, never that the server behaves. Label evidence obtained this way accordingly, and never point a test named for live integration at it.
+This is not a hand-written mock, and understanding what it actually does is what makes it trustworthy.
+
+**It validates the request exactly as the server would.** Look again at the generated `simulate`: it runs `typia.assert` over each path parameter and over the request body, through the same validator the server's boundary uses. A request the server would reject is rejected here, with the same shape of error. A form that submits an invalid body fails in simulation for the real reason.
+
+**It returns a value generated from the response type.** `typia.random<IShoppingSale>()` produces a value satisfying the declared type and every tag on it: a real uuid where the contract says uuid, a value inside the declared range where it says minimum and maximum, a member of the union where it says union. The response cannot be shaped wrongly, because it is generated from the contract rather than written by someone guessing at it.
+
+So a screen built against simulation is built against the real contract. If it renders a field the contract does not have, it breaks immediately.
+
+**What it does not do.** No provider runs. Nothing is stored, no session exists, no authorization is evaluated, no side effect occurs. Two calls to the same accessor return unrelated values, and a create followed by a read does not return what you created.
+
+That last part is the trap. Values are random per call, so anything that needs stable data across a run needs the randomness seeded. A screenshot program or a browser test that depends on a particular product name will otherwise pass locally and fail in the next run for no reason anyone can see.
+
+**How to use it.** Develop the frontend against simulation: screens, navigation, forms, loading and empty and error states, and the browser programs that cover the main flows, all with no server and no database. Then finish against the live backend, because persistence, sessions, authorization, refresh, and side effects are exactly what simulation does not prove.
+
+Label the evidence accordingly. A run in simulation is shape-and-flow evidence, never integration evidence, and a program named for live integration must never be pointed at the simulated path.
+
+The flag is turned on by `simulate: true` in the Nestia configuration when the SDK is generated. If an accessor has no `simulate` branch, the SDK was generated without it.

@@ -50,6 +50,10 @@ interface IEnvironments {
   JWT_REFRESH_KEY: string;
 }
 
+// `Singleton` defers the work until the first `get()` and caches the result,
+// so the environment is read and validated once, on demand, rather than at
+// import time where the order of module evaluation would decide whether the
+// file had been loaded yet.
 const environments = new Singleton(() => {
   const env = dotenv.config();
   dotenvExpand.expand(env);
@@ -119,6 +123,51 @@ main().catch((exp: unknown) => {
 Keep the executable to that shape. It imports one class and calls one method; parsing, orchestration, and setup live in the class.
 
 Seeding on an empty database is what makes a fresh checkout runnable. It is not test fixture data: it is the minimum a person needs to see the product work.
+
+## Database Errors Are Mapped At The Boundary, Once
+
+A provider that uses the throwing finder expects a missing row to become a `404`. That does not happen by itself. Without the registration below it is a `500`, and something worse also happens.
+
+**A Prisma error message interpolates the model, the field, the constraint, the table, the column, the offending value, and query fragments.** That message must never reach an HTTP client. Registering the mapper is what stops your schema from being readable from the outside.
+
+```ts
+// src/providers/common/PrismaErrorProvider.ts
+export namespace PrismaErrorProvider {
+  export function from(error: PrismaClientKnownRequestError): HttpException {
+    switch (error.code) {
+      case "P2025": // record not found
+        return ErrorProvider.notFound("The requested resource was not found.", {
+          cause: error,
+        });
+      case "P2002": // unique constraint
+        return ErrorProvider.conflict(
+          "The request conflicts with an existing resource.",
+          { cause: error },
+        );
+      default:
+        return ErrorProvider.internal("The request could not be completed.", {
+          cause: error,
+        });
+    }
+  }
+}
+```
+
+```ts
+// src/MyConfiguration.ts, at module scope so it runs on import
+ExceptionManager.insert(
+  PrismaClientKnownRequestError,
+  PrismaErrorProvider.from,
+);
+```
+
+Three details are load-bearing.
+
+- **The message is replaced, not passed through.** Every branch returns a stable, application-controlled sentence.
+- **The original survives as `cause`.** The framework's default response and its accessor both exclude it, so it remains available to server-side diagnostics and invisible to the client.
+- **The registration is at module scope in a file the bootstrap imports**, so it is in place before the first request rather than after the first failure.
+
+`ErrorProvider` is the shared constructor that wraps a message or a diagnosis list into an exception with a numeric status. Providers throw through it for business failures; this mapper uses it for database ones, so both arrive in the same shape.
 
 ## Generation Is Configured, Not Improvised
 

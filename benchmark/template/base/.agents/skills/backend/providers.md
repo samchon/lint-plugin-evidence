@@ -48,8 +48,8 @@ export namespace ShoppingSaleProvider {
 
 Four things in that block are the convention rather than the example.
 
-1. **`transform`'s parameter type is derived from `select`**, through `GetPayload<ReturnType<typeof select>>`. The two cannot drift: add a field to the DTO and it fails to compile until `select` fetches it; drop a relation from `select` and `transform` stops compiling. **Never widen that payload type by hand to clear an error.** That single edit is what breaks the guarantee, and nothing afterwards will catch it.
-2. **`select` ends in `satisfies Prisma.<table>FindManyArgs`**, so a mistyped relation key fails at the selector rather than at runtime.
+1. **`transform`'s parameter type is derived from `select`**, through `GetPayload<ReturnType<typeof select>>`. `GetPayload` is the generated client's helper that turns a query shape into the row type that query returns, so declaring the parameter this way means the argument type is computed from the selector rather than written beside it. The two cannot drift: add a field to the DTO and it fails to compile until `select` fetches it; drop a relation from `select` and `transform` stops compiling. **Never widen that payload type by hand to clear an error.** That single edit is what breaks the guarantee, and nothing afterwards will catch it.
+2. **`select` ends in `satisfies Prisma.<table>FindManyArgs`.** `satisfies` checks the value against that type while keeping the value's own narrower type, which is what a plain annotation would discard. So a mistyped relation key fails here at the selector, and `GetPayload` still sees exactly which relations were included rather than the wide argument type. Using `:` instead of `satisfies` compiles and silently destroys the derivation in the line above.
 3. **`transform` composes other providers' transforms, and `select` composes their selects.** A nested projection stays owned by the provider that knows it, and the two halves compose in lockstep.
 4. **One namespace per shape.** `summary` for the list item, `json` for the detail, `history` when a timeline needs a third. Do not parameterize one transform with a flag; the payload type is what makes each shape safe, and a flag erases it.
 
@@ -99,6 +99,8 @@ export const at = async (props: {
 ```
 
 Reserve the non-throwing finder for states where absence is a valid business outcome.
+
+**That 404 is not automatic.** It comes from the database-error mapper registered at bootstrap, which turns the client's not-found code into a `404` and its unique-constraint code into a `409`, and which replaces the engine's message with a stable one. See the [wiring topic](wiring.md). Without that registration the throwing finder produces a `500`, and the raw message, which interpolates the table, the column, and the offending value, is what the caller receives.
 
 ## Visibility Belongs In One Clause
 
