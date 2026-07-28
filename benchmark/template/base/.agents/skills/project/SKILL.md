@@ -26,7 +26,7 @@ docs/
 config/              shared tsconfig and the lint configuration packages extend
 wiki/                the project's own working records, never built or shipped
 packages/
-  api/               generated SDK, DTO structures, diagnosers
+  api/               authored DTO contract and diagnosers, generated accessors
   backend/           NestJS server, Prisma schema, providers, tests
   frontend/          Vite and React single-page application
 ```
@@ -86,9 +86,10 @@ Never substitute stock `tsc`, `ts-node`, or a separate ESLint invocation. A gree
 Each step consumes the previous step's output, so the order is not a preference.
 
 1. `build:prisma` generates the Prisma client from `prisma/schema`. Nothing that imports the client compiles before this runs.
-2. The API package's build regenerates `src/functional` and `swagger.json` from the backend's controllers. Run it after any controller or DTO change.
-3. The backend's `build:main` compiles the server.
-4. The frontend build type-checks the application against the generated SDK.
+2. The backend's `build:sdk` uses its Nestia configuration and controller graph to regenerate the API package's `src/functional` and `swagger.json`. Run it after any controller, DTO, or public contract JSDoc change.
+3. The API package compiles the authored contract and regenerated accessors.
+4. The backend's `build:main` compiles the server.
+5. The frontend build type-checks the application against the regenerated SDK.
 
 `pnpm build` at the workspace root runs the chain in that order.
 
@@ -98,12 +99,14 @@ These are outputs. Editing one produces a change the next generation deletes wit
 
 | Artifact | Generated from | Regenerate with |
 | --- | --- | --- |
-| `packages/api/src/functional/**` | backend controllers | the API package's build |
-| `packages/api/swagger.json` | backend controllers | the API package's build |
-| the Prisma client | `prisma/schema/**` | `build:prisma` |
+| `packages/api/src/functional/**` | backend controllers | backend `build:sdk` |
+| `packages/api/swagger.json` | backend controllers | backend `build:sdk` |
+| `packages/backend/src/prisma/**` | `prisma/schema/**` | backend `build:prisma` |
 | `docs/ERD.md` | `prisma/schema/**` | `build:prisma` |
 
 Change the source instead: a controller signature, a DTO, or a model.
+
+Generated paths are excluded as authored implementation and from ordinary source lint. A completeness method may still inspect them as regenerated reference or consumer populations. Regenerate and inspect them as downstream products; never make them green by editing their bytes.
 
 ## Commands
 

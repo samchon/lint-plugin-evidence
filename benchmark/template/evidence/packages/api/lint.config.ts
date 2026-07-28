@@ -19,6 +19,7 @@ const graph: IEvidenceGraphConfig = {
     // represents. Its properties are a separate claim below, because the two
     // granularities tally independently and never collide.
     {
+      name: "dto-types",
       type: "typescript",
       files: ["src/structures/**/*.ts"],
       symbol: "type",
@@ -39,6 +40,7 @@ const graph: IEvidenceGraphConfig = {
     },
     // A DTO property answers to the schema alone: the column it carries.
     {
+      name: "dto-properties",
       type: "typescript",
       files: ["src/structures/**/*.ts"],
       symbol: "property",
@@ -54,6 +56,9 @@ const graph: IEvidenceGraphConfig = {
 
 export default {
   extends: "../../config/lint.config.ts",
+  // Nestia owns this output. Global ignores also refine inherited rules, so
+  // generated accessors cannot add ordinary-lint noise to either arm.
+  ignores: ["src/functional/**/*.ts"],
   plugins: {
     evidence,
   },
@@ -64,8 +69,5 @@ export default {
     // keeps citation addresses stable.
     "evidence/documented": "error",
     "evidence/singular": "error",
-    // A shape declared during the interface phase may still owe a decision,
-    // and any remaining @todo is that debt standing: the realize ledger.
-    "evidence/todo": "error",
   },
 } satisfies ITtscLintConfig;

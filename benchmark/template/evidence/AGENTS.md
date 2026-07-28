@@ -1,22 +1,21 @@
 # AGENTS.md
 
+<!-- benchmark-template-splice: base-body -->
 {{base}}
 
-### Evidence
+### Completeness
 
-**Mandatory.** The evidence graph this repository is checked against: what each obligation means, how a citation is written and where it belongs, what each diagnostic is telling you, and which failures the build cannot see, `.agents/skills/evidence/SKILL.md`.
+**Mandatory.** The evidence arm's Phase One method, claim-specific `@evidence` and `@evidenceExclude` usage, residual manual edges, state ledger, and first-done boundary, `.agents/skills/completeness/SKILL.md`.
 
-A missed requirement is a compile error here rather than something you have to notice. The lint stage names the exact target nothing acknowledges, so your job is not to hunt for gaps but to make every citation say something true.
+The evidence graph turns missing acknowledgement in configured populations into diagnostics. It does not establish that a citation is true or cover providers and SDK-to-frontend consumption. Read the skill before any implementation, whenever a diagnostic appears, after a source change invalidates claims, and before the first terminal completion report.
 
-Read it **before starting any work at all**, again **whenever a diagnostic appears**, and again **before believing a green build**.
+Do not start the shared two-clean-round campaign before first done. After the runner records that boundary, a separate user turn activates the frozen method in `.agents/skills/completeness/phase-two.md`.
 
 ### Review
 
-**Mandatory.** How the truth of every citation is established: what the build proves and what it cannot, reading a citation against both the artifact making it and the target it names, and why the referenced side is under review too, `.agents/skills/review/SKILL.md`.
+**Mandatory.** How to review each graph edge as a claim, claiming artifact, and named source; how to distinguish structural coverage from integrity; and how source changes invalidate accepted reasons, `.agents/skills/review/SKILL.md`.
 
-The build establishes that nothing is **missing**. This establishes that what is there is **true**, and those are different states: a tag written to clear a diagnostic and a tag written after doing the work are the same tag, and nothing in the build separates them.
-
-Read it once the lint stage is green, and again whenever anything it reviewed has moved.
+Run its Phase One integrity pass before first done. Phase Two owns repeated global rounds and mutation frequency.
 
 ## Language
 

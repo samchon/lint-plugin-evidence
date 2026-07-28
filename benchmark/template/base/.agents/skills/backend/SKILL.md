@@ -79,7 +79,9 @@ A semantically wrong value satisfies every checker. `expiredAt ?? new Date()` re
 
 After any substantial piece of work, ask what `null` means for each field, which direction each relation aggregates, which effects each consumer expects, and what the test actually proves.
 
-## What Done Means
+## Backend Layer Gate
+
+Passing this gate means the backend layer is internally validated at the current repository state. It is not a project-completion claim; frontend delivery and the active arm's completeness method remain separate obligations.
 
 The build passes, the lint stage passes, the tests pass, and you read their output.
 
