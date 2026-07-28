@@ -162,12 +162,12 @@ Extract them from both sides of the request. A path parameter names an ancestor 
 
 Order creators first: independent resources, then parents, then children.
 
-For `PUT /order/{orderId}/item/{id}` the list is:
+For `PUT /shopping/customer/order/{orderId}/orderItem/{id}` the list is:
 
 ```
-POST /product          the referenced product
-POST /order            the parent order
-POST /order/{orderId}/item   the row being updated
+POST /shopping/seller/section/{sectionId}/sale     the referenced sale
+POST /shopping/customer/order                      the parent order
+POST /shopping/customer/order/{orderId}/orderItem  the row being updated
 ```
 
 Analyze only direct dependencies. Transitive chains resolve when the same procedure is applied to each operation in turn, and the graph must stay acyclic: if creating one resource must precede another, the second can never be a prerequisite of the first at any length.
@@ -276,8 +276,8 @@ export class SellerSaleController {
    * paginated page of summaries filtered and ordered by the request.
    *
    * A seller reaches only their own sales here. The customer surface at
-   * `PATCH /sale` shows the operating sales of every seller, and excludes
-   * the unopened, closed, paused, and suspended ones.
+   * `PATCH /shopping/customer/sale` shows the operating sales of every
+   * seller, and excludes the unopened, closed, paused, and suspended ones.
    *
    * The summaries omit the SKU tree. Call {@link at} for one sale when the
    * options and stocks are needed.

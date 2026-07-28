@@ -10,7 +10,7 @@ Every configured requirement section and every operation must be acknowledged by
  *
  * @evidence docs/analysis/04-business-rules.md#coupon-stacking Attempts the
  * forbidden combination and asserts the refusal.
- * @evidence POST:/customer/order Exercises the operation where the combination
+ * @evidence POST:/shopping/customer/order Exercises the operation where the combination
  * is rejected.
  */
 export async function test_api_order_coupon_stacking_is_refused(

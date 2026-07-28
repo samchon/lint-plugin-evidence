@@ -75,7 +75,6 @@ Do not pluralize an interface name or invent a pagination variant of your own.
 | `.ICreate` | caller-supplied creation fields, no ids and no timestamps |
 | `.IUpdate` | the mutable fields |
 | `.IRequest` | search, filter, pagination, and sort controls |
-| `.IInvert` | the view from the opposite relation |
 | `.IJoin`, `.ILogin`, `.IRefresh` | credential and session-context input |
 | `.IAuthorized` | the actor plus the issued token |
 
