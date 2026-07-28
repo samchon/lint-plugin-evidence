@@ -163,12 +163,11 @@ Do not substitute a direct `codex exec`, interactive Codex session, or hand-writ
 Every plan states:
 
 - P50 and P90 wall-clock and provider-total-token priors for the `t_done` and `t_dry` milestones, bound to each selected subject and arm;
-- provider credits and USD only when an applicable official conversion exists, otherwise the literal value `unavailable`;
 - an observed-response provider-total-token threshold and hard-wall duration identical for both arms of the same subject and replicate, plus one aggregate observed-token threshold and hard-wall duration for the complete concurrency block;
 - the exact reviewed selected-wave safety-pin and cost-prior identities;
 - a sanitized live quota attestation class, digest, policy identity, and UTC without account identifiers, balances, raw percentages, reset windows, or credentials.
 
-The plan does not invent P50/P90 splits for non-cached input, cache read, cache write, reasoning output, or ordinary output. Exact category vectors are measured from admitted raw provider usage and retained in usage and report artifacts. A source prior may expose an additional category only when its own frozen schema, units, and provenance explicitly provide it; the coordinator cannot derive one from provider-total tokens.
+The plan does not invent P50/P90 splits for non-cached input, cache read, cache write, reasoning output, ordinary output, provider credits, or USD. Exact token-category vectors are measured from admitted raw provider usage and retained in usage and report artifacts. Provider credits and USD are reported only when an applicable official conversion exists; otherwise their monetary status is literally `unavailable`. A source prior may expose an additional dimension only when its own frozen schema, units, and provenance explicitly provide it; the coordinator cannot derive one from provider-total tokens.
 
 Account and rate-limit endpoints are account-wide and may expose identifiers or balances. A dedicated zero-model launch preflight may inspect account source and native quota only long enough to prove `authenticationMode=chatgpt`, reject API-key billing, and evaluate the frozen first-hit policy. It immediately discards the raw response and never preserves identifiers, balances, credentials, exact utilization, reset windows, or payloads. Native window percentages, reset times, balances, and credits are never converted into provider-total-token allowance. The tracked subject and block token thresholds remain independent observed-usage guards; a native quota first hit is a separate OR stop condition. A command-line document cannot replace either guard, and only the sanitized attestation fields admitted by `quota-policy.json` are retained.
 
