@@ -1,20 +1,21 @@
 # AGENTS.md
 
+<!-- benchmark-template-splice: base-body -->
 {{base}}
 
-### Campaign
+### Completeness
 
-**Mandatory.** How completeness is established here: the obligation graph every artifact owes, the campaign that discharges each edge, and how a finding anywhere re-opens the work downstream of it, `.agents/skills/campaign/SKILL.md`.
+**Mandatory.** The plain arm's Phase One manual obligation inventory, bidirectional mapping method, state ledger, and first-done boundary, `.agents/skills/completeness/SKILL.md`.
 
-Nothing in this repository reports a missing requirement. The compiler checks the code that exists and cannot check the code that should exist, so completeness is established by walking every obligation yourself, in rounds, until two consecutive passes find nothing new.
+No plugin reports a requirement nobody implemented in this arm. Read the skill before any implementation, update its project-owned ledger whenever a source or artifact changes, and complete its exhaustive current-state pass before the first terminal completion report.
 
-Read it **before starting any work at all**, again **whenever any artifact changes**, and again **whenever you believe the work is finished**. Every other skill teaches how to build one thing well; this one is the only thing that tells you whether the specification is actually realized.
+Do not start the shared two-clean-round campaign before first done. After the runner records that boundary, a separate user turn activates the frozen method in `.agents/skills/completeness/phase-two.md`.
 
 ### Review
 
-**Mandatory.** The questions a completeness pass does not ask: whether each claimed realization is true, whether the source it names is itself correct, and which claims prove anything at all, `.agents/skills/review/SKILL.md`.
+**Mandatory.** How to review every manual mapping as a claim, claiming artifact, and named source; how to distinguish a filled row from a true one; and how source changes invalidate prior verdicts, `.agents/skills/review/SKILL.md`.
 
-It runs **inside** the campaign rounds rather than after them, because presence here is established by reading and a reader who is not asking whether the thing is true is not really reading it.
+Run its Phase One integrity pass before first done. Phase Two owns repeated global rounds and mutation frequency.
 
 ## Language
 

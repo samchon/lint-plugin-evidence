@@ -1,51 +1,27 @@
 # Testing
 
-The suite answers to three upstream sources, and the build checks that it acknowledges all of them.
-
-Every configured requirement section, every operation, and every DTO type must be acknowledged by a test that claims to verify it. The lint stage fails until they are, so an endpoint nobody tested, a rule nothing exercises, and a shape nothing ever built or read are compile errors rather than gaps someone has to notice.
+The `backend-tests` claim selects exported feature-test functions and independently references Markdown H2/H3 sections, generated SDK operations, and authored DTO root types. Read [the test completeness check](../completeness/test.md) first.
 
 ```ts
 /**
- * Verify that two coupons of the same kind cannot be combined.
+ * Rejects two seller coupons at checkout.
  *
- * @evidence docs/analysis/04-business-rules.md#coupon-stacking Attempts the
- *           forbidden combination and asserts the refusal.
- * @evidence {@link api.functional.shopping.customer.order.create} Exercises
- *           the operation where the combination is rejected.
- * @evidence {@link IShoppingOrder} Builds this shape's creation input and
- *           reads the created order back through it.
+ * @evidence docs/analysis/04-business-rules.md#coupon-stacking Proves the
+ *           same-kind rejection with a failing request assertion.
+ * @evidence {@link api.functional.orders.checkout} Invokes the published
+ *           checkout operation.
+ * @evidence {@link IShoppingOrder} Exercises the returned order shape.
  */
-export async function test_api_order_coupon_stacking_is_refused(
-  connection: api.IConnection,
-): Promise<void> {
-  // the setup, the attempt, and the refusal assertion
+export async function test_coupon_stacking(): Promise<void> {
+  // ...
 }
 ```
 
-**Both TypeScript citations are `{@link}`s resolved through this file's own imports**: the accessor from `api.functional`, the DTO type from the structures. Ordinary symbols, so a rename breaks the citation instead of leaving a path string that quietly resolves to nothing, and the DTO edge is discharged by the tests that genuinely build and read the shape.
+TypeScript targets are `{@link}` references resolved through imports in the test file. A call proves reachability and a type check proves shape; the requirement citation is true only when an assertion would fail if the named behavior disappeared.
 
-Read [the evidence skill](../evidence/SKILL.md) before starting.
-
+<!-- benchmark-template-splice: base-body -->
 {{base}}
 
-## A Citation Is Not Coverage
+## Mutation Ownership
 
-This is the layer where the gap between the build's report and the truth is widest, and it is worth stating plainly.
-
-The build checks that a test cites the requirement. It cannot check that the test would fail if the requirement stopped holding. A test that calls the operation, asserts the response validates against its type, and cites the rule satisfies every obligation and proves nothing.
-
-So the standard here is unchanged by the gate: **the test that would fail if the behavior were removed.** Write the assertion that has that property, then cite it.
-
-Periodically prove it directly. Take a requirement that matters, remove the behavior, confirm the test fails, restore it. The build will never tell you to do this.
-
-## One Citation Satisfies The Obligation
-
-A rule applying across several operations is discharged by the first test that cites it, and the build goes quiet. The remaining operations still need their own tests, and nothing will report their absence.
-
-Walk by actor as well as by operation, following each actor through every journey end to end. The build checks the endpoints; the journey is what finds the flow that works step by step and breaks in sequence.
-
-## After Any Failure
-
-A failing assertion sends you to the layer that owns the defect, usually the provider, sometimes the contract.
-
-**Never weaken an assertion, and never retarget its citation, to reach green.** Both make the report quiet while the defect stays. The suite exists to fail, and the citation exists to say what the failure would have been about.
+Do not invent an evidence-only mutation schedule. The shared Phase Two method performs exactly one mutation per global round in both arms and proves byte-for-byte restoration.

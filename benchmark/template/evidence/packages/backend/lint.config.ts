@@ -17,6 +17,7 @@ const graph: IEvidenceGraphConfig = {
   claims: [
     // The schema stores what the requirements say must persist.
     {
+      name: "schema-models",
       type: "prisma",
       files: ["prisma/schema/**/*.prisma"],
       symbol: "model",
@@ -29,6 +30,7 @@ const graph: IEvidenceGraphConfig = {
     },
     // The operations realize the requirements and expose the schema.
     {
+      name: "api-operations",
       type: "typescript",
       files: ["src/controllers/**/*.ts"],
       symbol: "function",
@@ -50,6 +52,7 @@ const graph: IEvidenceGraphConfig = {
     // every shape the contract exchanges. TypeScript targets are cited as
     // `{@link ...}` resolved through the test file's own imports.
     {
+      name: "backend-tests",
       type: "typescript",
       files: ["test/features/**/*.ts"],
       symbol: "function",
@@ -74,16 +77,17 @@ const graph: IEvidenceGraphConfig = {
         },
       ],
     },
-    // There is deliberately no claim over `src/providers`. A provider
-    // implements an operation that already cites the requirement and the
-    // model, so a claim here would acknowledge the same targets a second time
-    // from a layer no consumer reads. The provider skill owns what that
-    // silence costs and where the real check for that layer lives.
+    // Providers are deliberately outside the mechanical graph. The identical
+    // Phase One/Two residual lens in both arms checks operations, requirements,
+    // and schema invariants against provider implementation.
   ],
 };
 
 export default {
   extends: "../../config/lint.config.ts",
+  // Prisma owns this generated client. The authored schema remains selected by
+  // the graph through its explicit external population.
+  ignores: ["src/prisma/**/*.ts"],
   plugins: {
     evidence,
   },
@@ -94,8 +98,5 @@ export default {
     // keeps citation addresses stable.
     "evidence/documented": "error",
     "evidence/singular": "error",
-    // This package is where stubs live, so every remaining @todo is an
-    // unrealized contract: the report is the realize ledger.
-    "evidence/todo": "error",
   },
 } satisfies ITtscLintConfig;

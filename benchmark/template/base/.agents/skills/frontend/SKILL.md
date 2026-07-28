@@ -80,8 +80,8 @@ An unrecorded omission is indistinguishable from an oversight. The next reader r
 
 Never invent a feature the SDK does not support. If a requirement needs behavior the contract does not expose, that is a finding against the API, not an invitation to build a frontend-only path.
 
-## Done Means The Product Works
+## Frontend Layer Gate
 
 The frontend is not finished when it compiles, and a green build says nothing about whether a control does anything.
 
-Done means the application starts, the core flows work when a person performs them, the interface is coherent at every width, deliberate omissions are recorded, and the verification document reflects what was actually run against a real backend. The verification topic owns what that requires.
+This layer passes when the application starts, every requirement-backed user journey works when performed, the interface is coherent at every required width, deliberate omissions are recorded, and the verification document reflects what was actually run against a real backend. This is a frontend gate, not permission to report the whole project complete; the active arm's completeness method owns that boundary.

@@ -1,47 +1,20 @@
 # Screens
 
-A screen is where a requirement stops being a capability and becomes something a person can do.
-
-Every configured requirement section must be acknowledged by a screen that claims to deliver it, and the lint stage fails until it is. So a requirement the backend implemented and the interface never surfaced is a compile error rather than a gap that survives every backend check.
+The `frontend-screens` claim selects exported page functions and references Markdown H2/H3 sections. The `frontend-journeys` claim references those page functions from browser journeys. Read [the frontend completeness check](../completeness/frontend.md) first.
 
 ```tsx
 /**
- * @evidence docs/analysis/03-functional-requirements.md#browse-sales Renders the
- *           catalog with the search, filter, and pagination the section describes.
+ * @evidence docs/analysis/03-functional-requirements.md#browse-sales Lets a
+ *           customer search, filter, and page through visible sales.
  */
 export function CatalogPage() {}
 ```
 
-Read [the evidence skill](../evidence/SKILL.md) before starting.
+State what a user can do, not merely what data renders. Prefer leaf H3 targets; a broad H2 requires an audit of every selected descendant. An exclusion needs a requirement-backed omission, actual owner, and veto condition.
 
+<!-- benchmark-template-splice: base-body -->
 {{base}}
 
-## Delivering Is Not Rendering
+## SDK Residual Edge
 
-The build checks that a screen cites the requirement and that a journey cites the screen. It cannot check that a user can complete the journey.
-
-A screen that fetches the data, renders it, and cites the section satisfies the obligation completely while offering no path to the action the requirement names. That is the failure this layer is most prone to, because the data appearing looks like the feature working.
-
-So write the citation's reason as what the user can now do, not what the screen displays. A reason phrased that way is visibly false when the action is missing.
-
-## The Internal Graph Is Configured Too
-
-Two of these edges are the package's configured claims from the start, and the lint stage already fails on them: `requirement -> screen`, and `journey -> browser spec` together with `screen -> journey`, because the journey claim also references the page components a spec must cite.
-
-```
-component       ->  screen          (the screen that renders it)
-```
-
-That edge becomes configurable once the component population takes shape; add it then, because an edge nobody configured produces no diagnostic and its absence looks exactly like coverage. `SDK operation -> screen` is deliberately not a claim: the product records its scope decisions in `packages/frontend/wiki/omissions.md` rather than forcing every accessor into the interface, and that log is the edge's record.
-
-## When The Diagnostic Points Here But The Hole Is Upstream
-
-A screen that cannot cite a requirement is often a requirement no operation exposes. Check before writing anything: does the SDK have an accessor for it? If not, the finding belongs to the contract, and [controllers.md](../backend/controllers.md) owns it.
-
-Never build a frontend-only path to make a citation resolve. It produces a screen that satisfies the graph and a backend that still does not implement the requirement.
-
-## After Any Contract Change
-
-Run the build. A regenerated SDK can leave a screen's citation resolving to an operation that no longer means what it did, and a removed operation leaves it dangling.
-
-A dangling citation here means the contract moved under a claim that still believes the old shape. Fix whichever is actually wrong.
+No claim mechanically binds SDK accessors to screens. Manually map every product-facing operation to consuming screens/journeys or a reviewed omission, and map every screen back to its requirements and consumed operations. Never edit generated accessors or add an ad hoc transport path.

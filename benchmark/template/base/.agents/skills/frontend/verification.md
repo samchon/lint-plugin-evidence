@@ -29,7 +29,7 @@ packages/frontend/
 "playwright:install": "pnpm exec playwright install chromium"
 ```
 
-The runner serves the production build on a fixed local port and points the browser at it, so every mode tests what actually ships rather than the development server. Before the last screen is cracked that build does not exist, because `build` runs the lint stage and the standing `@todo` diagnostics fail it; drive the interim per-screen and gallery passes through the dev server, and treat the production-build modes as the closing gate they are. Take the port from the environment with a validated default, and fail loudly on a bad value rather than silently binding somewhere else.
+The runner serves the production build on a fixed local port and points the browser at it, so every closing mode tests what actually ships rather than the development server. Drive interim per-screen and gallery passes through the dev server, then require a production build, a repository-wide zero-`@todo` search, and the closing browser modes after the last screen is cracked. The `@todo` tags are a common textual ledger in both benchmark arms, not an arm-specific lint diagnostic. Take the port from the environment with a validated default, and fail loudly on a bad value rather than silently binding somewhere else.
 
 Install the browser before the first run. In Linux CI the install needs its system dependencies explicitly, run from the frontend package directory.
 
@@ -128,8 +128,8 @@ Update the record when the flows change. A verification document dated before th
 
 Keep traces and screenshots from failing runs while you diagnose them. They are diagnostics, not product evidence, and they do not belong in the repository as proof that something works.
 
-## What Done Requires
+## Frontend Verification Gate
 
-The application starts. The core flows work when a person performs them. The interface is coherent at every width. The simulation program passes and the live program has been run against a real backend. Deliberate omissions are recorded with reasons. `wiki/verification.md` reflects what was actually run, including what could not be.
+The application starts. Every requirement-backed user journey works when a person performs it. The interface is coherent at every required width. The simulation program passes and the live program has been run against a real backend. Deliberate omissions are recorded with reasons. `wiki/verification.md` reflects what was actually run, including what could not be. This closes the frontend layer only; the active completeness skill owns project completion.
 
 Passing a type check, a production build, or a seeded smoke test proves that the application mounts. It does not prove the product exists.
