@@ -14,7 +14,7 @@ Follow the literal request; it is the contract, not a hint at what the user "rea
 
 ## Skills
 
-Durable project conventions live under `.agents/skills/`. Read the linked skill when its topic applies.
+Durable project conventions live under `.agents/skills/`. Read the linked skill when its topic applies; each skill indexes its own topic documents.
 
 ### Project Outline
 
@@ -24,21 +24,17 @@ Workspace layout, package boundaries, generated artifacts, build order, and cano
 
 What the documents under `docs/analysis/` contain, how they are organized, and how to read a requirement so nothing in it is missed, `.agents/skills/requirements/SKILL.md`. Read before implementing anything and again when checking whether the specification is realized.
 
-### Database
+### Backend
 
-Prisma schema organization, naming, the documentation-comment contract, and the snapshot, soft-delete, and materialization patterns, `.agents/skills/database/SKILL.md`. Read before adding or changing a model.
-
-### API
-
-DTO ownership, controller composition, authentication decorators, provider structure, pagination, errors, and the JSDoc contract that becomes the published documentation, `.agents/skills/api/SKILL.md`. Read before adding or changing an endpoint, a DTO, or a provider.
-
-### Testing
-
-End-to-end feature test structure, composition through the connection pool, and what a test must prove beyond its happy path, `.agents/skills/testing/SKILL.md`. Read before writing or changing a test.
+The schema, the public API contract, the business logic, and the tests, `.agents/skills/backend/SKILL.md`. Its own index links the topic document for each layer. Read the index before any backend work, then the topic for the layer you are touching.
 
 ### Frontend
 
-The stack, the SDK adapter boundary, required interface states, testing through SDK simulation, and the review a screen must pass, `.agents/skills/frontend/SKILL.md`. Read before writing or changing a page or a component.
+The stack, how the generated SDK is consumed, screen structure, required interface states, and the review a screen must pass, `.agents/skills/frontend/SKILL.md`. Read before writing or changing a page or a component.
+
+### API SDK
+
+What `packages/api` is, why it is never edited by hand, and how to consume it, `.agents/skills/api/SKILL.md`. Read before importing from it or before wondering where a contract comes from.
 
 ### Method
 
