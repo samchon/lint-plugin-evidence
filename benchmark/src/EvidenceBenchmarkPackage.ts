@@ -341,6 +341,10 @@ export namespace EvidenceBenchmarkPackage {
       env: environment,
       label: "package smoke pnpm version",
     });
+    if (pnpm.stdout.trim() !== EvidenceBenchmarkProcess.PNPM_VERSION)
+      throw new Error(
+        `Package smoke requires pnpm ${EvidenceBenchmarkProcess.PNPM_VERSION}, received ${pnpm.stdout.trim()}.`,
+      );
     const install = await EvidenceBenchmarkProcess.pnpm(
       ["install", "--no-frozen-lockfile"],
       {
@@ -413,7 +417,7 @@ export namespace EvidenceBenchmarkPackage {
     return {
       installElapsedMs: install.elapsedMs,
       checkElapsedMs: failing.elapsedMs + passing.elapsedMs,
-      pnpmVersion: pnpm.stdout.trim(),
+      pnpmVersion: EvidenceBenchmarkProcess.PNPM_VERSION,
     };
   }
 

@@ -43,8 +43,8 @@ export namespace IEvidenceBenchmarkMaterialization {
     /** Mechanism overlay composed after the shared base tree. */
     arm: Arm;
 
-    /** Strict template variables; every placeholder must resolve exactly once. */
-    variables: Readonly<Record<string, string>>;
+    /** Exact package identities accepted by the scaffold renderer. */
+    variables: IVariables;
 
     /** Single packed product identity shared by every cell in the invocation. */
     artifact: IEvidenceBenchmarkPackageArtifact;
@@ -60,6 +60,21 @@ export namespace IEvidenceBenchmarkMaterialization {
 
     /** Hexadecimal SHA-256 identity of this file's exact bytes. */
     sha256: string;
+  }
+
+  /** Exact root and child package identities rendered into every scaffold. */
+  export interface IVariables {
+    /** Root workspace npm package name. */
+    name: string;
+
+    /** Authored DTO and generated SDK npm package name. */
+    apiPackageName: string;
+
+    /** NestJS application npm package name. */
+    backendPackageName: string;
+
+    /** React application npm package name. */
+    frontendPackageName: string;
   }
 
   /** Permanent pre-run record written beside the workspace and input copy. */

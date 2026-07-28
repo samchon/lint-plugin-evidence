@@ -8,20 +8,17 @@ import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBe
 export namespace EvidenceBenchmarkTemplate {
   const SPLICE_COMMENT = "<!-- benchmark-template-splice: base-body -->";
   const SPLICE_TOKEN = "{{base}}";
-  const FULL_REPLACEMENT_COLLISIONS: Readonly<
-    Record<IEvidenceBenchmarkMaterialization.Arm, ReadonlySet<string>>
-  > = {
-    evidence: new Set([
-      "packages/api/lint.config.ts",
-      "packages/backend/lint.config.ts",
-      "packages/frontend/lint.config.ts",
-    ]),
-    plain: new Set([
-      "packages/api/lint.config.ts",
-      "packages/backend/lint.config.ts",
-      "packages/frontend/lint.config.ts",
-    ]),
-  };
+  const VARIABLE_KEYS = [
+    "name",
+    "apiPackageName",
+    "backendPackageName",
+    "frontendPackageName",
+  ] as const;
+  const FULL_REPLACEMENT_COLLISIONS: ReadonlySet<string> = new Set([
+    "packages/api/lint.config.ts",
+    "packages/backend/lint.config.ts",
+    "packages/frontend/lint.config.ts",
+  ]);
   const BASE_REQUIRED_PATHS: readonly string[] = [
     ".agents/skills/api/SKILL.md",
     ".agents/skills/backend/SKILL.md",
@@ -89,19 +86,24 @@ export namespace EvidenceBenchmarkTemplate {
     /** Mechanism overlay selected for this generated workspace. */
     arm: IEvidenceBenchmarkMaterialization.Arm;
 
-    /** Strict name and version variables accepted by scaffold placeholders. */
-    variables: Readonly<Record<string, string>>;
+    /** Exact package identities accepted by scaffold placeholders. */
+    variables: IEvidenceBenchmarkMaterialization.IVariables;
   }): IComposition {
+    validateVariables(props.variables);
     const base: Map<string, Uint8Array> = readTextTree(
       path.join(props.template, "base"),
     );
-    const arm: Map<string, Uint8Array> = readTextTree(
-      path.join(props.template, props.arm),
-    );
+    const overlays: Record<
+      IEvidenceBenchmarkMaterialization.Arm,
+      Map<string, Uint8Array>
+    > = {
+      evidence: readTextTree(path.join(props.template, "evidence")),
+      plain: readTextTree(path.join(props.template, "plain")),
+    };
+    const arm: Map<string, Uint8Array> = overlays[props.arm];
     validateRequiredPaths("base", base, BASE_REQUIRED_PATHS);
-    validateRequiredPaths(props.arm, arm, ARM_REQUIRED_PATHS[props.arm]);
     validatePortablePaths("base", base);
-    validatePortablePaths(props.arm, arm);
+    validateOverlayProtocol(base, overlays);
 
     const composed: Map<string, Uint8Array> = new Map(base);
     for (const [relative, overlayBytes] of sortedEntries(arm)) {
@@ -121,7 +123,7 @@ export namespace EvidenceBenchmarkTemplate {
           base: decode(original, relative),
           overlay,
         });
-      } else if (FULL_REPLACEMENT_COLLISIONS[props.arm].has(relative)) {
+      } else if (FULL_REPLACEMENT_COLLISIONS.has(relative)) {
         if (overlay.includes(SPLICE_TOKEN))
           throw new Error(
             `Template overlay ${props.arm}/${relative} contains ${SPLICE_TOKEN} without its splice contract comment.`,
@@ -160,6 +162,78 @@ export namespace EvidenceBenchmarkTemplate {
   export function validate(files: ReadonlyMap<string, Uint8Array>): void {
     validatePortablePaths("rendered workspace", files);
     validateMarkdown(files);
+  }
+
+  function validateOverlayProtocol(
+    base: ReadonlyMap<string, Uint8Array>,
+    overlays: Readonly<
+      Record<
+        IEvidenceBenchmarkMaterialization.Arm,
+        ReadonlyMap<string, Uint8Array>
+      >
+    >,
+  ): void {
+    for (const arm of ["evidence", "plain"] as const) {
+      validateRequiredPaths(arm, overlays[arm], ARM_REQUIRED_PATHS[arm]);
+      validatePortablePaths(arm, overlays[arm]);
+    }
+    requireEqualPathSets(
+      "evidence and plain overlay",
+      overlays.evidence,
+      overlays.plain,
+    );
+    const collisions: Record<
+      IEvidenceBenchmarkMaterialization.Arm,
+      Set<string>
+    > = {
+      evidence: new Set(
+        [...overlays.evidence.keys()].filter((relative) => base.has(relative)),
+      ),
+      plain: new Set(
+        [...overlays.plain.keys()].filter((relative) => base.has(relative)),
+      ),
+    };
+    requireEqualPathSets(
+      "evidence and plain base-collision",
+      collisions.evidence,
+      collisions.plain,
+    );
+    for (const relative of FULL_REPLACEMENT_COLLISIONS)
+      if (!collisions.evidence.has(relative))
+        throw new Error(
+          `Template full-replacement policy names a path that both arms do not collide with: ${relative}.`,
+        );
+    for (const arm of ["evidence", "plain"] as const)
+      for (const [relative, bytes] of overlays[arm]) {
+        const overlay: string = decode(bytes, relative);
+        const original: Uint8Array | undefined = base.get(relative);
+        if (original === undefined) {
+          if (
+            overlay.includes(SPLICE_COMMENT) ||
+            overlay.includes(SPLICE_TOKEN)
+          )
+            throw new Error(
+              `Template overlay ${arm}/${relative} requests a base-body splice but base/${relative} does not exist.`,
+            );
+          continue;
+        }
+        if (FULL_REPLACEMENT_COLLISIONS.has(relative)) {
+          if (
+            overlay.includes(SPLICE_COMMENT) ||
+            overlay.includes(SPLICE_TOKEN)
+          )
+            throw new Error(
+              `Template full replacement ${arm}/${relative} must contain no splice marker or token.`,
+            );
+          continue;
+        }
+        spliceBody({
+          arm,
+          relative,
+          base: decode(original, relative),
+          overlay,
+        });
+      }
   }
 
   function spliceBody(props: {
@@ -206,17 +280,66 @@ export namespace EvidenceBenchmarkTemplate {
 
   function renderVariables(
     source: string,
-    variables: Readonly<Record<string, string>>,
+    variables: IEvidenceBenchmarkMaterialization.IVariables,
   ): string {
     return source.replace(
-      /\{\{((?:version:)?[A-Za-z][A-Za-z0-9]*)\}\}/g,
+      /\{\{([A-Za-z][A-Za-z0-9]*)\}\}/g,
       (_match: string, key: string): string => {
-        const value: string | undefined = variables[key];
+        const value: string | undefined =
+          variables[key as keyof IEvidenceBenchmarkMaterialization.IVariables];
         if (value === undefined)
           throw new Error(`Unknown benchmark template variable: ${key}.`);
         return value;
       },
     );
+  }
+
+  function validateVariables(
+    variables: IEvidenceBenchmarkMaterialization.IVariables,
+  ): void {
+    if (typeof variables !== "object" || variables === null)
+      throw new Error("Benchmark template variables must be an object.");
+    const actual: string[] = Object.keys(variables).sort();
+    const expected: string[] = [...VARIABLE_KEYS].sort();
+    const missing: string[] = expected.filter((key) => !actual.includes(key));
+    const unknown: string[] = actual.filter((key) => !expected.includes(key));
+    if (missing.length !== 0 || unknown.length !== 0)
+      throw new Error(
+        `Benchmark template variables require exactly ${expected.join(", ")}; missing=${missing.join(", ") || "none"}; unknown=${unknown.join(", ") || "none"}.`,
+      );
+    for (const key of VARIABLE_KEYS) {
+      const value: string = variables[key];
+      if (!isNpmPackageName(value))
+        throw new Error(
+          `Benchmark template variable ${key} is not a valid npm package name: ${JSON.stringify(value)}.`,
+        );
+    }
+    const identities: Map<string, string> = new Map();
+    for (const key of VARIABLE_KEYS) {
+      const value: string = variables[key];
+      const previous: string | undefined = identities.get(value);
+      if (previous !== undefined)
+        throw new Error(
+          `Benchmark template package names must be distinct: ${previous} and ${key} both use ${value}.`,
+        );
+      identities.set(value, key);
+    }
+  }
+
+  function isNpmPackageName(value: unknown): value is string {
+    if (
+      typeof value !== "string" ||
+      value.length === 0 ||
+      value.length > 214 ||
+      value !== value.toLowerCase() ||
+      value.trim() !== value
+    )
+      return false;
+    const part = (input: string): boolean =>
+      /^[a-z0-9][a-z0-9._~-]*$/.test(input);
+    if (!value.startsWith("@")) return part(value);
+    const pieces: string[] = value.slice(1).split("/");
+    return pieces.length === 2 && part(pieces[0]!) && part(pieces[1]!);
   }
 
   function readTextTree(root: string): Map<string, Uint8Array> {
@@ -253,6 +376,29 @@ export namespace EvidenceBenchmarkTemplate {
     if (missing.length !== 0)
       throw new Error(
         `Benchmark ${label} template is missing required paths: ${missing.join(", ")}.`,
+      );
+  }
+
+  function requireEqualPathSets(
+    label: string,
+    left: ReadonlyMap<string, unknown> | ReadonlySet<string>,
+    right: ReadonlyMap<string, unknown> | ReadonlySet<string>,
+  ): void {
+    const leftPaths: string[] = [...left.keys()].sort((first, second) =>
+      first.localeCompare(second, "en"),
+    );
+    const rightPaths: string[] = [...right.keys()].sort((first, second) =>
+      first.localeCompare(second, "en"),
+    );
+    const missing: string[] = leftPaths.filter(
+      (relative) => !rightPaths.includes(relative),
+    );
+    const extra: string[] = rightPaths.filter(
+      (relative) => !leftPaths.includes(relative),
+    );
+    if (missing.length !== 0 || extra.length !== 0)
+      throw new Error(
+        `Benchmark ${label} path sets differ; missing=${missing.join(", ") || "none"}; extra=${extra.join(", ") || "none"}.`,
       );
   }
 

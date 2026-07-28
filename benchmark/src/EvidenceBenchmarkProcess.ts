@@ -1,8 +1,13 @@
 import { spawn } from "node:child_process";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 
 /** Runs exact benchmark setup commands while retaining output and wall time. */
 export namespace EvidenceBenchmarkProcess {
+  /** Exact pnpm release used for packing, setup, and generated projects. */
+  export const PNPM_VERSION = "10.10.0";
+
   /** Captured process outcome used by setup provenance and smoke assertions. */
   export interface IResult {
     /** Process exit status; null means the operating system terminated it. */
@@ -79,17 +84,28 @@ export namespace EvidenceBenchmarkProcess {
     return result;
   }
 
-  /** Runs pnpm through the repository-selected package-manager version. */
+  /** Runs the benchmark-pinned pnpm through Corepack without a command shell. */
   export function pnpm(
     arguments_: readonly string[],
     options: IOptions,
   ): Promise<IResult> {
-    const executable: string | undefined = process.env.npm_execpath;
-    if (executable !== undefined && /\.(?:c?js|mjs)$/i.test(executable))
-      return run(process.execPath, [executable, ...arguments_], options);
+    const selector: string = `pnpm@${PNPM_VERSION}`;
+    if (process.platform !== "win32")
+      return run("corepack", [selector, ...arguments_], options);
+    const entrypoint: string = path.join(
+      path.dirname(process.execPath),
+      "node_modules",
+      "corepack",
+      "dist",
+      "corepack.js",
+    );
+    if (!fs.existsSync(entrypoint))
+      throw new Error(
+        `Pinned pnpm requires the Corepack entrypoint beside Node.js: ${entrypoint}.`,
+      );
     return run(
-      process.platform === "win32" ? "pnpm.cmd" : "pnpm",
-      arguments_,
+      process.execPath,
+      [entrypoint, selector, ...arguments_],
       options,
     );
   }
