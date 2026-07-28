@@ -18,6 +18,43 @@ What does the user see before acting? While the request is in flight? When it su
 
 The journey matters more than the screen. A flow whose every step works individually can still be impossible to complete in sequence: a value the next step needs is never shown, an actor loses their session halfway, a confirmation leaves the user somewhere they cannot continue from. Only performing the whole journey finds those.
 
+## What A Screen Looks Like
+
+A route component reads its data through a hook, branches on the states, and composes primitives.
+
+```tsx
+export function CatalogPage() {
+  const [params, setParams] = useSearchParams();
+  const { data, isPending, error, refetch } = useCatalog(params.toString());
+
+  if (isPending) return <CatalogPageFallback />;
+  if (error) return <ErrorState error={error} onRetry={refetch} />;
+  if (data.products.length === 0)
+    return <EmptyState message="No product matches this filter." />;
+
+  return (
+    <div className="grid gap-4">
+      <CategoryTree
+        nodes={data.categories}
+        current={params.get("category")}
+        onSelect={(value) => setParams(next(params, "category", value))}
+      />
+      {data.products.map((product: ProductCardView) => (
+        <ProductCard key={product.id} product={product} />
+      ))}
+    </div>
+  );
+}
+
+export function CatalogPageFallback() {
+  return <Skeleton className="h-64 w-full" />;
+}
+```
+
+Read what that shape enforces. The four states are branches at the top rather than conditions scattered through the markup, so none can be forgotten silently. The sub-components take view models as props and fetch nothing. Filter state lives in the URL, so a filtered view is a link someone can send.
+
+Sub-components used only by this page live in this file or beside it in the same domain folder, not in a shared folder pretending to be reusable.
+
 ## Every State Is Owned
 
 A screen is not the success case with the rest deferred. Each one handles all five:

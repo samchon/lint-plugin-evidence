@@ -33,64 +33,111 @@ packages/frontend/
   vite.config.ts
   playwright.config.ts
   scripts/
-    run-playwright.mjs       one runner, several modes
+    run-playwright.mjs             one runner, several modes
   src/
-    main.tsx                 entry
-    App.tsx                  router and layout shell
+    main.tsx                       entry
+    App.tsx                        routes and the shell
     styles.css
-    config.ts                environment reading, one place
-    api.ts                   the shared connection
-    pages/
-      <route>.tsx            one file per route
     components/
-      ui/                    local primitives: button, input, dialog, table
-      providers/             app-wide providers, composed in one file
-      <domain>/              one folder per product area
-    hooks/
-      <domain>.ts            queries and mutations, plus the query keys
+      app-frame.tsx                layout chrome shared by every route
+      error-state.tsx              shared cross-domain pieces, at this level
+      ui/                          primitives: button, card, input, select, skeleton
+      providers/
+        app-providers.tsx          every app-wide provider, composed here
+      catalog/
+        catalog-page.tsx           the route component AND its sub-components
+      cart/
+        cart-page.tsx
+      orders/
+        orders-page.tsx
+        order-detail-page.tsx
     lib/
-      utils.ts               generic helpers with no domain meaning
+      utils.ts                     cn, formatCurrency, formatDateTime
+      <domain>/
+        types.ts                   view models the interface consumes
+        hooks.ts                   queries, mutations, and the query keys
+        client.ts                  the shared connection and request helper
   tests/
-    *.spec.ts                browser programs, one per purpose
+    *.spec.ts                      browser programs, one per purpose
   wiki/
-    architecture.md          this project's stack, routes, choices
-    omissions.md             what was deliberately left out and why
-    verification.md          what was verified, when, and how
+    architecture.md                this project's stack, routes, choices
+    omissions.md                   what was deliberately left out and why
+    verification.md                what was verified, when, and how
 ```
+
+**There is no `pages/` folder.** A route component lives in the domain folder it belongs to, named `<domain>-page.tsx`, beside the sub-components only it uses. Splitting routes away from their parts means every feature edit touches two trees, and the sub-component that exists solely for one page ends up in a shared folder pretending to be reusable.
 
 **Components split by domain, not by kind.** `components/cart` holds everything the cart renders. Do not create `components/forms` or `components/lists`: nobody looks for a cart control under "forms", and every domain then reaches into every folder.
 
-Two folders are the exception and are named for their kind:
+Three things sit outside the domain folders:
 
-- `components/ui` holds the local primitives that every domain composes. Nothing in here knows what the product is.
+- `components/ui` holds the primitives every domain composes. Nothing in here knows what the product is.
 - `components/providers` holds the app-wide providers, composed in one file so the provider order is readable in one place.
+- A genuinely cross-domain piece such as `app-frame.tsx` or `error-state.tsx` sits at the `components/` level. If two domains use it and it is not a primitive, it belongs here rather than in one of them.
 
-**`pages/` is one file per route.** The page owns its data loading and passes plain values down.
+**`lib/<domain>` is the interface's own vocabulary.** `types.ts` names view models for what a screen needs rather than what a table holds: `ProductCardView`, `CategoryTreeNode`, `OrderDetailView`. `hooks.ts` exposes the queries and mutations and owns the query keys. `client.ts` holds the shared connection and the request helper.
 
-**`hooks/<domain>.ts` owns the queries, the mutations, and the query keys** for that area. This is where the SDK call lives when more than one screen needs it; a screen that is the only caller keeps the call.
+**Files are kebab-case**, exports are PascalCase. `catalog-page.tsx` exports `CatalogPage`.
 
-**`config.ts` reads the environment once.** The API host and the simulation flag come from there and nowhere else.
+**Import through the path alias.** `@/components/ui/card`, `@/lib/shopping/hooks`. A relative chain climbing three levels tells you the file is in the wrong folder.
 
 **Tests live in `tests/` at the package root**, not beside components. Browser programs test flows rather than units, so they belong to the package.
 
-**A file that would sit in two domain folders belongs in `lib` or `components/ui`.** Duplicating it into both is how two versions drift.
+**A file that would sit in two domain folders belongs in `lib`, `components/ui`, or the `components/` level.** Duplicating it into both is how two versions drift.
 
-## Query Keys Are Declared, Not Improvised
+## Hooks Own The Keys, The Queries, And The Invalidation
 
-Keep the keys beside the hooks so invalidation after a mutation is a lookup rather than a memory test.
+Every key for a domain sits in one object beside its hooks, so invalidation is a lookup rather than a memory test.
 
 ```ts
 const keys = {
-  session: ["session"] as const,
-  catalog: (search: string) => ["catalog", search] as const,
-  product: (id: string) => ["product", id] as const,
-  cart: ["cart"] as const,
-  orders: ["orders"] as const,
-  order: (id: string) => ["order", id] as const,
+  session: ["shopping", "session"] as const,
+  catalog: (search: string) => ["shopping", "catalog", search] as const,
+  product: (id: string) => ["shopping", "product", id] as const,
+  cart: ["shopping", "cart"] as const,
+  orders: ["shopping", "orders"] as const,
+  order: (id: string) => ["shopping", "order", id] as const,
 };
 ```
 
-A mutation that changes something invalidates every key that shows it. Stale data after a successful action is the most common frontend defect and the least likely to be reported as one, because the interface looks like it worked.
+The keys are `as const` and prefixed with the domain. The constant assertion is what makes a typo in a key a compile error instead of a query that silently never matches an invalidation. The prefix keeps two domains from colliding on a name as ordinary as `session`.
+
+A parameterized key takes the parameter, so each distinct query caches separately. A catalog key that ignores the search string serves the first search's results to every later one.
+
+```ts
+export function useCatalog(search: string) {
+  return useQuery({
+    queryKey: keys.catalog(search),
+    queryFn: () => fetchCatalog(search),
+  });
+}
+```
+
+A mutation invalidates **every** key that shows what it changed, not the obvious one.
+
+```ts
+export function useLogin(options?: UseMutationOptions<...>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    ...options,
+    onSuccess: async (data, variables, context, mutation) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: keys.session }),
+        queryClient.invalidateQueries({ queryKey: keys.cart }),
+        queryClient.invalidateQueries({ queryKey: keys.orders }),
+        queryClient.invalidateQueries({ queryKey: keys.wallet }),
+      ]);
+      await options?.onSuccess?.(data, variables, context, mutation);
+    },
+  });
+}
+```
+
+Signing in changes the session, and it also changes whose cart, whose orders, and whose balance the interface should be showing. Invalidating only the session leaves the previous actor's data on screen, which looks like the login failed or, worse, like it succeeded as someone else.
+
+Two mechanics matter. The invalidations are awaited together, so the screen re-renders once with everything fresh rather than flickering through partial states. And the caller's own `onSuccess` is forwarded after, so a screen can still react without the hook losing its invalidation.
+
+Stale data after a successful action is the most common frontend defect and the least likely to be reported as one, because the interface looks like it worked.
 
 ## Errors
 
@@ -98,9 +145,77 @@ The SDK throws a typed HTTP error. Handle it where the call is, and render what 
 
 Do not build an error translation layer. The contract already states which rejections an operation has, and the business rules already say what each one means to a user; a generic translator loses exactly that specificity.
 
+## Routes Unwrap Parameters, Pages Take Typed Props
+
+`App.tsx` holds the route table and a small wrapper per parameterized route. The wrapper reads the parameters, decides what to do when one is missing, and hands the page a typed value.
+
+```tsx
+function ProductRoute() {
+  const { id } = useParams<{ id: string }>();
+  return id ? <ProductDetailPage productId={id} /> : <Navigate replace to="/" />;
+}
+
+function CatalogRoute() {
+  return (
+    <Suspense fallback={<CatalogPageFallback />}>
+      <CatalogPage />
+    </Suspense>
+  );
+}
+
+export function App() {
+  return (
+    <AppProviders>
+      <AppFrame>
+        <Routes>
+          <Route path="/" element={<CatalogRoute />} />
+          <Route path="/products/:id" element={<ProductRoute />} />
+          <Route path="/cart" element={<CartPage />} />
+          <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/orders/:id" element={<OrderRoute />} />
+          <Route path="*" element={<Navigate replace to="/" />} />
+        </Routes>
+      </AppFrame>
+    </AppProviders>
+  );
+}
+```
+
+Three things here are the convention rather than the example.
+
+- **A page never reads route parameters.** It takes `productId: string`, so it cannot be rendered without one and its type says so. The wrapper owns the missing case, once, where the route is declared.
+- **A page that suspends exports its own fallback beside it**, so the skeleton and the screen it stands in for change together.
+- **The catch-all route is declared.** Without it an unknown path renders nothing, which reads as a broken application rather than a wrong address.
+
+## Providers Are Composed In One File
+
+```tsx
+export function AppProviders({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: { refetchOnWindowFocus: false, retry: 1, staleTime: 20_000 },
+          mutations: { retry: 0 },
+        },
+      }),
+  );
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+      <Toaster position="top-right" richColors />
+    </QueryClientProvider>
+  );
+}
+```
+
+**The client is created inside `useState` with an initializer**, not at module scope and not inline. Inline construction makes a new client on every render and silently discards the cache; module scope shares one client across every test in a run, so one test's cached data leaks into the next.
+
+**State the defaults deliberately.** Refetching on window focus surprises a user mid-form. Retrying a mutation can submit twice. A stale time of zero re-requests on every mount. Each of those is a product decision, and leaving it to the library's defaults is still a decision, just an unexamined one.
+
 ## Structure Rules
 
-- One route, one page component.
+- One route, one page component, in its domain folder.
 - Components below a page are presentational and take their data as props. A component that fetches on its own makes the page's loading state unknowable and its errors unhandleable.
 - Shared state that outlives a route lives in one provider, composed in `components/providers`, not in a context invented per feature.
 
