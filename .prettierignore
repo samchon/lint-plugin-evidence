@@ -5,3 +5,4 @@ benchmark/requirements/
 benchmark/prompts/
 benchmark/protocol/
 benchmark/template/
+benchmark/result/
