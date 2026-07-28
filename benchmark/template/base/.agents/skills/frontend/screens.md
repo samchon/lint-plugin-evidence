@@ -1,6 +1,6 @@
 # Screens
 
-Read [SKILL.md](SKILL.md) first. This document owns what a screen is and what it owes.
+This document owns what a screen is and what it owes.
 
 ## A Screen Traces To A Requirement
 

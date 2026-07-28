@@ -1,6 +1,6 @@
 # Wiring
 
-Read [SKILL.md](SKILL.md) first. This document owns everything between "the code exists" and "the server answers": module registration, the global singleton, the bootstrap, the environment, and the generation commands.
+This document owns everything between "the code exists" and "the server answers": module registration, the global singleton, the bootstrap, the environment, and the generation commands.
 
 Nothing here is optional. A controller that compiles and is not registered produces a route that does not exist, and no test you write will tell you why.
 

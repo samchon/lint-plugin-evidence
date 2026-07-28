@@ -1,6 +1,6 @@
 # Testing
 
-Read [SKILL.md](SKILL.md) first. The end-to-end suite is the only artifact that proves the product behaves as the requirements say.
+The end-to-end suite is the only artifact that proves the product behaves as the requirements say.
 
 ## Layout
 

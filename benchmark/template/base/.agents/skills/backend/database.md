@@ -1,6 +1,6 @@
 # Database
 
-Read [SKILL.md](SKILL.md) first. This document owns the schema.
+This document owns the schema.
 
 ## Organization
 

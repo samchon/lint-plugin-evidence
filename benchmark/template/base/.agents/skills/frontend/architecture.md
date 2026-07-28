@@ -1,6 +1,6 @@
 # Architecture
 
-Read [SKILL.md](SKILL.md) first. This document owns layering and where things live.
+This document owns layering and where things live.
 
 ## There Is No Frontend Server
 

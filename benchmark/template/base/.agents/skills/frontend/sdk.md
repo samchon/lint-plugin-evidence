@@ -1,6 +1,6 @@
 # SDK
 
-Read [SKILL.md](SKILL.md) first. This document owns how the frontend talks to the backend.
+This document owns how the frontend talks to the backend.
 
 ## The Generated SDK Is The Only Transport
 

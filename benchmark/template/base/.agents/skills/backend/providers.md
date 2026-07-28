@@ -1,6 +1,6 @@
 # Providers
 
-Read [SKILL.md](SKILL.md) first. This document owns the business logic and every database access.
+This document owns the business logic and every database access.
 
 A provider is an exported namespace named for the entity it owns. There is no dependency injection: a provider is a namespace of functions, and callers import it.
 

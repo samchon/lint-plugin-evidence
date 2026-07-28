@@ -1,6 +1,6 @@
 # Design
 
-Read [SKILL.md](SKILL.md) first. This document owns how the interface looks, and specifically how to avoid the signatures that mark a screen as machine-generated.
+This document owns how the interface looks, and specifically how to avoid the signatures that mark a screen as machine-generated.
 
 ## Scope
 

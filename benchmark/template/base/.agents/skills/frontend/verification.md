@@ -1,6 +1,6 @@
 # Verification
 
-Read [SKILL.md](SKILL.md) first. This document owns what proves the frontend works.
+This document owns what proves the frontend works.
 
 ## Compiling Is Not Working
 

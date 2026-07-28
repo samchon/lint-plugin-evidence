@@ -1,6 +1,6 @@
 # Authorization
 
-Read [SKILL.md](SKILL.md) first. This document owns identity, sessions, and every check that decides whether a caller may do something.
+This document owns identity, sessions, and every check that decides whether a caller may do something.
 
 The requirement documents under `docs/analysis/` are the specification for all of it: which actors exist, what each may do, and which flows persist anything. Find the sections that state those and read them before designing any of the storage below.
 

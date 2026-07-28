@@ -1,6 +1,6 @@
 # DTOs
 
-Read [SKILL.md](SKILL.md) first. This document owns the data transfer objects: where they live, what they are named, what each variant means, how every property earns its place, and how relations are shaped.
+This document owns the data transfer objects: where they live, what they are named, what each variant means, how every property earns its place, and how relations are shaped.
 
 A DTO is a published contract. It reaches consumers who never open this repository, and changing it later breaks them.
 

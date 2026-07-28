@@ -1,6 +1,6 @@
 # Debugging
 
-Read [SKILL.md](SKILL.md) first. This document owns what to do when something fails.
+This document owns what to do when something fails.
 
 The whole discipline is one rule: **assign the failure to its owner before editing anything.** A symptom patch at the wrong layer hides the defect from every layer after it, and it commits the rest of the work to the mistake.
 

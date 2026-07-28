@@ -1,6 +1,6 @@
 # TypeScript And Typia
 
-Read [SKILL.md](SKILL.md) first. This document owns the type errors you will actually meet, because the same dozen recur and each has one correct fix.
+This document owns the type errors you will actually meet, because the same dozen recur and each has one correct fix.
 
 The rule underneath all of them: **fix the artifact, do not silence the compiler.** No `any`, no `as unknown as`, no suppression comment. Each of those converts a compile error into a runtime defect, and the runtime defect surfaces somewhere unrelated.
 
