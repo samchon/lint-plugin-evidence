@@ -2,12 +2,20 @@
   "schemaVersion": 1,
   "status": "blocked-until-all-null-execution-pins-are-resolved",
   "formalProtocolRevision": {
-    "identityKind": "merged-git-commit-and-formal-review",
+    "identityKind": "runtime-resolved-merged-source-and-formal-review",
     "reviewedMergedCommit": null,
+    "finalCommentReviewId": null,
+    "resolutionPolicy": {
+      "source": "github-api-and-git-remote",
+      "mergeStrategy": "merge-commit",
+      "requireReviewedHeadMergeParentOrAncestor": true,
+      "requireExactReviewedHeadAndMergedGitTree": true,
+      "runtimeArtifact": "benchmark/protocol/schema/block-plan.schema.json#/$defs/formalReviewAdmission"
+    },
     "decisionReviewId": 4801471324,
     "decisionReviewUrl": "https://github.com/samchon/lint-plugin-evidence/pull/105#pullrequestreview-4801471324",
-    "activePriorReviewId": 4801568652,
-    "activePriorReviewUrl": "https://github.com/samchon/lint-plugin-evidence/pull/105#pullrequestreview-4801568652",
+    "activePriorReviewId": 4801965103,
+    "activePriorReviewUrl": "https://github.com/samchon/lint-plugin-evidence/pull/105#pullrequestreview-4801965103",
     "issue88CommentId": 5109235729,
     "issue88CommentUrl": "https://github.com/samchon/lint-plugin-evidence/issues/88#issuecomment-5109235729",
     "issue99CommentId": 5109239236,
@@ -384,7 +392,7 @@
     "scope": "repository-static-readiness-template",
     "blocked": true,
     "reasons": [
-      "The reviewed merged source commit and runtime-sealed protocol raw-tree digest are not yet pinned.",
+      "Runtime source admission has not yet resolved and verified the final COMMENT review, reviewed head, merged source, exact Git tree equality, and sealed protocol raw-tree digest.",
       "Subject-specific observed-total-token thresholds and hard wall durations are null.",
       "Production runner, grading, promotion, and report vertical fixtures have not yet closed every pinned contract."
     ],

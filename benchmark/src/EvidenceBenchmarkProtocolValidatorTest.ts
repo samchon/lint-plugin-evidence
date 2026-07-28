@@ -426,6 +426,11 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
       ),
       "protocol identity fixture",
     );
+    assert.equal(
+      object(pins.formalProtocolRevision, "formal identity").identityKind,
+      object(fixture.validExpected, "valid identity expectation")
+        .formalIdentityKind,
+    );
     for (const input of list(fixture.invalidCases, "invalid identities")) {
       const invalid = object(input, "invalid identity");
       const id: string = text(invalid.id, "identity case id");
@@ -447,20 +452,6 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
       const runtime = structuredClone(
         object(pins.prepareTimeRuntimeRequired, "runtime identity"),
       );
-      if (id === "reviewed-commit-mismatch") {
-        formal.reviewedMergedCommit = invalid.formalCommit;
-        runtime.mergedSourceCommit = invalid.runtimeCommit;
-        assert.throws(
-          () =>
-            EvidenceBenchmarkProtocolValidator.validateProtocolIdentityValue(
-              formal,
-              runtime,
-            ),
-          new RegExp(text(invalid.expectedPattern, "expected failure pattern")),
-          id,
-        );
-        continue;
-      }
       const target =
         invalid.target === "formal"
           ? formal
@@ -478,6 +469,29 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
           ),
         new RegExp(text(invalid.expectedPattern, "expected failure pattern")),
         id,
+      );
+    }
+    const validAdmission = object(
+      fixture.validRuntimeAdmission,
+      "valid runtime source admission",
+    );
+    EvidenceBenchmarkProtocolValidator.validateRuntimeSourceAdmissionValue(
+      validAdmission,
+    );
+    for (const input of list(
+      fixture.invalidRuntimeAdmissions,
+      "invalid runtime source admissions",
+    )) {
+      const invalid = object(input, "invalid runtime source admission");
+      const mutated: Record<string, unknown> = structuredClone(validAdmission);
+      applyMutation(mutated, invalid);
+      assert.throws(
+        () =>
+          EvidenceBenchmarkProtocolValidator.validateRuntimeSourceAdmissionValue(
+            mutated,
+          ),
+        new RegExp(text(invalid.expectedPattern, "expected failure pattern")),
+        text(invalid.id, "runtime source admission id"),
       );
     }
   }
