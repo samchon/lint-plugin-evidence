@@ -20,7 +20,8 @@
     "promptSha256",
     "providerOutputRegistrySha256",
     "qualityInputsSha256",
-    "protocolRevisionSha256"
+    "protocolRawTreeAlgorithmId",
+    "protocolRawTreeSha256"
   ],
   "properties": {
     "schemaVersion": {
@@ -69,7 +70,10 @@
     "qualityInputsSha256": {
       "$ref": "#/$defs/sha256"
     },
-    "protocolRevisionSha256": {
+    "protocolRawTreeAlgorithmId": {
+      "const": "sha256-posix-path-nul-bytes-v1"
+    },
+    "protocolRawTreeSha256": {
       "$ref": "#/$defs/sha256"
     }
   },

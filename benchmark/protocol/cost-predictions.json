@@ -1,0 +1,400 @@
+{
+  "schemaVersion": 1,
+  "freezeId": "current-freeze-template-standard-v1",
+  "status": "prediction-not-observation",
+  "activeLeaf": {
+    "path": "predictions/current-freeze-template-addendum.md",
+    "bytes": 2168,
+    "sha256": "dc2eb93a2f9fd7a390300713e6ce89f08e9678ff7617efd326004eea5f5a40f9",
+    "reviewId": 4801965103
+  },
+  "sourceChain": [
+    {
+      "order": 1,
+      "path": "predictions/current-freeze-all-subjects.md",
+      "bytes": 11326,
+      "sha256": "371ed9d85a0d305a36c4d88bd4727af35ddf1f41d045b0491401c2b1a61a15f0",
+      "reviewId": 4801252166
+    },
+    {
+      "order": 2,
+      "path": "predictions/current-freeze-standard-tier.md",
+      "bytes": 3909,
+      "sha256": "963a3f8dfc6c91680384b3d0d38779a7c596504c77fca14830580f8d79f71fda",
+      "reviewId": 4801307464
+    },
+    {
+      "order": 3,
+      "path": "predictions/current-freeze-standard-null-tier-addendum.md",
+      "bytes": 1548,
+      "sha256": "1a0b6ca65f469b9233f4ad95fb6abeedaae635b9c5cd40814673006cc9228be3",
+      "reviewId": 4801340185
+    },
+    {
+      "order": 4,
+      "path": "predictions/current-freeze-cache-write-rate-addendum.md",
+      "bytes": 2140,
+      "sha256": "92c3750387f27548b5ad4ac011da1a36082e372c581adc9e13582eb3d588c86c",
+      "reviewId": 4801447410
+    },
+    {
+      "order": 5,
+      "path": "predictions/current-freeze-token-safety-cost-amendment.md",
+      "bytes": 2039,
+      "sha256": "37a44770fa942fb045aff8603f1a10f3e2fd0aaee106e4c4e2072460a7096d4d",
+      "reviewId": 4801470216
+    },
+    {
+      "order": 6,
+      "path": "predictions/current-freeze-subject-manifest-addendum.md",
+      "bytes": 1489,
+      "sha256": "6cb9a8427161567f428c469e731b52eaa4623eff53375065509ea87104ac1c2a",
+      "reviewId": 4801516000
+    },
+    {
+      "order": 7,
+      "path": "predictions/current-freeze-block-safety-addendum.md",
+      "bytes": 1568,
+      "sha256": "6a1d0d219a0b845d1c8791266626f5ab8909c56ce762899479044a42dfa2da62",
+      "reviewId": 4801568652
+    },
+    {
+      "order": 8,
+      "path": "predictions/current-freeze-template-addendum.md",
+      "bytes": 2168,
+      "sha256": "dc2eb93a2f9fd7a390300713e6ce89f08e9678ff7617efd326004eea5f5a40f9",
+      "reviewId": 4801965103
+    }
+  ],
+  "valueSelection": {
+    "quantiles": [
+      "p50",
+      "p90"
+    ],
+    "conditionality": "conditional-on-reaching-milestone",
+    "wallClock": {
+      "sourcePath": "predictions/current-freeze-standard-tier.md",
+      "sourceSha256": "963a3f8dfc6c91680384b3d0d38779a7c596504c77fca14830580f8d79f71fda",
+      "sectionHeading": "## Revised Standard wall-clock prior",
+      "unit": "hours"
+    },
+    "providerTokens": {
+      "sourcePath": "predictions/current-freeze-all-subjects.md",
+      "sourceSha256": "371ed9d85a0d305a36c4d88bd4727af35ddf1f41d045b0491401c2b1a61a15f0",
+      "sectionHeading": "## Provider-token total prior",
+      "unit": "millions-of-provider-total-tokens"
+    },
+    "monetary": {
+      "sourcePath": "predictions/current-freeze-token-safety-cost-amendment.md",
+      "sourceSha256": "37a44770fa942fb045aff8603f1a10f3e2fd0aaee106e4c4e2072460a7096d4d",
+      "providerCredits": "unavailable",
+      "usd": "unavailable",
+      "assertionText": "Provider credits and USD therefore remain literally unavailable, and the benchmark makes no cost-effectiveness claim."
+    }
+  },
+  "zeroObservationProvenance": {
+    "observationCount": 0,
+    "observedDataUsed": false,
+    "assertionSourcePath": "predictions/current-freeze-template-addendum.md",
+    "assertionSourceSha256": "dc2eb93a2f9fd7a390300713e6ce89f08e9678ff7617efd326004eea5f5a40f9",
+    "assertionText": "No paid generation result, benchmark transcript, grade, gate outcome, time observation, token observation, quality observation, or coverage observation informed this addendum.",
+    "paidGenerationResultsUsed": false,
+    "benchmarkTranscriptsUsed": false,
+    "gradesUsed": false,
+    "gateOutcomesUsed": false,
+    "timeObservationsUsed": false,
+    "tokenObservationsUsed": false,
+    "qualityObservationsUsed": false,
+    "coverageObservationsUsed": false
+  },
+  "rows": [
+    {
+      "subject": "todo",
+      "arm": "evidence",
+      "milestones": {
+        "t_done": {
+          "wallClockHours": {
+            "p50": 9,
+            "p90": 20
+          },
+          "providerTokensMillions": {
+            "p50": 178,
+            "p90": 426
+          },
+          "providerCredits": {
+            "p50": null,
+            "p90": null
+          },
+          "monetaryStatus": "unavailable"
+        },
+        "t_dry": {
+          "wallClockHours": {
+            "p50": 14,
+            "p90": 30
+          },
+          "providerTokensMillions": {
+            "p50": 264,
+            "p90": 660
+          },
+          "providerCredits": {
+            "p50": null,
+            "p90": null
+          },
+          "monetaryStatus": "unavailable"
+        }
+      }
+    },
+    {
+      "subject": "todo",
+      "arm": "plain",
+      "milestones": {
+        "t_done": {
+          "wallClockHours": {
+            "p50": 12,
+            "p90": 27
+          },
+          "providerTokensMillions": {
+            "p50": 264,
+            "p90": 659
+          },
+          "providerCredits": {
+            "p50": null,
+            "p90": null
+          },
+          "monetaryStatus": "unavailable"
+        },
+        "t_dry": {
+          "wallClockHours": {
+            "p50": 18,
+            "p90": 42
+          },
+          "providerTokensMillions": {
+            "p50": 396,
+            "p90": 1014
+          },
+          "providerCredits": {
+            "p50": null,
+            "p90": null
+          },
+          "monetaryStatus": "unavailable"
+        }
+      }
+    },
+    {
+      "subject": "reddit",
+      "arm": "evidence",
+      "milestones": {
+        "t_done": {
+          "wallClockHours": {
+            "p50": 27,
+            "p90": 63
+          },
+          "providerTokensMillions": {
+            "p50": 609,
+            "p90": 1520
+          },
+          "providerCredits": {
+            "p50": null,
+            "p90": null
+          },
+          "monetaryStatus": "unavailable"
+        },
+        "t_dry": {
+          "wallClockHours": {
+            "p50": 42,
+            "p90": 99
+          },
+          "providerTokensMillions": {
+            "p50": 963,
+            "p90": 2432
+          },
+          "providerCredits": {
+            "p50": null,
+            "p90": null
+          },
+          "monetaryStatus": "unavailable"
+        }
+      }
+    },
+    {
+      "subject": "reddit",
+      "arm": "plain",
+      "milestones": {
+        "t_done": {
+          "wallClockHours": {
+            "p50": 45,
+            "p90": 108
+          },
+          "providerTokensMillions": {
+            "p50": 1013,
+            "p90": 2630
+          },
+          "providerCredits": {
+            "p50": null,
+            "p90": null
+          },
+          "monetaryStatus": "unavailable"
+        },
+        "t_dry": {
+          "wallClockHours": {
+            "p50": 78,
+            "p90": 180
+          },
+          "providerTokensMillions": {
+            "p50": 1823,
+            "p90": 4852
+          },
+          "providerCredits": {
+            "p50": null,
+            "p90": null
+          },
+          "monetaryStatus": "unavailable"
+        }
+      }
+    },
+    {
+      "subject": "shopping",
+      "arm": "evidence",
+      "milestones": {
+        "t_done": {
+          "wallClockHours": {
+            "p50": 126,
+            "p90": 324
+          },
+          "providerTokensMillions": {
+            "p50": 3100,
+            "p90": 7600
+          },
+          "providerCredits": {
+            "p50": null,
+            "p90": null
+          },
+          "monetaryStatus": "unavailable"
+        },
+        "t_dry": {
+          "wallClockHours": {
+            "p50": 216,
+            "p90": 540
+          },
+          "providerTokensMillions": {
+            "p50": 4900,
+            "p90": 12200
+          },
+          "providerCredits": {
+            "p50": null,
+            "p90": null
+          },
+          "monetaryStatus": "unavailable"
+        }
+      }
+    },
+    {
+      "subject": "shopping",
+      "arm": "plain",
+      "milestones": {
+        "t_done": {
+          "wallClockHours": {
+            "p50": 216,
+            "p90": 576
+          },
+          "providerTokensMillions": {
+            "p50": 5400,
+            "p90": 14500
+          },
+          "providerCredits": {
+            "p50": null,
+            "p90": null
+          },
+          "monetaryStatus": "unavailable"
+        },
+        "t_dry": {
+          "wallClockHours": {
+            "p50": 396,
+            "p90": 1080
+          },
+          "providerTokensMillions": {
+            "p50": 9800,
+            "p90": 27000
+          },
+          "providerCredits": {
+            "p50": null,
+            "p90": null
+          },
+          "monetaryStatus": "unavailable"
+        }
+      }
+    },
+    {
+      "subject": "erp",
+      "arm": "evidence",
+      "milestones": {
+        "t_done": {
+          "wallClockHours": {
+            "p50": 288,
+            "p90": 720
+          },
+          "providerTokensMillions": {
+            "p50": 4300,
+            "p90": 11500
+          },
+          "providerCredits": {
+            "p50": null,
+            "p90": null
+          },
+          "monetaryStatus": "unavailable"
+        },
+        "t_dry": {
+          "wallClockHours": {
+            "p50": 468,
+            "p90": 1260
+          },
+          "providerTokensMillions": {
+            "p50": 7100,
+            "p90": 19000
+          },
+          "providerCredits": {
+            "p50": null,
+            "p90": null
+          },
+          "monetaryStatus": "unavailable"
+        }
+      }
+    },
+    {
+      "subject": "erp",
+      "arm": "plain",
+      "milestones": {
+        "t_done": {
+          "wallClockHours": {
+            "p50": 504,
+            "p90": 1260
+          },
+          "providerTokensMillions": {
+            "p50": 7800,
+            "p90": 22000
+          },
+          "providerCredits": {
+            "p50": null,
+            "p90": null
+          },
+          "monetaryStatus": "unavailable"
+        },
+        "t_dry": {
+          "wallClockHours": {
+            "p50": 936,
+            "p90": 2160
+          },
+          "providerTokensMillions": {
+            "p50": 14200,
+            "p90": 41000
+          },
+          "providerCredits": {
+            "p50": null,
+            "p90": null
+          },
+          "monetaryStatus": "unavailable"
+        }
+      }
+    }
+  ]
+}

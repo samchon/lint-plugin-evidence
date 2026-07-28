@@ -2,6 +2,8 @@
   "schemaVersion": 1,
   "status": "blocked-until-all-null-execution-pins-are-resolved",
   "formalProtocolRevision": {
+    "identityKind": "merged-git-commit-and-formal-review",
+    "reviewedMergedCommit": null,
     "decisionReviewId": 4801471324,
     "decisionReviewUrl": "https://github.com/samchon/lint-plugin-evidence/pull/105#pullrequestreview-4801471324",
     "activePriorReviewId": 4801568652,
@@ -9,8 +11,7 @@
     "issue88CommentId": 5109235729,
     "issue88CommentUrl": "https://github.com/samchon/lint-plugin-evidence/issues/88#issuecomment-5109235729",
     "issue99CommentId": 5109239236,
-    "issue99CommentUrl": "https://github.com/samchon/lint-plugin-evidence/issues/99#issuecomment-5109239236",
-    "protocolRevisionSha256": null
+    "issue99CommentUrl": "https://github.com/samchon/lint-plugin-evidence/issues/99#issuecomment-5109239236"
   },
   "armMap": {
     "plain": {
@@ -279,16 +280,41 @@
     "rule": "Exact per-response usage is primary. Accumulated thread usage is reconciliation evidence and must not be differenced into invented response rows. A missing raw notification or null usage makes exact token measurement unavailable and fails the run closed."
   },
   "safetyAuthorization": {
+    "schemaVersion": 1,
     "unit": "provider_total_tokens",
-    "maximumObservedTotalTokens": null,
-    "maximumObservedBlockTotalTokens": null,
-    "hardWallDurationSeconds": null,
-    "blockHardWallDurationSeconds": null,
+    "maximumObservedTotalTokensBySubject": {
+      "todo": null,
+      "reddit": null,
+      "shopping": null,
+      "erp": null
+    },
+    "hardWallDurationSecondsBySubject": {
+      "todo": null,
+      "reddit": null,
+      "shopping": null,
+      "erp": null
+    },
+    "maximumObservedBlockTotalTokensByWave": {
+      "todo-reddit": null,
+      "shopping-erp": null
+    },
+    "blockHardWallDurationSecondsByWave": {
+      "todo-reddit": null,
+      "shopping-erp": null
+    },
     "armParity": "identical-within-subject-and-replicate",
     "hardCeilingGuaranteed": false,
     "monetaryStatus": "unavailable",
     "costReportSchemaPath": "benchmark/protocol/schema/cost-report.schema.json",
     "costReportFixturePath": "benchmark/protocol/fixtures/cost-report/cases.json"
+  },
+  "costPredictions": {
+    "path": "benchmark/protocol/cost-predictions.json",
+    "bytes": 10514,
+    "sha256": "fe5e57a3c3bd95a969d96c4ce1dad44b74007b97ac1731b50b2bf5c54ed03e6c",
+    "schemaPath": "benchmark/protocol/schema/cost-predictions.schema.json",
+    "freezeId": "current-freeze-template-standard-v1",
+    "observationCount": 0
   },
   "prompts": [
     {
@@ -337,19 +363,20 @@
   "repositoryFrozenDigests": {
     "subjectFreezeManifestSha256": "409aa670f85c94cac653a4041a55a611e0a94873f2152f94947cbe4cefe0ac24",
     "priceSheetSha256": "4ba82b1e0b80e72e59e64ca3ba07ee4b9568036ff686e7455359e600ab36ae09",
-    "quotaPolicySha256": "5dae599895578b207c7b46628b7cfc2ee17dce1b4973288199047b0111607763"
+    "quotaPolicySha256": "5dae599895578b207c7b46628b7cfc2ee17dce1b4973288199047b0111607763",
+    "costPredictionsSha256": "fe5e57a3c3bd95a969d96c4ce1dad44b74007b97ac1731b50b2bf5c54ed03e6c"
   },
   "prepareTimeRuntimeRequired": {
     "mergedSourceCommit": null,
     "effectiveTemplateTreeSha256": null,
     "requirementsTreeSha256": null,
     "promptsTreeSha256": null,
-    "protocolTreeSha256": null,
+    "sealedProtocolRawTreeAlgorithmId": "sha256-posix-path-nul-bytes-v1",
+    "sealedProtocolRawTreeSha256": null,
     "atomicClauseCatalogSha256": null,
     "contextCriteriaCatalogSha256": null,
     "hiddenAcceptanceSuiteSha256": null,
     "strippingImplementationSha256": null,
-    "protocolRevisionSha256": null,
     "productTgzSha256": null,
     "lockfileSha256": null
   },
@@ -357,7 +384,7 @@
     "scope": "repository-static-readiness-template",
     "blocked": true,
     "reasons": [
-      "The merged protocol implementation and its non-self-referential revision digest are not yet pinned.",
+      "The reviewed merged source commit and runtime-sealed protocol raw-tree digest are not yet pinned.",
       "Subject-specific observed-total-token thresholds and hard wall durations are null.",
       "Production runner, grading, promotion, and report vertical fixtures have not yet closed every pinned contract."
     ],

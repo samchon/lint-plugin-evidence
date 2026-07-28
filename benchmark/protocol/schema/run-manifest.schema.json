@@ -30,7 +30,9 @@
         "treeAlgorithm",
         "subjectFreezeManifestSha256",
         "quotaPolicySha256",
-        "protocolRevisionSha256",
+        "protocolRawTreeAlgorithmId",
+        "protocolRawTreeSha256",
+        "costPredictionsSha256",
         "acceptanceCatalogSha256",
         "acceptanceCatalogCount",
         "contextCatalogSha256",
@@ -91,7 +93,13 @@
         "quotaPolicySha256": {
           "const": "5dae599895578b207c7b46628b7cfc2ee17dce1b4973288199047b0111607763"
         },
-        "protocolRevisionSha256": {
+        "protocolRawTreeAlgorithmId": {
+          "const": "sha256-posix-path-nul-bytes-v1"
+        },
+        "protocolRawTreeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "costPredictionsSha256": {
           "$ref": "#/$defs/sha256"
         },
         "acceptanceCatalogSha256": {
