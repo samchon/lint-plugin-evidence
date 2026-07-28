@@ -123,7 +123,25 @@ Issued tokens are returned in the response and are not session columns unless th
 
 Refresh must verify the token, confirm the named session still belongs to the actor, check the session has not passed its expiry, extend that same session to the new horizon, reload the actor, and issue tokens that retain the session identity. Renewing by creating a second session loses the continuity every session listing depends on.
 
-Logout and withdrawal update the session or account lifecycle the schema describes. Discarding a token client-side is not logout.
+## The Lifecycle Surface Is Exactly Three Operations
+
+Join, login, and refresh. Nothing else is an authentication lifecycle operation.
+
+**Actor kind fixes which three apply.** An anonymous visitor holds no credentials, so it gets join and refresh and no login. A member or an administrator gets all three.
+
+**Logout is not an operation.** Authentication is stateless: the client disposes of its token. A route that "logs out" either does nothing the client could not do alone, or it is really a session-revocation operation, which is an ordinary endpoint over the session resource and should be named as one.
+
+Everything else that feels like authentication is ordinary endpoint coverage over its own resource:
+
+- session listing and revocation;
+- password change, and a password-reset request record;
+- account withdrawal;
+- verification requests;
+- external identity connections.
+
+Give each of those a resource-shaped path of its own rather than filing it under an authentication prefix. They have their own schemas, their own lifecycles, and their own requirements.
+
+**A grade that can be granted needs an endpoint that grants it**, and a grade that can be removed needs one that removes it. Without them the promised authority is unreachable and every rejection that depends on it is untestable. Address the assignment record by its own id, and put the target user in the request body rather than in a path segment.
 
 ## Where Each Check Lives
 

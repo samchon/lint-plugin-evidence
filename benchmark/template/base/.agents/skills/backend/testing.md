@@ -184,6 +184,50 @@ A summary sentence, a blank line, topic paragraphs, then the numbered steps. The
 
 Write the steps so someone could perform them by hand. A step that says "set up the data" is not a step.
 
+## The Database Is Shared
+
+**The runner does not reset the database between tests.** Tests in one invocation see each other's writes, and a repeated local run sees the previous run's rows.
+
+That makes a whole class of assertion wrong even though it passes the first time you write it.
+
+```ts
+// Wrong: passes on an empty database and never again.
+TestValidator.equals("no departments yet", page.data.length, 0);
+TestValidator.equals("exactly three", page.pagination.records, 3);
+
+// Right: scoped to what this test created.
+const found = page.data.filter((d) => d.organization_id === organization.id);
+TestValidator.equals("this organization has three", found.length, 3);
+```
+
+Prove against what the scenario controls: the ids it created, a filter it owns, a state transition it caused, a stable business predicate. Never against a global count, a global emptiness, or a position in an unscoped list.
+
+## Setup Uses Join, And Does Not Repeat Side Effects
+
+Use the join operation for ordinary authenticated setup. It registers the account and returns the authorization in one call, so a second login for the same actor buys nothing.
+
+Login appears in setup only when the scenario is about login.
+
+**Read what a prerequisite already does before adding the next call.** A create operation whose contract says the creator becomes the owner and is auto-subscribed has already established that state. Subscribing again is a duplicate that the provider correctly rejects, and the failure looks like a defect in the operation under test rather than in the setup.
+
+Derive each actor's setup from the contract rather than by copying another actor's. Two actors with similar names often need different steps.
+
+## Naming
+
+`test_api_<feature>_<action>_<context>`, globally unique across the suite, because each name owns one file and one exported function.
+
+Differentiate variants by input condition or expected outcome: `test_api_user_registration_when_username_taken`. A negative authority case names the grade it was refused for: `test_api_department_creation_forbidden_for_viewer`.
+
+Renaming duplicate behavior does not make it distinct. If two names would prove the same thing, there is one test.
+
+## Do Not Assert What The Contract Does Not Expose
+
+Token claims are not part of the contract unless a response DTO carries them. Do not decode a token to assert an expiry, a subject, or an address.
+
+Expiry cannot be manufactured without the server's secret, and tampering with an issued token proves only that a bad token is rejected. One such rejection is enough for the suite; there is no separate expired, forged, and malformed case a client can actually steer into distinct outcomes.
+
+An operation that returns nothing needs a public follow-up read to prove its effect. Without one, the test can prove the call succeeded and can prove its rejections, and it cannot claim the state changed.
+
 ## Take Accessors From The Generated SDK
 
 Never derive an accessor name from a path, a verb, or a guess. If the one you expect does not exist, find the operation whose method and path match and use the accessor generated for it.

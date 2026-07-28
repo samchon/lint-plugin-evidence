@@ -31,6 +31,40 @@ A listing endpoint uses PATCH with a request body rather than GET with a query s
 
 When both a delete and a recovery exist for a resource, they share one deletion model that the schema can actually perform. Divergent models leave one of the two unimplementable.
 
+## Paths
+
+A path describes a resource and a workflow state.
+
+**Segments are singular and camelCase, named after the schema's own noun.** A schema called `orderItem` gives `/orderItem/{id}`, never a generic `/item/{id}`. One schema keeps one spelling everywhere it appears.
+
+**Nest each required foreign-key ancestor root-first**, named from its table without the service prefix, singularized and camelCased. `shopping_sales` contributes `{saleId}`. Stop the chain at the first nullable or optional parent, because an optional ancestor cannot be part of an address.
+
+**Address the target row by its own bare `id`**, and that is always the identifier, never a name, a slug, or a code, even where a single-column unique constraint would allow one.
+
+**Authenticated self-access carries no actor id.** The caller is the session's, and putting it in the path lets a caller name someone else.
+
+**A scope chosen once at login stays out of the path.** When an organization or a workspace is selected at sign-in and every later call runs inside it, the provider derives it from the session and filters by it. Putting it in the path lets a caller name a scope the session never selected, and forces every route to carry a parameter no client can vary. Routes that manage the scope row itself remain ordinary resource routes.
+
+A recovery path ends in `/restore`.
+
+## Methods Follow The Response, Not The Caller
+
+| Response | Method |
+| --- | --- |
+| many records, or a page | `patch` with a request body |
+| exactly one record, or a session-identified singleton | `get` |
+| an update to an identified record | `put` |
+| a creation | `post` |
+| an ordinary deletion | `delete` |
+
+`patch` is the list and search grammar and nothing else. That includes a caller's own collection, such as their cart items or order history: it is still many records, so it is still `patch`.
+
+`get` is reserved for one record or the caller's own singleton, such as their profile.
+
+An ordinary deletion is `delete`, never a post to a path ending in `delete`. A distinct administrative or workflow effect gets its own precise name instead: `/forceDelete`, `/cancel`, `/withdraw`.
+
+Deleting one's own association can rely on the parent's id plus the session. Deleting **another** actor's row addresses that row by its own bare id, because an actor-named parameter leaves the target unidentifiable.
+
 ## Response Cardinality
 
 Read cardinality from the requirement, not from the route. "All X", "every X", "the list of X", a tree with several roots, and bulk verbs mean multiple. "The X with id" and single-subject aggregates such as a dashboard mean single.
