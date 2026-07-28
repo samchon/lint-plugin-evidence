@@ -57,7 +57,15 @@ A path describes a resource and a workflow state, under one service root.
 
 ## Authentication Owns Three Operations, And The Rest Are Ordinary Routes
 
-Join, login, and refresh live under the authentication surface. Everything else that feels like authentication is an ordinary endpoint over its own resource, at a resource-shaped path: `/shopping/customer/session` for session visibility and revocation, `/shopping/customer/password` for a change, `/shopping/customer/passwordResetRequest` for a reset record, `/shopping/customer/verificationRequest` for verification, and the actor's own path for withdrawal and external connections.
+Join, login, and refresh live under the authentication surface. Everything else that feels like authentication is an ordinary endpoint over its own resource, at a resource-shaped path.
+
+| Workflow | Path |
+| --- | --- |
+| session visibility and revocation | `/shopping/customer/session` |
+| password change | `/shopping/customer/password` |
+| password reset record | `/shopping/customer/passwordResetRequest` |
+| verification | `/shopping/customer/verificationRequest` |
+| withdrawal, external connections | the actor's own path |
 
 Filing these under an authentication prefix hides them from the resource ledger, and each one has its own schema, its own lifecycle, and its own requirement.
 

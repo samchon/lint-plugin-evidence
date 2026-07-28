@@ -82,9 +82,11 @@ A grade-management operation writes to the target user, never to the caller, and
 
 ## Scoped Authority
 
-An actor grade and a role held inside an organization are different mechanisms, and confusing them produces a permission that is either far too broad or unenforceable.
+An actor grade and a role held inside an organization are different mechanisms, and confusing them produces a permission that is either far too broad or unenforceable. The grade half is decided above; this section is what to build once you have decided the authority is scoped.
 
-A grade is global to the identity. Making `financeManager` a grade grants finance authority in every organization that identity ever enters. When the requirements say authority is held _within_ an organization, model it as a membership row: `{prefix}_{scope}_members` with required foreign keys to the scope and the actor and a unique constraint on the pair. When one member may hold several roles at once, put the roles in a child table rather than one column.
+Model it as a membership row: `{prefix}_{scope}_members`, with required foreign keys to the scope and to the actor, and a unique constraint on the pair.
+
+When one member may hold several roles at once, the roles go in a child table rather than one column. A column forces every read to parse it and every write to rewrite the whole set.
 
 The active scope comes from the session, not from the request body. A body-supplied scope lets a caller name a scope their session never selected and gives every read filter two sources of truth. Persist the selection on the session row and write it through an explicit scope-switch operation.
 

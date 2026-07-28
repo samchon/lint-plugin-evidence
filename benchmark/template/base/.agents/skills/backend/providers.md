@@ -91,7 +91,9 @@ export const at = async (props: {
 
 Reserve the non-throwing finder for states where absence is a valid business outcome.
 
-**That 404 is not automatic.** It comes from the database-error mapper registered at bootstrap, which turns the client's not-found code into a `404` and its unique-constraint code into a `409`, and which replaces the engine's message with a stable one. See the [wiring topic](wiring.md). Without that registration the throwing finder produces a `500`, and the raw message, which interpolates the table, the column, and the offending value, is what the caller receives.
+**That 404 is not automatic.** It comes from the database-error mapper registered at bootstrap, which the [wiring topic](wiring.md) owns.
+
+Without that registration the throwing finder produces a `500`, and the raw client message reaches the caller. That message interpolates the table, the column, and the offending value, so the schema becomes readable from outside.
 
 ## Visibility Belongs In One Clause
 

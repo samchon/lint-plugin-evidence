@@ -28,14 +28,11 @@ For every operation, name the tests that exercise it: the success path, each rej
 
 Then check what the test actually asserts. The contract states effects beyond the response, and those are the ones no one asserts: the membership that should now exist, the history row that should have been written, the state that should have transitioned. Read the effect back through a public operation and assert it.
 
-## What A Test May And May Not Do
+## What A Finding Here Is Not
 
-- **Assert through the public surface.** If no reachable operation exposes the effect a requirement names, that is a finding against the API campaign, not permission to read the database.
-- **Assert rejection, never a status code.** Which 4xx a server returns is its choice and not part of the contract; existence checked before authority yields a not-found where you expected a forbidden. Pinning the code guarantees a false failure on a correct change.
-- **Never test type errors.** Sending a deliberately wrong type is a compile error, not a test. Type validation is the boundary's job.
-- **Never add checks after full response validation.** It already checked existence, types, formats, and constraints.
-- **Keep positive paths clean.** A success path must use valid inputs and a qualified caller throughout. The one sanctioned exception is a business-authority negative, where the inputs stay valid and only the caller's grade is insufficient.
-- **Never fabricate an identifier.** A foreign key in a request body binds to a prior response exactly as a path parameter does. A random identifier refers to no row and fails for the wrong reason. Fabricate one only in an explicit not-found test.
+[The testing topic](../backend/testing.md) owns how a test is written: what it may assert, what it must never assert, and which shortcuts look like coverage. A round that turns up a test breaking one of those rules has found a defect in that test, not a gap in coverage, and the two go in different places in the ledger.
+
+The distinction matters because they resolve differently. A coverage gap is closed by writing a test. A test that pins a status code, fabricates an identifier, or asserts nothing beyond the response type is closed by fixing the test that already exists, and counting it as coverage is how a campaign reports dry over a suite that proves nothing.
 
 ## Rounds
 
