@@ -545,6 +545,7 @@ export namespace EvidenceBenchmarkQualityArtifacts {
       throw new Error(
         `Adjudication record byte provenance drifted: ${driftedByteEdges.join(", ")}.`,
       );
+    validateServerRawInventory(runnerEvents, artifacts.serverRawLog);
     const sealed: string = labeledHash([
       ["grade-a", artifacts.graderAGrade],
       ["grade-b", artifacts.graderBGrade],
@@ -1490,6 +1491,63 @@ export namespace EvidenceBenchmarkQualityArtifacts {
         );
       previous = text(eventSha256, "runner event hash");
     }
+  }
+
+  function validateServerRawInventory(
+    events: readonly Record<string, unknown>[],
+    serverRawLog: Uint8Array,
+  ): void {
+    if (
+      serverRawLog.byteLength === 0 ||
+      serverRawLog[serverRawLog.byteLength - 1] !== 0x0a
+    )
+      throw new Error(
+        "Adjudicator server raw inventory has an incomplete final line.",
+      );
+    const lines: Array<{
+      direction: "server";
+      path: "server.raw.jsonl";
+      byteOffset: number;
+      byteLength: number;
+      sha256: string;
+    }> = [];
+    let offset = 0;
+    for (let index = 0; index < serverRawLog.byteLength; ++index) {
+      if (serverRawLog[index] !== 0x0a) continue;
+      const length = index - offset;
+      if (length === 0)
+        throw new Error(
+          "Adjudicator server raw inventory contains an unreferenced blank line.",
+        );
+      lines.push({
+        direction: "server",
+        path: "server.raw.jsonl",
+        byteOffset: offset,
+        byteLength: length,
+        sha256: EvidenceBenchmarkHash.bytes(
+          serverRawLog.subarray(offset, index),
+        ),
+      });
+      offset = index + 1;
+    }
+    const references = events
+      .filter(
+        (event) =>
+          event.type === "app_server_frame" && event.actor === "app-server",
+      )
+      .map((event) =>
+        record(event.rawRef, "adjudicator server raw inventory reference"),
+      );
+    if (
+      references.length !== lines.length ||
+      references.some(
+        (reference, index) =>
+          JSON.stringify(reference) !== JSON.stringify(lines[index]),
+      )
+    )
+      throw new Error(
+        "Adjudicator server raw lines and app-server frame events are not an exact ordered inventory.",
+      );
   }
 
   function canonicalJson(input: unknown): string {

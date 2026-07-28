@@ -483,6 +483,83 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
         ),
       "exhaustively close",
     );
+    const unreferencedServerRawLog = Buffer.concat([
+      transport.serverRawLog,
+      Buffer.from(
+        `${JSON.stringify({
+          method: "rawResponse/completed",
+          params: {
+            responseId: "response-unreferenced",
+            threadId: "thread-adjudicator",
+            turnId: "turn-adjudicator",
+            usage: {
+              totalTokens: 2,
+              inputTokens: 1,
+              cachedInputTokens: 0,
+              cacheWriteInputTokens: 0,
+              outputTokens: 1,
+              reasoningOutputTokens: 0,
+            },
+          },
+        })}\n`,
+        "utf8",
+      ),
+    ]);
+    const unreferencedEventStream = EvidenceBenchmarkQualityArtifacts.emit(
+      protocolRoot,
+      "adjudicator-event-stream.schema.json",
+      {
+        ...eventStreamValue,
+        serverRawLogSha256: EvidenceBenchmarkHash.bytes(
+          unreferencedServerRawLog,
+        ),
+      },
+    );
+    const unreferencedProcess = EvidenceBenchmarkQualityArtifacts.emit(
+      protocolRoot,
+      "adjudicator-process-provenance.schema.json",
+      {
+        ...(processValue as Record<string, unknown>),
+        rawEventStreamSha256: unreferencedEventStream.sha256,
+      },
+    );
+    const unreferencedRecord = freshRecord(
+      gradeAEmission,
+      gradeBEmission,
+      queueText,
+      adjudicationEmission,
+      unreferencedProcess,
+      assignmentEmission,
+      unreferencedEventStream,
+      usageEmission,
+      processSchema,
+      sealedInputs,
+      transport,
+    );
+    expectInvalid(
+      () =>
+        EvidenceBenchmarkQualityArtifacts.validateAdjudicationRecord(
+          protocolRoot,
+          unreferencedRecord,
+          {
+            graderAGrade: Buffer.from(gradeAEmission.text, "utf8"),
+            graderBGrade: Buffer.from(gradeBEmission.text, "utf8"),
+            comparisonQueue: Buffer.from(queueText, "utf8"),
+            providerOutput: Buffer.from(adjudicationEmission.text, "utf8"),
+            processProvenance: Buffer.from(unreferencedProcess.text, "utf8"),
+            assignment: Buffer.from(assignmentEmission.text, "utf8"),
+            rawEventStream: Buffer.from(
+              unreferencedEventStream.text,
+              "utf8",
+            ),
+            usage: Buffer.from(usageEmission.text, "utf8"),
+            coreUsageReport: transport.coreUsageReport,
+            runnerEventLog: transport.runnerEventLog,
+            serverRawLog: unreferencedServerRawLog,
+          },
+        ),
+      "exact ordered inventory",
+    );
     for (const invalidProvider of [
       {
         options: { providerPhase: "commentary" },
