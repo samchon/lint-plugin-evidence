@@ -48,6 +48,10 @@ README, guide, and agent-instruction authoring rules, `.agents/skills/documentat
 
 Branch, commit, pull request, check, and merge flow, `.agents/skills/pull-request/SKILL.md`. Read when the user explicitly asks to open, submit, update, or merge a pull request, or when a standing autonomous mandate authorizes end-to-end delivery.
 
+### Benchmark Measurement
+
+What a benchmark request authorizes, the launch gate, frozen inputs, measurement integrity, and where results are recorded, `.agents/skills/benchmark/SKILL.md`. Read before launching, modifying, or reporting a run, or before editing anything a run reads.
+
 ## Maintenance
 
 ### Writing style
@@ -71,4 +75,4 @@ Update AGENTS.md only for repository-contract changes: a new skill area, a renam
 - **Two trigger surfaces, one scope.** The frontmatter description is the full trigger contract, including exclusions. The AGENTS.md pointer mirrors that scope more briefly. Correct the frontmatter first when the scope changes.
 - **Create or merge.** Add a skill when a substantial repository concern would otherwise inflate AGENTS.md beyond an index. Merge sibling concerns when they share most of their structure.
 - **Headings are plain.** No chapter numbers in skill or AGENTS.md headings. Use descriptive titles.
-- **Current set.** The repository skills are `project`, `evidence-graph`, `development`, `lint-rule-authoring`, `wiki`, `documentation`, and `pull-request`.
+- **Current set.** The repository skills are `project`, `evidence-graph`, `development`, `lint-rule-authoring`, `wiki`, `documentation`, `pull-request`, and `benchmark`.
