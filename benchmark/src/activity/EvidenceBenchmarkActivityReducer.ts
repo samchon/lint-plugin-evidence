@@ -180,6 +180,7 @@ export namespace EvidenceBenchmarkActivityReducer {
       timeAllocations: timing.allocations,
       pairwiseOverlap: timing.overlap,
       burdenAllocations,
+      raterAgreement: agreement(input.observations, left, right),
       adjudicationQueue: queue,
       unresolvedResponseIds,
       censoredObservationIds: timing.censoredObservationIds,
@@ -460,6 +461,92 @@ export namespace EvidenceBenchmarkActivityReducer {
       upper: residual,
       unresolved: true,
     };
+  }
+
+  function agreement(
+    observations: IEvidenceBenchmarkActivity.IObservations,
+    left: Judgments.IAdmittedRater,
+    right: Judgments.IAdmittedRater,
+  ): IEvidenceBenchmarkActivity.IAgreement {
+    const count: number = observations.responses.length;
+    if (count === 0)
+      throw new Error("Rater agreement requires at least one response.");
+    const leftMarginal: Map<
+      IEvidenceBenchmarkActivity.PrimaryActivity,
+      number
+    > = new Map(
+      EvidenceBenchmarkActivityCodebook.PRIMARY_ACTIVITIES.map((category) => [
+        category,
+        0,
+      ]),
+    );
+    const rightMarginal: Map<
+      IEvidenceBenchmarkActivity.PrimaryActivity,
+      number
+    > = new Map(
+      EvidenceBenchmarkActivityCodebook.PRIMARY_ACTIVITIES.map((category) => [
+        category,
+        0,
+      ]),
+    );
+    let primaryMatches: number = 0;
+    let causalMatches: number = 0;
+    let jaccardTotal: number = 0;
+    let divergenceTotal: number = 0;
+    for (const response of observations.responses) {
+      const a: Judgments.IRating = left.ratings.get(response.responseId)!;
+      const b: Judgments.IRating = right.ratings.get(response.responseId)!;
+      leftMarginal.set(a.primary, leftMarginal.get(a.primary)! + 1);
+      rightMarginal.set(b.primary, rightMarginal.get(b.primary)! + 1);
+      if (a.primary === b.primary) ++primaryMatches;
+      if (a.source.causalRole === b.source.causalRole) ++causalMatches;
+      const aMechanisms: Set<string> = new Set(a.source.secondaryMechanisms);
+      const bMechanisms: Set<string> = new Set(b.source.secondaryMechanisms);
+      const union: Set<string> = new Set([...aMechanisms, ...bMechanisms]);
+      const intersection: number = [...aMechanisms].filter((value) =>
+        bMechanisms.has(value),
+      ).length;
+      jaccardTotal += union.size === 0 ? 1 : intersection / union.size;
+      divergenceTotal += jensenShannon(
+        a.source.probabilityBasisPoints,
+        b.source.probabilityBasisPoints,
+      );
+    }
+    const observed: number = primaryMatches / count;
+    const expected: number =
+      EvidenceBenchmarkActivityCodebook.PRIMARY_ACTIVITIES.reduce(
+        (sum, category) =>
+          sum +
+          (leftMarginal.get(category)! / count) *
+            (rightMarginal.get(category)! / count),
+        0,
+      );
+    return {
+      responseCount: count,
+      primaryObservedAgreement: observed,
+      primaryCohenKappa:
+        Math.abs(1 - expected) < Number.EPSILON
+          ? null
+          : (observed - expected) / (1 - expected),
+      causalRoleAgreement: causalMatches / count,
+      meanSecondaryMechanismJaccard: jaccardTotal / count,
+      meanProbabilityJensenShannonBits: divergenceTotal / count,
+    };
+  }
+
+  function jensenShannon(
+    left: IEvidenceBenchmarkActivity.ProbabilityBasisPoints,
+    right: IEvidenceBenchmarkActivity.ProbabilityBasisPoints,
+  ): number {
+    let result: number = 0;
+    for (const category of EvidenceBenchmarkActivityCodebook.PRIMARY_ACTIVITIES) {
+      const a: number = left[category] / 10_000;
+      const b: number = right[category] / 10_000;
+      const midpoint: number = (a + b) / 2;
+      if (a > 0) result += 0.5 * a * Math.log2(a / midpoint);
+      if (b > 0) result += 0.5 * b * Math.log2(b / midpoint);
+    }
+    return result;
   }
 
   function midpoint(

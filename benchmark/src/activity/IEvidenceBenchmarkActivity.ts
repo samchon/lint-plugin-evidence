@@ -557,6 +557,27 @@ export namespace IEvidenceBenchmarkActivity {
     estimatedDenominator: 10000;
   }
 
+  /** Inter-rater agreement over the complete exact response population. */
+  export interface IAgreement {
+    /** Number of response units independently rated by both raters. */
+    responseCount: number;
+
+    /** Fraction of identical maximum-probability primary codes. */
+    primaryObservedAgreement: number;
+
+    /** Cohen kappa, or null when the marginal denominator degenerates. */
+    primaryCohenKappa: number | null;
+
+    /** Fraction of identical causal-role choices. */
+    causalRoleAgreement: number;
+
+    /** Mean Jaccard similarity of secondary mechanism sets. */
+    meanSecondaryMechanismJaccard: number;
+
+    /** Mean Jensen-Shannon divergence of primary distributions in bits. */
+    meanProbabilityJensenShannonBits: number;
+  }
+
   /** Deterministic output derived from exact observations and semantic ratings. */
   export interface IReport {
     /** Activity report schema revision. */
@@ -597,6 +618,9 @@ export namespace IEvidenceBenchmarkActivity {
 
     /** Separate shared, direct, induced, quality, and residual burden rows. */
     burdenAllocations: readonly IBurdenAllocation[];
+
+    /** Agreement statistics computed before fresh adjudication. */
+    raterAgreement: IAgreement;
 
     /** Deterministic fresh-adjudication queue. */
     adjudicationQueue: readonly IAdjudicationQueueEntry[];

@@ -1,6 +1,7 @@
 import { EvidenceBenchmarkActivityCanonical } from "./EvidenceBenchmarkActivityCanonical.ts";
 import { EvidenceBenchmarkActivityCodebook } from "./EvidenceBenchmarkActivityCodebook.ts";
 import { EvidenceBenchmarkActivityRegistry } from "./EvidenceBenchmarkActivityRegistry.ts";
+import { EvidenceBenchmarkActivityStrictJson } from "./EvidenceBenchmarkActivityStrictJson.ts";
 import type { IEvidenceBenchmarkActivity } from "./IEvidenceBenchmarkActivity.ts";
 
 /** Builds an exact observation artifact from retained core-seal bytes. */
@@ -153,7 +154,10 @@ export namespace EvidenceBenchmarkActivityObservations {
   }
 
   function sourceLedger(bytes: Uint8Array): ISourceLedger {
-    const root: unknown = JSON.parse(Buffer.from(bytes).toString("utf8"));
+    const root: unknown = EvidenceBenchmarkActivityStrictJson.parse(
+      bytes,
+      "source usage ledger",
+    );
     if (typeof root !== "object" || root === null || Array.isArray(root))
       throw new Error("Source usage ledger must be an object.");
     const source: Record<string, unknown> = root as Record<string, unknown>;
@@ -466,7 +470,10 @@ export namespace EvidenceBenchmarkActivityObservations {
     bytes: Uint8Array,
     label: string,
   ): Record<string, unknown> {
-    return record(JSON.parse(Buffer.from(bytes).toString("utf8")), label);
+    return record(
+      EvidenceBenchmarkActivityStrictJson.parse(bytes, label),
+      label,
+    );
   }
 
   function text(input: unknown, label: string): string {

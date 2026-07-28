@@ -60,6 +60,15 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       () => EvidenceBenchmarkActivityRegistry.admit(root),
       /portable relative path/,
     );
+    fs.writeFileSync(
+      path.join(root, "provider-output-registry.json"),
+      '{"schemaVersion":1,"schemaVersion":1}\n',
+      "utf8",
+    );
+    assert.throws(
+      () => EvidenceBenchmarkActivityRegistry.admit(root),
+      /duplicate object key/,
+    );
   }
 
   /**
@@ -267,6 +276,11 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     assert.equal(report.residualWallNs, "200");
     assert.equal(report.semanticQuantitiesAreEstimates, true);
     assert.equal(report.semanticAttributionStatus, "complete");
+    assert.equal(report.raterAgreement.primaryObservedAgreement, 1);
+    assert.equal(report.raterAgreement.primaryCohenKappa, 1);
+    assert.equal(report.raterAgreement.causalRoleAgreement, 1);
+    assert.equal(report.raterAgreement.meanSecondaryMechanismJaccard, 1);
+    assert.ok(report.raterAgreement.meanProbabilityJensenShannonBits > 0);
     assert.deepEqual(report.exactTotal, {
       inputTokens: 180,
       cachedInputTokens: 20,

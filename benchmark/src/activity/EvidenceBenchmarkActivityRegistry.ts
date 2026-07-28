@@ -2,9 +2,23 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { EvidenceBenchmarkActivityCanonical } from "./EvidenceBenchmarkActivityCanonical.ts";
+import { EvidenceBenchmarkActivityStrictJson } from "./EvidenceBenchmarkActivityStrictJson.ts";
 
 /** Fail-closed admission of the two provider/local contracts activity uses. */
 export namespace EvidenceBenchmarkActivityRegistry {
+  const PROVIDER_KEYWORDS = [
+    "$schema",
+    "$id",
+    "$ref",
+    "title",
+    "type",
+    "additionalProperties",
+    "required",
+    "properties",
+    "enum",
+    "items",
+  ] as const;
+
   /** Exact schema identities copied into the immutable run binding. */
   export interface IBinding {
     /** Exact-byte identity of the provider output registry. */
@@ -31,11 +45,24 @@ export namespace EvidenceBenchmarkActivityRegistry {
       "provider-output-registry.json",
     );
     const registryBytes: Buffer = readRegular(registryLocation);
-    const registry: unknown = JSON.parse(registryBytes.toString("utf8"));
-    const record: Record<string, unknown> = object(registry, "registry");
-    const allowlist: Set<string> = new Set(
-      strings(record.providerKeywordAllowlist, "providerKeywordAllowlist"),
+    const registry: unknown = EvidenceBenchmarkActivityStrictJson.parse(
+      registryBytes,
+      "provider output registry",
     );
+    const record: Record<string, unknown> = object(registry, "registry");
+    const keywords: string[] = strings(
+      record.providerKeywordAllowlist,
+      "providerKeywordAllowlist",
+    );
+    const allowlist: Set<string> = new Set(keywords);
+    if (
+      allowlist.size !== keywords.length ||
+      allowlist.size !== PROVIDER_KEYWORDS.length ||
+      PROVIDER_KEYWORDS.some((keyword) => !allowlist.has(keyword))
+    )
+      throw new Error(
+        "Provider keyword allowlist differs from the frozen app-server subset.",
+      );
     const contracts: readonly unknown[] = array(record.contracts, "contracts");
     const rating: Contract = contract(contracts, "activity-rating-block", [
       "activity-rater-a",
@@ -113,7 +140,10 @@ export namespace EvidenceBenchmarkActivityRegistry {
     const provider: Buffer = schema(root, entry.providerSchema, new Set());
     exactFile("provider", provider, entry.providerBytes, entry.providerSha256);
     validateProviderKeywords(
-      JSON.parse(provider.toString("utf8")),
+      EvidenceBenchmarkActivityStrictJson.parse(
+        provider,
+        "provider activity schema",
+      ),
       allowlist,
       "$",
     );
@@ -137,7 +167,10 @@ export namespace EvidenceBenchmarkActivityRegistry {
     const bytes: Buffer = readRegular(location);
     if (visited.has(normalized)) return bytes;
     visited.add(normalized);
-    const value: unknown = JSON.parse(bytes.toString("utf8"));
+    const value: unknown = EvidenceBenchmarkActivityStrictJson.parse(
+      bytes,
+      `schema ${normalized}`,
+    );
     walk(value, (reference) => {
       if (reference.startsWith("#")) return;
       if (/^[a-z][a-z0-9+.-]*:/i.test(reference))
