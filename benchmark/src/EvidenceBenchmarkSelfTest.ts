@@ -776,11 +776,31 @@ export namespace EvidenceBenchmarkSelfTest {
       fs.readFileSync(props.cell.manifest, "utf8"),
     ) as IEvidenceBenchmarkMaterialization.IManifest;
     assert.equal(manifest.artifact.sha256, props.artifact.sha256);
-    assert.equal(
-      manifest.corpus.contextCriteria,
-      corpus.contextCriteria,
-      `${props.project}/${props.arm} must retain the separate context denominator`,
-    );
+    assert.deepEqual(manifest.corpus, {
+      documents: corpus.documents,
+      h2: corpus.h2,
+      h3: corpus.h3,
+      atomicAcceptanceClauses: corpus.atomicAcceptanceClauses,
+      contextCriteria: corpus.contextCriteria,
+      inventory: corpus.inventory,
+    });
+    if (props.project === "erp") {
+      const analysis: string = path.join(
+        props.cell.workspace,
+        "docs",
+        "analysis",
+      );
+      const validation: EvidenceBenchmarkProcess.IResult =
+        EvidenceBenchmarkProcess.runSync(
+          process.execPath,
+          [path.join(analysis, "validate.mjs")],
+          {
+            cwd: analysis,
+            label: `${props.project}/${props.arm} copied corpus validator`,
+          },
+        );
+      assert.match(validation.stdout, /"contextCriteria":986/);
+    }
     const archiveRelative: string = `.benchmark-deps/e-${props.artifact.sha256.slice(0, 12)}.tgz`;
     const packageManifest = JSON.parse(
       fs.readFileSync(path.join(props.cell.workspace, "package.json"), "utf8"),
