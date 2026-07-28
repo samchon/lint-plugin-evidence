@@ -184,7 +184,7 @@ Read the screen against this before calling it done. The question is not whether
 - [ ] Placeholder content is realistic: uneven numbers, plausible names, no filler verbs.
 - [ ] The component library's defaults were customized, not shipped as-is.
 - [ ] Contrast checked at the actual size and weight; focus states visible; every input labelled.
-- [ ] Both themes checked, including disabled and placeholder states.
+- [ ] Every supported theme checked, including disabled and placeholder states.
 - [ ] Reduced motion respected.
 - [ ] The flow was run in a browser at mobile, tablet, and desktop widths.
 

@@ -46,12 +46,14 @@ catalogs:
     "@types/swagger-ui-express": 4.1.8
 
   frontend:
+    "@tailwindcss/vite": &tailwindcss 4.3.0
     "@playwright/test": 1.61.1
     "@tanstack/react-query": 5.101.4
     react: &react 19.1.1
     react-dom: *react
     react-router-dom: 7.18.1
     sonner: 2.0.7
+    tailwindcss: *tailwindcss
     "@types/react": &react-types 19.1.10
     "@types/react-dom": *react-types
     vite: 6.3.5

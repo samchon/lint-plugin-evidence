@@ -94,18 +94,9 @@ A review names the good it is about; the row also stores the sale, so that a lis
 
 **Select the foreign key scalar, not the relation.** `good.shopping_sale_id` is a column on the row you already fetched. Reaching `good.sale.id` requires selecting that relation, fetches a row to read a value you already had, and fails to compile when you forget.
 
-Use a fallback only where its meaning is correct for that field:
+Use a default only where the requirement or schema comment defines its meaning. The current time is valid for a server-observed creation instant; `null` is valid only where the nullable field's documented state begins absent. A status, revision, quantity, money amount, string, or deadline has no generic `false`, `0`, empty-string, or current-time fallback. For example, one subject may require revision `1`, and another may have no revision at all.
 
-| Field kind | Fallback |
-| --- | --- |
-| creation timestamp | the current time |
-| nullable event timestamp such as a deletion or completion time | `null` |
-| status boolean | `false` |
-| nullable field | `null` |
-| non-nullable number | `0` |
-| non-nullable string | `""` |
-
-The nullable-event-timestamp rule stops at nullable. A session row's expiry is non-null and takes the refresh horizon at issue or refresh; the authorization topic owns that.
+A session deadline likewise comes only from the exact expiry rule the subject defines; the authorization topic owns the alternatives.
 
 Never pretend the body carries a field it does not. If a required column has no source in any of the five steps, the contract or the schema is wrong, and the fix belongs there.
 

@@ -17,7 +17,7 @@ Treat the directory as read-only. Never edit a document so that it agrees with c
 
 `docs/analysis/` holds the specification. Open the directory and read what it contains. The number of documents, their names, and their ordering belong to the project, so do not assume a layout and do not skip a file because its name looks like navigation or preamble.
 
-What is durable is that **the documents are organized by concern, and a concern lands in exactly one of them.** Expect to find, under whatever names this project uses:
+What is durable is that **the documents are organized by primary concern, while one behavior may be constrained from several concerns.** An account action can be introduced in the actor document, shaped in the domain document, exposed in the operations document, constrained in the policy document, and given a security test obligation in the quality document. Reconcile every mention; no one occurrence cancels or replaces another. Expect to find, under whatever names this project uses:
 
 - who exists, how identity is established, what each role may reach, and the session, account, ownership, and privacy boundaries;
 - the business concepts, what information each carries, and how they relate;

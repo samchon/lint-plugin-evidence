@@ -361,11 +361,13 @@ TestValidator.equals("status", error.status, 403);
 
 Await both layers: the assertion and the call inside it. A synchronous callback takes no `await` on the outer call; an async one takes it on both.
 
-## Never Test Type Errors
+## Separate Compile-Time Misuse From Runtime Boundary Tests
 
-A deliberately wrong type is a compile error, not a test. The boundary already validates types, formats, and lengths.
+A deliberately wrong literal passed through a typed SDK call is a compile error, not a test. Do not cast it through the contract or weaken production types to make that call compile.
 
-Positive paths stay clean: valid bodies, a qualified caller, no manufactured failure. The one sanctioned exception is an authority negative, where the inputs remain valid and only the caller's grade is insufficient.
+A requirement that explicitly promises runtime refusal for malformed JSON, a bad format, an out-of-range number, an empty required value, or an unsupported union member still needs an executable boundary test. Send that deliberately invalid wire payload through a small raw-HTTP test helper, assert the public refusal and unchanged state, and keep the unsafe value confined to that helper. The SDK remains the transport for every type-correct scenario.
+
+Positive paths stay clean: valid bodies, a qualified caller, and no manufactured failure. Negative paths cover every observable refusal the requirements name, including authorization, lifecycle, concurrency, and boundary validation.
 
 ## Code Discipline
 

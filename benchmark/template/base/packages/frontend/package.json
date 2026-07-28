@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@playwright/test": "catalog:frontend",
+    "@tailwindcss/vite": "catalog:frontend",
     "@ttsc/lint": "catalog:typescript",
     "@ttsc/unplugin": "catalog:typescript",
     "@types/node": "catalog:backend",
@@ -34,6 +35,7 @@
     "@types/react-dom": "catalog:frontend",
     "@vitejs/plugin-react": "catalog:frontend",
     "rimraf": "catalog:typescript",
+    "tailwindcss": "catalog:frontend",
     "ttsc": "catalog:typescript",
     "typescript": "catalog:typescript",
     "vite": "catalog:frontend"

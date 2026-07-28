@@ -42,10 +42,10 @@ Hide or disable what the current actor cannot do, because offering an action tha
 
 The server is authoritative and can refuse a control the interface chose to show: a grade is revoked, ownership changes, a session goes stale between the render and the click. [screens.md](screens.md) owns that rule; the part that belongs here is that **grade is read per request on the server**, so a promotion takes effect on the next call and the interface should reflect it after the next fetch rather than requiring a sign-out.
 
-## Sign-Out Is A Client Action
+## Sign-Out Follows The Contract
 
-Authentication is stateless: signing out means the client disposes of its token and clears the cached queries that belonged to that actor.
+When the contract is stateless and exposes no revocation, signing out is a client action: dispose of the local token and clear the cached queries that belonged to that actor. When the requirements expose current-session or all-session revocation, call the matching SDK operation and treat confirmed server revocation as part of the sign-out outcome; local disposal alone does not satisfy it.
 
 **Clearing the cache is the half that gets forgotten.** A new actor signing in on the same device sees the previous one's cart, orders, and profile until something invalidates them, which is a data leak with a friendly appearance.
 
-If the contract exposes a session-revocation operation, that is an ordinary endpoint over the session resource and calling it is a separate decision from disposing of the local token.
+Do not report a required revocation as successful when its call failed. Once the server confirms it, dispose of the local authorization material and clear actor-owned cache. Current-session and all-session commands have different scope, so map each control to the exact operation rather than implementing both as the same local deletion.

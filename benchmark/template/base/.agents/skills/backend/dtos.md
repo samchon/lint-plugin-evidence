@@ -196,13 +196,13 @@ The actor is who; the session is how they connected.
 
 Merely sensitive data is not a credential. Whether it is exposed is an authorization decision, and hard-excluding it hides a field the requirements may need visible.
 
-**The issued token lives only in `.IAuthorized`**, returned once at join, login, or refresh. The authorized variant carries the actor's identifier and a `token` object of exactly four properties: `access` and `refresh`, both strings, and `expired_at` and `refreshable_until`, both date-time strings. `expired_at` is the access token's horizon; `refreshable_until` is the refresh horizon, and it matches the session row's own expiry, because they are the same promise. Nothing else belongs in the variant: no session fields, no stored token.
+**Issued authorization material lives only in `.IAuthorized`**, returned by the lifecycle operations the requirements define. The authorized variant carries the actor identity and a `token.access` string when the controller uses `@setHeader token.access Authorization`. Add a refresh proof or deadline only when the requirements expose refresh or expiry semantics, and name each deadline for the promise it actually represents. Do not publish fixed `refresh`, `expired_at`, or `refreshable_until` fields merely because another subject used them, and never expose a stored verifier or session row as the token response.
 
 When the actor owns a required one-to-one composition such as a profile, `.IJoin` embeds that child's `.ICreate` as a property, so registration creates both rows in one call and the collector connects them.
 
-**Session context follows a fixed matrix.** The connection address, the referring page, and the origin are optional in join and login, because a server-rendered client cannot know its own address and the provider falls back to what it observed. They are required on a session read variant, because the stored value exists. They are absent from the actor variant, the authorized variant, and the refresh variant.
+**Session context follows the requirements, not a fixed matrix.** If the product exposes connection address, referring page, origin, device label, or another context fact, state where the server observes it, whether the caller may supply it, and which session read returns it. Otherwise omit it from storage and every DTO. Never make optional client metadata required merely because a session row happens to exist.
 
-A refresh variant carries exactly one non-null string property holding the refresh token. An anonymous actor still submits it: credential-free does not mean tokenless.
+When refresh exists, its request carries only the proof and context the refresh contract requires. An anonymous actor may still need a continuation proof; credential-free does not mean tokenless. A subject with no refresh operation has no refresh variant.
 
 ## Descriptions Are The Published Reference
 
