@@ -479,6 +479,17 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
       validAdmission,
     );
     for (const input of list(
+      fixture.validRuntimeAdmissionBoundaryCases,
+      "valid runtime source admission boundaries",
+    )) {
+      const boundary = object(input, "valid runtime source admission boundary");
+      const value: Record<string, unknown> = structuredClone(validAdmission);
+      applyMutation(value, boundary);
+      EvidenceBenchmarkProtocolValidator.validateRuntimeSourceAdmissionValue(
+        value,
+      );
+    }
+    for (const input of list(
       fixture.invalidRuntimeAdmissions,
       "invalid runtime source admissions",
     )) {
@@ -528,6 +539,10 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
       setChild(destination.parent, destination.key, structuredClone(source));
       return;
     }
+    if (operation === "remove") {
+      removeChild(destination.parent, destination.key);
+      return;
+    }
     throw new Error(`Unsupported fixture mutation operation: ${operation}.`);
   }
 
@@ -546,6 +561,24 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
       return;
     }
     parent[key] = value;
+  }
+
+  function removeChild(
+    parent: Record<string, unknown> | unknown[],
+    key: string,
+  ): void {
+    if (Array.isArray(parent)) {
+      if (!/^(?:0|[1-9][0-9]*)$/u.test(key))
+        throw new Error(`Fixture array index is invalid: ${key}.`);
+      const index: number = Number(key);
+      if (index >= parent.length)
+        throw new Error(`Fixture array index is out of range: ${key}.`);
+      parent.splice(index, 1);
+      return;
+    }
+    if (!Object.hasOwn(parent, key))
+      throw new Error(`Fixture mutation member does not exist: ${key}.`);
+    delete parent[key];
   }
 
   function pointerParent(

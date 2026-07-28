@@ -391,6 +391,7 @@
         "reviewAuthorLogin",
         "reviewAuthorAssociation",
         "submittedAtUtc",
+        "pullRequestMergedAtUtc",
         "reviewBodyDigestAlgorithmId",
         "reviewBodySha256",
         "requiredReviewMarker",
@@ -435,6 +436,11 @@
         },
         "submittedAtUtc": {
           "description": "Exact submitted_at field returned by the GitHub review payload.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "pullRequestMergedAtUtc": {
+          "description": "Exact merged_at field returned by GitHub REST for pullRequestNumber; semantic validation requires submittedAtUtc to be no later than this value.",
           "type": "string",
           "format": "date-time"
         },

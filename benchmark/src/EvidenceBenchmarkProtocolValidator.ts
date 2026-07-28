@@ -419,6 +419,7 @@ export namespace EvidenceBenchmarkProtocolValidator {
       policy.reviewAuthorAssociation !== "OWNER" ||
       policy.reviewBodyDigestAlgorithmId !== "sha256-utf8-review-body-v1" ||
       policy.requiredReviewMarker !== "overall-self-review-v1" ||
+      policy.requireReviewSubmittedNoLaterThanMerge !== true ||
       policy.requireReviewedHeadMergeParentOrAncestor !== true ||
       policy.requireExactReviewedHeadAndMergedGitTree !== true ||
       policy.runtimeArtifact !==
@@ -496,7 +497,18 @@ export namespace EvidenceBenchmarkProtocolValidator {
     );
     positiveInteger(review.finalCommentReviewId, "formal COMMENT review id");
     digest(review.reviewBodySha256, "formal review body SHA-256");
-    dateTime(review.submittedAtUtc, "formal review submission time");
+    const submittedAt: number = dateTime(
+      review.submittedAtUtc,
+      "formal review submission time",
+    );
+    const mergedAt: number = dateTime(
+      review.pullRequestMergedAtUtc,
+      "pull request merge time",
+    );
+    if (submittedAt > mergedAt)
+      throw new Error(
+        "Formal review submission time must not be later than the pull request merge time.",
+      );
   }
 
   /** Verifies a runtime-sealed protocol raw-tree digest after sealing. */
@@ -1351,16 +1363,63 @@ export namespace EvidenceBenchmarkProtocolValidator {
     return result;
   }
 
-  function dateTime(value: unknown, label: string): string {
+  function dateTime(value: unknown, label: string): number {
     const result: string = nonblank(value, label);
+    const match: RegExpMatchArray | null = result.match(
+      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/u,
+    );
+    if (match === null)
+      throw new Error(`${label} must be an RFC 3339 date-time.`);
+    const [
+      ,
+      yearText,
+      monthText,
+      dayText,
+      hourText,
+      minuteText,
+      secondText,
+      offsetHourText,
+      offsetMinuteText,
+    ] = match;
+    const year: number = Number(yearText);
+    const month: number = Number(monthText);
+    const day: number = Number(dayText);
+    const hour: number = Number(hourText);
+    const minute: number = Number(minuteText);
+    const second: number = Number(secondText);
+    const offsetHour: number =
+      offsetHourText === undefined ? 0 : Number(offsetHourText);
+    const offsetMinute: number =
+      offsetMinuteText === undefined ? 0 : Number(offsetMinuteText);
+    const leapYear: boolean =
+      year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    const daysInMonth: number[] = [
+      31,
+      leapYear ? 29 : 28,
+      31,
+      30,
+      31,
+      30,
+      31,
+      31,
+      30,
+      31,
+      30,
+      31,
+    ];
+    const epoch: number = Date.parse(result);
     if (
-      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/u.test(
-        result,
-      ) ||
-      !Number.isFinite(Date.parse(result))
+      day < 1 ||
+      day > (daysInMonth[month - 1] ?? 0) ||
+      hour > 23 ||
+      minute > 59 ||
+      second > 59 ||
+      offsetHour > 23 ||
+      offsetMinute > 59 ||
+      !Number.isFinite(epoch)
     )
       throw new Error(`${label} must be an RFC 3339 date-time.`);
-    return result;
+    return epoch;
   }
 
   class StrictJsonParser {
