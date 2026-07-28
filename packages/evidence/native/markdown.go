@@ -42,6 +42,7 @@ func loadMarkdownBase(
 ) []string {
 	problems := []string{}
 	if problem := unreadableBaseProblem(base, artifactMarkdown); problem != "" {
+		recordPopulationFailure(inventories, artifactMarkdown, base)
 		return []string{problem}
 	}
 	err := filepath.WalkDir(base.Absolute, func(current string, entry fs.DirEntry, walkErr error) error {
@@ -56,6 +57,7 @@ func loadMarkdownBase(
 				}
 				return nil
 			}
+			recordPopulationFailure(inventories, artifactMarkdown, base)
 			problems = append(problems, "Evidence graph could not inspect '"+current+"': "+walkErr.Error()+". Fix filesystem access so configured Markdown sources can be indexed.")
 			if entry != nil && entry.IsDir() {
 				return filepath.SkipDir
@@ -82,8 +84,9 @@ func loadMarkdownBase(
 		content, readErr := os.ReadFile(current)
 		if readErr != nil {
 			inventories[address.Key] = &artifactInventory{
-				Path: address.Display,
-				Type: artifactMarkdown,
+				Path:       address.Display,
+				Type:       artifactMarkdown,
+				LoadFailed: true,
 			}
 			problems = append(problems, "Evidence graph could not read Markdown file '"+address.Display+"': "+readErr.Error()+". Fix filesystem access or exclude the file from configured globs.")
 			return nil
@@ -98,6 +101,7 @@ func loadMarkdownBase(
 		return nil
 	})
 	if err != nil {
+		recordPopulationFailure(inventories, artifactMarkdown, base)
 		problems = append(problems, "Evidence graph could not walk Markdown root '"+populationRootLabel(base)+"': "+err.Error()+".")
 	}
 	return problems

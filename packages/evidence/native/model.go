@@ -166,6 +166,16 @@ type artifactInventory struct {
 	Units        []*evidenceUnit
 	Declarations []*evidenceDeclaration
 	Problems     []inventoryProblem
+	// LoadFailed distinguishes an unreadable or rejected artifact from a
+	// healthy artifact that legitimately materializes no selected units.
+	// Coverage is a completeness claim, so a failed inventory cannot be used
+	// to derive missing acknowledgements or an empty-population diagnostic.
+	LoadFailed bool
+	// FailureBase is set only on a synthetic health marker for a population
+	// whose root or walk could not be inspected completely. The marker never
+	// participates in glob matching; it carries loader health across the same
+	// immutable inventory boundary as the artifacts the loader did reach.
+	FailureBase string
 	// Imports indexes the local names a TypeScript module brings into scope, so
 	// an inline-link target can be resolved the way TypeScript resolves a name:
 	// from the citing file's own bindings rather than from a global table.
@@ -201,6 +211,7 @@ type claimState struct {
 	Paths        []string
 	Declarations []*evidenceDeclaration
 	References   []referenceState
+	Healthy      bool
 }
 
 type referenceState struct {
@@ -209,6 +220,7 @@ type referenceState struct {
 	Units        []*evidenceUnit
 	Scopes       []*evidenceUnit
 	UnitsByScope map[string][]*evidenceUnit
+	Healthy      bool
 }
 
 func decimal(value int) string {
