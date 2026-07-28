@@ -7,8 +7,11 @@
   "additionalProperties": false,
   "required": [
     "schemaVersion",
+    "runId",
+    "blockId",
     "unit",
     "blockPlanSha256",
+    "executionSafetySha256",
     "maximumObservedTotalTokens",
     "observedTotalTokens",
     "responseObservedOvershootTokens",
@@ -21,6 +24,7 @@
     "forcedStop",
     "globalAbortId",
     "stopEventSha256",
+    "sharedStopEventSha256",
     "descendantsQuiesced",
     "processTreeTerminated",
     "durableStopState",
@@ -38,10 +42,21 @@
     "schemaVersion": {
       "const": 1
     },
+    "runId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "blockId": {
+      "type": "string",
+      "minLength": 1
+    },
     "unit": {
       "const": "provider_total_tokens"
     },
     "blockPlanSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "executionSafetySha256": {
       "$ref": "#/$defs/sha256"
     },
     "maximumObservedTotalTokens": {
@@ -89,6 +104,16 @@
       ]
     },
     "stopEventSha256": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/sha256"
+        }
+      ]
+    },
+    "sharedStopEventSha256": {
       "oneOf": [
         {
           "type": "null"

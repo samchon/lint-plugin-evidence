@@ -8,6 +8,7 @@
     "schemaVersion",
     "blockId",
     "blockPlanSha256",
+    "executionSafetySha256",
     "maximumObservedBlockTotalTokens",
     "observedBlockTotalTokens",
     "blockObservedOvershootTokens",
@@ -41,6 +42,9 @@
     "blockPlanSha256": {
       "$ref": "#/$defs/sha256"
     },
+    "executionSafetySha256": {
+      "$ref": "#/$defs/sha256"
+    },
     "maximumObservedBlockTotalTokens": {
       "type": "integer",
       "minimum": 1
@@ -63,7 +67,8 @@
     },
     "cellCostReports": {
       "type": "array",
-      "minItems": 1,
+      "minItems": 4,
+      "maxItems": 4,
       "uniqueItems": true,
       "items": {
         "type": "object",
