@@ -1,6 +1,6 @@
 # DTOs
 
-A DTO carries two obligations, and they sit at different granularities.
+A DTO carries two obligations, and they sit at different granularities. Every configured requirement section and every selected model must be acknowledged by a DTO type, and every selected column by a DTO property. The lint stage fails until both hold.
 
 **The type answers to a requirement and a table.** It exists because the specification named a concept, and it represents a row someone can point at.
 
