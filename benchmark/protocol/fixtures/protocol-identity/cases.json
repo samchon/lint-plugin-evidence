@@ -18,6 +18,7 @@
         "reviewAuthorLogin": "samchon",
         "reviewAuthorAssociation": "OWNER",
         "submittedAtUtc": "2026-07-29T10:00:00Z",
+        "pullRequestMergedAtUtc": "2026-07-29T11:00:00Z",
         "reviewBodyDigestAlgorithmId": "sha256-utf8-review-body-v1",
         "reviewBodySha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
         "requiredReviewMarker": "overall-self-review-v1",
@@ -32,6 +33,14 @@
       }
     }
   },
+  "validRuntimeAdmissionBoundaryCases": [
+    {
+      "id": "review-submitted-exactly-at-merge",
+      "operation": "replace",
+      "path": "/sourceAdmission/formalReview/submittedAtUtc",
+      "value": "2026-07-29T11:00:00Z"
+    }
+  ],
   "invalidCases": [
     {
       "id": "formal-self-reference",
@@ -170,6 +179,26 @@
       "path": "/sourceAdmission/formalReview/submittedAtUtc",
       "value": "not-a-date",
       "expectedPattern": "must be an RFC 3339"
+    },
+    {
+      "id": "runtime-review-after-pull-request-merge",
+      "operation": "replace",
+      "path": "/sourceAdmission/formalReview/submittedAtUtc",
+      "value": "2026-07-29T11:00:00.001Z",
+      "expectedPattern": "must not be later than"
+    },
+    {
+      "id": "runtime-pull-request-merge-time-invalid",
+      "operation": "replace",
+      "path": "/sourceAdmission/formalReview/pullRequestMergedAtUtc",
+      "value": "2026-02-30T11:00:00Z",
+      "expectedPattern": "must be an RFC 3339"
+    },
+    {
+      "id": "runtime-pull-request-merge-time-missing",
+      "operation": "remove",
+      "path": "/sourceAdmission/formalReview/pullRequestMergedAtUtc",
+      "expectedPattern": "must be a nonblank string"
     }
   ]
 }
