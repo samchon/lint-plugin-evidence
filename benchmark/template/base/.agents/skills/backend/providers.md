@@ -6,7 +6,23 @@ A provider is an exported namespace named for the entity it owns. There is no de
 
 Every function takes a single object named `props`. Positional parameters are not used, including in the private helpers a provider keeps for itself.
 
-**The caller arrives as a payload**, the small `{ id, session_id, type }` object the authorize provider returned. A function reachable by several actors takes the union and narrows on `type`, which is what makes a per-actor rule readable as a branch instead of a lookup. [authorization.md](authorization.md) owns the payload and where it comes from.
+**The caller arrives as a payload**, the small `{ id, session_id, type }` object the authorize provider returned. [authorization.md](authorization.md) owns the payload and where it comes from.
+
+The parameter's type says who may reach the function, and it takes one of two shapes.
+
+**One actor: name the parameter for it.** `seller: SellerPayload` on a function only a seller calls. The type is the documentation, and nothing inside has to ask who the caller is.
+
+**Several actors: take the union, and call it `actor`.** `actor: SellerPayload | CustomerPayload` on a read that both reach. Narrow on `type` where the rule differs, which is what turns a per-actor requirement into a branch a reviewer can check against the document.
+
+```ts
+props.actor.type === "seller"
+  ? [{ shopping_seller_id: props.actor.id }]
+  : [{ opened_at: { lte: new Date() } }]
+```
+
+Widening the union past the actors that may actually call it is the mistake to avoid. Every caller the type admits is a caller you have to have thought about, and one nobody thought about reaches the query with no branch of its own and gets whatever the fallback happens to be.
+
+**Grade is checked here too, and it is a separate question from the actor.** The payload carries no grade, so a grade-restricted function loads the current one and refuses through the same error helper as any other business rule. Being the right kind of actor, holding the required grade, and owning the particular row are three checks, and passing one says nothing about the others.
 
 The provider composes rather than maps. The selection and the row-to-DTO mapping belong to the [transformer](transformers.md); the creation payload belongs to the [collector](collectors.md). What is left here is the business logic: which rows this caller may see, what a write means, what is refused.
 

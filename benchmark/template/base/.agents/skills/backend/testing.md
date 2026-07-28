@@ -322,9 +322,19 @@ await TestValidator.error("a non-owner cannot edit the department", async () => 
 });
 ```
 
-Whether a refusal arrives as 401, 403, 404, or 409 depends on which check the provider reaches first, and a provider that verifies existence before authority returns a not-found where you expected a forbidden. Both are correct, so pinning the code turns a legitimate reordering into a red suite.
+Whether a refusal arrives as 401, 403, 404, or 409 depends on which check the provider reaches first, and a provider that verifies existence before authority returns a not-found where you expected a forbidden. Both are correct, so pinning the code turns a legitimate reordering into a red suite. **The status is the server's choice and is not part of the contract.**
 
-Await both layers: the assertion and the call inside it.
+Two spellings are the reflex, and neither belongs in this suite:
+
+```ts
+// Both forbidden: the code is not what the test is about.
+await TestValidator.httpError("not found", 404, async () => { ... });
+TestValidator.equals("status", error.status, 403);
+```
+
+`TestValidator.error` is the only rejection assertion here. It says the call was refused, which is the requirement, and says nothing about how, which is not.
+
+Await both layers: the assertion and the call inside it. A synchronous callback takes no `await` on the outer call; an async one takes it on both.
 
 ## Never Test Type Errors
 

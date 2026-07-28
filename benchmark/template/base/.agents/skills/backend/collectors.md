@@ -64,8 +64,35 @@ In this order:
 1. the exact declared body property, by its API name rather than the column name;
 2. a declared reference or actor entity;
 3. a declared external scalar input;
-4. an indirect reference, by querying a related row for the missing key, remembering that the result exposes only what was selected;
+4. an indirect reference, by querying a related row for the missing key;
 5. a semantic fallback.
+
+A reference parameter is named for the table it points at, singularized and camelCased without the service prefix, and typed `IEntity` because the identifier is all the collector needs: `shopping_sales` arrives as `sale`, `shopping_customer_sessions` as `session`.
+
+The indirect step is the one worth showing, because the row that must be written carries a key the caller never sends.
+
+```ts
+export async function collect(props: {
+  body: IShoppingSaleReview.ICreate;
+  customer: IEntity;
+}) {
+  const good = await MyGlobal.prisma.shopping_order_goods.findFirstOrThrow({
+    where: { id: props.body.orderGoodId },
+    select: { id: true, shopping_sale_id: true },
+  });
+  return {
+    id: v4(),
+    good: { connect: { id: good.id } },
+    sale: { connect: { id: good.shopping_sale_id } },
+    customer: { connect: { id: props.customer.id } },
+    created_at: new Date(),
+  } satisfies Prisma.shopping_sale_reviewsCreateInput;
+}
+```
+
+A review names the good it is about; the row also stores the sale, so that a listing by sale is one index lookup. The caller cannot supply that, and the collector is where it is resolved.
+
+**Select the foreign key scalar, not the relation.** `good.shopping_sale_id` is a column on the row you already fetched. Reaching `good.sale.id` requires selecting that relation, fetches a row to read a value you already had, and fails to compile when you forget.
 
 Use a fallback only where its meaning is correct for that field:
 
@@ -93,3 +120,5 @@ password_hash: await PasswordUtil.hash(props.body.password),
 ```
 
 Do not accept a pre-hashed value as a parameter. The collector is the only place that knows the storage form, and moving that knowledge outward is how two call sites end up hashing differently.
+
+That generalizes: **a derived value is computed here, never passed in.** A parameter is the request body, a reference to a row, or a scalar the caller genuinely supplies. Anything the collector could work out itself is worked out here, so there is one answer to what the stored form is.

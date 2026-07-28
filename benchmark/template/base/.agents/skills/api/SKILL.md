@@ -131,6 +131,25 @@ export interface IDiagnosis {
 
 That shared shape is the whole point: a client-side check and a server-side rejection speak one vocabulary, and a field-level error lands on the right field because `accessor` says which one.
 
+`IEntity` lives beside it, and is the other type the whole repository leans on.
+
+```ts
+/**
+ * A reference to one row.
+ *
+ * Every table in this product has a UUID primary key named `id`, so anything
+ * that only needs to point at a row takes this rather than the full type.
+ */
+export interface IEntity {
+  /**
+   * Primary Key.
+   */
+  id: string & tags.Format<"uuid">;
+}
+```
+
+It is what a collector takes for each row it connects to, and what a DTO uses when a caller sends a reference rather than a nested object. Taking the full type there would force every caller to load a row to name one.
+
 Writing the rule twice guarantees the two drift, and the drift surfaces as a form that accepts what the server then rejects.
 
 **Entity to input mappers.** Turning a fetched entity back into the body that would recreate it. An edit form needs exactly this, and so does a server-side duplicate feature.
