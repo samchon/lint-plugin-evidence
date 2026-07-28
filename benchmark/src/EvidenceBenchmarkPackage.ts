@@ -327,6 +327,10 @@ export namespace EvidenceBenchmarkPackage {
       GOCACHE: path.join(cache, "go-build"),
       GOTMPDIR: path.join(cache, "go-tmp"),
     };
+    EvidenceBenchmarkProcess.pinEnvironment(
+      environment,
+      path.join(cache, "toolchain-bin"),
+    );
     for (const variable of [
       "npm_config_store_dir",
       "TTSC_CACHE_DIR",

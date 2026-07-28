@@ -2,8 +2,10 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
+import { EvidenceBenchmarkAtomic } from "./EvidenceBenchmarkAtomic.ts";
 import { EvidenceBenchmarkCorpus } from "./EvidenceBenchmarkCorpus.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 
@@ -91,6 +93,7 @@ export namespace EvidenceBenchmarkMaterializer {
         pnpm: path.join(output, "cache", "pnpm-store"),
         ttsc: path.join(output, "cache", "ttsc"),
         go: path.join(output, "cache", "go-build"),
+        toolchain: path.join(output, "cache", "toolchain-bin"),
       };
       const manifestRecord: IEvidenceBenchmarkMaterialization.IManifest = {
         schemaVersion: 1,
@@ -135,16 +138,6 @@ export namespace EvidenceBenchmarkMaterializer {
         },
         caches,
       };
-
-      writeTree(path.join(stage, "workspace"), workspaceFiles);
-      writeTree(path.join(stage, "inputs", "requirements"), requirementFiles);
-      fs.writeFileSync(
-        path.join(stage, "materialization.json"),
-        `${JSON.stringify(manifestRecord, null, 2)}\n`,
-        { encoding: "utf8", flag: "wx" },
-      );
-      fs.renameSync(stage, output);
-
       const environment: NodeJS.ProcessEnv = {
         ...process.env,
         npm_config_store_dir: caches.pnpm,
@@ -153,6 +146,21 @@ export namespace EvidenceBenchmarkMaterializer {
         GOCACHE: caches.go,
         GOTMPDIR: path.join(output, "cache", "go-tmp"),
       };
+      const stageToolchain: string = path.join(stage, "cache", "toolchain-bin");
+      EvidenceBenchmarkProcess.pinEnvironment(environment, stageToolchain);
+
+      writeTree(path.join(stage, "workspace"), workspaceFiles);
+      writeTree(path.join(stage, "inputs", "requirements"), requirementFiles);
+      fs.writeFileSync(
+        path.join(stage, "materialization.json"),
+        `${JSON.stringify(manifestRecord, null, 2)}\n`,
+        { encoding: "utf8", flag: "wx" },
+      );
+      await EvidenceBenchmarkAtomic.publish(stage, output);
+      environment.PATH = (environment.PATH ?? "")
+        .split(path.delimiter)
+        .map((entry) => (entry === stageToolchain ? caches.toolchain : entry))
+        .join(path.delimiter);
       return {
         root: output,
         workspace: path.join(output, "workspace"),

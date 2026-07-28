@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { EvidenceBenchmarkBaseline } from "./EvidenceBenchmarkBaseline.ts";
 import { EvidenceBenchmarkCorpus } from "./EvidenceBenchmarkCorpus.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
@@ -24,21 +25,33 @@ export namespace EvidenceBenchmarkSelfTest {
     const temporary: string = fs.mkdtempSync(
       path.join(os.tmpdir(), "evidence-benchmark-self-test-"),
     );
+    let preserveFailure: boolean = false;
     try {
       const fixture: string = path.join(temporary, "fixture");
       createFixture(repository, fixture);
       await testPinnedPnpm(repository);
       await testPinnedSetup(temporary);
       await testRepositoryInputs(repository);
+      await testRetentionIgnore(repository);
       await testCorpusAdapters(temporary);
       await testComposition(fixture, temporary);
       await testMaterialization(repository, temporary);
+      if (args.includes("--baseline"))
+        await testBaseline(repository, temporary);
       if (args.includes("--package")) await testPackage(repository, temporary);
       console.log(
-        `Benchmark self-test passed${args.includes("--package") ? " with package smoke" : ""}.`,
+        `Benchmark self-test passed${args.includes("--baseline") ? " with neutral baseline" : ""}${args.includes("--package") ? " with package smoke" : ""}.`,
       );
+    } catch (error) {
+      preserveFailure = args.includes("--baseline");
+      if (preserveFailure)
+        console.error(
+          `Baseline self-test failure retained its diagnostics at ${temporary}.`,
+        );
+      throw error;
     } finally {
-      fs.rmSync(temporary, { recursive: true, force: true });
+      if (!preserveFailure)
+        fs.rmSync(temporary, { recursive: true, force: true });
     }
   }
 
@@ -257,6 +270,14 @@ export namespace EvidenceBenchmarkSelfTest {
           variables: benchmarkVariables("integrated-self-test"),
         });
       assert.ok(composition.files.size > 0);
+      for (const relative of [
+        "packages/frontend/src/lib/client.ts",
+        "packages/frontend/src/lib/config.ts",
+      ])
+        assert.ok(
+          composition.files.has(relative),
+          `integrated ${arm} scaffold is missing authored source ${relative}`,
+        );
     }
 
     const requirements: string = path.join(
@@ -278,6 +299,49 @@ export namespace EvidenceBenchmarkSelfTest {
           () => EvidenceBenchmarkCorpus.read(subject),
           "no audited machine-readable inventory",
         );
+    }
+  }
+
+  async function testRetentionIgnore(repository: string): Promise<void> {
+    for (const relative of [
+      "benchmark/result/todo/evidence/runs/example/logs/stderr.raw.log",
+      "benchmark/result/todo/evidence/runs/example/gates/format.stdout.log",
+      "benchmark/result/todo/evidence/workspace/.benchmark-deps/e-deadbeef.tgz",
+    ]) {
+      const result = await EvidenceBenchmarkProcess.run(
+        "git",
+        ["check-ignore", "--no-index", relative],
+        {
+          cwd: repository,
+          allowFailure: true,
+          label: `check retained benchmark artifact ${relative}`,
+        },
+      );
+      assert.equal(
+        result.status,
+        1,
+        `canonical result artifact must remain trackable: ${relative}`,
+      );
+    }
+    for (const relative of [
+      "benchmark/.work/todo/evidence/terminal/stderr.raw.log",
+      "benchmark/not-result/stray.log",
+      "benchmark/not-result/stray.tgz",
+    ]) {
+      const result = await EvidenceBenchmarkProcess.run(
+        "git",
+        ["check-ignore", "--no-index", relative],
+        {
+          cwd: repository,
+          allowFailure: true,
+          label: `check ignored benchmark artifact ${relative}`,
+        },
+      );
+      assert.equal(
+        result.status,
+        0,
+        `non-result artifact must remain ignored: ${relative}`,
+      );
     }
   }
 
@@ -329,6 +393,9 @@ export namespace EvidenceBenchmarkSelfTest {
           private: true,
           name: "benchmark-setup-self-test",
           packageManager: `pnpm@${EvidenceBenchmarkProcess.PNPM_VERSION}`,
+          scripts: {
+            "nested-version": "pnpm --version",
+          },
           devDependencies: {
             "@ttsc/lint": "0.23.0",
             ttsc: "0.23.0",
@@ -362,6 +429,20 @@ export namespace EvidenceBenchmarkSelfTest {
     assert.equal(setup.pnpmVersion, EvidenceBenchmarkProcess.PNPM_VERSION);
     assert.ok(fs.existsSync(path.join(workspace, "pnpm-lock.yaml")));
     assert.ok(fs.existsSync(path.join(root, "setup.json")));
+    const nested = await EvidenceBenchmarkProcess.pnpm(
+      ["run", "nested-version"],
+      {
+        cwd: workspace,
+        env: materialization.environment,
+        label: "self-test nested pinned pnpm",
+      },
+    );
+    assert.ok(
+      nested.stdout
+        .split(/\r?\n/)
+        .some((line) => line.trim() === EvidenceBenchmarkProcess.PNPM_VERSION),
+      "nested package scripts must resolve the benchmark-pinned pnpm",
+    );
   }
 
   async function testCorpusAdapters(temporary: string): Promise<void> {
@@ -511,6 +592,34 @@ export namespace EvidenceBenchmarkSelfTest {
       fs.readdirSync(temporary).some((entry) => entry.includes(".tmp")),
       false,
       "materializer must not leak staging directories",
+    );
+    const failedOutput: string = path.join(temporary, "materializer-failure");
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkMaterializer.materialize({
+          repository,
+          output: failedOutput,
+          project: "todo",
+          arm: "evidence",
+          variables,
+          artifact: {
+            ...artifact,
+            sha256: EvidenceBenchmarkHash.bytes("wrong archive identity"),
+          },
+        }),
+      "archive drifted",
+    );
+    assert.equal(fs.existsSync(failedOutput), false);
+    assert.equal(
+      fs
+        .readdirSync(temporary)
+        .some(
+          (entry) =>
+            entry.startsWith(".materializer-failure.") &&
+            entry.endsWith(".tmp"),
+        ),
+      false,
+      "failed materialization must remove its exact unpublished stage",
     );
     await expectFailure(
       () =>
@@ -673,6 +782,35 @@ export namespace EvidenceBenchmarkSelfTest {
     assert.equal(
       fs.readdirSync(output).filter((file) => file.endsWith(".tgz")).length,
       1,
+    );
+  }
+
+  async function testBaseline(
+    repository: string,
+    temporary: string,
+  ): Promise<void> {
+    const baseline = await EvidenceBenchmarkBaseline.prepare({
+      repository,
+      output: path.join(temporary, "neutral-baseline"),
+    });
+    assert.equal(baseline.pnpmVersion, EvidenceBenchmarkProcess.PNPM_VERSION);
+    assert.equal(
+      Object.keys(baseline.steps).length,
+      9,
+      "neutral baseline must retain every admission step",
+    );
+    assert.ok(fs.existsSync(path.join(baseline.root, "baseline.json")));
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          baseline.workspace,
+          "node_modules",
+          "@samchon",
+          "lint-plugin-evidence",
+        ),
+      ),
+      false,
+      "neutral baseline must not receive the measured product",
     );
   }
 
