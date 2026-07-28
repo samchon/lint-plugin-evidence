@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "suiteId": "todo-hidden-v1",
+  "freezeId": "current-four-subject-freeze-2026-07-29",
+  "subject": "todo",
+  "requirementsTreeSha256": "26aba99e190b37785278a20f6858b6000f41f3885d9e6bcead09eb49db99ee9b",
+  "acceptanceCatalog": {
+    "sha256": "d17cdacf7dae1eee994538c416aa4d9e8d99f0ee20c16b1b00f14e5145a0a143",
+    "count": 211
+  },
+  "adapter": null,
+  "cases": [
+    {
+      "id": "TODO-HIDDEN-HTTP-AUTH-01",
+      "criterionIds": [
+        "REQ-AUTH-PROVISION-1.AC-01",
+        "REQ-AUTH-PROVISION-1.AC-02"
+      ],
+      "kind": "http",
+      "routeState": null,
+      "viewports": []
+    },
+    {
+      "id": "TODO-HIDDEN-HTTP-ISOLATION-01",
+      "criterionIds": [
+        "REQ-AUTH-SESSION-2.AC-02",
+        "REQ-AUTH-BOUNDARY-2.AC-01"
+      ],
+      "kind": "http",
+      "routeState": null,
+      "viewports": []
+    },
+    {
+      "id": "TODO-HIDDEN-HTTP-LIFECYCLE-01",
+      "criterionIds": [
+        "REQ-FUNC-TODO-1.AC-01",
+        "REQ-DOM-TODO-LIFE-3.AC-01",
+        "REQ-DOM-TODO-LIFE-4.AC-01"
+      ],
+      "kind": "http",
+      "routeState": null,
+      "viewports": []
+    },
+    {
+      "id": "TODO-HIDDEN-HTTP-BROWSE-01",
+      "criterionIds": [
+        "REQ-FUNC-TODO-2.AC-03"
+      ],
+      "kind": "http",
+      "routeState": null,
+      "viewports": []
+    },
+    {
+      "id": "TODO-HIDDEN-BROWSER-ACTIVE-01",
+      "criterionIds": [
+        "REQ-NFR-ACCESS-1.AC-01",
+        "REQ-NFR-ACCESS-2.AC-01",
+        "REQ-NFR-ACCESS-3.AC-02"
+      ],
+      "kind": "browser",
+      "routeState": "authenticated-active-list",
+      "viewports": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ]
+    }
+  ]
+}

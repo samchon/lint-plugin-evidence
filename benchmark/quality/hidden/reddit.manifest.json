@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "suiteId": "reddit-hidden-v1",
+  "freezeId": "current-four-subject-freeze-2026-07-29",
+  "subject": "reddit",
+  "requirementsTreeSha256": "279209425c009df00e9702cf618ebe7153d8a39d805f673a59b848f84f3bc456",
+  "acceptanceCatalog": {
+    "sha256": "ec2de911694c6f05954dda3f3ed888edc0ff0de072ebd850891def38264badb3",
+    "count": 255
+  },
+  "adapter": null,
+  "cases": [
+    {
+      "id": "REDDIT-HIDDEN-HTTP-AUTH-01",
+      "criterionIds": [
+        "AC-REDDIT-AUTH-REG-001-01",
+        "AC-REDDIT-AUTH-REG-002-01",
+        "AC-REDDIT-AUTH-SESSION-003-01"
+      ],
+      "kind": "http",
+      "routeState": null,
+      "viewports": []
+    },
+    {
+      "id": "REDDIT-HIDDEN-HTTP-COMMUNITY-01",
+      "criterionIds": [
+        "AC-REDDIT-AUTH-ROLE-005-01",
+        "AC-REDDIT-FUNC-COMMUNITY-001-01"
+      ],
+      "kind": "http",
+      "routeState": null,
+      "viewports": []
+    },
+    {
+      "id": "REDDIT-HIDDEN-HTTP-PARTICIPATION-01",
+      "criterionIds": [
+        "AC-REDDIT-FUNC-POST-001-01",
+        "AC-REDDIT-FUNC-COMMENT-002-01"
+      ],
+      "kind": "http",
+      "routeState": null,
+      "viewports": []
+    },
+    {
+      "id": "REDDIT-HIDDEN-BROWSER-POPULAR-01",
+      "criterionIds": [
+        "AC-REDDIT-FUNC-FEED-002-01",
+        "AC-REDDIT-NFR-ACCESS-001-01",
+        "AC-REDDIT-ACCESS-001",
+        "AC-REDDIT-ACCESS-005"
+      ],
+      "kind": "browser",
+      "routeState": "visitor-popular-feed",
+      "viewports": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ]
+    },
+    {
+      "id": "REDDIT-HIDDEN-BROWSER-DIALOG-01",
+      "criterionIds": [
+        "AC-REDDIT-ACCESS-007"
+      ],
+      "kind": "browser",
+      "routeState": "authenticated-create-post-dialog-closed",
+      "viewports": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ]
+    }
+  ]
+}
