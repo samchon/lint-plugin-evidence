@@ -2,7 +2,7 @@
 
 ## REQ-RULE-CREDENTIAL Credential Rules
 
-Email is the stable account identity used by registration, login, and password recovery. Canonical matching prevents capitalization or accidental outer whitespace from creating duplicate private accounts.
+Email is the stable identity of an active account used by registration, login, and password recovery. Canonical matching prevents capitalization or accidental outer whitespace from creating duplicate private accounts. Completed permanent deletion releases that identity only for a new account.
 
 Passwords use one acceptance boundary across initial registration and both replacement journeys. Email, password, and proof validation identify the input that must be corrected, while login failure uses one generic outcome that protects account existence. Successful replacement makes the new secret authoritative and ends access established under the old credential state.
 
@@ -31,6 +31,20 @@ The result reveals neither whether the email is registered nor which credential 
 Password change requires the correct current password and a different new password. Forgotten-password recovery instead requires proven control of the registered email identity and does not require the old password. In both cases, the proposed replacement must satisfy the 8-through-128-character rule.
 
 On success, only the new password authenticates future login and every session issued before replacement loses authority. Failed action-specific proof or an invalid proposed password leaves the prior credential and every current session unchanged.
+
+### REQ-RULE-CREDENTIAL-5 Issue and Consume One-Time Recovery Proof
+
+A recovery request for an active account issues one fresh proof with at least 128 bits of unpredictable entropy through the registered email channel. The public response never returns that proof and remains indistinguishable from a request for an unknown or released email.
+
+Only the most recently issued proof remains eligible. Issuance supersedes every earlier unused proof for the account. An eligible proof may be used once and expires exactly 30 minutes after issue; use at or after that boundary is refused.
+
+Successful recovery consumes the proof together with credential replacement and all-session revocation. If concurrent completions present the same eligible proof, exactly one may succeed and every other attempt observes it as consumed. A used, expired, superseded, missing, or malformed proof authorizes nothing and changes no proof, credential, session, or product data.
+
+### REQ-RULE-CREDENTIAL-6 Release Deleted Email Identity
+
+Canonical email uniqueness applies across active accounts. Permanent deletion releases the removed account's canonical email only after the complete deletion outcome succeeds.
+
+A later registration with that released email creates a new account identity under REQ-AUTH-MANAGE-4. No prior password, session, recovery proof, profile, Todo, or history can authenticate or attach to the new account.
 
 ## REQ-RULE-PROFILE Display Name Rules
 
@@ -70,7 +84,7 @@ A pair with a due date earlier than its start date is refused. A refused edit pr
 
 ## REQ-RULE-BROWSE Todo Browsing Rules
 
-Active and trash lists share bounded, one-based pagination so users receive predictable pages and navigation totals. Their content controls differ: active browsing has `all`, `complete-only`, and `incomplete-only` filters plus creation, start, and due date sorting in both directions, while trash keeps its recovery-focused newest-deleted order.
+Active and trash lists and edit-history traversal use bounded, one-based pagination so users receive predictable pages and navigation totals. Their content controls differ: active browsing has `all`, `complete-only`, and `incomplete-only` filters plus creation, start, and due date sorting in both directions, trash keeps its recovery-focused newest-deleted order, and history follows accepted content revisions newest first.
 
 Creation ordering supports newest-first and oldest-first; start and due ordering support earliest-first and latest-first. An empty start or due date always follows dated tasks. Defaults and tie-breakers establish one complete order before pagination, preventing unchanged requests from moving equal-key items between pages.
 
@@ -116,17 +130,25 @@ When active browsing omits a sort, creation date newest first is used. Trash is 
 
 Equal selected keys are resolved as follows:
 
-- equal start or due dates use creation date newest first, then stable Todo identity;
-- equal creation dates use stable Todo identity; and
-- equal trash-entry times use creation date newest first, then stable Todo identity.
+- equal start or due dates use creation date newest first, then the exact canonical Todo ID text returned to the client in ascending code-point order;
+- equal creation dates use canonical Todo ID text in ascending code-point order; and
+- equal trash-entry times use creation date newest first, then canonical Todo ID text in ascending code-point order.
 
 The complete order is established before pagination. Repeated requests over unchanged candidates and selections therefore return the same item order.
+
+### REQ-RULE-BROWSE-5 Bound Edit-History Pagination
+
+Edit-history pages use page numbers beginning at 1, default page 1, page sizes from 1 through 100, and default size 20. Each page reports total history-entry count, total page count, current page, and page size.
+
+Entries are ordered by accepted content revision descending. Each successful edit has one unique revision, so no additional tie-break is needed. A page beyond the final page returns no entries with correct totals; a page below 1 or size outside 1 through 100 is refused.
+
+Pagination bounds each response rather than truncating history. Traversing pages over unchanged history reaches every retained entry once.
 
 ## REQ-RULE-STATE Todo State, Conflict, and History Rules
 
 Availability determines which Todo operations are meaningful. Active tasks support normal detail, content editing, completion changes, and soft deletion. Trashed tasks support trash detail, restoration, full history viewing, and permanent deletion; full history also remains available while the Todo is active.
 
-Completion retries receive a safe no-change result. Content edits use a stricter boundary because each success creates history: the request must make a real current-content change and must not overwrite a newer accepted edit. The resulting history is an immutable chronology until terminal deletion.
+Completion retries receive a safe no-change result. Content edits use a stricter boundary because each success creates history: the request must make a real current-content change and present the current content revision so it cannot overwrite a newer accepted edit. The resulting history is an immutable chronology until terminal deletion.
 
 ### REQ-RULE-STATE-1 Qualify Operations by Todo Availability
 
@@ -144,15 +166,17 @@ Each result preserves the current completion value and every other Todo and hist
 
 ### REQ-RULE-STATE-3 Refuse No-Op and Stale Content Edits
 
-A content-edit request must supply at least one title, description, start-date, or due-date value that differs from the Todo's current content. A no-op request is refused and creates no history entry.
+A content-edit request must identify the Todo, present its expected content revision, and supply at least one title, description, start-date, or due-date value that differs from current content. A no-op request is refused and creates no history entry.
 
-An edit is also refused when another content edit accepted after the user began editing makes the request stale. The refusal preserves the newer accepted Todo and history; the user can reload the current detail and history before submitting a new edit.
+An edit is stale when the presented expected revision differs from the Todo's current content revision. The refusal preserves the newer accepted Todo, revision, and history; the authorized owner can reload current detail and history before submitting a new edit.
+
+If concurrent valid edits present the same current expected revision, at most one succeeds. Its revision increment makes every other request stale before another content or history change can occur.
 
 Invalid content, wrong availability, and ownership mismatches remain separate refusals. Every refused edit leaves both Todo content and edit history unchanged.
 
 ### REQ-RULE-STATE-4 Create Immutable Content Edit History
 
-Each successful content edit creates exactly one immutable history entry with its edit time and changed-to values. If one edit changes several fields, those values remain together in that one entry.
+Each successful content edit increases the Todo's content revision by exactly one and creates exactly one immutable history entry carrying that resulting revision, its edit time, and changed-to values. If one edit changes several fields, those values remain together in that one entry.
 
 A successful edit never modifies or removes an earlier entry. Mark complete, mark incomplete, soft delete, and restore create no content-edit history entry. A refused content edit also creates none.
 
