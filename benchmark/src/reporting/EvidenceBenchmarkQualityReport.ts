@@ -325,6 +325,16 @@ export namespace EvidenceBenchmarkQualityReport {
     validateUsage(cell);
     validateCampaign(cell);
     if (
+      (cell.status === "completed" &&
+        (cell.censoring !== null || cell.usage.completeness !== "exact")) ||
+      (cell.status === "interrupted" &&
+        (cell.censoring === null ||
+          cell.censoring === "safety_limit" ||
+          cell.usage.completeness !== "observed_lower_bound")) ||
+      (cell.status === "failed" && cell.censoring !== null)
+    )
+      throw new Error(`Quality terminal censoring is invalid: ${cell.runId}.`);
+    if (
       (cell.status === "safety_limit") !== (cell.safetyLimit !== null) ||
       (cell.censoring === "safety_limit") !== (cell.safetyLimit !== null) ||
       (cell.safetyLimit !== null &&
@@ -355,6 +365,7 @@ export namespace EvidenceBenchmarkQualityReport {
     cell: Pick<IEvidenceBenchmarkQualityReport.ICell, "runId" | "subject">,
     phase: IEvidenceBenchmarkQualityReport.IPhase,
   ): void {
+    const { planSha256: _planSha256, ...planValue } = phase.gradePlan;
     validateGrade(phase.firstGrade);
     validateGrade(phase.secondGrade);
     const { comparisonSha256: _comparisonSha256, ...comparisonValue } =
@@ -374,6 +385,9 @@ export namespace EvidenceBenchmarkQualityReport {
       phase.adjudication.secondGradeId !== phase.secondGrade.gradeId ||
       phase.adjudication.denominatorsSummed !== false ||
       phase.gradePlan.bindings.runId !== cell.runId ||
+      phase.gradePlan.planSha256 !== EvidenceBenchmarkHash.object(planValue) ||
+      phase.gradePlan.bindings.treeAlgorithm !==
+        EvidenceBenchmarkHash.TREE_ALGORITHM ||
       phase.gradePlan.bindings.bundleId !== phase.bundleId ||
       phase.gradePlan.bindings.treeAlgorithm !== phase.rawScale.treeAlgorithm ||
       phase.rawScale.treeAlgorithm !== phase.blindScale.treeAlgorithm ||
@@ -668,6 +682,10 @@ export namespace EvidenceBenchmarkQualityReport {
       ...phase.firstGrade.sourceResponseIds,
       ...phase.secondGrade.sourceResponseIds,
     ]);
+    const firstThreads: Set<string> = new Set(phase.firstGrade.sourceThreadIds);
+    const firstResponses: Set<string> = new Set(
+      phase.firstGrade.sourceResponseIds,
+    );
     if (
       JSON.stringify(queueKeys) !== JSON.stringify(decisionKeys) ||
       new Set(decisionKeys).size !== decisionKeys.length ||
@@ -678,6 +696,10 @@ export namespace EvidenceBenchmarkQualityReport {
       adjudication.provenance.responseIds.length === 0 ||
       new Set(adjudication.provenance.responseIds).size !==
         adjudication.provenance.responseIds.length ||
+      phase.secondGrade.sourceThreadIds.some((id) => firstThreads.has(id)) ||
+      phase.secondGrade.sourceResponseIds.some((id) =>
+        firstResponses.has(id),
+      ) ||
       priorThreads.has(adjudication.provenance.threadId) ||
       adjudication.provenance.responseIds.some((id) =>
         priorResponses.has(id),

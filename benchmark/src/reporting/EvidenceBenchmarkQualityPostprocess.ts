@@ -52,7 +52,7 @@ export namespace EvidenceBenchmarkQualityPostprocess {
       !request.runId.trim() ||
       !fs.existsSync(request.coreSealPath) ||
       fs.existsSync(request.outputDirectory) ||
-      Number.isNaN(Date.parse(request.sealedAtUtc))
+      !validUtc(request.sealedAtUtc)
     )
       throw new Error("Quality postprocess request is invalid.");
     if (
@@ -181,12 +181,22 @@ export namespace EvidenceBenchmarkQualityPostprocess {
       fs.readFileSync(sealPath, "utf8"),
     ) as IEvidenceBenchmarkQualityPostprocess.ISeal;
     const { sealSha256: _sealSha256, ...unsigned } = seal;
+    const sha256: RegExp = /^[a-f0-9]{64}$/;
     if (
       seal.schemaVersion !== 1 ||
+      !seal.runId.trim() ||
+      !["todo", "reddit", "shopping", "erp"].includes(seal.subject) ||
+      !["completed", "failed", "interrupted", "safety_limit"].includes(
+        seal.generationStatus,
+      ) ||
       seal.coreSealSha256 !== EvidenceBenchmarkHash.file(coreSealPath) ||
       (seal.generationStatus === "safety_limit") !==
         (seal.safetyStopSha256 !== null) ||
+      (seal.safetyStopSha256 !== null && !sha256.test(seal.safetyStopSha256)) ||
+      !validUtc(seal.sealedAtUtc) ||
       seal.sealSha256 !== EvidenceBenchmarkHash.object(unsigned) ||
+      new Set(seal.phases.map((phase) => phase.phase)).size !==
+        seal.phases.length ||
       seal.requiredQualityComplete !==
         (seal.generationStatus === "completed" &&
           JSON.stringify(seal.phases.map((phase) => phase.phase)) ===
@@ -194,6 +204,21 @@ export namespace EvidenceBenchmarkQualityPostprocess {
     )
       throw new Error("Quality postprocess seal is invalid.");
     for (const phase of seal.phases) {
+      if (
+        phase.treeAlgorithm !== EvidenceBenchmarkHash.TREE_ALGORITHM ||
+        [
+          phase.artifactSha256,
+          phase.gradingInputManifestSha256,
+          phase.postGradeBundleRawTreeSha256,
+          phase.firstGradeSha256,
+          phase.secondGradeSha256,
+          phase.comparisonSha256,
+          phase.adjudicationSha256,
+          phase.deterministicInputsSha256,
+          phase.secondaryReviewSha256,
+        ].some((digest) => !sha256.test(digest))
+      )
+        throw new Error(`${phase.phase} postprocess projection is invalid.`);
       const target: string = inside(root, phase.artifactPath);
       if (phase.artifactSha256 !== EvidenceBenchmarkHash.file(target))
         throw new Error(
@@ -247,6 +272,8 @@ export namespace EvidenceBenchmarkQualityPostprocess {
     runId: string,
   ): void {
     const seal = verify(coreSealPath, postprocessDirectory);
+    const { rowSha256: _rowSha256, ...unsignedRow } = ledgerRow;
+    EvidenceBenchmarkQualityReport.create(ledgerRow.block);
     const cell = ledgerRow.block.cells.find(
       (candidate) => candidate.runId === runId,
     );
@@ -256,6 +283,12 @@ export namespace EvidenceBenchmarkQualityPostprocess {
     );
     if (
       seal.runId !== runId ||
+      ledgerRow.schemaVersion !== 1 ||
+      !Number.isSafeInteger(ledgerRow.sequence) ||
+      ledgerRow.sequence < 1 ||
+      !/^[a-f0-9]{64}$/.test(ledgerRow.previousRowSha256) ||
+      ledgerRow.blockSha256 !== EvidenceBenchmarkHash.object(ledgerRow.block) ||
+      ledgerRow.rowSha256 !== EvidenceBenchmarkHash.object(unsignedRow) ||
       seal.generationStatus !== "completed" ||
       !seal.requiredQualityComplete ||
       cell === undefined ||
@@ -297,5 +330,15 @@ export namespace EvidenceBenchmarkQualityPostprocess {
     } finally {
       await handle.close();
     }
+  }
+
+  function validUtc(value: string): boolean {
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value))
+      return false;
+    const milliseconds: number = Date.parse(value);
+    return (
+      !Number.isNaN(milliseconds) &&
+      new Date(milliseconds).toISOString() === value
+    );
   }
 }
