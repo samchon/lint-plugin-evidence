@@ -32,6 +32,8 @@ An edit to a generated path survives until the next generation and then disappea
 
 To change what an operation exposes, change the controller signature, its DTO, or its JSDoc, then run the SDK generation. The backend skill's operations and wiring topics own those conventions.
 
+**Everything published from here carries JSDoc, down to each property.** This package is the API reference: its types reach consumers who never open this repository, and a property documented only by its name tells them nothing about what value belongs there. That holds for the authored paths in the table above and for the controller JSDoc the generated ones are built from.
+
 ## What A Generated Accessor Looks Like
 
 Reading one explains most of what follows.
@@ -99,8 +101,6 @@ export namespace UniqueDiagnoser {
   export const validate = <Element>(props: IProps<Element>): IDiagnosis[] => {};
 }
 ```
-
-**Everything published carries JSDoc, down to each property.** This package is the API reference: its types reach consumers who never open this repository, and a property documented only by its name tells them nothing about what value belongs there.
 
 `IDiagnosis` is declared here, in `src/structures/common`, and it is the same shape the server's error responses carry.
 
