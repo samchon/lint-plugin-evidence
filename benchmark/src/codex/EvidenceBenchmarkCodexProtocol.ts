@@ -6,6 +6,16 @@ import { EvidenceBenchmarkCodexValue } from "./EvidenceBenchmarkCodexValue.ts";
  * the runner measures.
  */
 export namespace EvidenceBenchmarkCodexProtocol {
+  /** Pinned Codex CLI release admitted by the benchmark manifest. */
+  export const CODEX_CLI_VERSION = "0.145.0";
+
+  /** SHA-256 of the sorted experimental schema tree for Codex 0.145.0. */
+  export const CODEX_SCHEMA_SHA256 =
+    "8fe6831b1434b628a6a6876ba12af8097c4599c7218b9ffcb58f1fbfb5df6e40";
+
+  /** Pinned Codex source commit corresponding to the admitted CLI release. */
+  export const CODEX_SOURCE_COMMIT = "25af12f7e61572b0bc18ddb1008be543b91519b0";
+
   /** JSON-RPC request accepted by the app-server stdio transport. */
   export interface IRequest {
     /** Controller-allocated request identifier. */
@@ -71,7 +81,7 @@ export namespace EvidenceBenchmarkCodexProtocol {
         clientInfo: {
           name: "evidence-benchmark",
           title: "Evidence Benchmark",
-          version: "1",
+          version: CODEX_CLI_VERSION,
         },
         capabilities: {
           experimentalApi: true,
@@ -101,7 +111,11 @@ export namespace EvidenceBenchmarkCodexProtocol {
         approvalPolicy: "never",
         cwd: options.workspace,
         ephemeral: false,
+        experimentalRawEvents: true,
+        allowProviderModelFallback:
+          options.manifest.runner.allowProviderModelFallback,
         model: options.manifest.runner.model,
+        serviceTier: options.manifest.runner.serviceTier,
         sandbox: "workspace-write",
         config: {
           features: {
@@ -126,6 +140,7 @@ export namespace EvidenceBenchmarkCodexProtocol {
         approvalPolicy: "never",
         cwd: options.workspace,
         model: options.manifest.runner.model,
+        serviceTier: options.manifest.runner.serviceTier,
         sandbox: "workspace-write",
         threadId,
         config: {
@@ -142,13 +157,17 @@ export namespace EvidenceBenchmarkCodexProtocol {
   export function goalSet(
     id: number,
     threadId: string,
-    objective: string,
-    status: "active" | "paused" | "complete" = "active",
+    objective: string | undefined,
+    status: "active" | "paused" | "complete",
   ): IRequest {
     return {
       id,
       method: "thread/goal/set",
-      params: { threadId, objective, status },
+      params: {
+        threadId,
+        ...(objective === undefined ? {} : { objective }),
+        status,
+      },
     };
   }
 
@@ -167,6 +186,7 @@ export namespace EvidenceBenchmarkCodexProtocol {
     threadId: string,
     text: string,
     manifest: IEvidenceBenchmarkCodexRun.IManifest,
+    outputSchema: Readonly<Record<string, unknown>>,
   ): IRequest {
     return {
       id,
@@ -175,8 +195,23 @@ export namespace EvidenceBenchmarkCodexProtocol {
         threadId,
         model: manifest.runner.model,
         effort: manifest.runner.effort,
+        serviceTier: manifest.runner.serviceTier,
         input: [{ type: "text", text, text_elements: [] }],
+        outputSchema,
       },
+    };
+  }
+
+  /** Interrupts exactly one active turn during watchdog or user abort. */
+  export function turnInterrupt(
+    id: number,
+    threadId: string,
+    turnId: string,
+  ): IRequest {
+    return {
+      id,
+      method: "turn/interrupt",
+      params: { threadId, turnId },
     };
   }
 
@@ -273,5 +308,14 @@ export namespace EvidenceBenchmarkCodexProtocol {
         "turn.id",
       );
     throw new Error("turn response requires turnId or turn.id");
+  }
+
+  /** Extracts a Goal object from goal set/get responses without coercion. */
+  export function responseGoal(response: IResponse): Record<string, unknown> {
+    if (!EvidenceBenchmarkCodexValue.isRecord(response.result))
+      throw new Error("Goal response result must be an object");
+    if (!EvidenceBenchmarkCodexValue.isRecord(response.result.goal))
+      throw new Error("Goal response requires result.goal");
+    return response.result.goal;
   }
 }

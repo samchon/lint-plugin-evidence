@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import path from "node:path";
 
 /** Strict JSON guards, hashing, and canonical serialization for runner records. */
 export namespace EvidenceBenchmarkCodexValue {
@@ -28,6 +29,17 @@ export namespace EvidenceBenchmarkCodexValue {
   /** Returns the lowercase SHA-256 of exact bytes or UTF-8 text. */
   export function sha256(input: string | NodeJS.ArrayBufferView): string {
     return crypto.createHash("sha256").update(input).digest("hex");
+  }
+
+  /** Rejects shell shims and unresolved PATH commands before direct spawning. */
+  export function assertDirectExecutable(command: string, label: string): void {
+    if (!path.isAbsolute(command))
+      throw new Error(`${label} must be an absolute executable path`);
+    const extension = path.extname(command).toLowerCase();
+    if (extension === ".cmd" || extension === ".bat")
+      throw new Error(
+        `${label} cannot be a .cmd/.bat shell shim; use an absolute native executable or process.execPath with a CLI JavaScript entry`,
+      );
   }
 
   /**

@@ -80,6 +80,30 @@ export namespace IEvidenceBenchmarkCodexRecord {
     parseError?: string;
   }
 
+  /** Crash-tail raw bytes preserved before committed stream reconciliation. */
+  export interface IOrphanSegment {
+    /** Raw stream direction. */
+    direction: Direction;
+
+    /** Original raw stream filename. */
+    sourcePath: string;
+
+    /** Original inclusive byte offset. */
+    byteOffset: number;
+
+    /** Exact preserved byte length. */
+    byteLength: number;
+
+    /** SHA-256 of exact preserved bytes. */
+    sha256: string;
+
+    /** Run-relative durable orphan segment path. */
+    preservedPath: string;
+
+    /** UTC preservation timestamp. */
+    capturedAtUtc: string;
+  }
+
   /** Non-overlapping Codex token categories from one upstream response. */
   export interface ITokenUsage {
     /** Provider total token counter; it is retained rather than recomputed. */
@@ -156,6 +180,12 @@ export namespace IEvidenceBenchmarkCodexRecord {
   export interface IUsageReport {
     /** Report schema version. */
     schemaVersion: 1;
+
+    /** Whether every expected exact raw response row was present and valid. */
+    exactUsageComplete: boolean;
+
+    /** Whether secondary accumulated counters reconcile to exact response rows. */
+    accumulatedUsageReconciled: boolean;
 
     /** Unique exact upstream response events in first-seen order. */
     responses: IResponseUsage[];
@@ -278,7 +308,7 @@ export namespace IEvidenceBenchmarkCodexRecord {
     direction: Direction;
 
     /** Direction-specific raw filename. */
-    rawFile: string;
+    path: string;
 
     /** Inclusive byte offset of the referenced region. */
     byteOffset: number;

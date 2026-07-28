@@ -17,6 +17,8 @@ const primaryThread = {
   ephemeral: false,
   cliVersion: "0.145.0",
   modelProvider: "openai",
+  model: "gpt-5.6-terra",
+  serviceTier: "priority",
   preview: "",
   turns: [],
   createdAt: 1,
@@ -34,6 +36,10 @@ const childThread = {
 };
 let turnNumber = 0;
 let steerRejected = false;
+let rawEventsEnabled = false;
+let activeTurnId = null;
+let goalObjective = null;
+let goalStatus = null;
 let output = Promise.resolve();
 
 function emit(value, incomplete = false) {
@@ -80,25 +86,31 @@ function usage(
 
 function completeTurn(threadId, turnId, interrupted = false) {
   const first = usage(100, 80, 20, 20, 5);
-  emit({
-    method: "rawResponse/completed",
-    params: {
-      responseId: `response-${turnId}`,
-      threadId,
-      turnId,
-      usage: first,
-    },
-  });
-  if (scenarios.has("duplicate"))
+  if (rawEventsEnabled)
     emit({
       method: "rawResponse/completed",
       params: {
         responseId: `response-${turnId}`,
         threadId,
         turnId,
-        usage: first,
+        usage: scenarios.has("null-usage") ? null : first,
       },
     });
+  if (rawEventsEnabled && scenarios.has("duplicate"))
+    for (
+      let copy = 0;
+      copy < (scenarios.has("triple-duplicate") ? 2 : 1);
+      ++copy
+    )
+      emit({
+        method: "rawResponse/completed",
+        params: {
+          responseId: `response-${turnId}`,
+          threadId,
+          turnId,
+          usage: first,
+        },
+      });
   emit({
     method: "thread/tokenUsage/updated",
     params: { threadId, turnId, tokenUsage: { last: first, total: first } },
@@ -106,15 +118,16 @@ function completeTurn(threadId, turnId, interrupted = false) {
   if (turnNumber === 1 && scenarios.has("descendant")) {
     const childUsage = usage(50, 35, 5, 15, 3);
     emit({ method: "thread/started", params: { thread: childThread } });
-    emit({
-      method: "rawResponse/completed",
-      params: {
-        responseId: "response-child",
-        threadId: childThread.id,
-        turnId: "turn-child",
-        usage: childUsage,
-      },
-    });
+    if (rawEventsEnabled)
+      emit({
+        method: "rawResponse/completed",
+        params: {
+          responseId: "response-child",
+          threadId: childThread.id,
+          turnId: "turn-child",
+          usage: childUsage,
+        },
+      });
     emit({
       method: "thread/tokenUsage/updated",
       params: {
@@ -126,19 +139,47 @@ function completeTurn(threadId, turnId, interrupted = false) {
   }
   emit({ method: "future/unknown", params: { retained: true } });
   if (scenarios.has("malformed")) emit('{"method":bad}\n', true);
+  if (scenarios.has("multiple-final"))
+    emit({
+      method: "item/completed",
+      params: {
+        threadId,
+        turnId,
+        item: {
+          id: `message-extra-${turnId}`,
+          type: "agentMessage",
+          text: '{"outcome":"complete","summary":"conflict","unfinished":[]}',
+        },
+      },
+    });
+  const assistantItem = {
+    id: `message-${turnId}`,
+    type: "agentMessage",
+    text: JSON.stringify(
+      interrupted
+        ? {
+            outcome: "interrupted",
+            summary: "The fake turn was interrupted.",
+            unfinished: ["resume the fake task"],
+          }
+        : {
+            outcome: "complete",
+            summary: "All requested work is complete.",
+            unfinished: [],
+          },
+    ),
+  };
+  if (!scenarios.has("missing-phase")) assistantItem.phase = "final_answer";
   emit({
     method: "item/completed",
     params: {
       threadId,
       turnId,
-      item: {
-        id: `message-${turnId}`,
-        type: "agentMessage",
-        phase: "final_answer",
-        text: "All requested work is complete.",
-      },
+      item: assistantItem,
     },
   });
+  activeTurnId = null;
+  goalStatus = interrupted ? "paused" : "complete";
   emit({
     method: "turn/completed",
     params: {
@@ -160,8 +201,8 @@ function completeTurn(threadId, turnId, interrupted = false) {
       turnId,
       goal: {
         threadId,
-        objective: "finish",
-        status: interrupted ? "paused" : "complete",
+        objective: goalObjective,
+        status: goalStatus,
         tokenBudget: null,
         tokensUsed: 100,
         timeUsedSeconds: 1,
@@ -172,6 +213,20 @@ function completeTurn(threadId, turnId, interrupted = false) {
   });
 }
 
+function startTurn(threadId, interrupted = false) {
+  const turnId = `turn-${++turnNumber}`;
+  activeTurnId = turnId;
+  emit({
+    method: "turn/started",
+    params: {
+      threadId,
+      turn: { id: turnId, items: [], status: "inProgress", startedAt: 1 },
+    },
+  });
+  setTimeout(() => completeTurn(threadId, turnId, interrupted), 500);
+  return turnId;
+}
+
 async function handle(message) {
   const { id, method, params = {} } = message;
   if (method === "initialize") {
@@ -179,15 +234,32 @@ async function handle(message) {
   } else if (method === "initialized") {
     return;
   } else if (method === "thread/start") {
+    if (params.experimentalRawEvents !== true) {
+      error(id, "experimentalRawEvents must be true");
+      return;
+    }
+    if (params.allowProviderModelFallback !== false) {
+      error(id, "allowProviderModelFallback must be false");
+      return;
+    }
+    if (params.serviceTier !== "priority") {
+      error(id, "serviceTier must be priority");
+      return;
+    }
+    rawEventsEnabled = true;
     response(id, { thread: primaryThread });
     emit({ method: "thread/started", params: { thread: primaryThread } });
   } else if (method === "thread/resume") {
+    // Codex 0.145.0 hard-codes raw_events_enabled=false on a resumed listener.
+    rawEventsEnabled = false;
     response(id, { thread: primaryThread });
   } else if (method === "thread/goal/set") {
+    if (params.objective !== undefined) goalObjective = params.objective;
+    goalStatus = params.status ?? "active";
     const goal = {
       threadId: params.threadId,
-      objective: params.objective,
-      status: params.status ?? "active",
+      objective: goalObjective,
+      status: goalStatus,
       tokenBudget: null,
       tokensUsed: 0,
       timeUsedSeconds: 0,
@@ -199,12 +271,14 @@ async function handle(message) {
       method: "thread/goal/updated",
       params: { threadId: params.threadId, goal },
     });
+    if (goal.status === "active" && activeTurnId === null)
+      startTurn(params.threadId);
   } else if (method === "thread/goal/get") {
     response(id, {
       goal: {
         threadId: params.threadId,
-        objective: "finish",
-        status: "active",
+        objective: goalObjective,
+        status: goalStatus,
         tokenBudget: null,
         tokensUsed: 0,
         timeUsedSeconds: 0,
@@ -213,19 +287,12 @@ async function handle(message) {
       },
     });
   } else if (method === "turn/start") {
-    const turnId = `turn-${++turnNumber}`;
+    if (params.serviceTier !== undefined && params.serviceTier !== "priority") {
+      error(id, "turn serviceTier drift");
+      return;
+    }
+    const turnId = startTurn(params.threadId, scenarios.has("interrupted"));
     response(id, { turn: { id: turnId, items: [], status: "inProgress" } });
-    emit({
-      method: "turn/started",
-      params: {
-        threadId: params.threadId,
-        turn: { id: turnId, items: [], status: "inProgress", startedAt: 1 },
-      },
-    });
-    setTimeout(
-      () => completeTurn(params.threadId, turnId, scenarios.has("interrupted")),
-      5,
-    );
   } else if (method === "turn/steer") {
     if (scenarios.has("steering-race") && !steerRejected) {
       steerRejected = true;

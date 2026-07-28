@@ -13,12 +13,13 @@ export class EvidenceBenchmarkCodexUsageLedger {
     string,
     IEvidenceBenchmarkCodexRecord.IResponseUsage
   >();
-  private readonly duplicateResponseIds: string[] = [];
+  private readonly duplicateResponseIds = new Set<string>();
   private readonly latestThreadUsage = new Map<
     string,
     IEvidenceBenchmarkCodexRecord.IThreadUsage
   >();
   private readonly anomalies: string[] = [];
+  private exactUsageComplete = true;
 
   /**
    * Restores a prior exact usage report without double-counting later replayed
@@ -29,10 +30,12 @@ export class EvidenceBenchmarkCodexUsageLedger {
   public constructor(report?: IEvidenceBenchmarkCodexRecord.IUsageReport) {
     for (const response of report?.responses ?? [])
       this.responses.set(response.responseId, response);
-    this.duplicateResponseIds.push(...(report?.duplicateResponseIds ?? []));
+    for (const responseId of report?.duplicateResponseIds ?? [])
+      this.duplicateResponseIds.add(responseId);
     for (const usage of Object.values(report?.latestThreadUsage ?? {}))
       this.latestThreadUsage.set(usage.threadId, usage);
     this.anomalies.push(...(report?.anomalies ?? []));
+    this.exactUsageComplete = report?.exactUsageComplete ?? true;
   }
 
   /**
@@ -50,6 +53,7 @@ export class EvidenceBenchmarkCodexUsageLedger {
       else if (method === "thread/tokenUsage/updated")
         this.ingestThreadUsage(params, receivedAtUtc);
     } catch (error) {
+      if (method === "rawResponse/completed") this.exactUsageComplete = false;
       this.anomalies.push(
         `${method}: ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -58,6 +62,12 @@ export class EvidenceBenchmarkCodexUsageLedger {
 
   /** Records a transport, schema, identity, or rollout anomaly for final audit. */
   public anomaly(message: string): void {
+    this.anomalies.push(message);
+  }
+
+  /** Marks exact usage unavailable when the raw-event watchdog observes a gap. */
+  public missingExactUsage(message: string): void {
+    this.exactUsageComplete = false;
     this.anomalies.push(message);
   }
 
@@ -144,8 +154,13 @@ export class EvidenceBenchmarkCodexUsageLedger {
             };
           },
         );
+    const accumulatedUsageReconciled = reconciliation.every((entry): boolean =>
+      Object.values(entry.difference).every((value): boolean => value === 0),
+    );
     return {
       schemaVersion: 1,
+      exactUsageComplete: this.exactUsageComplete,
+      accumulatedUsageReconciled,
       responses: [...this.responses.values()],
       duplicateResponseIds: [...this.duplicateResponseIds],
       exactTotal,
@@ -169,13 +184,9 @@ export class EvidenceBenchmarkCodexUsageLedger {
       params.responseId,
       "responseId",
     );
-    if (this.responses.has(responseId)) {
-      this.duplicateResponseIds.push(responseId);
-      return;
-    }
     if (!EvidenceBenchmarkCodexValue.isRecord(params.usage))
       throw new Error(`response ${responseId} has no exact usage`);
-    this.responses.set(responseId, {
+    const response: IEvidenceBenchmarkCodexRecord.IResponseUsage = {
       responseId,
       threadId: EvidenceBenchmarkCodexValue.string(params.threadId, "threadId"),
       turnId: EvidenceBenchmarkCodexValue.string(params.turnId, "turnId"),
@@ -184,7 +195,41 @@ export class EvidenceBenchmarkCodexUsageLedger {
         `response ${responseId}`,
       ),
       receivedAtUtc,
-    });
+    };
+    const existing = this.responses.get(responseId);
+    if (existing !== undefined) {
+      this.duplicateResponseIds.add(responseId);
+      if (
+        EvidenceBenchmarkCodexValue.canonicalJson({
+          threadId: existing.threadId,
+          turnId: existing.turnId,
+          usage: existing.usage,
+        }) !==
+        EvidenceBenchmarkCodexValue.canonicalJson({
+          threadId: response.threadId,
+          turnId: response.turnId,
+          usage: response.usage,
+        })
+      )
+        this.exactUsageComplete = false;
+      if (
+        EvidenceBenchmarkCodexValue.canonicalJson({
+          threadId: existing.threadId,
+          turnId: existing.turnId,
+          usage: existing.usage,
+        }) !==
+        EvidenceBenchmarkCodexValue.canonicalJson({
+          threadId: response.threadId,
+          turnId: response.turnId,
+          usage: response.usage,
+        })
+      )
+        this.anomalies.push(
+          `rawResponse/completed: duplicate response ${responseId} changed payload`,
+        );
+      return;
+    }
+    this.responses.set(responseId, response);
   }
 
   private ingestThreadUsage(
@@ -221,7 +266,7 @@ export class EvidenceBenchmarkCodexUsageLedger {
     input: Readonly<Record<string, unknown>>,
     label: string,
   ): IEvidenceBenchmarkCodexRecord.ITokenUsage {
-    return {
+    const usage: IEvidenceBenchmarkCodexRecord.ITokenUsage = {
       totalTokens: EvidenceBenchmarkCodexValue.counter(
         input.totalTokens,
         `${label}.totalTokens`,
@@ -248,6 +293,11 @@ export class EvidenceBenchmarkCodexUsageLedger {
         `${label}.reasoningOutputTokens`,
       ),
     };
+    if (usage.cachedInputTokens > usage.inputTokens)
+      throw new Error(
+        `${label}.cachedInputTokens exceeds inclusive inputTokens`,
+      );
+    return usage;
   }
 
   private static zero(): IEvidenceBenchmarkCodexRecord.ITokenUsage {

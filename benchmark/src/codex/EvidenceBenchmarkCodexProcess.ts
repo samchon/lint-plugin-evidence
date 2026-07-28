@@ -41,6 +41,10 @@ export class EvidenceBenchmarkCodexProcess {
   public async start(): Promise<void> {
     if (this.child !== undefined)
       throw new Error("app-server process has already started");
+    EvidenceBenchmarkCodexValue.assertDirectExecutable(
+      this.options.command,
+      "app-server command",
+    );
     this.exitResult = new Promise<EvidenceBenchmarkCodexProcess.IExit>(
       (resolve): void => {
         this.resolveExit = resolve;
@@ -202,7 +206,7 @@ export class EvidenceBenchmarkCodexProcess {
         actor: "client",
         rawRef: {
           direction: "client",
-          rawFile: envelope.rawFile,
+          path: envelope.rawFile,
           byteOffset: envelope.byteOffset,
           byteLength: envelope.byteLength,
           sha256: envelope.sha256,
@@ -244,7 +248,7 @@ export class EvidenceBenchmarkCodexProcess {
           actor: "app-server",
           rawRef: {
             direction: "stderr",
-            rawFile: envelope.rawFile,
+            path: envelope.rawFile,
             byteOffset: envelope.byteOffset,
             byteLength: envelope.byteLength,
             sha256: envelope.sha256,
@@ -287,7 +291,7 @@ export class EvidenceBenchmarkCodexProcess {
             actor: "app-server",
             rawRef: {
               direction: "server",
-              rawFile: "server.raw.jsonl",
+              path: "server.raw.jsonl",
               byteOffset: frame.byteOffset,
               byteLength: frame.byteLength,
               sha256: frame.sha256,
@@ -309,7 +313,7 @@ export class EvidenceBenchmarkCodexProcess {
           actor: "app-server",
           rawRef: {
             direction: "server",
-            rawFile: "server.raw.jsonl",
+            path: "server.raw.jsonl",
             byteOffset: frame.byteOffset,
             byteLength: frame.byteLength,
             sha256: frame.sha256,
