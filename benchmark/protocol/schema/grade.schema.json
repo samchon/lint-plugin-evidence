@@ -12,7 +12,14 @@
     "phase",
     "grader",
     "blind",
+    "gradingPlanSha256",
+    "parentCoreSealSha256",
     "rubricSha256",
+    "gradeBlockProviderSchemaSha256",
+    "gradeBlockLocalSchemaSha256",
+    "providerOutputRegistrySha256",
+    "sourceResponseIds",
+    "sourceResponseIdsSha256",
     "acceptanceCatalogSha256",
     "acceptancePopulationCount",
     "contextCatalogSha256",
@@ -23,7 +30,6 @@
     "contextSummary",
     "denominatorsSummed",
     "populationValidation",
-    "armGuess",
     "submittedAtUtc"
   ],
   "properties": {
@@ -90,7 +96,34 @@
     "blind": {
       "const": true
     },
+    "gradingPlanSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "parentCoreSealSha256": {
+      "$ref": "#/$defs/sha256"
+    },
     "rubricSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "gradeBlockProviderSchemaSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "gradeBlockLocalSchemaSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "providerOutputRegistrySha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "sourceResponseIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "sourceResponseIdsSha256": {
       "$ref": "#/$defs/sha256"
     },
     "acceptanceCatalogSha256": {
@@ -178,35 +211,6 @@
         },
         "crossPopulationReferences": {
           "const": 0
-        }
-      }
-    },
-    "armGuess": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "arm",
-        "confidence",
-        "clues"
-      ],
-      "properties": {
-        "arm": {
-          "enum": [
-            "plain",
-            "evidence",
-            "unknown"
-          ]
-        },
-        "confidence": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1
-        },
-        "clues": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
         }
       }
     },

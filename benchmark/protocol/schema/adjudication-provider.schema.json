@@ -83,7 +83,15 @@
             "type": "string"
           },
           "decision": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "semantic_consensus",
+              "secondary_consensus",
+              "activity_consensus"
+            ]
+          },
+          "semanticRating": {
+            "$ref": "grade-block-provider.schema.json#/properties/ratings/items"
           },
           "confidence": {
             "type": "number"

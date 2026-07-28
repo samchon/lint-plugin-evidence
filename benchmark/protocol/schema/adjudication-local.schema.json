@@ -48,6 +48,50 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "population": {
+            "enum": [
+              "acceptance",
+              "context"
+            ]
+          }
+        },
+        "required": [
+          "population"
+        ]
+      },
+      "then": {
+        "properties": {
+          "decisions": {
+            "items": {
+              "required": [
+                "semanticRating"
+              ],
+              "properties": {
+                "decision": {
+                  "const": "semantic_consensus"
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "decisions": {
+            "items": {
+              "not": {
+                "required": [
+                  "semanticRating"
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

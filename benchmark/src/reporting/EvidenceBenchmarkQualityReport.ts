@@ -219,7 +219,7 @@ export namespace EvidenceBenchmarkQualityReport {
     lines.push("### Deterministic and secondary vectors");
     lines.push("");
     lines.push(
-      "| Subject | Arm | Phase | Hidden acceptance | Line coverage | Mutation | Raw / blind bytes | UI / responsive / feedback / a11y / maintainability |",
+      "| Subject | Arm | Phase | Hidden acceptance | Line coverage | Mutation | Raw / blind bytes | Usability / legibility / responsiveness / state feedback / accessibility / maintainability |",
     );
     lines.push("| --- | --- | --- | ---: | ---: | ---: | ---: | --- |");
     for (const cell of block.cells)
@@ -227,9 +227,14 @@ export namespace EvidenceBenchmarkQualityReport {
         const deterministic = phase.deterministicInputs;
         const conventional = deterministic.conventionalCoverage;
         const mutation = deterministic.mutation;
-        const scores = phase.secondaryReview.scores;
+        const scores: ReadonlyMap<string, number> = new Map(
+          phase.secondaryReview.ratings.map((rating) => [
+            rating.dimension,
+            rating.score,
+          ]),
+        );
         lines.push(
-          `| ${cell.subject} | ${cell.arm} | ${phase.phase} | ${ratio(deterministic.hiddenAcceptance.passed, deterministic.hiddenAcceptance.total)} | ${ratio(conventional.lines.covered, conventional.lines.total)} | ${ratio(mutation.killed, mutation.sampled - mutation.invalid)} | ${phase.rawScale.bytes.toLocaleString("en-US")} / ${phase.blindScale.bytes.toLocaleString("en-US")} | ${scores.legibility.toFixed(2)} / ${scores.responsive.toFixed(2)} / ${scores.stateFeedback.toFixed(2)} / ${scores.accessibility.toFixed(2)} / ${scores.maintainability.toFixed(2)} |`,
+          `| ${cell.subject} | ${cell.arm} | ${phase.phase} | ${ratio(deterministic.hiddenAcceptance.passed, deterministic.hiddenAcceptance.total)} | ${ratio(conventional.lines.covered, conventional.lines.total)} | ${ratio(mutation.killed, mutation.sampled - mutation.invalid)} | ${phase.rawScale.bytes.toLocaleString("en-US")} / ${phase.blindScale.bytes.toLocaleString("en-US")} | ${["usability", "legibility", "responsiveness", "state_feedback", "accessibility", "maintainability"].map((dimension) => scores.get(dimension)!.toFixed(0)).join(" / ")} |`,
         );
       }
     lines.push("");
@@ -410,12 +415,15 @@ export namespace EvidenceBenchmarkQualityReport {
       phase.adjudication.schemaVersion !== 1 ||
       JSON.stringify(phase.adjudication.adjudicator) !==
         JSON.stringify(phase.gradePlan.bindings.adjudicatorAssignment) ||
-      phase.adjudication.provenance.providerSchemaSha256 !==
-        phase.gradePlan.bindings.adjudicationProviderSchemaSha256 ||
-      phase.adjudication.provenance.localSchemaSha256 !==
-        phase.gradePlan.bindings.adjudicationLocalSchemaSha256 ||
-      phase.adjudication.provenance.registrySha256 !==
-        phase.gradePlan.bindings.registrySha256 ||
+      phase.adjudication.provenances.length === 0 ||
+      phase.adjudication.provenances.some(
+        (provenance) =>
+          provenance.providerSchemaSha256 !==
+            phase.gradePlan.bindings.adjudicationProviderSchemaSha256 ||
+          provenance.localSchemaSha256 !==
+            phase.gradePlan.bindings.adjudicationLocalSchemaSha256 ||
+          provenance.registrySha256 !== phase.gradePlan.bindings.registrySha256,
+      ) ||
       phase.adjudication.humanValidationStatus !== "pending" ||
       phase.adjudication.humanValidatedCompositeClaim !== false ||
       JSON.stringify(phase.adjudication.pendingHumanValidationQueue) !==
@@ -602,7 +610,6 @@ export namespace EvidenceBenchmarkQualityReport {
   }
 
   function validateGrade(grade: IEvidenceBenchmarkQualityGrade.IGrade): void {
-    const { gradeId: _gradeId, ...unsigned } = grade;
     const acceptanceIds: string[] = grade.acceptanceRatings.map(
       (rating) => rating.criterionId,
     );
@@ -611,8 +618,7 @@ export namespace EvidenceBenchmarkQualityReport {
     );
     if (
       grade.schemaVersion !== 1 ||
-      grade.gradeId !==
-        `grade-${EvidenceBenchmarkHash.object(unsigned).slice(0, 32)}` ||
+      !grade.gradeId.trim() ||
       grade.blind !== true ||
       grade.denominatorsSummed !== false ||
       new Set(acceptanceIds).size !== acceptanceIds.length ||
@@ -626,7 +632,15 @@ export namespace EvidenceBenchmarkQualityReport {
         grade.sourceResponseIds.length ||
       grade.sourceResponseIds.length === 0 ||
       grade.armGuess.schemaVersion !== 1 ||
-      grade.armGuess.planSha256 !== grade.planSha256
+      grade.armGuess.role !== "blind_arm_guess" ||
+      grade.armGuess.gradeId !== grade.gradeId ||
+      grade.armGuess.bundleId !== grade.bundleId ||
+      grade.armGuess.subject !== grade.subject ||
+      grade.armGuess.phase !== grade.phase ||
+      grade.armGuess.graderPseudonym !== grade.grader.pseudonym ||
+      !/^[a-f0-9]{64}$/.test(grade.armGuess.sealedRatingsSha256) ||
+      !["plain", "evidence", "unknown"].includes(grade.armGuess.guess) ||
+      !grade.armGuess.rationale.trim()
     )
       throw new Error(
         `Quality grade is internally inconsistent: ${grade.gradeId}.`,
@@ -686,24 +700,35 @@ export namespace EvidenceBenchmarkQualityReport {
     const firstResponses: Set<string> = new Set(
       phase.firstGrade.sourceResponseIds,
     );
+    const adjudicationThreads: string[] = adjudication.provenances.map(
+      (provenance) => provenance.threadId,
+    );
+    const adjudicationResponses: string[] = adjudication.provenances.flatMap(
+      (provenance) => provenance.responseIds,
+    );
     if (
       JSON.stringify(queueKeys) !== JSON.stringify(decisionKeys) ||
       new Set(decisionKeys).size !== decisionKeys.length ||
       !validDate(adjudication.completedAtUtc) ||
-      adjudication.completedAtUtc !== adjudication.provenance.submittedAtUtc ||
-      adjudication.provenance.threadId.trim().length === 0 ||
-      adjudication.provenance.turnId.trim().length === 0 ||
-      adjudication.provenance.responseIds.length === 0 ||
-      new Set(adjudication.provenance.responseIds).size !==
-        adjudication.provenance.responseIds.length ||
+      adjudication.completedAtUtc !==
+        adjudication.provenances
+          .map((provenance) => provenance.submittedAtUtc)
+          .sort()
+          .at(-1) ||
+      adjudication.provenances.some(
+        (provenance) =>
+          provenance.threadId.trim().length === 0 ||
+          provenance.turnId.trim().length === 0 ||
+          provenance.responseIds.length === 0,
+      ) ||
+      new Set(adjudicationThreads).size !== adjudicationThreads.length ||
+      new Set(adjudicationResponses).size !== adjudicationResponses.length ||
       phase.secondGrade.sourceThreadIds.some((id) => firstThreads.has(id)) ||
       phase.secondGrade.sourceResponseIds.some((id) =>
         firstResponses.has(id),
       ) ||
-      priorThreads.has(adjudication.provenance.threadId) ||
-      adjudication.provenance.responseIds.some((id) =>
-        priorResponses.has(id),
-      ) ||
+      adjudicationThreads.some((id) => priorThreads.has(id)) ||
+      adjudicationResponses.some((id) => priorResponses.has(id)) ||
       adjudication.decisions.some(
         (decision) =>
           decision.rating.criterionId !== decision.criterionId ||
@@ -941,8 +966,24 @@ export namespace EvidenceBenchmarkQualityReport {
       !sha256.test(review.adjudicationLocalSchemaSha256) ||
       !sha256.test(review.registrySha256) ||
       !sha256.test(review.adjudicationSha256) ||
-      Object.values(review.scores).some(
-        (score) => !Number.isFinite(score) || score < 0 || score > 1,
+      JSON.stringify(review.ratings.map((rating) => rating.dimension)) !==
+        JSON.stringify([
+          "usability",
+          "legibility",
+          "responsiveness",
+          "state_feedback",
+          "accessibility",
+          "maintainability",
+        ]) ||
+      review.ratings.some(
+        (rating) =>
+          !Number.isInteger(rating.score) ||
+          rating.score < 1 ||
+          rating.score > 5 ||
+          !Number.isFinite(rating.confidence) ||
+          rating.confidence < 0 ||
+          rating.confidence > 1 ||
+          !rating.rationale.trim(),
       ) ||
       review.humanValidationStatus !== "pending" ||
       review.humanValidatedCompositeClaim !== false ||

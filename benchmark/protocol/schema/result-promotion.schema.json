@@ -107,6 +107,14 @@
         "humanAuditQueueSha256",
         "humanValidationStatus",
         "humanValidatedCompositeClaim",
+        "publicSafetyScanSha256",
+        "publicSafetyScanSchemaSha256",
+        "publicSafetyScannerSha256",
+        "publicSafetyRulesSha256",
+        "publicSafetyFileSetSha256",
+        "publicSafetyHighConfidenceFindings",
+        "publicSafetyManualReviewStatus",
+        "publicPromotionAllowed",
         "finalReportSha256",
         "reportSchemaSha256",
         "postprocessTreeSha256",
@@ -224,13 +232,37 @@
           "$ref": "#/$defs/sha256"
         },
         "humanValidationStatus": {
-          "enum": [
-            "pending",
-            "completed"
-          ]
+          "const": "pending"
         },
         "humanValidatedCompositeClaim": {
-          "type": "boolean"
+          "const": false
+        },
+        "publicSafetyScanSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "publicSafetyScanSchemaSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "publicSafetyScannerSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "publicSafetyRulesSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "publicSafetyFileSetSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "publicSafetyHighConfidenceFindings": {
+          "const": 0
+        },
+        "publicSafetyManualReviewStatus": {
+          "enum": [
+            "not_required",
+            "cleared"
+          ]
+        },
+        "publicPromotionAllowed": {
+          "const": true
         },
         "finalReportSha256": {
           "$ref": "#/$defs/sha256"
@@ -250,28 +282,7 @@
         "freshProcessVerified": {
           "const": true
         }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "humanValidationStatus": {
-                "const": "pending"
-              }
-            },
-            "required": [
-              "humanValidationStatus"
-            ]
-          },
-          "then": {
-            "properties": {
-              "humanValidatedCompositeClaim": {
-                "const": false
-              }
-            }
-          }
-        }
-      ]
+      }
     },
     "retainedRun": {
       "type": "object",

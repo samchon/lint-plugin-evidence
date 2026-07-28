@@ -75,39 +75,15 @@
       "$ref": "#/$defs/sha256"
     },
     "humanValidationStatus": {
-      "enum": [
-        "pending",
-        "completed"
-      ]
+      "const": "pending"
     },
     "humanValidatedCompositeClaim": {
-      "type": "boolean"
+      "const": false
     },
     "denominatorsSummed": {
       "const": false
     }
   },
-  "allOf": [
-    {
-      "if": {
-        "properties": {
-          "humanValidationStatus": {
-            "const": "pending"
-          }
-        },
-        "required": [
-          "humanValidationStatus"
-        ]
-      },
-      "then": {
-        "properties": {
-          "humanValidatedCompositeClaim": {
-            "const": false
-          }
-        }
-      }
-    }
-  ],
   "$defs": {
     "sha256": {
       "type": "string",

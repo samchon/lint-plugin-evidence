@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/adjudicator-event-stream.schema.json",
+  "title": "Fresh adjudicator exact raw-event references",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "runId",
+    "threadId",
+    "sessionId",
+    "agentId",
+    "transportSessionId",
+    "runnerEventLogPath",
+    "runnerEventLogSha256",
+    "serverRawLogPath",
+    "serverRawLogSha256",
+    "responseIds",
+    "usageSha256",
+    "completionEvents",
+    "providerOutputEvent"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 2
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{5,127}$"
+    },
+    "threadId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sessionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agentId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "transportSessionId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{32}$"
+    },
+    "runnerEventLogPath": {
+      "const": "logs/runner.events.jsonl"
+    },
+    "runnerEventLogSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "serverRawLogPath": {
+      "const": "logs/server.raw.jsonl"
+    },
+    "serverRawLogSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "responseIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "usageSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "completionEvents": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "allOf": [
+          {
+            "$ref": "#/$defs/rawEvent"
+          },
+          {
+            "properties": {
+              "method": {
+                "const": "rawResponse/completed"
+              },
+              "vendorSchemaPath": {
+                "const": "v2/RawResponseCompletedNotification.json"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "providerOutputEvent": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/rawEvent"
+        },
+        {
+          "properties": {
+              "method": {
+                "const": "item/completed"
+              },
+              "vendorSchemaPath": {
+                "const": "v2/ItemCompletedNotification.json"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "rawEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "runnerEventSequence",
+        "runnerEventSha256",
+        "monotonicNs",
+        "method",
+        "vendorSchemaPath",
+        "vendorSchemaSha256",
+        "responseId",
+        "turnId",
+        "structuredOutputJsonPointer",
+        "rawRef"
+      ],
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runnerEventSequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runnerEventSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "monotonicNs": {
+          "type": "string",
+          "pattern": "^[0-9]+$"
+        },
+        "method": {
+          "enum": [
+            "rawResponse/completed",
+            "item/completed"
+          ]
+        },
+        "vendorSchemaPath": {
+          "enum": [
+            "v2/RawResponseCompletedNotification.json",
+            "v2/ItemCompletedNotification.json"
+          ]
+        },
+        "vendorSchemaSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "responseId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "turnId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "structuredOutputJsonPointer": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^/params/item/text$"
+        },
+        "rawRef": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "direction",
+            "path",
+            "byteOffset",
+            "byteLength",
+            "sha256"
+          ],
+          "properties": {
+            "direction": {
+              "const": "server"
+            },
+            "path": {
+              "const": "server.raw.jsonl"
+            },
+            "byteOffset": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "byteLength": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        }
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

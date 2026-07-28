@@ -1,5 +1,9 @@
+import path from "node:path";
+
 import { EvidenceBenchmarkHash } from "../EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkProtocolValidator } from "../EvidenceBenchmarkProtocolValidator.ts";
 import type { IEvidenceBenchmarkQualityGrade } from "../structures/IEvidenceBenchmarkQualityGrade.ts";
+import { EvidenceBenchmarkQualityArtifacts } from "./EvidenceBenchmarkQualityArtifacts.ts";
 
 /** Creates exact, bounded, non-overlapping semantic grading partitions. */
 export namespace EvidenceBenchmarkGradingPlan {
@@ -13,11 +17,10 @@ export namespace EvidenceBenchmarkGradingPlan {
   ): IEvidenceBenchmarkQualityGrade.IBlockPlan {
     if (
       !Number.isInteger(maximumCriteriaPerBlock) ||
-      maximumCriteriaPerBlock < 1 ||
-      maximumCriteriaPerBlock > 100
+      maximumCriteriaPerBlock !== 50
     )
       throw new Error(
-        "Grade block size must be an integer from 1 through 100.",
+        "Grade block size must be the frozen canonical size of 50.",
       );
     validateBindings(catalog, bindings);
     if (
@@ -73,6 +76,88 @@ export namespace EvidenceBenchmarkGradingPlan {
     return plan;
   }
 
+  /** Projects the internal execution plan to the canonical protocol artifact. */
+  export function protocol(
+    catalog: IEvidenceBenchmarkQualityGrade.ICatalog,
+    plan: IEvidenceBenchmarkQualityGrade.IBlockPlan,
+  ): Record<string, unknown> {
+    verify(catalog, plan);
+    const populations = (
+      [
+        ["acceptance", catalog.acceptance, catalog.acceptanceCatalogSha256],
+        ["context", catalog.context, catalog.contextCatalogSha256],
+      ] as const
+    ).flatMap(([population, clauses, catalogSha256]) => {
+      if (clauses.length === 0) return [];
+      const blocks = plan.blocks.filter(
+        (block) => block.population === population,
+      );
+      const ordered: string[] = clauses.map((clause) => clause.id);
+      return [
+        {
+          population,
+          catalogSha256,
+          catalogCount: ordered.length,
+          orderedCriterionIdsSha256: EvidenceBenchmarkHash.object(ordered),
+          blocks: blocks.map((block) => ({
+            blockId: block.blockId,
+            blockIndex: block.index - 1,
+            criterionIds: [...block.criterionIds],
+            criterionIdsSha256: EvidenceBenchmarkHash.object(
+              block.criterionIds,
+            ),
+          })),
+        },
+      ];
+    });
+    const value: Record<string, unknown> = {
+      schemaVersion: 1,
+      planId: `plan-${plan.planSha256.slice(0, 32)}`,
+      runId: plan.bindings.runId,
+      bundleId: plan.bindings.bundleId,
+      bundleSha256: plan.bindings.bundleManifestSha256,
+      parentCoreSealSha256: plan.bindings.generationCoreSealSha256,
+      subject: plan.subject,
+      phase: plan.phase,
+      subjectFreezeManifestSha256: plan.bindings.subjectFreezeManifestSha256,
+      requirementsRawTreeSha256: plan.bindings.requirementsRawTreeSha256,
+      rubricSha256: plan.bindings.rubricSha256,
+      graderPromptSha256: plan.bindings.promptSha256,
+      gradeBlockProviderSchemaSha256: plan.bindings.providerSchemaSha256,
+      gradeBlockLocalSchemaSha256: plan.bindings.localSchemaSha256,
+      armGuessProviderSchemaSha256: plan.bindings.armGuessProviderSchemaSha256,
+      armGuessLocalSchemaSha256: plan.bindings.armGuessLocalSchemaSha256,
+      providerOutputRegistrySha256: plan.bindings.registrySha256,
+      protocolRevisionSha256: plan.bindings.protocolRevisionSha256,
+      blockSize: 50,
+      graderAssignments: plan.bindings.graderAssignments.map((grader) => ({
+        pseudonym: grader.pseudonym,
+        model: grader.model,
+        reasoningEffort: grader.reasoningEffort,
+        assignmentSha256: EvidenceBenchmarkHash.object(grader),
+      })),
+      populations,
+      partitionValidation: {
+        catalogOrderPreserved: true,
+        exactUnion: true,
+        nonOverlapping: true,
+        uniqueIds: true,
+        countsReconciled: true,
+      },
+    };
+    EvidenceBenchmarkQualityArtifacts.validatePlan(
+      value,
+      plan.bindings.generationCoreSealSha256,
+    );
+    EvidenceBenchmarkProtocolValidator.validateValue(
+      path.resolve(import.meta.dirname, "..", "..", "protocol"),
+      "grading-block-plan.schema.json",
+      value,
+      "canonical grading block plan",
+    );
+    return value;
+  }
+
   /** Verifies plan identity and exact population partitioning. */
   export function verify(
     catalog: IEvidenceBenchmarkQualityGrade.ICatalog,
@@ -90,8 +175,7 @@ export namespace EvidenceBenchmarkGradingPlan {
     validateBindings(catalog, plan.bindings);
     if (
       !Number.isInteger(plan.maximumCriteriaPerBlock) ||
-      plan.maximumCriteriaPerBlock < 1 ||
-      plan.maximumCriteriaPerBlock > 100 ||
+      plan.maximumCriteriaPerBlock !== 50 ||
       !Number.isInteger(plan.sizing.estimatedTokensPerCriterion) ||
       plan.sizing.estimatedTokensPerCriterion < 1 ||
       !Number.isInteger(plan.sizing.envelopeTokens) ||
@@ -195,9 +279,11 @@ export namespace EvidenceBenchmarkGradingPlan {
         catalog.requirementsRawTreeSha256 ||
       !bindings.runId.trim() ||
       !bindings.bundleId.trim() ||
+      !sha256.test(bindings.bundleManifestSha256) ||
       !sha256.test(bindings.bundleRawTreeSha256) ||
       !sha256.test(bindings.gradingInputManifestSha256) ||
       !sha256.test(bindings.sourceSnapshotRawTreeSha256) ||
+      !sha256.test(bindings.subjectFreezeManifestSha256) ||
       !sha256.test(bindings.materializedRequirementsRawTreeSha256) ||
       !sha256.test(bindings.runManifestSha256) ||
       !sha256.test(bindings.generationCoreSealSha256) ||
@@ -213,6 +299,7 @@ export namespace EvidenceBenchmarkGradingPlan {
       !sha256.test(bindings.adjudicationLocalSchemaSha256) ||
       !sha256.test(bindings.registrySha256) ||
       !bindings.protocolRevision.trim() ||
+      !sha256.test(bindings.protocolRevisionSha256) ||
       bindings.graderAssignments.length !== 2 ||
       bindings.graderAssignments.some(
         (entry) =>

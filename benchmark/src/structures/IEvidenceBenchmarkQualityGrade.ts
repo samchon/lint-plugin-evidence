@@ -135,6 +135,9 @@ export namespace IEvidenceBenchmarkQualityGrade {
       /** Blind bundle identifier. */
       bundleId: string;
 
+      /** Exact neutral bundle-transform manifest byte digest. */
+      bundleManifestSha256: string;
+
       /** Versioned algorithm used by every aggregate raw-tree identity. */
       treeAlgorithm: "sha256-posix-path-nul-bytes-v1";
 
@@ -149,6 +152,9 @@ export namespace IEvidenceBenchmarkQualityGrade {
 
       /** Exact selected-subject requirement raw-tree digest. */
       requirementsRawTreeSha256: string;
+
+      /** Exact all-subject freeze manifest byte digest. */
+      subjectFreezeManifestSha256: string;
 
       /** Exact docs/analysis requirement raw-tree visible to the generator. */
       materializedRequirementsRawTreeSha256: string;
@@ -194,6 +200,9 @@ export namespace IEvidenceBenchmarkQualityGrade {
 
       /** Frozen protocol revision. */
       protocolRevision: string;
+
+      /** Exact frozen protocol-revision digest. */
+      protocolRevisionSha256: string;
 
       /** Two pre-registered independent grader identities. */
       graderAssignments: [IGrader, IGrader];
@@ -351,11 +360,56 @@ export namespace IEvidenceBenchmarkQualityGrade {
     /** Provider output format version. */
     schemaVersion: 1;
 
+    /** Frozen provider role. */
+    role: "blind_grader";
+
+    /** Logical grade assembled from this grader's complete block set. */
+    gradeId: string;
+
+    /** Blind bundle identity. */
+    bundleId: string;
+
+    /** Subject hidden behind the neutral bundle. */
+    subject: Subject;
+
+    /** Immutable milestone being graded. */
+    phase: Phase;
+
+    /** Pre-registered logical grader pseudonym. */
+    graderPseudonym: string;
+
+    /** Frozen semantic rubric digest. */
+    rubricSha256: string;
+
+    /** Frozen population catalog digest. */
+    catalogSha256: string;
+
+    /** Independently partitioned criterion population. */
+    population: Population;
+
     /** Exact deterministic plan block identifier. */
     blockId: string;
 
+    /** Zero-based block index in the canonical population partition. */
+    blockIndex: number;
+
+    /** Exact planned criterion order echoed before ratings. */
+    criterionIds: string[];
+
     /** Ratings in the exact criterion order assigned by the block. */
     ratings: IRating[];
+
+    /** Terminal provider status retained for right censoring. */
+    status: "completed" | "interrupted" | "failed";
+
+    /** Interruption detail, absent only for a completed block. */
+    interruption: {
+      /** Provider-visible interruption reason. */
+      reason: string;
+
+      /** Last criterion completed before interruption, when any. */
+      lastCompletedCriterionId: string | null;
+    } | null;
   }
 
   /** Provider-facing arm guess requested only after semantic grade sealing. */
@@ -363,17 +417,35 @@ export namespace IEvidenceBenchmarkQualityGrade {
     /** Provider output format version. */
     schemaVersion: 1;
 
-    /** Exact deterministic grade-plan digest already completed. */
-    planSha256: string;
+    /** Frozen provider role. */
+    role: "blind_arm_guess";
+
+    /** Logical grade whose rating bytes were already sealed. */
+    gradeId: string;
+
+    /** Blind bundle identity. */
+    bundleId: string;
+
+    /** Subject being guessed. */
+    subject: Subject;
+
+    /** Immutable milestone being guessed. */
+    phase: Phase;
+
+    /** Pre-registered logical grader pseudonym. */
+    graderPseudonym: string;
+
+    /** SHA-256 of exact already sealed semantic-rating bytes. */
+    sealedRatingsSha256: string;
 
     /** Guessed arm or an explicit unknown judgment. */
-    arm: ArmGuess;
+    guess: ArmGuess;
 
     /** Guess confidence from zero through one. */
     confidence: number;
 
-    /** Clues that informed the guess without exposing another grade. */
-    clues: string[];
+    /** Concise arm-guess reasoning without changing a semantic rating. */
+    rationale: string;
   }
 
   /** Provider-facing output from the fresh third LLM adjudicator. */
@@ -381,17 +453,50 @@ export namespace IEvidenceBenchmarkQualityGrade {
     /** Provider output format version. */
     schemaVersion: 1;
 
-    /** Exact first immutable grade identifier. */
-    firstGradeId: string;
+    /** Frozen provider role. */
+    role: "llm_adjudicator";
 
-    /** Exact second immutable grade identifier. */
-    secondGradeId: string;
+    /** Stable adjudication attempt identity. */
+    adjudicationId: string;
 
-    /** Exact comparison digest whose queue is being adjudicated. */
-    comparisonSha256: string;
+    /** Blind bundle identity. */
+    bundleId: string;
+
+    /** Subject being adjudicated. */
+    subject: Subject;
+
+    /** Immutable milestone being adjudicated. */
+    phase: Phase;
+
+    /** Independently adjudicated criterion population. */
+    population: Population;
+
+    /** Digest of exact two-grade and queue input bytes. */
+    sealedInputsSha256: string;
+
+    /** Digest of the exact deterministic comparison queue. */
+    queueSha256: string;
 
     /** Decisions in the exact deterministic audit-queue order. */
-    decisions: IAdjudicationDecision[];
+    decisions: Array<{
+      /** Exact queued criterion identity. */
+      itemId: string;
+
+      /** Frozen full-semantic adjudication kind. */
+      decision: "semantic_consensus";
+
+      /** Complete fresh semantic rating retained for consensus. */
+      semanticRating: IRating;
+
+      /** Calibrated decision confidence from zero through one. */
+      confidence: number;
+
+      /** Reason that resolves the two source ratings and queue reasons. */
+      rationale: string;
+    }>;
+
+    /** Terminal provider status. */
+    status: "completed" | "interrupted" | "failed";
   }
 
   /** Harness-owned provenance wrapped around one provider block output. */
@@ -546,6 +651,18 @@ export namespace IEvidenceBenchmarkQualityGrade {
     /** Immutable generation core seal the grade postprocess reads. */
     generationCoreSealSha256: string;
 
+    /** Frozen semantic rubric digest. */
+    rubricSha256: string;
+
+    /** Frozen provider-facing grade-block schema digest. */
+    gradeBlockProviderSchemaSha256: string;
+
+    /** Frozen local grade-block schema digest. */
+    gradeBlockLocalSchemaSha256: string;
+
+    /** Frozen provider-output registry digest. */
+    providerOutputRegistrySha256: string;
+
     /** Exact acceptance catalog digest. */
     acceptanceCatalogSha256: string;
 
@@ -581,6 +698,12 @@ export namespace IEvidenceBenchmarkQualityGrade {
 
     /** Exact upstream responses whose usage belongs to this grade. */
     sourceResponseIds: string[];
+
+    /** Canonical digest of the exact response identity order. */
+    sourceResponseIdsSha256: string;
+
+    /** UTC time after semantic ratings and the separate guess were sealed. */
+    submittedAtUtc: string;
   }
 
   /** Why a criterion enters the independent human audit queue. */
@@ -711,8 +834,8 @@ export namespace IEvidenceBenchmarkQualityGrade {
     /** Exact decisions in deterministic queue order. */
     decisions: IAdjudicationDecision[];
 
-    /** Harness-owned fresh app-server and schema evidence. */
-    provenance: IBlockSubmission["provenance"];
+    /** Harness-owned fresh app-server evidence for each population output. */
+    provenances: IBlockSubmission["provenance"][];
 
     /** Final acceptance consensus in frozen catalog order. */
     acceptance: IConsensusRating[];

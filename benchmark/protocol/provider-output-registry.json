@@ -97,11 +97,11 @@
         "activity-adjudicator"
       ],
       "providerSchema": "schema/adjudication-provider.schema.json",
-      "providerBytes": 2009,
-      "providerSha256": "8d73e46677b78f660a19455123a5740c4dc64ecca2913b922a7b2b430b6c1817",
+      "providerBytes": 2278,
+      "providerSha256": "1b3a418abbb33e584b3905520a5417126348fecad98baa0132060885c5e05463",
       "localSchema": "schema/adjudication-local.schema.json",
-      "localBytes": 1244,
-      "localSha256": "e8fb145226c6096fdfc0041b3f0c3c336218320f62834925a4577ab28802db59"
+      "localBytes": 2103,
+      "localSha256": "9828e86fcceff52a5f990a87c13b6de26ef617d1cdcc5e26d84920875bb86387"
     },
     {
       "id": "activity-rating-block",

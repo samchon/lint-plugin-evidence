@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { EvidenceBenchmarkAtomic } from "../EvidenceBenchmarkAtomic.ts";
 import { EvidenceBenchmarkHash } from "../EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkProtocolValidator } from "../EvidenceBenchmarkProtocolValidator.ts";
 import type { IEvidenceBenchmarkQualityGrade } from "../structures/IEvidenceBenchmarkQualityGrade.ts";
 import type { IEvidenceBenchmarkQualityPostprocess } from "../structures/IEvidenceBenchmarkQualityPostprocess.ts";
 import type { IEvidenceBenchmarkQualityReport } from "../structures/IEvidenceBenchmarkQualityReport.ts";
@@ -177,9 +178,11 @@ export namespace EvidenceBenchmarkQualityPostprocess {
   ): IEvidenceBenchmarkQualityPostprocess.ISeal {
     const root: string = path.resolve(postprocessDirectory);
     const sealPath: string = path.join(root, "postprocess-seal.json");
-    const seal: IEvidenceBenchmarkQualityPostprocess.ISeal = JSON.parse(
-      fs.readFileSync(sealPath, "utf8"),
-    ) as IEvidenceBenchmarkQualityPostprocess.ISeal;
+    const seal: IEvidenceBenchmarkQualityPostprocess.ISeal =
+      EvidenceBenchmarkProtocolValidator.parse(
+        fs.readFileSync(sealPath, "utf8"),
+        sealPath,
+      ) as IEvidenceBenchmarkQualityPostprocess.ISeal;
     const { sealSha256: _sealSha256, ...unsigned } = seal;
     const sha256: RegExp = /^[a-f0-9]{64}$/;
     if (
@@ -224,9 +227,11 @@ export namespace EvidenceBenchmarkQualityPostprocess {
         throw new Error(
           `${phase.phase} postprocess artifact changed after sealing.`,
         );
-      const report: IEvidenceBenchmarkQualityReport.IPhase = JSON.parse(
-        fs.readFileSync(target, "utf8"),
-      ) as IEvidenceBenchmarkQualityReport.IPhase;
+      const report: IEvidenceBenchmarkQualityReport.IPhase =
+        EvidenceBenchmarkProtocolValidator.parse(
+          fs.readFileSync(target, "utf8"),
+          target,
+        ) as IEvidenceBenchmarkQualityReport.IPhase;
       EvidenceBenchmarkQualityReport.validatePhase(
         seal.runId,
         seal.subject,

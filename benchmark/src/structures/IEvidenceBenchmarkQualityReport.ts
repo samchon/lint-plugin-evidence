@@ -244,23 +244,26 @@ export namespace IEvidenceBenchmarkQualityReport {
       browserFlowSha256: string;
     };
 
-    /** AI-adjudicated scores kept outside requirement coverage. */
-    scores: {
-      /** Text and control legibility from zero through one. */
-      legibility: number;
+    /** Exact canonical six-axis vector kept outside requirement coverage. */
+    ratings: Array<{
+      /** Frozen secondary-review dimension in canonical order. */
+      dimension:
+        | "usability"
+        | "legibility"
+        | "responsiveness"
+        | "state_feedback"
+        | "accessibility"
+        | "maintainability";
 
-      /** Responsive layout behavior from zero through one. */
-      responsive: number;
+      /** Ordinal score from one through five. */
+      score: 1 | 2 | 3 | 4 | 5;
 
-      /** Loading, empty, success, and error feedback from zero through one. */
-      stateFeedback: number;
+      /** Calibrated grader confidence from zero through one. */
+      confidence: number;
 
-      /** Accessibility behavior from zero through one. */
-      accessibility: number;
-
-      /** Code maintainability from zero through one. */
-      maintainability: number;
-    };
+      /** File or visual-evidence-backed reason for the score. */
+      rationale: string;
+    }>;
 
     /** Two independent blind secondary-review grade digests. */
     sourceGradeSha256: [string, string];

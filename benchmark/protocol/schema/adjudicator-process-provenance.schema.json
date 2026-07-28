@@ -1,13 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/adjudication-record.schema.json",
-  "title": "Runner-owned fresh adjudication provenance record",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/adjudicator-process-provenance.schema.json",
+  "title": "Fresh adjudicator process provenance",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schemaVersion",
-    "runId",
-    "milestone",
     "parentCoreSealSha256",
     "provider",
     "modelId",
@@ -20,8 +18,8 @@
     "serviceTierRequestMode",
     "effectiveServiceTier",
     "assignmentId",
-    "assignmentSha256",
     "assignmentPath",
+    "assignmentSha256",
     "threadId",
     "sessionId",
     "agentId",
@@ -31,38 +29,21 @@
     "transportSessionId",
     "startedAtMonotonicNs",
     "executableSha256",
+    "invocation",
+    "runnerEventLogPath",
     "runnerEventLogSha256",
-    "processProvenancePath",
-    "processProvenanceSchemaSha256",
-    "processProvenanceSha256",
+    "processStartEvent",
     "rawEventStreamPath",
     "rawEventStreamSha256",
     "usagePath",
     "usageSha256",
-    "sealedInputAlgorithmId",
-    "graderAGradeSha256",
-    "graderBGradeSha256",
-    "comparisonQueueSha256",
-    "sealedInputsSha256",
-    "recomputedSealedInputsSha256",
     "providerOutputSha256",
-    "graderAIdentity",
-    "graderBIdentity",
-    "freshIdentityVerified"
+    "startedAtUtc",
+    "completedAtUtc"
   ],
   "properties": {
     "schemaVersion": {
-      "const": 1
-    },
-    "runId": {
-      "type": "string",
-      "minLength": 1
-    },
-    "milestone": {
-      "enum": [
-        "t_done",
-        "t_dry"
-      ]
+      "const": 2
     },
     "parentCoreSealSha256": {
       "$ref": "#/$defs/sha256"
@@ -101,12 +82,12 @@
       "type": "string",
       "minLength": 1
     },
-    "assignmentSha256": {
-      "$ref": "#/$defs/sha256"
-    },
     "assignmentPath": {
       "type": "string",
       "pattern": "^postprocess/adjudication/assignment/[a-z0-9][a-z0-9._-]{5,127}\\.json$"
+    },
+    "assignmentSha256": {
+      "$ref": "#/$defs/sha256"
     },
     "threadId": {
       "type": "string",
@@ -148,18 +129,63 @@
     "executableSha256": {
       "$ref": "#/$defs/sha256"
     },
+    "invocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command",
+        "arguments",
+        "cwd",
+        "environmentSha256"
+      ],
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "arguments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "cwd": {
+          "type": "string",
+          "minLength": 1
+        },
+        "environmentSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "runnerEventLogPath": {
+      "const": "logs/runner.events.jsonl"
+    },
     "runnerEventLogSha256": {
       "$ref": "#/$defs/sha256"
     },
-    "processProvenanceSha256": {
-      "$ref": "#/$defs/sha256"
-    },
-    "processProvenancePath": {
-      "type": "string",
-      "pattern": "^postprocess/adjudication/process/[a-z0-9][a-z0-9._-]{5,127}\\.json$"
-    },
-    "processProvenanceSchemaSha256": {
-      "$ref": "#/$defs/sha256"
+    "processStartEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "eventSha256",
+        "monotonicNs"
+      ],
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "eventSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "monotonicNs": {
+          "type": "string",
+          "pattern": "^[0-9]+$"
+        }
+      }
     },
     "rawEventStreamPath": {
       "type": "string",
@@ -175,76 +201,19 @@
     "usageSha256": {
       "$ref": "#/$defs/sha256"
     },
-    "sealedInputAlgorithmId": {
-      "const": "sha256-label-nul-bytes-v1"
-    },
-    "graderAGradeSha256": {
-      "$ref": "#/$defs/sha256"
-    },
-    "graderBGradeSha256": {
-      "$ref": "#/$defs/sha256"
-    },
-    "comparisonQueueSha256": {
-      "$ref": "#/$defs/sha256"
-    },
-    "sealedInputsSha256": {
-      "$ref": "#/$defs/sha256"
-    },
-    "recomputedSealedInputsSha256": {
-      "$ref": "#/$defs/sha256"
-    },
     "providerOutputSha256": {
       "$ref": "#/$defs/sha256"
     },
-    "graderAIdentity": {
-      "$ref": "#/$defs/graderIdentity"
+    "startedAtUtc": {
+      "type": "string",
+      "format": "date-time"
     },
-    "graderBIdentity": {
-      "$ref": "#/$defs/graderIdentity"
-    },
-    "freshIdentityVerified": {
-      "const": true
+    "completedAtUtc": {
+      "type": "string",
+      "format": "date-time"
     }
   },
   "$defs": {
-    "graderIdentity": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "assignmentId",
-        "threadId",
-        "sessionId",
-        "agentId",
-        "responseIds"
-      ],
-      "properties": {
-        "assignmentId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "threadId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "sessionId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "agentId": {
-          "type": "string",
-          "minLength": 1
-        },
-        "responseIds": {
-          "type": "array",
-          "minItems": 1,
-          "uniqueItems": true,
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      }
-    },
     "sha256": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$"

@@ -9,13 +9,13 @@
     "bundleId",
     "transformVersion",
     "transformSourceSha256",
-    "inputSnapshotSha256",
-    "requirementsTreeSha256",
+    "inputSnapshotRawTree",
+    "requirementsRawTree",
     "parsers",
     "grammarFixtureGate",
     "files",
     "leakScan",
-    "outputTreeSha256",
+    "outputRawTree",
     "determinismCheck"
   ],
   "properties": {
@@ -33,11 +33,11 @@
     "transformSourceSha256": {
       "$ref": "#/$defs/sha256"
     },
-    "inputSnapshotSha256": {
-      "$ref": "#/$defs/sha256"
+    "inputSnapshotRawTree": {
+      "$ref": "#/$defs/rawTreeDigest"
     },
-    "requirementsTreeSha256": {
-      "$ref": "#/$defs/sha256"
+    "requirementsRawTree": {
+      "$ref": "#/$defs/rawTreeDigest"
     },
     "parsers": {
       "type": "object",
@@ -204,19 +204,19 @@
         }
       }
     },
-    "outputTreeSha256": {
-      "$ref": "#/$defs/sha256"
+    "outputRawTree": {
+      "$ref": "#/$defs/rawTreeDigest"
     },
     "determinismCheck": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "secondOutputTreeSha256",
+        "secondOutputRawTree",
         "passed"
       ],
       "properties": {
-        "secondOutputTreeSha256": {
-          "$ref": "#/$defs/sha256"
+        "secondOutputRawTree": {
+          "$ref": "#/$defs/rawTreeDigest"
         },
         "passed": {
           "type": "boolean"
@@ -225,6 +225,22 @@
     }
   },
   "$defs": {
+    "rawTreeDigest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithmId",
+        "sha256"
+      ],
+      "properties": {
+        "algorithmId": {
+          "const": "sha256-posix-path-nul-bytes-v1"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
     "parser": {
       "type": "object",
       "additionalProperties": false,

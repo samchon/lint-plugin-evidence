@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/public-safety-scan.schema.json",
+  "title": "Local public-promotion safety scan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "runId",
+    "parentCoreSealSha256",
+    "scanner",
+    "scannedRunRecordRawTree",
+    "scannedFileSetSha256",
+    "scannedFileCount",
+    "scannedBytes",
+    "rawLogDigests",
+    "highConfidenceFindings",
+    "manualReviewCandidates",
+    "manualReviewStatus",
+    "rawEvidenceDisposition",
+    "publicPromotionAllowed",
+    "scannedAtUtc"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{5,127}$"
+    },
+    "parentCoreSealSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "scanner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "implementationPath",
+        "implementationSha256",
+        "rulesPath",
+        "rulesSha256"
+      ],
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "implementationPath": {
+          "const": "benchmark/src/safety/EvidenceBenchmarkPublicSafetyScanner.ts"
+        },
+        "implementationSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "rulesPath": {
+          "const": "benchmark/protocol/public-safety-rules.json"
+        },
+        "rulesSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "scannedRunRecordRawTree": {
+      "$ref": "#/$defs/rawTree"
+    },
+    "scannedFileSetSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "scannedFileCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "scannedBytes": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "rawLogDigests": {
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "bytes",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^logs/(client\\.raw\\.jsonl|server\\.raw\\.jsonl|stderr\\.raw\\.log)$"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "$ref": "#/$defs/sha256"
+          }
+        }
+      }
+    },
+    "highConfidenceFindings": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "manualReviewCandidates": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "manualReviewStatus": {
+      "enum": [
+        "not_required",
+        "pending",
+        "cleared"
+      ]
+    },
+    "rawEvidenceDisposition": {
+      "const": "retained_local_censored_from_publication"
+    },
+    "publicPromotionAllowed": {
+      "type": "boolean"
+    },
+    "scannedAtUtc": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "publicPromotionAllowed": {
+            "const": true
+          }
+        },
+        "required": [
+          "publicPromotionAllowed"
+        ]
+      },
+      "then": {
+        "properties": {
+          "highConfidenceFindings": {
+            "maxItems": 0
+          },
+          "manualReviewStatus": {
+            "enum": [
+              "not_required",
+              "cleared"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "manualReviewCandidates": {
+            "minItems": 1
+          }
+        },
+        "required": [
+          "manualReviewCandidates"
+        ]
+      },
+      "then": {
+        "properties": {
+          "manualReviewStatus": {
+            "enum": [
+              "pending",
+              "cleared"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "manualReviewStatus": {
+            "const": "not_required"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "category",
+        "path",
+        "byteOffset",
+        "byteLength",
+        "evidenceSha256",
+        "confidence"
+      ],
+      "properties": {
+        "category": {
+          "enum": [
+            "credential",
+            "account_identifier",
+            "private_quota",
+            "high_confidence_host_identifier"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "byteOffset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "evidenceSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "rawTree": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithmId",
+        "sha256"
+      ],
+      "properties": {
+        "algorithmId": {
+          "const": "sha256-posix-path-nul-bytes-v1"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

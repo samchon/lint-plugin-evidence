@@ -184,7 +184,7 @@
   "providerOutputRegistry": {
     "path": "benchmark/protocol/provider-output-registry.json",
     "bytes": 4175,
-    "sha256": "e4346830af533ce34fffbf85fa331ff805ff9fe82c7ed05906dd70362ea88335",
+    "sha256": "733399df129c71d01256f36e5ce447e1a252187f85fb647f8465bcf4cd13c2cb",
     "schemaPath": "benchmark/protocol/schema/provider-output-registry.schema.json",
     "recursiveKeywordFixture": "benchmark/protocol/fixtures/provider-output-schemas/cases.json",
     "providerKeywordAllowlist": [

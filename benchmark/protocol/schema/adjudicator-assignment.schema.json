@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/adjudicator-assignment.schema.json",
+  "title": "Fresh adjudicator assignment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "parentCoreSealSha256",
+    "assignmentId",
+    "provider",
+    "modelId",
+    "reasoningEffort",
+    "codexVersion",
+    "authClass",
+    "serviceTierClass",
+    "serviceTierSymbolic",
+    "requestedServiceTier",
+    "serviceTierRequestMode"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "parentCoreSealSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "assignmentId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "provider": {
+      "const": "openai"
+    },
+    "modelId": {
+      "const": "gpt-5.6-terra"
+    },
+    "reasoningEffort": {
+      "const": "high"
+    },
+    "codexVersion": {
+      "const": "0.145.0"
+    },
+    "authClass": {
+      "const": "chatgpt"
+    },
+    "serviceTierClass": {
+      "const": "standard"
+    },
+    "serviceTierSymbolic": {
+      "const": "default"
+    },
+    "requestedServiceTier": {
+      "type": "null"
+    },
+    "serviceTierRequestMode": {
+      "const": "omitted"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

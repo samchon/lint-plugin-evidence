@@ -9,6 +9,7 @@ import { EvidenceBenchmarkProtocolValidatorTest } from "../EvidenceBenchmarkProt
 import { EvidenceBenchmarkAcceptanceCatalog } from "../grading/EvidenceBenchmarkAcceptanceCatalog.ts";
 import { EvidenceBenchmarkBlindBundle } from "../grading/EvidenceBenchmarkBlindBundle.ts";
 import { EvidenceBenchmarkGradingPlan } from "../grading/EvidenceBenchmarkGradingPlan.ts";
+import { EvidenceBenchmarkQualityArtifacts } from "../grading/EvidenceBenchmarkQualityArtifacts.ts";
 import { EvidenceBenchmarkQualityCoverage } from "../grading/EvidenceBenchmarkQualityCoverage.ts";
 import { EvidenceBenchmarkQualityGrade } from "../grading/EvidenceBenchmarkQualityGrade.ts";
 import { EvidenceBenchmarkQualityPostprocess } from "../reporting/EvidenceBenchmarkQualityPostprocess.ts";
@@ -16,6 +17,7 @@ import { EvidenceBenchmarkQualityReport } from "../reporting/EvidenceBenchmarkQu
 import type { IEvidenceBenchmarkQualityGrade } from "../structures/IEvidenceBenchmarkQualityGrade.ts";
 import type { IEvidenceBenchmarkQualityPostprocess } from "../structures/IEvidenceBenchmarkQualityPostprocess.ts";
 import type { IEvidenceBenchmarkQualityReport } from "../structures/IEvidenceBenchmarkQualityReport.ts";
+import { EvidenceBenchmarkQualityArtifactsTest } from "./EvidenceBenchmarkQualityArtifactsTest.ts";
 
 /** Runs deterministic, paid-call-free quality protocol regression tests. */
 export namespace EvidenceBenchmarkQualityTest {
@@ -50,6 +52,10 @@ export namespace EvidenceBenchmarkQualityTest {
     try {
       EvidenceBenchmarkProtocolValidatorTest.main(
         path.join(benchmarkRoot, "protocol"),
+      );
+      EvidenceBenchmarkQualityArtifactsTest.main(
+        path.join(benchmarkRoot, "protocol"),
+        path.join(temporary, "protocol-artifacts"),
       );
       testCatalogs(benchmarkRoot, temporary);
       const fixture: IFixture = createFixture(
@@ -157,12 +163,12 @@ export namespace EvidenceBenchmarkQualityTest {
       "grading",
       "input",
       "t_done",
-      "manifest.json",
+      "bundle-manifest.json",
     );
     const manifest = JSON.parse(
       fs.readFileSync(manifestPath, "utf8"),
     ) as Record<string, unknown>;
-    manifest.readOnly = false;
+    (manifest.leakScan as Record<string, unknown>).passed = false;
     fs.writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`, "utf8");
     expectThrow(
       () =>
@@ -170,7 +176,7 @@ export namespace EvidenceBenchmarkQualityTest {
           path.join(temporary, "tampered-manifest"),
           "t_done",
         ),
-      "manifest identity",
+      "empty leak scan",
     );
     assert.equal(changed.phase, "t_done");
 
@@ -230,7 +236,7 @@ export namespace EvidenceBenchmarkQualityTest {
       fixture.first,
       fixture.bundle.bundleId,
     );
-    reused.provenance.threadId = fixture.first.sourceThreadIds[0]!;
+    reused[0]!.provenance.threadId = fixture.first.sourceThreadIds[0]!;
     expectThrow(
       () =>
         EvidenceBenchmarkQualityGrade.adjudicate(
@@ -436,7 +442,7 @@ export namespace EvidenceBenchmarkQualityTest {
       temporary,
       `${runId}-${phase}-${Math.random().toString(16).slice(2)}`,
     );
-    const bundle = createBlindBundle(record, phase, `bundle-${phase}`);
+    const bundle = createBlindBundle(record, phase, `bundle-${phase}`, runId);
     const catalog: IEvidenceBenchmarkQualityGrade.ICatalog = {
       schemaVersion: 1,
       subject: "todo",
@@ -451,8 +457,8 @@ export namespace EvidenceBenchmarkQualityTest {
       context: [],
       denominatorsSummed: false,
     };
-    const firstGrader = grader("grader-a", "llm");
-    const secondGrader = grader("grader-b", "llm");
+    const firstGrader = grader("blind-grader-a", "llm");
+    const secondGrader = grader("blind-grader-b", "llm");
     const adjudicator = grader("adjudicator-c", "llm_adjudicator");
     const plan = EvidenceBenchmarkGradingPlan.create(
       catalog,
@@ -460,11 +466,13 @@ export namespace EvidenceBenchmarkQualityTest {
       {
         runId,
         bundleId: bundle.bundleId,
+        bundleManifestSha256: bundle.bundleManifestSha256,
         treeAlgorithm: bundle.treeAlgorithm,
         bundleRawTreeSha256: bundle.bundleRawTreeSha256,
         gradingInputManifestSha256: bundle.manifestSha256,
         sourceSnapshotRawTreeSha256: bundle.sourceSnapshotRawTreeSha256,
         requirementsRawTreeSha256: catalog.requirementsRawTreeSha256,
+        subjectFreezeManifestSha256: digest("subject-freeze"),
         materializedRequirementsRawTreeSha256: digest(
           "materialized-requirements",
         ),
@@ -482,17 +490,19 @@ export namespace EvidenceBenchmarkQualityTest {
         adjudicationLocalSchemaSha256: SHA.adjudicationLocal,
         registrySha256: SHA.registry,
         protocolRevision: "quality-test-v1",
+        protocolRevisionSha256: digest("quality-test-v1"),
         graderAssignments: [firstGrader, secondGrader],
         adjudicatorAssignment: adjudicator,
         contextPolicy: "continuous",
       },
-      2,
+      50,
       {
         estimatedTokensPerCriterion: 200,
         envelopeTokens: 100,
-        maximumOutputTokens: 500,
+        maximumOutputTokens: 10100,
       },
     );
+    EvidenceBenchmarkGradingPlan.protocol(catalog, plan);
     const first = grade(
       catalog,
       plan,
@@ -590,10 +600,26 @@ export namespace EvidenceBenchmarkQualityTest {
         population: block.population,
         output: {
           schemaVersion: 1,
+          role: "blind_grader",
+          gradeId: `grade-${suffix}`,
+          bundleId: bundle.bundleId,
+          subject: catalog.subject,
+          phase: plan.phase,
+          graderPseudonym: identity.pseudonym,
+          rubricSha256: plan.bindings.rubricSha256,
+          catalogSha256:
+            block.population === "acceptance"
+              ? catalog.acceptanceCatalogSha256
+              : catalog.contextCatalogSha256!,
+          population: block.population,
           blockId: block.blockId,
+          blockIndex: block.index - 1,
+          criterionIds: [...block.criterionIds],
           ratings: block.criterionIds.map((id, index) =>
             rating(id, statuses[index] ?? "implemented_correctly"),
           ),
+          status: "completed",
+          interruption: null,
         },
         provenance: provenance(
           `thread-${suffix}`,
@@ -611,10 +637,18 @@ export namespace EvidenceBenchmarkQualityTest {
       grader: identity,
       output: {
         schemaVersion: 1,
-        planSha256: plan.planSha256,
-        arm: "unknown",
+        role: "blind_arm_guess",
+        gradeId: `grade-${suffix}`,
+        bundleId: bundle.bundleId,
+        subject: catalog.subject,
+        phase: plan.phase,
+        graderPseudonym: identity.pseudonym,
+        sealedRatingsSha256: EvidenceBenchmarkHash.object(
+          submissions.map((submission) => submission.output),
+        ),
+        guess: "unknown",
         confidence: 0.5,
-        clues: ["No arm-specific identifiers were visible."],
+        rationale: "No arm-specific identifiers were visible.",
       },
       provenance: provenance(
         `thread-${suffix}`,
@@ -625,13 +659,31 @@ export namespace EvidenceBenchmarkQualityTest {
         "2026-07-29T00:00:02.000Z",
       ),
     };
-    return EvidenceBenchmarkQualityGrade.assemble(
+    const result = EvidenceBenchmarkQualityGrade.assemble(
       catalog,
       plan,
       submissions,
       armGuess,
       bundle,
     );
+    const taxonomy = new Map<
+      string,
+      IEvidenceBenchmarkQualityGrade.DefectClass
+    >(
+      [...result.acceptanceRatings, ...result.contextRatings].map((entry) => [
+        entry.criterionId,
+        entry.status === "implemented_correctly" ||
+        entry.status === "not_applicable"
+          ? "non_defect"
+          : entry.status === "partial"
+            ? "partial_implementation"
+            : entry.status === "unverifiable"
+              ? "test_oracle_gap"
+              : "semantic_defect",
+      ]),
+    );
+    EvidenceBenchmarkQualityGrade.protocolGrade(result, taxonomy);
+    return result;
   }
 
   function adjudicationSubmission(
@@ -639,7 +691,7 @@ export namespace EvidenceBenchmarkQualityTest {
     comparison: IEvidenceBenchmarkQualityGrade.IComparison,
     first: IEvidenceBenchmarkQualityGrade.IGrade,
     bundleId: string,
-  ): IEvidenceBenchmarkQualityGrade.IAdjudicationSubmission {
+  ): IEvidenceBenchmarkQualityGrade.IAdjudicationSubmission[] {
     const byId: ReadonlyMap<string, IEvidenceBenchmarkQualityGrade.IRating> =
       new Map(
         [...first.acceptanceRatings, ...first.contextRatings].map((entry) => [
@@ -647,32 +699,52 @@ export namespace EvidenceBenchmarkQualityTest {
           entry,
         ]),
       );
-    return {
-      schemaVersion: 1,
-      bundleId,
-      adjudicator: plan.bindings.adjudicatorAssignment,
-      output: {
-        schemaVersion: 1,
-        firstGradeId: comparison.firstGradeId,
-        secondGradeId: comparison.secondGradeId,
-        comparisonSha256: comparison.comparisonSha256,
-        decisions: comparison.humanAuditQueue.map((item) => ({
-          population: item.population,
-          criterionId: item.criterionId,
-          rating: clone(byId.get(item.criterionId)!),
-          rationale:
-            "The third blind review independently confirmed the file evidence.",
-        })),
-      },
-      provenance: provenance(
-        "thread-adjudicator-c",
-        "turn-adjudicator-c",
-        ["response-adjudicator-c"],
-        SHA.adjudicationProvider,
-        SHA.adjudicationLocal,
-        "2026-07-29T00:00:03.000Z",
-      ),
-    };
+    return (["acceptance", "context"] as const).flatMap((population) => {
+      const queue = comparison.humanAuditQueue.filter(
+        (item) => item.population === population,
+      );
+      if (queue.length === 0) return [];
+      return [
+        {
+          schemaVersion: 1,
+          bundleId,
+          adjudicator: plan.bindings.adjudicatorAssignment,
+          output: {
+            schemaVersion: 1,
+            role: "llm_adjudicator",
+            adjudicationId: `adjudication-${population}`,
+            bundleId,
+            subject: plan.subject,
+            phase: plan.phase,
+            population,
+            sealedInputsSha256: EvidenceBenchmarkHash.object({
+              firstGradeId: comparison.firstGradeId,
+              secondGradeId: comparison.secondGradeId,
+              comparisonSha256: comparison.comparisonSha256,
+              population,
+            }),
+            queueSha256: EvidenceBenchmarkHash.object(queue),
+            decisions: queue.map((item) => ({
+              itemId: item.criterionId,
+              decision: "semantic_consensus" as const,
+              semanticRating: clone(byId.get(item.criterionId)!),
+              confidence: 0.9,
+              rationale:
+                "The third blind review independently confirmed the file evidence.",
+            })),
+            status: "completed" as const,
+          },
+          provenance: provenance(
+            `thread-adjudicator-c-${population}`,
+            `turn-adjudicator-c-${population}`,
+            [`response-adjudicator-c-${population}`],
+            SHA.adjudicationProvider,
+            SHA.adjudicationLocal,
+            "2026-07-29T00:00:03.000Z",
+          ),
+        },
+      ];
+    });
   }
 
   function rating(
@@ -726,46 +798,124 @@ export namespace EvidenceBenchmarkQualityTest {
     recordDirectory: string,
     phase: IEvidenceBenchmarkQualityGrade.Phase,
     bundleId: string,
+    runId: string = "quality-run",
   ): EvidenceBenchmarkBlindBundle.IResult {
-    const input: string = path.join(recordDirectory, "grading", "input", phase);
-    const bundle: string = path.join(input, "bundle");
-    fs.mkdirSync(path.join(bundle, "src"), { recursive: true });
+    const grading: string = path.join(recordDirectory, "grading", "input");
+    const input: string = path.join(grading, phase);
+    const sourceRoot: string = path.join(input, "source");
+    const bundleRoot: string = path.join(input, "bundle");
+    fs.mkdirSync(path.join(sourceRoot, "src"), { recursive: true });
+    fs.mkdirSync(path.join(bundleRoot, "src"), { recursive: true });
     const source: string = "export const value = true;\n";
-    fs.writeFileSync(path.join(bundle, "src/app.ts"), source, "utf8");
+    fs.writeFileSync(path.join(sourceRoot, "src/app.ts"), source, "utf8");
+    fs.writeFileSync(path.join(bundleRoot, "src/app.ts"), source, "utf8");
+    const sourceRawTreeSha256 =
+      EvidenceBenchmarkBlindBundle.rawTreeSha256(sourceRoot);
     const bundleRawTreeSha256 =
-      EvidenceBenchmarkBlindBundle.rawTreeSha256(bundle);
-    const provenanceValue = {
-      name: "deterministic-test-stripper",
-      version: "1.0.0",
-      configurationSha256: digest("stripper-configuration"),
-    };
-    const unsigned: Record<string, unknown> = {
-      schemaVersion: 1,
-      phase,
-      bundleId,
-      treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
+      EvidenceBenchmarkBlindBundle.rawTreeSha256(bundleRoot);
+    const rawTree = (
+      sha256: string,
+    ): {
+      algorithmId: "sha256-posix-path-nul-bytes-v1";
+      sha256: string;
+    } => ({
+      algorithmId: EvidenceBenchmarkHash.TREE_ALGORITHM,
+      sha256,
+    });
+    const aggregate = {
+      schemaVersion: 2,
+      runId,
       runManifestSha256: digest("run-manifest"),
+      subjectFreezeManifestSha256: digest("subject-freeze"),
       requirementsRawTreeSha256: digest("requirements"),
-      sourceSnapshotRawTreeSha256: digest(`source-${phase}`),
-      bundleRawTreeSha256,
-      relativeBundlePath: "bundle",
-      rawScale: { fileCount: 1, byteLength: Buffer.byteLength(source) },
-      blindScale: { fileCount: 1, byteLength: Buffer.byteLength(source) },
-      stripperProvenance: provenanceValue,
-      stripperProvenanceSha256: canonicalDigest(provenanceValue),
-      readOnly: true,
-      postGradeRehashRequired: true,
-      leakScanPassed: true,
-      deterministicDoubleHashPassed: true,
+      acceptanceCatalogSha256: digest("acceptance-catalog"),
+      contextCatalogSha256: null,
+      tDoneSourceRawTree: rawTree(sourceRawTreeSha256),
+      tDoneBundleRawTree: rawTree(bundleRawTreeSha256),
+      tDrySourceRawTree: rawTree(sourceRawTreeSha256),
+      tDryBundleRawTree: rawTree(bundleRawTreeSha256),
+      rubricSha256: SHA.rubric,
+      promptSha256: SHA.prompt,
+      providerOutputRegistrySha256: SHA.registry,
+      qualityInputsSha256: digest("quality-inputs"),
+      protocolRevisionSha256: digest("quality-test-v1"),
     };
-    const manifest = {
-      ...unsigned,
-      manifestSha256: canonicalDigest(unsigned),
+    const parser = (name: string): unknown => ({
+      implementation: name,
+      version: "1.0.0",
+      sourceSha256: digest(`${name}-source`),
+      grammarSha256: digest(`${name}-grammar`),
+    });
+    const gate = (name: string): unknown => ({
+      fixtureSha256: digest(`${name}-fixture`),
+      acceptedCases: 1,
+      rejectedCases: 1,
+      passed: true,
+    });
+    const bundleManifest = {
+      schemaVersion: 1,
+      bundleId,
+      transformVersion: "1.0.0",
+      transformSourceSha256: digest("stripper-provenance"),
+      inputSnapshotRawTree: rawTree(sourceRawTreeSha256),
+      requirementsRawTree: rawTree(digest("requirements")),
+      parsers: {
+        typescriptJsdoc: parser("typescript-jsdoc"),
+        markdownHtmlComment: parser("markdown-comment"),
+        prismaTripleSlash: parser("prisma-triple-slash"),
+        structuredConfiguration: parser("structured-config"),
+      },
+      grammarFixtureGate: {
+        fixtureSetSha256: digest("grammar-fixtures"),
+        typescriptJsdoc: gate("typescript-jsdoc"),
+        markdownHtmlComment: gate("markdown-comment"),
+        prismaTripleSlash: gate("prisma-triple-slash"),
+        structuredConfiguration: gate("structured-config"),
+        productionEntryPointUsed: true,
+        passed: true,
+      },
+      files: [
+        {
+          inputPath: "src/app.ts",
+          outputPath: "src/app.ts",
+          action: "included",
+          reason: "Fake neutral source retained.",
+          inputSha256: digest("source-file"),
+          outputSha256: digest("bundle-file"),
+          removedAnnotations: 0,
+        },
+      ],
+      leakScan: {
+        rulesSha256: digest("leak-rules"),
+        scannedFiles: 1,
+        matches: [],
+        passed: true,
+      },
+      outputRawTree: rawTree(bundleRawTreeSha256),
+      determinismCheck: {
+        secondOutputRawTree: rawTree(bundleRawTreeSha256),
+        passed: true,
+      },
     };
-    fs.writeFileSync(
-      path.join(input, "manifest.json"),
-      `${JSON.stringify(manifest, null, 2)}\n`,
-      "utf8",
+    const protocolRoot: string = path.resolve(
+      import.meta.dirname,
+      "..",
+      "..",
+      "protocol",
+    );
+    EvidenceBenchmarkQualityArtifacts.write(
+      protocolRoot,
+      "grading-input-manifest.schema.json",
+      aggregate,
+      path.join(grading, "manifest.json"),
+      "fake aggregate grading input",
+    );
+    EvidenceBenchmarkQualityArtifacts.write(
+      protocolRoot,
+      "bundle-manifest.schema.json",
+      bundleManifest,
+      path.join(input, "bundle-manifest.json"),
+      "fake blind bundle transform",
     );
     return EvidenceBenchmarkBlindBundle.read(recordDirectory, phase);
   }
@@ -894,13 +1044,20 @@ export namespace EvidenceBenchmarkQualityTest {
         screenshotSetSha256: digest(`screenshots-${phase}`),
         browserFlowSha256: digest(`browser-${phase}`),
       },
-      scores: {
-        legibility: 0.8,
-        responsive: 0.7,
-        stateFeedback: 0.9,
-        accessibility: 0.6,
-        maintainability: 0.75,
-      },
+      ratings: [
+        "usability",
+        "legibility",
+        "responsiveness",
+        "state_feedback",
+        "accessibility",
+        "maintainability",
+      ].map((dimension) => ({
+        dimension:
+          dimension as IEvidenceBenchmarkQualityReport.ISecondaryReview["ratings"][number]["dimension"],
+        score: 4,
+        confidence: 0.8,
+        rationale: `${dimension} is supported by frozen evidence.`,
+      })),
       sourceGradeSha256: [
         digest(`secondary-a-${phase}`),
         digest(`secondary-b-${phase}`),
@@ -1082,26 +1239,6 @@ export namespace EvidenceBenchmarkQualityTest {
   function resignPlan(plan: IEvidenceBenchmarkQualityGrade.IBlockPlan): void {
     const { planSha256: _planSha256, ...unsigned } = plan;
     plan.planSha256 = EvidenceBenchmarkHash.object(unsigned);
-  }
-
-  function canonicalDigest(input: unknown): string {
-    return EvidenceBenchmarkHash.bytes(canonicalJson(input));
-  }
-
-  function canonicalJson(input: unknown): string {
-    if (input === null) return "null";
-    if (
-      typeof input === "boolean" ||
-      typeof input === "number" ||
-      typeof input === "string"
-    )
-      return JSON.stringify(input);
-    if (Array.isArray(input)) return `[${input.map(canonicalJson).join(",")}]`;
-    const record = input as Record<string, unknown>;
-    return `{${Object.keys(record)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
-      .join(",")}}`;
   }
 
   function digest(value: string): string {

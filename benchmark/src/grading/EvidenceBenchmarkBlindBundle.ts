@@ -2,7 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { EvidenceBenchmarkHash } from "../EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkProtocolValidator } from "../EvidenceBenchmarkProtocolValidator.ts";
 import type { IEvidenceBenchmarkQualityGrade } from "../structures/IEvidenceBenchmarkQualityGrade.ts";
+import { EvidenceBenchmarkQualityArtifacts } from "./EvidenceBenchmarkQualityArtifacts.ts";
 
 /**
  * Reopens runner-owned blind bundles and proves their bytes before and after
@@ -13,6 +15,9 @@ export namespace EvidenceBenchmarkBlindBundle {
 
   /** Validated runner-owned grading input. */
   export interface IResult {
+    /** Globally unique measured run identity. */
+    runId: string;
+
     /** Immutable source milestone. */
     phase: IEvidenceBenchmarkQualityGrade.Phase;
 
@@ -36,6 +41,9 @@ export namespace EvidenceBenchmarkBlindBundle {
 
     /** Canonical manifest digest. */
     manifestSha256: string;
+
+    /** Exact neutral bundle-transform manifest byte digest. */
+    bundleManifestSha256: string;
 
     /** Absolute runtime bundle root, never persisted in a public report. */
     bundleRoot: string;
@@ -66,104 +74,118 @@ export namespace EvidenceBenchmarkBlindBundle {
   export function read(
     recordDirectory: string,
     phase: IEvidenceBenchmarkQualityGrade.Phase,
+    protocolRoot: string = path.resolve(
+      import.meta.dirname,
+      "..",
+      "..",
+      "protocol",
+    ),
   ): IResult {
-    const inputRoot: string = path.join(
+    const gradingRoot: string = path.join(
       path.resolve(recordDirectory),
       "grading",
       "input",
-      phase,
     );
-    const manifestPath: string = path.join(inputRoot, "manifest.json");
-    const manifest: Record<string, unknown> = object(
-      JSON.parse(fs.readFileSync(manifestPath, "utf8")) as unknown,
-      `${phase} blind bundle manifest`,
+    const phaseRoot: string = path.join(gradingRoot, phase);
+    const manifestPath: string = path.join(gradingRoot, "manifest.json");
+    const manifestText: string = fs.readFileSync(manifestPath, "utf8");
+    const manifest = EvidenceBenchmarkProtocolValidator.validateText<
+      Record<string, unknown>
+    >(
+      protocolRoot,
+      "grading-input-manifest.schema.json",
+      manifestText,
+      "aggregate grading input manifest",
     );
-    const expectedFields: string[] = [
-      "blindScale",
-      "bundleId",
-      "bundleRawTreeSha256",
-      "deterministicDoubleHashPassed",
-      "leakScanPassed",
-      "manifestSha256",
-      "phase",
-      "postGradeRehashRequired",
-      "rawScale",
-      "readOnly",
-      "relativeBundlePath",
-      "requirementsRawTreeSha256",
-      "runManifestSha256",
-      "schemaVersion",
-      "sourceSnapshotRawTreeSha256",
-      "stripperProvenance",
-      "stripperProvenanceSha256",
-      "treeAlgorithm",
-    ];
-    if (
-      JSON.stringify(Object.keys(manifest).sort()) !==
-      JSON.stringify(expectedFields)
-    )
-      throw new Error(`${phase} blind bundle manifest fields drifted.`);
-    const { manifestSha256: manifestDigest, ...unsigned } = manifest;
-    if (
-      manifest.schemaVersion !== 1 ||
-      manifest.phase !== phase ||
-      manifest.treeAlgorithm !== EvidenceBenchmarkHash.TREE_ALGORITHM ||
-      manifest.relativeBundlePath !== "bundle" ||
-      manifest.readOnly !== true ||
-      manifest.postGradeRehashRequired !== true ||
-      manifest.leakScanPassed !== true ||
-      manifest.deterministicDoubleHashPassed !== true ||
-      !text(manifest.bundleId) ||
-      !sha(manifest.runManifestSha256) ||
-      !sha(manifest.requirementsRawTreeSha256) ||
-      !sha(manifest.sourceSnapshotRawTreeSha256) ||
-      !sha(manifest.bundleRawTreeSha256) ||
-      !sha(manifestDigest) ||
-      manifestDigest !== canonicalSha256(unsigned)
-    )
-      throw new Error(`${phase} blind bundle manifest identity is invalid.`);
-    const stripperProvenance: Record<string, unknown> = object(
-      manifest.stripperProvenance,
-      `${phase} stripper provenance`,
+    EvidenceBenchmarkQualityArtifacts.validateGradingInput(
+      manifest,
+      text(manifest.runId, "grading input run id"),
+    );
+    const bundleManifestPath: string = path.join(
+      phaseRoot,
+      "bundle-manifest.json",
+    );
+    const bundleManifestText: string = fs.readFileSync(
+      bundleManifestPath,
+      "utf8",
+    );
+    const bundleManifest = EvidenceBenchmarkProtocolValidator.validateText<
+      Record<string, unknown>
+    >(
+      protocolRoot,
+      "bundle-manifest.schema.json",
+      bundleManifestText,
+      `${phase} bundle transform manifest`,
+    );
+    EvidenceBenchmarkQualityArtifacts.validateBundle(bundleManifest);
+    const phasePrefix: string = phase === "t_done" ? "tDone" : "tDry";
+    const sourceTree = rawTree(
+      manifest[`${phasePrefix}SourceRawTree`],
+      `${phase} source raw tree`,
+    );
+    const bundleTree = rawTree(
+      manifest[`${phasePrefix}BundleRawTree`],
+      `${phase} bundle raw tree`,
+    );
+    const bundleInputTree = rawTree(
+      bundleManifest.inputSnapshotRawTree,
+      `${phase} bundle input raw tree`,
+    );
+    const bundleOutputTree = rawTree(
+      bundleManifest.outputRawTree,
+      `${phase} bundle output raw tree`,
+    );
+    const bundleRequirementsTree = rawTree(
+      bundleManifest.requirementsRawTree,
+      `${phase} bundle requirements raw tree`,
     );
     if (
-      !sha(manifest.stripperProvenanceSha256) ||
-      manifest.stripperProvenanceSha256 !== canonicalSha256(stripperProvenance)
-    )
-      throw new Error(`${phase} stripper provenance digest is invalid.`);
-    const rawScale = scale(manifest.rawScale, `${phase} raw scale`);
-    const blindScale = scale(manifest.blindScale, `${phase} blind scale`);
-    const bundleRoot: string = path.join(inputRoot, "bundle");
-    const observed = tree(bundleRoot);
-    if (
-      observed.sha256 !== manifest.bundleRawTreeSha256 ||
-      observed.fileCount !== blindScale.fileCount ||
-      observed.byteLength !== blindScale.byteLength
+      sourceTree.sha256 !== bundleInputTree.sha256 ||
+      bundleTree.sha256 !== bundleOutputTree.sha256 ||
+      bundleRequirementsTree.sha256 !== manifest.requirementsRawTreeSha256
     )
       throw new Error(
-        `${phase} blind bundle bytes disagree with its manifest.`,
+        `${phase} aggregate grading input and bundle transform disagree.`,
+      );
+    const sourceRoot: string = path.join(phaseRoot, "source");
+    const bundleRoot: string = path.join(phaseRoot, "bundle");
+    const sourceObserved = tree(sourceRoot);
+    const bundleObserved = tree(bundleRoot);
+    if (
+      sourceObserved.sha256 !== sourceTree.sha256 ||
+      bundleObserved.sha256 !== bundleTree.sha256
+    )
+      throw new Error(
+        `${phase} source or blind bundle bytes disagree with its manifest.`,
       );
     const second = tree(bundleRoot);
     if (
-      second.sha256 !== observed.sha256 ||
-      second.fileCount !== observed.fileCount ||
-      second.byteLength !== observed.byteLength
+      second.sha256 !== bundleObserved.sha256 ||
+      second.fileCount !== bundleObserved.fileCount ||
+      second.byteLength !== bundleObserved.byteLength
     )
       throw new Error(`${phase} blind bundle changed during admission.`);
     return {
+      runId: manifest.runId as string,
       phase,
-      bundleId: manifest.bundleId as string,
-      treeAlgorithm: manifest.treeAlgorithm as IResult["treeAlgorithm"],
+      bundleId: bundleManifest.bundleId as string,
+      treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
       runManifestSha256: manifest.runManifestSha256 as string,
       requirementsRawTreeSha256: manifest.requirementsRawTreeSha256 as string,
-      sourceSnapshotRawTreeSha256:
-        manifest.sourceSnapshotRawTreeSha256 as string,
-      bundleRawTreeSha256: manifest.bundleRawTreeSha256 as string,
-      manifestSha256: manifestDigest as string,
+      sourceSnapshotRawTreeSha256: sourceTree.sha256,
+      bundleRawTreeSha256: bundleTree.sha256,
+      manifestSha256: EvidenceBenchmarkHash.bytes(manifestText),
+      bundleManifestSha256: EvidenceBenchmarkHash.bytes(bundleManifestText),
       bundleRoot,
-      rawScale,
-      blindScale,
-      stripperProvenanceSha256: manifest.stripperProvenanceSha256 as string,
+      rawScale: {
+        fileCount: sourceObserved.fileCount,
+        byteLength: sourceObserved.byteLength,
+      },
+      blindScale: {
+        fileCount: bundleObserved.fileCount,
+        byteLength: bundleObserved.byteLength,
+      },
+      stripperProvenanceSha256: bundleManifest.transformSourceSha256 as string,
     };
   }
 
@@ -201,45 +223,20 @@ export namespace EvidenceBenchmarkBlindBundle {
     };
   }
 
-  function scale(
+  function rawTree(
     input: unknown,
     label: string,
-  ): { fileCount: number; byteLength: number } {
+  ): { algorithmId: string; sha256: string } {
     const value: Record<string, unknown> = object(input, label);
     if (
-      JSON.stringify(Object.keys(value).sort()) !==
-        JSON.stringify(["byteLength", "fileCount"]) ||
-      !integer(value.fileCount) ||
-      !integer(value.byteLength)
+      value.algorithmId !== EvidenceBenchmarkHash.TREE_ALGORITHM ||
+      !sha(value.sha256)
     )
       throw new Error(`${label} is invalid.`);
     return {
-      fileCount: value.fileCount as number,
-      byteLength: value.byteLength as number,
+      algorithmId: value.algorithmId,
+      sha256: value.sha256,
     };
-  }
-
-  function canonicalSha256(input: unknown): string {
-    return EvidenceBenchmarkHash.bytes(canonicalJson(input));
-  }
-
-  function canonicalJson(input: unknown): string {
-    if (input === null) return "null";
-    if (
-      typeof input === "boolean" ||
-      typeof input === "string" ||
-      typeof input === "number"
-    ) {
-      if (typeof input === "number" && !Number.isFinite(input))
-        throw new Error("Canonical JSON forbids non-finite numbers.");
-      return JSON.stringify(input);
-    }
-    if (Array.isArray(input)) return `[${input.map(canonicalJson).join(",")}]`;
-    const value: Record<string, unknown> = object(input, "canonical JSON");
-    return `{${Object.keys(value)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
-      .join(",")}}`;
   }
 
   function object(input: unknown, label: string): Record<string, unknown> {
@@ -248,17 +245,17 @@ export namespace EvidenceBenchmarkBlindBundle {
     return input as Record<string, unknown>;
   }
 
-  function integer(input: unknown): boolean {
-    return Number.isSafeInteger(input) && (input as number) >= 0;
-  }
-
-  function sha(input: unknown): boolean {
+  function sha(input: unknown): input is string {
     return typeof input === "string" && SHA256.test(input);
   }
 
-  function text(input: unknown): boolean {
-    return (
-      typeof input === "string" && input.length !== 0 && input === input.trim()
-    );
+  function text(input: unknown, label: string): string {
+    if (
+      typeof input !== "string" ||
+      input.length === 0 ||
+      input !== input.trim()
+    )
+      throw new Error(`${label} is invalid.`);
+    return input;
   }
 }

@@ -15,6 +15,8 @@
     "humanAuditQueueSha256",
     "humanValidationStatus",
     "humanValidatedCompositeClaim",
+    "publicSafetyScanSha256",
+    "publicPromotionAllowed",
     "reportSha256",
     "postprocessTreeSha256",
     "sealedAtUtc",
@@ -47,12 +49,15 @@
       "$ref": "#/$defs/sha256"
     },
     "humanValidationStatus": {
-      "enum": [
-        "pending",
-        "completed"
-      ]
+      "const": "pending"
     },
     "humanValidatedCompositeClaim": {
+      "const": false
+    },
+    "publicSafetyScanSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "publicPromotionAllowed": {
       "type": "boolean"
     },
     "reportSha256": {
@@ -69,27 +74,6 @@
       "$ref": "#/$defs/sha256"
     }
   },
-  "allOf": [
-    {
-      "if": {
-        "properties": {
-          "humanValidationStatus": {
-            "const": "pending"
-          }
-        },
-        "required": [
-          "humanValidationStatus"
-        ]
-      },
-      "then": {
-        "properties": {
-          "humanValidatedCompositeClaim": {
-            "const": false
-          }
-        }
-      }
-    }
-  ],
   "$defs": {
     "sha256": {
       "type": "string",

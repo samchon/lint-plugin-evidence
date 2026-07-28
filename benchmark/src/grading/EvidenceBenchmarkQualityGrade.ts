@@ -1,9 +1,11 @@
 import path from "node:path";
 
 import { EvidenceBenchmarkHash } from "../EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkProtocolValidator } from "../EvidenceBenchmarkProtocolValidator.ts";
 import type { IEvidenceBenchmarkQualityGrade } from "../structures/IEvidenceBenchmarkQualityGrade.ts";
 import { EvidenceBenchmarkBlindBundle } from "./EvidenceBenchmarkBlindBundle.ts";
 import { EvidenceBenchmarkGradingPlan } from "./EvidenceBenchmarkGradingPlan.ts";
+import { EvidenceBenchmarkQualityArtifacts } from "./EvidenceBenchmarkQualityArtifacts.ts";
 
 /** Validates block outputs, assembles grades, and compares independent raters. */
 export namespace EvidenceBenchmarkQualityGrade {
@@ -55,6 +57,7 @@ export namespace EvidenceBenchmarkQualityGrade {
     const bundleRawTreeSha256: string =
       EvidenceBenchmarkBlindBundle.rawTreeSha256(bundle.bundleRoot);
     if (
+      bundle.runId !== plan.bindings.runId ||
       bundle.treeAlgorithm !== plan.bindings.treeAlgorithm ||
       bundle.runManifestSha256 !== plan.bindings.runManifestSha256 ||
       bundle.requirementsRawTreeSha256 !==
@@ -115,8 +118,9 @@ export namespace EvidenceBenchmarkQualityGrade {
       catalog.context.map((clause) => clause.id),
       "context",
     );
-    const value: Omit<IEvidenceBenchmarkQualityGrade.IGrade, "gradeId"> = {
+    const grade: IEvidenceBenchmarkQualityGrade.IGrade = {
       schemaVersion: 1,
+      gradeId: first.output.gradeId,
       bundleId: first.bundleId,
       subject: plan.subject,
       phase: plan.phase,
@@ -124,6 +128,10 @@ export namespace EvidenceBenchmarkQualityGrade {
       blind: true,
       planSha256: plan.planSha256,
       generationCoreSealSha256: plan.bindings.generationCoreSealSha256,
+      rubricSha256: plan.bindings.rubricSha256,
+      gradeBlockProviderSchemaSha256: plan.bindings.providerSchemaSha256,
+      gradeBlockLocalSchemaSha256: plan.bindings.localSchemaSha256,
+      providerOutputRegistrySha256: plan.bindings.registrySha256,
       acceptanceCatalogSha256: catalog.acceptanceCatalogSha256,
       contextCatalogSha256: catalog.contextCatalogSha256,
       acceptanceRatings,
@@ -140,13 +148,97 @@ export namespace EvidenceBenchmarkQualityGrade {
       sourceResponseIds: ordered
         .flatMap((submission) => submission.provenance.responseIds)
         .concat(armGuess.provenance.responseIds),
-    };
-    const grade: IEvidenceBenchmarkQualityGrade.IGrade = {
-      ...value,
-      gradeId: `grade-${EvidenceBenchmarkHash.object(value).slice(0, 32)}`,
+      sourceResponseIdsSha256: EvidenceBenchmarkHash.object(
+        ordered
+          .flatMap((submission) => submission.provenance.responseIds)
+          .concat(armGuess.provenance.responseIds),
+      ),
+      submittedAtUtc: armGuess.provenance.submittedAtUtc,
     };
     EvidenceBenchmarkBlindBundle.verifyAfterGrade(bundle);
     return grade;
+  }
+
+  /** Projects one assembled grade to the exact canonical grade artifact. */
+  export function protocolGrade(
+    grade: IEvidenceBenchmarkQualityGrade.IGrade,
+    defectClasses: ReadonlyMap<
+      string,
+      IEvidenceBenchmarkQualityGrade.DefectClass
+    >,
+  ): Record<string, unknown> {
+    const finalRatings = (
+      ratings: readonly IEvidenceBenchmarkQualityGrade.IRating[],
+    ): Array<Record<string, unknown>> =>
+      ratings.map((rating) => {
+        const defectClass = defectClasses.get(rating.criterionId);
+        if (defectClass === undefined)
+          throw new Error(
+            `Post-blind taxonomy is missing ${rating.criterionId}.`,
+          );
+        return { ...structuredClone(rating), defectClass };
+      });
+    const acceptanceRatings = finalRatings(grade.acceptanceRatings);
+    const contextRatings = finalRatings(grade.contextRatings);
+    if (defectClasses.size !== acceptanceRatings.length + contextRatings.length)
+      throw new Error("Post-blind taxonomy contains an unknown criterion.");
+    const value: Record<string, unknown> = {
+      schemaVersion: 1,
+      gradeId: grade.gradeId,
+      bundleId: grade.bundleId,
+      subject: grade.subject,
+      phase: grade.phase,
+      grader: {
+        pseudonym: grade.grader.pseudonym,
+        kind: grade.grader.kind === "llm" ? "llm" : "human_adjudicator",
+        model: grade.grader.model,
+        version: grade.grader.version,
+      },
+      blind: true,
+      gradingPlanSha256: grade.planSha256,
+      parentCoreSealSha256: grade.generationCoreSealSha256,
+      rubricSha256: grade.rubricSha256,
+      gradeBlockProviderSchemaSha256: grade.gradeBlockProviderSchemaSha256,
+      gradeBlockLocalSchemaSha256: grade.gradeBlockLocalSchemaSha256,
+      providerOutputRegistrySha256: grade.providerOutputRegistrySha256,
+      sourceResponseIds: [...grade.sourceResponseIds],
+      sourceResponseIdsSha256: grade.sourceResponseIdsSha256,
+      acceptanceCatalogSha256: grade.acceptanceCatalogSha256,
+      acceptancePopulationCount: acceptanceRatings.length,
+      contextCatalogSha256: grade.contextCatalogSha256,
+      contextPopulationCount: contextRatings.length,
+      acceptanceRatings,
+      contextRatings: contextRatings.length === 0 ? null : contextRatings,
+      acceptanceSummary: structuredClone(grade.acceptanceSummary),
+      contextSummary: structuredClone(grade.contextSummary),
+      denominatorsSummed: false,
+      populationValidation: {
+        exactCatalogIdSets: true,
+        uniqueCriterionIds: true,
+        populationCountsExact: true,
+        summariesReconciled: true,
+        crossPopulationReferences: 0,
+      },
+      submittedAtUtc: grade.submittedAtUtc,
+    };
+    const protocolRoot: string = path.resolve(
+      import.meta.dirname,
+      "..",
+      "..",
+      "protocol",
+    );
+    EvidenceBenchmarkProtocolValidator.validateValue(
+      protocolRoot,
+      "grade.schema.json",
+      value,
+      `${grade.gradeId} canonical grade`,
+    );
+    EvidenceBenchmarkQualityArtifacts.validateGrade(value, {
+      gradingPlanSha256: grade.planSha256,
+      parentCoreSealSha256: grade.generationCoreSealSha256,
+      sourceResponseIds: grade.sourceResponseIds,
+    });
+    return value;
   }
 
   /**
@@ -227,7 +319,9 @@ export namespace EvidenceBenchmarkQualityGrade {
     second: IEvidenceBenchmarkQualityGrade.IGrade,
     comparison: IEvidenceBenchmarkQualityGrade.IComparison,
     plan: IEvidenceBenchmarkQualityGrade.IBlockPlan,
-    submission: IEvidenceBenchmarkQualityGrade.IAdjudicationSubmission,
+    submission:
+      | IEvidenceBenchmarkQualityGrade.IAdjudicationSubmission
+      | IEvidenceBenchmarkQualityGrade.IAdjudicationSubmission[],
     bundle: EvidenceBenchmarkBlindBundle.IResult,
   ): IEvidenceBenchmarkQualityGrade.IAdjudication {
     requireComparable(first, second);
@@ -239,25 +333,23 @@ export namespace EvidenceBenchmarkQualityGrade {
       comparison.comparisonSha256 !==
         EvidenceBenchmarkHash.object(comparisonValue) ||
       plan.planSha256 !== first.planSha256 ||
-      plan.planSha256 !== second.planSha256 ||
-      submission.schemaVersion !== 1 ||
-      submission.bundleId !== first.bundleId ||
-      submission.output.schemaVersion !== 1 ||
-      submission.output.firstGradeId !== first.gradeId ||
-      submission.output.secondGradeId !== second.gradeId ||
-      submission.output.comparisonSha256 !== comparison.comparisonSha256 ||
-      JSON.stringify(submission.adjudicator) !==
-        JSON.stringify(plan.bindings.adjudicatorAssignment)
+      plan.planSha256 !== second.planSha256
     )
       throw new Error("Third-LLM adjudication does not match its frozen plan.");
-    requireAdjudicator(submission.adjudicator);
-    requireProvenance(
-      submission.provenance,
-      "third-LLM adjudication",
-      plan.bindings.adjudicationProviderSchemaSha256,
-      plan.bindings.adjudicationLocalSchemaSha256,
-      plan.bindings.registrySha256,
+    const submissions: IEvidenceBenchmarkQualityGrade.IAdjudicationSubmission[] =
+      Array.isArray(submission) ? submission : [submission];
+    const populations = (["acceptance", "context"] as const).flatMap(
+      (population) => {
+        const queue = comparison.humanAuditQueue.filter(
+          (item) => item.population === population,
+        );
+        return queue.length === 0 ? [] : [{ population, queue }];
+      },
     );
+    if (submissions.length !== populations.length)
+      throw new Error(
+        "Third-LLM adjudication requires one output for every queued population.",
+      );
     const priorThreads: Set<string> = new Set([
       ...first.sourceThreadIds,
       ...second.sourceThreadIds,
@@ -266,41 +358,79 @@ export namespace EvidenceBenchmarkQualityGrade {
       ...first.sourceResponseIds,
       ...second.sourceResponseIds,
     ]);
-    if (
-      priorThreads.has(submission.provenance.threadId) ||
-      submission.provenance.responseIds.some((responseId) =>
-        priorResponses.has(responseId),
-      )
-    )
-      throw new Error(
-        "Third-LLM adjudication reused a source grader context or response.",
-      );
-    const decisions = submission.output.decisions;
-    const expected: string[] = comparison.humanAuditQueue.map(
-      (item) => `${item.population}\0${item.criterionId}`,
-    );
-    const actual: string[] = decisions.map(
-      (decision) => `${decision.population}\0${decision.criterionId}`,
-    );
-    if (
-      JSON.stringify(actual) !== JSON.stringify(expected) ||
-      new Set(actual).size !== actual.length
-    )
-      throw new Error(
-        "Third-LLM decisions must exactly follow the mandatory audit queue.",
-      );
     const files: Map<string, Uint8Array> = EvidenceBenchmarkHash.directory(
       bundle.bundleRoot,
     );
-    for (const decision of decisions) {
+    const decisions: IEvidenceBenchmarkQualityGrade.IAdjudicationDecision[] =
+      [];
+    const provenanceThreads: Set<string> = new Set();
+    const provenanceResponses: Set<string> = new Set();
+    for (const [index, entry] of populations.entries()) {
+      const current = submissions[index]!;
+      const expectedSealedInputsSha256: string = EvidenceBenchmarkHash.object({
+        firstGradeId: first.gradeId,
+        secondGradeId: second.gradeId,
+        comparisonSha256: comparison.comparisonSha256,
+        population: entry.population,
+      });
+      const expectedQueueSha256: string = EvidenceBenchmarkHash.object(
+        entry.queue,
+      );
       if (
-        decision.rating.criterionId !== decision.criterionId ||
-        !trimmed(decision.rationale)
+        current.schemaVersion !== 1 ||
+        current.bundleId !== first.bundleId ||
+        JSON.stringify(current.adjudicator) !==
+          JSON.stringify(plan.bindings.adjudicatorAssignment) ||
+        current.output.schemaVersion !== 1 ||
+        current.output.role !== "llm_adjudicator" ||
+        !trimmed(current.output.adjudicationId) ||
+        current.output.bundleId !== first.bundleId ||
+        current.output.subject !== first.subject ||
+        current.output.phase !== first.phase ||
+        current.output.population !== entry.population ||
+        current.output.sealedInputsSha256 !== expectedSealedInputsSha256 ||
+        current.output.queueSha256 !== expectedQueueSha256 ||
+        current.output.status !== "completed"
       )
         throw new Error(
-          `Third-LLM decision is malformed: ${decision.criterionId}.`,
+          `Third-LLM ${entry.population} adjudication does not match its queue.`,
         );
-      validateRating(decision.rating, files);
+      requireAdjudicator(current.adjudicator);
+      requireProvenance(
+        current.provenance,
+        `third-LLM ${entry.population} adjudication`,
+        plan.bindings.adjudicationProviderSchemaSha256,
+        plan.bindings.adjudicationLocalSchemaSha256,
+        plan.bindings.registrySha256,
+      );
+      if (
+        priorThreads.has(current.provenance.threadId) ||
+        provenanceThreads.has(current.provenance.threadId) ||
+        current.provenance.responseIds.some(
+          (responseId) =>
+            priorResponses.has(responseId) ||
+            provenanceResponses.has(responseId),
+        )
+      )
+        throw new Error(
+          "Third-LLM adjudication reused a source grader context or response.",
+        );
+      provenanceThreads.add(current.provenance.threadId);
+      for (const responseId of current.provenance.responseIds)
+        provenanceResponses.add(responseId);
+      EvidenceBenchmarkQualityArtifacts.validateSemanticAdjudication(
+        current.output,
+        entry.queue.map((item) => item.criterionId),
+      );
+      for (const decision of current.output.decisions) {
+        validateRating(decision.semanticRating, files);
+        decisions.push({
+          population: entry.population,
+          criterionId: decision.itemId,
+          rating: structuredClone(decision.semanticRating),
+          rationale: decision.rationale,
+        });
+      }
     }
     const byId: Map<
       string,
@@ -318,9 +448,11 @@ export namespace EvidenceBenchmarkQualityGrade {
       schemaVersion: 1,
       firstGradeId: first.gradeId,
       secondGradeId: second.gradeId,
-      adjudicator: structuredClone(submission.adjudicator),
+      adjudicator: structuredClone(submissions[0]!.adjudicator),
       decisions: structuredClone(decisions),
-      provenance: structuredClone(submission.provenance),
+      provenances: submissions.map((entry) =>
+        structuredClone(entry.provenance),
+      ),
       acceptance: consensus(
         "acceptance",
         first.acceptanceRatings,
@@ -337,7 +469,10 @@ export namespace EvidenceBenchmarkQualityGrade {
       humanValidationStatus: "pending",
       pendingHumanValidationQueue: structuredClone(comparison.humanAuditQueue),
       humanValidatedCompositeClaim: false,
-      completedAtUtc: submission.provenance.submittedAtUtc,
+      completedAtUtc: submissions
+        .map((entry) => entry.provenance.submittedAtUtc)
+        .sort()
+        .at(-1)!,
     };
     const adjudication: IEvidenceBenchmarkQualityGrade.IAdjudication = {
       ...value,
@@ -361,7 +496,24 @@ export namespace EvidenceBenchmarkQualityGrade {
       submission.population !== block.population ||
       submission.blind !== true ||
       submission.output.schemaVersion !== 1 ||
+      submission.output.role !== "blind_grader" ||
+      !trimmed(submission.output.gradeId) ||
+      submission.output.bundleId !== submission.bundleId ||
+      submission.output.subject !== submission.subject ||
+      submission.output.phase !== submission.phase ||
+      submission.output.graderPseudonym !== submission.grader.pseudonym ||
+      submission.output.rubricSha256 !== plan.bindings.rubricSha256 ||
+      submission.output.catalogSha256 !==
+        (block.population === "acceptance"
+          ? catalog.acceptanceCatalogSha256
+          : catalog.contextCatalogSha256) ||
+      submission.output.population !== block.population ||
       submission.output.blockId !== block.blockId ||
+      submission.output.blockIndex !== block.index - 1 ||
+      JSON.stringify(submission.output.criterionIds) !==
+        JSON.stringify(block.criterionIds) ||
+      submission.output.status !== "completed" ||
+      submission.output.interruption !== null ||
       submission.bundleId !== plan.bindings.bundleId
     )
       throw new Error(`${block.blockId} submission identity is invalid.`);
@@ -443,11 +595,19 @@ export namespace EvidenceBenchmarkQualityGrade {
       armGuess.bundleId !== first.bundleId ||
       JSON.stringify(armGuess.grader) !== JSON.stringify(first.grader) ||
       armGuess.output.schemaVersion !== 1 ||
-      armGuess.output.planSha256 !== plan.planSha256 ||
-      !["plain", "evidence", "unknown"].includes(armGuess.output.arm) ||
+      armGuess.output.role !== "blind_arm_guess" ||
+      armGuess.output.gradeId !== first.output.gradeId ||
+      armGuess.output.bundleId !== first.bundleId ||
+      armGuess.output.subject !== plan.subject ||
+      armGuess.output.phase !== plan.phase ||
+      armGuess.output.graderPseudonym !== first.grader.pseudonym ||
+      armGuess.output.sealedRatingsSha256 !==
+        EvidenceBenchmarkHash.object(
+          submissions.map((submission) => submission.output),
+        ) ||
+      !["plain", "evidence", "unknown"].includes(armGuess.output.guess) ||
       !unit(armGuess.output.confidence) ||
-      !Array.isArray(armGuess.output.clues) ||
-      armGuess.output.clues.some((clue) => !trimmed(clue))
+      !trimmed(armGuess.output.rationale)
     )
       throw new Error("Post-grade blind arm guess is invalid.");
     requireProvenance(
@@ -524,6 +684,7 @@ export namespace EvidenceBenchmarkQualityGrade {
     for (const submission of submissions) {
       if (
         submission.bundleId !== first.bundleId ||
+        submission.output.gradeId !== first.output.gradeId ||
         JSON.stringify(submission.grader) !== grader
       )
         throw new Error(

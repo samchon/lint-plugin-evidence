@@ -10,6 +10,7 @@
     "runId",
     "bundleId",
     "bundleSha256",
+    "parentCoreSealSha256",
     "subject",
     "phase",
     "subjectFreezeManifestSha256",
@@ -44,6 +45,9 @@
       "minLength": 1
     },
     "bundleSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "parentCoreSealSha256": {
       "$ref": "#/$defs/sha256"
     },
     "subject": {
