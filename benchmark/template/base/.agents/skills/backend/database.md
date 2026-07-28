@@ -15,7 +15,7 @@ prisma/schema/
 
 The numeric prefix orders domains from foundational to dependent, so a reader meets a table before the tables that reference it. Prisma parses the folder as one schema, so a model may reference a model in another file and a model name is unique across the whole folder. Add a new domain as a new numbered file.
 
-`main.prisma` holds the datasource and both generators, and nothing else:
+`main.prisma` holds the datasource and both generators, and nothing else. **It declares the provider and not the connection**, which lives in `prisma.config.ts` beside the package and is owned by [wiring.md](wiring.md):
 
 ```prisma
 datasource db {
