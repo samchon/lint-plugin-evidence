@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { EvidenceBenchmarkCorpus } from "../EvidenceBenchmarkCorpus.ts";
 import { EvidenceBenchmarkHash } from "../EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkProtocolValidatorTest } from "../EvidenceBenchmarkProtocolValidatorTest.ts";
 import { EvidenceBenchmarkAcceptanceCatalog } from "../grading/EvidenceBenchmarkAcceptanceCatalog.ts";
 import { EvidenceBenchmarkBlindBundle } from "../grading/EvidenceBenchmarkBlindBundle.ts";
 import { EvidenceBenchmarkGradingPlan } from "../grading/EvidenceBenchmarkGradingPlan.ts";
@@ -47,6 +48,9 @@ export namespace EvidenceBenchmarkQualityTest {
       path.join(os.tmpdir(), "evidence-quality-test-"),
     );
     try {
+      EvidenceBenchmarkProtocolValidatorTest.main(
+        path.join(benchmarkRoot, "protocol"),
+      );
       testCatalogs(benchmarkRoot, temporary);
       const fixture: IFixture = createFixture(
         temporary,
