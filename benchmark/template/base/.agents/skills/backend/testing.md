@@ -256,6 +256,8 @@ Renaming duplicate behavior does not make it distinct. If two names would prove 
 
 **Join establishes the default grade and nothing else.** Any higher grade in a test comes from calling the operation that grants it, as that grade's holder, exactly as a user would.
 
+The promoted actor keeps the connection it already had. Grades are loaded per request rather than carried in the token, so a grant takes effect on the next call and re-authenticating after one proves nothing. If a test only passes after a second login, the grade is being read from the wrong place.
+
 That makes the negative case conditional. Write it when an insufficient grade is publicly reachable, using the correct actor at a grade the operation does not accept, with otherwise valid input. Skip it when the actor has no grades, when every declared grade satisfies the gate, or when no insufficient grade can be reached at all.
 
 **When no public operation can establish a sufficient grade, the scenario is currently impossible, and that is the finding.** Record it and repair the API. Do not invent setup, write to the database, or let the caller assign their own authority to get the test running: a test that reaches a grade by a route no user has proves a behavior the product does not offer. [controllers.md](controllers.md) owns the grant and removal routes this depends on.

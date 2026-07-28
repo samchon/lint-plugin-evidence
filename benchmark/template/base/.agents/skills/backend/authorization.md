@@ -290,6 +290,36 @@ The route declares who may reach it. The provider owns everything the route cann
 
 Never accept caller identity from the request body or the path when it should come from the session. An actor-scoped listing takes its actor from the session; an actor id in the path is an authorization hole with a convenient name.
 
+## The Grade Is Loaded, Never Carried
+
+**The payload has no grade field, and that is deliberate.** A grade changes during a session and a token cannot, so a token that carried one would authorize the authority the caller held when they logged in rather than the one they hold now. A demotion would take effect at the next login, which is the wrong moment for every demotion that matters.
+
+So a grade-restricted operation loads the current grade in the provider, from the store the schema declares, keyed by `props.actor.id`:
+
+```ts
+const seller = await MyGlobal.prisma.shopping_sellers.findFirstOrThrow({
+  where: { id: props.seller.id },
+  select: { grade: true },
+});
+if (seller.grade !== "manager")
+  throw ErrorUtil.forbidden("Only a manager may suspend a sale.");
+```
+
+That read is one extra query on the operations that need it, and none on the operations that do not, which is the reason the payload stays small.
+
+The division of labour is worth stating plainly, because both halves look like authorization and neither can do the other's job.
+
+| Question | Answered by |
+| --- | --- |
+| is there a valid token, and is the account still active | the authorize provider, before the handler runs |
+| is this actor the kind this route accepts | the decorator on the route |
+| does this caller hold the grade this operation requires | the provider, from the current grade store |
+| may this caller act on **this row** | the provider, from the row's own owner reference |
+
+The last two are different questions and both are the provider's. A caller can hold the right grade and still not own the record, and a route that checks only the grade lets any manager edit any other manager's sale.
+
+Writing a grade happens in exactly two places: registration writes the default grade the requirements state, and a grade-management operation writes the target user's. Never anywhere else, and never from a value the caller supplied.
+
 ## Credentials
 
 A credential column never appears in a response. A plaintext password appears only in a credential-input body, where it maps to the stored hash as a transformation.
