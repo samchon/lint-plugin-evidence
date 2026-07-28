@@ -2,7 +2,9 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
+import { EvidenceBenchmarkDurability } from "./EvidenceBenchmarkDurability.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkJson } from "./EvidenceBenchmarkJson.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 import type { IEvidenceBenchmarkOperation } from "./structures/IEvidenceBenchmarkOperation.ts";
 import type { IEvidenceBenchmarkPackageArtifact } from "./structures/IEvidenceBenchmarkPackageArtifact.ts";
@@ -21,16 +23,19 @@ export namespace EvidenceBenchmarkOperationPlan {
     };
     validate(plan);
     fs.mkdirSync(path.dirname(output), { recursive: true });
-    fs.writeFileSync(output, `${JSON.stringify(plan, null, 2)}\n`, {
-      encoding: "utf8",
-      flag: "wx",
-    });
+    EvidenceBenchmarkDurability.writeOnce(
+      output,
+      `${JSON.stringify(plan, null, 2)}\n`,
+    );
     return plan;
   }
 
   /** Reads and fully verifies one immutable plan and its prepared file pins. */
   export function read(input: string): IEvidenceBenchmarkOperation.IPlan {
-    const parsed: unknown = JSON.parse(fs.readFileSync(input, "utf8"));
+    const parsed: unknown = EvidenceBenchmarkJson.parse(
+      fs.readFileSync(input, "utf8"),
+      input,
+    );
     if (!isObject(parsed))
       throw new Error(`Benchmark plan must be a JSON object: ${input}.`);
     const plan: IEvidenceBenchmarkOperation.IPlan =
@@ -352,8 +357,9 @@ export namespace EvidenceBenchmarkOperationPlan {
       plan.sealedSourceManifestSha256,
       "sealed source manifest",
     );
-    const parsed: unknown = JSON.parse(
+    const parsed: unknown = EvidenceBenchmarkJson.parse(
       fs.readFileSync(plan.sealedSourceManifest, "utf8"),
+      plan.sealedSourceManifest,
     );
     if (
       !isObject(parsed) ||
@@ -419,7 +425,10 @@ export namespace EvidenceBenchmarkOperationPlan {
   function parseMaterialization(
     location: string,
   ): IEvidenceBenchmarkMaterialization.IManifest {
-    const parsed: unknown = JSON.parse(fs.readFileSync(location, "utf8"));
+    const parsed: unknown = EvidenceBenchmarkJson.parse(
+      fs.readFileSync(location, "utf8"),
+      location,
+    );
     if (
       !isObject(parsed) ||
       parsed.schemaVersion !== 2 ||
@@ -439,14 +448,20 @@ export namespace EvidenceBenchmarkOperationPlan {
   }
 
   function parseSetup(location: string): IEvidenceBenchmarkSetup {
-    const parsed: unknown = JSON.parse(fs.readFileSync(location, "utf8"));
+    const parsed: unknown = EvidenceBenchmarkJson.parse(
+      fs.readFileSync(location, "utf8"),
+      location,
+    );
     if (!isObject(parsed))
       throw new Error(`Invalid setup record: ${location}.`);
     return parsed as unknown as IEvidenceBenchmarkSetup;
   }
 
   function parseProduct(location: string): IEvidenceBenchmarkPackageArtifact {
-    const parsed: unknown = JSON.parse(fs.readFileSync(location, "utf8"));
+    const parsed: unknown = EvidenceBenchmarkJson.parse(
+      fs.readFileSync(location, "utf8"),
+      location,
+    );
     if (
       !isObject(parsed) ||
       typeof parsed.name !== "string" ||

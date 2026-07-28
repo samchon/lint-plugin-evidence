@@ -3,6 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { EvidenceBenchmarkDurability } from "./EvidenceBenchmarkDurability.ts";
+import { EvidenceBenchmarkJson } from "./EvidenceBenchmarkJson.ts";
 import { EvidenceBenchmarkOperationStore } from "./EvidenceBenchmarkOperationStore.ts";
 import type { IEvidenceBenchmarkOperation } from "./structures/IEvidenceBenchmarkOperation.ts";
 
@@ -44,10 +46,10 @@ export namespace EvidenceBenchmarkOperationLock {
       acquiredAtUtc: now().toISOString(),
       heartbeatAtUtc: now().toISOString(),
     };
-    fs.writeFileSync(location, `${JSON.stringify(lock, null, 2)}\n`, {
-      encoding: "utf8",
-      flag: "wx",
-    });
+    EvidenceBenchmarkDurability.writeOnce(
+      location,
+      `${JSON.stringify(lock, null, 2)}\n`,
+    );
     syncDirectory(path.dirname(location));
     let failure: Error | null = null;
     let sequence: number = 0;
@@ -91,7 +93,10 @@ export namespace EvidenceBenchmarkOperationLock {
   ): IEvidenceBenchmarkOperation.ILock | null {
     const location: string = EvidenceBenchmarkOperationStore.lockPath(cell);
     if (!fs.existsSync(location)) return null;
-    const parsed: unknown = JSON.parse(fs.readFileSync(location, "utf8"));
+    const parsed: unknown = EvidenceBenchmarkJson.parse(
+      fs.readFileSync(location, "utf8"),
+      location,
+    );
     if (
       !isObject(parsed) ||
       parsed.schemaVersion !== 1 ||
@@ -170,9 +175,11 @@ export namespace EvidenceBenchmarkOperationLock {
       `controller.stale.${Date.now()}.${before.ownerId}.json`,
     );
     fs.renameSync(location, archived);
-    const archivedLock: IEvidenceBenchmarkOperation.ILock = JSON.parse(
-      fs.readFileSync(archived, "utf8"),
-    ) as IEvidenceBenchmarkOperation.ILock;
+    const archivedLock: IEvidenceBenchmarkOperation.ILock =
+      EvidenceBenchmarkJson.parse(
+        fs.readFileSync(archived, "utf8"),
+        archived,
+      ) as IEvidenceBenchmarkOperation.ILock;
     if (archivedLock.ownerId !== before.ownerId) {
       if (!fs.existsSync(location)) fs.renameSync(archived, location);
       throw new Error(
@@ -221,8 +228,11 @@ export namespace EvidenceBenchmarkOperationLock {
       .filter((line) => line.length !== 0);
     let previous: number = 0;
     let latest: IHeartbeat | null = null;
-    for (const line of lines) {
-      const parsed: unknown = JSON.parse(line);
+    for (const [index, line] of lines.entries()) {
+      const parsed: unknown = EvidenceBenchmarkJson.parse(
+        line,
+        `${lock.heartbeat} line ${index + 1}`,
+      );
       if (
         !isObject(parsed) ||
         parsed.schemaVersion !== 1 ||

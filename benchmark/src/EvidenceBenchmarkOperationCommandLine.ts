@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { EvidenceBenchmarkJson } from "./EvidenceBenchmarkJson.ts";
 import { EvidenceBenchmarkOperationOrchestrator } from "./EvidenceBenchmarkOperationOrchestrator.ts";
 import { EvidenceBenchmarkOperationPlan } from "./EvidenceBenchmarkOperationPlan.ts";
 import { EvidenceBenchmarkOperationRegistry } from "./EvidenceBenchmarkOperationRegistry.ts";
@@ -228,7 +229,10 @@ export class EvidenceBenchmarkOperationCommandLine {
   private safety(
     location: string,
   ): IEvidenceBenchmarkOperation.ISafetyAuthorization {
-    const parsed: unknown = JSON.parse(fs.readFileSync(location, "utf8"));
+    const parsed: unknown = EvidenceBenchmarkJson.parse(
+      fs.readFileSync(location, "utf8"),
+      location,
+    );
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
       throw new Error(
         `Benchmark safety authorization must be a JSON object: ${location}.`,

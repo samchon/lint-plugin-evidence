@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
+import { EvidenceBenchmarkDurability } from "./EvidenceBenchmarkDurability.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 
@@ -151,10 +152,10 @@ export namespace EvidenceBenchmarkOperationSource {
       path.dirname(output),
       "sealed-source.json",
     );
-    fs.writeFileSync(manifest, `${JSON.stringify(record, null, 2)}\n`, {
-      encoding: "utf8",
-      flag: "wx",
-    });
+    EvidenceBenchmarkDurability.writeOnce(
+      manifest,
+      `${JSON.stringify(record, null, 2)}\n`,
+    );
     return { root: output, manifest, record };
   }
 

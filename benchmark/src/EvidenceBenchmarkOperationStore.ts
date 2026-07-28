@@ -1,7 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { EvidenceBenchmarkDurability } from "./EvidenceBenchmarkDurability.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkJson } from "./EvidenceBenchmarkJson.ts";
 import type { IEvidenceBenchmarkOperation } from "./structures/IEvidenceBenchmarkOperation.ts";
 import type { IEvidenceBenchmarkOperationAdapter } from "./structures/IEvidenceBenchmarkOperationAdapter.ts";
 
@@ -160,7 +162,10 @@ export namespace EvidenceBenchmarkOperationStore {
     };
     const location: string = abortPath(cell, subtype);
     if (fs.existsSync(location)) {
-      const existing: unknown = JSON.parse(fs.readFileSync(location, "utf8"));
+      const existing: unknown = EvidenceBenchmarkJson.parse(
+        fs.readFileSync(location, "utf8"),
+        location,
+      );
       if (
         isObject(existing) &&
         existing.schemaVersion === 1 &&
@@ -175,11 +180,10 @@ export namespace EvidenceBenchmarkOperationStore {
         `Benchmark abort request already exists with different bytes: ${cell.runId}/${subtype}.`,
       );
     }
-    fs.writeFileSync(location, `${JSON.stringify(request, null, 2)}\n`, {
-      encoding: "utf8",
-      flag: "wx",
-    });
-    syncDirectory(operations(cell));
+    EvidenceBenchmarkDurability.writeOnce(
+      location,
+      `${JSON.stringify(request, null, 2)}\n`,
+    );
     return request;
   }
 
@@ -191,7 +195,10 @@ export namespace EvidenceBenchmarkOperationStore {
       ? abortPath(cell, "safety_limit")
       : abortPath(cell, "operator_abort");
     if (!fs.existsSync(location)) return null;
-    const parsed: unknown = JSON.parse(fs.readFileSync(location, "utf8"));
+    const parsed: unknown = EvidenceBenchmarkJson.parse(
+      fs.readFileSync(location, "utf8"),
+      location,
+    );
     if (
       !isObject(parsed) ||
       parsed.schemaVersion !== 1 ||
@@ -244,12 +251,10 @@ export namespace EvidenceBenchmarkOperationStore {
     const existing: IEvidenceBenchmarkOperation.ITerminal | null =
       readTerminal(cell);
     if (existing === null) {
-      fs.writeFileSync(
+      EvidenceBenchmarkDurability.writeOnce(
         terminalPath(cell),
         `${JSON.stringify(terminal, null, 2)}\n`,
-        { encoding: "utf8", flag: "wx" },
       );
-      syncDirectory(operations(cell));
     } else if (
       existing.status !== terminal.status ||
       existing.reason !== terminal.reason ||
@@ -295,7 +300,10 @@ export namespace EvidenceBenchmarkOperationStore {
   ): IEvidenceBenchmarkOperation.ITerminal | null {
     const location: string = terminalPath(cell);
     if (!fs.existsSync(location)) return null;
-    const parsed: unknown = JSON.parse(fs.readFileSync(location, "utf8"));
+    const parsed: unknown = EvidenceBenchmarkJson.parse(
+      fs.readFileSync(location, "utf8"),
+      location,
+    );
     if (
       !isObject(parsed) ||
       parsed.schemaVersion !== 1 ||
@@ -498,8 +506,9 @@ export namespace EvidenceBenchmarkOperationStore {
       throw new Error(
         `Runner terminal summary is missing for ${cell.runId}: ${result.runnerTerminal}.`,
       );
-    const parsed: unknown = JSON.parse(
+    const parsed: unknown = EvidenceBenchmarkJson.parse(
       fs.readFileSync(result.runnerTerminal, "utf8"),
+      result.runnerTerminal,
     );
     if (
       !isObject(parsed) ||
@@ -595,7 +604,9 @@ export namespace EvidenceBenchmarkOperationStore {
       .readFileSync(location, "utf8")
       .split("\n")
       .filter((line) => line.length !== 0)
-      .map((line) => JSON.parse(line) as unknown);
+      .map((line, index) =>
+        EvidenceBenchmarkJson.parse(line, `${location} line ${index + 1}`),
+      );
   }
 
   function syncDirectory(directory: string): void {

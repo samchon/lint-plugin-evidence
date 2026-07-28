@@ -7,6 +7,7 @@ import * as tar from "tar";
 import type { ReadEntry } from "tar";
 
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkJson } from "./EvidenceBenchmarkJson.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 import type { IEvidenceBenchmarkPackageArtifact } from "./structures/IEvidenceBenchmarkPackageArtifact.ts";
 
@@ -189,8 +190,9 @@ export namespace EvidenceBenchmarkPackage {
           `Evidence archive contains forbidden payload: ${forbidden}.`,
         );
 
-    const manifest: unknown = JSON.parse(
+    const manifest: unknown = EvidenceBenchmarkJson.parse(
       Buffer.from(files.get("package.json")!).toString("utf8"),
+      "packed package/package.json",
     );
     if (!isObject(manifest))
       throw new Error("Packed evidence package manifest must be an object.");

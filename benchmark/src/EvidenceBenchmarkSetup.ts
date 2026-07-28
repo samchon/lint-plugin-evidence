@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkJson } from "./EvidenceBenchmarkJson.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 import type { IEvidenceBenchmarkSetup } from "./structures/IEvidenceBenchmarkSetup.ts";
 
@@ -116,7 +117,10 @@ export namespace EvidenceBenchmarkSetup {
   }
 
   function readVersion(manifest: string): string {
-    const parsed: unknown = JSON.parse(fs.readFileSync(manifest, "utf8"));
+    const parsed: unknown = EvidenceBenchmarkJson.parse(
+      fs.readFileSync(manifest, "utf8"),
+      manifest,
+    );
     if (
       typeof parsed !== "object" ||
       parsed === null ||

@@ -1,7 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { EvidenceBenchmarkDurability } from "./EvidenceBenchmarkDurability.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkJson } from "./EvidenceBenchmarkJson.ts";
 import type { IEvidenceBenchmarkOperation } from "./structures/IEvidenceBenchmarkOperation.ts";
 
 /** Persists block execution safety, aggregate samples, and shared stop seals. */
@@ -34,11 +36,10 @@ export namespace EvidenceBenchmarkOperationBlock {
       ...content,
       executionSafetySha256: EvidenceBenchmarkHash.object(content),
     };
-    fs.mkdirSync(path.dirname(location), { recursive: true });
-    fs.writeFileSync(location, `${JSON.stringify(record, null, 2)}\n`, {
-      encoding: "utf8",
-      flag: "wx",
-    });
+    EvidenceBenchmarkDurability.writeOnce(
+      location,
+      `${JSON.stringify(record, null, 2)}\n`,
+    );
     return record;
   }
 
@@ -48,7 +49,10 @@ export namespace EvidenceBenchmarkOperationBlock {
   ): IEvidenceBenchmarkOperation.IBlockExecutionSafety | null {
     const location: string = executionPath(plan);
     if (!fs.existsSync(location)) return null;
-    const parsed: unknown = JSON.parse(fs.readFileSync(location, "utf8"));
+    const parsed: unknown = EvidenceBenchmarkJson.parse(
+      fs.readFileSync(location, "utf8"),
+      location,
+    );
     if (!isObject(parsed))
       throw new Error(`Invalid block execution safety: ${location}.`);
     const record =
@@ -150,10 +154,10 @@ export namespace EvidenceBenchmarkOperationBlock {
       ...content,
       blockStopSha256: EvidenceBenchmarkHash.object(content),
     };
-    fs.writeFileSync(stopPath(plan), `${JSON.stringify(stop, null, 2)}\n`, {
-      encoding: "utf8",
-      flag: "wx",
-    });
+    EvidenceBenchmarkDurability.writeOnce(
+      stopPath(plan),
+      `${JSON.stringify(stop, null, 2)}\n`,
+    );
     return stop;
   }
 
@@ -163,7 +167,10 @@ export namespace EvidenceBenchmarkOperationBlock {
   ): IEvidenceBenchmarkOperation.IBlockStop | null {
     const location: string = stopPath(plan);
     if (!fs.existsSync(location)) return null;
-    const parsed: unknown = JSON.parse(fs.readFileSync(location, "utf8"));
+    const parsed: unknown = EvidenceBenchmarkJson.parse(
+      fs.readFileSync(location, "utf8"),
+      location,
+    );
     if (!isObject(parsed))
       throw new Error(`Invalid benchmark block stop: ${location}.`);
     const stop: IEvidenceBenchmarkOperation.IBlockStop =
@@ -212,7 +219,11 @@ export namespace EvidenceBenchmarkOperationBlock {
       .split("\n")
       .filter((line) => line.length !== 0)
       .map(
-        (line) => JSON.parse(line) as IEvidenceBenchmarkOperation.IBlockSample,
+        (line, index) =>
+          EvidenceBenchmarkJson.parse(
+            line,
+            `${location} line ${index + 1}`,
+          ) as IEvidenceBenchmarkOperation.IBlockSample,
       );
     let previous: string = ZERO_SHA256;
     for (const [index, sample] of samples.entries()) {

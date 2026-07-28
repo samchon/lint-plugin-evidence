@@ -8,6 +8,7 @@ import { EvidenceBenchmarkOperationStore } from "./EvidenceBenchmarkOperationSto
 import { EvidenceBenchmarkOperationSource } from "./EvidenceBenchmarkOperationSource.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkProtocolAdmission } from "./EvidenceBenchmarkProtocolAdmission.ts";
 import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 import type { IEvidenceBenchmarkOperation } from "./structures/IEvidenceBenchmarkOperation.ts";
@@ -57,6 +58,7 @@ export class EvidenceBenchmarkOperationPreparer implements IEvidenceBenchmarkOpe
       revision: source.revision,
       now: this.options.now,
     });
+    EvidenceBenchmarkProtocolAdmission.validate(sealed.root);
     const productRoot: string = path.join(blockRoot, "product");
     const artifact: IEvidenceBenchmarkPackageArtifact =
       await EvidenceBenchmarkPackage.prepare({

@@ -5,6 +5,7 @@ import path from "node:path";
 import { EvidenceBenchmarkAtomic } from "./EvidenceBenchmarkAtomic.ts";
 import { EvidenceBenchmarkCorpus } from "./EvidenceBenchmarkCorpus.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkJson } from "./EvidenceBenchmarkJson.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
@@ -188,8 +189,9 @@ export namespace EvidenceBenchmarkMaterializer {
       throw new Error(
         "Benchmark base template must provide package.json before evidence injection.",
       );
-    const manifest: unknown = JSON.parse(
+    const manifest: unknown = EvidenceBenchmarkJson.parse(
       Buffer.from(manifestBytes).toString("utf8"),
+      "benchmark template package.json",
     );
     if (!isObject(manifest))
       throw new Error(

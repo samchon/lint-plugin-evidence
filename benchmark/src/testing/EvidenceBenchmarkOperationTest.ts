@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { EvidenceBenchmarkHash } from "../EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkJson } from "../EvidenceBenchmarkJson.ts";
 import { EvidenceBenchmarkOperationCommandLine } from "../EvidenceBenchmarkOperationCommandLine.ts";
 import { EvidenceBenchmarkOperationBlock } from "../EvidenceBenchmarkOperationBlock.ts";
 import { EvidenceBenchmarkOperationFacade } from "../EvidenceBenchmarkOperationFacade.ts";
@@ -10,7 +11,9 @@ import { EvidenceBenchmarkOperationLock } from "../EvidenceBenchmarkOperationLoc
 import { EvidenceBenchmarkOperationPlan } from "../EvidenceBenchmarkOperationPlan.ts";
 import { EvidenceBenchmarkOperationStore } from "../EvidenceBenchmarkOperationStore.ts";
 import { EvidenceBenchmarkOperationSource } from "../EvidenceBenchmarkOperationSource.ts";
+import { EvidenceBenchmarkPath } from "../EvidenceBenchmarkPath.ts";
 import { EvidenceBenchmarkProcess } from "../EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkProtocolAdmission } from "../EvidenceBenchmarkProtocolAdmission.ts";
 import type { IEvidenceBenchmarkMaterialization } from "../structures/IEvidenceBenchmarkMaterialization.ts";
 import type { IEvidenceBenchmarkOperation } from "../structures/IEvidenceBenchmarkOperation.ts";
 import type { IEvidenceBenchmarkOperationAdapter } from "../structures/IEvidenceBenchmarkOperationAdapter.ts";
@@ -29,6 +32,9 @@ export namespace EvidenceBenchmarkOperationTest {
       await durableObservationRetention(root);
       await hungObservationDeadline(root);
       await monitorPersistenceFailure(root);
+      strictJsonDuplicateKeys();
+      canonicalRelativePaths();
+      protocolStrictScan(root);
       await cooperativeAbort(root);
       await abortPollIntegrityFailure(root);
       await staleResume(root);
@@ -370,6 +376,109 @@ export namespace EvidenceBenchmarkOperationTest {
           );
         }),
       "a monitor persistence failure must immediately quiesce and integrity-seal every live cell",
+    );
+  }
+
+  function strictJsonDuplicateKeys(): void {
+    const parsed = EvidenceBenchmarkJson.parse(
+      '{"outer":{"key":1},"array":[true,false,null,-1.25e2]}',
+      "valid strict fixture",
+    ) as Record<string, unknown>;
+    assert(
+      Array.isArray(parsed.array),
+      "strict JSON must retain valid nested arrays and numbers",
+    );
+    expectFailure(
+      () =>
+        EvidenceBenchmarkJson.parse(
+          '{"outer":{"key":1,"\\u006bey":2}}',
+          "nested duplicate fixture",
+        ),
+      "strict JSON must reject escaped nested duplicate keys before schema validation",
+    );
+    const prototype = EvidenceBenchmarkJson.parse(
+      '{"__proto__":{"polluted":true}}',
+      "prototype fixture",
+    ) as Record<string, unknown>;
+    assert(
+      Object.hasOwn(prototype, "__proto__") &&
+        !Object.hasOwn(Object.prototype, "polluted"),
+      "strict JSON must preserve __proto__ as inert data without prototype pollution",
+    );
+    for (const malformed of [
+      '{"value":1} trailing',
+      '{"value":}',
+      "[1,]",
+      '"unterminated',
+    ])
+      expectFailure(
+        () => EvidenceBenchmarkJson.parse(malformed, "malformed fixture"),
+        `strict JSON must reject malformed input ${JSON.stringify(malformed)}`,
+      );
+    const duplicateJsonLine =
+      '{"acceptanceId":"REQ-1","rating":1,"\\u0072ating":2}';
+    expectFailure(
+      () =>
+        EvidenceBenchmarkJson.parse(
+          duplicateJsonLine,
+          "acceptance-criteria.jsonl line 1",
+        ),
+      "strict JSONL admission must reject duplicate authored criterion fields",
+    );
+  }
+
+  function canonicalRelativePaths(): void {
+    assert(
+      EvidenceBenchmarkPath.relative(
+        "benchmark/.work/block/source",
+        "valid fixture",
+      ) === "benchmark/.work/block/source",
+      "canonical repository-relative paths must retain exact POSIX spelling",
+    );
+    for (const invalid of [
+      ".",
+      "..",
+      "./a",
+      "a/./b",
+      "a/../b",
+      "a//b",
+      "a/",
+      "/a",
+      "C:/a",
+      "a\\b",
+      "decomposed-e\u0301.txt",
+    ])
+      expectFailure(
+        () => EvidenceBenchmarkPath.relative(invalid, "invalid fixture"),
+        `canonical path admission must reject ${JSON.stringify(invalid)}`,
+      );
+  }
+
+  function protocolStrictScan(repository: string): void {
+    const fixture: string = path.join(repository, "protocol-scan-fixture");
+    const protocol: string = path.join(fixture, "benchmark", "protocol");
+    fs.mkdirSync(path.join(protocol, "fixtures"), { recursive: true });
+    fs.writeFileSync(
+      path.join(protocol, "valid.json"),
+      '{"nested":{"safe":true}}\n',
+    );
+    fs.writeFileSync(
+      path.join(protocol, "fixtures", "duplicate-key.txt"),
+      '{"nested":{"duplicate":1,"\\u0064uplicate":2}}\n',
+    );
+    const admitted = EvidenceBenchmarkProtocolAdmission.validate(fixture);
+    assert(
+      admitted.jsonFiles === 1 &&
+        admitted.treeAlgorithm === EvidenceBenchmarkHash.TREE_ALGORITHM,
+      "protocol admission must strict-parse its complete JSON inventory and prove its guard fixture",
+    );
+    fs.writeFileSync(
+      path.join(protocol, "valid.json"),
+      '{"nested":{"duplicate":1,"duplicate":2}}\n',
+    );
+    expectFailure(
+      () => EvidenceBenchmarkProtocolAdmission.validate(fixture),
+      "one duplicate key anywhere in the tracked protocol JSON tree must block admission",
     );
   }
 

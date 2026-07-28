@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkJson } from "./EvidenceBenchmarkJson.ts";
 import { EvidenceBenchmarkMarkdown } from "./EvidenceBenchmarkMarkdown.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 
@@ -337,7 +338,10 @@ export namespace EvidenceBenchmarkCorpus {
     files: ReadonlyMap<string, Uint8Array>,
   ): Record<string, unknown> {
     const manifest: Record<string, unknown> = object(
-      JSON.parse(textFile(files, "corpus-manifest.json")),
+      EvidenceBenchmarkJson.parse(
+        textFile(files, "corpus-manifest.json"),
+        "corpus-manifest.json",
+      ),
       "corpus-manifest.json",
     );
     if (manifest.schemaVersion !== 1)
@@ -453,7 +457,10 @@ export namespace EvidenceBenchmarkCorpus {
     subject: string,
   ): number {
     const metadata: Record<string, unknown> = object(
-      JSON.parse(textFile(files, "metadata.json")),
+      EvidenceBenchmarkJson.parse(
+        textFile(files, "metadata.json"),
+        "metadata.json",
+      ),
       "metadata.json",
     );
     if (
@@ -677,7 +684,10 @@ export namespace EvidenceBenchmarkCorpus {
     return lines.map((line, index): Record<string, unknown> => {
       let parsed: unknown;
       try {
-        parsed = JSON.parse(line);
+        parsed = EvidenceBenchmarkJson.parse(
+          line,
+          `${relative} line ${index + 1}`,
+        );
       } catch (error) {
         throw new Error(`${relative} line ${index + 1} is not valid JSON.`, {
           cause: error,
