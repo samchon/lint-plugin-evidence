@@ -36,6 +36,8 @@ Read [the evidence skill](../evidence/SKILL.md) before starting, especially the 
 
 This is the layer where that happens most, so read the message carefully before adding anything.
 
+**A model deliberately exposed by no operation is discharged with `@evidenceExclude prisma:<model> <reason>` on the operation nearest its domain**, not only in the ledger; prose the build cannot read leaves the obligation standing.
+
 **An operation that has nothing to cite is usually not an operation missing a tag.** It is a requirement with no storage, so there is no model to point at. The build names this layer because the obligation was declared here; the repair belongs to the schema.
 
 Ask the question before writing a citation. Is there a table for this requirement? If not, go add it, and let the build re-run. One upstream repair commonly clears several diagnostics here at once, and it clears them correctly.

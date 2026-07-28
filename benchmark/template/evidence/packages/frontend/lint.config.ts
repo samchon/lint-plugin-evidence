@@ -75,8 +75,8 @@ export default {
   },
   rules: {
     "evidence/graph": ["error", graph],
-    // Every page and journey carries the JSDoc block its citation is read
-    // from.
+    // Package-wide: every exported function, type, and property carries a
+    // JSDoc block, which the stub-first order supplies from birth.
     "evidence/documented": "error",
     // Screens are born as prop-enumerated stubs and cracked one by one, so
     // every remaining @todo is an unrealized contract: the realize ledger.

@@ -60,7 +60,7 @@ Seeding on an empty database is what makes a fresh checkout runnable. It is not 
 
 ## Database Errors Are Mapped At The Boundary, Once
 
-A provider that uses the throwing finder expects a missing row to become a `404`. That does not happen by itself. `PrismaErrorUtil` maps the client codes and `MyConfiguration` registers it; without that registration a missing row is a `500`, and something worse also happens.
+A provider that uses the throwing finder expects a missing row to become a `404`. That does not happen by itself. `PrismaErrorUtil` maps the client codes and `MyConfiguration`, beside `MyGlobal` at the backend root, registers it; without that registration a missing row is a `500`, and something worse also happens.
 
 **A Prisma error message interpolates the model, the field, the constraint, the table, the column, the offending value, and query fragments.** That message must never reach an HTTP client. Registering the mapper is what stops your schema from being readable from the outside.
 
@@ -99,6 +99,8 @@ Three of its settings matter beyond the paths.
 - **`simulate: true`** is what gives the SDK its simulation mode, which the frontend develops against.
 
 ## Commands
+
+`<backend>` stands for the backend package's name in its `package.json`.
 
 ```bash
 pnpm --filter <backend> build:prisma   # generate the client and the ERD

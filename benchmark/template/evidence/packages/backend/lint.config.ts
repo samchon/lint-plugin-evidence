@@ -89,8 +89,9 @@ export default {
   },
   rules: {
     "evidence/graph": ["error", graph],
-    // Every operation and test carries the JSDoc block its citation is read
-    // from, and one public identity per file keeps citation addresses stable.
+    // Package-wide: every exported type, function, and property carries the
+    // JSDoc block a citation is read from, and one public identity per file
+    // keeps citation addresses stable.
     "evidence/documented": "error",
     "evidence/singular": "error",
     // This package is where stubs live, so every remaining @todo is an

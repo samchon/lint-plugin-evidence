@@ -12,6 +12,21 @@ A screen with no requirement is a feature someone invented. A requirement with n
 
 A screen is declared before it works: the page component and its sub-components with their props enumerated, the contract JSDoc, an `@todo` tag naming what the screen still owes, and a placeholder body. Enumerating the props first is the design act, and the stub is what the route table mounts, so the whole surface navigates before any screen is real.
 
+```tsx
+/**
+ * The seller's own sales, filtered and paged.
+ *
+ * @todo Crack against useCatalog once lib/shopping lands: every state,
+ *   gallery rows, filter in the URL.
+ */
+export function CatalogPage(props: { sellerId: string }) {
+  props;
+  return <Skeleton className="h-64 w-full" />;
+}
+```
+
+The bare `props;` mention keeps the enumerated props from reading as unused while nothing consumes them, the same convention the backend stubs use, and the skeleton return is the whole placeholder body.
+
 Crack one screen at a time against simulation, driving it through the Playwright MCP browser as you build so every state is provoked and seen rather than imagined. A screen is cracked when every state renders from real hooks, its gallery rows exist, and its `@todo` is gone.
 
 A screen that needs an operation the SDK does not expose reveals a gap in the API contract. Send it back there. Do not improvise a frontend-only path around it.

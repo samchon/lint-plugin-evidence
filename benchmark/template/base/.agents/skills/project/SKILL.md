@@ -24,6 +24,7 @@ docs/
   analysis/          requirement documents, read-only specification
   ERD.md             generated from the Prisma schema
 config/              shared tsconfig and the lint configuration packages extend
+wiki/                the project's own working records, never built or shipped
 packages/
   api/               generated SDK, DTO structures, diagnosers
   backend/           NestJS server, Prisma schema, providers, tests

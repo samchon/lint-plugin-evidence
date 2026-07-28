@@ -29,7 +29,7 @@ packages/frontend/
 "playwright:install": "pnpm exec playwright install chromium"
 ```
 
-The runner serves the production build on a fixed local port and points the browser at it, so every mode tests what actually ships rather than the development server. Take the port from the environment with a validated default, and fail loudly on a bad value rather than silently binding somewhere else.
+The runner serves the production build on a fixed local port and points the browser at it, so every mode tests what actually ships rather than the development server. Before the last screen is cracked that build does not exist, because `build` runs the lint stage and the standing `@todo` diagnostics fail it; drive the interim per-screen and gallery passes through the dev server, and treat the production-build modes as the closing gate they are. Take the port from the environment with a validated default, and fail loudly on a bad value rather than silently binding somewhere else.
 
 Install the browser before the first run. In Linux CI the install needs its system dependencies explicitly, run from the frontend package directory.
 

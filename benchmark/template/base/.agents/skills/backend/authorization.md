@@ -214,7 +214,7 @@ Give each of those a resource-shaped path of its own rather than filing it under
 
 ## Where Each Check Lives
 
-Each actor gets a payload type and a parameter decorator under `packages/backend/src/decorators/`, and an authorize provider under `packages/backend/src/providers/`.
+Each actor gets a payload type and a parameter decorator under `packages/backend/src/decorators/`, one public identity per file (`SellerPayload.ts`, `SellerAuth.ts`), and an authorize provider under `packages/backend/src/providers/`.
 
 The payload is what a route receives, and it is deliberately small.
 

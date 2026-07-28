@@ -49,6 +49,19 @@ Read [the evidence skill](../evidence/SKILL.md) before starting.
 
 {{base}}
 
+## A Table No Contract Represents Still Owes Its Discharge
+
+The property claim selects every column of every model, and internal storage such as sessions and `mv_*` projections has no DTO to cite from. The discharge is `@evidenceExclude`, hosted on a selected declaration of this package: keep those exclusions on the domain's nearest root type, one per model or column, each with the decision a reviewer could veto.
+
+```ts
+/**
+ * @evidenceExclude prisma:shopping_customer_sessions Internal session
+ *                  storage; no contract shape represents it.
+ */
+```
+
+A deliberate absence recorded only in the ledger is invisible to the build, so the obligation stays reported until the exclusion exists where the claim can read it.
+
 ## What Each Granularity Can And Cannot Say
 
 **A type citing only a requirement** leaves the reader unable to find the row it represents. **A type citing only a table** leaves nobody able to say why the type exists. Both are needed and they answer different questions.

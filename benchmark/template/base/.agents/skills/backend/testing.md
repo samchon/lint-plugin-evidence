@@ -395,6 +395,6 @@ When neither the response nor any reachable follow-up read exposes the effect a 
 
 Before realize, the suite is red by design: the stubs answer with random data, so a business assertion fails. A suite that is green while operations still carry `@todo` tags is a suite asserting nothing.
 
-Run the backend test command from the workspace root and read the output. The runner boots the application itself against the SQLite file, runs every exported test function, and closes it, so nothing needs to be started beforehand. A suite that passes because it asserts nothing passes exactly as loudly as one that works.
+The test command executes through `ttsx` with lint contributors disabled, so a standing lint diagnostic never blocks running the suite: the build is where lint gates, and the suite is where behavior does. Run the backend test command from the workspace root and read the output. The runner boots the application itself against the SQLite file, runs every exported test function, and closes it, so nothing needs to be started beforehand. A suite that passes because it asserts nothing passes exactly as loudly as one that works.
 
 If you are unsure a test proves its requirement, remove the behavior and confirm the test fails, then restore it.

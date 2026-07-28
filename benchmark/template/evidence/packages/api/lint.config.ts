@@ -59,12 +59,13 @@ export default {
   },
   rules: {
     "evidence/graph": ["error", graph],
-    // Every DTO and property carries the JSDoc block its citation is read
-    // from, and one public identity per file keeps citation addresses stable.
+    // Package-wide: every exported type, function, and property carries the
+    // JSDoc block a citation is read from, and one public identity per file
+    // keeps citation addresses stable.
     "evidence/documented": "error",
     "evidence/singular": "error",
-    // DTOs are declared during the interface phase, so every remaining @todo
-    // is an unrealized contract: the realize ledger.
+    // A shape declared during the interface phase may still owe a decision,
+    // and any remaining @todo is that debt standing: the realize ledger.
     "evidence/todo": "error",
   },
 } satisfies ITtscLintConfig;

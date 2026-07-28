@@ -74,7 +74,7 @@ packages/frontend/
     verification.md                what was verified, when, and how
 ```
 
-**There is no `pages/` folder.** A route component lives in the domain folder it belongs to, named `<domain>-page.tsx`, beside the sub-components only it uses. Splitting routes away from their parts means every feature edit touches two trees, and the sub-component that exists solely for one page ends up in a shared folder pretending to be reusable.
+**There is no `pages/` folder.** A route component lives in the domain folder it belongs to, named `<domain>-page.tsx`, beside the sub-components only it uses. A `*-page.tsx` file exports exactly its page component: a page-local fallback stays unexported in the same file, and a sub-component that other files need gets a sibling file of its own. Splitting routes away from their parts means every feature edit touches two trees, and the sub-component that exists solely for one page ends up in a shared folder pretending to be reusable.
 
 **Components split by domain, not by kind.** `components/cart` holds everything the cart renders. Do not create `components/forms` or `components/lists`: nobody looks for a cart control under "forms", and every domain then reaches into every folder.
 
