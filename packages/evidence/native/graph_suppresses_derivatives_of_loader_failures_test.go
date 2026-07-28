@@ -51,7 +51,8 @@ func TestReferenceLoaderFailureSuppressesOnlyItsOwnDerivedFindings(t *testing.T)
 		"src/claim.ts": parseTypeScriptInventory(
 			t,
 			"src/claim.ts",
-			"export interface Claim {}\n",
+			"/** @evidence docs/broken.md#broken The unavailable document owns this contract. */\n"+
+				"export interface Claim {}\n",
 		),
 	}
 	loader := newTypeScriptLoader(root, typescript)
@@ -72,6 +73,9 @@ func TestReferenceLoaderFailureSuppressesOnlyItsOwnDerivedFindings(t *testing.T)
 	}
 	if countProblemsContaining(messages, "Missing acknowledgement") != 1 {
 		t.Fatalf("only the healthy obligation may derive coverage:\n%s", strings.Join(messages, "\n"))
+	}
+	if countProblemsContaining(messages, "Unresolved evidence target") != 0 {
+		t.Fatalf("a failed reference cannot prove that a declaration target is unresolved:\n%s", strings.Join(messages, "\n"))
 	}
 	assertProblemContains(t, messages, "docs/good.md#good")
 }

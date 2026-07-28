@@ -368,6 +368,14 @@ func evaluateEvidenceGraph(
 		}
 		switch len(candidates) {
 		case 0:
+			// A failed reference population may contain the declaration's target;
+			// absence from the partial address map proves nothing until that
+			// population is healthy again. Its loader diagnostic already names
+			// the repair boundary, so an unresolved-target diagnostic here would
+			// be a derivative false claim.
+			if declarationResolutionUncertain(owners[id]) {
+				continue
+			}
 			problems = append(
 				problems,
 				"Unresolved evidence target '"+declaration.Target+"' at "+declaration.location()+" for "+context+": no configured source materializes that evidence unit. Correct the target, or make one of the named references select the source unit this claim actually uses.",
@@ -503,6 +511,17 @@ func evaluateEvidenceGraph(
 		)
 	}
 	return problems
+}
+
+func declarationResolutionUncertain(owners []claimState) bool {
+	for _, owner := range owners {
+		for _, reference := range owner.References {
+			if !reference.Healthy {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // materializeEntryReference builds a population by walking an entry module's
