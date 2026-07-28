@@ -239,6 +239,21 @@ export namespace EvidenceBenchmarkProtocolValidator {
     );
     if (repositoryDigests.costPredictionsSha256 !== digest)
       throw new Error("Repository cost prediction digest pin drifted.");
+    const formal = record(
+      pins.formalProtocolRevision,
+      "formal protocol revision",
+    );
+    const activeLeaf = record(value.activeLeaf, "cost prediction active leaf");
+    if (
+      formal.activePriorReviewId !== activeLeaf.reviewId ||
+      formal.activePriorReviewUrl !==
+        `https://github.com/samchon/lint-plugin-evidence/pull/105#pullrequestreview-${String(
+          activeLeaf.reviewId,
+        )}`
+    )
+      throw new Error(
+        "Formal active-prior review does not identify the cost prediction active leaf.",
+      );
   }
 
   /**
@@ -371,8 +386,10 @@ export namespace EvidenceBenchmarkProtocolValidator {
           `Protocol identity contains a legacy protocol digest field (${legacy}); a self-referential protocol digest is forbidden.`,
         );
     if (
-      formal.identityKind !== "merged-git-commit-and-formal-review" ||
-      !Object.hasOwn(formal, "reviewedMergedCommit")
+      formal.identityKind !==
+        "runtime-resolved-merged-source-and-formal-review" ||
+      !Object.hasOwn(formal, "reviewedMergedCommit") ||
+      !Object.hasOwn(formal, "finalCommentReviewId")
     )
       throw new Error("Formal protocol identity contract drifted.");
     if (
@@ -381,27 +398,83 @@ export namespace EvidenceBenchmarkProtocolValidator {
       !Object.hasOwn(runtime, "sealedProtocolRawTreeSha256")
     )
       throw new Error("Runtime sealed protocol raw-tree contract drifted.");
-    const reviewedCommit: unknown = formal.reviewedMergedCommit;
-    const runtimeCommit: unknown = runtime.mergedSourceCommit;
-    const commitPattern: RegExp = /^[a-f0-9]{40}$/u;
     if (
-      reviewedCommit !== null &&
-      (typeof reviewedCommit !== "string" ||
-        !commitPattern.test(reviewedCommit))
-    )
-      throw new Error("Formal reviewed merged commit is invalid.");
-    if (
-      runtimeCommit !== null &&
-      (typeof runtimeCommit !== "string" || !commitPattern.test(runtimeCommit))
-    )
-      throw new Error("Runtime merged source commit is invalid.");
-    if (
-      (reviewedCommit === null) !== (runtimeCommit === null) ||
-      reviewedCommit !== runtimeCommit
+      formal.reviewedMergedCommit !== null ||
+      formal.finalCommentReviewId !== null ||
+      runtime.mergedSourceCommit !== null ||
+      runtime.sealedProtocolRawTreeSha256 !== null
     )
       throw new Error(
-        "Formal reviewed merged commit disagrees with the runtime merged source commit.",
+        "Tracked protocol source, final review, and raw-tree templates must remain null; runtime source admission owns their resolved values.",
       );
+    const policy = record(
+      formal.resolutionPolicy,
+      "formal protocol resolution policy",
+    );
+    if (
+      policy.source !== "github-api-and-git-remote" ||
+      policy.mergeStrategy !== "merge-commit" ||
+      policy.requireReviewedHeadMergeParentOrAncestor !== true ||
+      policy.requireExactReviewedHeadAndMergedGitTree !== true ||
+      policy.runtimeArtifact !==
+        "benchmark/protocol/schema/block-plan.schema.json#/$defs/formalReviewAdmission"
+    )
+      throw new Error("Formal protocol runtime-resolution policy drifted.");
+  }
+
+  /**
+   * Verifies the runtime-only binding among the reviewed PR head, merge commit,
+   * exact Git trees, and the plan's admitted source revision.
+   */
+  export function validateRuntimeSourceAdmissionValue(input: unknown): void {
+    const plan = record(input, "runtime source admission plan");
+    const merged: string = commit(
+      plan.sourceMergedCommit,
+      "plan merged source commit",
+    );
+    const admission = record(plan.sourceAdmission, "source admission");
+    if (
+      commit(admission.mergedBaseRevision, "admitted merged revision") !==
+      merged
+    )
+      throw new Error(
+        "Runtime source admission merged revision disagrees with the plan.",
+      );
+    const review = record(admission.formalReview, "formal review admission");
+    if (
+      review.resolutionSource !== "github-api-and-git-remote" ||
+      review.mergeStrategy !== "merge-commit" ||
+      review.finalCommentReviewState !== "COMMENTED" ||
+      review.reviewedHeadIsMergeParentOrAncestor !== true ||
+      review.exactGitTreeMatch !== true
+    )
+      throw new Error("Runtime formal review admission policy drifted.");
+    if (commit(review.mergeCommitRevision, "review merge commit") !== merged)
+      throw new Error(
+        "Runtime formal review merge commit disagrees with the admitted source.",
+      );
+    const reviewedHead: string = commit(
+      review.reviewedHeadRevision,
+      "reviewed head revision",
+    );
+    if (reviewedHead === merged)
+      throw new Error(
+        "Merge-commit admission requires a distinct reviewed head revision.",
+      );
+    const reviewedTree: string = commit(
+      review.reviewedHeadTreeOid,
+      "reviewed head tree OID",
+    );
+    const mergedTree: string = commit(review.mergedTreeOid, "merged tree OID");
+    if (reviewedTree !== mergedTree)
+      throw new Error(
+        "Runtime source admission reviewed and merged Git trees differ.",
+      );
+    positiveInteger(
+      review.pullRequestNumber,
+      "formal review pull request number",
+    );
+    positiveInteger(review.finalCommentReviewId, "formal COMMENT review id");
   }
 
   /** Verifies a runtime-sealed protocol raw-tree digest after sealing. */
@@ -1234,6 +1307,19 @@ export namespace EvidenceBenchmarkProtocolValidator {
     if (typeof value !== "number" || !Number.isSafeInteger(value))
       throw new Error(`${label} must be a safe integer.`);
     return value;
+  }
+
+  function positiveInteger(value: unknown, label: string): number {
+    const result: number = integer(value, label);
+    if (result < 1) throw new Error(`${label} must be positive.`);
+    return result;
+  }
+
+  function commit(value: unknown, label: string): string {
+    const result: string = nonblank(value, label);
+    if (!/^[a-f0-9]{40}$/u.test(result))
+      throw new Error(`${label} must be a 40-character Git object ID.`);
+    return result;
   }
 
   class StrictJsonParser {

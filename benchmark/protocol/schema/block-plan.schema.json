@@ -14,7 +14,6 @@
     "protocolRevision",
     "protocolRawTreeAlgorithmId",
     "protocolRawTreeSha256",
-    "formalProtocolReviewId",
     "sourceMergedCommit",
     "priceSheetSha256",
     "subjectFreezeManifestSha256",
@@ -86,10 +85,6 @@
     "protocolRawTreeSha256": {
       "$ref": "#/$defs/sha256"
     },
-    "formalProtocolReviewId": {
-      "type": "integer",
-      "minimum": 1
-    },
     "sourceMergedCommit": {
       "type": "string",
       "pattern": "^[a-f0-9]{40}$"
@@ -114,6 +109,7 @@
         "mergedBaseRef",
         "mergedBaseRevision",
         "remoteVerifiedAtUtc",
+        "formalReview",
         "sealedSource",
         "sealedSourceManifest"
       ],
@@ -129,6 +125,9 @@
         "remoteVerifiedAtUtc": {
           "type": "string",
           "format": "date-time"
+        },
+        "formalReview": {
+          "$ref": "#/$defs/formalReviewAdmission"
         },
         "sealedSource": {
           "$ref": "#/$defs/pathDigest"
@@ -378,6 +377,64 @@
         "not_applicable",
         "pass"
       ]
+    },
+    "formalReviewAdmission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "resolutionSource",
+        "pullRequestNumber",
+        "finalCommentReviewId",
+        "finalCommentReviewState",
+        "reviewedHeadRevision",
+        "mergeCommitRevision",
+        "mergeStrategy",
+        "reviewedHeadIsMergeParentOrAncestor",
+        "reviewedHeadTreeOid",
+        "mergedTreeOid",
+        "exactGitTreeMatch"
+      ],
+      "properties": {
+        "resolutionSource": {
+          "const": "github-api-and-git-remote"
+        },
+        "pullRequestNumber": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "finalCommentReviewId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "finalCommentReviewState": {
+          "const": "COMMENTED"
+        },
+        "reviewedHeadRevision": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "mergeCommitRevision": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "mergeStrategy": {
+          "const": "merge-commit"
+        },
+        "reviewedHeadIsMergeParentOrAncestor": {
+          "const": true
+        },
+        "reviewedHeadTreeOid": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "mergedTreeOid": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "exactGitTreeMatch": {
+          "const": true
+        }
+      }
     },
     "repositoryRelativePath": {
       "type": "string",

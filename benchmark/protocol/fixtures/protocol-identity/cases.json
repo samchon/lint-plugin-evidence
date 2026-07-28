@@ -1,9 +1,28 @@
 {
   "schemaVersion": 1,
   "validExpected": {
-    "formalIdentityKind": "merged-git-commit-and-formal-review",
+    "formalIdentityKind": "runtime-resolved-merged-source-and-formal-review",
     "runtimeAlgorithmId": "sha256-posix-path-nul-bytes-v1",
     "runtimeDigest": null
+  },
+  "validRuntimeAdmission": {
+    "sourceMergedCommit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "sourceAdmission": {
+      "mergedBaseRevision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "formalReview": {
+        "resolutionSource": "github-api-and-git-remote",
+        "pullRequestNumber": 105,
+        "finalCommentReviewId": 4802200866,
+        "finalCommentReviewState": "COMMENTED",
+        "reviewedHeadRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mergeCommitRevision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "mergeStrategy": "merge-commit",
+        "reviewedHeadIsMergeParentOrAncestor": true,
+        "reviewedHeadTreeOid": "cccccccccccccccccccccccccccccccccccccccc",
+        "mergedTreeOid": "cccccccccccccccccccccccccccccccccccccccc",
+        "exactGitTreeMatch": true
+      }
+    }
   },
   "invalidCases": [
     {
@@ -21,10 +40,25 @@
       "expectedPattern": "legacy protocol digest"
     },
     {
-      "id": "reviewed-commit-mismatch",
-      "formalCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "runtimeCommit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      "expectedPattern": "reviewed merged commit disagrees"
+      "id": "tracked-final-source-population",
+      "target": "formal",
+      "field": "reviewedMergedCommit",
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expectedPattern": "templates must remain null"
+    },
+    {
+      "id": "tracked-final-review-population",
+      "target": "formal",
+      "field": "finalCommentReviewId",
+      "value": 4802200866,
+      "expectedPattern": "templates must remain null"
+    },
+    {
+      "id": "tracked-prepare-source-population",
+      "target": "runtime",
+      "field": "mergedSourceCommit",
+      "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "expectedPattern": "templates must remain null"
     },
     {
       "id": "sealed-tree-mutation",
@@ -34,6 +68,36 @@
       },
       "actualSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "expectedPattern": "Sealed protocol raw-tree digest drifted"
+    }
+  ],
+  "invalidRuntimeAdmissions": [
+    {
+      "id": "runtime-merge-revision-drift",
+      "operation": "replace",
+      "path": "/sourceAdmission/formalReview/mergeCommitRevision",
+      "value": "dddddddddddddddddddddddddddddddddddddddd",
+      "expectedPattern": "merge commit disagrees"
+    },
+    {
+      "id": "runtime-reviewed-tree-drift",
+      "operation": "replace",
+      "path": "/sourceAdmission/formalReview/mergedTreeOid",
+      "value": "dddddddddddddddddddddddddddddddddddddddd",
+      "expectedPattern": "Git trees differ"
+    },
+    {
+      "id": "runtime-reviewed-head-equals-merge",
+      "operation": "replace",
+      "path": "/sourceAdmission/formalReview/reviewedHeadRevision",
+      "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "expectedPattern": "distinct reviewed head"
+    },
+    {
+      "id": "runtime-review-state-not-commented",
+      "operation": "replace",
+      "path": "/sourceAdmission/formalReview/finalCommentReviewState",
+      "value": "APPROVED",
+      "expectedPattern": "admission policy drifted"
     }
   ]
 }
