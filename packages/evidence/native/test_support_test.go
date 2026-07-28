@@ -293,14 +293,6 @@ func anchoredGraph(root string, config graphConfig) graphConfig {
 	return config
 }
 
-// prismaHostedInventories indexes one inventory map by the file each entry
-// holds, the way the loader hands it to the declaration scan.
-func prismaHostedInventories(
-	inventories map[string]*artifactInventory,
-) map[string][]*artifactInventory {
-	return prismaInventoriesByDisplay(inventories)
-}
-
 func assertSilent(t *testing.T, messages []string) {
 	t.Helper()
 	if len(messages) != 0 {
