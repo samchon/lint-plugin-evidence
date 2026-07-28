@@ -39,7 +39,7 @@ database        ->  DTO type          (the table it represents)
 database        ->  API operation     (the table it exposes)
 database        ->  business logic
 
-column           ->  DTO property     (the value it carries)
+column          ->  DTO property      (the value it carries)
 
 API             ->  tests
 API             ->  business logic
