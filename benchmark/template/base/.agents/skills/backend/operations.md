@@ -78,28 +78,67 @@ Credential columns are excluded from every response DTO. A plaintext password ap
 A listing request carries pagination, search, and ordering, and each part has a fixed shape.
 
 ```ts
-export namespace ISale {
+export namespace IShoppingSale {
   export interface IRequest extends IPage.IRequest {
-    search?: IRequest.ISearch;
-    sort?: IPage.Sort<IRequest.SortableColumns>;
+    /**
+     * Search conditions.
+     */
+    search?: null | IRequest.ISearch;
+
+    /**
+     * Sorting conditions.
+     */
+    sort?: null | IPage.Sort<IRequest.SortableColumns>;
   }
   export namespace IRequest {
     export interface ISearch {
-      title?: string;
-      section_codes?: string[];
-      show_paused?: boolean;
+      show_paused?: null | boolean;
+      show_suspended?: null | boolean | "only";
+      title?: null | string;
+      section_codes?: null | string[];
+      seller?: null | IShoppingSeller.IRequest.ISearch;
     }
+
     export type SortableColumns =
+      | IShoppingSeller.IRequest.SortableColumns
       | "sale.created_at"
       | "sale.updated_at"
-      | "sale.opened_at";
+      | "sale.opened_at"
+      | "sale.closed_at";
   }
 }
 ```
 
-`IPage.IRequest` supplies `page` and `limit`, so every listing paginates the same way and a caller learns it once. The search object groups the filters, which keeps a request body with a dozen optional filters readable and keeps `sort` from being mistaken for one.
+Four things here are the convention.
 
-Every search field is optional, and absent means no filter rather than match nothing. A required filter on a listing is a different operation.
+**Every optional property is `?: null | T`, not `?: T`.** Absent and null both mean "no filter", and a caller that builds a request object by assigning `undefined` or `null` to a skipped field must not be rejected for choosing the wrong one. This applies to every optional property in every DTO, not only to search fields.
+
+**`IPage.IRequest` supplies `page` and `limit`**, so every listing paginates the same way and a caller learns it once.
+
+**The filters are grouped under `search`.** A request body with a dozen loose optional properties makes `sort` look like one of them.
+
+**`SortableColumns` composes a related resource's sortable columns** rather than restating them. Sorting a sale by its seller's fields stays legal without a second vocabulary that drifts from the first.
+
+The page wrapper and its pagination block are the shared shape every listing returns:
+
+```ts
+export interface IPage<T extends object> {
+  pagination: IPage.IPagination;
+  data: T[];
+}
+export namespace IPage {
+  export interface IPagination {
+    current: number & tags.Type<"uint32">;
+    /** @default 100 */
+    limit: number & tags.Type<"uint32">;
+    records: number & tags.Type<"uint32">;
+    /** Equal to {@link records} / {@link limit} with ceiling. */
+    pages: number & tags.Type<"uint32">;
+  }
+}
+```
+
+The counts carry `tags.Type<"uint32">`, so a negative or fractional page count is rejected at the boundary rather than rendered.
 
 ## Sort Grammar
 
@@ -134,14 +173,19 @@ The JSDoc on a controller method becomes the Swagger operation description and t
 
 ```ts
 /**
- * List up every sale.
+ * List up every sales.
  *
- * List up every {@link ISale sale} with detailed information, paginated and
- * ordered by the request.
+ * List up every {@link IShoppingSale sales} with detailed information.
  *
- * If you are a {@link ISeller seller} you see only your own sales. A
- * {@link ICustomer customer} sees only the sales currently operating: a
- * paused, suspended, or unopened sale is not returned.
+ * As you can see, returned sales are detailed, not summarized. If you want
+ * to get the summarized information of sale for a brief, use {@link index}
+ * function instead.
+ *
+ * For reference, if you're a {@link IShoppingSeller seller}, you can only
+ * access to the your own {@link IShoppingSale sale}s. Otherwise you're a
+ * {@link IShoppingCustomer customer}, you can see only the operating sales
+ * in the market. Instead, you can't see the unopened, closed, or suspended
+ * sales.
  *
  * @param input Request info of pagination, searching and sorting
  * @returns Paginated sales with detailed information
@@ -150,13 +194,15 @@ The JSDoc on a controller method becomes the Swagger operation description and t
 @core.TypedRoute.Patch("details")
 public async details(
   @props.AuthGuard() actor: Actor,
-  @core.TypedBody() input: ISale.IRequest,
-): Promise<IPage<ISale>> {
-  return SaleProvider.details({ actor, input });
+  @core.TypedBody() input: IShoppingSale.IRequest,
+): Promise<IPage<IShoppingSale>> {
+  return ShoppingSaleProvider.details({ actor, input });
 }
 ```
 
 The block sits on the method, not beside it, because the generator reads it from there.
+
+Notice what the middle paragraphs do. One distinguishes this operation from its sibling by name, so a consumer choosing between two similar endpoints does not have to compare their return types. The other states the visibility rule per actor, in full, including which states a customer cannot see. That rule is usually the requirement the endpoint exists to satisfy, and nothing in the signature carries it.
 
 The first line is the operation title. State the authorization and visibility rule whenever it differs by actor, because that is usually the requirement the endpoint exists to satisfy and a caller cannot infer it from the signature. Link related types with `{@link}`. Do not stop at "creates X": include the effects, the transitions, and the rejections.
 
@@ -165,29 +211,48 @@ The first line is the operation title. State the authorization and visibility ru
 Group by domain, then by actor. Write the shared behavior once as a base controller factory and specialize it per actor.
 
 ```ts
-export function SaleController<Actor extends IActorEntity>(
-  props: IControllerProps,
+export interface IShoppingControllerProps<Path extends ActorPath = ActorPath> {
+  AuthGuard: (
+    customerLevel?: "guest" | "member" | "citizen",
+  ) => ParameterDecorator;
+  path: Path;
+}
+
+export function ShoppingSaleController<Actor extends IShoppingActorEntity>(
+  props: IShoppingControllerProps,
 ) {
-  @Controller(`{{name}}/${props.path}/sales`)
-  abstract class SaleController {
+  @Controller(`shoppings/${props.path}/sales`)
+  abstract class ShoppingSaleController {
     @core.TypedRoute.Patch("details")
     public async details(
       @props.AuthGuard() actor: Actor,
-      @core.TypedBody() input: ISale.IRequest,
-    ): Promise<IPage<ISale>> {
-      return SaleProvider.details({ actor, input });
+      @core.TypedBody() input: IShoppingSale.IRequest,
+    ): Promise<IPage<IShoppingSale>> {
+      return ShoppingSaleProvider.details({ actor, input });
+    }
+
+    @core.TypedRoute.Get(":id")
+    public async at(
+      @props.AuthGuard() actor: Actor,
+      @core.TypedParam("id") id: string & tags.Format<"uuid">,
+    ): Promise<IShoppingSale> {
+      return ShoppingSaleProvider.at({ actor, id });
     }
   }
-  return SaleController;
+  return ShoppingSaleController;
 }
 ```
 
 ```ts
-export class AdminSaleController extends SaleController({
+export class ShoppingAdminSaleController extends ShoppingSaleController({
   path: "admins",
-  AuthGuard: AdminAuth,
+  AuthGuard: ShoppingAdminAuth,
 }) {}
 ```
+
+The factory returns the class, and the actor's controller extends the call. `AuthGuard` is a function returning a parameter decorator, which is what lets a route demand a stricter level of the same actor by passing an argument.
+
+A path parameter arrives through `@core.TypedParam` with its constrained type, so an identifier that is not a UUID is rejected at the boundary and never reaches a query.
 
 The factory takes the route segment and the guard; each actor's controller is the one-line specialization, and an actor whose behavior genuinely differs overrides that one method. This is what keeps a per-actor visibility rule honest: the difference lives in the provider's query and the actor type, not in three handlers that drift.
 
