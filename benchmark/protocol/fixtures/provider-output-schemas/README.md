@@ -1,0 +1,7 @@
+# Provider output-schema preflight fixtures
+
+`provider-output-registry.json` is the exhaustive source of every JSON Schema passed to Codex `turn/start.outputSchema`. The launch gate recursively loads each registered provider schema, follows every local file `$ref` closure before judging it, rejects missing or remote references and cycles, and reports every unsupported schema keyword with its source path and JSON Pointer. A `$ref` is followed even when `$ref` itself is not in the frozen provider allowlist, so an inadmissible reference cannot conceal another unsupported keyword.
+
+Only `$schema`, `$id`, `title`, `type`, `additionalProperties`, `required`, `properties`, `enum`, and `items` are admitted in provider-facing schemas. Property names and enum values are data, not schema keywords. Every provider file is self-contained today; the `$ref` fixtures prove that future refactoring cannot bypass the recursive check.
+
+The production preflight must pass `valid-provider.schema.json` and reject every case declared in `cases.json`. It must also prove that every runner code path assigning `turn/start.outputSchema` names exactly one registry turn, sends the registered provider schema, validates the returned object against the registered local schema, and records both digests. An unregistered turn, a provider/local filename without its required suffix, a duplicate turn owner, a missing file, a provider-schema keyword violation, or a local validation failure blocks launch.

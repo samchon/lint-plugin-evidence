@@ -1,0 +1,5 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "missing-ref.schema.json",
+  "$ref": "does-not-exist.schema.json"
+}

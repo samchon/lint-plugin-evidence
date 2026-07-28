@@ -1,0 +1,285 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/bundle-manifest.schema.json",
+  "title": "Neutral grading bundle transform manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "bundleId",
+    "transformVersion",
+    "transformSourceSha256",
+    "inputSnapshotSha256",
+    "requirementsTreeSha256",
+    "parsers",
+    "grammarFixtureGate",
+    "files",
+    "leakScan",
+    "outputTreeSha256",
+    "determinismCheck"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "bundleId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{5,127}$"
+    },
+    "transformVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "transformSourceSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "inputSnapshotSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "requirementsTreeSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "parsers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "typescriptJsdoc",
+        "markdownHtmlComment",
+        "prismaTripleSlash",
+        "structuredConfiguration"
+      ],
+      "properties": {
+        "typescriptJsdoc": {
+          "$ref": "#/$defs/parser"
+        },
+        "markdownHtmlComment": {
+          "$ref": "#/$defs/parser"
+        },
+        "prismaTripleSlash": {
+          "$ref": "#/$defs/parser"
+        },
+        "structuredConfiguration": {
+          "$ref": "#/$defs/parser"
+        }
+      }
+    },
+    "grammarFixtureGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fixtureSetSha256",
+        "typescriptJsdoc",
+        "markdownHtmlComment",
+        "prismaTripleSlash",
+        "structuredConfiguration",
+        "productionEntryPointUsed",
+        "passed"
+      ],
+      "properties": {
+        "fixtureSetSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "typescriptJsdoc": {
+          "$ref": "#/$defs/fixtureResult"
+        },
+        "markdownHtmlComment": {
+          "$ref": "#/$defs/fixtureResult"
+        },
+        "prismaTripleSlash": {
+          "$ref": "#/$defs/fixtureResult"
+        },
+        "structuredConfiguration": {
+          "$ref": "#/$defs/fixtureResult"
+        },
+        "productionEntryPointUsed": {
+          "const": true
+        },
+        "passed": {
+          "const": true
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "inputPath",
+          "outputPath",
+          "action",
+          "reason",
+          "inputSha256",
+          "outputSha256",
+          "removedAnnotations"
+        ],
+        "properties": {
+          "inputPath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "outputPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "action": {
+            "enum": [
+              "included",
+              "excluded",
+              "normalized",
+              "annotation_stripped"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "inputSha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "outputSha256": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/$defs/sha256"
+              }
+            ]
+          },
+          "removedAnnotations": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "leakScan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rulesSha256",
+        "scannedFiles",
+        "matches",
+        "passed"
+      ],
+      "properties": {
+        "rulesSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "scannedFiles": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "matches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "rule",
+              "location"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "rule": {
+                "type": "string",
+                "minLength": 1
+              },
+              "location": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "passed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "outputTreeSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "determinismCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "secondOutputTreeSha256",
+        "passed"
+      ],
+      "properties": {
+        "secondOutputTreeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "passed": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "parser": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "implementation",
+        "version",
+        "sourceSha256",
+        "grammarSha256"
+      ],
+      "properties": {
+        "implementation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "grammarSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "fixtureResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fixtureSha256",
+        "acceptedCases",
+        "rejectedCases",
+        "passed"
+      ],
+      "properties": {
+        "fixtureSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "acceptedCases": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rejectedCases": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "passed": {
+          "const": true
+        }
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

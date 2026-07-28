@@ -1,1 +1,6 @@
+.gitattributes text eol=lf
 benchmark/requirements/** text eol=lf
+benchmark/protocol/** text eol=lf
+benchmark/prompts/** text eol=lf
+benchmark/README.md text eol=lf
+benchmark/protocol/vendor/** -text

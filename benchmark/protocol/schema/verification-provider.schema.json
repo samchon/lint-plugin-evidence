@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/verification-provider.schema.json",
+  "title": "Provider-facing Phase 2 verifier output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "role",
+    "round",
+    "candidateId",
+    "canonicalFindingId",
+    "status",
+    "interruption",
+    "verdict",
+    "classification",
+    "severity",
+    "duplicateOf",
+    "rationale"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "verifier"
+      ]
+    },
+    "round": {
+      "type": "integer"
+    },
+    "candidateId": {
+      "type": "string"
+    },
+    "canonicalFindingId": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "interrupted",
+        "failed"
+      ]
+    },
+    "interruption": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "reason",
+        "lastCompletedStep"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "lastCompletedStep": {
+          "type": "string"
+        }
+      }
+    },
+    "verdict": {
+      "enum": [
+        "verified",
+        "rejected",
+        "duplicate",
+        "unverifiable"
+      ]
+    },
+    "classification": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "requirement_omission",
+        "partial_implementation",
+        "semantic_defect",
+        "false_acknowledgement",
+        "configuration_coverage",
+        "test_oracle_gap",
+        "non_defect",
+        null
+      ]
+    },
+    "severity": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical",
+        null
+      ]
+    },
+    "duplicateOf": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rationale": {
+      "type": "string"
+    }
+  }
+}

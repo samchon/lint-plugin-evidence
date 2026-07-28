@@ -1,0 +1,385 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/run-manifest.schema.json",
+  "title": "Immutable outer benchmark and Codex runner manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "experiment",
+    "runner",
+    "createdAtUtc"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "experiment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runId",
+        "subject",
+        "arm",
+        "replicate",
+        "blockId",
+        "sourceRevision",
+        "templateSha256",
+        "requirementsSha256",
+        "acceptanceCatalogSha256",
+        "acceptanceCatalogCount",
+        "contextCatalogSha256",
+        "contextCatalogCount",
+        "denominatorsSummed",
+        "projectInputSha256",
+        "productTgzSha256",
+        "environmentSha256",
+        "concurrency",
+        "costAuthorization"
+      ],
+      "properties": {
+        "runId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{5,127}$"
+        },
+        "subject": {
+          "enum": [
+            "todo",
+            "reddit",
+            "shopping",
+            "erp"
+          ]
+        },
+        "arm": {
+          "enum": [
+            "plain",
+            "evidence"
+          ]
+        },
+        "replicate": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "blockId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceRevision": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "templateSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "requirementsSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "acceptanceCatalogSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "acceptanceCatalogCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "contextCatalogSha256": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/sha256"
+            }
+          ]
+        },
+        "contextCatalogCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "denominatorsSummed": {
+          "const": false
+        },
+        "projectInputSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "productTgzSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "environmentSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "concurrency": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "costAuthorization": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "approvedAtUtc",
+            "maximumCost",
+            "currency"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "approvedAtUtc": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "maximumCost": {
+              "type": "number",
+              "minimum": 0
+            },
+            "currency": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Z]{3}$"
+                },
+                {
+                  "const": "PROVIDER_CREDITS"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "runner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "codexCliVersion",
+        "codexExecutableSha256",
+        "codexSchemaSha256",
+        "codexSchemaFileCount",
+        "codexSchemaByteLength",
+        "codexSchemaPreservationMode",
+        "codexSchemaOwnedPath",
+        "codexSchemaTreeAlgorithm",
+        "codexSourceCommit",
+        "model",
+        "effort",
+        "serviceTier",
+        "initialGoalStatus",
+        "goalActivationPolicy",
+        "allowProviderModelFallback",
+        "threadStartResponseSchemaSha256",
+        "providerOutputRegistrySha256",
+        "generationOutcomeSchemaSha256",
+        "generationOutcomeLocalValidationSha256",
+        "findingProviderSchemaSha256",
+        "findingLocalValidationSha256",
+        "verificationProviderSchemaSha256",
+        "verificationLocalValidationSha256",
+        "promptSha256",
+        "goalSha256",
+        "completionChallengeSha256",
+        "recoveryPromptSha256",
+        "phase2PromptSha256",
+        "priceSheetSha256"
+      ],
+      "properties": {
+        "codexCliVersion": {
+          "const": "0.145.0"
+        },
+        "codexExecutableSha256": {
+          "const": "83751f15cb6a0a7b97df67752c001e3fe1c20e18ffbfec3ff63567296205eb6c"
+        },
+        "codexSchemaSha256": {
+          "const": "8fe6831b1434b628a6a6876ba12af8097c4599c7218b9ffcb58f1fbfb5df6e40"
+        },
+        "codexSchemaFileCount": {
+          "const": 347
+        },
+        "codexSchemaByteLength": {
+          "const": 3303877
+        },
+        "codexSchemaPreservationMode": {
+          "const": "tracked-extracted-tree"
+        },
+        "codexSchemaOwnedPath": {
+          "const": "benchmark/protocol/vendor/codex/0.145.0/app-server-schema-experimental"
+        },
+        "codexSchemaTreeAlgorithm": {
+          "const": "sha256(sorted-posix-path-nul-bytes-nul)"
+        },
+        "codexSourceCommit": {
+          "const": "25af12f7e61572b0bc18ddb1008be543b91519b0"
+        },
+        "model": {
+          "const": "gpt-5.6-terra"
+        },
+        "effort": {
+          "const": "high"
+        },
+        "serviceTier": {
+          "const": "default"
+        },
+        "initialGoalStatus": {
+          "const": "paused"
+        },
+        "goalActivationPolicy": {
+          "const": "paused-before-first-turn-active-after-turn-started"
+        },
+        "allowProviderModelFallback": {
+          "const": false
+        },
+        "threadStartResponseSchemaSha256": {
+          "const": "b4ae167f12f0ed48e14d014eaa131c097dc237613081e597e08f486149312933"
+        },
+        "providerOutputRegistrySha256": {
+          "const": "359cb8caeeb85d22cae7689348bb26e6ebf708ced469884f09e6007aba4fff21"
+        },
+        "generationOutcomeSchemaSha256": {
+          "const": "3244af0bcb0816ebc0278c753836d4674617c1fd597548d92f13e1fc9b43d37f"
+        },
+        "generationOutcomeLocalValidationSha256": {
+          "const": "fe7c75de3e93d5c4a82a72c1a924ff8a83b2a81f97622d5fb8959e3d47b14469"
+        },
+        "findingProviderSchemaSha256": {
+          "const": "7f7383d00001c3a9c468138b7a4626594e868cca13f34e57a6d61bc7da50822e"
+        },
+        "findingLocalValidationSha256": {
+          "const": "23f10318bd66466ed1d9d45c4423c29e338eae8156d94d6305241601b695b799"
+        },
+        "verificationProviderSchemaSha256": {
+          "const": "24afab7f9fc655ad1cf16924e065a00860a248ca2a0402b47c6ed814d8db3cbd"
+        },
+        "verificationLocalValidationSha256": {
+          "const": "a5bd8cbb160963f4e4f205620f2d34378f73e782cdb4005666c9d33224741ee6"
+        },
+        "promptSha256": {
+          "const": "d538f0697e4f7d9eb5903b292c70a0fc6f034801f8c8554ca9c181a3a143bfa1"
+        },
+        "goalSha256": {
+          "const": "aa050dbc9ad2c0e75c94dd73322a3bbca2257bc197fa773e054e52f307929a30"
+        },
+        "completionChallengeSha256": {
+          "const": "dfdbb36d43656f74d03d1eb9dd6ba74d55122148f3a1154f4f91a7460b48a178"
+        },
+        "recoveryPromptSha256": {
+          "const": "a345d67a4fbae4967c260e59d99cd26c60f3ad78b37d10e86e0e0af67d04b349"
+        },
+        "phase2PromptSha256": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "finder",
+            "fixer",
+            "verifier"
+          ],
+          "properties": {
+            "finder": {
+              "const": "8efcb3270502c3139a3e7ae955af980c930baf059a2dca854b5538c7b4a6f4d2"
+            },
+            "fixer": {
+              "const": "e71b42d6a68a5c48ddcfd842a1e186a211e0710aef2cf57bf03f03a532423879"
+            },
+            "verifier": {
+              "const": "8206edc0e28640bc83b0fc0a147079ff242c08b5d6eb01b2425bd09dc5429414"
+            }
+          }
+        },
+        "priceSheetSha256": {
+          "const": "b2bf2597daaeaec41b69480edd5d7c58fa4b9a4a0c97e66cef45772437b0075b"
+        }
+      }
+    },
+    "createdAtUtc": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "experiment": {
+            "properties": {
+              "contextCatalogSha256": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "contextCatalogSha256"
+            ]
+          }
+        },
+        "required": [
+          "experiment"
+        ]
+      },
+      "then": {
+        "properties": {
+          "experiment": {
+            "properties": {
+              "contextCatalogCount": {
+                "const": 0
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "experiment": {
+            "properties": {
+              "contextCatalogCount": {
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "experiment": {
+            "properties": {
+              "subject": {
+                "const": "erp"
+              }
+            },
+            "required": [
+              "subject"
+            ]
+          }
+        },
+        "required": [
+          "experiment"
+        ]
+      },
+      "then": {
+        "properties": {
+          "experiment": {
+            "properties": {
+              "acceptanceCatalogCount": {
+                "const": 1724
+              },
+              "contextCatalogCount": {
+                "const": 986
+              },
+              "contextCatalogSha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "denominatorsSummed": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

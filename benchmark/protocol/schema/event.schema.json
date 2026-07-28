@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/event.schema.json",
+  "title": "Append-only benchmark semantic event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "runId",
+    "seq",
+    "utc",
+    "monotonicNs",
+    "phase",
+    "actor",
+    "type",
+    "payload",
+    "rawRef",
+    "previousEventSha256",
+    "eventSha256"
+  ],
+  "properties": {
+    "runId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{5,127}$"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "monotonicNs": {
+      "type": "string",
+      "pattern": "^[0-9]+$"
+    },
+    "phase": {
+      "enum": [
+        "setup",
+        "agent",
+        "gate",
+        "reconciliation",
+        "terminal"
+      ]
+    },
+    "actor": {
+      "enum": [
+        "runner",
+        "client",
+        "app-server",
+        "gate",
+        "auditor"
+      ]
+    },
+    "type": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "payload": {
+      "type": "object"
+    },
+    "rawRef": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "direction",
+            "path",
+            "byteOffset",
+            "byteLength",
+            "sha256"
+          ],
+          "properties": {
+            "direction": {
+              "enum": [
+                "client",
+                "server",
+                "stderr"
+              ]
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "byteOffset": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "byteLength": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        }
+      ]
+    },
+    "previousEventSha256": {
+      "description": "The prior event hash, or 64 zeroes for the first event at sequence one.",
+      "$ref": "#/$defs/sha256"
+    },
+    "eventSha256": {
+      "description": "SHA-256 of RFC 8785 canonical JSON for this event with eventSha256 omitted.",
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "seq": {
+            "const": 1
+          }
+        },
+        "required": [
+          "seq"
+        ]
+      },
+      "then": {
+        "properties": {
+          "previousEventSha256": {
+            "const": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "previousEventSha256": {
+            "not": {
+              "const": "0000000000000000000000000000000000000000000000000000000000000000"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "milestone_reached"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "enum": [
+                  "t0",
+                  "t_done",
+                  "t_green",
+                  "t_dry"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

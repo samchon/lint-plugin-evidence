@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/generation-outcome-local.schema.json",
+  "title": "Local terminal generation outcome adjudication",
+  "allOf": [
+    {
+      "$ref": "generation-outcome-provider.schema.json"
+    },
+    {
+      "properties": {
+        "summary": {
+          "minLength": 1
+        },
+        "unfinished": {
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "complete"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "unfinished": {
+            "const": []
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "unfinished": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ]
+}

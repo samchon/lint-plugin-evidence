@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "status": "standard-terra-rates-confirmed-source-pins-unresolved",
+  "model": "gpt-5.6-terra",
+  "primaryMonetaryUnit": "provider_credits",
+  "effectiveServiceTier": "default",
+  "speedMode": "standard",
+  "retrievedAtUtc": "2026-07-28T17:52:35.509Z",
+  "creditsPerMillionTokens": {
+    "nonCachedInput": 62.5,
+    "cacheRead": 6.25,
+    "cacheWrite": 78.125,
+    "outputIncludingReasoning": 375
+  },
+  "cacheWriteDerivation": {
+    "factor": 1.25,
+    "base": "nonCachedInput",
+    "source": "Official prompt-caching guidance states that GPT-5.6 cache writes are billed at 1.25 times the uncached input rate."
+  },
+  "usdPerMillionTokens": {
+    "nonCachedInput": null,
+    "cacheRead": null,
+    "cacheWrite": null,
+    "outputIncludingReasoning": null
+  },
+  "creditToUsd": null,
+  "clientRequestSemantics": {
+    "codexServiceTier": "default",
+    "upstreamServiceTier": "omitted",
+    "modelRerouteAllowed": false,
+    "fastCreditMultiplier": 2.5,
+    "fastModeUsed": false
+  },
+  "sources": [
+    {
+      "kind": "official-chatgpt-credit-rate",
+      "url": "https://learn.chatgpt.com/docs/pricing#what-are-tokens-and-credits",
+      "snapshotSha256": null
+    },
+    {
+      "kind": "official-cache-write-semantics",
+      "url": "https://developers.openai.com/api/docs/guides/prompt-caching#frequently-asked-questions",
+      "snapshotSha256": null
+    }
+  ],
+  "calculation": {
+    "normalization": "nonCachedInput = inputTokens - cachedInputTokens - cacheWriteInputTokens; cachedInputTokens and cacheWriteInputTokens are disjoint subsets of inclusive inputTokens",
+    "providerCredits": "(nonCachedInput * 62.5 + cacheRead * 6.25 + cacheWrite * 78.125 + output * 375) / 1000000",
+    "reasoning": "Reasoning tokens are an output subset and are not charged again.",
+    "usd": null,
+    "budgetEnforcement": "Price each deduplicated atomic response, durably append cumulative credits, and stop before the next provider request when the ceiling is reached. One already-in-flight atomic response may overshoot; record it and right-censor immediately."
+  },
+  "sourcePinProcedure": [
+    "Within 24 hours before freezing a run wave, fetch each official source and archive the exact response outside the generated projects.",
+    "Record the source URL, UTC retrieval time, response SHA-256, applicable account plan, service tier, speed mode, and whether the runner usage stream uses the same token categories.",
+    "Provider credits are the preregistered primary monetary unit. Obtain an applicable contract, invoice, or official account rate before adding USD as a secondary conversion; an unavailable USD conversion remains null and does not itself block launch.",
+    "Fill every execution-critical null field, archive and hash the official source responses, recompute this file's SHA-256, copy that digest into pins.json and every run manifest, and submit the change as a new formal protocol checkpoint.",
+    "Reject launch when requested and effective thread settings, the no-reroute signal, source-backed default-tier forwarding semantics, token semantics, or provider-credit rates differ from the pinned sheet. A null USD conversion is explicitly permitted and is not a launch failure."
+  ],
+  "launchGate": {
+    "blocked": true,
+    "reasons": [
+      "Official source responses have not yet been archived with exact SHA-256 snapshots."
+    ]
+  }
+}

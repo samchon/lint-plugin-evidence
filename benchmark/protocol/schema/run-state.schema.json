@@ -1,0 +1,598 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/run-state.schema.json",
+  "title": "Durable Codex benchmark run state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "status",
+    "manifestSha256",
+    "phase",
+    "startedAtUtc",
+    "updatedAtUtc",
+    "threads",
+    "goal",
+    "restartCount",
+    "gateRepairCount",
+    "firstTurnStarted",
+    "completionAdjudication",
+    "phase1Boundary",
+    "completionChallengeStarted",
+    "completionChallengeAdjudication",
+    "green",
+    "milestones",
+    "streamHeads",
+    "lastRequestId",
+    "lastActivityAtUtc",
+    "campaignCheckpointSha256",
+    "tDrySourceSnapshotSha256",
+    "terminal"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "enum": [
+        "running",
+        "interrupted",
+        "failed",
+        "completed"
+      ]
+    },
+    "manifestSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "phase": {
+      "enum": [
+        "setup",
+        "phase1",
+        "completion_challenge",
+        "campaign",
+        "grading",
+        "terminal"
+      ]
+    },
+    "startedAtUtc": {
+      "$ref": "#/$defs/dateTime"
+    },
+    "updatedAtUtc": {
+      "$ref": "#/$defs/dateTime"
+    },
+    "primaryThreadId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sessionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "threads": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/thread"
+      }
+    },
+    "goal": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/goal"
+        }
+      ]
+    },
+    "activeTurnId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "restartCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 0
+    },
+    "gateRepairCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "firstTurnStarted": {
+      "type": "boolean"
+    },
+    "completionAdjudication": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/completionAdjudication"
+        }
+      ]
+    },
+    "phase1Boundary": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/phase1Boundary"
+        }
+      ]
+    },
+    "completionChallengeStarted": {
+      "type": "boolean"
+    },
+    "completionChallengeAdjudication": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/completionAdjudication"
+        }
+      ]
+    },
+    "green": {
+      "type": "boolean"
+    },
+    "milestones": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "t0": {
+          "$ref": "#/$defs/milestone"
+        },
+        "t_done": {
+          "$ref": "#/$defs/milestone"
+        },
+        "t_green": {
+          "$ref": "#/$defs/milestone"
+        },
+        "t_dry": {
+          "$ref": "#/$defs/milestone"
+        }
+      }
+    },
+    "streamHeads": {
+      "$ref": "#/$defs/streamHeads"
+    },
+    "lastRequestId": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "lastActivityAtUtc": {
+      "$ref": "#/$defs/dateTime"
+    },
+    "campaignCheckpointSha256": {
+      "$ref": "#/$defs/nullableSha256"
+    },
+    "tDrySourceSnapshotSha256": {
+      "$ref": "#/$defs/nullableSha256"
+    },
+    "terminal": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/terminal"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "thread": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "parentThreadId",
+        "sessionId",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parentThreadId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "unknown",
+            "idle",
+            "active",
+            "systemError"
+          ]
+        },
+        "turnId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "turnStatus": {
+          "enum": [
+            "inProgress",
+            "completed",
+            "interrupted",
+            "failed"
+          ]
+        },
+        "rolloutPath": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "goal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "objectiveSha256",
+        "status",
+        "checkedAtUtc"
+      ],
+      "properties": {
+        "objectiveSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "paused",
+            "blocked",
+            "usageLimited",
+            "budgetLimited",
+            "complete"
+          ]
+        },
+        "checkedAtUtc": {
+          "$ref": "#/$defs/dateTime"
+        }
+      }
+    },
+    "completionAdjudication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "threadId",
+        "turnId",
+        "responseId",
+        "assistantItemId",
+        "turnStatus",
+        "context",
+        "outputSchemaSha256",
+        "localValidationSchemaSha256",
+        "localValidationPassed",
+        "output",
+        "goalStatus",
+        "goalConsistency",
+        "decision",
+        "eventSeq",
+        "eventSha256",
+        "adjudicatedAtUtc"
+      ],
+      "properties": {
+        "threadId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "turnId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "responseId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "assistantItemId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "turnStatus": {
+          "const": "completed"
+        },
+        "context": {
+          "enum": [
+            "phase1",
+            "completion_challenge"
+          ]
+        },
+        "outputSchemaSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "localValidationSchemaSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "localValidationPassed": {
+          "const": true
+        },
+        "output": {
+          "$ref": "generation-outcome-local.schema.json"
+        },
+        "goalStatus": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "enum": [
+                "active",
+                "paused",
+                "blocked",
+                "usageLimited",
+                "budgetLimited",
+                "complete"
+              ]
+            }
+          ]
+        },
+        "goalConsistency": {
+          "enum": [
+            "consistent",
+            "mismatch",
+            "unavailable"
+          ]
+        },
+        "decision": {
+          "enum": [
+            "complete",
+            "interrupted"
+          ]
+        },
+        "eventSeq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "eventSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "adjudicatedAtUtc": {
+          "$ref": "#/$defs/dateTime"
+        }
+      }
+    },
+    "phase1Boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tDoneEventSeq",
+        "tDoneEventSha256",
+        "tDoneSnapshotSha256",
+        "completionChallengeTurnId",
+        "completionChallengeResponseId",
+        "completionChallengeCompletedAtUtc",
+        "completionChallengeCompleted",
+        "completionChallengeAdjudicationSha256"
+      ],
+      "properties": {
+        "tDoneEventSeq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "tDoneEventSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "tDoneSnapshotSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "completionChallengeTurnId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "completionChallengeResponseId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "completionChallengeCompletedAtUtc": {
+          "$ref": "#/$defs/dateTime"
+        },
+        "completionChallengeCompleted": {
+          "const": true
+        },
+        "completionChallengeAdjudicationSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "milestone": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "occurredAtUtc",
+        "monotonicNanoseconds",
+        "measurement",
+        "basis"
+      ],
+      "properties": {
+        "name": {
+          "enum": [
+            "t0",
+            "t_done",
+            "t_green",
+            "t_dry"
+          ]
+        },
+        "occurredAtUtc": {
+          "$ref": "#/$defs/dateTime"
+        },
+        "monotonicNanoseconds": {
+          "type": "string",
+          "pattern": "^[0-9]+$"
+        },
+        "measurement": {
+          "enum": [
+            "exact-event",
+            "heuristic-classification"
+          ]
+        },
+        "basis": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "streamHeads": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "raw",
+        "envelope",
+        "event"
+      ],
+      "properties": {
+        "raw": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "client",
+            "server",
+            "stderr"
+          ],
+          "properties": {
+            "client": {
+              "$ref": "#/$defs/byteHead"
+            },
+            "server": {
+              "$ref": "#/$defs/byteHead"
+            },
+            "stderr": {
+              "$ref": "#/$defs/byteHead"
+            }
+          }
+        },
+        "envelope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "lastSequence",
+            "byteLength",
+            "sha256"
+          ],
+          "properties": {
+            "lastSequence": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "byteLength": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "event": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "lastSequence",
+            "lastEventSha256",
+            "byteLength",
+            "sha256"
+          ],
+          "properties": {
+            "lastSequence": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "lastEventSha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "byteLength": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        }
+      }
+    },
+    "byteHead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "byteLength",
+        "sha256"
+      ],
+      "properties": {
+        "byteLength": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "terminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "atUtc",
+        "reason",
+        "interruptionSubtype",
+        "lastCheckpointSha256"
+      ],
+      "properties": {
+        "atUtc": {
+          "$ref": "#/$defs/dateTime"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "interruptionSubtype": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "enum": [
+                "quota",
+                "provider",
+                "host",
+                "watchdog",
+                "user_abort",
+                "harness"
+              ]
+            }
+          ]
+        },
+        "lastCheckpointSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "nullableSha256": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/sha256"
+        }
+      ]
+    },
+    "dateTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

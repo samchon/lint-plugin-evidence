@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "status": "blocked-until-all-null-execution-pins-are-resolved",
+  "armMap": {
+    "plain": {
+      "registered": "A",
+      "label": "Control"
+    },
+    "evidence": {
+      "registered": "B",
+      "label": "Treatment"
+    }
+  },
+  "generator": {
+    "name": "Codex",
+    "npmPackage": "@openai/codex",
+    "version": "0.145.0",
+    "sourceTag": "rust-v0.145.0",
+    "sourceCommit": "25af12f7e61572b0bc18ddb1008be543b91519b0",
+    "npmDistIntegritySha512": "sha512-/PSPSFujjjmiyVFvG2yu/grOFhsWdokTH8t2KGWhXSo/M5n/dIDsnbsnO82/7bLtIoDuzQf7ATBUMWqPWQINlQ==",
+    "npmDistShasumSha1": "7055d605dec459e33926bd84fc872802cf9a328b",
+    "platformPackage": {
+      "name": "@openai/codex",
+      "publishedVersion": "0.145.0-win32-x64",
+      "installedAlias": "@openai/codex-win32-x64",
+      "npmDistIntegritySha512": "sha512-u0h9lk094CaXRSqE34SBW2dRaQTPa6fASXqehczWH9QdsU62mBsiAgAdp6tCG4i+YzPmmhjD8FdXNnYGNmwuMg==",
+      "npmDistShasumSha1": "b24ffe0d63bcac64fe802c4c7d79176fb42e8337"
+    },
+    "artifacts": [
+      {
+        "path": "@openai/codex/package.json",
+        "bytes": 1082,
+        "sha256": "ff896fd5e5444cfc645890b21273ad1c6b3e26e4e4ab0934de597a0f8db5aafb"
+      },
+      {
+        "path": "@openai/codex/bin/codex.js",
+        "bytes": 7236,
+        "sha256": "134063e133f0b4244fa3b251acf973d4fe4b4aeeacbdc135211bf480f59f1477"
+      },
+      {
+        "path": "@openai/codex-win32-x64/package.json",
+        "bytes": 511,
+        "sha256": "74c94696f460ad5dd07371a813a49ac2604121569e075a7e938d2f60b6de76a2"
+      },
+      {
+        "path": "@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/codex-package.json",
+        "bytes": 215,
+        "sha256": "d15dd152401ec63697fb4888d3dec75a849ac85c11aa69256bccc0355e0b7ddd"
+      },
+      {
+        "path": "@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/bin/codex.exe",
+        "bytes": 359245096,
+        "sha256": "83751f15cb6a0a7b97df67752c001e3fe1c20e18ffbfec3ff63567296205eb6c"
+      },
+      {
+        "path": "@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/bin/codex-code-mode-host.exe",
+        "bytes": 53605168,
+        "sha256": "de58d3bd9fb88c44555de1104d06fba78e207bce7115d92691b42f6b0f87f3b7"
+      },
+      {
+        "path": "@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/codex-path/rg.exe",
+        "bytes": 4218880,
+        "sha256": "14231169855ec5205cf5a1b6f1db358ff4aed4247c86b69ce8aae647c77f6680"
+      },
+      {
+        "path": "@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/codex-resources/codex-command-runner.exe",
+        "bytes": 1271088,
+        "sha256": "09531442d178aefb4c849745e95a000f52d5910a13944638269d9991cb08319b"
+      },
+      {
+        "path": "@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/codex-resources/codex-windows-sandbox-setup.exe",
+        "bytes": 8807728,
+        "sha256": "c981b438d0959e33f90f6b8b1a9656c4f803a1b82ebdd97e2150d2b8543a0c31"
+      }
+    ],
+    "appServer": {
+      "transport": "stdio://",
+      "experimentalSchema": true,
+      "schemaGenerationCommand": "codex app-server generate-json-schema --experimental --out <directory>",
+      "threadStartExperimentalRawEvents": true,
+      "generatedSchemaTree": {
+        "algorithm": "Enumerate regular files recursively; normalize each relative path to POSIX separators; sort by UTF-8 path bytes; update SHA-256 with path, one NUL byte, exact file bytes, and one NUL byte for every file.",
+        "files": 347,
+        "bytes": 3303877,
+        "sha256": "8fe6831b1434b628a6a6876ba12af8097c4599c7218b9ffcb58f1fbfb5df6e40",
+        "preservationMode": "tracked-extracted-tree",
+        "ownedPath": "benchmark/protocol/vendor/codex/0.145.0/app-server-schema-experimental",
+        "archiveRequired": false,
+        "archivePath": null,
+        "archiveBytes": null,
+        "archiveSha256": null,
+        "extractedTreeAvailable": true,
+        "deterministicRegeneration": false,
+        "knownNondeterministicFile": "codex_app_server_protocol.v2.schemas.json"
+      },
+      "requiredExperimentalSchemas": [
+        "v2/RawResponseCompletedNotification.json",
+        "v2/RawResponseItemCompletedNotification.json",
+        "v2/ThreadStartParams.json",
+        "v2/ThreadStartResponse.json"
+      ],
+      "manual": {
+        "url": "https://learn.chatgpt.com/docs/app-server#manage-a-thread-goal",
+        "goalObjectiveMaximumCharacters": 4000,
+        "goalTokenBudget": "omitted",
+        "newObjectiveResetsUsage": true,
+        "turnSteerRequiresActiveTurnAndExpectedTurnId": true,
+        "turnSteerEmitsTurnStarted": false,
+        "terminalTurnStatuses": [
+          "completed",
+          "interrupted",
+          "failed"
+        ]
+      }
+    }
+  },
+  "model": {
+    "requestedId": "gpt-5.6-terra",
+    "reasoningEffort": "high",
+    "requestedServiceTier": "default",
+    "speedMode": "standard",
+    "providerModelFallbackAllowed": false,
+    "perResponseModelAndTierAvailable": false,
+    "effectiveThreadSettingsSource": {
+      "event": "thread/start response",
+      "schemaPath": "benchmark/protocol/vendor/codex/0.145.0/app-server-schema-experimental/v2/ThreadStartResponse.json",
+      "schemaBytes": 65386,
+      "schemaSha256": "b4ae167f12f0ed48e14d014eaa131c097dc237613081e597e08f486149312933",
+      "fields": [
+        "model",
+        "modelProvider",
+        "serviceTier"
+      ]
+    }
+  },
+  "execution": {
+    "platform": "win32-x64",
+    "sandboxMode": "workspace-write",
+    "approvalPolicy": "never",
+    "analyticsEnabled": false,
+    "goalActivationSequence": "stage-objective-paused; start-first-user-turn; observe-that-turn-started; set-status-active-with-objective-omitted",
+    "goalPromptInvariant": "the first utterance contains every substantive requirement; the Goal adds persistence and completion conditions only because activation with objective omitted injects no objective text",
+    "features": {
+      "goals": true,
+      "multiAgent": true
+    },
+    "completionChallenge": "same-thread-turn-start-after-terminal-t_done",
+    "activeTurnSteering": "reserved-for-in-turn-corrections-with-expected-turn-id",
+    "resumeGoalPolicy": "measured continuation after app-server or transport death is forbidden because thread/resume disables raw events; resume only verifies and seals the interrupted record",
+    "appServerRestartPolicy": "terminal-right-censor; maximum measured restarts zero",
+    "providerModelFallbackAllowed": false
+  },
+  "terminalOutput": {
+    "path": "benchmark/protocol/schema/generation-outcome-provider.schema.json",
+    "bytes": 652,
+    "sha256": "3244af0bcb0816ebc0278c753836d4674617c1fd597548d92f13e1fc9b43d37f",
+    "providerKeywordAdmissionFixture": "benchmark/protocol/fixtures/generation-outcome/cases.json",
+    "localValidationPath": "benchmark/protocol/schema/generation-outcome-local.schema.json",
+    "localValidationBytes": 1022,
+    "localValidationSha256": "fe7c75de3e93d5c4a82a72c1a924ff8a83b2a81f97622d5fb8959e3d47b14469",
+    "appliesTo": [
+      "first-generation-turn",
+      "completion-challenge-turn"
+    ]
+  },
+  "providerOutputRegistry": {
+    "path": "benchmark/protocol/provider-output-registry.json",
+    "bytes": 937,
+    "sha256": "359cb8caeeb85d22cae7689348bb26e6ebf708ced469884f09e6007aba4fff21",
+    "schemaPath": "benchmark/protocol/schema/provider-output-registry.schema.json",
+    "recursiveKeywordFixture": "benchmark/protocol/fixtures/provider-output-schemas/cases.json",
+    "providerKeywordAllowlist": [
+      "$schema",
+      "$id",
+      "title",
+      "type",
+      "additionalProperties",
+      "required",
+      "properties",
+      "enum",
+      "items"
+    ],
+    "contracts": [
+      {
+        "id": "generation-outcome",
+        "providerSha256": "3244af0bcb0816ebc0278c753836d4674617c1fd597548d92f13e1fc9b43d37f",
+        "localSha256": "fe7c75de3e93d5c4a82a72c1a924ff8a83b2a81f97622d5fb8959e3d47b14469"
+      },
+      {
+        "id": "phase2-finder",
+        "providerSha256": "7f7383d00001c3a9c468138b7a4626594e868cca13f34e57a6d61bc7da50822e",
+        "localSha256": "23f10318bd66466ed1d9d45c4423c29e338eae8156d94d6305241601b695b799"
+      },
+      {
+        "id": "phase2-verifier",
+        "providerSha256": "24afab7f9fc655ad1cf16924e065a00860a248ca2a0402b47c6ed814d8db3cbd",
+        "localSha256": "a5bd8cbb160963f4e4f205620f2d34378f73e782cdb4005666c9d33224741ee6"
+      }
+    ]
+  },
+  "usage": {
+    "responseSource": "rawResponse/completed, enabled by thread/start experimentalRawEvents=true and validated against v2/RawResponseCompletedNotification.json, deduplicated by responseId",
+    "threadReconciliationSource": "thread/tokenUsage/updated",
+    "threadSnapshotFields": [
+      "last.inputTokens",
+      "last.cachedInputTokens",
+      "last.outputTokens",
+      "last.reasoningOutputTokens",
+      "last.totalTokens",
+      "total.inputTokens",
+      "total.cachedInputTokens",
+      "total.outputTokens",
+      "total.reasoningOutputTokens",
+      "total.totalTokens"
+    ],
+    "cacheWriteInputTokens": "optional; normalize an absent value to zero",
+    "rule": "Exact per-response usage is primary. Accumulated thread usage is reconciliation evidence and must not be differenced into invented response rows. A missing raw notification or null usage makes exact token measurement unavailable and fails the run closed."
+  },
+  "prompts": [
+    {
+      "role": "completionChallenge",
+      "path": "benchmark/prompts/completion-challenge.md",
+      "bytes": 1287,
+      "sha256": "dfdbb36d43656f74d03d1eb9dd6ba74d55122148f3a1154f4f91a7460b48a178"
+    },
+    {
+      "role": "firstUtterance",
+      "path": "benchmark/prompts/first-utterance.md",
+      "bytes": 1986,
+      "sha256": "d538f0697e4f7d9eb5903b292c70a0fc6f034801f8c8554ca9c181a3a143bfa1"
+    },
+    {
+      "role": "goalObjective",
+      "path": "benchmark/prompts/goal-objective.md",
+      "bytes": 376,
+      "sha256": "aa050dbc9ad2c0e75c94dd73322a3bbca2257bc197fa773e054e52f307929a30"
+    },
+    {
+      "role": "phase2Finder",
+      "path": "benchmark/prompts/phase2-finder.md",
+      "bytes": 1986,
+      "sha256": "8efcb3270502c3139a3e7ae955af980c930baf059a2dca854b5538c7b4a6f4d2"
+    },
+    {
+      "role": "phase2Fixer",
+      "path": "benchmark/prompts/phase2-fixer.md",
+      "bytes": 1201,
+      "sha256": "e71b42d6a68a5c48ddcfd842a1e186a211e0710aef2cf57bf03f03a532423879"
+    },
+    {
+      "role": "phase2Verifier",
+      "path": "benchmark/prompts/phase2-verifier.md",
+      "bytes": 1737,
+      "sha256": "8206edc0e28640bc83b0fc0a147079ff242c08b5d6eb01b2425bd09dc5429414"
+    },
+    {
+      "role": "recoveryContinuation",
+      "path": "benchmark/prompts/recovery-continuation.md",
+      "bytes": 615,
+      "sha256": "a345d67a4fbae4967c260e59d99cd26c60f3ad78b37d10e86e0e0af67d04b349"
+    }
+  ],
+  "frozenDigests": {
+    "mergedSourceCommit": null,
+    "effectiveTemplateTreeSha256": null,
+    "requirementsTreeSha256": null,
+    "promptsTreeSha256": null,
+    "protocolTreeSha256": null,
+    "atomicClauseCatalogSha256": null,
+    "contextCriteriaCatalogSha256": null,
+    "hiddenAcceptanceSuiteSha256": null,
+    "strippingImplementationSha256": null,
+    "priceSheetSha256": "b2bf2597daaeaec41b69480edd5d7c58fa4b9a4a0c97e66cef45772437b0075b",
+    "productTgzSha256": null,
+    "lockfileSha256": null
+  },
+  "launchGate": {
+    "blocked": true,
+    "reasons": [
+      "The exact official pricing and cache-semantics source responses are not yet archived.",
+      "Merged source, effective inputs, grading assets, product tarball, and toolchain digests are null."
+    ]
+  }
+}
