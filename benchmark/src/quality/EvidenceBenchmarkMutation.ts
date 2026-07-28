@@ -8,6 +8,7 @@ import * as ts from "typescript-api";
 import { EvidenceBenchmarkHash } from "../EvidenceBenchmarkHash.ts";
 import type { IEvidenceBenchmarkQualityGate } from "../structures/IEvidenceBenchmarkQualityGate.ts";
 import { EvidenceBenchmarkArtifactInventory } from "./EvidenceBenchmarkArtifactInventory.ts";
+import { EvidenceBenchmarkQualityInput } from "./EvidenceBenchmarkQualityInput.ts";
 
 /** Plans and executes sampled syntax-aware mutations with crash recovery. */
 export namespace EvidenceBenchmarkMutation {
@@ -49,13 +50,24 @@ export namespace EvidenceBenchmarkMutation {
     workspace: string;
     seed: string;
     sampleSize: number;
+    qualityInput: EvidenceBenchmarkQualityInput.IBound;
   }): IEvidenceBenchmarkQualityGate.IMutationPlan {
+    EvidenceBenchmarkQualityInput.validate(input.qualityInput);
     if (!Number.isSafeInteger(input.sampleSize) || input.sampleSize < 1)
       throw new Error("Mutation sample size must be a positive safe integer.");
     if (input.seed.trim().length === 0)
       throw new Error("Mutation seed must not be blank.");
     const authored: Map<string, Uint8Array> =
       EvidenceBenchmarkArtifactInventory.authoredFiles(input.workspace);
+    const workspaceSourceTreeSha256: string =
+      EvidenceBenchmarkArtifactInventory.treeSha256(authored);
+    if (
+      workspaceSourceTreeSha256 !==
+      input.qualityInput.provenance.sourceSnapshotRawTree.sha256
+    )
+      throw new Error(
+        "Mutation workspace differs from the bound source snapshot.",
+      );
     const candidates: IEvidenceBenchmarkQualityGate.IMutation[] = [];
     for (const [relative, bytes] of authored) {
       if (
@@ -82,9 +94,9 @@ export namespace EvidenceBenchmarkMutation {
       "planSha256"
     > = {
       schemaVersion: 1,
+      input: input.qualityInput.provenance,
       seed: input.seed,
-      workspaceSourceTreeSha256:
-        EvidenceBenchmarkArtifactInventory.treeSha256(authored),
+      workspaceSourceTreeSha256,
       candidateCount: candidates.length,
       requestedSampleSize: input.sampleSize,
       mutations: selected,
@@ -100,9 +112,10 @@ export namespace EvidenceBenchmarkMutation {
     workspace: string;
     output: string;
     plan: IEvidenceBenchmarkQualityGate.IMutationPlan;
+    qualityInput: EvidenceBenchmarkQualityInput.IBound;
     test: ICommand;
   }): Promise<IEvidenceBenchmarkQualityGate.IMutationResult[]> {
-    validatePlan(input.workspace, input.plan);
+    validatePlan(input.workspace, input.plan, input.qualityInput);
     fs.mkdirSync(input.output, { recursive: true });
     recover(input.workspace, input.output);
     const results: IEvidenceBenchmarkQualityGate.IMutationResult[] = [];
@@ -117,12 +130,18 @@ export namespace EvidenceBenchmarkMutation {
       throw new Error(
         "Mutation run changed the authored workspace after restoration.",
       );
+    EvidenceBenchmarkQualityInput.validate(input.qualityInput);
     return results;
   }
 
   /** Restores a source file left behind by a terminated mutation process. */
   export function recover(workspace: string, output: string): boolean {
     const journalPath: string = path.join(output, "mutation-recovery.json");
+    const stagePath: string = `${journalPath}.stage`;
+    if (!fs.existsSync(journalPath) && fs.existsSync(stagePath))
+      fs.renameSync(stagePath, journalPath);
+    else if (fs.existsSync(journalPath) && fs.existsSync(stagePath))
+      throw new Error("Mutation recovery has both final and staged journals.");
     if (!fs.existsSync(journalPath)) return false;
     const journal: IJournal = JSON.parse(
       fs.readFileSync(journalPath, "utf8"),
@@ -219,8 +238,16 @@ export namespace EvidenceBenchmarkMutation {
   function validatePlan(
     workspace: string,
     plan: IEvidenceBenchmarkQualityGate.IMutationPlan,
+    input: EvidenceBenchmarkQualityInput.IBound,
   ): void {
     const { planSha256: _ignored, ...core } = plan;
+    EvidenceBenchmarkQualityInput.validate(input);
+    EvidenceBenchmarkQualityInput.validateProvenance(plan.input);
+    if (
+      EvidenceBenchmarkHash.object(plan.input) !==
+      EvidenceBenchmarkHash.object(input.provenance)
+    )
+      throw new Error("Mutation plan quality input provenance has drifted.");
     if (EvidenceBenchmarkHash.object(core) !== plan.planSha256)
       throw new Error("Mutation plan hash does not match its content.");
     const authored: Map<string, Uint8Array> =
@@ -337,6 +364,7 @@ export namespace EvidenceBenchmarkMutation {
         env: command.env ?? process.env,
         shell: false,
         windowsHide: true,
+        detached: process.platform !== "win32",
         stdio: "pipe",
       });
     } catch (error) {
@@ -391,7 +419,13 @@ export namespace EvidenceBenchmarkMutation {
         windowsHide: true,
         stdio: "ignore",
       });
-    else child.kill("SIGKILL");
+    else {
+      try {
+        process.kill(-child.pid, "SIGKILL");
+      } catch {
+        child.kill("SIGKILL");
+      }
+    }
   }
 
   function assertParses(relative: string, content: string): void {

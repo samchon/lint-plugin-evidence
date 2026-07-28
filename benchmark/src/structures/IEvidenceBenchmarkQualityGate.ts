@@ -9,6 +9,24 @@ export namespace IEvidenceBenchmarkQualityGate {
   /** Fixed browser viewports, independent of the generated application. */
   export type Viewport = "mobile" | "tablet" | "desktop";
 
+  /** Algorithm-qualified aggregate raw-byte tree identity. */
+  export interface IRawTreeDigest {
+    /** Exact versioned path-and-byte algorithm. */
+    algorithmId: "sha256-posix-path-nul-bytes-v1";
+    /** Aggregate tree SHA-256. */
+    sha256: string;
+  }
+
+  /** Pre-seal immutable inputs shared by every deterministic producer. */
+  export interface IInputProvenance {
+    /** Exact immutable outer run-manifest bytes. */
+    runManifestSha256: string;
+    /** Generated project snapshot measured by this producer. */
+    sourceSnapshotRawTree: IRawTreeDigest;
+    /** Frozen subject requirements used by this run. */
+    subjectRequirementsRawTree: IRawTreeDigest;
+  }
+
   /** One pre-registered hidden browser or HTTP scenario. */
   export interface IHiddenCase {
     /** Opaque stable case identity. */
@@ -42,15 +60,17 @@ export namespace IEvidenceBenchmarkQualityGate {
   /** Frozen inputs for one subject's deterministic quality run. */
   export interface IManifest {
     /** Manifest contract version. */
-    schemaVersion: 1;
+    schemaVersion: 2;
+    /** Materializer contract whose raw-byte trees this suite consumes. */
+    materializerManifestSchemaVersion: 2;
     /** Stable suite identity. */
     suiteId: string;
     /** All-subject input freeze identity. */
     freezeId: string;
     /** Subject under test. */
     subject: Subject;
-    /** Exact requirements-tree digest. */
-    requirementsTreeSha256: string;
+    /** Exact algorithm-qualified requirements tree. */
+    subjectRequirementsRawTree: IRawTreeDigest;
     /** Exact product-quality denominator pin. */
     acceptanceCatalog: {
       sha256: string;
@@ -76,6 +96,8 @@ export namespace IEvidenceBenchmarkQualityGate {
   export interface ICoverage {
     /** Coverage record contract version. */
     schemaVersion: 1;
+    /** Immutable run and subject inputs. */
+    input: IInputProvenance;
     /** Parsed producer format. */
     format: "istanbul" | "lcov";
     /** Artifact path relative to the workspace when possible. */
@@ -121,6 +143,8 @@ export namespace IEvidenceBenchmarkQualityGate {
   export interface IInventory {
     /** Inventory contract version. */
     schemaVersion: 1;
+    /** Immutable run and subject inputs. */
+    input: IInputProvenance;
     /** Authored workspace identity. */
     workspaceSourceTreeSha256: string;
     /** Authored files inspected. */
@@ -159,6 +183,8 @@ export namespace IEvidenceBenchmarkQualityGate {
   export interface IMutationPlan {
     /** Mutation plan contract version. */
     schemaVersion: 1;
+    /** Immutable run and subject inputs. */
+    input: IInputProvenance;
     /** Frozen deterministic selection seed. */
     seed: string;
     /** Authored workspace identity. */
@@ -247,6 +273,8 @@ export namespace IEvidenceBenchmarkQualityGate {
   export interface IAdapterResult {
     /** Adapter result contract version. */
     schemaVersion: 1;
+    /** Immutable run and subject inputs. */
+    input: IInputProvenance;
     /** Frozen suite identity. */
     suiteId: string;
     /** Subject under test. */
@@ -263,6 +291,8 @@ export namespace IEvidenceBenchmarkQualityGate {
   export interface IAdapterInput {
     /** Frozen hidden suite. */
     manifest: IManifest;
+    /** Immutable run and subject inputs. */
+    input: IInputProvenance;
     /** Absolute generated-workspace root. */
     workspace: string;
     /** Absolute harness-owned output root. */
@@ -283,6 +313,8 @@ export namespace IEvidenceBenchmarkQualityGate {
   export interface IHiddenOutcome {
     /** Outcome contract version. */
     schemaVersion: 1;
+    /** Immutable run and subject inputs. */
+    input: IInputProvenance;
     /** Aggregate gate state. */
     status: Status;
     /** Failure or blocker explanation. */

@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { EvidenceBenchmarkHash } from "../EvidenceBenchmarkHash.ts";
 import type { IEvidenceBenchmarkQualityGate } from "../structures/IEvidenceBenchmarkQualityGate.ts";
+import { EvidenceBenchmarkQualityInput } from "./EvidenceBenchmarkQualityInput.ts";
 
 /**
  * Inventories authored artifacts without treating findings as automatic
@@ -93,8 +94,18 @@ export namespace EvidenceBenchmarkArtifactInventory {
   /** Reads the authored tree and records exact, reproducible findings. */
   export function inspect(
     workspace: string,
+    input: EvidenceBenchmarkQualityInput.IBound,
   ): IEvidenceBenchmarkQualityGate.IInventory {
+    EvidenceBenchmarkQualityInput.validate(input);
     const files: Map<string, Uint8Array> = authoredFiles(workspace);
+    const workspaceSourceTreeSha256: string = treeSha256(files);
+    if (
+      workspaceSourceTreeSha256 !==
+      input.provenance.sourceSnapshotRawTree.sha256
+    )
+      throw new Error(
+        "Inventory workspace differs from the bound source snapshot.",
+      );
     const findings: IEvidenceBenchmarkQualityGate.IInventoryFinding[] = [];
     let sourceFiles: number = 0;
     let testFiles: number = 0;
@@ -112,7 +123,8 @@ export namespace EvidenceBenchmarkArtifactInventory {
     findings.sort(compareFinding);
     return {
       schemaVersion: 1,
-      workspaceSourceTreeSha256: treeSha256(files),
+      input: input.provenance,
+      workspaceSourceTreeSha256,
       files: files.size,
       authoredBytes: [...files.values()].reduce(
         (sum, content) => sum + content.byteLength,
@@ -136,17 +148,7 @@ export namespace EvidenceBenchmarkArtifactInventory {
 
   /** Hashes `path NUL exact-bytes NUL` in raw UTF-8 path order. */
   export function treeSha256(files: ReadonlyMap<string, Uint8Array>): string {
-    const chunks: Uint8Array[] = [];
-    for (const [relative, content] of [...files.entries()].sort(([a], [b]) =>
-      compareUtf8(a, b),
-    ))
-      chunks.push(
-        Buffer.from(relative, "utf8"),
-        Buffer.from([0]),
-        content,
-        Buffer.from([0]),
-      );
-    return EvidenceBenchmarkHash.bytes(Buffer.concat(chunks));
+    return EvidenceBenchmarkHash.tree(files);
   }
 
   /** Compares portable paths by their raw UTF-8 bytes. */
@@ -174,8 +176,7 @@ export namespace EvidenceBenchmarkArtifactInventory {
       if (entry.isSymbolicLink())
         throw new Error(`Authored quality tree contains a symlink: ${child}.`);
       if (entry.isDirectory()) collect(root, child, output);
-      else if (entry.isFile())
-        output.set(child.normalize("NFC"), fs.readFileSync(location));
+      else if (entry.isFile()) output.set(child, fs.readFileSync(location));
       else if (!entry.isFile())
         throw new Error(`Unsupported authored tree entry: ${child}.`);
     }

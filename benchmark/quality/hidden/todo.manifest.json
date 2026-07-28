@@ -1,9 +1,13 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "materializerManifestSchemaVersion": 2,
   "suiteId": "todo-hidden-v1",
   "freezeId": "current-four-subject-freeze-2026-07-29",
   "subject": "todo",
-  "requirementsTreeSha256": "26aba99e190b37785278a20f6858b6000f41f3885d9e6bcead09eb49db99ee9b",
+  "subjectRequirementsRawTree": {
+    "algorithmId": "sha256-posix-path-nul-bytes-v1",
+    "sha256": "26aba99e190b37785278a20f6858b6000f41f3885d9e6bcead09eb49db99ee9b"
+  },
   "acceptanceCatalog": {
     "sha256": "d17cdacf7dae1eee994538c416aa4d9e8d99f0ee20c16b1b00f14e5145a0a143",
     "count": 211

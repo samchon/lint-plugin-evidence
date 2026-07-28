@@ -8,6 +8,7 @@ import { EvidenceBenchmarkArtifactInventory } from "../quality/EvidenceBenchmark
 import { EvidenceBenchmarkCoverage } from "../quality/EvidenceBenchmarkCoverage.ts";
 import { EvidenceBenchmarkHiddenAcceptance } from "../quality/EvidenceBenchmarkHiddenAcceptance.ts";
 import { EvidenceBenchmarkMutation } from "../quality/EvidenceBenchmarkMutation.ts";
+import { EvidenceBenchmarkQualityInput } from "../quality/EvidenceBenchmarkQualityInput.ts";
 
 /** Exercises deterministic quality producers without a model or generated app. */
 export namespace EvidenceBenchmarkQualitySelfTest {
@@ -21,9 +22,13 @@ export namespace EvidenceBenchmarkQualitySelfTest {
     try {
       verifyFrozenTodoAndReddit();
       const workspace: string = createWorkspace();
-      testInventory(workspace);
-      testCoverage(workspace);
-      await testMutation(workspace);
+      const provenance: EvidenceBenchmarkQualityInput.IBound = qualityInput(
+        workspace,
+        path.join(benchmarkRoot, "requirements/todo"),
+      );
+      testInventory(workspace, provenance);
+      testCoverage(workspace, provenance);
+      await testMutation(workspace, provenance);
       await testHiddenAdapter(workspace);
       console.log("Benchmark deterministic quality self-test passed.");
     } finally {
@@ -89,8 +94,14 @@ export namespace EvidenceBenchmarkQualitySelfTest {
     return workspace;
   }
 
-  function testInventory(workspace: string): void {
-    const inventory = EvidenceBenchmarkArtifactInventory.inspect(workspace);
+  function testInventory(
+    workspace: string,
+    provenance: EvidenceBenchmarkQualityInput.IBound,
+  ): void {
+    const inventory = EvidenceBenchmarkArtifactInventory.inspect(
+      workspace,
+      provenance,
+    );
     assert.ok(inventory.files >= 4);
     assert.ok(inventory.sourceFiles >= 3);
     assert.ok(inventory.testFiles >= 2);
@@ -105,11 +116,56 @@ export namespace EvidenceBenchmarkQualitySelfTest {
         (finding) => finding.category === "disabled_gate",
       ),
     );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkArtifactInventory.inspect(workspace, {
+          ...provenance,
+          runManifestBytes: Buffer.from('{"drift":true}\n', "utf8"),
+        }),
+      /run manifest bytes have drifted/u,
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkArtifactInventory.inspect(workspace, {
+          ...provenance,
+          sourceSnapshotFiles: new Map([
+            ...provenance.sourceSnapshotFiles,
+            ["drift.txt", Buffer.from("drift", "utf8")],
+          ]),
+        }),
+      /source snapshot raw-byte tree has drifted/u,
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkArtifactInventory.inspect(workspace, {
+          ...provenance,
+          subjectRequirementFiles: new Map([
+            ...provenance.subjectRequirementFiles,
+            ["drift.txt", Buffer.from("drift", "utf8")],
+          ]),
+        }),
+      /subject requirements raw-byte tree has drifted/u,
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkQualityInput.validateProvenance({
+          ...provenance.provenance,
+          generationCoreSealSha256: "a".repeat(64),
+        } as never),
+      /fields are not the exact expected set/u,
+    );
   }
 
-  function testCoverage(workspace: string): void {
+  function testCoverage(
+    workspace: string,
+    provenance: EvidenceBenchmarkQualityInput.IBound,
+  ): void {
     const source: string = path.join(workspace, "packages/app/src/domain.ts");
-    const istanbulPath: string = path.join(temporary, "coverage-final.json");
+    const istanbulPath: string = path.join(
+      workspace,
+      "coverage",
+      "coverage-final.json",
+    );
     write(
       istanbulPath,
       `${JSON.stringify({
@@ -162,6 +218,7 @@ export namespace EvidenceBenchmarkQualitySelfTest {
     const istanbul = EvidenceBenchmarkCoverage.istanbul(
       workspace,
       istanbulPath,
+      provenance,
     );
     assert.deepEqual(istanbul.lines, { covered: 1, total: 2, ratio: 0.5 });
     assert.deepEqual(istanbul.branches, {
@@ -174,7 +231,7 @@ export namespace EvidenceBenchmarkQualitySelfTest {
       total: 1,
       ratio: 1,
     });
-    const lcovPath: string = path.join(temporary, "lcov.info");
+    const lcovPath: string = path.join(workspace, "coverage", "lcov.info");
     write(
       lcovPath,
       [
@@ -188,10 +245,18 @@ export namespace EvidenceBenchmarkQualitySelfTest {
         "",
       ].join("\n"),
     );
-    const lcov = EvidenceBenchmarkCoverage.lcov(workspace, lcovPath);
+    const lcov = EvidenceBenchmarkCoverage.lcov(
+      workspace,
+      lcovPath,
+      provenance,
+    );
     assert.equal(lcov.statements, null);
     assert.equal(lcov.lines.ratio, 0.5);
-    const escaped: string = path.join(temporary, "escaped-coverage.json");
+    const escaped: string = path.join(
+      workspace,
+      "coverage",
+      "escaped-coverage.json",
+    );
     write(
       escaped,
       `${JSON.stringify({
@@ -204,16 +269,68 @@ export namespace EvidenceBenchmarkQualitySelfTest {
       })}\n`,
     );
     assert.throws(
-      () => EvidenceBenchmarkCoverage.istanbul(workspace, escaped),
+      () => EvidenceBenchmarkCoverage.istanbul(workspace, escaped, provenance),
       /escapes the workspace/u,
+    );
+    const generatedSource: string = path.join(
+      workspace,
+      ".next",
+      "generated.ts",
+    );
+    write(generatedSource, "export const generated = true;\n");
+    const generatedCoverage: string = path.join(
+      workspace,
+      "coverage",
+      "generated-coverage.json",
+    );
+    write(
+      generatedCoverage,
+      `${JSON.stringify({
+        [generatedSource]: {
+          path: generatedSource,
+          statementMap: {},
+          s: {},
+          fnMap: {},
+          f: {},
+          branchMap: {},
+          b: {},
+        },
+      })}\n`,
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkCoverage.istanbul(
+          workspace,
+          generatedCoverage,
+          provenance,
+        ),
+      /outside the authored snapshot/u,
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkCoverage.lcov(workspace, lcovPath, {
+          ...provenance,
+          provenance: {
+            ...provenance.provenance,
+            sourceSnapshotRawTree: {
+              ...provenance.provenance.sourceSnapshotRawTree,
+              algorithmId: "unqualified" as never,
+            },
+          },
+        }),
+      /source snapshot algorithm/u,
     );
   }
 
-  async function testMutation(workspace: string): Promise<void> {
+  async function testMutation(
+    workspace: string,
+    provenance: EvidenceBenchmarkQualityInput.IBound,
+  ): Promise<void> {
     const plan = EvidenceBenchmarkMutation.plan({
       workspace,
       seed: "quality-self-test-v1",
       sampleSize: 2,
+      qualityInput: provenance,
     });
     assert.equal(plan.mutations.length, 2);
     const originalTree: string = plan.workspaceSourceTreeSha256;
@@ -221,6 +338,7 @@ export namespace EvidenceBenchmarkQualitySelfTest {
       workspace,
       output: path.join(temporary, "mutation-killed"),
       plan,
+      qualityInput: provenance,
       test: {
         command: process.execPath,
         arguments: ["-e", "process.exit(1)"],
@@ -234,6 +352,7 @@ export namespace EvidenceBenchmarkQualitySelfTest {
       workspace,
       output: path.join(temporary, "mutation-survived"),
       plan,
+      qualityInput: provenance,
       test: {
         command: process.execPath,
         arguments: ["-e", "process.exit(0)"],
@@ -242,6 +361,50 @@ export namespace EvidenceBenchmarkQualitySelfTest {
       },
     });
     assert.ok(survived.every((result) => result.status === "survived"));
+    const recoveryMutation = plan.mutations[0]!;
+    const recoverySource: string = path.join(
+      workspace,
+      ...recoveryMutation.path.split("/"),
+    );
+    const recoveryOriginal: Buffer = fs.readFileSync(recoverySource);
+    const recoveryOutput: string = path.join(temporary, "mutation-recovery");
+    const recoveryBackup: string = path.join(
+      recoveryOutput,
+      "backups",
+      `${recoveryMutation.id}.source`,
+    );
+    fs.mkdirSync(path.dirname(recoveryBackup), { recursive: true });
+    fs.writeFileSync(recoveryBackup, recoveryOriginal);
+    write(
+      path.join(recoveryOutput, "mutation-recovery.json.stage"),
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          mutationId: recoveryMutation.id,
+          relative: recoveryMutation.path,
+          sourceSha256: recoveryMutation.sourceSha256,
+          backup: `backups/${recoveryMutation.id}.source`,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    const recoveryText: string = recoveryOriginal.toString("utf8");
+    fs.writeFileSync(
+      recoverySource,
+      recoveryText.slice(0, recoveryMutation.start) +
+        recoveryMutation.after +
+        recoveryText.slice(recoveryMutation.end),
+      "utf8",
+    );
+    assert.equal(
+      EvidenceBenchmarkMutation.recover(workspace, recoveryOutput),
+      true,
+    );
+    assert.equal(
+      EvidenceBenchmarkHash.file(recoverySource),
+      recoveryMutation.sourceSha256,
+    );
     assert.equal(
       EvidenceBenchmarkArtifactInventory.treeSha256(
         EvidenceBenchmarkArtifactInventory.authoredFiles(workspace),
@@ -285,6 +448,10 @@ export namespace EvidenceBenchmarkQualitySelfTest {
       EvidenceBenchmarkArtifactInventory.treeSha256(
         EvidenceBenchmarkHash.directory(requirements),
       );
+    const provenance: EvidenceBenchmarkQualityInput.IBound = qualityInput(
+      workspace,
+      requirements,
+    );
     const catalogPath: string = path.join(
       requirements,
       "acceptance-criteria.jsonl",
@@ -297,11 +464,15 @@ export namespace EvidenceBenchmarkQualitySelfTest {
       manifestPath,
       `${JSON.stringify(
         {
-          schemaVersion: 1,
+          schemaVersion: 2,
+          materializerManifestSchemaVersion: 2,
           suiteId: "fixture-hidden-v1",
           freezeId: "fixture-freeze-v1",
           subject: "todo",
-          requirementsTreeSha256,
+          subjectRequirementsRawTree: {
+            algorithmId: EvidenceBenchmarkHash.TREE_ALGORITHM,
+            sha256: requirementsTreeSha256,
+          },
           acceptanceCatalog: {
             sha256: EvidenceBenchmarkHash.file(catalogPath),
             count: 2,
@@ -345,9 +516,34 @@ export namespace EvidenceBenchmarkQualitySelfTest {
       requirements,
       workspace,
       output: path.join(temporary, "hidden-valid"),
+      qualityInput: provenance,
     });
     assert.equal(valid.status, "passed");
     assert.equal(valid.result?.browser.length, 3);
+    await assert.rejects(
+      () =>
+        EvidenceBenchmarkHiddenAcceptance.run({
+          benchmarkRoot: fixtureBenchmark,
+          manifestPath,
+          requirements,
+          workspace,
+          output: path.join(workspace, "hidden-overlap"),
+          qualityInput: provenance,
+        }),
+      /must not overlap/u,
+    );
+    await assert.rejects(
+      () =>
+        EvidenceBenchmarkHiddenAcceptance.run({
+          benchmarkRoot: fixtureBenchmark,
+          manifestPath,
+          requirements,
+          workspace,
+          output: path.join(temporary, "hidden-valid"),
+          qualityInput: provenance,
+        }),
+      /output root must be new/u,
+    );
     const frozenTodo = await EvidenceBenchmarkHiddenAcceptance.run({
       benchmarkRoot,
       manifestPath: path.join(
@@ -357,6 +553,10 @@ export namespace EvidenceBenchmarkQualitySelfTest {
       requirements: path.join(benchmarkRoot, "requirements/todo"),
       workspace,
       output: path.join(temporary, "hidden-blocked"),
+      qualityInput: qualityInput(
+        workspace,
+        path.join(benchmarkRoot, "requirements/todo"),
+      ),
     });
     assert.equal(frozenTodo.status, "blocked");
     assert.equal(frozenTodo.result, null);
@@ -375,6 +575,7 @@ export namespace EvidenceBenchmarkQualitySelfTest {
       requirements,
       workspace,
       output: path.join(temporary, "hidden-incomplete"),
+      qualityInput: provenance,
     });
     assert.equal(incomplete.status, "failed");
     assert.match(incomplete.reason ?? "", /exact frozen set/u);
@@ -425,6 +626,7 @@ export const adapter = {
     if (input.manifest.suiteId.includes("incomplete"))
       return {
         schemaVersion: 1,
+        input: input.input,
         suiteId: input.manifest.suiteId,
         subject: input.manifest.subject,
         workspaceSourceTreeSha256: input.workspaceSourceTreeSha256,
@@ -485,6 +687,7 @@ export const adapter = {
     }
     return {
       schemaVersion: 1,
+      input: input.input,
       suiteId: input.manifest.suiteId,
       subject: input.manifest.subject,
       workspaceSourceTreeSha256: input.workspaceSourceTreeSha256,
@@ -499,5 +702,17 @@ export const adapter = {
   function write(location: string, content: string): void {
     fs.mkdirSync(path.dirname(location), { recursive: true });
     fs.writeFileSync(location, content, "utf8");
+  }
+
+  function qualityInput(
+    workspace: string,
+    requirements: string,
+  ): EvidenceBenchmarkQualityInput.IBound {
+    return EvidenceBenchmarkQualityInput.create({
+      runManifestBytes: Buffer.from('{"fixture":true}\n', "utf8"),
+      sourceSnapshotFiles:
+        EvidenceBenchmarkArtifactInventory.authoredFiles(workspace),
+      subjectRequirementFiles: EvidenceBenchmarkHash.directory(requirements),
+    });
   }
 }

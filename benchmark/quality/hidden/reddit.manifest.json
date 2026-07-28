@@ -1,9 +1,13 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "materializerManifestSchemaVersion": 2,
   "suiteId": "reddit-hidden-v1",
   "freezeId": "current-four-subject-freeze-2026-07-29",
   "subject": "reddit",
-  "requirementsTreeSha256": "279209425c009df00e9702cf618ebe7153d8a39d805f673a59b848f84f3bc456",
+  "subjectRequirementsRawTree": {
+    "algorithmId": "sha256-posix-path-nul-bytes-v1",
+    "sha256": "279209425c009df00e9702cf618ebe7153d8a39d805f673a59b848f84f3bc456"
+  },
   "acceptanceCatalog": {
     "sha256": "ec2de911694c6f05954dda3f3ed888edc0ff0de072ebd850891def38264badb3",
     "count": 255

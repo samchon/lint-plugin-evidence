@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { EvidenceBenchmarkHash } from "../EvidenceBenchmarkHash.ts";
 import type { IEvidenceBenchmarkQualityGate } from "../structures/IEvidenceBenchmarkQualityGate.ts";
 import { EvidenceBenchmarkArtifactInventory } from "./EvidenceBenchmarkArtifactInventory.ts";
+import { EvidenceBenchmarkQualityInput } from "./EvidenceBenchmarkQualityInput.ts";
 
 /** Runs frozen hidden adapters and rejects incomplete provenance. */
 export namespace EvidenceBenchmarkHiddenAcceptance {
@@ -29,23 +30,32 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
       value,
       [
         "schemaVersion",
+        "materializerManifestSchemaVersion",
         "suiteId",
         "freezeId",
         "subject",
-        "requirementsTreeSha256",
+        "subjectRequirementsRawTree",
         "acceptanceCatalog",
         "adapter",
         "cases",
       ],
       "hidden manifest",
     );
-    if (value.schemaVersion !== 1)
-      throw new Error("Hidden manifest schemaVersion must be 1.");
+    if (
+      value.schemaVersion !== 2 ||
+      value.materializerManifestSchemaVersion !== 2
+    )
+      throw new Error(
+        "Hidden manifest and materializer schema versions must be 2.",
+      );
     string(value.suiteId, "hidden manifest suiteId");
     string(value.freezeId, "hidden manifest freezeId");
     if (!["todo", "reddit", "shopping", "erp"].includes(String(value.subject)))
       throw new Error("Hidden manifest subject is unsupported.");
-    digest(value.requirementsTreeSha256, "requirements tree digest");
+    EvidenceBenchmarkQualityInput.validateRawTree(
+      value.subjectRequirementsRawTree,
+      "hidden manifest subject requirements",
+    );
     const catalog: Record<string, unknown> = record(
       value.acceptanceCatalog,
       "acceptance catalog pin",
@@ -111,7 +121,7 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
     const files: Map<string, Uint8Array> =
       EvidenceBenchmarkHash.directory(requirements);
     const tree: string = EvidenceBenchmarkArtifactInventory.treeSha256(files);
-    if (tree !== manifest.requirementsTreeSha256)
+    if (tree !== manifest.subjectRequirementsRawTree.sha256)
       throw new Error(
         `${manifest.subject} requirements tree drifted from the hidden suite.`,
       );
@@ -163,17 +173,40 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
     requirements: string;
     workspace: string;
     output: string;
+    qualityInput: EvidenceBenchmarkQualityInput.IBound;
   }): Promise<IEvidenceBenchmarkQualityGate.IHiddenOutcome> {
+    EvidenceBenchmarkQualityInput.validate(input.qualityInput);
     const suite: IEvidenceBenchmarkQualityGate.IManifest = manifest(
       input.manifestPath,
     );
     verifyCorpus(suite, input.requirements);
+    if (
+      !sameRawTree(
+        input.qualityInput.provenance.subjectRequirementsRawTree,
+        suite.subjectRequirementsRawTree,
+      )
+    )
+      throw new Error(
+        "Hidden suite and quality provenance name different subject trees.",
+      );
     const manifestSha256: string = EvidenceBenchmarkHash.file(
       input.manifestPath,
     );
+    const authored: Map<string, Uint8Array> =
+      EvidenceBenchmarkArtifactInventory.authoredFiles(input.workspace);
+    const workspaceSourceTreeSha256: string =
+      EvidenceBenchmarkArtifactInventory.treeSha256(authored);
+    if (
+      workspaceSourceTreeSha256 !==
+      input.qualityInput.provenance.sourceSnapshotRawTree.sha256
+    )
+      throw new Error(
+        "Hidden adapter workspace differs from the bound source snapshot.",
+      );
     if (suite.adapter === null)
       return {
         schemaVersion: 1,
+        input: input.qualityInput.provenance,
         status: "blocked",
         reason: `No production hidden adapter is pinned for ${suite.subject}.`,
         manifestSha256,
@@ -189,11 +222,9 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
       throw new Error(
         `Hidden adapter digest drifted: ${suite.adapter.module}.`,
       );
-    const authored: Map<string, Uint8Array> =
-      EvidenceBenchmarkArtifactInventory.authoredFiles(input.workspace);
-    const workspaceSourceTreeSha256: string =
-      EvidenceBenchmarkArtifactInventory.treeSha256(authored);
-    fs.mkdirSync(input.output, { recursive: true });
+    assertSeparateRoots(input.workspace, input.output);
+    fs.mkdirSync(path.dirname(path.resolve(input.output)), { recursive: true });
+    fs.mkdirSync(input.output);
     let result: IEvidenceBenchmarkQualityGate.IAdapterResult;
     try {
       const imported: Record<string, unknown> = (await import(
@@ -211,21 +242,46 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
         throw new Error("Pinned hidden adapter does not implement version 1.");
       result = await adapter.execute({
         manifest: suite,
+        input: input.qualityInput.provenance,
         workspace: path.resolve(input.workspace),
         output: path.resolve(input.output),
         workspaceSourceTreeSha256,
       });
-      validateResult(suite, workspaceSourceTreeSha256, input.output, result);
+      validateResult(
+        suite,
+        input.qualityInput.provenance,
+        workspaceSourceTreeSha256,
+        input.output,
+        result,
+      );
       const afterTree: string = EvidenceBenchmarkArtifactInventory.treeSha256(
         EvidenceBenchmarkArtifactInventory.authoredFiles(input.workspace),
       );
       if (afterTree !== workspaceSourceTreeSha256)
         throw new Error("Hidden adapter changed the generated workspace.");
+      verifyCorpus(suite, input.requirements);
+      EvidenceBenchmarkQualityInput.validate(input.qualityInput);
     } catch (error) {
+      let reason: string =
+        error instanceof Error ? error.message : String(error);
+      try {
+        const afterTree: string = EvidenceBenchmarkArtifactInventory.treeSha256(
+          EvidenceBenchmarkArtifactInventory.authoredFiles(input.workspace),
+        );
+        if (afterTree !== workspaceSourceTreeSha256)
+          reason = "Hidden adapter changed the generated workspace.";
+        verifyCorpus(suite, input.requirements);
+      } catch (integrityError) {
+        reason =
+          integrityError instanceof Error
+            ? integrityError.message
+            : String(integrityError);
+      }
       return {
         schemaVersion: 1,
+        input: input.qualityInput.provenance,
         status: "failed",
-        reason: error instanceof Error ? error.message : String(error),
+        reason,
         manifestSha256,
         adapterSha256: suite.adapter.sha256,
         result: null,
@@ -236,6 +292,7 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
     );
     return {
       schemaVersion: 1,
+      input: input.qualityInput.provenance,
       status: failed ? "failed" : "passed",
       reason: failed ? "One or more hidden checks failed." : null,
       manifestSha256,
@@ -246,12 +303,15 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
 
   function validateResult(
     suite: IEvidenceBenchmarkQualityGate.IManifest,
+    input: IEvidenceBenchmarkQualityGate.IInputProvenance,
     sourceTreeSha256: string,
     output: string,
     result: IEvidenceBenchmarkQualityGate.IAdapterResult,
   ): void {
+    EvidenceBenchmarkQualityInput.validateProvenance(result.input);
     if (
       result.schemaVersion !== 1 ||
+      !sameInput(result.input, input) ||
       result.suiteId !== suite.suiteId ||
       result.subject !== suite.subject ||
       result.workspaceSourceTreeSha256 !== sourceTreeSha256 ||
@@ -476,16 +536,24 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
     )
       throw new Error(`Adapter artifact path is not confined: ${relative}.`);
     const root: string = path.resolve(output);
+    if (
+      !fs.existsSync(root) ||
+      fs.lstatSync(root).isSymbolicLink() ||
+      !fs.statSync(root).isDirectory()
+    )
+      throw new Error("Adapter output root is absent or symbolic.");
     const location: string = path.resolve(root, ...relative.split("/"));
     const relation: string = path.relative(root, location);
-    if (
-      relation === ".." ||
-      relation.startsWith(`..${path.sep}`) ||
-      !fs.existsSync(location) ||
-      fs.lstatSync(location).isSymbolicLink() ||
-      !fs.statSync(location).isFile()
-    )
+    if (relation === ".." || relation.startsWith(`..${path.sep}`))
       throw new Error(`Adapter artifact is absent or escaped: ${relative}.`);
+    let current: string = root;
+    for (const segment of relative.split("/")) {
+      current = path.join(current, segment);
+      if (!fs.existsSync(current) || fs.lstatSync(current).isSymbolicLink())
+        throw new Error(`Adapter artifact is absent or escaped: ${relative}.`);
+    }
+    if (!fs.statSync(location).isFile())
+      throw new Error(`Adapter artifact is not a file: ${relative}.`);
     if (EvidenceBenchmarkHash.file(location) !== sha256)
       throw new Error(`Adapter artifact digest drifted: ${relative}.`);
     return location;
@@ -526,6 +594,50 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
       throw new Error(`${label} monotonic times must be unsigned integers.`);
     if (BigInt(end) < BigInt(start))
       throw new Error(`${label} completion precedes its start.`);
+  }
+
+  function sameInput(
+    left: IEvidenceBenchmarkQualityGate.IInputProvenance,
+    right: IEvidenceBenchmarkQualityGate.IInputProvenance,
+  ): boolean {
+    return (
+      left.runManifestSha256 === right.runManifestSha256 &&
+      sameRawTree(left.sourceSnapshotRawTree, right.sourceSnapshotRawTree) &&
+      sameRawTree(
+        left.subjectRequirementsRawTree,
+        right.subjectRequirementsRawTree,
+      )
+    );
+  }
+
+  function sameRawTree(
+    left: IEvidenceBenchmarkQualityGate.IRawTreeDigest,
+    right: IEvidenceBenchmarkQualityGate.IRawTreeDigest,
+  ): boolean {
+    return (
+      left.algorithmId === right.algorithmId && left.sha256 === right.sha256
+    );
+  }
+
+  function assertSeparateRoots(workspace: string, output: string): void {
+    const left: string = path.resolve(workspace);
+    const right: string = path.resolve(output);
+    const relation: string = path.relative(left, right);
+    const reverse: string = path.relative(right, left);
+    if (
+      relation === "" ||
+      (!path.isAbsolute(relation) &&
+        relation !== ".." &&
+        !relation.startsWith(`..${path.sep}`)) ||
+      (!path.isAbsolute(reverse) &&
+        reverse !== ".." &&
+        !reverse.startsWith(`..${path.sep}`))
+    )
+      throw new Error(
+        "Hidden adapter workspace and output roots must not overlap.",
+      );
+    if (fs.existsSync(right))
+      throw new Error("Hidden adapter output root must be new.");
   }
 
   function validateStatus(input: string, label: string): void {

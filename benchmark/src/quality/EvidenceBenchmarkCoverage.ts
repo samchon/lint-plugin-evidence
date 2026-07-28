@@ -4,6 +4,7 @@ import path from "node:path";
 import { EvidenceBenchmarkHash } from "../EvidenceBenchmarkHash.ts";
 import type { IEvidenceBenchmarkQualityGate } from "../structures/IEvidenceBenchmarkQualityGate.ts";
 import { EvidenceBenchmarkArtifactInventory } from "./EvidenceBenchmarkArtifactInventory.ts";
+import { EvidenceBenchmarkQualityInput } from "./EvidenceBenchmarkQualityInput.ts";
 
 /** Ingests conventional coverage without collapsing independent dimensions. */
 export namespace EvidenceBenchmarkCoverage {
@@ -24,7 +25,9 @@ export namespace EvidenceBenchmarkCoverage {
   export function istanbul(
     workspace: string,
     artifact: string,
+    input: EvidenceBenchmarkQualityInput.IBound,
   ): IEvidenceBenchmarkQualityGate.ICoverage {
+    EvidenceBenchmarkQualityInput.validate(input);
     const absoluteArtifact: string = path.resolve(artifact);
     const value: unknown = JSON.parse(
       fs.readFileSync(absoluteArtifact, "utf8"),
@@ -125,14 +128,16 @@ export namespace EvidenceBenchmarkCoverage {
         );
       }
     }
-    return finish(workspace, absoluteArtifact, "istanbul", accumulator);
+    return finish(workspace, absoluteArtifact, "istanbul", accumulator, input);
   }
 
   /** Reads LCOV records and binds every `SF` record to the workspace. */
   export function lcov(
     workspace: string,
     artifact: string,
+    input: EvidenceBenchmarkQualityInput.IBound,
   ): IEvidenceBenchmarkQualityGate.ICoverage {
+    EvidenceBenchmarkQualityInput.validate(input);
     const absoluteArtifact: string = path.resolve(artifact);
     const accumulator: IAccumulator = empty(false);
     let current: string | null = null;
@@ -177,7 +182,7 @@ export namespace EvidenceBenchmarkCoverage {
     }
     if (current !== null)
       throw new Error(`LCOV record for ${current} has no end_of_record.`);
-    return finish(workspace, absoluteArtifact, "lcov", accumulator);
+    return finish(workspace, absoluteArtifact, "lcov", accumulator, input);
   }
 
   function finish(
@@ -185,18 +190,33 @@ export namespace EvidenceBenchmarkCoverage {
     artifact: string,
     format: "istanbul" | "lcov",
     accumulator: IAccumulator,
+    input: EvidenceBenchmarkQualityInput.IBound,
   ): IEvidenceBenchmarkQualityGate.ICoverage {
     if (accumulator.files.size === 0)
       throw new Error(`${format} coverage contains no source records.`);
     const files: Map<string, Uint8Array> =
       EvidenceBenchmarkArtifactInventory.authoredFiles(workspace);
+    const workspaceSourceTreeSha256: string =
+      EvidenceBenchmarkArtifactInventory.treeSha256(files);
+    if (
+      workspaceSourceTreeSha256 !==
+      input.provenance.sourceSnapshotRawTree.sha256
+    )
+      throw new Error(
+        "Coverage workspace differs from the bound source snapshot.",
+      );
+    for (const relative of accumulator.files)
+      if (!files.has(relative))
+        throw new Error(
+          `Coverage source is outside the authored snapshot: ${relative}.`,
+        );
     return {
       schemaVersion: 1,
+      input: input.provenance,
       format,
       sourceArtifact: portableRelative(workspace, artifact),
       sourceArtifactSha256: EvidenceBenchmarkHash.file(artifact),
-      workspaceSourceTreeSha256:
-        EvidenceBenchmarkArtifactInventory.treeSha256(files),
+      workspaceSourceTreeSha256,
       files: accumulator.files.size,
       lines: finalize(accumulator.lines),
       branches: finalize(accumulator.branches),
@@ -223,7 +243,9 @@ export namespace EvidenceBenchmarkCoverage {
       path.isAbsolute(relative)
     )
       throw new Error(`Coverage source escapes the workspace: ${reported}.`);
-    const normalized: string = relative.normalize("NFC");
+    if (relative.normalize("NFC") !== relative)
+      throw new Error(`Coverage source path is not NFC: ${reported}.`);
+    const normalized: string = relative;
     const segments: string[] = normalized.split("/");
     if (
       segments.some((segment) =>
@@ -245,7 +267,17 @@ export namespace EvidenceBenchmarkCoverage {
     const relative: string = path
       .relative(path.resolve(workspace), artifact)
       .replaceAll("\\", "/");
-    return relative.length === 0 ? "." : relative.normalize("NFC");
+    if (
+      relative.length === 0 ||
+      relative === ".." ||
+      relative.startsWith("../") ||
+      path.posix.isAbsolute(relative) ||
+      relative.normalize("NFC") !== relative
+    )
+      throw new Error(
+        "Coverage artifact must be an NFC file below the workspace.",
+      );
+    return relative;
   }
 
   function empty(statements: boolean): IAccumulator {
