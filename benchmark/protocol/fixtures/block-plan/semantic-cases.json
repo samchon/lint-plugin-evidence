@@ -36,7 +36,69 @@
     "sealed-source-revision-mismatch",
     "windows-drive-root-path",
     "absolute-path",
+    "backslash-path",
+    "empty-path",
+    "single-dot-path",
+    "single-dotdot-path",
+    "empty-segment-path",
+    "dot-segment-path",
     "parent-traversal-path",
-    "self-referential-plan-sha256"
-  ]
+    "trailing-slash-path",
+    "nul-path",
+    "precomposed-unicode-path",
+    "decomposed-unicode-path",
+    "self-referential-plan-sha256",
+    "promoted-quota-bucket-id",
+    "promoted-quota-used-percent",
+    "promoted-quota-window-or-reset",
+    "promoted-quota-raw-snapshot-digest",
+    "free-text-reserve-policy",
+    "private-quota-checkpoint-marked-retained"
+  ],
+  "repositoryRelativePathCases": {
+    "valid": [
+      "benchmark/result/todo",
+      ".openai/hosting.json",
+      "_tmp/a-b.json",
+      "a/.../b"
+    ],
+    "invalid": [
+      "",
+      ".",
+      "..",
+      "/absolute",
+      "C:/drive-root",
+      "a\\backslash",
+      "a//empty-segment",
+      "a/./dot-segment",
+      "a/../dotdot-segment",
+      "trailing/",
+      "nul\u0000segment",
+      "caf\u00e9/precomposed",
+      "cafe\u0301/decomposed"
+    ]
+  },
+  "retainedQuotaPrivacyCases": {
+    "allowedKeys": [
+      "sourceClass",
+      "windowResults",
+      "passedAtAuthorization",
+      "policyId",
+      "policySha256",
+      "capturedAtUtc",
+      "attestationSha256",
+      "privateCheckpointPersistence",
+      "exactTelemetryPromoted",
+      "guardRelation"
+    ],
+    "forbiddenKeys": [
+      "bucketId",
+      "usedPercent",
+      "windowMinutes",
+      "resetsAtUtc",
+      "snapshotSha256",
+      "rawPayload",
+      "reservePolicy"
+    ]
+  }
 }
