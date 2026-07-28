@@ -310,7 +310,13 @@ Given only the requirement documents and an empty repository, this is the sequen
 2. Write the schema, then `build:prisma` and `prepare`.
 3. Write the DTOs, the controllers, and their modules, then `build:sdk`.
 4. Write the tests from the requirements and the generated SDK.
-5. Write the providers, then `build:main` and run the tests.
-6. Start the server and confirm it answers.
+5. Write the transformers and the collectors, one per DTO that needs each.
+6. Write the providers, which compose them, then `build:main` and run the tests.
+7. Start the server and confirm it answers.
+8. Build the frontend against simulation, then against this server.
 
 Each step reads everything the earlier steps produced. A step that cannot proceed usually means an earlier one is incomplete, and the fix belongs there.
+
+**Steps 5 and 6 are in that order for a reason.** A provider that is written before its transformer exists inlines a selection and a mapping, and that inline copy is what the transformer then has to be reconciled with. Writing the read side and the write side first leaves the provider with only the business logic, which is what it is for.
+
+**Step 4 before step 6 is deliberate too.** Tests written from the contract and the requirements describe what should happen; tests written after the provider describe what it happens to do, and the difference is invisible in a green suite.

@@ -46,7 +46,10 @@ Work the layers in order, and let each one read everything the earlier ones deci
 2. Design the schema and make it compile.
 3. Design the operations and their DTOs.
 4. Write the tests from the requirements and the operation contracts.
-5. Implement the providers against those contracts and run the tests.
+5. Write the transformers and the collectors that each DTO needs.
+6. Implement the providers against those contracts and run the tests.
+
+The read side and the write side come before the provider that composes them. A provider written first inlines a selection and a mapping, and that copy is what the transformer then has to be reconciled with. [wiring.md](wiring.md) has the same sequence with the commands each step runs.
 
 Reading an earlier layer is itself a review. Hold what you just read against what you are about to build, and treat a contradiction as a finding rather than an obstacle to route around. Each layer is the first place some kind of defect becomes visible: making a rule concrete enough to store is what exposes a rule no set of rows can satisfy, and building a test from a real journey is what exposes a requirement nothing can exercise.
 
