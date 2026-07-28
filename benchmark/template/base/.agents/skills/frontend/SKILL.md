@@ -1,6 +1,6 @@
 ---
 name: frontend
-description: Indexes the frontend conventions and states the rules that cross all of them: the stack, reading the SDK first, building a product rather than an endpoint list, and what done means. Use before any frontend work, then read the linked topic document.
+description: Indexes the frontend conventions and states the rules that cross all of them: the stack, reading the SDK first, state and routing discipline, building a product rather than an endpoint list, and what done means. Use before any frontend work, then read the linked topic document.
 ---
 
 # Frontend
@@ -13,6 +13,10 @@ Read this file first, then the topic document for what you are about to touch.
 
 - [sdk.md](sdk.md): consuming the generated SDK, authentication and connections, and the simulation-first development flow that closes with live integration. Read before writing any data call.
 - [architecture.md](architecture.md): layering, how far SDK types are allowed to reach, view models, hooks, and query keys. Read before adding a route, a data path, or shared state.
+- [state.md](state.md): the four kinds of state and their owners, cache freshness per data kind, derived state, optimistic updates, and races. Read before holding any value anywhere.
+- [routes.md](routes.md): guarded layouts, returning after login, 403 versus 404, code splitting, and what a navigation owes. Read before touching the route table.
+- [errors.md](errors.md): expected versus unexpected failure, boundaries at route seams, retry policy, and the one toast channel. Read before handling any failure.
+- [components.md](components.md): when a component earns extraction, what it may know, controlled inputs, keys, and memoization. Read before extracting anything.
 - [screens.md](screens.md): screen structure, the states every screen owes, and how a screen traces to a requirement. Read before building a screen.
 - [forms.md](forms.md): validating against the DTO rather than a second schema, where a failure message lands, and what a submission owes at each outcome. Read before building any input a user submits.
 - [lists.md](lists.md): search, filter, sort, and pagination built from the request contract, and the two different empty screens. Read before building any listing.

@@ -144,9 +144,7 @@ Stale data after a successful action is the most common frontend defect and the 
 
 ## Errors
 
-The SDK throws a typed HTTP error. Handle it where the call is, and render what the failure means to the user.
-
-Do not build an error translation layer. The contract already states which rejections an operation has, and the business rules already say what each one means to a user; a generic translator loses exactly that specificity.
+[errors.md](errors.md) owns failure end to end. The rule that survives here: handle it where the call is, and never build a generic error translation layer, because the contract already states which rejections exist and what each means.
 
 ## Routes Unwrap Parameters, Pages Take Typed Props
 

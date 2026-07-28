@@ -74,6 +74,8 @@ export const config = {
 };
 ```
 
+Simulation answers with valid random data, so it can never show an empty list, a rejection, or an edge state on demand; the state gallery in [verification.md](verification.md) owns forcing those.
+
 **Then finish against the live backend.** Simulation proves shape and flow. It proves nothing about persistence, sessions, authorization, refresh, or side effects, because no provider ran. Development is complete only after a separately named program runs the same flows with simulation off, against the real host, with real data.
 
 Two rules keep that honest. Label evidence from simulation as shape-and-flow evidence, never as integration. And never point a program named for live integration at the simulated path, because the name is what a later reader trusts.

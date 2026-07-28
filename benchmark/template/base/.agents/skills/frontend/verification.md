@@ -43,6 +43,14 @@ Never point the live program at the simulated path. The name is what a later rea
 
 Development happens against the simulation program and closes with the live one. Neither replaces the other.
 
+## The State Gallery
+
+Simulation returns valid random data, so the states that matter most never appear on demand: the empty list, the rejection, the longest name, the zero price. Waiting to meet them in the wild means shipping them unseen.
+
+Build one dev-only route, gated by the environment flag and absent from production navigation, that renders each screen's presentational components against fixture view models: one row per state a screen owes. The ui-review program walks it at the three widths, which turns "every screen handles every state" from a claim into something a browser run visits.
+
+When a defect arrives from the wild, its fixture joins the gallery, so the state that escaped once cannot escape silently again.
+
 ## Keep The Frontend Program Frontend-Only
 
 The frontend test program does not boot the backend, assert backend health, or check server state. Those belong to the live integration program.
