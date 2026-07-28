@@ -97,6 +97,24 @@ That can be contradicted by reading the provider, which is what makes it worth w
 
 **Claiming the whole of a target the artifact partly covers** is the third failure and the most expensive, because it converts a missing implementation into a satisfied obligation. The vaguer reasons above do exactly that: the section reads as discharged, and three rules go unbuilt with nothing left to report them.
 
+## Decide The Reason First, Then Find The Target
+
+The tag writes the target first. **Do not think in that order.**
+
+Say what this artifact is responsible for, in a sentence, before opening the documents to look for something to cite. Then find the target that says it. A reason arrived at this way is a description of the work; a reason arrived at from a target is a justification for a citation you had already decided to write.
+
+The difference shows up under review as the third failure above. Someone who picked a plausible section and then wrote a sentence about it produces "the coupon stacking rule", because that is genuinely all they know: the sentence was reverse-engineered from the tag. Someone who knew the provider rejects a duplicate issuer at checkout writes that, and then either finds the section stating it or discovers there is none, which is itself the finding.
+
+**A target that merely resolves is not a target that fits.** Retargeting until the build goes quiet is the same move as weakening an assertion until a test passes.
+
+## A Citation Is Responsibility, Not Proof
+
+Every citation says the same thing: this artifact answers for this part of this target. It never says the target holds.
+
+That distinction decides which citation is worth trusting for which kind of requirement. A shape requirement is settled by reading the model or the DTO, and a citation there is close to proof. **A behavioral rule is settled by nothing except a test that fails when the behavior is removed.** A model, a contract, and a provider may each cite the coupon-stacking section truthfully and none of them demonstrates that stacking is refused.
+
+So when reviewing a behavioral section, find the test citing it and read what it asserts. If no test cites it, the section is traced through three layers and proven by none, and every one of those citations is honest.
+
 ## An Exclusion Is A Claim Too
 
 `@evidenceExclude` records a reviewed decision that this claim genuinely does not use a target. It carries the same burden as a citation and gets the same triple read.

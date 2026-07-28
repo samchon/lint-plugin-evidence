@@ -1,31 +1,31 @@
 ---
 name: review
-description: Defines how the truth of every claimed realization is established: why a complete ledger is not a correct one, how to read a claim against both the artifact making it and the source it names, why the source is under review too, and the rounds this runs in. Use after a campaign reports dry and again whenever any artifact or any source changes.
+description: Defines the questions a completeness pass does not ask: whether each claimed realization is true, whether the source it names is itself correct, and which claims prove anything at all. Use inside every campaign round rather than after them, and again whenever any artifact or any source changes.
 ---
 
 # Review
 
-## Dry Is Where This Skill Starts
+## This Runs Inside The Campaign, Not After It
 
-The [campaign skill](../campaign/SKILL.md) establishes that nothing is **missing**. Every requirement has an artifact, every table has an endpoint, every operation has a test, and the ledger says so.
+The [campaign skill](../campaign/SKILL.md) is already a reading discipline. Its rounds read the full population on both sides of an edge, from the artifacts rather than from your notes about them, because nothing here can report a gap for you. That is the right shape and this skill does not replace any of it.
 
-None of that says any of it is **true**.
+**Do not read this as a later phase.** A campaign round that establishes presence quickly, intending to check truth afterwards, is a campaign round that did not happen: presence in this repository is established by reading, and a reader who is not asking whether the thing is true is not really reading it.
 
-Picture the ledger line written after reading the section and building what it asks for. Now picture the line written because a similar-sounding endpoint already existed and the requirement looked covered. **They are the same line.** Both name a requirement and an artifact, both close a row, and nothing in the ledger distinguishes them. A second campaign pass will not separate them either, because that pass asks whether the row is filled, and it is.
+What this skill adds is the set of questions that a completeness pass does not naturally ask, because they are not about whether a row is filled.
 
-So a dry campaign and a repository that satisfies its requirements are different states, and only one of them is established by the work so far. Producing the other is this skill.
+Picture the ledger line written after reading the section and building what it asks for. Now picture the line written because a similar-sounding endpoint already existed and the requirement looked covered. **They are the same line.** Both name a requirement and an artifact, both close a row, and no pass that asks whether the row is filled will ever separate them.
 
 ## The Unit Of Review Is A Triple
 
-Every review step reads three things, in this order, from the artifacts rather than from the ledger.
+Every review step reads three things, from the artifacts rather than from the ledger.
 
 1. **The claim.** What the ledger says this artifact does about this requirement, table, or operation.
 2. **The claiming artifact.** What the code actually does.
 3. **The source it names.** What the requirement section says, what the model stores, what the contract promises.
 
-A step is complete only when you have read all three. Reading the ledger and the artifact is the natural shortcut, it feels sufficient, and it catches roughly half the defects, because it silently assumes the third is correct.
+A campaign round already reads the second and third: that is what walking an edge is. The claim is the side it does not read, because the ledger is where the round records its verdict rather than something the round examines.
 
-The ledger is the index of what to review, never the evidence that the review passed. It records what you believed when you wrote it, which is the thing under test.
+So the ledger is the index of what to review and never the evidence that the review passed. It records what you believed when you wrote it, which is the thing under test.
 
 ## Either Side Can Be The Defect
 
@@ -87,6 +87,24 @@ That can be contradicted by reading the provider, which is what makes it worth w
 
 **Claiming the whole of a source the artifact partly covers** is the third failure and the most expensive, because it converts a missing implementation into a satisfied row. The vaguer entries above do exactly that: the section reads as realized, and three rules go unbuilt with nothing left to report them.
 
+## Decide The Entry First, Then Find The Row
+
+The ledger is laid out requirement-first. **Do not think in that order.**
+
+Say what the artifact is responsible for, in a sentence, before looking for a requirement to file it under. Then find the section that asks for it. An entry arrived at this way describes the work; an entry arrived at from a row justifies a row you had already decided to close.
+
+The difference shows up under review as the third failure above. Someone who picked a plausible section and then wrote a line about it produces "the coupon rule", because that is genuinely all they know: the line was reverse-engineered from the row. Someone who knew the provider rejects a duplicate issuer at checkout writes that, and then either finds the section stating it or discovers there is none, which is itself the finding.
+
+**A row that can be filled is not a row that should be.** Filing an artifact under whichever section it plausibly touches is the same move as weakening an assertion until a test passes.
+
+## An Entry Is Responsibility, Not Proof
+
+Every entry says the same thing: this artifact answers for this part of this source. It never says the source holds.
+
+That decides which entry is worth trusting for which kind of requirement. A shape requirement is settled by reading the model or the DTO. **A behavioral rule is settled by nothing except a test that fails when the behavior is removed.** A model, a contract, and a provider may each be filed against the coupon-stacking section truthfully, and none of them demonstrates that stacking is refused.
+
+So when reviewing a behavioral section, find the test filed against it and read what it asserts. If no test is, the section is traced through three layers and proven by none, and every one of those entries is honest.
+
 ## A Recorded Non-Exposure Is A Claim Too
 
 A ledger line saying a table is deliberately internal, or a requirement genuinely needs no storage, is a decision that carries the same burden as a realization and gets the same triple read.
@@ -105,16 +123,17 @@ So when a round repairs a source, re-review every claim naming it, in full. A ve
 
 The ordinary direction cascades the same way. A changed provider re-opens the claims on its tests; a changed contract re-opens the claims on its screens.
 
-## The Rounds
+## Where This Lands In A Round
 
-1. **Enumerate the claims.** Every ledger entry and every recorded non-exposure in the repository.
-2. **Review each as a triple**, reading all three sides from the artifacts.
-3. **Record every finding before repairing anything**, so a repair cannot quietly erase the record of what was wrong.
-4. **Repair at the side that is actually wrong**, which is sometimes the source.
-5. **If the round produced even one finding, start over from the beginning.** Every claim, not the ones near the finding: a repair to a source has invalidated verdicts you cannot enumerate without re-reading them.
-6. **Stop only after two consecutive complete rounds produce nothing.** One clean round means the round was tired.
+The campaign's rounds are the rounds. This skill changes what each one does, in three places.
 
-Vary the traversal between rounds. Walk claim-to-source in one and source-to-claim in the next, asking of each requirement section and each table what every artifact built on it believes about it. The second direction is what finds one source meaning three things to three readers, and the first direction cannot find it at all.
+**While walking an edge**, read the claim as well as the two artifacts, and treat a mismatch as a live question about which of the three is wrong rather than as a note to fix the artifact.
+
+**Before recording a verdict**, ask what the entry would owe a reader who did not write it, and whether anything in the repository actually proves it.
+
+**Between rounds, vary the direction.** Walk claim-to-source in one and source-to-claim in the next, asking of each requirement section and each table what every artifact built on it believes about it. The second direction is what finds one source meaning three things to three readers, and the first cannot find it at all.
+
+A finding here re-opens campaigns exactly like any other finding, including when the thing repaired was a source rather than an artifact. The campaign's rule that no verdict survives a change upstream of it applies without modification.
 
 ## Prove One Directly, Once Per Round
 
@@ -124,8 +143,8 @@ Take one claim that matters, delete the behavior it names, and confirm the build
 
 Nothing in this repository will ask you to do this.
 
-## What This Skill Cannot Do Either
+## What This Skill Cannot Do
 
-It cannot tell you that an artifact nobody thought to write is missing. That is the campaign's job, and the two are complements: the campaign establishes the inventory, this skill establishes its truth.
+It cannot tell you that an artifact nobody thought to write is missing. That is what the campaign's traversal is for, and it is why this is a lens on those rounds rather than a substitute for them: walking the population finds what is absent, and these questions decide whether what is present is real.
 
 Type-correct is not correct, and recorded is not correct. A default that means the opposite of unset, an aggregate over the wrong side of a relation, an effect implemented in one path and not its sibling: each fills its ledger row, passes every build, and is found only by someone reading the code against the claim.

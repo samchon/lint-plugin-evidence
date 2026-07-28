@@ -44,9 +44,11 @@ This is not optional and not a final checklist. Read it **before starting any wo
 
 ### Review
 
-**Mandatory.** How the truth of what you built is established: reading each claim against both the artifact making it and the source it names, why the source is under review too, and the rounds it runs in, `.agents/skills/review/SKILL.md`.
+**Mandatory.** How the truth of what you built is established: reading each claim against both the artifact making it and the source it names, why the source is under review too, and where that lands in the work, `.agents/skills/review/SKILL.md`.
 
-The campaign establishes that nothing is **missing**. This establishes that what is there is **true**, and those are different states. Every artifact can be present, every obligation discharged, and every claim still wrong, because nothing that reports completeness examines meaning. Read this once the campaign reports dry, and again whenever anything it reviewed has moved.
+The campaign establishes that nothing is **missing**. This establishes that what is there is **true**, and those are different states: every artifact can be present, every obligation discharged, and every claim still wrong, because nothing that reports completeness examines meaning.
+
+Read it **before you start**, not once the campaign is quiet. The skill itself says where it belongs relative to those rounds, and getting that placement wrong is how a completeness pass becomes something you race through intending to check properly later.
 
 ## Language
 
