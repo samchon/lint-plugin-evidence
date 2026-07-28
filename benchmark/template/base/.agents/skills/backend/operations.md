@@ -41,13 +41,13 @@ Form the root from the table name: keep every word including the prefix, PascalC
 
 Variants attach with a dot. The page wrapper prefixes the base name with no dot.
 
-| Variant | Contains |
-| --- | --- |
-| `.ICreate` | caller-supplied creation fields, no ids and no timestamps |
-| `.IUpdate` | the mutable fields |
-| `.ISummary` | the list-item projection |
-| `.IRequest` | search, filter, pagination, and sort controls |
-| `.IInvert` | the view from the opposite relation |
+| Variant     | Contains                                                  |
+| ----------- | --------------------------------------------------------- |
+| `.ICreate`  | caller-supplied creation fields, no ids and no timestamps |
+| `.IUpdate`  | the mutable fields                                        |
+| `.ISummary` | the list-item projection                                  |
+| `.IRequest` | search, filter, pagination, and sort controls             |
+| `.IInvert`  | the view from the opposite relation                       |
 
 A mutable state field such as `completed`, `published`, or a small status enum stays in `.IUpdate` unless a dedicated transition operation already owns the change. Excluding it because such an operation might be added later leaves the state unreachable through the API.
 

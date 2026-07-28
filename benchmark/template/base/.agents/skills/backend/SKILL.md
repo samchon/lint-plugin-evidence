@@ -21,12 +21,12 @@ Read this file first, then the topic document for the layer you are about to tou
 
 Each layer owns one thing, and a defect belongs to the layer that owns it.
 
-| Layer | Owns |
-| --- | --- |
-| Schema | stored facts and relations |
-| Operation | public behavior and the DTO contract |
-| Provider | business logic and database access |
-| Test | observable proof of business behavior |
+| Layer     | Owns                                  |
+| --------- | ------------------------------------- |
+| Schema    | stored facts and relations            |
+| Operation | public behavior and the DTO contract  |
+| Provider  | business logic and database access    |
+| Test      | observable proof of business behavior |
 
 Do not leak a later layer's detail into an earlier one, and do not use a later layer to invent what an earlier one is missing. A provider must not compensate for a column the schema should have; add the column. An endpoint must not exist because a provider needed a place to put code.
 
