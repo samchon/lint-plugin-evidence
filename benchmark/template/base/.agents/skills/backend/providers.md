@@ -304,6 +304,7 @@ An in-process timer would have no operation, no test, and no requirement owner, 
 A retried cron, an operator rerun, and a redelivered queue message all arrive as a second call, and without the key each posts the work again. Assert that with a second call in the test.
 
 Record the trigger in the operation's own documentation and in the requirement it serves. Omitting both silently turns a scheduled obligation into a manual endpoint nobody knows to schedule.
+
 ## Do Not Revalidate The Boundary
 
 Never add runtime type or format checks on parameters. The generated validator already enforced every type, format, and length the DTO declares, so a repeated check is dead code that drifts from the contract. Delete duplicates you find.

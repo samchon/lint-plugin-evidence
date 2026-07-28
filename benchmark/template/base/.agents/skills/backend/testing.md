@@ -241,7 +241,6 @@ A scenario proves one distinct observable behavior, and the kind of operation un
 
 **The duplicate obligation is narrow, and its boundary is the point.** It applies when the caller supplies the value that collides. It does not apply to a value the server generates, to a composite unique index a client cannot steer into a collision, or to login and refresh, which are not creations. Writing a duplicate case for any of those tests the database rather than the requirement.
 
-
 ## Setup Uses Join, And Does Not Repeat Side Effects
 
 Use the join operation for ordinary authenticated setup. It registers the account and returns the authorization in one call, so a second login for the same actor buys nothing.
@@ -297,7 +296,6 @@ Expiry cannot be manufactured without the server's secret, and tampering with an
 **Refresh-token reuse is provable only where the contract exposes revocation or rotation.** When a refresh extends the same session and the previously issued token is self-contained, that older token stays valid by design, so a test asserting it is now rejected asserts a behavior the design does not have. Check what the contract says before writing that case.
 
 An operation that returns nothing needs a public follow-up read to prove its effect. Without one, the test can prove the call succeeded and can prove its rejections, and it cannot claim the state changed.
-
 
 ## Take Accessors From The Generated SDK
 
@@ -368,7 +366,6 @@ Await both layers: the assertion and the call inside it. A synchronous callback 
 A deliberately wrong type is a compile error, not a test. The boundary already validates types, formats, and lengths.
 
 Positive paths stay clean: valid bodies, a qualified caller, no manufactured failure. The one sanctioned exception is an authority negative, where the inputs remain valid and only the caller's grade is insufficient.
-
 
 ## Code Discipline
 

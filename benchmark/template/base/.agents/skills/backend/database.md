@@ -291,7 +291,6 @@ The test is whether a later edit to the source must change what this row means. 
 
 Keep one current store per actor and scope for role, grade, or title state. History tables preserve change over time and never replace the current store.
 
-
 ## The Documentation Comment Contract
 
 Every model and every column carries a `///` comment. These reach the generated client types and `docs/ERD.md`.
