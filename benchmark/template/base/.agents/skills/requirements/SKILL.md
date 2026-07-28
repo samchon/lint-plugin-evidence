@@ -5,6 +5,14 @@ description: Defines what the requirement documents under docs/analysis contain,
 
 # Requirements
 
+## They Are Given To You
+
+`docs/analysis/` is input. Someone else wrote it, it arrives complete, and it is not yours to author.
+
+That is worth stating because the instinct when a document seems thin is to fill the gap yourself. Do not. A behavior the documents do not describe is not yours to invent, and a contradiction is not yours to resolve by picking the easier reading.
+
+Treat the directory as read-only. Never edit a document so that it agrees with code you already wrote, and never add a section because the implementation needed one.
+
 ## Where They Live
 
 `docs/analysis/` holds the specification. The documents are organized by concern, and each one owns a different kind of statement:
@@ -39,6 +47,27 @@ Each requirement section is written to be understandable on its own. A well-form
 - **The named values**: the allowed set, the threshold, the unit, the relationship, the boundary. These are what make the requirement testable rather than aspirational.
 
 When you read a section, name all five before implementing it. A section whose observable result you cannot state is a section you have not finished reading.
+
+Worked through on one section:
+
+```markdown
+### Coupon Stacking
+
+A customer may combine at most one seller-issued coupon with at most one
+platform-issued coupon on a single order. A second coupon of the same
+issuer is refused. A coupon whose validity window has closed is refused
+even when no other coupon is present.
+```
+
+| Part | What this section gives |
+| --- | --- |
+| actor or concept | the customer, applying coupons to an order |
+| circumstance | an order with at least one coupon already applied |
+| required behavior | permit one per issuer; refuse a second of the same issuer; refuse an expired one |
+| observable result | the order is refused, and the reason distinguishes duplicate issuer from expired |
+| named values | two issuer kinds, a maximum of one each, and the validity window |
+
+Every one of those becomes something downstream. The issuer kinds become a column, the maximum becomes a check, the validity window becomes a comparison, and the two distinct refusals become two tests. A section read without extracting them produces an implementation that stacks correctly and never checks the window.
 
 ## Read Along The Whole Lattice
 

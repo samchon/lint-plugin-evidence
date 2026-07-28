@@ -60,13 +60,64 @@ Scoped roles need endpoints of their own. Without operations that grant them, no
 
 Derive the owner from the resource's own owner column, never from caller-supplied input. Select that column directly rather than nesting the relation for it.
 
-When per-resource permission is a role held through a relationship table, the resource owner holds that permission inherently. Authorize on the owner column _or_ the membership row. Checking only the join table gives the legitimate owner a wrongful `403`, and it is a defect that no happy-path test finds.
+```ts
+const record = await MyGlobal.prisma.sales.findFirstOrThrow({
+  where: { id: props.id },
+  select: { id: true, seller_id: true },
+});
+if (record.seller_id !== props.seller.id)
+  throw ErrorProvider.forbidden("Only the owning seller may edit this sale.");
+```
+
+The narrow `select` is deliberate. This read exists to answer one question, and loading the full row here invites building the response from it, which then omits everything the response select would have fetched.
+
+When per-resource permission is a role held through a relationship table, **the resource owner holds that permission inherently**:
+
+```ts
+const permitted: boolean =
+  record.owner_id === caller.id ||
+  (await MyGlobal.prisma.memberships.count({
+    where: { resource_id: record.id, actor_id: caller.id },
+  })) !== 0;
+if (!permitted) throw ErrorProvider.forbidden("Not a moderator of this resource.");
+```
+
+Checking only the join table gives the legitimate owner a wrongful `403`. No happy-path test finds it, because the tests that exercise the resource are usually written as the owner, and the owner is exactly who it breaks for.
 
 ## Sessions And Tokens
 
 A session row carries the actor foreign key, connection context, a non-null creation time, and a non-null expiry, with an index on the actor and creation time.
 
-The session's expiry tracks the **refresh** horizon, meaning the window during which the session can still be renewed. It does not track the short-lived access-token expiry. Using the access expiry invalidates the session row while its refresh token is still valid, so every refresh after the first access window is wrongly rejected, and the failure appears as users being logged out for no reason.
+```prisma
+model shopping_seller_sessions {
+  id         String   @id
+  seller_id  String
+  /// Client address at connection time. Metadata, not a credential.
+  ip         String
+  /// Creation time of the session.
+  created_at DateTime
+  /// End of the window during which this session can still be refreshed.
+  ///
+  /// This is the refresh horizon, not the access-token expiry.
+  expired_at DateTime
+
+  seller shopping_sellers @relation(fields: [seller_id], references: [id])
+
+  @@index([seller_id, created_at])
+}
+```
+
+The session's expiry tracks the **refresh** horizon, meaning the window during which the session can still be renewed. It does not track the short-lived access-token expiry.
+
+```ts
+// WRONG: the session dies inside its own refresh window
+expired_at: accessTokenExpiry,
+
+// RIGHT
+expired_at: refreshTokenExpiry,
+```
+
+Using the access expiry invalidates the session row while its refresh token is still valid, so every refresh after the first access window is wrongly rejected. The failure reaches users as being logged out for no reason, at an interval nobody connects to the code.
 
 Issued tokens are returned in the response and are not session columns unless the requirements demand persisted tokens or revocation records.
 
@@ -76,7 +127,33 @@ Logout and withdrawal update the session or account lifecycle the schema describ
 
 ## Where Each Check Lives
 
-The route declares which actor and which grades may reach it, and that declaration is what puts the security requirement into the published document. A decorator that authorizes without declaring produces an API whose documentation lies about needing a token.
+Each actor gets a parameter decorator that does two things at once, and both halves are load-bearing.
+
+```ts
+export const SellerAuth =
+  (): ParameterDecorator =>
+  (target, propertyKey, parameterIndex): void => {
+    SwaggerCustomizer((props) => {
+      props.route.security ??= [];
+      props.route.security.push({ bearer: [] });
+    })(target, propertyKey as string, undefined!);
+    singleton.get()(target, propertyKey, parameterIndex);
+  };
+
+const singleton = new Singleton(() =>
+  createParamDecorator(async (_0: unknown, ctx: ExecutionContext) =>
+    SellerProvider.authorize(ctx.switchToHttp().getRequest()),
+  )(),
+);
+```
+
+The parameter decorator resolves the actor from the request and hands it to the handler, so the route cannot run anonymously. The `SwaggerCustomizer` call declares the bearer scheme on that operation, so the published document says a token is required.
+
+**A decorator that authorizes without declaring produces an API whose documentation lies.** Consumers read the generated SDK and the OpenAPI document, not the decorator, so an undeclared requirement is invisible until a call fails in their integration.
+
+The decorator is wrapped in a deferred singleton because the framework's factory must be invoked once, not once per decorated parameter.
+
+The route declares who may reach it. The provider owns everything the route cannot express: which rows this caller may see, whether they own this one, whether the scope permits it, whether the current state allows the transition.
 
 The provider owns everything the route cannot express: which rows this caller may see, whether they own this one, whether the scope permits it, whether the current state allows the transition.
 
