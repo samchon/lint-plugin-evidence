@@ -195,6 +195,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "ruleId",
         "category",
         "path",
         "byteOffset",
@@ -203,6 +204,10 @@
         "confidence"
       ],
       "properties": {
+        "ruleId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]+$"
+        },
         "category": {
           "enum": [
             "credential",

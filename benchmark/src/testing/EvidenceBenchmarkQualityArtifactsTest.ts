@@ -724,7 +724,7 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
     EvidenceBenchmarkQualityArtifacts.validatePublicSafetyScan(
       safetyScan,
       { runId, parentCoreSealSha256: parentCore },
-      { scannerSource, rules: safetyRules, files: cleanFiles },
+      { repoRoot, scannerSource, rules: safetyRules, files: cleanFiles },
     );
     const safetyEmission = roundTrip(
       protocolRoot,
@@ -760,7 +760,7 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
     EvidenceBenchmarkQualityArtifacts.validatePublicSafetyScan(
       blockedSafetyScan,
       { runId, parentCoreSealSha256: parentCore },
-      { scannerSource, rules: safetyRules, files: secretFiles },
+      { repoRoot, scannerSource, rules: safetyRules, files: secretFiles },
     );
     expectInvalid(
       () =>
@@ -773,10 +773,36 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
             },
           },
           { runId, parentCoreSealSha256: parentCore },
-          { scannerSource, rules: safetyRules, files: cleanFiles },
+          { repoRoot, scannerSource, rules: safetyRules, files: cleanFiles },
         ),
       "scanner",
     );
+    expectInvalid(
+      () =>
+        EvidenceBenchmarkQualityArtifacts.validatePublicSafetyScan(
+          {
+            ...blockedSafetyScan,
+            highConfidenceFindings:
+              blockedSafetyScan.highConfidenceFindings.slice(1),
+          },
+          { runId, parentCoreSealSha256: parentCore },
+          { repoRoot, scannerSource, rules: safetyRules, files: secretFiles },
+        ),
+      "fresh scan",
+    );
+    const applicationResetFiles = new Map(cleanFiles);
+    applicationResetFiles.set(
+      "workspace/src/account.ts",
+      Buffer.from('const resetAt = "2026-07-29T00:00:00Z";\n', "utf8"),
+    );
+    const applicationResetScan = EvidenceBenchmarkPublicSafetyScanner.scan({
+      repoRoot,
+      runId,
+      parentCoreSealSha256: parentCore,
+      files: applicationResetFiles,
+      scannedAtUtc: "2026-07-29T00:00:02.650Z",
+    });
+    assert.equal(applicationResetScan.highConfidenceFindings.length, 0);
     const manualFiles = new Map(cleanFiles);
     manualFiles.set(
       "postprocess/report.json",

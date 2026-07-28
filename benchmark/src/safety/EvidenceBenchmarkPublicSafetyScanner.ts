@@ -33,6 +33,9 @@ export namespace EvidenceBenchmarkPublicSafetyScanner {
 
   /** One content-free location and digest for sensitive evidence. */
   export interface IFinding {
+    /** Versioned rule that produced this finding. */
+    ruleId: string;
+
     /** Sensitive-data category assigned by the versioned rule. */
     category: Category;
 
@@ -116,6 +119,7 @@ export namespace EvidenceBenchmarkPublicSafetyScanner {
   interface IRule {
     id: string;
     category: Category;
+    pathPattern: string;
     pattern: string;
     flags: string;
   }
@@ -213,6 +217,7 @@ export namespace EvidenceBenchmarkPublicSafetyScanner {
         continue;
       }
       for (const rule of rules) {
+        if (!new RegExp(rule.pathPattern).test(filePath)) continue;
         const expression = new RegExp(rule.pattern, rule.flags);
         for (const match of source.matchAll(expression)) {
           const matched: string = match[0];
@@ -222,6 +227,7 @@ export namespace EvidenceBenchmarkPublicSafetyScanner {
           );
           const matchedBytes: Buffer = Buffer.from(matched, "utf8");
           findings.push({
+            ruleId: rule.id,
             category: rule.category,
             path: filePath,
             byteOffset,
@@ -252,24 +258,33 @@ export namespace EvidenceBenchmarkPublicSafetyScanner {
       const rule = value as Record<string, unknown>;
       if (
         typeof rule.id !== "string" ||
+        !/^[a-z][a-z0-9-]+$/.test(rule.id) ||
         ![
           "credential",
           "account_identifier",
           "private_quota",
           "high_confidence_host_identifier",
         ].includes(rule.category as string) ||
+        typeof rule.pathPattern !== "string" ||
         typeof rule.pattern !== "string" ||
-        typeof rule.flags !== "string"
+        typeof rule.flags !== "string" ||
+        !/^gi?$/.test(rule.flags)
       )
         throw new Error("Public-safety rule fields are invalid.");
+      new RegExp(rule.pathPattern);
       new RegExp(rule.pattern, rule.flags);
       return rule as unknown as IRule;
     };
+    const highConfidence = rules.highConfidence.map(parse);
+    const manualReview = rules.manualReview.map(parse);
+    const ids = [...highConfidence, ...manualReview].map((rule) => rule.id);
+    if (new Set(ids).size !== ids.length)
+      throw new Error("Public-safety rule identifiers must be unique.");
     return {
       schemaVersion: 1,
       scannerVersion: rules.scannerVersion,
-      highConfidence: rules.highConfidence.map(parse),
-      manualReview: rules.manualReview.map(parse),
+      highConfidence,
+      manualReview,
     };
   }
 }

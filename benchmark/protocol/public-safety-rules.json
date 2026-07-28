@@ -5,30 +5,35 @@
     {
       "id": "credential-openai-key",
       "category": "credential",
+      "pathPattern": ".*",
       "pattern": "(?:OPENAI_API_KEY\\s*[=:]\\s*)?sk-[A-Za-z0-9_-]{20,}",
       "flags": "g"
     },
     {
       "id": "credential-private-key",
       "category": "credential",
+      "pathPattern": ".*",
       "pattern": "-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----",
       "flags": "g"
     },
     {
       "id": "account-provider-id",
       "category": "account_identifier",
+      "pathPattern": ".*",
       "pattern": "(?:account|organization|project)(?:Id|_id)?\\s*[=:]\\s*[\"']?(?:acct|org|proj)_[A-Za-z0-9_-]{8,}",
       "flags": "gi"
     },
     {
       "id": "quota-private-telemetry",
       "category": "private_quota",
-      "pattern": "(?:bucketId|remainingPercent|resetAt)\\s*[=:]\\s*[\"']?[A-Za-z0-9_.:+-]{4,}",
+      "pathPattern": "^logs/server\\.raw\\.jsonl$",
+      "pattern": "(?:bucketId|remainingPercent|resetsAt)\\s*[\"']?\\s*[:=]\\s*[\"']?[A-Za-z0-9_.:+-]{1,}",
       "flags": "g"
     },
     {
       "id": "host-explicit-identity",
       "category": "high_confidence_host_identifier",
+      "pathPattern": ".*",
       "pattern": "(?:HOSTNAME|COMPUTERNAME|USERPROFILE)\\s*[=:]\\s*[^\\s\"']{3,}",
       "flags": "gi"
     }
@@ -37,12 +42,14 @@
     {
       "id": "manual-email",
       "category": "account_identifier",
+      "pathPattern": ".*",
       "pattern": "[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}",
       "flags": "gi"
     },
     {
       "id": "manual-user-path",
       "category": "high_confidence_host_identifier",
+      "pathPattern": ".*",
       "pattern": "[A-Za-z]:\\\\Users\\\\[^\\\\\\s\"']+",
       "flags": "g"
     }

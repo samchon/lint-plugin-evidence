@@ -5,6 +5,7 @@ import path from "node:path";
 import { EvidenceBenchmarkDurability } from "../EvidenceBenchmarkDurability.ts";
 import { EvidenceBenchmarkHash } from "../EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkProtocolValidator } from "../EvidenceBenchmarkProtocolValidator.ts";
+import { EvidenceBenchmarkPublicSafetyScanner } from "../safety/EvidenceBenchmarkPublicSafetyScanner.ts";
 
 /** Emits and semantically validates canonical quality protocol artifacts. */
 export namespace EvidenceBenchmarkQualityArtifacts {
@@ -75,6 +76,9 @@ export namespace EvidenceBenchmarkQualityArtifacts {
 
   /** Exact bytes needed to verify one local public-promotion scan. */
   export interface IPublicSafetyInputs {
+    /** Absolute repository root owning the pinned scanner and rules. */
+    repoRoot: string;
+
     /** Exact scanner implementation bytes. */
     scannerSource: Uint8Array;
 
@@ -840,6 +844,17 @@ export namespace EvidenceBenchmarkQualityArtifacts {
       scan.scannedBytes !== entries.reduce((sum, entry) => sum + entry.bytes, 0)
     )
       throw new Error("Public-safety scanner or exact file set drifted.");
+    const recomputed = EvidenceBenchmarkPublicSafetyScanner.scan({
+      repoRoot: artifacts.repoRoot,
+      runId: expected.runId,
+      parentCoreSealSha256: expected.parentCoreSealSha256,
+      files: artifacts.files,
+      scannedAtUtc: text(scan.scannedAtUtc, "public-safety scannedAtUtc"),
+    });
+    if (JSON.stringify(input) !== JSON.stringify(recomputed))
+      throw new Error(
+        "Public-safety findings do not equal a fresh scan of the exact file set.",
+      );
     const expectedLogs = entries
       .filter((entry) =>
         [
