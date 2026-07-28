@@ -636,13 +636,7 @@ export namespace EvidenceBenchmarkQualityGrade {
     const semanticThreads: Set<string> = new Set(
       submissions.map((submission) => submission.provenance.threadId),
     );
-    if (
-      (plan.bindings.contextPolicy === "continuous" &&
-        (semanticThreads.size !== 1 ||
-          !semanticThreads.has(armGuess.provenance.threadId))) ||
-      (plan.bindings.contextPolicy === "fresh_per_block" &&
-        semanticThreads.has(armGuess.provenance.threadId))
-    )
+    if (semanticThreads.has(armGuess.provenance.threadId))
       throw new Error("Arm guess violates the frozen grader context policy.");
   }
 
@@ -702,11 +696,7 @@ export namespace EvidenceBenchmarkQualityGrade {
       }
       threadIds.add(submission.provenance.threadId);
     }
-    if (
-      (plan.bindings.contextPolicy === "continuous" && threadIds.size !== 1) ||
-      (plan.bindings.contextPolicy === "fresh_per_block" &&
-        threadIds.size !== submissions.length)
-    )
+    if (threadIds.size !== submissions.length)
       throw new Error(
         `Grade submissions violate ${plan.bindings.contextPolicy} context policy.`,
       );

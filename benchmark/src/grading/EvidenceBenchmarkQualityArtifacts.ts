@@ -199,7 +199,8 @@ export namespace EvidenceBenchmarkQualityArtifacts {
     const plan = record(input, "grading block plan");
     if (
       plan.parentCoreSealSha256 !== parentCoreSealSha256 ||
-      plan.blockSize !== 50
+      plan.blockSize !== 50 ||
+      plan.blockContextPolicy !== "fresh_per_block"
     )
       throw new Error("Grading plan is not bound to the exact parent core.");
     const graders = array(plan.graderAssignments, "grader assignments");

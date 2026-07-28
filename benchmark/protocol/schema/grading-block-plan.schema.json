@@ -24,6 +24,7 @@
     "providerOutputRegistrySha256",
     "protocolRevisionSha256",
     "blockSize",
+    "blockContextPolicy",
     "graderAssignments",
     "populations",
     "partitionValidation"
@@ -96,6 +97,9 @@
     },
     "blockSize": {
       "const": 50
+    },
+    "blockContextPolicy": {
+      "const": "fresh_per_block"
     },
     "graderAssignments": {
       "type": "array",

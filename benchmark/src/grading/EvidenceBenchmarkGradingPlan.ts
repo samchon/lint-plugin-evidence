@@ -130,6 +130,7 @@ export namespace EvidenceBenchmarkGradingPlan {
       providerOutputRegistrySha256: plan.bindings.registrySha256,
       protocolRevisionSha256: plan.bindings.protocolRevisionSha256,
       blockSize: 50,
+      blockContextPolicy: "fresh_per_block",
       graderAssignments: plan.bindings.graderAssignments.map((grader) => ({
         pseudonym: grader.pseudonym,
         model: grader.model,
@@ -337,7 +338,7 @@ export namespace EvidenceBenchmarkGradingPlan {
       bindings.graderAssignments.some(
         (entry) => entry.pseudonym === bindings.adjudicatorAssignment.pseudonym,
       ) ||
-      !["continuous", "fresh_per_block"].includes(bindings.contextPolicy)
+      bindings.contextPolicy !== "fresh_per_block"
     )
       throw new Error("Grade block plan has incomplete frozen bindings.");
   }

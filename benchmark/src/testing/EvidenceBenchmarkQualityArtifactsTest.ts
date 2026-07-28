@@ -1164,6 +1164,7 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
       providerOutputRegistrySha256: digest("provider-registry"),
       protocolRevisionSha256: protocolRevision,
       blockSize: 50,
+      blockContextPolicy: "fresh_per_block",
       graderAssignments: [
         assignment("blind-grader-a"),
         assignment("blind-grader-b"),

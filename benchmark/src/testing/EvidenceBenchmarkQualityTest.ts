@@ -208,6 +208,14 @@ export namespace EvidenceBenchmarkQualityTest {
       "output-token admission",
     );
 
+    const nonFresh = clone(fixture.plan);
+    Object.assign(nonFresh.bindings, { contextPolicy: "continuous" });
+    resignPlan(nonFresh);
+    expectThrow(
+      () => EvidenceBenchmarkGradingPlan.verify(fixture.catalog, nonFresh),
+      "incomplete frozen bindings",
+    );
+
     const overlapping = clone(fixture.plan);
     overlapping.blocks[0]!.criterionIds.push(
       overlapping.blocks[0]!.criterionIds[0]!,
@@ -493,7 +501,7 @@ export namespace EvidenceBenchmarkQualityTest {
         protocolRevisionSha256: digest("quality-test-v1"),
         graderAssignments: [firstGrader, secondGrader],
         adjudicatorAssignment: adjudicator,
-        contextPolicy: "continuous",
+        contextPolicy: "fresh_per_block",
       },
       50,
       {
@@ -622,7 +630,7 @@ export namespace EvidenceBenchmarkQualityTest {
           interruption: null,
         },
         provenance: provenance(
-          `thread-${suffix}`,
+          `thread-${suffix}-block-${block.index}`,
           `turn-${suffix}-${block.index}`,
           [`response-${suffix}-${block.index}`],
           SHA.provider,

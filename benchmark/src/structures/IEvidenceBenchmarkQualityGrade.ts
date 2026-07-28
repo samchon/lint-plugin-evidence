@@ -211,7 +211,7 @@ export namespace IEvidenceBenchmarkQualityGrade {
       adjudicatorAssignment: IGrader;
 
       /** Frozen grader context lifetime across deterministic blocks. */
-      contextPolicy: "continuous" | "fresh_per_block";
+      contextPolicy: "fresh_per_block";
     };
 
     /** Maximum criteria placed into one model output. */
