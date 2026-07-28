@@ -19,5 +19,18 @@ declare module "@ttsc/lint" {
      * `files` setting of `lint.config.ts`.
      */
     "evidence/singular"?: TtscLintRuleSetting;
+
+    /**
+     * Reports every JSDoc `@todo` tag in a checked file.
+     *
+     * A remaining `@todo` is a contract the declaration has not realized yet,
+     * so each tag fails the build with its own text until the declaration is
+     * realized and the tag removed. Every declaration's block is read, exported
+     * or not, on any symbol kind.
+     *
+     * The rule takes no options; per-directory scoping belongs in the outer
+     * `files` setting of `lint.config.ts`.
+     */
+    "evidence/todo"?: TtscLintRuleSetting;
   }
 }

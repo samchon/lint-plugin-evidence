@@ -87,6 +87,7 @@ export default {
     "evidence/graph": ["error", graph],
     "evidence/documented": "error",
     "evidence/singular": "error",
+    "evidence/todo": "error",
   },
 } satisfies ITtscLintConfig;
 ```
@@ -94,6 +95,8 @@ export default {
 Register the plugin in `lint.config.ts` and pass the graph declaration as the option of the `evidence/graph` rule. This graph reads as one sentence: the React components under `src` claim to implement the docs, so every H2 and H3 section under `docs` must be cited by a component.
 
 `evidence/graph` is project-scoped, so its entry must have no `files` selector; the host rejects one that does. Scope a file rule in its own entry when you need to.
+
+The other three are file rules. `evidence/documented` requires a JSDoc block on every selected export, because a block is the only place a citation can live. `evidence/singular` keeps one public identity per file, named after the file. `evidence/todo` reports every remaining JSDoc `@todo` tag in a linted file, exported or not — a `@todo` is a contract the declaration has not realized yet, so each tag fails the build with its own text until the work is done and the tag removed.
 
 Violations surface in every `ttsc` build, every `--noEmit` check, and every `ttsx` run. They arrive in the same stream as type errors. No separate CI job.
 

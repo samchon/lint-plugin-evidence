@@ -13,6 +13,8 @@ const singularRuleName = "evidence/singular"
 
 const documentedRuleName = "evidence/documented"
 
+const todoRuleName = "evidence/todo"
+
 type artifactKind string
 
 const (

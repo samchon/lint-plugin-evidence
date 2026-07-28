@@ -8,7 +8,7 @@ import {
 /**
  * Verifies the README's opening `lint.config.ts` against the real binary.
  *
- * That block is the first thing a reader copies, and it enables all three rules
+ * That block is the first thing a reader copies, and it enables all four rules
  * in one unscoped entry — the shape a project rule requires. What makes it safe
  * is program membership: a config file outside the project's `include` is never
  * linted, so `evidence/singular` never meets the anonymous default that `export
@@ -18,8 +18,8 @@ import {
  *
  * 1. Materialize the README's configuration verbatim under `include: ["src"]`.
  * 2. Satisfy the graph obligation with one citing component, whose JSDoc block
- *    also satisfies `evidence/documented` and whose name satisfies
- *    `evidence/singular`.
+ *    also satisfies `evidence/documented`, carries no `@todo` for
+ *    `evidence/todo`, and whose name satisfies `evidence/singular`.
  * 3. Assert `ttsc check` exits clean.
  */
 export const test_evidence_readme_configure_example_passes = (): void => {
@@ -53,6 +53,7 @@ export const test_evidence_readme_configure_example_passes = (): void => {
       '    "evidence/graph": ["error", graph],',
       '    "evidence/documented": "error",',
       '    "evidence/singular": "error",',
+      '    "evidence/todo": "error",',
       "  },",
       "} satisfies ITtscLintConfig;",
       "",
