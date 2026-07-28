@@ -432,6 +432,128 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
         serverRawLog: transport.serverRawLog,
       },
     );
+    const wrongResponseSetValue = {
+      ...eventStreamValue,
+      providerOutputEvent: {
+        ...(eventStreamValue.providerOutputEvent as Record<string, unknown>),
+        responseIds: ["foreign-response"],
+      },
+    };
+    const wrongResponseSetEmission = EvidenceBenchmarkQualityArtifacts.emit(
+      protocolRoot,
+      "adjudicator-event-stream.schema.json",
+      wrongResponseSetValue,
+    );
+    const wrongResponseSetProcess = EvidenceBenchmarkQualityArtifacts.emit(
+      protocolRoot,
+      "adjudicator-process-provenance.schema.json",
+      {
+        ...(processValue as Record<string, unknown>),
+        rawEventStreamSha256: wrongResponseSetEmission.sha256,
+      },
+    );
+    expectInvalid(
+      () =>
+        EvidenceBenchmarkQualityArtifacts.validateAdjudicationRecord(
+          protocolRoot,
+          {
+            ...adjudicationRecord,
+            processProvenanceSha256: wrongResponseSetProcess.sha256,
+            rawEventStreamSha256: wrongResponseSetEmission.sha256,
+          },
+          {
+            graderAGrade: Buffer.from(gradeAEmission.text, "utf8"),
+            graderBGrade: Buffer.from(gradeBEmission.text, "utf8"),
+            comparisonQueue: Buffer.from(queueText, "utf8"),
+            providerOutput: Buffer.from(adjudicationEmission.text, "utf8"),
+            processProvenance: Buffer.from(
+              wrongResponseSetProcess.text,
+              "utf8",
+            ),
+            assignment: Buffer.from(assignmentEmission.text, "utf8"),
+            rawEventStream: Buffer.from(
+              wrongResponseSetEmission.text,
+              "utf8",
+            ),
+            usage: Buffer.from(usageEmission.text, "utf8"),
+            coreUsageReport: transport.coreUsageReport,
+            runnerEventLog: transport.runnerEventLog,
+            serverRawLog: transport.serverRawLog,
+          },
+        ),
+      "final item",
+    );
+    for (const invalidProvider of [
+      {
+        options: { providerPhase: "commentary" },
+        message: "final agentMessage",
+      },
+      {
+        options: { providerType: "commandExecution" },
+        message: "pinned vendor schema",
+      },
+    ]) {
+      const invalidTransport = adjudicatorTransport(
+        protocolRoot,
+        adjudicationEmission.text,
+        invalidProvider.options,
+      );
+      const invalidUsage = EvidenceBenchmarkQualityArtifacts.emit(
+        protocolRoot,
+        "adjudicator-usage.schema.json",
+        invalidTransport.usage,
+      );
+      const invalidEvents = EvidenceBenchmarkQualityArtifacts.emit(
+        protocolRoot,
+        "adjudicator-event-stream.schema.json",
+        eventStream(protocolRoot, invalidUsage.sha256, invalidTransport),
+      );
+      const invalidProcess = EvidenceBenchmarkQualityArtifacts.emit(
+        protocolRoot,
+        "adjudicator-process-provenance.schema.json",
+        processProvenance(
+          adjudicationEmission.sha256,
+          assignmentEmission.sha256,
+          invalidEvents.sha256,
+          invalidUsage.sha256,
+          invalidTransport,
+        ),
+      );
+      const invalidRecord = freshRecord(
+        gradeAEmission,
+        gradeBEmission,
+        queueText,
+        adjudicationEmission,
+        invalidProcess,
+        assignmentEmission,
+        invalidEvents,
+        invalidUsage,
+        processSchema,
+        sealedInputs,
+        invalidTransport,
+      );
+      expectInvalid(
+        () =>
+          EvidenceBenchmarkQualityArtifacts.validateAdjudicationRecord(
+            protocolRoot,
+            invalidRecord,
+            {
+              graderAGrade: Buffer.from(gradeAEmission.text, "utf8"),
+              graderBGrade: Buffer.from(gradeBEmission.text, "utf8"),
+              comparisonQueue: Buffer.from(queueText, "utf8"),
+              providerOutput: Buffer.from(adjudicationEmission.text, "utf8"),
+              processProvenance: Buffer.from(invalidProcess.text, "utf8"),
+              assignment: Buffer.from(assignmentEmission.text, "utf8"),
+              rawEventStream: Buffer.from(invalidEvents.text, "utf8"),
+              usage: Buffer.from(invalidUsage.text, "utf8"),
+              coreUsageReport: invalidTransport.coreUsageReport,
+              runnerEventLog: invalidTransport.runnerEventLog,
+              serverRawLog: invalidTransport.serverRawLog,
+            },
+          ),
+        invalidProvider.message,
+      );
+    }
     expectInvalid(
       () =>
         EvidenceBenchmarkQualityArtifacts.validateAdjudicationRecord(
@@ -1347,6 +1469,10 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
   function adjudicatorTransport(
     _protocolRoot: string,
     providerOutput: string,
+    options: {
+      providerPhase?: string;
+      providerType?: string;
+    } = {},
   ): ITransport {
     const exactUsage = {
       totalTokens: 150,
@@ -1373,9 +1499,9 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
         turnId: "turn-adjudicator",
         item: {
           id: "item-adjudicator",
-          type: "agentMessage",
+          type: options.providerType ?? "agentMessage",
           text: providerOutput,
-          phase: "final_answer",
+          phase: options.providerPhase ?? "final_answer",
         },
       },
     });
@@ -1535,6 +1661,7 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
           vendorSchemaPath: "v2/RawResponseCompletedNotification.json",
           vendorSchemaSha256: vendor("RawResponseCompletedNotification.json"),
           responseId: "response-adjudicator",
+          responseIds: null,
           turnId: "turn-adjudicator",
           structuredOutputJsonPointer: null,
           rawRef: transport.completionRawRef,
@@ -1548,7 +1675,8 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
         method: "item/completed",
         vendorSchemaPath: "v2/ItemCompletedNotification.json",
         vendorSchemaSha256: vendor("ItemCompletedNotification.json"),
-        responseId: "response-adjudicator",
+        responseId: null,
+        responseIds: ["response-adjudicator"],
         turnId: "turn-adjudicator",
         structuredOutputJsonPointer: "/params/item/text",
         rawRef: transport.providerRawRef,

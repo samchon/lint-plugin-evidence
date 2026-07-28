@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
+import { Ajv, type ValidateFunction } from "ajv";
+
 import { EvidenceBenchmarkDurability } from "../EvidenceBenchmarkDurability.ts";
 import { EvidenceBenchmarkHash } from "../EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkProtocolValidator } from "../EvidenceBenchmarkProtocolValidator.ts";
@@ -679,7 +681,9 @@ export namespace EvidenceBenchmarkQualityArtifacts {
         eventStream,
       ),
     );
-    const responseIds: string[] = completions.map((entry) => entry.responseId);
+    const responseIds: string[] = completions.map((entry) =>
+      text(entry.responseId, "adjudicator completion response id"),
+    );
     if (
       JSON.stringify(responseIds) !== JSON.stringify(eventStream.responseIds) ||
       JSON.stringify(responseIds) !== JSON.stringify(processValue.responseIds)
@@ -712,14 +716,19 @@ export namespace EvidenceBenchmarkQualityArtifacts {
       eventStream,
     );
     const providerCompletion = completions.find(
-      (entry) => entry.responseId === providerEvent.responseId,
+      (entry) => entry.turnId === providerEvent.turnId,
     );
+    const providerTurnResponseIds = completions
+      .filter((entry) => entry.turnId === providerEvent.turnId)
+      .map((entry) => entry.responseId);
     if (
       providerEvent.method !== "item/completed" ||
       providerEvent.structuredOutput !==
         decode(artifacts.providerOutput, "adjudicator provider output") ||
       providerCompletion === undefined ||
-      providerCompletion.turnId !== providerEvent.turnId
+      providerEvent.responseId !== null ||
+      JSON.stringify(providerEvent.responseIds) !==
+        JSON.stringify(providerTurnResponseIds)
     )
       throw new Error(
         "Adjudicator provider output is not the final item of its response turn.",
@@ -992,7 +1001,8 @@ export namespace EvidenceBenchmarkQualityArtifacts {
 
   interface IRawEventResult {
     method: "rawResponse/completed" | "item/completed";
-    responseId: string;
+    responseId: string | null;
+    responseIds: string[] | null;
     turnId: string;
     runnerEventSha256: string;
     monotonicNs: string;
@@ -1071,15 +1081,17 @@ export namespace EvidenceBenchmarkQualityArtifacts {
     if (event.vendorSchemaSha256 !== EvidenceBenchmarkHash.bytes(vendorSchema))
       throw new Error("Adjudicator raw event vendor schema drifted.");
     const params = record(frame.params, "adjudicator app-server params");
-    const responseId = text(event.responseId, "adjudicator response id");
     const turnId = text(event.turnId, "adjudicator turn id");
+    validateVendorParams(vendorSchema, params, expectedSchema);
     if (params.threadId !== eventStream.threadId || params.turnId !== turnId)
       throw new Error(
         "Adjudicator raw event thread or turn membership drifted.",
       );
     if (normalizedMethod === "rawResponse/completed") {
+      const responseId = text(event.responseId, "adjudicator response id");
       if (
         params.responseId !== responseId ||
+        event.responseIds !== null ||
         event.structuredOutputJsonPointer !== null
       )
         throw new Error("Adjudicator completion event identity drifted.");
@@ -1087,6 +1099,7 @@ export namespace EvidenceBenchmarkQualityArtifacts {
       return {
         method: normalizedMethod,
         responseId,
+        responseIds: null,
         turnId,
         runnerEventSha256: text(
           runner.eventSha256,
@@ -1100,23 +1113,53 @@ export namespace EvidenceBenchmarkQualityArtifacts {
     const item = record(params.item, "adjudicator final item");
     if (
       event.structuredOutputJsonPointer !== "/params/item/text" ||
+      event.responseId !== null ||
       item.type !== "agentMessage" ||
       typeof item.id !== "string" ||
       item.id.length === 0 ||
-      typeof item.text !== "string"
+      typeof item.text !== "string" ||
+      item.phase !== "final_answer"
     )
       throw new Error(
         "Adjudicator provider output is not a final agentMessage text.",
       );
     return {
       method: normalizedMethod,
-      responseId,
+      responseId: null,
+      responseIds: stringArray(
+        event.responseIds,
+        "adjudicator provider response ids",
+      ),
       turnId,
       runnerEventSha256: text(runner.eventSha256, "provider runner event hash"),
       monotonicNs: text(runner.monotonicNs, "provider monotonic time"),
       usage: null,
       structuredOutput: item.text,
     };
+  }
+
+  function validateVendorParams(
+    schemaBytes: Uint8Array,
+    params: Record<string, unknown>,
+    label: string,
+  ): void {
+    const schema = record(
+      EvidenceBenchmarkProtocolValidator.parse(
+        decodeBytes(schemaBytes, `${label} vendor schema`),
+        `${label} vendor schema`,
+      ),
+      `${label} vendor schema`,
+    );
+    const ajv = new Ajv({
+      allErrors: true,
+      strict: false,
+      validateFormats: false,
+    });
+    const validate: ValidateFunction = ajv.compile(schema);
+    if (!validate(params))
+      throw new Error(
+        `${label} raw params violate the exact pinned vendor schema.`,
+      );
   }
 
   function validateUsageProjection(
@@ -1129,7 +1172,9 @@ export namespace EvidenceBenchmarkQualityArtifacts {
       report.responses,
       "adjudicator core usage responses",
     );
-    const responseIds: string[] = completions.map((entry) => entry.responseId);
+    const responseIds: string[] = completions.map((entry) =>
+      text(entry.responseId, "adjudicator completion response id"),
+    );
     if (
       report.schemaVersion !== 1 ||
       report.exactUsageComplete !== true ||
