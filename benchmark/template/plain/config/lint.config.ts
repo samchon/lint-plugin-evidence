@@ -3,9 +3,9 @@ import type { ITtscLintConfig } from "@ttsc/lint";
 /**
  * The workspace lint configuration for the plain arm.
  *
- * Nothing here checks whether the specification is realized. These rules
- * prove the code is well formed; establishing that every requirement has
- * an artifact is the campaign's job, performed by reading, not by the build.
+ * Nothing here checks whether the specification is realized. These rules prove
+ * the code is well formed; establishing that every requirement has an artifact
+ * is the campaign's job, performed by reading, not by the build.
  */
 export default {
   format: {
