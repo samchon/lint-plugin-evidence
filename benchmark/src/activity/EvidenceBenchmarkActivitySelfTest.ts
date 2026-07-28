@@ -4,14 +4,17 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { EvidenceBenchmarkProtocolValidator } from "../EvidenceBenchmarkProtocolValidator.ts";
 import { EvidenceBenchmarkActivityCanonical } from "./EvidenceBenchmarkActivityCanonical.ts";
 import { EvidenceBenchmarkActivityCodebook } from "./EvidenceBenchmarkActivityCodebook.ts";
+import { EvidenceBenchmarkActivityExecutions } from "./EvidenceBenchmarkActivityExecutions.ts";
 import { EvidenceBenchmarkActivityJudgments } from "./EvidenceBenchmarkActivityJudgments.ts";
 import { EvidenceBenchmarkActivityJcs } from "./EvidenceBenchmarkActivityJcs.ts";
 import { EvidenceBenchmarkActivityObservations } from "./EvidenceBenchmarkActivityObservations.ts";
 import { EvidenceBenchmarkActivityReducer } from "./EvidenceBenchmarkActivityReducer.ts";
 import { EvidenceBenchmarkActivityRegistry } from "./EvidenceBenchmarkActivityRegistry.ts";
 import { EvidenceBenchmarkActivityStrictJson } from "./EvidenceBenchmarkActivityStrictJson.ts";
+import { EvidenceBenchmarkActivityVendorSchemas } from "./EvidenceBenchmarkActivityVendorSchemas.ts";
 import type { IEvidenceBenchmarkActivity } from "./IEvidenceBenchmarkActivity.ts";
 
 /** Runs paid-call-free fixtures for the complete activity attribution contract. */
@@ -64,6 +67,8 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         reportSchema: PinnedFile;
         coreSealSchema: PinnedFile;
         usageReportSchema: PinnedFile;
+        rawResponseCompletedVendorSchema: PinnedFile;
+        itemCompletedVendorSchema: PinnedFile;
       };
     };
     const activity = pins.activityAttribution;
@@ -85,6 +90,8 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       activity.reportSchema,
       activity.coreSealSchema,
       activity.usageReportSchema,
+      activity.rawResponseCompletedVendorSchema,
+      activity.itemCompletedVendorSchema,
     ])
       pinnedFile(benchmarkRoot, artifact);
   }
@@ -162,7 +169,23 @@ export namespace EvidenceBenchmarkActivitySelfTest {
    */
   function testExactObservationIntegrity(protocolRoot: string): void {
     const fixture: Fixture = fixtureObservations(protocolRoot);
+    EvidenceBenchmarkProtocolValidator.validateBytes(
+      canonicalProtocolRoot(),
+      "activity-ledger.schema.json",
+      fixture.input.sourceActivityLedgerBytes,
+      "activity ledger positive fixture",
+    );
+    EvidenceBenchmarkProtocolValidator.validateValue(
+      canonicalProtocolRoot(),
+      "activity-observation.schema.json",
+      fixture.observations,
+      "activity observation positive fixture",
+    );
     assert.equal(fixture.observations.responses.length, 2);
+    assert.deepEqual(
+      fixture.observations.phaseSegments.map((row) => row.phase),
+      ["phase2_discovery", "phase2_fix", "phase2_discovery", "phase2_fix"],
+    );
     assert.throws(
       () =>
         EvidenceBenchmarkActivityObservations.create({
@@ -251,6 +274,36 @@ export namespace EvidenceBenchmarkActivitySelfTest {
           responses: [fixture.input.responses[0]!, fixture.input.responses[0]!],
         }),
       /Duplicate observed response ID|counts differ/,
+    );
+    const duplicateSegments = structuredClone(fixture.input.phaseSegments);
+    duplicateSegments[2]!.phaseSegmentId = duplicateSegments[0]!.phaseSegmentId;
+    assert.throws(
+      () =>
+        EvidenceBenchmarkActivityObservations.create({
+          ...fixture.input,
+          phaseSegments: duplicateSegments,
+        }),
+      /segment IDs must be non-empty and unique/,
+    );
+    const noncontiguousSegments = structuredClone(fixture.input.phaseSegments);
+    noncontiguousSegments[1]!.wall.startedMonotonicNs = "251";
+    assert.throws(
+      () =>
+        EvidenceBenchmarkActivityObservations.create({
+          ...fixture.input,
+          phaseSegments: noncontiguousSegments,
+        }),
+      /not a contiguous partition/,
+    );
+    const wrongSegmentResponses = structuredClone(fixture.input.responses);
+    wrongSegmentResponses[0]!.phaseSegmentId = "discovery-2";
+    assert.throws(
+      () =>
+        EvidenceBenchmarkActivityObservations.create({
+          ...fixture.input,
+          responses: wrongSegmentResponses,
+        }),
+      /provenance differs/,
     );
     const invalidUsage = structuredClone(fixture.input.responses);
     invalidUsage[0]!.usage!.totalTokens += 1;
@@ -460,19 +513,48 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         adjudicator,
         adjudicatorEvidence: executionEvidence(adjudicator),
       });
+    EvidenceBenchmarkProtocolValidator.validateValue(
+      canonicalProtocolRoot(),
+      "activity-report.schema.json",
+      report,
+      "activity report positive fixture",
+    );
+    EvidenceBenchmarkProtocolValidator.validateValue(
+      canonicalProtocolRoot(),
+      "activity-execution.schema.json",
+      raterA.execution,
+      "activity execution positive fixture",
+    );
+    EvidenceBenchmarkProtocolValidator.validateBytes(
+      canonicalProtocolRoot(),
+      "activity-process-identity.schema.json",
+      executionEvidence(raterA).processIdentityArtifactBytes,
+      "activity process identity positive fixture",
+    );
     assert.equal(report.exactTokenReconciled, true);
     assert.equal(report.exclusiveWallReconciled, true);
     assert.equal(report.wallTimeNs, "1000");
-    assert.equal(report.coveredUnionWallNs, "800");
-    assert.equal(report.residualWallNs, "200");
+    assert.equal(report.coveredUnionWallNs, "300");
+    assert.equal(report.residualWallNs, "700");
     assert.equal(report.semanticQuantitiesAreEstimates, true);
     assert.equal(report.semanticAttributionStatus, "complete");
-    assert.equal(report.phaseAllocations.length, 1);
-    assert.equal(report.phaseAllocations[0]!.phase, "phase1");
-    assert.equal(report.phaseAllocations[0]!.wallTimeNs, "1000");
+    assert.equal(report.phaseAllocations.length, 2);
+    assert.equal(report.phaseAllocations[0]!.phase, "phase2_discovery");
+    assert.deepEqual(report.phaseAllocations[0]!.phaseSegmentIds, [
+      "discovery-1",
+      "discovery-2",
+    ]);
+    assert.equal(report.phaseAllocations[0]!.wallTimeNs, "500");
     assert.deepEqual(report.phaseAllocations[0]!.exactTotal, report.exactTotal);
     assert.equal(report.phaseAllocations[0]!.exactTokenReconciled, true);
     assert.equal(report.phaseAllocations[0]!.exclusiveWallReconciled, true);
+    assert.equal(report.phaseAllocations[1]!.phase, "phase2_fix");
+    assert.deepEqual(report.phaseAllocations[1]!.phaseSegmentIds, [
+      "fix-1",
+      "fix-2",
+    ]);
+    assert.equal(report.phaseAllocations[1]!.wallTimeNs, "500");
+    assert.equal(report.phaseAllocations[1]!.exactTotal.totalTokens, 0);
     assert.equal(report.raterAgreement.primaryObservedAgreement, 1);
     assert.equal(report.raterAgreement.primaryCohenKappa, 1);
     assert.equal(report.raterAgreement.causalRoleAgreement, 1);
@@ -490,19 +572,13 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     const methodTime = report.timeAllocations.find(
       (row) => row.primary === "method_reading",
     )!;
-    assert.equal(methodTime.categoryUnionWallNs, "600");
-    assert.equal(methodTime.sourceActivityTimeMs, 1_100);
+    assert.equal(methodTime.categoryUnionWallNs, "200");
+    assert.equal(methodTime.sourceActivityTimeMs, 200);
     const implementationTime = report.timeAllocations.find(
       (row) => row.primary === "implementation",
     )!;
-    assert.equal(implementationTime.categoryUnionWallNs, "500");
-    assert.deepEqual(report.pairwiseOverlap, [
-      {
-        left: "method_reading",
-        right: "implementation",
-        overlapWallNs: "300",
-      },
-    ]);
+    assert.equal(implementationTime.categoryUnionWallNs, "100");
+    assert.deepEqual(report.pairwiseOverlap, []);
     assert.equal(
       report.timeAllocations
         .map((row) => BigInt(row.exclusiveEquivalentWallNs))
@@ -607,6 +683,50 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         ),
       /process identity artifact exact bytes differ/,
     );
+    const extraResponseEvidence: IEvidenceBenchmarkActivity.IModelExecutionEvidence =
+      structuredClone(executionEvidence(valid));
+    const extraUsage = JSON.parse(
+      Buffer.from(extraResponseEvidence.usageLedgerBytes).toString("utf8"),
+    ) as {
+      exactUsageComplete: boolean;
+      responses: Record<string, unknown>[];
+    };
+    extraUsage.responses.push({
+      ...extraUsage.responses[0]!,
+      responseId: "unbound-extra-response",
+    });
+    extraResponseEvidence.usageLedgerBytes = Buffer.from(
+      `${JSON.stringify(extraUsage)}\n`,
+      "utf8",
+    );
+    const extraResponseExecution = structuredClone(valid.execution);
+    extraResponseExecution.usageLedgerSha256 =
+      EvidenceBenchmarkActivityCanonical.sha256(
+        extraResponseEvidence.usageLedgerBytes,
+      );
+    const {
+      executionSha256: _extraExecutionIgnored,
+      ...extraResponseExecutionBody
+    } = extraResponseExecution;
+    extraResponseExecution.executionSha256 =
+      EvidenceBenchmarkActivityCanonical.object(extraResponseExecutionBody);
+    assert.throws(
+      () =>
+        EvidenceBenchmarkActivityExecutions.admit(
+          fixture.observations.binding,
+          extraResponseExecution,
+          extraResponseEvidence,
+          {
+            assignmentSha256: valid.assignment.assignmentSha256,
+            agentRole: valid.assignment.turnClass,
+            sessionId: valid.assignment.sessionId,
+            threadId: valid.assignment.threadId,
+            providerOutputSha256: valid.providerOutputSha256,
+            processProvenanceSha256: valid.assignment.processProvenanceSha256,
+          },
+        ),
+      /usage ledger is not exact and complete/,
+    );
     const reusedAssignment: IEvidenceBenchmarkActivity.IRaterArtifact =
       structuredClone(valid);
     reusedAssignment.assignment.observationSha256 = digest(
@@ -706,9 +826,10 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         responseId: "response-a",
         threadId: "thread-primary",
         turnId: "turn-1",
-        phase: "phase1",
+        phase: "phase2_discovery",
+        phaseSegmentId: "discovery-1",
         receivedAtUtc: "2026-07-29T00:00:00.000Z",
-        receivedMonotonicNs: "500",
+        receivedMonotonicNs: "200",
         rawEventId: sourceEventLedger.ids.get("event-a")!,
         usage: {
           inputTokens: 100,
@@ -723,9 +844,10 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         responseId: "response-b",
         threadId: "thread-descendant",
         turnId: "turn-1",
-        phase: "phase1",
+        phase: "phase2_discovery",
+        phaseSegmentId: "discovery-2",
         receivedAtUtc: "2026-07-29T00:00:00.001Z",
-        receivedMonotonicNs: "900",
+        receivedMonotonicNs: "700",
         rawEventId: sourceEventLedger.ids.get("event-b")!,
         usage: {
           inputTokens: 80,
@@ -774,18 +896,73 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       "utf8",
     );
     const observedItems: IEvidenceBenchmarkActivity.IItemObservation[] = [
-      item("item-a", "response-a", "100", "500", 600, sourceEventLedger.ids),
-      item("item-b", "response-a", "300", "700", 500, sourceEventLedger.ids),
-      item("item-c", "response-b", "400", "900", 500, sourceEventLedger.ids),
+      item(
+        "item-a",
+        "response-a",
+        "phase2_discovery",
+        "discovery-1",
+        "100",
+        "200",
+        100,
+        sourceEventLedger.ids,
+      ),
+      item(
+        "item-b",
+        "response-a",
+        "phase2_fix",
+        "fix-1",
+        "300",
+        "400",
+        100,
+        sourceEventLedger.ids,
+      ),
+      item(
+        "item-c",
+        "response-b",
+        "phase2_discovery",
+        "discovery-2",
+        "600",
+        "700",
+        100,
+        sourceEventLedger.ids,
+      ),
     ];
     const observedWall: IEvidenceBenchmarkActivity.IWallInterval = {
       startedMonotonicNs: "0",
       completedMonotonicNs: "1000",
     };
-    const observedPhaseWalls: IEvidenceBenchmarkActivity.IPhaseWall[] = [
+    const observedPhaseSegments: IEvidenceBenchmarkActivity.IPhaseSegment[] = [
       {
-        phase: "phase1",
-        wall: observedWall,
+        phaseSegmentId: "discovery-1",
+        phase: "phase2_discovery",
+        wall: {
+          startedMonotonicNs: "0",
+          completedMonotonicNs: "250",
+        },
+      },
+      {
+        phaseSegmentId: "fix-1",
+        phase: "phase2_fix",
+        wall: {
+          startedMonotonicNs: "250",
+          completedMonotonicNs: "500",
+        },
+      },
+      {
+        phaseSegmentId: "discovery-2",
+        phase: "phase2_discovery",
+        wall: {
+          startedMonotonicNs: "500",
+          completedMonotonicNs: "750",
+        },
+      },
+      {
+        phaseSegmentId: "fix-2",
+        phase: "phase2_fix",
+        wall: {
+          startedMonotonicNs: "750",
+          completedMonotonicNs: "1000",
+        },
       },
     ];
     const sourceActivityLedgerBytes: Buffer = activityLedger(
@@ -793,7 +970,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       sourceEventLedger.head,
       sourceUsageLedgerBytes,
       observedWall,
-      observedPhaseWalls,
+      observedPhaseSegments,
       observedItems,
       responses.length,
     );
@@ -868,7 +1045,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       sourceEventLedgerBytes: sourceEventLedger.bytes,
       sourceActivityLedgerBytes,
       wall: observedWall,
-      phaseWalls: observedPhaseWalls,
+      phaseSegments: observedPhaseSegments,
       responses,
       items: observedItems,
     };
@@ -881,6 +1058,8 @@ export namespace EvidenceBenchmarkActivitySelfTest {
   function item(
     itemId: string,
     responseId: string,
+    phase: IEvidenceBenchmarkActivity.Phase,
+    phaseSegmentId: string,
     start: string,
     end: string,
     sourceDurationMs: number,
@@ -893,7 +1072,8 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       turnId: "turn-1",
       itemId,
       itemType: itemId === "item-c" ? "collabAgentCall" : "commandExecution",
-      phase: "phase1",
+      phase,
+      phaseSegmentId,
       startedAtSourceMs: Number(start),
       completedAtSourceMs: Number(end),
       startedReceiptMonotonicNs: start,
@@ -1165,7 +1345,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       processId: startedMonotonicNs,
       startedAtUtc: "2026-07-29T00:59:59.999Z",
       startedMonotonicNs: String(startedMonotonicNs),
-      invocation: ["codex", "app-server"],
+      invocation: ["D:/tools/codex.exe", "app-server"],
     };
     const identity: IEvidenceBenchmarkActivity.IProcessIdentityArtifact = {
       ...body,
@@ -1190,6 +1370,26 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     process: ProcessFixture,
     baseMonotonicNs: number,
   ): ExecutionFixture {
+    const repositoryRoot: string = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      "../../..",
+    );
+    const rawResponseCompletedSchemaBytes: Buffer = fs.readFileSync(
+      path.join(
+        repositoryRoot,
+        ...EvidenceBenchmarkActivityVendorSchemas.RAW_RESPONSE_COMPLETED.path.split(
+          "/",
+        ),
+      ),
+    );
+    const itemCompletedSchemaBytes: Buffer = fs.readFileSync(
+      path.join(
+        repositoryRoot,
+        ...EvidenceBenchmarkActivityVendorSchemas.ITEM_COMPLETED.path.split(
+          "/",
+        ),
+      ),
+    );
     const agentRole:
       "activity-rater-a" | "activity-rater-b" | "activity-adjudicator" =
       "turnClass" in assignment ? assignment.turnClass : "activity-adjudicator";
@@ -1230,7 +1430,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
           item: {
             id: structuredOutputItemId,
             type: "agentMessage",
-            phase: "final",
+            phase: "final_answer",
             text: EvidenceBenchmarkActivityCanonical.stringify(providerOutput),
           },
         },
@@ -1418,6 +1618,8 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         executionSha256: EvidenceBenchmarkActivityCanonical.object(body),
       },
       evidence: {
+        rawResponseCompletedSchemaBytes,
+        itemCompletedSchemaBytes,
         eventLedgerBytes,
         usageLedgerBytes,
         processIdentityArtifactBytes: process.bytes,
@@ -1450,6 +1652,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
           threadId: row.threadId,
           turnId: row.turnId,
           phase: row.phase,
+          phaseSegmentId: row.phaseSegmentId,
           receivedAtUtc: row.receivedAtUtc,
           receivedMonotonicNs: row.receivedMonotonicNs,
           rawEventId: row.rawEventId,
@@ -1505,7 +1708,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     eventHead: string,
     usageBytes: Uint8Array,
     wall: IEvidenceBenchmarkActivity.IWallInterval,
-    phaseWalls: readonly IEvidenceBenchmarkActivity.IPhaseWall[],
+    phaseSegments: readonly IEvidenceBenchmarkActivity.IPhaseSegment[],
     items: readonly IEvidenceBenchmarkActivity.IItemObservation[],
     responseCount: number,
   ): Buffer {
@@ -1525,7 +1728,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         expectedResponseCount: responseCount,
         expectedItemObservationCount: items.length,
         wall,
-        phaseWalls,
+        phaseSegments,
         items,
       })}\n`,
       "utf8",
@@ -1534,6 +1737,13 @@ export namespace EvidenceBenchmarkActivitySelfTest {
 
   function digest(label: string): string {
     return EvidenceBenchmarkActivityCanonical.sha256(label);
+  }
+
+  function canonicalProtocolRoot(): string {
+    return path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      "../../protocol",
+    );
   }
 
   function citation(

@@ -8,7 +8,7 @@
     "schemaVersion",
     "binding",
     "wall",
-    "phaseWalls",
+    "phaseSegments",
     "responses",
     "sourceExactUsageComplete",
     "sourceEventCaptureComplete",
@@ -29,11 +29,11 @@
     "wall": {
       "$ref": "activity-ledger.schema.json#/$defs/wall"
     },
-    "phaseWalls": {
+    "phaseSegments": {
       "type": "array",
       "minItems": 1,
       "items": {
-        "$ref": "activity-ledger.schema.json#/$defs/phaseWall"
+        "$ref": "activity-ledger.schema.json#/$defs/phaseSegment"
       }
     },
     "responses": {
@@ -234,6 +234,7 @@
         "threadId",
         "turnId",
         "phase",
+        "phaseSegmentId",
         "receivedAtUtc",
         "receivedMonotonicNs",
         "rawEventId",
@@ -254,6 +255,10 @@
         },
         "phase": {
           "$ref": "activity-ledger.schema.json#/$defs/phase"
+        },
+        "phaseSegmentId": {
+          "type": "string",
+          "minLength": 1
         },
         "receivedAtUtc": {
           "type": "string",

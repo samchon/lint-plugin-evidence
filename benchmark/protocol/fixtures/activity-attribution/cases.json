@@ -8,6 +8,21 @@
       "invariant": "exact core-bound observations plus two independent raters and a fresh adjudicator reconcile"
     },
     {
+      "id": "valid-repeated-phase-segments",
+      "valid": true,
+      "invariant": "discovery-fix-discovery-fix is an ordered contiguous segment partition and repeated phase labels aggregate only their named segments"
+    },
+    {
+      "id": "invalid-duplicate-phase-segment-id",
+      "valid": false,
+      "invariant": "every ordered phase segment has one non-empty globally unique phaseSegmentId"
+    },
+    {
+      "id": "invalid-noncontiguous-phase-segments",
+      "valid": false,
+      "invariant": "ordered phase segments partition the complete wall without a gap or overlap"
+    },
+    {
       "id": "invalid-event-chain-after-outer-rehash",
       "valid": false,
       "invariant": "every event hash is recomputed from RFC 8785 bytes and the terminal hash equals the core"
@@ -31,6 +46,11 @@
       "id": "invalid-provider-output-spliced-onto-assignment",
       "valid": false,
       "invariant": "the exact final agent-message item text, not raw response usage, binds the provider output digest"
+    },
+    {
+      "id": "invalid-extra-evaluation-response",
+      "valid": false,
+      "invariant": "an isolated rater or adjudicator usage ledger contains exactly the one response bound to its execution"
     },
     {
       "id": "invalid-process-identity-bytes",

@@ -4,6 +4,7 @@ import { EvidenceBenchmarkActivityCanonical } from "./EvidenceBenchmarkActivityC
 import { EvidenceBenchmarkActivityJcs } from "./EvidenceBenchmarkActivityJcs.ts";
 import { EvidenceBenchmarkActivityObservations } from "./EvidenceBenchmarkActivityObservations.ts";
 import { EvidenceBenchmarkActivityStrictJson } from "./EvidenceBenchmarkActivityStrictJson.ts";
+import { EvidenceBenchmarkActivityVendorSchemas } from "./EvidenceBenchmarkActivityVendorSchemas.ts";
 import type { IEvidenceBenchmarkActivity } from "./IEvidenceBenchmarkActivity.ts";
 
 /** Fail-closed admission of runner-owned activity model executions. */
@@ -161,12 +162,21 @@ export namespace EvidenceBenchmarkActivityExecutions {
       turnId: execution.turnId,
     });
     rawReference(responseEvent, execution);
-    structuredOutput(
+    const itemCompletedParams: Record<string, unknown> = structuredOutput(
       itemEvent,
       evidence.structuredOutputEnvelopeBytes,
       execution,
     );
-    rawResponse(evidence.rawResponseEnvelopeBytes, execution);
+    const rawResponseParams: Record<string, unknown> = rawResponse(
+      evidence.rawResponseEnvelopeBytes,
+      execution,
+    );
+    EvidenceBenchmarkActivityVendorSchemas.admit(
+      evidence.rawResponseCompletedSchemaBytes,
+      evidence.itemCompletedSchemaBytes,
+      rawResponseParams,
+      itemCompletedParams,
+    );
     const assignmentNs: bigint = eventTime(
       assignmentEvent,
       execution.assignmentMonotonicNs,
@@ -272,10 +282,14 @@ export namespace EvidenceBenchmarkActivityExecutions {
       !Number.isFinite(Date.parse(value.startedAtUtc)) ||
       typeof value.startedMonotonicNs !== "string" ||
       !Array.isArray(value.invocation) ||
-      value.invocation.length === 0 ||
-      value.invocation.some(
-        (part) => typeof part !== "string" || part.length === 0,
-      )
+      value.invocation.length !== 2 ||
+      typeof value.invocation[0] !== "string" ||
+      !(
+        path.isAbsolute(value.invocation[0]) ||
+        path.win32.isAbsolute(value.invocation[0]) ||
+        path.posix.isAbsolute(value.invocation[0])
+      ) ||
+      value.invocation[1] !== "app-server"
     )
       throw new Error("Process identity does not prove the frozen execution.");
     nanoseconds(value.startedMonotonicNs as string, "process start");
@@ -397,7 +411,11 @@ export namespace EvidenceBenchmarkActivityExecutions {
       ),
       "evaluation usage ledger",
     );
-    if (root.exactUsageComplete !== true || !Array.isArray(root.responses))
+    if (
+      root.exactUsageComplete !== true ||
+      !Array.isArray(root.responses) ||
+      root.responses.length !== 1
+    )
       throw new Error("Evaluation usage ledger is not exact and complete.");
     const matches: Record<string, unknown>[] = root.responses
       .map((row, index) => record(row, `evaluation responses[${index}]`))
@@ -502,7 +520,7 @@ export namespace EvidenceBenchmarkActivityExecutions {
   function rawResponse(
     bytes: Uint8Array,
     execution: IEvidenceBenchmarkActivity.IModelExecutionProvenance,
-  ): void {
+  ): Record<string, unknown> {
     const envelope: Record<string, unknown> = record(
       EvidenceBenchmarkActivityStrictJson.parse(bytes, "raw response envelope"),
       "raw response envelope",
@@ -524,13 +542,14 @@ export namespace EvidenceBenchmarkActivityExecutions {
       throw new Error(
         "Raw response envelope does not match the pinned notification shape.",
       );
+    return params;
   }
 
   function structuredOutput(
     event: Record<string, unknown>,
     bytes: Uint8Array,
     execution: IEvidenceBenchmarkActivity.IModelExecutionProvenance,
-  ): void {
+  ): Record<string, unknown> {
     const rawRef: Record<string, unknown> = record(
       event.rawRef,
       "structured output raw reference",
@@ -570,7 +589,7 @@ export namespace EvidenceBenchmarkActivityExecutions {
       params.turnId !== execution.turnId ||
       item.id !== execution.structuredOutputItemId ||
       item.type !== "agentMessage" ||
-      item.phase !== "final" ||
+      item.phase !== "final_answer" ||
       typeof item.text !== "string"
     )
       throw new Error(
@@ -587,6 +606,7 @@ export namespace EvidenceBenchmarkActivityExecutions {
       throw new Error(
         "Structured output text differs from the provider output artifact.",
       );
+    return params;
   }
 
   function portablePath(input: string): void {

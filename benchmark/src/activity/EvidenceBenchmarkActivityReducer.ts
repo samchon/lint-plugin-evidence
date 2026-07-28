@@ -179,8 +179,10 @@ export namespace EvidenceBenchmarkActivityReducer {
         estimatedDenominator: 10_000,
       }));
     const phaseAllocations: IEvidenceBenchmarkActivity.IPhaseAllocation[] =
-      input.observations.phaseWalls.map((phaseWall) =>
-        phaseAllocation(input.observations, phaseWall, resolutions),
+      aggregatePhaseAllocations(
+        input.observations.phaseSegments.map((phaseSegment) =>
+          segmentAllocation(input.observations, phaseSegment, resolutions),
+        ),
       );
     const semanticIncomplete: boolean =
       unresolvedResponseIds.length !== 0 ||
@@ -235,9 +237,9 @@ export namespace EvidenceBenchmarkActivityReducer {
     exclusiveReconciled: boolean;
   }
 
-  function phaseAllocation(
+  function segmentAllocation(
     observations: IEvidenceBenchmarkActivity.IObservations,
-    phaseWall: IEvidenceBenchmarkActivity.IPhaseWall,
+    phaseSegment: IEvidenceBenchmarkActivity.IPhaseSegment,
     resolutions: ReadonlyMap<string, IResolution>,
   ): IEvidenceBenchmarkActivity.IPhaseAllocation {
     const exactTotal: IEvidenceBenchmarkActivity.ITokenVector = zeroVector();
@@ -258,7 +260,7 @@ export namespace EvidenceBenchmarkActivityReducer {
     const burdenPoint: Map<IEvidenceBenchmarkActivity.CausalRole, Numerator> =
       roleNumeratorTable();
     for (const response of observations.responses.filter(
-      (row) => row.phase === phaseWall.phase,
+      (row) => row.phaseSegmentId === phaseSegment.phaseSegmentId,
     )) {
       if (response.usage === null) continue;
       const resolution: IResolution = requiredResolution(
@@ -278,16 +280,18 @@ export namespace EvidenceBenchmarkActivityReducer {
         weighted(vector, 10_000),
       );
     }
-    const phaseObservations: IEvidenceBenchmarkActivity.IObservations = {
+    const segmentObservations: IEvidenceBenchmarkActivity.IObservations = {
       ...observations,
-      wall: phaseWall.wall,
-      phaseWalls: [phaseWall],
+      wall: phaseSegment.wall,
+      phaseSegments: [phaseSegment],
       responses: observations.responses.filter(
-        (row) => row.phase === phaseWall.phase,
+        (row) => row.phaseSegmentId === phaseSegment.phaseSegmentId,
       ),
-      items: observations.items.filter((row) => row.phase === phaseWall.phase),
+      items: observations.items.filter(
+        (row) => row.phaseSegmentId === phaseSegment.phaseSegmentId,
+      ),
     };
-    const timing: Timing = time(phaseObservations, resolutions);
+    const timing: Timing = time(segmentObservations, resolutions);
     const exactTokenReconciled: boolean =
       equalVector(exactTotal, sumVectors([...whole.values()])) &&
       equalNumerator(
@@ -296,10 +300,11 @@ export namespace EvidenceBenchmarkActivityReducer {
       );
     if (!exactTokenReconciled)
       throw new Error(
-        `Activity phase ${phaseWall.phase} tokens do not reconcile.`,
+        `Activity phase segment ${phaseSegment.phaseSegmentId} tokens do not reconcile.`,
       );
     return {
-      phase: phaseWall.phase,
+      phase: phaseSegment.phase,
+      phaseSegmentIds: [phaseSegment.phaseSegmentId],
       wallTimeNs: timing.wall.toString(),
       exactTotal,
       tokenAllocations:
@@ -330,6 +335,170 @@ export namespace EvidenceBenchmarkActivityReducer {
       exclusiveWallReconciled: timing.exclusiveReconciled,
       semanticQuantitiesAreEstimates: true,
     };
+  }
+
+  function aggregatePhaseAllocations(
+    segments: readonly IEvidenceBenchmarkActivity.IPhaseAllocation[],
+  ): IEvidenceBenchmarkActivity.IPhaseAllocation[] {
+    const phases: IEvidenceBenchmarkActivity.Phase[] = [
+      ...new Set(segments.map((row) => row.phase)),
+    ];
+    return phases.map((phase) => {
+      const rows: readonly IEvidenceBenchmarkActivity.IPhaseAllocation[] =
+        segments.filter((row) => row.phase === phase);
+      const tokenRows: Map<
+        IEvidenceBenchmarkActivity.PrimaryActivity,
+        IEvidenceBenchmarkActivity.ITokenAllocation[]
+      > = new Map(
+        EvidenceBenchmarkActivityCodebook.PRIMARY_ACTIVITIES.map((primary) => [
+          primary,
+          rows.map((row) =>
+            row.tokenAllocations.find(
+              (allocation) => allocation.primary === primary,
+            )!,
+          ),
+        ]),
+      );
+      const timeRows: Map<
+        IEvidenceBenchmarkActivity.PrimaryActivity,
+        IEvidenceBenchmarkActivity.ITimeAllocation[]
+      > = new Map(
+        EvidenceBenchmarkActivityCodebook.PRIMARY_ACTIVITIES.map((primary) => [
+          primary,
+          rows.map((row) =>
+            row.timeAllocations.find(
+              (allocation) => allocation.primary === primary,
+            )!,
+          ),
+        ]),
+      );
+      const burdenRows: Map<
+        IEvidenceBenchmarkActivity.CausalRole,
+        IEvidenceBenchmarkActivity.IBurdenAllocation[]
+      > = new Map(
+        EvidenceBenchmarkActivityCodebook.CAUSAL_ROLES.map((causalRole) => [
+          causalRole,
+          rows.map((row) =>
+            row.burdenAllocations.find(
+              (allocation) => allocation.causalRole === causalRole,
+            )!,
+          ),
+        ]),
+      );
+      return {
+        phase,
+        phaseSegmentIds: rows.flatMap((row) => row.phaseSegmentIds),
+        wallTimeNs: sumIntegerStrings(
+          rows.map((row) => row.wallTimeNs),
+        ).toString(),
+        exactTotal: sumVectors(rows.map((row) => row.exactTotal)),
+        tokenAllocations:
+          EvidenceBenchmarkActivityCodebook.PRIMARY_ACTIVITIES.map(
+            (primary) => ({
+              primary,
+              wholeResponseExact: sumVectors(
+                tokenRows.get(primary)!.map((row) => row.wholeResponseExact),
+              ),
+              estimatedPoint: sumWeightedTokens(
+                tokenRows.get(primary)!.map((row) => row.estimatedPoint),
+              ),
+              estimatedLower: sumWeightedTokens(
+                tokenRows.get(primary)!.map((row) => row.estimatedLower),
+              ),
+              estimatedUpper: sumWeightedTokens(
+                tokenRows.get(primary)!.map((row) => row.estimatedUpper),
+              ),
+            }),
+          ),
+        timeAllocations:
+          EvidenceBenchmarkActivityCodebook.PRIMARY_ACTIVITIES.map(
+            (primary) => {
+              const allocations = timeRows.get(primary)!;
+              return {
+                primary,
+                categoryUnionWallNs: sumIntegerStrings(
+                  allocations.map((row) => row.categoryUnionWallNs),
+                ).toString(),
+                sourceActivityTimeMs: allocations.reduce(
+                  (sum, row) => sum + row.sourceActivityTimeMs,
+                  0,
+                ),
+                exclusiveEquivalentWallNs: sumIntegerStrings(
+                  allocations.map((row) => row.exclusiveEquivalentWallNs),
+                ).toString(),
+                estimatedPointActivityNsNumerator: sumIntegerStrings(
+                  allocations.map(
+                    (row) => row.estimatedPointActivityNsNumerator,
+                  ),
+                ).toString(),
+                estimatedLowerActivityNsNumerator: sumIntegerStrings(
+                  allocations.map(
+                    (row) => row.estimatedLowerActivityNsNumerator,
+                  ),
+                ).toString(),
+                estimatedUpperActivityNsNumerator: sumIntegerStrings(
+                  allocations.map(
+                    (row) => row.estimatedUpperActivityNsNumerator,
+                  ),
+                ).toString(),
+                estimatedDenominator: 10_000,
+              };
+            },
+          ),
+        pairwiseOverlap: aggregateOverlaps(rows),
+        burdenAllocations: EvidenceBenchmarkActivityCodebook.CAUSAL_ROLES.map(
+          (causalRole) => {
+            const allocations = burdenRows.get(causalRole)!;
+            return {
+              causalRole,
+              exactWholeResponseTokens: sumVectors(
+                allocations.map((row) => row.exactWholeResponseTokens),
+              ),
+              estimatedPointTokens: sumWeightedTokens(
+                allocations.map((row) => row.estimatedPointTokens),
+              ),
+              estimatedPointActivityNsNumerator: sumIntegerStrings(
+                allocations.map((row) => row.estimatedPointActivityNsNumerator),
+              ).toString(),
+              estimatedDenominator: 10_000,
+            };
+          },
+        ),
+        coveredUnionWallNs: sumIntegerStrings(
+          rows.map((row) => row.coveredUnionWallNs),
+        ).toString(),
+        residualWallNs: sumIntegerStrings(
+          rows.map((row) => row.residualWallNs),
+        ).toString(),
+        censoredObservationIds: rows.flatMap(
+          (row) => row.censoredObservationIds,
+        ),
+        exactTokenReconciled: rows.every((row) => row.exactTokenReconciled),
+        exclusiveWallReconciled: rows.every(
+          (row) => row.exclusiveWallReconciled,
+        ),
+        semanticQuantitiesAreEstimates: true,
+      };
+    });
+  }
+
+  function aggregateOverlaps(
+    rows: readonly IEvidenceBenchmarkActivity.IPhaseAllocation[],
+  ): IEvidenceBenchmarkActivity.ITimeOverlap[] {
+    const totals: Map<string, bigint> = new Map();
+    for (const overlap of rows.flatMap((row) => row.pairwiseOverlap)) {
+      const key: string = `${overlap.left}\0${overlap.right}`;
+      totals.set(key, (totals.get(key) ?? 0n) + BigInt(overlap.overlapWallNs));
+    }
+    return [...totals]
+      .sort(([left], [right]) => compareUtf8(left, right))
+      .map(([key, overlapWallNs]) => {
+        const [left, right] = key.split("\0") as [
+          IEvidenceBenchmarkActivity.PrimaryActivity,
+          IEvidenceBenchmarkActivity.PrimaryActivity,
+        ];
+        return { left, right, overlapWallNs: overlapWallNs.toString() };
+      });
   }
 
   function time(
@@ -882,6 +1051,39 @@ export namespace EvidenceBenchmarkActivityReducer {
       reasoningOutputTokensNumerator: input.reasoningOutputTokens.toString(),
       totalTokensNumerator: input.totalTokens.toString(),
     };
+  }
+
+  function sumWeightedTokens(
+    values: readonly IEvidenceBenchmarkActivity.IWeightedTokenVector[],
+  ): IEvidenceBenchmarkActivity.IWeightedTokenVector {
+    return {
+      denominator: 10_000,
+      inputTokensNumerator: sumIntegerStrings(
+        values.map((row) => row.inputTokensNumerator),
+      ).toString(),
+      cachedInputTokensNumerator: sumIntegerStrings(
+        values.map((row) => row.cachedInputTokensNumerator),
+      ).toString(),
+      cacheWriteInputTokensNumerator: sumIntegerStrings(
+        values.map((row) => row.cacheWriteInputTokensNumerator),
+      ).toString(),
+      normalizedNonCachedInputTokensNumerator: sumIntegerStrings(
+        values.map((row) => row.normalizedNonCachedInputTokensNumerator),
+      ).toString(),
+      outputTokensNumerator: sumIntegerStrings(
+        values.map((row) => row.outputTokensNumerator),
+      ).toString(),
+      reasoningOutputTokensNumerator: sumIntegerStrings(
+        values.map((row) => row.reasoningOutputTokensNumerator),
+      ).toString(),
+      totalTokensNumerator: sumIntegerStrings(
+        values.map((row) => row.totalTokensNumerator),
+      ).toString(),
+    };
+  }
+
+  function sumIntegerStrings(values: readonly string[]): bigint {
+    return values.reduce((sum, value) => sum + BigInt(value), 0n);
   }
 
   function requiredResolution(

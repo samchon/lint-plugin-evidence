@@ -77,6 +77,9 @@ export namespace IEvidenceBenchmarkActivity {
     /** Frozen harness phase at response completion. */
     phase: Phase;
 
+    /** Exact ordered phase segment containing this response completion. */
+    phaseSegmentId: string;
+
     /** UTC receipt timestamp preserved from the runner. */
     receivedAtUtc: string;
 
@@ -209,6 +212,9 @@ export namespace IEvidenceBenchmarkActivity {
     /** Frozen harness phase at item observation. */
     phase: Phase;
 
+    /** Exact ordered phase segment containing this item lifecycle. */
+    phaseSegmentId: string;
+
     /** Source-provided epoch start milliseconds, when present. */
     startedAtSourceMs: number | null;
 
@@ -243,12 +249,15 @@ export namespace IEvidenceBenchmarkActivity {
     completedMonotonicNs: string;
   }
 
-  /** One exact, non-overlapping runner phase wall. */
-  export interface IPhaseWall {
-    /** Frozen harness phase represented by this wall. */
+  /** One exact ordered segment in the non-overlapping runner wall. */
+  export interface IPhaseSegment {
+    /** Globally unique segment identity assigned in runner order. */
+    phaseSegmentId: string;
+
+    /** Frozen harness phase represented by this segment. */
     phase: Phase;
 
-    /** Exact monotonic wall for this phase. */
+    /** Exact monotonic wall for this segment. */
     wall: IWallInterval;
   }
 
@@ -263,8 +272,8 @@ export namespace IEvidenceBenchmarkActivity {
     /** Complete cell wall used by interval reconciliation. */
     wall: IWallInterval;
 
-    /** Contiguous phase partition of the complete cell wall. */
-    phaseWalls: readonly IPhaseWall[];
+    /** Ordered contiguous segment partition of the complete cell wall. */
+    phaseSegments: readonly IPhaseSegment[];
 
     /** Exact usage rows, including nullable right-censored rows. */
     responses: readonly IResponseUsage[];
@@ -733,6 +742,12 @@ export namespace IEvidenceBenchmarkActivity {
 
   /** Exact retained bytes needed to admit one model execution. */
   export interface IModelExecutionEvidence {
+    /** Exact frozen Codex RawResponseCompletedNotification schema bytes. */
+    rawResponseCompletedSchemaBytes: Uint8Array;
+
+    /** Exact frozen Codex ItemCompletedNotification schema bytes. */
+    itemCompletedSchemaBytes: Uint8Array;
+
     /** Exact evaluation event-ledger JSONL bytes. */
     eventLedgerBytes: Uint8Array;
 
@@ -890,12 +905,15 @@ export namespace IEvidenceBenchmarkActivity {
     meanProbabilityJensenShannonBits: number;
   }
 
-  /** Phase-specific semantic allocations over one exact phase wall. */
+  /** Phase-specific semantic allocations aggregated across exact segments. */
   export interface IPhaseAllocation {
-    /** Frozen phase represented by this row. */
+    /** Frozen phase label represented by this aggregate row. */
     phase: Phase;
 
-    /** Exact phase wall duration in nanoseconds. */
+    /** Ordered exact segments included in this phase aggregate. */
+    phaseSegmentIds: readonly string[];
+
+    /** Sum of exact segment wall durations in nanoseconds. */
     wallTimeNs: string;
 
     /** Exact sum of non-null response usage observed in this phase. */
@@ -973,7 +991,7 @@ export namespace IEvidenceBenchmarkActivity {
     /** Separate shared, direct, induced, quality, and residual burden rows. */
     burdenAllocations: readonly IBurdenAllocation[];
 
-    /** Complete semantic allocation repeated within each exact phase wall. */
+    /** Complete semantic allocation aggregated by frozen phase label. */
     phaseAllocations: readonly IPhaseAllocation[];
 
     /** Agreement statistics computed before fresh adjudication. */

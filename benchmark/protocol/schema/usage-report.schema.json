@@ -70,6 +70,10 @@
     }
   },
   "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "response": {
       "type": "object",
       "additionalProperties": false,
@@ -78,6 +82,7 @@
         "threadId",
         "turnId",
         "phase",
+        "phaseSegmentId",
         "receivedMonotonicNs",
         "rawEventId",
         "usage",
@@ -106,6 +111,10 @@
             "grading",
             "terminal"
           ]
+        },
+        "phaseSegmentId": {
+          "type": "string",
+          "minLength": 1
         },
         "receivedMonotonicNs": {
           "type": "string",

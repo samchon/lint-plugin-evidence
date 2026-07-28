@@ -268,8 +268,8 @@
     },
     "processIdentitySchema": {
       "path": "benchmark/protocol/schema/activity-process-identity.schema.json",
-      "bytes": 1937,
-      "sha256": "d0d9572594b58779b66a0b516d439ebb3ead18764725ec79ef94051242c8b9ec"
+      "bytes": 2096,
+      "sha256": "3ec5d5092be7cd369f9783b80e6bb3fbfa3ecf9c4eb579cac82869b65516a433"
     },
     "executionSchema": {
       "path": "benchmark/protocol/schema/activity-execution.schema.json",
@@ -278,18 +278,18 @@
     },
     "ledgerSchema": {
       "path": "benchmark/protocol/schema/activity-ledger.schema.json",
-      "bytes": 5063,
-      "sha256": "6a1b52d3bf2c38efa74e9d093afe850574b6aa47f6abdb1dfe78bbb8eeacfecc"
+      "bytes": 5311,
+      "sha256": "ede3601ede1773ec832158eddfa2292a8ba8751bd904863bed04051018dd067d"
     },
     "observationSchema": {
       "path": "benchmark/protocol/schema/activity-observation.schema.json",
-      "bytes": 7758,
-      "sha256": "325dc402a8bbb458766dd19901d9a1e547f5866c6dd44dc799e66bb75ad5c074"
+      "bytes": 7885,
+      "sha256": "f229d3fc0e6be9d6ed5c08112142006cd1b4d2f8abcfb32b5ed74f5c3ee2a780"
     },
     "reportSchema": {
       "path": "benchmark/protocol/schema/activity-report.schema.json",
-      "bytes": 13177,
-      "sha256": "a59e5f9ea0ad6c2905400e97e9c22444bf32d3b40845696f26f32b54edd5e677"
+      "bytes": 13417,
+      "sha256": "d19c32fe0c59677b27c64a8ff4dc371fa968c73815a5f8b39e206dd58e9dad14"
     },
     "coreSealSchema": {
       "path": "benchmark/protocol/schema/core-seal.schema.json",
@@ -298,8 +298,18 @@
     },
     "usageReportSchema": {
       "path": "benchmark/protocol/schema/usage-report.schema.json",
-      "bytes": 5593,
-      "sha256": "bcb33bc49584e07ccb3efe4f3f29413b09bca5096d7f985f067d085125f72886"
+      "bytes": 5792,
+      "sha256": "c8203b9c966a29066b4b1654d9a2d216fea70ce1bd358d3f5036eced1e6a157d"
+    },
+    "rawResponseCompletedVendorSchema": {
+      "path": "benchmark/protocol/vendor/codex/0.145.0/app-server-schema-experimental/v2/RawResponseCompletedNotification.json",
+      "bytes": 1525,
+      "sha256": "d330286f1d9abc273837091a9a4e7b4b2454721f4f3bc3a01386c2145105b4e7"
+    },
+    "itemCompletedVendorSchema": {
+      "path": "benchmark/protocol/vendor/codex/0.145.0/app-server-schema-experimental/v2/ItemCompletedNotification.json",
+      "bytes": 39260,
+      "sha256": "047016f3132b046cedc98b62672656f834e7561c872c06c155643a018f51eef8"
     },
     "semanticFixturePath": "benchmark/protocol/fixtures/activity-attribution/cases.json",
     "exactByteDigestAlgorithm": "sha256(exact-bytes)",

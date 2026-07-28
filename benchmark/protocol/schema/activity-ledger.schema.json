@@ -17,7 +17,7 @@
     "expectedResponseCount",
     "expectedItemObservationCount",
     "wall",
-    "phaseWalls",
+    "phaseSegments",
     "items"
   ],
   "properties": {
@@ -60,11 +60,11 @@
     "wall": {
       "$ref": "#/$defs/wall"
     },
-    "phaseWalls": {
+    "phaseSegments": {
       "type": "array",
       "minItems": 1,
       "items": {
-        "$ref": "#/$defs/phaseWall"
+        "$ref": "#/$defs/phaseSegment"
       }
     },
     "items": {
@@ -120,14 +120,19 @@
         }
       }
     },
-    "phaseWall": {
+    "phaseSegment": {
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "phaseSegmentId",
         "phase",
         "wall"
       ],
       "properties": {
+        "phaseSegmentId": {
+          "type": "string",
+          "minLength": 1
+        },
         "phase": {
           "$ref": "#/$defs/phase"
         },
@@ -146,6 +151,7 @@
         "itemId",
         "itemType",
         "phase",
+        "phaseSegmentId",
         "startedAtSourceMs",
         "completedAtSourceMs",
         "startedReceiptMonotonicNs",
@@ -178,6 +184,10 @@
         },
         "phase": {
           "$ref": "#/$defs/phase"
+        },
+        "phaseSegmentId": {
+          "type": "string",
+          "minLength": 1
         },
         "startedAtSourceMs": {
           "$ref": "#/$defs/nullableMilliseconds"

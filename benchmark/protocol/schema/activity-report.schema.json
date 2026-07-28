@@ -444,6 +444,7 @@
       "additionalProperties": false,
       "required": [
         "phase",
+        "phaseSegmentIds",
         "wallTimeNs",
         "exactTotal",
         "tokenAllocations",
@@ -460,6 +461,15 @@
       "properties": {
         "phase": {
           "$ref": "activity-ledger.schema.json#/$defs/phase"
+        },
+        "phaseSegmentIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         },
         "wallTimeNs": {
           "$ref": "#/$defs/integerString"
