@@ -59,7 +59,7 @@ Form the root from the table name: keep every word including the service prefix,
 | Table | Wrong | Right | Problem |
 | --- | --- | --- | --- |
 | `shopping_sales` | `ISale` | `IShoppingSale` | dropped the prefix |
-| `shopping_sale_snapshot_reviews` | `IShoppingSaleReview` | `IShoppingSaleSnapshotReview` | dropped an intermediate word |
+| `shopping_customer_sessions` | `IShoppingSession` | `IShoppingCustomerSession` | dropped an intermediate word |
 | any | `IShoppingSaleICreate` | `IShoppingSale.ICreate` | missing the dot; that type does not exist downstream |
 
 Variants attach with a dot. A multi-item response wraps the item type in the shared generic instead of gaining a name of its own: `IPage<IShoppingSale.ISummary>`.
