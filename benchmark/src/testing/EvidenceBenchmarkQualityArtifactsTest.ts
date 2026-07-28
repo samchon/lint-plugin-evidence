@@ -929,6 +929,60 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
       { runId, parentCoreSealSha256: parentCore },
       { repoRoot, scannerSource, rules: safetyRules, files: cleanFiles },
     );
+    const reportInsideCandidate = new Map(cleanFiles);
+    reportInsideCandidate.set(
+      "public-safety-scan.json",
+      Buffer.from('{"findingCount":0}\n', "utf8"),
+    );
+    expectInvalid(
+      () =>
+        EvidenceBenchmarkPublicSafetyScanner.scan({
+          repoRoot,
+          runId,
+          parentCoreSealSha256: parentCore,
+          files: reportInsideCandidate,
+          scannedAtUtc: "2026-07-29T00:00:02.500Z",
+        }),
+      "sibling",
+    );
+    const postScanMutation = new Map(cleanFiles);
+    postScanMutation.set(
+      "postprocess/added-after-scan.json",
+      Buffer.from('{"mutated":true}\n', "utf8"),
+    );
+    expectInvalid(
+      () =>
+        EvidenceBenchmarkQualityArtifacts.validatePublicSafetyScan(
+          safetyScan,
+          { runId, parentCoreSealSha256: parentCore },
+          {
+            repoRoot,
+            scannerSource,
+            rules: safetyRules,
+            files: postScanMutation,
+          },
+        ),
+      "exact file set",
+    );
+    const staleReportCandidate = new Map(cleanFiles);
+    staleReportCandidate.set(
+      "postprocess/report.json",
+      Buffer.from('{"status":"different-candidate"}\n', "utf8"),
+    );
+    expectInvalid(
+      () =>
+        EvidenceBenchmarkQualityArtifacts.validatePublicSafetyScan(
+          safetyScan,
+          { runId, parentCoreSealSha256: parentCore },
+          {
+            repoRoot,
+            scannerSource,
+            rules: safetyRules,
+            files: staleReportCandidate,
+          },
+        ),
+      "exact file set",
+    );
     const safetyEmission = roundTrip(
       protocolRoot,
       temporary,
@@ -1032,8 +1086,6 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
       humanAuditQueueSha256: EvidenceBenchmarkHash.bytes(queueText),
       humanValidationStatus: "pending",
       humanValidatedCompositeClaim: false,
-      publicSafetyScanSha256: safetyEmission.sha256,
-      publicPromotionAllowed: safetyScan.publicPromotionAllowed,
       reportSha256: digest("quality-report"),
       postprocessTreeSha256: digest("postprocess-tree"),
       sealedAtUtc: "2026-07-29T00:00:03.000Z",
@@ -1052,6 +1104,29 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
       "postprocess-seal.json",
       "postprocess-seal.schema.json",
       postprocessSeal,
+    );
+    expectInvalid(
+      () =>
+        EvidenceBenchmarkQualityArtifacts.emit(
+          protocolRoot,
+          "postprocess-seal.schema.json",
+          {
+            ...postprocessSeal,
+            publicSafetyScanSha256: safetyEmission.sha256,
+          },
+        ),
+      "additional properties",
+    );
+    expectInvalid(
+      () =>
+        EvidenceBenchmarkQualityArtifacts.validatePostprocessSeal(
+          {
+            ...postprocessSeal,
+            publicPromotionAllowed: true,
+          },
+          parentCore,
+        ),
+      "ownership",
     );
     const safetySchemaSha256 = EvidenceBenchmarkHash.file(
       path.join(protocolRoot, "schema", "public-safety-scan.schema.json"),

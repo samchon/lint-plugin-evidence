@@ -856,9 +856,8 @@ export namespace EvidenceBenchmarkQualityArtifacts {
       seal.parentCoreSealSha256 !== parentCoreSealSha256 ||
       seal.humanValidationStatus !== "pending" ||
       seal.humanValidatedCompositeClaim !== false ||
-      typeof seal.publicPromotionAllowed !== "boolean" ||
-      typeof seal.publicSafetyScanSha256 !== "string" ||
-      !SHA256.test(seal.publicSafetyScanSha256) ||
+      Object.hasOwn(seal, "publicPromotionAllowed") ||
+      Object.hasOwn(seal, "publicSafetyScanSha256") ||
       seal.tDoneQualityPhaseSha256 === seal.tDryQualityPhaseSha256 ||
       sealSha256 !== EvidenceBenchmarkHash.object(unsigned)
     )
@@ -876,6 +875,16 @@ export namespace EvidenceBenchmarkQualityArtifacts {
   ): void {
     const scan = record(input, "public-safety scan");
     const scanner = record(scan.scanner, "public-safety scanner");
+    if (
+      [...artifacts.files.keys()].some(
+        (entry) =>
+          entry === "public-safety-scan.json" ||
+          entry.endsWith("/public-safety-scan.json"),
+      )
+    )
+      throw new Error(
+        "Public-safety scan report must be a sibling of the candidate tree.",
+      );
     const entries = EvidenceBenchmarkHash.entries(artifacts.files);
     if (
       scan.runId !== expected.runId ||

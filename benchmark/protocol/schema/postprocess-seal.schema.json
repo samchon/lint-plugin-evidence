@@ -15,8 +15,6 @@
     "humanAuditQueueSha256",
     "humanValidationStatus",
     "humanValidatedCompositeClaim",
-    "publicSafetyScanSha256",
-    "publicPromotionAllowed",
     "reportSha256",
     "postprocessTreeSha256",
     "sealedAtUtc",
@@ -53,12 +51,6 @@
     },
     "humanValidatedCompositeClaim": {
       "const": false
-    },
-    "publicSafetyScanSha256": {
-      "$ref": "#/$defs/sha256"
-    },
-    "publicPromotionAllowed": {
-      "type": "boolean"
     },
     "reportSha256": {
       "$ref": "#/$defs/sha256"

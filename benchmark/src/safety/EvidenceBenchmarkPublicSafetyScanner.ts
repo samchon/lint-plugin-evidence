@@ -137,6 +137,16 @@ export namespace EvidenceBenchmarkPublicSafetyScanner {
 
   /** Returns a local scan record; findings never rewrite retained source bytes. */
   export function scan(request: IRequest): IResult {
+    if (
+      [...request.files.keys()].some(
+        (entry) =>
+          entry === "public-safety-scan.json" ||
+          entry.endsWith("/public-safety-scan.json"),
+      )
+    )
+      throw new Error(
+        "Public-safety scan report must be a sibling of the candidate tree.",
+      );
     const rulesLocation = `${request.repoRoot}/${RULES_PATH}`;
     const rulesBytes: Buffer = fs.readFileSync(rulesLocation);
     const rules = parseRules(
