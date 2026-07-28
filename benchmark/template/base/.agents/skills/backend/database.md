@@ -257,6 +257,39 @@ model shopping_sales {
 
 A description that claims a value is query output while the field list stores it, or the reverse, is a defect. Reconcile them before moving on.
 
+## Shapes To Correct On Sight
+
+Each row is a design that compiles and is wrong. Recognizing them is faster than rediscovering why.
+
+| Wrong shape | Preferred design |
+| --- | --- |
+| a counter or aggregate column on a base table | compute it in the query, or give it an explicit `mv_*` table |
+| a current value derived from history rows and also stored | store the history and calculate the current value |
+| a description saying "query output" beside a column that stores it | drop the column and its indexes |
+| several nullable actor foreign keys for "one of these owns it" | subtype ownership tables |
+| a cluster of nullable fields forming a one-to-one detail | a dependent table with a unique foreign key |
+| a unique and a plain index on the same fields | keep the unique one |
+| an index that is a subset of a composite index | keep the superset |
+| a circular foreign key between two tables | one direction only; the child references the parent, and the selected state lives on the child |
+| a domain-named primary key such as `review_id` | `id`; keep the business key as an ordinary field with a unique index |
+| a target-only unique on a submitted record such as a vote or a report | include the submitting actor in the unique index |
+| a unique foreign key on repeatable history or snapshot rows | a plain indexed foreign key; unique only for a genuine one-to-one |
+| a boolean selector inside a unique index, standing in for a partial unique | an ordinary index, with the one-default rule in provider logic |
+| a nullable composition foreign key | make the composition non-null, or downgrade it to an association |
+| a snake_case or duplicated relation name | camelCase and unique per target: `customerOrders` beside `sellerOrders` |
+| JSON or an array stuffed into a string column | key-value child tables, unless the requirements genuinely demand an opaque document |
+| a frozen value held as a live foreign key | copy the retained values onto the event or snapshot that owns them |
+| a permanent child referencing a hard-deletable master | soft-delete the master, retain a copy, or model an explicit unlink |
+| `updated_at` on append-only history | `created_at` only |
+
+The target-only unique is the one worth reading twice. A unique index on a report's target alone means **exactly one actor in the entire system can ever report that target**, and the second person to try is refused for a reason nobody will guess.
+
+## Three Lenses Before Finishing A Model
+
+- **Traceability.** Every requirement fact is stored, referenced, or deliberately left as query output, and every field traces back to a requirement.
+- **Ownership.** No field or foreign key duplicates a fact another table owns.
+- **Lifecycle.** The temporal fields, the nullability, the deletion decision, the retained copies, the repeatable history, the stance, and the indexes all match the lifecycle the requirements describe.
+
 ## After Changing The Schema
 
 Regenerate the client, and regenerate again after a comment change, because the ERD comes from the same run. A schema change is not complete until the models it adds are reachable from a provider, exposed where a requirement asks for them, and covered by a test.

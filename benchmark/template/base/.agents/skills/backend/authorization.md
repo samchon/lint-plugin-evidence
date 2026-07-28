@@ -14,6 +14,42 @@ A valid session proves who the caller is. Grade, membership, ownership, approval
 
 Collapsing these into one check is the defect that produces an API which looks authorized and is not.
 
+## What Is An Actor, And What Is Only A Role
+
+Getting this wrong produces duplicate account tables and authorization nobody can enforce, so decide it before designing any storage.
+
+**An actor is a distinct authentication identity with its own account lifecycle.** Owner, manager, staff, moderator, and auditor are almost never actors: they share one account table, one set of credentials, and one session lifecycle, so they are grades inside one actor.
+
+Split actors only where the requirements give genuinely separate join, login, credential, and session lifecycles.
+
+**An anonymous visitor is an actor, not the absence of one.** It owns an account row and a session row so the server can keep connection context and continuity, and it simply has no credentials. A _public_ operation is the different thing: no actor, no session, nothing established. Do not use the anonymous actor as a synonym for public.
+
+**A product with no credentialed identity declares no actor.** Never fabricate a login, an account table, or a default grade to fill a gap the requirements did not describe.
+
+**A principal that never authenticates is not an actor.** A scheduled job or a background integration performs real work and audit rows must attribute it, but declaring it an actor forces an account table, a session table nothing writes, and a publicly attemptable credential endpoint. Keep the fact instead: give it an ordinary domain table that audit rows reference, and let a provider name it by looking it up.
+
+## Roles Are Global Grades, And Two Things Look Like Them
+
+A role is a grade held **identically everywhere that identity goes**. Test every candidate against that sentence, because two common cases fail it.
+
+**Per-record authority is not a role.** Project owner, article author, store manager, ticket assignee: these are relations in the database and checks in the provider, not grades in the actor graph.
+
+**Scope-relative authority is not a role either**, and this is the subtler one. A grade someone holds inside one organization and not another is not global. Making `financeManager` a grade grants finance authority in **every** organization that identity ever enters. It belongs in a membership table.
+
+## Reaching A Grade
+
+A grade is reachable exactly three ways, and a graph that provides none of them promises an authority nobody can hold.
+
+1. It is the baseline given at registration.
+2. A holder of a granting grade assigns it.
+3. A business operation confers it: creating a resource makes you its owner.
+
+**Granting is authority over other users, so it never creates the first holder.** If the only path to a grade is that someone who already has it grants it, nobody ever has it. Decide the bootstrap explicitly.
+
+When recording what a grade may grant or remove, name the role **actually added or removed**, not the target's role before the change or the one they keep afterwards. If promoting an administrator means assigning them the top grade, the grant edge names the top grade. Naming the administrator grade there reverses the meaning.
+
+Set the removal edge explicitly whenever it differs from the grant edge. Add-only moderation grants a moderator grade and revokes nothing.
+
 ## Storage
 
 Every actor gets an account table and a sessions table.
