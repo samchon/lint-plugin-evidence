@@ -379,6 +379,7 @@
       ]
     },
     "formalReviewAdmission": {
+      "description": "Retained provenance fetched by the CLI from GitHub REST GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews/{review_id}. JSON Schema closes the retained self-declaration; the CLI owns API retrieval, body inspection, and remote Git verification.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -386,6 +387,14 @@
         "pullRequestNumber",
         "finalCommentReviewId",
         "finalCommentReviewState",
+        "finalReviewCommitRevision",
+        "reviewAuthorLogin",
+        "reviewAuthorAssociation",
+        "submittedAtUtc",
+        "reviewBodyDigestAlgorithmId",
+        "reviewBodySha256",
+        "requiredReviewMarker",
+        "reviewBodyMarkerPresent",
         "reviewedHeadRevision",
         "mergeCommitRevision",
         "mergeStrategy",
@@ -403,11 +412,47 @@
           "minimum": 1
         },
         "finalCommentReviewId": {
+          "description": "GitHub review id used in the REST review lookup.",
           "type": "integer",
           "minimum": 1
         },
         "finalCommentReviewState": {
+          "description": "Exact state field returned by the GitHub review payload.",
           "const": "COMMENTED"
+        },
+        "finalReviewCommitRevision": {
+          "description": "Exact commit_id field returned by the GitHub review payload; semantic validation requires equality with reviewedHeadRevision.",
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "reviewAuthorLogin": {
+          "description": "Exact user.login field returned by the GitHub review payload.",
+          "const": "samchon"
+        },
+        "reviewAuthorAssociation": {
+          "description": "Exact author_association field returned by the GitHub review payload.",
+          "const": "OWNER"
+        },
+        "submittedAtUtc": {
+          "description": "Exact submitted_at field returned by the GitHub review payload.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "reviewBodyDigestAlgorithmId": {
+          "description": "Hash the decoded body JSON string returned by the GitHub review endpoint after UTF-8 encoding it exactly, with no LF, CR, Unicode, or other normalization.",
+          "const": "sha256-utf8-review-body-v1"
+        },
+        "reviewBodySha256": {
+          "description": "Lowercase SHA-256 of the exact UTF-8 bytes defined by reviewBodyDigestAlgorithmId.",
+          "$ref": "#/$defs/sha256"
+        },
+        "requiredReviewMarker": {
+          "description": "Exact ASCII token that the CLI must find directly in the decoded GitHub body string.",
+          "const": "overall-self-review-v1"
+        },
+        "reviewBodyMarkerPresent": {
+          "description": "Retained result of the CLI's direct body-string containment check; this boolean is not a substitute for fetching and inspecting the GitHub payload.",
+          "const": true
         },
         "reviewedHeadRevision": {
           "type": "string",
