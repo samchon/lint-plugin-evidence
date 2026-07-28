@@ -18,7 +18,8 @@ export interface IShoppingSale {
   /**
    * Primary Key.
    *
-   * @evidence prisma:shopping_sales.id
+   * @evidence prisma:shopping_sales.id Carries the row identity a caller
+   *           addresses.
    */
   id: string & tags.Format<"uuid">;
 
@@ -27,7 +28,8 @@ export interface IShoppingSale {
    *
    * If `null`, the sale has not opened yet.
    *
-   * @evidence prisma:shopping_sales.opened_at
+   * @evidence prisma:shopping_sales.opened_at Exposes the opening time, with
+   *           null meaning not yet opened.
    */
   openedAt: null | (string & tags.Format<"date-time">);
 
@@ -41,17 +43,30 @@ export interface IShoppingSale {
 }
 ```
 
-The build fails until every selected property carries one. That is the mechanism that removes the phantom: a property with no column has nothing to cite, and it cannot be argued into existence.
+The build counts from the schema's side: it fails while any selected column goes unacknowledged. That is the mechanism that removes the phantom: a property with no column leaves nothing to cite, so it cannot shorten the column ledger, and the uncited column is what the diagnostic names.
 
 Read [the evidence skill](../evidence/SKILL.md) before starting.
 
 {{base}}
 
+## A Table No Contract Represents Still Owes Its Discharge
+
+The property claim selects every column of every model, and internal storage such as sessions and `mv_*` projections has no DTO to cite from. The discharge is `@evidenceExclude`, hosted on a selected declaration of this package: keep those exclusions on the domain's nearest root type, one per model or column, each with the decision a reviewer could veto.
+
+```ts
+/**
+ * @evidenceExclude prisma:shopping_customer_sessions Internal session
+ *                  storage; no contract shape represents it.
+ */
+```
+
+A deliberate absence recorded only in the ledger is invisible to the build, so the obligation stays reported until the exclusion exists where the claim can read it.
+
 ## What Each Granularity Can And Cannot Say
 
 **A type citing only a requirement** leaves the reader unable to find the row it represents. **A type citing only a table** leaves nobody able to say why the type exists. Both are needed and they answer different questions.
 
-**A property citing a requirement instead of a column** is the common mistake here, and it passes nothing: the property obligation is against the schema, so the requirement citation does not discharge it, and the build keeps reporting the property while the tag sits there looking like work.
+**A property citing a requirement instead of a column** is the common mistake here, and it passes nothing: the property obligation is against the schema, so the requirement citation does not discharge it, and the build keeps reporting the uncited column while the tag sits there looking like work.
 
 **A property that carries a nested object cites the foreign key column that reaches it**, as `seller` does above. The join is how the value is loaded; the column is where the value comes from, and it is the column that has to exist for the property to be fillable at all.
 

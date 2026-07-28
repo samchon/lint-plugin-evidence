@@ -4,7 +4,9 @@ Read [SKILL.md](SKILL.md) first. This campaign discharges `docs/analysis/ -> fro
 
 ## Requirements To Screens
 
-For every requirement that describes something a user does or sees, name the screen that lets them do or see it.
+For every requirement that describes something a user does or sees, name the screen under `packages/frontend/src/components/<domain>/` that lets them do or see it.
+
+Screens are born as prop-enumerated stubs carrying `@todo` tags, so this campaign opens with the same countable denominator the logic campaign uses: the number of `@todo` tags remaining under `packages/frontend/src/components/`, and screen realization's exit is zero.
 
 A requirement is not realized because an endpoint exists. It is realized when a user can reach the behavior the document describes. An operation nothing calls is a requirement that was built and never delivered.
 
@@ -29,11 +31,12 @@ requirement     ->  screen          (the screen that delivers it)
 component       ->  screen          (the screen that renders it)
 SDK operation   ->  screen          (the screen that consumes it)
 journey         ->  browser spec    (the spec that walks it)
+screen          ->  browser spec    (the spec that traverses it)
 ```
 
 Read each with the same sentence as every other edge: the artifact on the right owes an account of every unit on the left. So the denominators here are the requirements, the components, and the operations, and the screen is what has to account for all three.
 
-- **Every component traces to a screen that uses it.** A component nothing renders is dead code that still costs review attention.
+- **Every component under `packages/frontend/src/components/` traces to a screen that uses it.** A component nothing renders is dead code that still costs review attention.
 - **Every screen traces to the operations it consumes**, and every field it renders traces to a property those responses actually carry. A field rendered from a property the contract does not have will compile and fail at runtime.
 - **Every data call goes through a generated accessor.** There is no wrapper layer to campaign over, because the architecture rules one out: a hand-written layer between the screen and the SDK is the thing that survives a contract change it should have broken.
 
@@ -49,9 +52,11 @@ A screen that renders a spinner forever when a request fails is a defect the req
 
 ## Journeys To Specs, Both Directions
 
-For every journey the documents give an actor, name the spec under `tests/journeys/` that walks it; for every spec, name the journey. The exported `journey_` functions are the countable denominator, and [verification.md](../frontend/verification.md) owns their shape.
+For every journey the documents give an actor, name the spec under `packages/frontend/tests/journeys/` that walks it; for every spec, name the journey. The exported `journey_` functions are the countable denominator, and [verification.md](../frontend/verification.md) owns their shape.
 
 A journey without a spec is a flow that has never been performed as one person; a spec without a journey is a flow someone invented. Record the mapping in the ledger, and a contract or requirements finding re-opens this walk with the rest.
+
+**The third direction is the screens.** For every page component under `packages/frontend/src/components/<domain>/`, the dev gallery excluded, name the spec that traverses it, enumerated from the page-component file list rather than from memory. A screen no spec walks is a delivery nobody has performed, and it survives both walks above because neither counts pages.
 
 ## Verify By Running It
 

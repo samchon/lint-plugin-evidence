@@ -1,6 +1,6 @@
 # Routes
 
-This document owns navigation: guarding, returning, splitting, and what a route change owes the person making it.
+This document owns navigation: guarding, returning, splitting, and what a route change owes the person making it. The route table lives in `src/App.tsx`.
 
 ## Guarded Layouts, Not Guarded Pages
 

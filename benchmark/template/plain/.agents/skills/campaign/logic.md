@@ -6,7 +6,9 @@ Three upstream sources means three denominators. A provider can satisfy its cont
 
 ## Contract To Implementation
 
-For every operation, name the provider that implements it, then check the implementation against the contract's own words rather than its signature.
+An operation still carrying its `@todo` tag is unrealized regardless of what compiles, and the tags are greppable under `packages/backend/src/controllers/` and `packages/api/src/structures/`, so this walk starts with a countable denominator: the number of remaining `@todo` tags across both, and realize's exit is zero.
+
+For every operation, name the provider under `packages/backend/src/providers/` that implements it, then check the implementation against the contract's own words rather than its signature.
 
 - Every effect the contract states is performed. A contract that says the operation also creates a membership, writes a history row, sets a default state, or sends a notification is not satisfied by an implementation that returns the right shape.
 - Every rejection the contract states is thrown, with the meaning the requirement gives it.

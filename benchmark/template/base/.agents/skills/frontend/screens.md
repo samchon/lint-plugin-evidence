@@ -1,12 +1,33 @@
 # Screens
 
-This document owns what a screen is and what it owes.
+This document owns what a screen is and what it owes. A screen is a route's page component in its domain folder, `src/components/<domain>/<name>-page.tsx`, beside the sub-components only it uses.
 
 ## A Screen Traces To A Requirement
 
-Before building anything, write a screen plan: for each screen, the requirement it serves and the operations it consumes.
+Before building anything, write a screen plan in `packages/frontend/wiki/screen-plan.md`: for each screen, the requirement it serves and the operations it consumes.
 
 A screen with no requirement is a feature someone invented. A requirement with no screen is a requirement that was built into the backend and never delivered. Both are findings, and the plan is what makes either visible before the work is done rather than after.
+
+## Born A Stub, Cracked One By One
+
+A screen is declared before it works: the page component and its sub-components with their props enumerated, the contract JSDoc, an `@todo` tag naming what the screen still owes, and a placeholder body. Enumerating the props first is the design act, and the stub is what the route table mounts, so the whole surface navigates before any screen is real.
+
+```tsx
+/**
+ * The seller's own sales, filtered and paged.
+ *
+ * @todo Crack against useCatalog once lib/shopping lands: every state,
+ *   gallery rows, filter in the URL.
+ */
+export function CatalogPage(props: { sellerId: string }) {
+  props;
+  return <Skeleton className="h-64 w-full" />;
+}
+```
+
+The bare `props;` mention keeps the enumerated props from reading as unused while nothing consumes them, the same convention the backend stubs use, and the skeleton return is the whole placeholder body.
+
+Crack one screen at a time against simulation, driving it through the Playwright MCP browser as you build so every state is provoked and seen rather than imagined. A screen is cracked when every state renders from real hooks, its gallery rows exist, and its `@todo` is gone.
 
 A screen that needs an operation the SDK does not expose reveals a gap in the API contract. Send it back there. Do not improvise a frontend-only path around it.
 
@@ -81,7 +102,7 @@ When a value genuinely is not available, say so rather than inventing one. A sum
 
 The interface works on mobile, tablet, and desktop. Build from real parts: lists, tables, forms, detail views, dialogs, pagination.
 
-Keep the layout content-first and readable, and avoid decoration that costs clarity. A default of a plain, prototype-quality interface is correct unless the requirements or the user give a different direction; if the existing product already has a clear visual style, follow that instead.
+Keep the layout content-first and readable, and avoid decoration that costs clarity. [design.md](design.md) owns the dials and the customized primitives that keep even a plain product interface from shipping as library defaults; if the existing product already has a clear visual style, follow that instead.
 
 ## Authorization Shapes The Interface, It Does Not Enforce It
 

@@ -1,6 +1,6 @@
 # Transformers
 
-A transformer owns one DTO's read side: the Prisma selection and the row-to-DTO mapping. Providers call it; they do not reimplement it.
+A transformer owns one DTO's read side: the Prisma selection and the row-to-DTO mapping, one namespace per DTO under `packages/backend/src/transformers/`. Providers call it; they do not reimplement it.
 
 ## Structure
 

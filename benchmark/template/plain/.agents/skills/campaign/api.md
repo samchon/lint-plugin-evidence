@@ -1,6 +1,6 @@
 # API Campaign
 
-Read [SKILL.md](SKILL.md) first. This campaign discharges two edges at once, because the public contract owes an account to both: `docs/analysis/ -> API` and `database -> API`.
+Read [SKILL.md](SKILL.md) first. This campaign discharges the contract's edges: `docs/analysis/ -> API` and `database -> API` for the operations under `packages/backend/src/controllers/`, `docs/analysis/ -> DTO type` and `database -> DTO type` for the shapes under `packages/api/src/structures/`, and `column -> DTO property` beneath them.
 
 Two upstream sources means two denominators and two backward walks. Do not collapse them: a contract can cover every requirement while leaving half the schema unreachable, and it can expose every table while satisfying no requirement.
 
@@ -22,7 +22,13 @@ A column nothing exposes is a requirement half-built: the storage exists and no 
 
 "Nothing exposes it, deliberately" is a valid answer for internal bookkeeping. Record it with its reason. An unrecorded absence is indistinguishable from an oversight on the next round, and you will re-derive it every time.
 
-Then walk backward. Every property of every DTO names the column it maps to, or names its derivation. A property with neither is a phantom: it will compile, and the logic campaign will discover there is nothing to fill it with.
+## Shapes To Sources
+
+The DTO tree under `packages/api/src/structures/` is its own denominator, at two granularities, and [the DTO topic](../backend/dtos.md) owns how a mapping is recorded.
+
+**Type level, both directions.** For every requirement concept a caller must receive, name the DTO type that carries it; for every root type in the `structures` export list, name the requirement that asked for it and the table it represents. A type with neither is an invented shape whose invented semantics the logic and the tests will honor.
+
+**Property level, both directions.** Every property names the column under `packages/backend/prisma/schema/` it carries, or the derivation it is computed from; a property with neither is a phantom that compiles until the logic campaign finds nothing to fill it with. Then walk the schema forward, column by column from the schema itself rather than from memory: every column a requirement says a caller must see appears in some read variant. The forward direction is the one that finds the field the schema stores and the API never exposes.
 
 ## What Counts As Covered
 
@@ -36,7 +42,7 @@ The operation existing is not coverage. Check the contract itself:
 
 ## Rounds
 
-A round is a complete pass over all four walks: requirements forward, operations backward, schema forward, DTO properties backward.
+A round is a complete pass over every walk above: operations against requirements and schema in both directions, DTO types against requirements and models in both directions, and properties against columns in both directions.
 
 Any finding resets the count. Dry after **two consecutive complete rounds** with nothing new.
 
@@ -52,6 +58,6 @@ A contract change also re-opens the frontend campaign, because a screen consumes
 
 ## Exit
 
-Dry when two consecutive complete rounds over all four walks find nothing new, every requirement names its operation, every operation names its requirement, every column names its exposure or its recorded reason for having none, and every DTO property names its source.
+Dry when two consecutive complete rounds over all four walks find nothing new, every requirement names its operation, every operation names its requirement, every column names its exposure or its recorded reason for having none, every root type names its requirement and its table, and every DTO property names its source while every caller-visible column reaches a read variant.
 
 The SDK regenerating cleanly proves none of this. It proves the contract is well formed, not that it is the right contract.

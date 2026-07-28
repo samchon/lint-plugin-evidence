@@ -70,7 +70,6 @@ Three kinds recur.
 **Validation that produces diagnoses.** A rule the client should check before submitting and the server must enforce on arrival.
 
 ```ts
-
 /**
  * Diagnoser of uniqueness.
  *
@@ -100,7 +99,16 @@ export namespace UniqueDiagnoser {
   /**
    * Diagnose duplicated elements.
    */
-  export const validate = <Element>(props: IProps<Element>): IDiagnosis[] => {};
+  export const validate = <Element>(props: IProps<Element>): IDiagnosis[] => {
+    const diagnoses: IDiagnosis[] = [];
+    const seen: Set<string> = new Set();
+    props.items.forEach((item, index) => {
+      const key: string = props.key(item);
+      if (seen.has(key)) diagnoses.push(props.message(item, index));
+      else seen.add(key);
+    });
+    return diagnoses;
+  };
 }
 ```
 

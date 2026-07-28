@@ -60,7 +60,7 @@ Seeding on an empty database is what makes a fresh checkout runnable. It is not 
 
 ## Database Errors Are Mapped At The Boundary, Once
 
-A provider that uses the throwing finder expects a missing row to become a `404`. That does not happen by itself. `PrismaErrorUtil` maps the client codes and `MyConfiguration` registers it; without that registration a missing row is a `500`, and something worse also happens.
+A provider that uses the throwing finder expects a missing row to become a `404`. That does not happen by itself. `PrismaErrorUtil` maps the client codes and `MyConfiguration`, beside `MyGlobal` at the backend root, registers it; without that registration a missing row is a `500`, and something worse also happens.
 
 **A Prisma error message interpolates the model, the field, the constraint, the table, the column, the offending value, and query fragments.** That message must never reach an HTTP client. Registering the mapper is what stops your schema from being readable from the outside.
 
@@ -99,6 +99,8 @@ Three of its settings matter beyond the paths.
 - **`simulate: true`** is what gives the SDK its simulation mode, which the frontend develops against.
 
 ## Commands
+
+`<backend>` stands for the backend package's name in its `package.json`.
 
 ```bash
 pnpm --filter <backend> build:prisma   # generate the client and the ERD
@@ -165,11 +167,11 @@ The API skill owns the full consumption contract, including simulation mode.
 Given only the requirement documents and an empty repository, this is the sequence that gets to a running server.
 
 1. Read every document under `docs/analysis/`.
-2. Write the schema, then `build:prisma` and `prepare`.
-3. Write the DTOs, the controller stubs with their `@todo` tags, and their modules, then `build:sdk`.
-4. Write the tests from the requirements and the generated SDK.
-5. Write the transformers and the collectors, one per DTO that needs each.
-6. Realize: swap each stub body for its provider call and drop the `@todo`, then `build:main` and run the tests.
+2. Write the schema under `packages/backend/prisma/schema/`, then `build:prisma` and `prepare`.
+3. Write the DTOs under `packages/api/src/structures/`, the controller stubs with their `@todo` tags under `packages/backend/src/controllers/`, and their modules, then `build:sdk`.
+4. Write the tests under `packages/backend/test/features/` from the requirements and the generated SDK.
+5. Write the transformers under `packages/backend/src/transformers/` and the collectors under `packages/backend/src/collectors/`, one per DTO that needs each.
+6. Realize: swap each stub body for its call into a provider under `packages/backend/src/providers/` and drop the `@todo`, then `build:main` and run the tests.
 7. Start the server and confirm it answers.
 8. Build the frontend against simulation, then against this server.
 

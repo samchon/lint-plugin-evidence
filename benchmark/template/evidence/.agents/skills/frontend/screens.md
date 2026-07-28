@@ -18,7 +18,7 @@ Read [the evidence skill](../evidence/SKILL.md) before starting.
 
 ## Delivering Is Not Rendering
 
-The build checks that a screen cites the requirement. It cannot check that a user can complete the journey.
+The build checks that a screen cites the requirement and that a journey cites the screen. It cannot check that a user can complete the journey.
 
 A screen that fetches the data, renders it, and cites the section satisfies the obligation completely while offering no path to the action the requirement names. That is the failure this layer is most prone to, because the data appearing looks like the feature working.
 
@@ -26,16 +26,13 @@ So write the citation's reason as what the user can now do, not what the screen 
 
 ## The Internal Graph Is Configured Too
 
-Once the structure exists, these obligations exist with it, and the ones that are not configured are not checked:
+Two of these edges are the package's configured claims from the start, and the lint stage already fails on them: `requirement -> screen`, and `journey -> browser spec` together with `screen -> journey`, because the journey claim also references the page components a spec must cite.
 
 ```
-requirement     ->  screen          (the screen that delivers it)
 component       ->  screen          (the screen that renders it)
-SDK operation   ->  screen          (the screen that consumes it)
-journey         ->  browser spec    (the spec that walks it)
 ```
 
-Add them to the configuration when the structure appears. An edge nobody configured produces no diagnostic, and its absence looks exactly like coverage.
+That edge becomes configurable once the component population takes shape; add it then, because an edge nobody configured produces no diagnostic and its absence looks exactly like coverage. `SDK operation -> screen` is deliberately not a claim: the product records its scope decisions in `packages/frontend/wiki/omissions.md` rather than forcing every accessor into the interface, and that log is the edge's record.
 
 ## When The Diagnostic Points Here But The Hole Is Upstream
 

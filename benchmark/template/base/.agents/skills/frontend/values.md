@@ -1,6 +1,6 @@
 # Values
 
-This document owns the gap between what the contract carries and what a person reads.
+This document owns the gap between what the contract carries and what a person reads. The shared formatters live in `src/lib/utils.ts`.
 
 Every value crosses the wire in a form chosen for machines: an instant as an ISO string, money as a number beside a currency code, an enum as a lowercase literal. None of those is what goes on the screen, and the conversion is where a product quietly lies about its own data.
 

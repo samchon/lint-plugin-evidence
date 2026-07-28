@@ -23,7 +23,8 @@ Start by reading `docs/analysis/` in full, then read the backend skill's wiring 
 docs/
   analysis/          requirement documents, read-only specification
   ERD.md             generated from the Prisma schema
-config/              shared tsconfig and lint configuration
+config/              shared tsconfig and the lint configuration packages extend
+wiki/                the project's own working records, never built or shipped
 packages/
   api/               generated SDK, DTO structures, diagnosers
   backend/           NestJS server, Prisma schema, providers, tests
@@ -66,6 +67,13 @@ The backend imports its own DTOs from this package. That direction is deliberate
 ### `packages/frontend`
 
 The Vite and React application. It consumes `packages/api` and declares no API types of its own.
+
+- `src/components/` the screens and shared pieces, split by domain: `ui/` primitives, `providers/` the composed app providers, `<domain>/` a route's page beside the sub-components only it uses.
+- `src/lib/<domain>/` the interface's own vocabulary: view-model types, hooks with their query keys, fixtures, and the shared connection.
+- `tests/journeys/` the browser journey specs; the presentation specs sit beside the folder, not in it.
+- `wiki/` the project's own records: architecture, omissions, verification.
+
+The frontend skill's architecture topic owns the full layout.
 
 ## The Toolchain Is `ttsc`, Not `tsc`
 

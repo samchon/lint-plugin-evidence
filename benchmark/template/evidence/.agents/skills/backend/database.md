@@ -24,7 +24,7 @@ Read [the evidence skill](../evidence/SKILL.md) before starting, especially the 
 
 ## Citing And Excluding
 
-**One model may discharge a section, and one section may need several.** A citation acknowledges the target and every selected descendant, so citing a section from the model that owns its concept usually covers it. When a section spans concepts, cite it from each model that carries part of it.
+**One target, one citation, across the whole claim.** A citation acknowledges the section and every selected descendant, so cite a section once, from the model that owns its concept, with a reason naming the part it answers for; a second citation of the same target from any model in this claim is a duplicate-acknowledgement error. When a section spans concepts, the other models cite only the targets that are disjointly theirs.
 
 **Cite the model that stores the fact**, not a neighbor that references it. A tag on the wrong side of a relation records a claim the code does not support, and a reviewer comparing the two will find it.
 
