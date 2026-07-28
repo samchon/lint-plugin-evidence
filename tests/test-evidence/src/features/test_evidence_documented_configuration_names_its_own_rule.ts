@@ -8,24 +8,18 @@ import {
 } from "../internal/index.ts";
 
 /**
- * Verifies a misconfigured `evidence/documented` names itself through the real
- * binary.
+ * Verifies a misconfigured `evidence/documented` names itself once through the
+ * real binary.
  *
  * The Go cases pin the message text; this pins what a consumer actually reads,
- * which is the only place the misattribution ever mattered. A project with both
- * rules enabled was told its _graph_ configuration was invalid while the
- * graph's configuration was fine, so the reader's next move was to edit the one
- * setting that was not wrong.
- *
- * The project deliberately spans several files. The diagnostic repeats once per
- * file — a file rule decodes its options inside `Check` and has no earlier
- * place to speak from — and the assertions below stay silent about how many
- * times it appears, so that this case does not cement a multiplicity that #57
- * records as unresolved.
+ * which is the only place the misattribution ever mattered. The project spans
+ * several files while a valid graph rule publishes the current Program cycle,
+ * so the file rule can report one configuration defect instead of repeating it
+ * for every source.
  *
  * 1. Enable both rules, misspelling one `evidence/documented` option key.
- * 2. Run `ttsc check`.
- * 3. Assert the failure names `evidence/documented` and never the graph.
+ * 2. Run `ttsc check` over several TypeScript files.
+ * 3. Assert one failure names `evidence/documented` and never the graph.
  */
 export const test_evidence_documented_configuration_names_its_own_rule =
   (): void => {
@@ -38,12 +32,27 @@ export const test_evidence_documented_configuration_names_its_own_rule =
         "export default {",
         '  plugins: { "evidence": evidence },',
         "  rules: {",
+        '    "evidence/graph": ["error", { claims: [{',
+        '      type: "typescript",',
+        '      files: ["src/claim.ts"],',
+        '      symbol: "type",',
+        '      reference: { type: "markdown", files: ["docs/spec.md"], symbol: "h2" },',
+        "    }] }],",
         '    "evidence/documented": ["error", { symbols: "type" }],',
         "  },",
         "};",
         "",
       ].join("\n"),
       files: {
+        "docs/spec.md": "## Contract\n",
+        "src/claim.ts": [
+          "/**",
+          " * Claim.",
+          " * @evidence docs/spec.md#contract Implements this contract.",
+          " */",
+          "export interface Claim {}",
+          "",
+        ].join("\n"),
         "src/alpha.ts": ["/** Alpha. */", "export const alpha = 1;", ""].join(
           "\n",
         ),
@@ -63,6 +72,13 @@ export const test_evidence_documented_configuration_names_its_own_rule =
         "Invalid evidence/documented configuration",
         "The diagnostic must name the rule whose setting is actually wrong.",
       );
+      const occurrences: number =
+        result.output.split("Invalid evidence/documented configuration")
+          .length - 1;
+      if (occurrences !== 1)
+        throw new Error(
+          `The configuration failure must appear once per Program cycle, got ${occurrences}.\n\nActual output:\n${result.output}`,
+        );
       assertExcludes(
         result,
         "Invalid evidence/graph configuration",

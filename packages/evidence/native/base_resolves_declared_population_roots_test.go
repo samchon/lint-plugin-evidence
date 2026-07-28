@@ -220,7 +220,12 @@ func TestAnUnreadableRootIsReportedAsARoot(t *testing.T) {
 		messages,
 		"could not read the markdown root '../documents', which resolves to '",
 	)
-	assertProblemContains(t, messages, "under root '../documents'")
+	if countProblemsContaining(messages, "matched no markdown files") != 0 {
+		t.Fatalf(
+			"an unreadable root must not cascade into a healthy empty-match diagnostic:\n%s",
+			strings.Join(messages, "\n"),
+		)
+	}
 }
 
 /**

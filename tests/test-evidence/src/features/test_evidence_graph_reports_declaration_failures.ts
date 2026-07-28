@@ -15,7 +15,7 @@ import {
  *
  * 1. Write malformed, unresolved, duplicate, and out-of-scope declarations.
  * 2. Run the published plugin through `ttsc check`.
- * 3. Assert that every failure class reaches the consumer.
+ * 3. Assert every class reaches the consumer with obligation and repair context.
  */
 export const test_evidence_graph_reports_declaration_failures = (): void => {
   const project: IEvidenceProject = createProject({
@@ -91,6 +91,16 @@ export const test_evidence_graph_reports_declaration_failures = (): void => {
       result,
       "Out-of-scope @evidence host",
       "A declaration on an unselected symbol kind must fail.",
+    );
+    assertIncludes(
+      result,
+      "for Claim 1 across reference 1 (markdown, symbols: h2)",
+      "Resolution diagnostics must name the claim and reference the author must repair.",
+    );
+    assertIncludes(
+      result,
+      "target 'docs/spec.md#required'",
+      "A scope diagnostic must retain the exact resolved target beside its source location.",
     );
   } finally {
     project.cleanup();

@@ -2,6 +2,7 @@ package evidence
 
 import (
 	"sort"
+	"sync"
 
 	"github.com/samchon/ttsc/packages/lint/rule"
 )
@@ -27,6 +28,40 @@ type graphCorpus struct {
 	Swagger  map[string]*artifactInventory
 }
 
+// graphCycleState is the immutable graph corpus plus the one piece of mutable
+// coordination file rules need during this Program cycle.
+//
+// The host exposes project state, not a lifecycle identifier, to contributor
+// file rules. Keeping the diagnostic gate here gives every parallel file walk
+// one cycle-scoped rendezvous and lets the host discard it on the next watch
+// rebuild. The mutex owns only a set membership check; graph data remains
+// immutable.
+type graphCycleState struct {
+	Corpus      graphCorpus
+	Diagnostics programDiagnosticGate
+}
+
+type programDiagnosticGate struct {
+	mutex    sync.Mutex
+	reported map[string]bool
+}
+
+func (gate *programDiagnosticGate) first(key string) bool {
+	if gate == nil {
+		return true
+	}
+	gate.mutex.Lock()
+	defer gate.mutex.Unlock()
+	if gate.reported == nil {
+		gate.reported = map[string]bool{}
+	}
+	if gate.reported[key] {
+		return false
+	}
+	gate.reported[key] = true
+	return true
+}
+
 // Hints projects the configured evidence population into editor completions.
 //
 // A target has to be reproduced exactly, and the anchor an author cannot recall
@@ -47,10 +82,11 @@ func (graphRule) Hints(ctx *rule.HintContext) []rule.Hint {
 	if ctx == nil {
 		return nil
 	}
-	corpus, published := ctx.State.(graphCorpus)
-	if !published {
+	cycle, published := ctx.State.(*graphCycleState)
+	if !published || cycle == nil {
 		return nil
 	}
+	corpus := cycle.Corpus
 	units := selectedCompletionUnits(
 		corpus.Config,
 		corpus.Markdown,

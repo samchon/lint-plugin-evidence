@@ -229,6 +229,7 @@ func swaggerUnitsFromOutcome(
 	}
 	if outcome.Rejected {
 		message := swaggerNormalizationFailure(source, outcome.Problem)
+		inventory.LoadFailed = true
 		inventory.Problems = append(inventory.Problems, inventoryProblem{
 			Symbol:  "operation",
 			Message: message,

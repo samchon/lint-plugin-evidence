@@ -20,6 +20,12 @@ func (graphRule) Check(ctx *rule.ProjectContext) {
 	if ctx == nil {
 		return
 	}
+	cycle := &graphCycleState{}
+	// SetState survives a later project finding and belongs only to this
+	// Program cycle. File rules can therefore coordinate diagnostics even when
+	// the graph itself fails, while Hints remains protected by the host's
+	// passed-only publication gate.
+	ctx.SetState(cycle)
 	config, problems := decodeGraphConfig(ctx.Options)
 	if len(problems) != 0 {
 		reportProblems(ctx, problems)
@@ -65,12 +71,12 @@ func (graphRule) Check(ctx *rule.ProjectContext) {
 		// (`linthost/hints.go:147-149`, `linthost/project_engine.go:68-77`).
 		// Setting it unconditionally would not widen the gate; it would only
 		// hide where the gate is.
-		ctx.SetState(graphCorpus{
+		cycle.Corpus = graphCorpus{
 			Config:   config,
 			Markdown: markdown,
 			Prisma:   prisma,
 			Swagger:  swagger,
-		})
+		}
 	}
 }
 
@@ -109,8 +115,12 @@ func materializeClaimStates(
 	for _, claim := range config.Claims {
 		inventories := inventoriesOf(claim.Type, markdown, prisma, swagger, typescript)
 		paths := matchingInventoryPaths(inventories, claim.Base, claim.Files)
-		state := claimState{Spec: claim, Paths: paths}
-		if len(paths) == 0 {
+		state := claimState{
+			Spec:    claim,
+			Paths:   paths,
+			Healthy: populationIsHealthy(inventories, claim.Base, paths),
+		}
+		if len(paths) == 0 && state.Healthy {
 			problems = append(
 				problems,
 				claimLabel(claim)+" matched no "+string(claim.Type)+" files for "+describePopulation(claim.Base, claim.Files)+". Fix the globs or the root they resolve against; '*' stays within one segment, '**' crosses segments, and a bare directory is not recursive.",
@@ -158,8 +168,9 @@ func materializeClaimStates(
 				Spec:         reference,
 				Paths:        referencePaths,
 				UnitsByScope: map[string][]*evidenceUnit{},
+				Healthy:      populationIsHealthy(referenceInventories, reference.Base, referencePaths),
 			}
-			if len(referencePaths) == 0 {
+			if len(referencePaths) == 0 && referenceState.Healthy {
 				if reference.Type == artifactSwagger {
 					problems = append(
 						problems,
@@ -212,6 +223,7 @@ func materializeClaimStates(
 			sortUnits(referenceState.Scopes)
 			if len(referencePaths) != 0 &&
 				len(referenceState.Units) == 0 &&
+				referenceState.Healthy &&
 				!selectedInventoryProblem {
 				problems = append(
 					problems,
@@ -279,9 +291,20 @@ func evaluateEvidenceGraph(
 	}
 
 	declarations := map[string]*evidenceDeclaration{}
+	owners := map[string][]claimState{}
 	for _, state := range states {
 		for _, declaration := range state.Declarations {
 			declarations[declaration.ID] = declaration
+			seen := false
+			for _, owner := range owners[declaration.ID] {
+				if owner.Spec.Index == state.Spec.Index {
+					seen = true
+					break
+				}
+			}
+			if !seen {
+				owners[declaration.ID] = append(owners[declaration.ID], state)
+			}
 		}
 	}
 	declarationIDs := make([]string, 0, len(declarations))
@@ -293,10 +316,11 @@ func evaluateEvidenceGraph(
 	resolved := map[string]string{}
 	for _, id := range declarationIDs {
 		declaration := declarations[id]
+		context := declarationObligationContext(owners[id])
 		if !declaration.valid() {
 			problems = append(
 				problems,
-				"Malformed @"+string(declaration.Tag)+" declaration at "+declaration.location()+": target and non-empty reason are mandatory. Write '@"+string(declaration.Tag)+" <target> <reason>'.",
+				"Malformed @"+string(declaration.Tag)+" declaration at "+declaration.location()+" for "+context+": target and non-empty reason are mandatory. Write '@"+string(declaration.Tag)+" <target> <reason>'.",
 			)
 			continue
 		}
@@ -305,6 +329,7 @@ func evaluateEvidenceGraph(
 				declaration,
 				loader,
 				scopedTargets,
+				context,
 			)
 			if problem != "" {
 				problems = append(problems, problem)
@@ -317,7 +342,7 @@ func evaluateEvidenceGraph(
 			looksLikeTypeScriptTarget(declaration.Target, targets, markdownTargets) {
 			problems = append(
 				problems,
-				"Unbraced TypeScript evidence target '"+declaration.Target+"' at "+declaration.location()+": a target naming a symbol is now written as an inline link, so the citing module's import is what resolves it. Write '@"+string(declaration.Tag)+" {@link "+declaration.Target+"} <reason>' and import the symbol; 'import type' is enough.",
+				"Unbraced TypeScript evidence target '"+declaration.Target+"' at "+declaration.location()+" for "+context+": a target naming a symbol is now written as an inline link, so the citing module's import is what resolves it. Write '@"+string(declaration.Tag)+" {@link "+declaration.Target+"} <reason>' and import the symbol; 'import type' is enough.",
 			)
 			continue
 		}
@@ -335,7 +360,7 @@ func evaluateEvidenceGraph(
 			if len(addressable) == 0 && len(code) != 0 {
 				problems = append(
 					problems,
-					"Code evidence target '"+declaration.Target+"' at "+declaration.location()+": a "+string(declaration.Type)+" claim cannot cite a TypeScript symbol, because a symbol citation resolves through the citing module's imports and this artifact has none. Invert the obligation so the code cites this artifact, or move the citation into TypeScript.",
+					"Code evidence target '"+declaration.Target+"' at "+declaration.location()+" for "+context+": a "+string(declaration.Type)+" claim cannot cite a TypeScript symbol, because a symbol citation resolves through the citing module's imports and this artifact has none. Invert the obligation so the code cites this artifact, or move the citation into TypeScript.",
 				)
 				continue
 			}
@@ -345,7 +370,7 @@ func evaluateEvidenceGraph(
 		case 0:
 			problems = append(
 				problems,
-				"Unresolved evidence target '"+declaration.Target+"' at "+declaration.location()+": no configured source materializes that evidence unit. Correct the target or the owning source files/symbol selection.",
+				"Unresolved evidence target '"+declaration.Target+"' at "+declaration.location()+" for "+context+": no configured source materializes that evidence unit. Correct the target, or make one of the named references select the source unit this claim actually uses.",
 			)
 		case 1:
 			for unitID := range candidates {
@@ -359,17 +384,31 @@ func evaluateEvidenceGraph(
 			sort.Strings(descriptions)
 			problems = append(
 				problems,
-				"Ambiguous evidence target '"+declaration.Target+"' at "+declaration.location()+": it matches "+strings.Join(descriptions, "; ")+". Rename or qualify the source symbols so the target has exactly one meaning.",
+				"Ambiguous evidence target '"+declaration.Target+"' at "+declaration.location()+" for "+context+": it matches "+strings.Join(descriptions, "; ")+". Rename or qualify the source symbols so the target has exactly one meaning.",
 			)
 		}
 	}
 
+	participates := map[string]bool{}
+	uncertain := map[string]bool{}
+	outOfScope := map[string][]string{}
+	outOfScopeSelections := map[string]symbolSet{}
 	for _, state := range states {
 		if len(state.Paths) == 0 {
 			continue
 		}
+		if !state.Healthy {
+			for _, declaration := range state.Declarations {
+				uncertain[declaration.ID] = true
+			}
+		}
 		for _, reference := range state.References {
-			if len(reference.Paths) == 0 || len(reference.Units) == 0 {
+			if !reference.Healthy {
+				for _, declaration := range state.Declarations {
+					uncertain[declaration.ID] = true
+				}
+			}
+			if len(reference.Units) == 0 {
 				continue
 			}
 			acknowledged := map[string]*evidenceDeclaration{}
@@ -381,14 +420,25 @@ func evaluateEvidenceGraph(
 				}
 				hosts := declaration.Hosts
 				if !state.Spec.Symbols.intersects(hosts) {
-					host := hosts.names()
-					if len(hosts) == 0 {
-						host = "unsupported or non-exported declaration"
-					}
-					problems = append(
-						problems,
-						"Out-of-scope @"+string(declaration.Tag)+" host at "+declaration.location()+" for "+claimLabel(state.Spec)+": host kind '"+host+"' is not selected ("+state.Spec.Symbols.names()+"). Move the declaration to a selected host or widen this claim's symbol selector.",
+					outOfScope[declaration.ID] = appendUniqueString(
+						outOfScope[declaration.ID],
+						claimLabel(state.Spec)+" "+referenceLabel(reference.Spec),
 					)
+					if outOfScopeSelections[declaration.ID] == nil {
+						outOfScopeSelections[declaration.ID] = symbolSet{}
+					}
+					for symbol := range state.Spec.Symbols {
+						outOfScopeSelections[declaration.ID][symbol] = true
+					}
+					continue
+				}
+				// Physical file ownership, resolved reference scope, and host
+				// eligibility decide which overlapping claims this declaration
+				// belongs to. A declaration may participate in several eligible
+				// obligations, but an ineligible overlap must not reject one
+				// already owned elsewhere.
+				participates[declaration.ID] = true
+				if !state.Healthy || !reference.Healthy {
 					continue
 				}
 				var overlappingUnit *evidenceUnit
@@ -410,6 +460,9 @@ func evaluateEvidenceGraph(
 					)
 				}
 			}
+			if !state.Healthy || !reference.Healthy || len(reference.Paths) == 0 {
+				continue
+			}
 			for _, unit := range reference.Units {
 				if acknowledged[unit.ID] != nil {
 					continue
@@ -420,6 +473,34 @@ func evaluateEvidenceGraph(
 				)
 			}
 		}
+	}
+	for _, id := range declarationIDs {
+		if resolved[id] == "" || participates[id] {
+			continue
+		}
+		declaration := declarations[id]
+		context := declarationObligationContext(owners[id])
+		if obligations := outOfScope[id]; len(obligations) != 0 {
+			host := declaration.Hosts.names()
+			if len(declaration.Hosts) == 0 {
+				host = "unsupported or non-exported declaration"
+			}
+			problems = append(
+				problems,
+				"Out-of-scope @"+string(declaration.Tag)+" host at "+declaration.location()+" for "+strings.Join(obligations, "; ")+", target '"+displayTarget(declaration.Target)+"': host kind '"+host+"' is not selected ("+outOfScopeSelections[id].names()+") by any of these claim obligations. Move the declaration to a selected host, or widen only the claim symbol selector that genuinely owns this target.",
+			)
+			continue
+		}
+		if uncertain[id] {
+			// A failed loader makes non-participation unknowable. Its direct
+			// diagnostic is the repair path; adding a ghost finding here would
+			// derive a second claim from an incomplete graph.
+			continue
+		}
+		problems = append(
+			problems,
+			"Non-participating @"+string(declaration.Tag)+" target '"+displayTarget(declaration.Target)+"' at "+declaration.location()+" for "+context+": the target resolves, but none of this declaration's configured references selects it. Correct the target or reference, or move the tag to a selected host in the claim that owes it; a resolving tag must discharge at least one obligation.",
+		)
 	}
 	return problems
 }
@@ -439,6 +520,7 @@ func materializeEntryReference(
 	state := referenceState{
 		Spec:         reference,
 		UnitsByScope: map[string][]*evidenceUnit{},
+		Healthy:      true,
 	}
 	entry, problem := resolveReferenceEntry(claim, reference, loader)
 	if problem != "" {
@@ -446,6 +528,12 @@ func materializeEntryReference(
 	}
 	state.Paths = []string{entry}
 	state.Units = materializeEntryUnits(loader, entry, reference.Symbols)
+	if failure := loader.failure(entry); failure != "" {
+		state.Healthy = false
+		return state, []string{
+			claimLabel(claim) + " " + referenceLabel(reference) + " could not read TypeScript entry '" + entry + "': " + failure + ". Fix filesystem access or the package installation; coverage cannot be evaluated from a partial entry graph.",
+		}
+	}
 	if len(state.Units) == 0 {
 		return state, []string{
 			claimLabel(claim) + " " + referenceLabel(reference) + " reached no selected evidence units (" + reference.Symbols.names() + ") from entry '" + entry + "'. Select symbol kinds the entry exposes, or point the entry at the module that declares them.",
@@ -485,16 +573,30 @@ func materializePackageGlobReference(
 	state := referenceState{
 		Spec:         reference,
 		UnitsByScope: map[string][]*evidenceUnit{},
+		Healthy:      true,
 	}
 	base := referenceBase(reference)
 	available := map[string]*evidenceUnit{}
-	for _, candidate := range loader.walk(base) {
+	candidates, walkProblem := loader.walk(base)
+	if walkProblem != "" {
+		state.Healthy = false
+		return state, []string{
+			claimLabel(claim) + " " + referenceLabel(reference) + " could not inspect TypeScript package '" + reference.Package + "': " + walkProblem + ". Fix filesystem access or reinstall the package; coverage cannot be evaluated from a partial population.",
+		}
+	}
+	problems := []string{}
+	for _, candidate := range candidates {
 		relative := strings.TrimPrefix(strings.TrimPrefix(candidate, base), "/")
 		if !reference.Files.matches(relative) {
 			continue
 		}
 		inventory := loader.inventory(candidate)
 		if inventory == nil {
+			state.Healthy = false
+			problems = append(
+				problems,
+				claimLabel(claim)+" "+referenceLabel(reference)+" could not read TypeScript source '"+candidate+"': "+loader.failure(candidate)+". Fix filesystem access or reinstall the package; coverage cannot be evaluated from a partial population.",
+			)
 			continue
 		}
 		state.Paths = append(state.Paths, candidate)
@@ -503,11 +605,17 @@ func materializePackageGlobReference(
 		}
 	}
 	if len(state.Paths) == 0 {
+		if !state.Healthy {
+			return state, problems
+		}
 		return state, []string{
 			claimLabel(claim) + " " + referenceLabel(reference) + " matched no files inside package '" + reference.Package + "' for " + describePatterns(reference.Files) + ". Fix the package-relative globs; they resolve against the package root, not the project root.",
 		}
 	}
 	collectReferenceUnits(&state, reference, available)
+	if !state.Healthy {
+		return state, problems
+	}
 	if len(state.Units) == 0 {
 		return state, []string{
 			claimLabel(claim) + " " + referenceLabel(reference) + " matched " + decimal(len(state.Paths)) + " file(s) inside package '" + reference.Package + "' but materialized no selected evidence units (" + reference.Symbols.names() + "). Select symbol kinds present in those files or correct the globs.",
@@ -635,39 +743,40 @@ func resolveInlineLinkDeclaration(
 	declaration *evidenceDeclaration,
 	loader *typeScriptLoader,
 	scopedTargets map[string]map[string]*evidenceUnit,
+	context string,
 ) (string, string) {
 	target := inlineLinkTarget(declaration.Target)
 	if declaration.Type != artifactTypeScript {
-		return "", "Inline link target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + ": only a TypeScript declaration can cite through an inline link, because resolution runs through the citing module's imports and a " + string(declaration.Type) + " comment has none. Write the symbol as a plain target here."
+		return "", "Inline link target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + " for " + context + ": only a TypeScript declaration can cite through an inline link, because resolution runs through the citing module's imports and a " + string(declaration.Type) + " comment has none. Use a path-addressed target selected by one of the named references; a TypeScript symbol must instead be cited from a TypeScript claim."
 	}
 	inventory := loader.inventory(declaration.Path)
 	if inventory == nil {
-		return "", "Inline link target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + ": the citing file is not part of the TypeScript program, so it has no import scope to resolve against."
+		return "", "Inline link target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + " for " + context + ": the citing file is not part of the TypeScript program, so it has no import scope to resolve against. Include the file in the project or move the citation to a configured TypeScript claim file."
 	}
 	segments := strings.Split(target, ".")
 	binding, imported := inventory.Imports[segments[0]]
 	if !imported {
-		return "", "Unimported evidence target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + ": '" + segments[0] + "' is not imported by this module, so the citation names a symbol this file does not reference. Import it; 'import type' is enough and is erased at emit."
+		return "", "Unimported evidence target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + " for " + context + ": '" + segments[0] + "' is not imported by this module, so the citation names a symbol this file does not reference. Import it; 'import type' is enough and is erased at emit."
 	}
 	// Resolution goes through the same loader the population uses, so a citation
 	// can reach a package entry that never entered the Program — which is the
 	// only way an import of an installed SDK resolves at all.
 	resolvedPath := loader.resolve(declaration.Path, binding.Specifier)
 	if resolvedPath == "" {
-		return "", "Unresolved module '" + binding.Specifier + "' for evidence target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + ": the specifier resolves to no TypeScript file reachable from this project. Correct the import, or add the module to the program."
+		return "", "Unresolved module '" + binding.Specifier + "' for evidence target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + " for " + context + ": the specifier resolves to no TypeScript file reachable from this project. Correct the import, or make the named reference reach the module."
 	}
 	remaining := segments[1:]
 	if !binding.Namespace {
 		remaining = append([]string{binding.Imported}, remaining...)
 	}
 	if len(remaining) == 0 {
-		return "", "Incomplete evidence target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + ": a namespace import names a module rather than a unit. Name a symbol inside '" + binding.Specifier + "'."
+		return "", "Incomplete evidence target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + " for " + context + ": a namespace import names a module rather than a unit. Name a symbol inside '" + binding.Specifier + "' that the named reference selects."
 	}
 	name := strings.Join(remaining, ".")
 	candidates := scopedTargets[scopedTargetKey(resolvedPath, name)]
 	switch len(candidates) {
 	case 0:
-		return "", "Unreachable evidence target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + ": '" + resolvedPath + "' declares no selected unit named '" + name + "'. Correct the target, or widen the reference's files and symbol selection so that unit is configured evidence."
+		return "", "Unreachable evidence target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + " for " + context + ": '" + resolvedPath + "' declares no selected unit named '" + name + "'. Correct the target, or widen the named reference's files and symbol selection so that unit is configured evidence."
 	case 1:
 		for _, unit := range candidates {
 			return unit.ID, ""
@@ -683,7 +792,7 @@ func resolveInlineLinkDeclaration(
 			descriptions = append(descriptions, unit.Readable+" at "+unit.location())
 		}
 		sort.Strings(descriptions)
-		return "", "Ambiguous evidence target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + ": '" + resolvedPath + "' declares " + strings.Join(descriptions, "; ") + " under that name. Narrow the reference's symbol selection so the target has exactly one meaning."
+		return "", "Ambiguous evidence target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + " for " + context + ": '" + resolvedPath + "' declares " + strings.Join(descriptions, "; ") + " under that name. Narrow the named reference's symbol selection so the target has exactly one meaning."
 	}
 }
 
@@ -808,6 +917,37 @@ func referenceLabel(reference referenceSpec) string {
 		return "reference " + decimal(reference.Index+1) + " (swagger operations)"
 	}
 	return "reference " + decimal(reference.Index+1) + " (" + string(reference.Type) + ", symbols: " + reference.Symbols.names() + ")"
+}
+
+func declarationObligationContext(owners []claimState) string {
+	groups := make([]string, 0, len(owners))
+	for _, owner := range owners {
+		references := make([]string, 0, len(owner.Spec.References))
+		for _, reference := range owner.Spec.References {
+			references = append(references, referenceLabel(reference))
+		}
+		if len(references) == 0 {
+			groups = append(groups, claimLabel(owner.Spec))
+			continue
+		}
+		groups = append(
+			groups,
+			claimLabel(owner.Spec)+" across "+strings.Join(references, ", "),
+		)
+	}
+	if len(groups) == 0 {
+		return "no matched claim"
+	}
+	return strings.Join(groups, "; ")
+}
+
+func appendUniqueString(values []string, candidate string) []string {
+	for _, value := range values {
+		if value == candidate {
+			return values
+		}
+	}
+	return append(values, candidate)
 }
 
 func reportProblems(ctx *rule.ProjectContext, problems []string) {
