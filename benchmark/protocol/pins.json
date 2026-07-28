@@ -8,6 +8,11 @@
     "resolutionPolicy": {
       "source": "github-api-and-git-remote",
       "mergeStrategy": "merge-commit",
+      "finalReviewState": "COMMENTED",
+      "reviewAuthorLogin": "samchon",
+      "reviewAuthorAssociation": "OWNER",
+      "reviewBodyDigestAlgorithmId": "sha256-utf8-review-body-v1",
+      "requiredReviewMarker": "overall-self-review-v1",
       "requireReviewedHeadMergeParentOrAncestor": true,
       "requireExactReviewedHeadAndMergedGitTree": true,
       "runtimeArtifact": "benchmark/protocol/schema/block-plan.schema.json#/$defs/formalReviewAdmission"

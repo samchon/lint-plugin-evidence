@@ -501,6 +501,13 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
     mutation: Record<string, unknown>,
   ): void {
     const operation: string = text(mutation.operation, "mutation operation");
+    if (operation === "replaceMany") {
+      for (const input of list(mutation.changes, "mutation changes")) {
+        const change = object(input, "mutation change");
+        applyMutation(target, { ...change, operation: "replace" });
+      }
+      return;
+    }
     const destination = pointerParent(
       target,
       text(mutation.path, "mutation path"),

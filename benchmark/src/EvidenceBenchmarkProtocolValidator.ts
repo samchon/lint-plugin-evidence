@@ -414,6 +414,11 @@ export namespace EvidenceBenchmarkProtocolValidator {
     if (
       policy.source !== "github-api-and-git-remote" ||
       policy.mergeStrategy !== "merge-commit" ||
+      policy.finalReviewState !== "COMMENTED" ||
+      policy.reviewAuthorLogin !== "samchon" ||
+      policy.reviewAuthorAssociation !== "OWNER" ||
+      policy.reviewBodyDigestAlgorithmId !== "sha256-utf8-review-body-v1" ||
+      policy.requiredReviewMarker !== "overall-self-review-v1" ||
       policy.requireReviewedHeadMergeParentOrAncestor !== true ||
       policy.requireExactReviewedHeadAndMergedGitTree !== true ||
       policy.runtimeArtifact !==
@@ -423,8 +428,9 @@ export namespace EvidenceBenchmarkProtocolValidator {
   }
 
   /**
-   * Verifies the runtime-only binding among the reviewed PR head, merge commit,
-   * exact Git trees, and the plan's admitted source revision.
+   * Verifies retained runtime review/source fields and their cross-field
+   * equality. The CLI separately owns GitHub retrieval, direct body-marker
+   * inspection, exact body hashing, and remote Git ancestry/tree proof.
    */
   export function validateRuntimeSourceAdmissionValue(input: unknown): void {
     const plan = record(input, "runtime source admission plan");
@@ -445,6 +451,11 @@ export namespace EvidenceBenchmarkProtocolValidator {
       review.resolutionSource !== "github-api-and-git-remote" ||
       review.mergeStrategy !== "merge-commit" ||
       review.finalCommentReviewState !== "COMMENTED" ||
+      review.reviewAuthorLogin !== "samchon" ||
+      review.reviewAuthorAssociation !== "OWNER" ||
+      review.reviewBodyDigestAlgorithmId !== "sha256-utf8-review-body-v1" ||
+      review.requiredReviewMarker !== "overall-self-review-v1" ||
+      review.reviewBodyMarkerPresent !== true ||
       review.reviewedHeadIsMergeParentOrAncestor !== true ||
       review.exactGitTreeMatch !== true
     )
@@ -457,6 +468,15 @@ export namespace EvidenceBenchmarkProtocolValidator {
       review.reviewedHeadRevision,
       "reviewed head revision",
     );
+    if (
+      commit(
+        review.finalReviewCommitRevision,
+        "formal review payload commit revision",
+      ) !== reviewedHead
+    )
+      throw new Error(
+        "Formal review payload commit revision disagrees with the reviewed head.",
+      );
     if (reviewedHead === merged)
       throw new Error(
         "Merge-commit admission requires a distinct reviewed head revision.",
@@ -475,6 +495,8 @@ export namespace EvidenceBenchmarkProtocolValidator {
       "formal review pull request number",
     );
     positiveInteger(review.finalCommentReviewId, "formal COMMENT review id");
+    digest(review.reviewBodySha256, "formal review body SHA-256");
+    dateTime(review.submittedAtUtc, "formal review submission time");
   }
 
   /** Verifies a runtime-sealed protocol raw-tree digest after sealing. */
@@ -1319,6 +1341,25 @@ export namespace EvidenceBenchmarkProtocolValidator {
     const result: string = nonblank(value, label);
     if (!/^[a-f0-9]{40}$/u.test(result))
       throw new Error(`${label} must be a 40-character Git object ID.`);
+    return result;
+  }
+
+  function digest(value: unknown, label: string): string {
+    const result: string = nonblank(value, label);
+    if (!/^[a-f0-9]{64}$/u.test(result))
+      throw new Error(`${label} must be a lowercase SHA-256.`);
+    return result;
+  }
+
+  function dateTime(value: unknown, label: string): string {
+    const result: string = nonblank(value, label);
+    if (
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/u.test(
+        result,
+      ) ||
+      !Number.isFinite(Date.parse(result))
+    )
+      throw new Error(`${label} must be an RFC 3339 date-time.`);
     return result;
   }
 

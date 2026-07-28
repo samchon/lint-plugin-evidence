@@ -14,6 +14,14 @@
         "pullRequestNumber": 105,
         "finalCommentReviewId": 4802200866,
         "finalCommentReviewState": "COMMENTED",
+        "finalReviewCommitRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "reviewAuthorLogin": "samchon",
+        "reviewAuthorAssociation": "OWNER",
+        "submittedAtUtc": "2026-07-29T10:00:00Z",
+        "reviewBodyDigestAlgorithmId": "sha256-utf8-review-body-v1",
+        "reviewBodySha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "requiredReviewMarker": "overall-self-review-v1",
+        "reviewBodyMarkerPresent": true,
         "reviewedHeadRevision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "mergeCommitRevision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         "mergeStrategy": "merge-commit",
@@ -72,6 +80,13 @@
   ],
   "invalidRuntimeAdmissions": [
     {
+      "id": "runtime-review-payload-commit-drift",
+      "operation": "replace",
+      "path": "/sourceAdmission/formalReview/finalReviewCommitRevision",
+      "value": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "expectedPattern": "payload commit revision disagrees"
+    },
+    {
       "id": "runtime-merge-revision-drift",
       "operation": "replace",
       "path": "/sourceAdmission/formalReview/mergeCommitRevision",
@@ -87,9 +102,17 @@
     },
     {
       "id": "runtime-reviewed-head-equals-merge",
-      "operation": "replace",
-      "path": "/sourceAdmission/formalReview/reviewedHeadRevision",
-      "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "operation": "replaceMany",
+      "changes": [
+        {
+          "path": "/sourceAdmission/formalReview/reviewedHeadRevision",
+          "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+          "path": "/sourceAdmission/formalReview/finalReviewCommitRevision",
+          "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ],
       "expectedPattern": "distinct reviewed head"
     },
     {
@@ -98,6 +121,55 @@
       "path": "/sourceAdmission/formalReview/finalCommentReviewState",
       "value": "APPROVED",
       "expectedPattern": "admission policy drifted"
+    },
+    {
+      "id": "runtime-review-author-not-owner",
+      "operation": "replace",
+      "path": "/sourceAdmission/formalReview/reviewAuthorLogin",
+      "value": "not-owner",
+      "expectedPattern": "admission policy drifted"
+    },
+    {
+      "id": "runtime-review-association-not-owner",
+      "operation": "replace",
+      "path": "/sourceAdmission/formalReview/reviewAuthorAssociation",
+      "value": "CONTRIBUTOR",
+      "expectedPattern": "admission policy drifted"
+    },
+    {
+      "id": "runtime-review-marker-drift",
+      "operation": "replace",
+      "path": "/sourceAdmission/formalReview/requiredReviewMarker",
+      "value": "generic-comment",
+      "expectedPattern": "admission policy drifted"
+    },
+    {
+      "id": "runtime-review-marker-not-observed",
+      "operation": "replace",
+      "path": "/sourceAdmission/formalReview/reviewBodyMarkerPresent",
+      "value": false,
+      "expectedPattern": "admission policy drifted"
+    },
+    {
+      "id": "runtime-review-body-digest-algorithm-drift",
+      "operation": "replace",
+      "path": "/sourceAdmission/formalReview/reviewBodyDigestAlgorithmId",
+      "value": "sha256-unspecified-text-v1",
+      "expectedPattern": "admission policy drifted"
+    },
+    {
+      "id": "runtime-review-body-digest-invalid",
+      "operation": "replace",
+      "path": "/sourceAdmission/formalReview/reviewBodySha256",
+      "value": "not-a-digest",
+      "expectedPattern": "must be a lowercase SHA-256"
+    },
+    {
+      "id": "runtime-review-submission-time-invalid",
+      "operation": "replace",
+      "path": "/sourceAdmission/formalReview/submittedAtUtc",
+      "value": "not-a-date",
+      "expectedPattern": "must be an RFC 3339"
     }
   ]
 }
