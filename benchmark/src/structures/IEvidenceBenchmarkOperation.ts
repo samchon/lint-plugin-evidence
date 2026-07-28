@@ -382,6 +382,12 @@ export namespace IEvidenceBenchmarkOperation {
     /** Per-cell observations supporting the aggregate. */
     observations: IObservation[];
 
+    /** Cells without any durable observation when the stop was sealed. */
+    missingObservationRunIds: string[];
+
+    /** Safety interruption makes the retained usage a right-censored bound. */
+    usageLowerBound: true;
+
     /** UTC observation timestamp. */
     observedAtUtc: string;
 

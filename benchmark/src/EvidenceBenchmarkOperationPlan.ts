@@ -270,6 +270,14 @@ export namespace EvidenceBenchmarkOperationPlan {
       const materialization: IEvidenceBenchmarkMaterialization.IManifest =
         parseMaterialization(cell.materializationManifest);
       const setup: IEvidenceBenchmarkSetup = parseSetup(cell.setupRecord);
+      const immutableRequirements: Map<string, Uint8Array> =
+        EvidenceBenchmarkHash.directory(
+          path.join(cell.root, "inputs", "requirements"),
+        );
+      const workspaceRequirements: Map<string, Uint8Array> =
+        EvidenceBenchmarkHash.directory(
+          path.join(cell.workspace, "docs", "analysis"),
+        );
       if (
         materialization.project !== cell.project ||
         materialization.arm !== cell.arm ||
@@ -283,6 +291,19 @@ export namespace EvidenceBenchmarkOperationPlan {
       )
         throw new Error(
           `Benchmark materialization semantics do not match cell ${cell.runId}.`,
+        );
+      if (
+        EvidenceBenchmarkHash.tree(immutableRequirements) !==
+          materialization.requirementsTreeSha256 ||
+        EvidenceBenchmarkHash.tree(workspaceRequirements) !==
+          materialization.requirementsTreeSha256 ||
+        JSON.stringify(EvidenceBenchmarkHash.entries(immutableRequirements)) !==
+          JSON.stringify(materialization.requirementFiles) ||
+        JSON.stringify(EvidenceBenchmarkHash.entries(workspaceRequirements)) !==
+          JSON.stringify(materialization.requirementFiles)
+      )
+        throw new Error(
+          `Benchmark exact requirement bytes disagree for ${cell.runId}.`,
         );
       if (
         setup.pnpmVersion !== "10.10.0" ||
@@ -336,7 +357,8 @@ export namespace EvidenceBenchmarkOperationPlan {
     );
     if (
       !isObject(parsed) ||
-      parsed.schemaVersion !== 1 ||
+      parsed.schemaVersion !== 2 ||
+      parsed.treeAlgorithm !== EvidenceBenchmarkHash.TREE_ALGORITHM ||
       parsed.sourceRevision !== plan.sourceRevision ||
       parsed.coreAutocrlf !== "false" ||
       parsed.coreEol !== "lf" ||
@@ -351,9 +373,8 @@ export namespace EvidenceBenchmarkOperationPlan {
       bytes: number;
       sha256: string;
     }>;
-    if (EvidenceBenchmarkHash.object(files) !== parsed.treeSha256)
-      throw new Error("Benchmark sealed source tree ledger drifted.");
     const paths: Set<string> = new Set();
+    const tree: Map<string, Uint8Array> = new Map();
     for (const entry of files) {
       if (
         typeof entry.path !== "string" ||
@@ -382,7 +403,17 @@ export namespace EvidenceBenchmarkOperationPlan {
         EvidenceBenchmarkHash.bytes(bytes) !== entry.sha256
       )
         throw new Error(`Benchmark sealed source file drifted: ${entry.path}.`);
+      tree.set(entry.path, bytes);
     }
+    const actualPaths: string[] = sealedPaths(plan.sealedSource);
+    if (
+      JSON.stringify(actualPaths) !== JSON.stringify([...paths].sort(ordinal))
+    )
+      throw new Error(
+        "Benchmark sealed source contains an unrecorded or missing path.",
+      );
+    if (EvidenceBenchmarkHash.tree(tree) !== parsed.treeSha256)
+      throw new Error("Benchmark sealed source tree ledger drifted.");
   }
 
   function parseMaterialization(
@@ -391,7 +422,8 @@ export namespace EvidenceBenchmarkOperationPlan {
     const parsed: unknown = JSON.parse(fs.readFileSync(location, "utf8"));
     if (
       !isObject(parsed) ||
-      parsed.schemaVersion !== 1 ||
+      parsed.schemaVersion !== 2 ||
+      parsed.treeAlgorithm !== EvidenceBenchmarkHash.TREE_ALGORITHM ||
       typeof parsed.project !== "string" ||
       !["todo", "reddit", "shopping", "erp"].includes(parsed.project) ||
       typeof parsed.arm !== "string" ||
@@ -490,5 +522,34 @@ export namespace EvidenceBenchmarkOperationPlan {
 
   function isObject(input: unknown): input is Record<string, unknown> {
     return typeof input === "object" && input !== null && !Array.isArray(input);
+  }
+
+  function sealedPaths(root: string): string[] {
+    const output: string[] = [];
+    const visit = (relative: string): void => {
+      const location: string =
+        relative.length === 0 ? root : path.join(root, ...relative.split("/"));
+      for (const entry of fs.readdirSync(location, {
+        withFileTypes: true,
+      })) {
+        if (relative.length === 0 && entry.name === ".git") continue;
+        const child: string =
+          relative.length === 0
+            ? entry.name
+            : path.posix.join(relative, entry.name);
+        if (entry.isDirectory()) visit(child);
+        else if (entry.isFile() || entry.isSymbolicLink()) output.push(child);
+        else
+          throw new Error(
+            `Benchmark sealed source contains an unsupported path: ${child}.`,
+          );
+      }
+    };
+    visit("");
+    return output.sort(ordinal);
+  }
+
+  function ordinal(left: string, right: string): number {
+    return left < right ? -1 : left > right ? 1 : 0;
   }
 }

@@ -11,7 +11,10 @@ export namespace EvidenceBenchmarkOperationSource {
   /** One exact tracked source snapshot prepared before package or cell output. */
   export interface IManifest {
     /** Manifest schema version. */
-    schemaVersion: 1;
+    schemaVersion: 2;
+
+    /** Versioned raw path and exact-byte aggregate algorithm. */
+    treeAlgorithm: "sha256-posix-path-nul-bytes-v1";
 
     /** Exact detached source revision. */
     sourceRevision: string;
@@ -119,13 +122,29 @@ export namespace EvidenceBenchmarkOperationSource {
       throw new Error("Benchmark sealed source contains untracked files.");
     const files: IManifest["files"] = await trackedFiles(output);
     const record: IManifest = {
-      schemaVersion: 1,
+      schemaVersion: 2,
+      treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
       sourceRevision: request.revision,
       originRepository: path.resolve(request.repository),
       coreAutocrlf: "false",
       coreEol: "lf",
       files,
-      treeSha256: EvidenceBenchmarkHash.object(files),
+      treeSha256: EvidenceBenchmarkHash.tree(
+        new Map(
+          files.map((entry) => {
+            const location: string = path.join(
+              output,
+              ...entry.path.split("/"),
+            );
+            return [
+              entry.path,
+              entry.mode === "120000"
+                ? symlinkBytes(location)
+                : fs.readFileSync(location),
+            ];
+          }),
+        ),
+      ),
       preparedAtUtc: request.now().toISOString(),
     };
     const manifest: string = path.join(

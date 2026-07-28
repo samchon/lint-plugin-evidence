@@ -26,6 +26,9 @@ export namespace EvidenceBenchmarkOperationTest {
     try {
       await blockFailureIsolation(root);
       await blockSafetyOvershoot(root);
+      await durableObservationRetention(root);
+      await hungObservationDeadline(root);
+      await monitorPersistenceFailure(root);
       await cooperativeAbort(root);
       await abortPollIntegrityFailure(root);
       await staleResume(root);
@@ -201,6 +204,172 @@ export namespace EvidenceBenchmarkOperationTest {
         samples[0]!.host.platform === "fixture" &&
         samples[0]!.samplerElapsedMs >= 0,
       "the fake sampler must produce separate low-overhead diagnostics",
+    );
+  }
+
+  async function durableObservationRetention(
+    repository: string,
+  ): Promise<void> {
+    const adapter = new FakeAdapter({ barrier: false });
+    const command = commandLine(repository, adapter);
+    const planPath: string = path.join(
+      repository,
+      "benchmark",
+      "plans",
+      "durable-observations-r1.json",
+    );
+    await command.main([
+      "prepare",
+      "--plan",
+      planPath,
+      "--block",
+      "durable-observations-r1",
+      "--seed",
+      "99".repeat(32),
+      "--authorization",
+      writeSafetyAuthorization(repository, ["todo", "reddit"]),
+    ]);
+    const plan: IEvidenceBenchmarkOperation.IPlan =
+      EvidenceBenchmarkOperationPlan.read(planPath);
+    EvidenceBenchmarkOperationBlock.launch(
+      plan,
+      new Date(),
+      process.hrtime.bigint(),
+    );
+    adapter.observationTokens = 600;
+    const firstObservation = await adapter.observe(plan.cells[0]!);
+    const first = EvidenceBenchmarkOperationBlock.sample(plan, {
+      atUtc: new Date(),
+      monotonicNs: process.hrtime.bigint(),
+      samplerElapsedMs: 0,
+      host: fixtureHost(),
+      observations: [firstObservation],
+    });
+    adapter.observationTokens = 700;
+    const secondObservation = await adapter.observe(plan.cells[1]!);
+    const second = EvidenceBenchmarkOperationBlock.sample(plan, {
+      atUtc: new Date(),
+      monotonicNs: process.hrtime.bigint(),
+      samplerElapsedMs: 0,
+      host: fixtureHost(),
+      observations: [secondObservation],
+    });
+    assert(
+      first.observedBlockTotalTokens === 600 &&
+        second.observedBlockTotalTokens === 1_300 &&
+        second.observations.length === 2,
+      "a completed or temporarily missing cell must remain in the durable latest-by-cell aggregate",
+    );
+    expectFailure(
+      () =>
+        EvidenceBenchmarkOperationBlock.sample(plan, {
+          atUtc: new Date(),
+          monotonicNs: process.hrtime.bigint(),
+          samplerElapsedMs: 0,
+          host: fixtureHost(),
+          observations: [
+            {
+              ...firstObservation,
+              observedTotalTokens: 0,
+              responses: [],
+            },
+          ],
+        }),
+      "a reappearing cell must not regress or delete a durable response",
+    );
+  }
+
+  async function hungObservationDeadline(repository: string): Promise<void> {
+    const adapter = new FakeAdapter({ barrier: true });
+    adapter.holdAll = true;
+    adapter.observeHang = true;
+    const command = commandLine(repository, adapter);
+    const planPath: string = path.join(
+      repository,
+      "benchmark",
+      "plans",
+      "hung-observation-r1.json",
+    );
+    await command.main([
+      "prepare",
+      "--plan",
+      planPath,
+      "--block",
+      "hung-observation-r1",
+      "--seed",
+      "aa".repeat(32),
+      "--authorization",
+      writeSafetyAuthorization(
+        repository,
+        ["todo", "reddit"],
+        "hung-observation",
+        200,
+      ),
+    ]);
+    const plan: IEvidenceBenchmarkOperation.IPlan =
+      EvidenceBenchmarkOperationPlan.read(planPath);
+    await command.main(["start", "--plan", planPath]);
+    const stop: IEvidenceBenchmarkOperation.IBlockStop | null =
+      EvidenceBenchmarkOperationBlock.readStop(plan);
+    assert(
+      stop?.boundary === "hard_deadline" &&
+        stop.usageLowerBound === true &&
+        stop.missingObservationRunIds.length === 4 &&
+        adapter.abortCalls.length === 4,
+      "an independent monotonic wall guard must stop all four cells even when every observation hangs",
+    );
+  }
+
+  async function monitorPersistenceFailure(repository: string): Promise<void> {
+    const adapter = new FakeAdapter({ barrier: true });
+    adapter.holdAll = true;
+    const command = commandLine(repository, adapter);
+    const planPath: string = path.join(
+      repository,
+      "benchmark",
+      "plans",
+      "monitor-persistence-r1.json",
+    );
+    await command.main([
+      "prepare",
+      "--plan",
+      planPath,
+      "--block",
+      "monitor-persistence-r1",
+      "--seed",
+      "bb".repeat(32),
+      "--authorization",
+      writeSafetyAuthorization(repository, ["todo", "reddit"]),
+    ]);
+    const plan: IEvidenceBenchmarkOperation.IPlan =
+      EvidenceBenchmarkOperationPlan.read(planPath);
+    fs.mkdirSync(
+      path.join(
+        EvidenceBenchmarkOperationBlock.directory(plan),
+        "block-stop.json",
+      ),
+      { recursive: true },
+    );
+    let failed: boolean = false;
+    try {
+      await command.main(["start", "--plan", planPath]);
+    } catch (error) {
+      failed =
+        error instanceof Error &&
+        error.message.includes("safety controller failed");
+    }
+    assert(
+      failed &&
+        adapter.abortCalls.length === 4 &&
+        plan.cells.every((cell) => {
+          const terminal: IEvidenceBenchmarkOperation.ITerminal | null =
+            EvidenceBenchmarkOperationStore.readTerminal(cell);
+          return (
+            terminal?.status === "failed" &&
+            terminal.subtype === "integrity_failure"
+          );
+        }),
+      "a monitor persistence failure must immediately quiesce and integrity-seal every live cell",
     );
   }
 
@@ -448,6 +617,23 @@ export namespace EvidenceBenchmarkOperationTest {
         ),
       "a delayed living controller must never be taken over",
     );
+
+    const ignoredContamination: string = path.join(
+      plan.sealedSource,
+      "benchmark",
+      "template",
+      "ignored-generated.txt",
+    );
+    fs.mkdirSync(path.dirname(ignoredContamination), { recursive: true });
+    fs.writeFileSync(ignoredContamination, "must not enter a launch\n");
+    expectFailure(
+      () => EvidenceBenchmarkOperationPlan.read(planPath),
+      "an unrecorded ignored-style file under a sealed template must fail launch admission",
+    );
+    fs.rmSync(path.join(plan.sealedSource, "benchmark"), {
+      recursive: true,
+      force: true,
+    });
   }
 
   async function laterWave(repository: string): Promise<void> {
@@ -509,6 +695,14 @@ export namespace EvidenceBenchmarkOperationTest {
       path.join(fixture, ".gitattributes"),
       "fixture.txt text eol=crlf\n",
     );
+    fs.writeFileSync(
+      path.join(fixture, ".gitignore"),
+      [
+        "benchmark/template/ignored-generated.txt",
+        "benchmark/requirements/todo/ignored-generated.md",
+        "",
+      ].join("\n"),
+    );
     fs.writeFileSync(path.join(fixture, "fixture.txt"), "one\ntwo\n");
     await EvidenceBenchmarkProcess.run("git", ["add", "."], { cwd: fixture });
     await EvidenceBenchmarkProcess.run(
@@ -522,6 +716,14 @@ export namespace EvidenceBenchmarkOperationTest {
       ["checkout", "--", "fixture.txt"],
       { cwd: fixture },
     );
+    for (const ignored of [
+      path.join("benchmark", "template", "ignored-generated.txt"),
+      path.join("benchmark", "requirements", "todo", "ignored-generated.md"),
+    ]) {
+      const location: string = path.join(fixture, ignored);
+      fs.mkdirSync(path.dirname(location), { recursive: true });
+      fs.writeFileSync(location, "ignored developer contamination\n");
+    }
     const status = await EvidenceBenchmarkProcess.run(
       "git",
       ["status", "--porcelain=v1"],
@@ -567,6 +769,26 @@ export namespace EvidenceBenchmarkOperationTest {
             entry.sha256 === EvidenceBenchmarkHash.bytes(sealedBytes),
         ),
       "the sealed clone must ignore developer smudge and hash exact LF Git bytes",
+    );
+    assert(
+      !fs.existsSync(
+        path.join(
+          sealed.root,
+          "benchmark",
+          "template",
+          "ignored-generated.txt",
+        ),
+      ) &&
+        !fs.existsSync(
+          path.join(
+            sealed.root,
+            "benchmark",
+            "requirements",
+            "todo",
+            "ignored-generated.md",
+          ),
+        ),
+      "ignored developer files under template and requirements must not enter the sealed source",
     );
   }
 
@@ -629,13 +851,16 @@ export namespace EvidenceBenchmarkOperationTest {
         sealedSourceManifest,
         `${JSON.stringify(
           {
-            schemaVersion: 1,
+            schemaVersion: 2,
+            treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
             sourceRevision: "c".repeat(40),
             originRepository: request.repository,
             coreAutocrlf: "false",
             coreEol: "lf",
             files: sourceFiles,
-            treeSha256: EvidenceBenchmarkHash.object(sourceFiles),
+            treeSha256: EvidenceBenchmarkHash.tree(
+              new Map([["tracked.txt", fs.readFileSync(sourceFile)]]),
+            ),
             preparedAtUtc: new Date().toISOString(),
           },
           null,
@@ -690,13 +915,31 @@ export namespace EvidenceBenchmarkOperationTest {
           );
           const workspace: string = path.join(root, "workspace");
           fs.mkdirSync(workspace, { recursive: true });
+          const requirementContent: Buffer = Buffer.from(
+            `${specification.project}\n`,
+            "utf8",
+          );
+          for (const requirementRoot of [
+            path.join(root, "inputs", "requirements"),
+            path.join(workspace, "docs", "analysis"),
+          ]) {
+            fs.mkdirSync(requirementRoot, { recursive: true });
+            fs.writeFileSync(
+              path.join(requirementRoot, "requirements.md"),
+              requirementContent,
+            );
+          }
           const materializationManifest: string = path.join(
             root,
             "materialization.json",
           );
           const setupRecord: string = path.join(root, "setup.json");
           const manifest: IEvidenceBenchmarkMaterialization.IManifest =
-            fakeManifest(specification.project, specification.arm);
+            fakeManifest(
+              specification.project,
+              specification.arm,
+              requirementContent,
+            );
           fs.writeFileSync(
             materializationManifest,
             `${JSON.stringify(manifest, null, 2)}\n`,
@@ -775,6 +1018,7 @@ export namespace EvidenceBenchmarkOperationTest {
     public failRunId: string | null = null;
     public holdRunId: string | null = null;
     public holdAll: boolean = false;
+    public observeHang: boolean = false;
     public observationTokens: number = 0;
     public readonly startOrder: string[] = [];
     public readonly abortCalls: string[] = [];
@@ -843,6 +1087,7 @@ export namespace EvidenceBenchmarkOperationTest {
     public async observe(
       cell: IEvidenceBenchmarkOperation.ICell,
     ): Promise<IEvidenceBenchmarkOperation.IObservation> {
+      if (this.observeHang) await new Promise<never>(() => undefined);
       return {
         runId: cell.runId,
         observedTotalTokens: this.observationTokens,
@@ -939,30 +1184,25 @@ export namespace EvidenceBenchmarkOperationTest {
   function fakeManifest(
     project: IEvidenceBenchmarkMaterialization.Project,
     arm: IEvidenceBenchmarkMaterialization.Arm,
+    requirementContent: Uint8Array,
   ): IEvidenceBenchmarkMaterialization.IManifest {
+    const requirements: ReadonlyMap<string, Uint8Array> = new Map([
+      ["requirements.md", requirementContent],
+    ]);
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
+      treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
       project,
       arm,
       materializedAt: new Date().toISOString(),
       variables: {},
       baseTreeSha256: "1".repeat(64),
       armTreeSha256: arm === "evidence" ? "2".repeat(64) : "3".repeat(64),
-      requirementsTreeSha256: project
-        .charCodeAt(0)
-        .toString(16)
-        .padStart(2, "0")
-        .repeat(32),
+      requirementsTreeSha256: EvidenceBenchmarkHash.tree(requirements),
       workspaceTreeSha256: "4".repeat(64),
       inputSha256: "5".repeat(64),
       workspaceFiles: [],
-      requirementFiles: [
-        {
-          path: "requirements.md",
-          bytes: project.length,
-          sha256: "6".repeat(64),
-        },
-      ],
+      requirementFiles: EvidenceBenchmarkHash.entries(requirements),
       corpus: {
         documents: 1,
         h2: 1,
@@ -998,21 +1238,28 @@ export namespace EvidenceBenchmarkOperationTest {
   function writeSafetyAuthorization(
     repository: string,
     subjects: IEvidenceBenchmarkOperation.IPlan["subjects"],
+    label: string = subjects.join("-"),
+    maximumBlockDurationMs: number = 60 * 60 * 1_000,
   ): string {
     const location: string = path.join(
       repository,
-      `authorization-${subjects.join("-")}.json`,
+      `authorization-${label}.json`,
     );
     if (!fs.existsSync(location))
       fs.writeFileSync(
         location,
-        `${JSON.stringify(safety(subjects), null, 2)}\n`,
+        `${JSON.stringify(
+          safety(subjects, maximumBlockDurationMs),
+          null,
+          2,
+        )}\n`,
       );
     return location;
   }
 
   function safety(
     subjects: IEvidenceBenchmarkOperation.IPlan["subjects"],
+    maximumBlockDurationMs: number = 60 * 60 * 1_000,
   ): IEvidenceBenchmarkOperation.ISafetyAuthorization {
     return {
       id: `fixture-${subjects.join("-")}`,
@@ -1024,9 +1271,22 @@ export namespace EvidenceBenchmarkOperationTest {
         subjects.map((subject) => [subject, 60 * 60 * 1_000]),
       ),
       maximumObservedBlockTotalTokens: 3_000,
-      maximumBlockDurationMs: 60 * 60 * 1_000,
+      maximumBlockDurationMs,
       monetaryStatus: "unavailable",
       hardCeilingGuaranteed: false,
+    };
+  }
+
+  function fixtureHost(): IEvidenceBenchmarkOperation.IBlockSample["host"] {
+    return {
+      platform: "fixture",
+      cpuCount: 1,
+      cpuIdleMs: 1,
+      cpuBusyMs: 1,
+      totalMemoryBytes: 1,
+      freeMemoryBytes: 1,
+      loadAverage1m: null,
+      diskFreeBytes: null,
     };
   }
 

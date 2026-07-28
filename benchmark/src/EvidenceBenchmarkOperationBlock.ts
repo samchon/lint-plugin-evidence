@@ -133,6 +133,16 @@ export namespace EvidenceBenchmarkOperationBlock {
       observations: [...input.observations].sort((left, right) =>
         ordinal(left.runId, right.runId),
       ),
+      missingObservationRunIds: plan.cells
+        .map((cell) => cell.runId)
+        .filter(
+          (runId) =>
+            !input.observations.some(
+              (observation) => observation.runId === runId,
+            ),
+        )
+        .sort(ordinal),
+      usageLowerBound: true as const,
       observedAtUtc: input.observedAtUtc.toISOString(),
       hardCeilingGuaranteed: false as const,
     };
@@ -168,6 +178,20 @@ export namespace EvidenceBenchmarkOperationBlock {
         "safety_monitor_failure",
       ].includes(stop.boundary) ||
       !Number.isFinite(Date.parse(stop.observedAtUtc)) ||
+      stop.usageLowerBound !== true ||
+      !Array.isArray(stop.missingObservationRunIds) ||
+      JSON.stringify(stop.missingObservationRunIds) !==
+        JSON.stringify(
+          plan.cells
+            .map((cell) => cell.runId)
+            .filter(
+              (runId) =>
+                !stop.observations.some(
+                  (observation) => observation.runId === runId,
+                ),
+            )
+            .sort(ordinal),
+        ) ||
       stop.hardCeilingGuaranteed !== false ||
       aggregateTokens(stop.observations) !== stop.observedBlockTotalTokens ||
       EvidenceBenchmarkHash.object(content) !== blockStopSha256
