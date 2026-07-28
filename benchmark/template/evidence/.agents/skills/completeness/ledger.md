@@ -12,7 +12,7 @@ wiki/completeness/
   integrity.md
   residual.md
   findings.md
-  rounds.md
+  state.md
 ```
 
 Do not duplicate every green graph edge by hand. Record the graph config digest, target counts by claim/reference, zero-diagnostic command, and the manual judgments the graph does not encode.
@@ -34,8 +34,8 @@ An exclusion row includes the alternative owner, consequence, and veto condition
 
 Use the same source/artifact/reason/status/digest shape as a manual mapping ledger. These edges are not mechanically covered and must never inherit a green graph verdict.
 
-## Findings, Rounds, And Digest
+## Findings And State Identity
 
-Record a finding before repair, including rejected hypotheses and every downstream review invalidated. `rounds.md` uses the exact round table and authored-population digest defined in [phase-two.md](phase-two.md), including a Phase One first-done row.
+Record a finding before repair, including rejected hypotheses and every downstream review invalidated. `state.md` records the deterministic authored-state digest, its exact included and excluded path inventories, command results, and the Phase One first-done boundary.
 
-A report interrupted by a limit remains interrupted. Missing counts are `not-recorded`, never zero. A changed source invalidates every integrity or residual verdict bound to its previous digest.
+A report interrupted by a limit remains interrupted. Missing counts are `not-recorded`, never zero. A changed source invalidates every integrity or residual verdict bound to its previous state.

@@ -26,5 +26,3 @@ Do not cite a generated accessor by path text or place tags in generated source.
 ## Integrity
 
 The graph proves a target is acknowledged, not that an assertion depends on it. Read each citation against the test body, implementation, and source. Require success, authorization, validation, absence, forbidden transitions, boundaries, and cross-actor journeys as the requirement demands.
-
-Phase One reviews behavior sensitivity without adding an arm-specific campaign. Exactly one destructive mutation per shared global Phase Two round is owned by [phase-two.md](phase-two.md).
