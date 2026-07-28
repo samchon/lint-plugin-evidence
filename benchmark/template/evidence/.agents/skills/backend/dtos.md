@@ -52,26 +52,37 @@ Read [the campaign skill](../campaign/SKILL.md) before starting.
 
 **A property citing a requirement instead of a column** is the common mistake here, and it passes nothing: the property obligation is against the schema, so the requirement citation does not discharge it, and the build keeps reporting the property while the tag sits there looking like work.
 
-## A Computed Property Has No Column
+## A Computed Property Cites Everything It Is Computed From
 
-A count, a total, or a joined display value has nothing in the schema to point at. That is what `@evidenceExclude` is for, and the reason is the derivation:
+**A declaration may carry as many `@evidence` tags as it needs.** This is the difference that makes a computed value expressible: an aggregate does not correspond to one column, so it cites every column and relation the computation draws on.
 
 ```ts
 /**
- * Number of active subscribers.
+ * Number of currently active subscribers.
  *
- * @evidenceExclude prisma:shopping_sales Aggregated from the subscription
- * relation at read time; no column stores it.
+ * @evidence prisma:shopping_sale_subscriptions Counted from this relation.
+ * @evidence prisma:shopping_sale_subscriptions.state Only rows in the active
+ * state are counted.
+ * @evidence prisma:shopping_sale_subscriptions.shopping_sale_id Scoped to this
+ * sale.
  */
 subscriberCount: number & tags.Type<"uint32">;
 ```
 
-Write the derivation, not the word computed. A reviewer comparing that reason to the transformer can tell whether the aggregate is real.
+Read what that does. A reviewer can now check the transformer against three named sources and see whether the aggregate is the one the property claims. A single exclusion saying "computed" would have told them nothing.
 
-**An exclusion is not the escape from a property you have not mapped yet.** If the value should come from a column, add the column and cite it.
+A statistics or dashboard type does the same at the type level: it cites every requirement it serves and every model it draws on, rather than declining to cite because it maps to no single table.
 
-## When The Diagnostic Points Here
+**Do not reach for an exclusion because a value has no single owner.** Having several owners is a reason to name all of them.
 
-A property that cannot cite anything usually means the schema is missing a column, not that the property is computed. Check the model before reaching for an exclusion.
+## Keep Citations Disjoint
 
-A type that cannot cite a requirement usually means the DTO was invented for the implementation's convenience. Find the section that asks for the concept, and if there is none, the type is the defect.
+The one constraint on multiple tags is that two scopes within the same obligation must not overlap. A citation acknowledges its target and every selected descendant, so citing a model **and** one of that model's columns from the same host reports a duplicate.
+
+Cite siblings, not a parent and its child. Either name the model, or name the specific columns, whichever matches what the property actually draws on.
+
+## When Nothing Can Be Cited
+
+That is genuinely rare once multiple tags are available, and it usually means something upstream is missing rather than something here being computed.
+
+A property that can cite nothing at all usually means the schema lacks a column it should have. Check the model first. A type that cannot cite a requirement usually means the DTO was invented for the implementation's convenience; find the section that asks for the concept, and if there is none, the type is the defect.

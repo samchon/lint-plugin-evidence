@@ -41,6 +41,16 @@ Granularity is part of the configuration. A DTO **type** is a claim over require
 
 The configured graph is what the build checks. Keep it current: when the frontend takes a concrete shape or a new artifact kind appears, the obligation belongs in the configuration. **An edge that is not configured is not checked**, and nothing will tell you it is missing.
 
+## Cite As Many Targets As The Work Draws On
+
+A declaration carries as many `@evidence` tags as it needs, and this is what makes the graph usable for anything that is not one-to-one.
+
+An aggregate cites every column and relation it is computed from. A statistics type cites every requirement it serves and every model it reads. An operation that realizes three sections cites three sections.
+
+**Breadth is the correct answer, not a reason to skip citing.** The instinct to write nothing because a value does not correspond to a single row is backwards: several sources is a reason to name several sources, and naming them is what lets a reviewer check the derivation against the code.
+
+The one constraint is that two scopes must not overlap inside one obligation. A citation acknowledges its target and every selected descendant, so naming a model **and** one of its columns from the same declaration is reported as a duplicate. Cite siblings, or cite the parent, not both.
+
 ## What The Diagnostics Mean
 
 Three kinds, and each names a different repair.
