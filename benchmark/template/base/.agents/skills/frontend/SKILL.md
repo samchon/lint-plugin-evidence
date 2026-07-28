@@ -37,7 +37,7 @@ A screen designed before reading the contract gets rebuilt after reading it.
 
 Do not turn every operation into a feature. Prefer a coherent product over exhaustive coverage, and leave out operations that are diagnostic, redundant, or that expose backend mechanics no user benefits from.
 
-Record every deliberate omission with its reason in the project's notes, the way a real project keeps an omissions log:
+Record every deliberate omission with its reason in `wiki/omissions.md`, the way a real project keeps an omissions log:
 
 ```markdown
 ## Omitted On Purpose

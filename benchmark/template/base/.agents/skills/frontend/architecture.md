@@ -75,7 +75,9 @@ Three things sit outside the domain folders:
 - `components/providers` holds the app-wide providers, composed in one file so the provider order is readable in one place.
 - A genuinely cross-domain piece such as `app-frame.tsx` or `error-state.tsx` sits at the `components/` level. If two domains use it and it is not a primitive, it belongs here rather than in one of them.
 
-**`lib/<domain>` is the interface's own vocabulary.** `types.ts` names view models for what a screen needs rather than what a table holds: `ProductCardView`, `CategoryTreeNode`, `OrderDetailView`. `hooks.ts` exposes the queries and mutations and owns the query keys. `client.ts` holds the shared connection and the request helper.
+**`lib/<domain>` is the interface's own vocabulary.** `types.ts` names view models for what a screen needs rather than what a table holds: `ProductCardView`, `CategoryTreeNode`, `OrderDetailView`. `hooks.ts` exposes the queries and mutations and owns the query keys.
+
+`client.ts` holds **the connection object and nothing else**: built once from the configured host and simulation flag, authenticated by the lifecycle accessors, and exported for the hooks to pass. It is not a place to wrap a call. A function there named `get`, `post`, `request`, or `fetchProduct` is the hand-written layer [sdk.md](sdk.md) rules out, and it breaks silently where the accessor would have broken at compile time.
 
 **Files are kebab-case**, exports are PascalCase. `catalog-page.tsx` exports `CatalogPage`.
 
@@ -97,6 +99,7 @@ const keys = {
   cart: ["shopping", "cart"] as const,
   orders: ["shopping", "orders"] as const,
   order: (id: string) => ["shopping", "order", id] as const,
+  wallet: ["shopping", "wallet"] as const,
 };
 ```
 
@@ -224,11 +227,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 ```json
 {
   "dev": "vite --host 0.0.0.0",
-  "build": "rimraf dist && pnpm typecheck && vite build",
+  "build": "rimraf dist && pnpm run check && vite build",
   "preview": "vite preview",
-  "typecheck": "tsc -p tsconfig.json --noEmit",
-  "lint": "ttsc -p tsconfig.json --noEmit",
-  "check": "pnpm run typecheck && pnpm run lint",
+  "check": "ttsc -p tsconfig.json --noEmit",
   "test:e2e": "node scripts/run-playwright.mjs e2e",
   "ui:review": "node scripts/run-playwright.mjs ui-review",
   "readme:screens": "node scripts/run-playwright.mjs readme",
@@ -236,7 +237,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 }
 ```
 
-One runner with a mode argument beats several near-identical configurations. `build` type-checks before bundling, so a broken type fails the build rather than shipping.
+**`check` is one command because the compile is one pass.** `ttsc` emits type errors and lint diagnostics in the same stream and sums both into the exit code, so a separate `typecheck` script running stock `tsc` would report green over failures this project treats as errors. There is no `tsc` here and no separate lint invocation; the project skill owns why.
+
+One runner with a mode argument beats several near-identical configurations. `build` runs `check` before bundling, so a broken type or a lint failure stops the build rather than shipping.
 
 ## Record The Notable Choices
 

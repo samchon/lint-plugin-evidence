@@ -106,4 +106,6 @@ pnpm lint
 pnpm test
 ```
 
-Run them from the workspace root. Run the narrowest command that proves your change first, then a broader one when shared behavior changed. Read the output; a command whose result you did not read is not verification.
+Run them from the workspace root. `pnpm lint` is the same compiler without emitting, so it reports exactly what `pnpm build` would and finishes sooner.
+
+Run the narrowest command that proves your change first, then a broader one when shared behavior changed. Read the output; a command whose result you did not read is not verification.
