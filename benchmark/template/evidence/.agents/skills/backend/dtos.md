@@ -75,6 +75,14 @@ A statistics or dashboard type does the same at the type level: it cites every r
 
 **Do not reach for an exclusion because a value has no single owner.** Having several owners is a reason to name all of them.
 
+## The Two Granularities Are Two Claims
+
+The type obligation and the property obligation are configured as **separate claims**: one selecting types and referencing requirements and models, one selecting properties and referencing columns and relations.
+
+That is what makes the design work rather than collapse. Each claim counts its acknowledgements in its own tally, so a type citing a model and a property citing one of that model's columns never collide. They are answering different questions in different obligations.
+
+Within one claim the disjointness rule below applies in full. Across the two, it does not apply at all.
+
 ## One Target, One Citation, Across The Whole Claim
 
 The constraint on multiple tags is disjointness, and its scope is wider than one declaration. Two citations of the same target inside one obligation are a duplicate **even when they sit on different properties**, because the obligation is counted across every host the claim selects.

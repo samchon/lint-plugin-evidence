@@ -191,7 +191,69 @@ Foreign keys flow child to parent. Parent tables do not store child ids, because
 
 A tenant or scope has exactly one storage owner per entity graph. The table the scope directly owns carries the scope id; every descendant reaches it through its required parent chain. A second direct scope foreign key on a descendant gives that row two ancestor paths, and the public route shape then differs table by table.
 
-When several kinds of actor can own or target the same record, use a main table plus subtype tables, each unique on the main entity and carrying its own context. **Do not use a row of nullable owner foreign keys**: every reader then has to decide which of four columns is authoritative, and they will decide differently.
+## Composition Or Association
+
+Every foreign key is one of two things, and the choice decides how the child is created.
+
+**Association** is the ordinary link. The child has its own lifecycle and its own creation path.
+
+**Composition** means the child belongs to the parent's lifecycle and is written through the parent's create surface. A composition foreign key is **non-null**, because an existing child cannot detach from the parent that owns it, and the child must be a kind of row a user can create. A snapshot, a projection, an account, or a session is created by its own lifecycle, so it is always an association.
+
+An actor's profile is a required one-to-one composition. Line items on an order are a required one-to-many composition. A thumbnail on an article is an optional one-to-one composition: the parent may omit it, and any thumbnail row still requires its article.
+
+## One-To-One Is A Table, Not A Cluster Of Nullable Columns
+
+```prisma
+// Wrong: the answer's fields live on the question, all nullable.
+model support_questions {
+  answer_title String?
+  answer_body  String?
+  agent_id     String?
+}
+
+// Right: the answer is its own row, unique on the question.
+model support_question_answers {
+  id                  String @id
+  support_question_id String
+  agent_id            String
+  title               String
+  body                String
+
+  question support_questions @relation(fields: [support_question_id], references: [id], onDelete: Cascade)
+
+  @@unique([support_question_id])
+}
+```
+
+The nullable cluster cannot express "answered" as a state. Every reader has to decide which combination of three nulls means what, and they decide differently.
+
+## Several Owner Kinds Means Subtypes, Not Nullable Keys
+
+```prisma
+// Wrong: one nullable foreign key per possible owner.
+model content_reports {
+  member_id    String?
+  moderator_id String?
+}
+
+// Right: the main row, plus one subtype row per owner kind.
+model content_reports {
+  id         String @id
+  actor_type String
+  @@index([actor_type])
+}
+
+model content_report_of_members {
+  id                String @id
+  content_report_id String
+  member_id         String
+  @@unique([content_report_id])
+}
+```
+
+Every report then references exactly one owner, and no reader has to work out which of several nullable columns is the authoritative one.
+
+A generic target identifier with a type discriminator must preserve every target type the requirements name. When the target is single-type, it is an ordinary foreign key with no discriminator at all.
 
 ## Uniqueness And Indexes
 
