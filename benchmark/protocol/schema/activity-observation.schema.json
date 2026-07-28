@@ -14,6 +14,7 @@
     "sourceEventCaptureComplete",
     "sourceEventChainClosed",
     "eventIds",
+    "sourceRawServerLedgerSha256",
     "sourceActivityCaptureComplete",
     "sourceActivityLedgerClosed",
     "items",
@@ -58,6 +59,9 @@
       "items": {
         "$ref": "#/$defs/sha256"
       }
+    },
+    "sourceRawServerLedgerSha256": {
+      "$ref": "#/$defs/sha256"
     },
     "sourceActivityCaptureComplete": {
       "type": "boolean"
@@ -106,6 +110,7 @@
         "codebookSha256",
         "sourceUsageLedgerSha256",
         "sourceEventLedgerSha256",
+        "sourceRawServerLedgerSha256",
         "sourceActivityLedgerSha256",
         "eventChainTerminalSha256",
         "providerOutputRegistrySha256",
@@ -195,6 +200,9 @@
           "$ref": "#/$defs/sha256"
         },
         "sourceEventLedgerSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sourceRawServerLedgerSha256": {
           "$ref": "#/$defs/sha256"
         },
         "sourceActivityLedgerSha256": {

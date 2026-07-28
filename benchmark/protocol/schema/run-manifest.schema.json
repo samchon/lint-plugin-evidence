@@ -309,10 +309,10 @@
           "const": "a5bd8cbb160963f4e4f205620f2d34378f73e782cdb4005666c9d33224741ee6"
         },
         "coreSealSchemaSha256": {
-          "const": "ba2c4c975149c1b2aa46d834a977049b4b690ef703680d12a19f63aa6364dd32"
+          "const": "3281f0fb958e0deeb0bdfc1cb338d686750c6f2e2594123b5dc37fbb5758358f"
         },
         "usageReportSchemaSha256": {
-          "const": "bcb33bc49584e07ccb3efe4f3f29413b09bca5096d7f985f067d085125f72886"
+          "const": "c8203b9c966a29066b4b1654d9a2d216fea70ce1bd358d3f5036eced1e6a157d"
         },
         "activityCodebookSha256": {
           "const": "281741dfbe30931f17910c88a0998a5a49effd0ca11546431fefe18b647e9517"
@@ -321,19 +321,19 @@
           "const": "4631758e48d986903a0f129c07ceb718ff303529963995b157f90f3e5e0b0053"
         },
         "activityProcessIdentitySchemaSha256": {
-          "const": "d0d9572594b58779b66a0b516d439ebb3ead18764725ec79ef94051242c8b9ec"
+          "const": "3ec5d5092be7cd369f9783b80e6bb3fbfa3ecf9c4eb579cac82869b65516a433"
         },
         "activityExecutionSchemaSha256": {
           "const": "7d48b48208516730e0f11481e56339694f5f90cf4f61a75b72b927751ded3a45"
         },
         "activityLedgerSchemaSha256": {
-          "const": "6a1b52d3bf2c38efa74e9d093afe850574b6aa47f6abdb1dfe78bbb8eeacfecc"
+          "const": "9460eb803ef438c4debc8ad0a1789e2c2135237ee2673290a144c9b79080d91a"
         },
         "activityObservationSchemaSha256": {
-          "const": "325dc402a8bbb458766dd19901d9a1e547f5866c6dd44dc799e66bb75ad5c074"
+          "const": "acfea6171ce9a13e35b4a8c73166d68057d6f2ef89a8a5aca42df8278567efb1"
         },
         "activityReportSchemaSha256": {
-          "const": "a59e5f9ea0ad6c2905400e97e9c22444bf32d3b40845696f26f32b54edd5e677"
+          "const": "d19c32fe0c59677b27c64a8ff4dc371fa968c73815a5f8b39e206dd58e9dad14"
         },
         "promptSha256": {
           "const": "d538f0697e4f7d9eb5903b292c70a0fc6f034801f8c8554ca9c181a3a143bfa1"

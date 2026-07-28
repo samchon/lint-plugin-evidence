@@ -161,6 +161,9 @@ export namespace IEvidenceBenchmarkActivity {
     /** Exact-byte identity of the append-only semantic event ledger. */
     sourceEventLedgerSha256: string;
 
+    /** Exact-byte identity of the retained raw app-server frame ledger. */
+    sourceRawServerLedgerSha256: string;
+
     /** Exact-byte identity of the runner-owned activity lifecycle ledger. */
     sourceActivityLedgerSha256: string;
 
@@ -289,6 +292,9 @@ export namespace IEvidenceBenchmarkActivity {
 
     /** Catalog-order identities of every verified event-chain member. */
     eventIds: readonly string[];
+
+    /** Exact-byte identity of the retained raw app-server frame ledger. */
+    sourceRawServerLedgerSha256: string;
 
     /** Runner assertion that every activity lifecycle was durably captured. */
     sourceActivityCaptureComplete: boolean;

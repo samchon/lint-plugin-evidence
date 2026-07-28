@@ -33,10 +33,9 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     try {
       testCanonicalPins();
       testRegistryAdmission(temporary);
-      const protocolRoot: string = writeProtocol(
-        path.join(temporary, "fixture-protocol"),
-      ).root;
+      const protocolRoot: string = canonicalProtocolRoot();
       testExactObservationIntegrity(protocolRoot);
+      testRawProvenanceAttacks(protocolRoot);
       testIndependentJudgmentsAndReducer(protocolRoot);
       testFailClosedJudgments(protocolRoot);
       console.log("Activity attribution self-test passed without paid calls.");
@@ -68,6 +67,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         coreSealSchema: PinnedFile;
         usageReportSchema: PinnedFile;
         rawResponseCompletedVendorSchema: PinnedFile;
+        itemStartedVendorSchema: PinnedFile;
         itemCompletedVendorSchema: PinnedFile;
       };
     };
@@ -91,6 +91,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       activity.coreSealSchema,
       activity.usageReportSchema,
       activity.rawResponseCompletedVendorSchema,
+      activity.itemStartedVendorSchema,
       activity.itemCompletedVendorSchema,
     ])
       pinnedFile(benchmarkRoot, artifact);
@@ -194,15 +195,12 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         }),
       /parent core seal/,
     );
+    const disconnectedCoreValue = JSON.parse(
+      Buffer.from(fixture.input.parentCoreSealBytes).toString("utf8"),
+    ) as Record<string, unknown>;
+    disconnectedCoreValue.usageReportSha256 = digest("other-ledger");
     const disconnectedCore: Buffer = Buffer.from(
-      `${JSON.stringify({
-        schemaVersion: 1,
-        runId: fixture.input.binding.runId,
-        manifestSha256: fixture.input.binding.runManifestSha256,
-        usageReportSha256: digest("other-ledger"),
-        eventChainHeadSha256: fixture.input.binding.eventChainTerminalSha256,
-        activityLedgerSha256: fixture.input.binding.sourceActivityLedgerSha256,
-      })}\n`,
+      `${JSON.stringify(disconnectedCoreValue)}\n`,
       "utf8",
     );
     assert.throws(
@@ -348,51 +346,19 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         }),
       /Provider total/,
     );
-    const censoredLedger = JSON.parse(
-      Buffer.from(fixture.input.sourceUsageLedgerBytes).toString("utf8"),
-    ) as Record<string, unknown>;
-    censoredLedger.exactUsageComplete = false;
-    const censoredLedgerBytes: Buffer = Buffer.from(
-      `${JSON.stringify(censoredLedger)}\n`,
-      "utf8",
-    );
-    const censoredActivity = JSON.parse(
-      Buffer.from(fixture.input.sourceActivityLedgerBytes).toString("utf8"),
-    ) as Record<string, unknown>;
-    censoredActivity.usageReportSha256 =
-      EvidenceBenchmarkActivityCanonical.sha256(censoredLedgerBytes);
-    const censoredActivityBytes: Buffer = Buffer.from(
-      `${JSON.stringify(censoredActivity)}\n`,
-      "utf8",
-    );
-    const censoredCore = JSON.parse(
-      Buffer.from(fixture.input.parentCoreSealBytes).toString("utf8"),
-    ) as Record<string, unknown>;
-    censoredCore.usageReportSha256 =
-      EvidenceBenchmarkActivityCanonical.sha256(censoredLedgerBytes);
-    censoredCore.activityLedgerSha256 =
-      EvidenceBenchmarkActivityCanonical.sha256(censoredActivityBytes);
-    const censoredCoreBytes: Buffer = Buffer.from(
-      `${JSON.stringify(censoredCore)}\n`,
-      "utf8",
-    );
-    const censored: IEvidenceBenchmarkActivity.IObservations =
-      EvidenceBenchmarkActivityObservations.create({
-        ...fixture.input,
-        binding: {
-          ...fixture.input.binding,
-          sourceUsageLedgerSha256:
-            EvidenceBenchmarkActivityCanonical.sha256(censoredLedgerBytes),
-          sourceActivityLedgerSha256: EvidenceBenchmarkActivityCanonical.sha256(
-            censoredActivityBytes,
-          ),
-          parentCoreSealSha256:
-            EvidenceBenchmarkActivityCanonical.sha256(censoredCoreBytes),
+    const censoredInput: EvidenceBenchmarkActivityObservations.IInput =
+      rebuildSource(fixture.input, {
+        mutate(source): void {
+          source.responses[1]!.usage = null;
+          const responseFrame: Record<string, unknown> = source.frames.find(
+            (frame) =>
+              recordValue(frame.envelope.params).responseId === "response-b",
+          )!.envelope;
+          recordValue(responseFrame.params).usage = null;
         },
-        parentCoreSealBytes: censoredCoreBytes,
-        sourceUsageLedgerBytes: censoredLedgerBytes,
-        sourceActivityLedgerBytes: censoredActivityBytes,
       });
+    const censored: IEvidenceBenchmarkActivity.IObservations =
+      EvidenceBenchmarkActivityObservations.create(censoredInput);
     assert.equal(censored.sourceExactUsageComplete, false);
     const censoredRatings: IEvidenceBenchmarkActivity.IProviderRating[] =
       censored.responses.map((response) =>
@@ -425,6 +391,359 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         ],
       });
     assert.equal(censoredReport.exactMeasurementStatus, "right_censored");
+  }
+
+  /** Rejects raw-frame substitutions after every mutable outer seal is rebuilt. */
+  function testRawProvenanceAttacks(protocolRoot: string): void {
+    const fixture: Fixture = fixtureObservations(protocolRoot);
+    const firstResponse = (source: MutableSource): MutableRawFrame =>
+      source.frames.find(
+        (frame) =>
+          frame.envelope.method === "rawResponse/completed" &&
+          recordValue(frame.envelope.params).responseId === "response-a",
+      )!;
+    const censorItemA = (
+      source: MutableSource,
+      linkage: IEvidenceBenchmarkActivity.Linkage,
+      linkedResponseId: string | null,
+    ): void => {
+      const frameIndex: number = source.frames.findIndex(
+        (frame) =>
+          frame.envelope.method === "item/completed" &&
+          recordValue(recordValue(frame.envelope.params).item).id === "item-a",
+      );
+      assert.notEqual(frameIndex, -1);
+      const eventIndex: number = source.frames[frameIndex]!.eventIndex;
+      source.frames.splice(frameIndex, 1);
+      source.events.splice(eventIndex, 1);
+      for (const frame of source.frames)
+        if (frame.eventIndex > eventIndex) frame.eventIndex--;
+      source.items[0] = {
+        ...source.items[0]!,
+        completedAtSourceMs: null,
+        completedReceiptMonotonicNs: null,
+        sourceDurationMs: null,
+        linkedResponseId,
+        linkage,
+        rawEventIds: [source.items[0]!.rawEventIds[0]!],
+      };
+    };
+    const reject = (
+      input: EvidenceBenchmarkActivityObservations.IInput,
+      expected: RegExp,
+    ): void => {
+      assert.throws(
+        () => EvidenceBenchmarkActivityObservations.create(input),
+        expected,
+      );
+    };
+
+    const censoredItemInput: EvidenceBenchmarkActivityObservations.IInput =
+      rebuildSource(fixture.input, {
+        mutate(source): void {
+          censorItemA(source, "ambiguous", null);
+        },
+      });
+    const censoredItem: IEvidenceBenchmarkActivity.IObservations =
+      EvidenceBenchmarkActivityObservations.create(censoredItemInput);
+    assert.equal(censoredItem.items[0]!.linkage, "ambiguous");
+    assert.equal(censoredItem.items[0]!.rawEventIds.length, 1);
+    reject(
+      rebuildSource(fixture.input, {
+        mutate(source): void {
+          censorItemA(source, "ordered_epoch", "response-a");
+        },
+      }),
+      /linkage differs from ordered raw epochs/,
+    );
+
+    reject(
+      rebuildSource(fixture.input, {
+        corruptRebuiltEvent(event, frame): void {
+          if (frame?.envelope.method === "rawResponse/completed")
+            event.rawRef = null;
+        },
+      }),
+      /raw reference/,
+    );
+    for (const [field, value] of [
+      ["byteOffset", 1],
+      ["byteLength", 1],
+      ["sha256", digest("wrong-raw-slice")],
+    ] as const)
+      reject(
+        rebuildSource(fixture.input, {
+          corruptRebuiltEvent(event, frame): void {
+            if (
+              frame?.envelope.method !== "rawResponse/completed" ||
+              recordValue(frame.envelope.params).responseId !== "response-a"
+            )
+              return;
+            const rawRef: Record<string, unknown> = recordValue(event.rawRef);
+            rawRef[field] =
+              field === "byteOffset" || field === "byteLength"
+                ? (rawRef[field] as number) + (value as number)
+                : value;
+          },
+        }),
+        /raw server frame inventory differs/,
+      );
+    reject(
+      rebuildSource(fixture.input, {
+        corruptRebuiltEvent(event, frame): void {
+          if (frame === undefined) return;
+          event.type = "raw_event_observed";
+        },
+      }),
+      /one app-server start, one t0 binding|one-to-one/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        corruptRebuiltEvent(event, frame): void {
+          if (frame === undefined) return;
+          event.payload = {
+            ...recordValue(event.payload),
+            unexpected: true,
+          };
+        },
+      }),
+      /frame payload fields differ/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        mutate(source): void {
+          source.responses[0]!.rawEventId = source.items[0]!.rawEventIds[0]!;
+        },
+      }),
+      /raw notification method differs/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        mutate(source): void {
+          source.responses[0]!.responseId = "response-foreign";
+        },
+      }),
+      /raw notification provenance differs/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        mutate(source): void {
+          source.responses[0]!.usage!.inputTokens += 1;
+          source.responses[0]!.usage!.totalTokens += 1;
+        },
+      }),
+      /raw notification provenance differs/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        mutate(source): void {
+          source.items[0]!.itemId = "item-foreign";
+        },
+      }),
+      /raw item lifecycle provenance differs/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        mutate(source): void {
+          source.items[0] = {
+            ...source.items[0]!,
+            rawEventIds: [
+              source.responses[0]!.rawEventId,
+              source.items[0]!.rawEventIds[1]!,
+            ],
+          };
+        },
+      }),
+      /raw notification method differs/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        mutate(source): void {
+          const template: Record<string, unknown> = structuredClone(
+            source.events[firstResponse(source).eventIndex]!,
+          );
+          template.eventSha256 = digest("uncited-response-event");
+          template.monotonicNs = "800";
+          template.utc = "2026-07-29T00:00:00.800Z";
+          source.events.push(template);
+          source.frames.push({
+            eventIndex: source.events.length - 1,
+            oldEventId: template.eventSha256 as string,
+            envelope: {
+              method: "rawResponse/completed",
+              params: {
+                responseId: "response-hidden",
+                threadId: "thread-primary",
+                turnId: "turn-1",
+                usage: {
+                  inputTokens: 1,
+                  cachedInputTokens: 0,
+                  cacheWriteInputTokens: 0,
+                  outputTokens: 1,
+                  reasoningOutputTokens: 0,
+                  totalTokens: 2,
+                },
+              },
+            },
+          });
+        },
+      }),
+      /notification coverage is not exact and complete/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        mutateRawServer(bytes): Buffer {
+          return Buffer.concat([
+            bytes,
+            Buffer.from('{"id":999,"result":{}}\n', "utf8"),
+          ]);
+        },
+      }),
+      /not one-to-one/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        mutateRawServer(bytes): Buffer {
+          const newline: number = bytes.indexOf(0x0a);
+          return Buffer.concat([
+            bytes.subarray(0, newline + 1),
+            Buffer.from("\n", "utf8"),
+            bytes.subarray(newline + 1),
+          ]);
+        },
+      }),
+      /nonempty LF-delimited frames/,
+    );
+    let firstRawRef: Record<string, unknown> | undefined;
+    let rawFrameIndex = 0;
+    reject(
+      rebuildSource(fixture.input, {
+        corruptRebuiltEvent(event, frame): void {
+          if (frame === undefined) return;
+          rawFrameIndex++;
+          if (firstRawRef === undefined)
+            firstRawRef = structuredClone(recordValue(event.rawRef));
+          else if (rawFrameIndex === 2)
+            event.rawRef = structuredClone(firstRawRef);
+        },
+      }),
+      /raw server frame inventory differs/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        mutate(source): void {
+          const bound: Record<string, unknown> = structuredClone(
+            source.events.find(
+              (event) => event.type === "app_server_t0_bound",
+            )!,
+          );
+          bound.eventSha256 = digest("duplicate-bound-event");
+          bound.monotonicNs = "900";
+          bound.utc = "2026-07-29T00:00:00.900Z";
+          source.events.push(bound);
+        },
+      }),
+      /one app-server start, one t0 binding/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        mutate(source): void {
+          source.events.find(
+            (event) => event.type === "app_server_t0_bound",
+          )!.type = "app_server_t0_missing";
+        },
+      }),
+      /one app-server start, one t0 binding/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        corruptRebuiltEvent(event, frame): void {
+          if (frame === undefined) return;
+          recordValue(event.payload).transportSessionId =
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        },
+      }),
+      /crosses a process or transport session/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        mutate(source): void {
+          recordValue(
+            source.events.find((event) => event.type === "app_server_started")!
+              .payload,
+          ).pid = 0;
+        },
+      }),
+      /public launch identity is invalid/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        mutate(source): void {
+          recordValue(
+            source.events.find((event) => event.type === "app_server_started")!
+              .payload,
+          ).executableSha256 = digest("foreign-executable");
+        },
+      }),
+      /public launch identity is invalid/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        mutate(source): void {
+          recordValue(
+            source.events.find((event) => event.type === "app_server_started")!
+              .payload,
+          ).absoluteCommand = "C:\\private\\codex.exe";
+        },
+      }),
+      /start payload fields differ/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        mutate(source): void {
+          source.items[2]!.linkedResponseId = "response-a";
+        },
+      }),
+      /linkage differs from ordered raw epochs/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        mutate(source): void {
+          source.items[0] = {
+            ...source.items[0]!,
+            startedAtSourceMs: null,
+            completedAtSourceMs: null,
+            startedReceiptMonotonicNs: null,
+            completedReceiptMonotonicNs: null,
+            sourceDurationMs: null,
+            linkedResponseId: null,
+            linkage: "unlinked",
+            rawEventIds: [],
+          };
+        },
+      }),
+      /has no observed lifecycle endpoint/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        corruptRebuiltEvent(event, frame): void {
+          if (
+            frame?.envelope.method === "rawResponse/completed" &&
+            recordValue(frame.envelope.params).responseId === "response-a"
+          ) {
+            event.monotonicNs = "50";
+            event.utc = "2026-07-29T00:00:00.050Z";
+          }
+        },
+      }),
+      /event ledger chain differs/,
+    );
+    reject(
+      rebindRunManifest(fixture.input, (manifest): void => {
+        recordValue(manifest.runner).codexCliVersion = "0.146.0";
+      }),
+      /run manifest failed protocol validation/,
+    );
   }
 
   /**
@@ -535,7 +854,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     assert.equal(report.exclusiveWallReconciled, true);
     assert.equal(report.wallTimeNs, "1000");
     assert.equal(report.coveredUnionWallNs, "300");
-    assert.equal(report.residualWallNs, "700");
+    assert.equal(report.residualWallNs, "800");
     assert.equal(report.semanticQuantitiesAreEstimates, true);
     assert.equal(report.semanticAttributionStatus, "complete");
     assert.equal(report.phaseAllocations.length, 2);
@@ -572,8 +891,8 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     const methodTime = report.timeAllocations.find(
       (row) => row.primary === "method_reading",
     )!;
-    assert.equal(methodTime.categoryUnionWallNs, "200");
-    assert.equal(methodTime.sourceActivityTimeMs, 200);
+    assert.equal(methodTime.categoryUnionWallNs, "100");
+    assert.equal(methodTime.sourceActivityTimeMs, 100);
     const implementationTime = report.timeAllocations.find(
       (row) => row.primary === "implementation",
     )!;
@@ -811,15 +1130,61 @@ export namespace EvidenceBenchmarkActivitySelfTest {
   }
 
   function fixtureObservations(protocolRoot: string): Fixture {
+    const usageA = {
+      inputTokens: 100,
+      cachedInputTokens: 20,
+      cacheWriteInputTokens: 10,
+      outputTokens: 30,
+      reasoningOutputTokens: 10,
+      totalTokens: 130,
+    };
+    const usageB = {
+      inputTokens: 80,
+      cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
+      outputTokens: 20,
+      reasoningOutputTokens: 5,
+      totalTokens: 100,
+    };
     const sourceEventLedger: EventFixture = eventLedger([
-      "event-a",
-      "event-b",
-      "item-a-started",
-      "item-a-completed",
-      "item-b-started",
-      "item-b-completed",
-      "item-c-started",
-      "item-c-completed",
+      itemFrameFixture("item-a-started", "item/started", "item-a", 100, 100),
+      itemFrameFixture(
+        "item-a-completed",
+        "item/completed",
+        "item-a",
+        200,
+        200,
+      ),
+      responseFrameFixture(
+        "event-a",
+        "response-a",
+        "thread-primary",
+        225,
+        usageA,
+      ),
+      itemFrameFixture("item-b-started", "item/started", "item-b", 300, 300),
+      itemFrameFixture(
+        "item-b-completed",
+        "item/completed",
+        "item-b",
+        400,
+        400,
+      ),
+      itemFrameFixture("item-c-started", "item/started", "item-c", 600, 600),
+      itemFrameFixture(
+        "item-c-completed",
+        "item/completed",
+        "item-c",
+        700,
+        700,
+      ),
+      responseFrameFixture(
+        "event-b",
+        "response-b",
+        "thread-descendant",
+        725,
+        usageB,
+      ),
     ]);
     const responses: IEvidenceBenchmarkActivity.IResponseUsage[] = [
       {
@@ -828,17 +1193,10 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         turnId: "turn-1",
         phase: "phase2_discovery",
         phaseSegmentId: "discovery-1",
-        receivedAtUtc: "2026-07-29T00:00:00.000Z",
-        receivedMonotonicNs: "200",
+        receivedAtUtc: "2026-07-29T00:00:00.225Z",
+        receivedMonotonicNs: "225",
         rawEventId: sourceEventLedger.ids.get("event-a")!,
-        usage: {
-          inputTokens: 100,
-          cachedInputTokens: 20,
-          cacheWriteInputTokens: 10,
-          outputTokens: 30,
-          reasoningOutputTokens: 10,
-          totalTokens: 130,
-        },
+        usage: usageA,
       },
       {
         responseId: "response-b",
@@ -846,17 +1204,10 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         turnId: "turn-1",
         phase: "phase2_discovery",
         phaseSegmentId: "discovery-2",
-        receivedAtUtc: "2026-07-29T00:00:00.001Z",
-        receivedMonotonicNs: "700",
+        receivedAtUtc: "2026-07-29T00:00:00.725Z",
+        receivedMonotonicNs: "725",
         rawEventId: sourceEventLedger.ids.get("event-b")!,
-        usage: {
-          inputTokens: 80,
-          cachedInputTokens: 0,
-          cacheWriteInputTokens: 0,
-          outputTokens: 20,
-          reasoningOutputTokens: 5,
-          totalTokens: 100,
-        },
+        usage: usageB,
       },
     ];
     const sourceUsageLedgerBytes: Buffer = usageLedger(responses);
@@ -875,22 +1226,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       `${JSON.stringify(materializationManifest)}\n`,
       "utf8",
     );
-    const runManifest = {
-      experiment: {
-        runId: "todo-plain-r1",
-        blockId: "todo-reddit-r1",
-        subject: "todo",
-        arm: "plain",
-        replicate: 1,
-        projectInputSha256: digest("materialization-input"),
-        protocolRevisionSha256: digest("protocol"),
-      },
-      runner: {
-        providerOutputRegistrySha256: registry.registrySha256,
-        activityProcessIdentitySchemaSha256: digest("process-identity-schema"),
-        activityExecutionSchemaSha256: digest("execution-schema"),
-      },
-    };
+    const runManifest = runManifestFixture(protocolRoot);
     const runManifestBytes: Buffer = Buffer.from(
       `${JSON.stringify(runManifest)}\n`,
       "utf8",
@@ -968,26 +1304,39 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     const sourceActivityLedgerBytes: Buffer = activityLedger(
       sourceEventLedger.bytes,
       sourceEventLedger.head,
+      sourceEventLedger.rawServerBytes,
       sourceUsageLedgerBytes,
       observedWall,
       observedPhaseSegments,
       observedItems,
       responses.length,
     );
+    const coreSeal = {
+      schemaVersion: 1,
+      runId: "todo-plain-r1",
+      terminalStatus: "completed",
+      manifestSha256:
+        EvidenceBenchmarkActivityCanonical.sha256(runManifestBytes),
+      gradingInputManifestSha256: digest("grading-input"),
+      coreTreeSha256: digest("core-tree"),
+      eventChainHeadSha256: sourceEventLedger.head,
+      rawServerLedgerSha256: EvidenceBenchmarkActivityCanonical.sha256(
+        sourceEventLedger.rawServerBytes,
+      ),
+      usageReportSha256: EvidenceBenchmarkActivityCanonical.sha256(
+        sourceUsageLedgerBytes,
+      ),
+      activityLedgerSha256: EvidenceBenchmarkActivityCanonical.sha256(
+        sourceActivityLedgerBytes,
+      ),
+      costReportSha256: digest("cost-report"),
+      tDoneSnapshotManifestSha256: null,
+      tDrySnapshotManifestSha256: null,
+      sealedAtUtc: "2026-07-29T00:00:01.000Z",
+      sealSha256: digest("core-seal"),
+    };
     const coreSealBytes: Buffer = Buffer.from(
-      `${JSON.stringify({
-        schemaVersion: 1,
-        runId: "todo-plain-r1",
-        manifestSha256:
-          EvidenceBenchmarkActivityCanonical.sha256(runManifestBytes),
-        usageReportSha256: EvidenceBenchmarkActivityCanonical.sha256(
-          sourceUsageLedgerBytes,
-        ),
-        eventChainHeadSha256: sourceEventLedger.head,
-        activityLedgerSha256: EvidenceBenchmarkActivityCanonical.sha256(
-          sourceActivityLedgerBytes,
-        ),
-      })}\n`,
+      `${JSON.stringify(coreSeal)}\n`,
       "utf8",
     );
     const binding: IEvidenceBenchmarkActivity.IBinding = {
@@ -1021,6 +1370,9 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       sourceEventLedgerSha256: EvidenceBenchmarkActivityCanonical.sha256(
         sourceEventLedger.bytes,
       ),
+      sourceRawServerLedgerSha256: EvidenceBenchmarkActivityCanonical.sha256(
+        sourceEventLedger.rawServerBytes,
+      ),
       sourceActivityLedgerSha256: EvidenceBenchmarkActivityCanonical.sha256(
         sourceActivityLedgerBytes,
       ),
@@ -1032,8 +1384,14 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       adjudicationProviderSchemaSha256:
         registry.adjudicationProviderSchemaSha256,
       adjudicationLocalSchemaSha256: registry.adjudicationLocalSchemaSha256,
-      activityProcessIdentitySchemaSha256: digest("process-identity-schema"),
-      activityExecutionSchemaSha256: digest("execution-schema"),
+      activityProcessIdentitySchemaSha256: protocolFileSha256(
+        protocolRoot,
+        "schema/activity-process-identity.schema.json",
+      ),
+      activityExecutionSchemaSha256: protocolFileSha256(
+        protocolRoot,
+        "schema/activity-execution.schema.json",
+      ),
     };
     const input: EvidenceBenchmarkActivityObservations.IInput = {
       protocolRoot,
@@ -1043,7 +1401,20 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       materializationManifestBytes,
       sourceUsageLedgerBytes,
       sourceEventLedgerBytes: sourceEventLedger.bytes,
+      sourceRawServerLedgerBytes: sourceEventLedger.rawServerBytes,
       sourceActivityLedgerBytes,
+      rawResponseCompletedSchemaBytes: protocolFile(
+        protocolRoot,
+        EvidenceBenchmarkActivityVendorSchemas.RAW_RESPONSE_COMPLETED.path,
+      ),
+      itemStartedSchemaBytes: protocolFile(
+        protocolRoot,
+        EvidenceBenchmarkActivityVendorSchemas.ITEM_STARTED.path,
+      ),
+      itemCompletedSchemaBytes: protocolFile(
+        protocolRoot,
+        EvidenceBenchmarkActivityVendorSchemas.ITEM_COMPLETED.path,
+      ),
       wall: observedWall,
       phaseSegments: observedPhaseSegments,
       responses,
@@ -1053,6 +1424,223 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       input,
       observations: EvidenceBenchmarkActivityObservations.create(input),
     };
+  }
+
+  interface MutableRawFrame {
+    eventIndex: number;
+    oldEventId: string;
+    envelope: Record<string, unknown>;
+  }
+
+  interface MutableSource {
+    events: Record<string, unknown>[];
+    frames: MutableRawFrame[];
+    responses: IEvidenceBenchmarkActivity.IResponseUsage[];
+    items: IEvidenceBenchmarkActivity.IItemObservation[];
+  }
+
+  interface RebuildSourceOptions {
+    mutate?: (source: MutableSource) => void;
+    corruptRebuiltEvent?: (
+      event: Record<string, unknown>,
+      frame: MutableRawFrame | undefined,
+    ) => void;
+    mutateRawServer?: (bytes: Buffer) => Buffer;
+  }
+
+  /**
+   * Re-seals every attacker-controlled outer artifact after a source mutation.
+   *
+   * Negative fixtures therefore reach the raw-frame invariant under test
+   * instead of failing early only because a stale outer digest was left
+   * behind.
+   */
+  function rebuildSource(
+    input: EvidenceBenchmarkActivityObservations.IInput,
+    options: RebuildSourceOptions,
+  ): EvidenceBenchmarkActivityObservations.IInput {
+    const events: Record<string, unknown>[] = Buffer.from(
+      input.sourceEventLedgerBytes,
+    )
+      .toString("utf8")
+      .trimEnd()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    const originalRaw: Buffer = Buffer.from(input.sourceRawServerLedgerBytes);
+    const frames: MutableRawFrame[] = [];
+    for (const [eventIndex, event] of events.entries()) {
+      if (event.type !== "app_server_frame") continue;
+      const rawRef: Record<string, unknown> = recordValue(event.rawRef);
+      const offset: number = rawRef.byteOffset as number;
+      const length: number = rawRef.byteLength as number;
+      frames.push({
+        eventIndex,
+        oldEventId: event.eventSha256 as string,
+        envelope: JSON.parse(
+          originalRaw.subarray(offset, offset + length).toString("utf8"),
+        ) as Record<string, unknown>,
+      });
+    }
+    const source: MutableSource = {
+      events,
+      frames,
+      responses: structuredClone([...input.responses]),
+      items: structuredClone([...input.items]),
+    };
+    options.mutate?.(source);
+
+    const encodedFrames: Buffer[] = frames.map((frame) =>
+      Buffer.from(JSON.stringify(frame.envelope), "utf8"),
+    );
+    let rawOffset = 0;
+    for (const [index, frame] of frames.entries()) {
+      const bytes: Buffer = encodedFrames[index]!;
+      source.events[frame.eventIndex]!.rawRef = {
+        direction: "server",
+        path: "server.raw.jsonl",
+        byteOffset: rawOffset,
+        byteLength: bytes.byteLength,
+        sha256: EvidenceBenchmarkActivityCanonical.sha256(bytes),
+      };
+      rawOffset += bytes.byteLength + 1;
+    }
+    let rawServerBytes: Buffer = Buffer.from(
+      `${encodedFrames.map((frame) => frame.toString("utf8")).join("\n")}\n`,
+      "utf8",
+    );
+    rawServerBytes =
+      options.mutateRawServer?.(rawServerBytes) ?? rawServerBytes;
+
+    const frameByEventIndex: Map<number, MutableRawFrame> = new Map(
+      frames.map((frame) => [frame.eventIndex, frame]),
+    );
+    const eventIdMap: Map<string, string> = new Map();
+    let previous: string = "0".repeat(64);
+    for (const [index, event] of source.events.entries()) {
+      const oldEventId: string = event.eventSha256 as string;
+      delete event.eventSha256;
+      event.seq = index + 1;
+      event.previousEventSha256 = previous;
+      options.corruptRebuiltEvent?.(event, frameByEventIndex.get(index));
+      const eventSha256: string =
+        EvidenceBenchmarkActivityJcs.eventSha256(event);
+      event.eventSha256 = eventSha256;
+      eventIdMap.set(oldEventId, eventSha256);
+      previous = eventSha256;
+    }
+    const remap = (eventId: string): string => {
+      const mapped: string | undefined = eventIdMap.get(eventId);
+      if (mapped === undefined)
+        throw new Error(
+          `Fixture mutation references unknown event ${eventId}.`,
+        );
+      return mapped;
+    };
+    for (const response of source.responses)
+      response.rawEventId = remap(response.rawEventId);
+    for (const item of source.items)
+      item.rawEventIds = item.rawEventIds.map(remap);
+
+    const sourceEventLedgerBytes: Buffer = Buffer.from(
+      `${source.events.map((event) => JSON.stringify(event)).join("\n")}\n`,
+      "utf8",
+    );
+    const sourceUsageLedgerBytes: Buffer = usageLedger(source.responses);
+    const sourceActivityLedgerBytes: Buffer = activityLedger(
+      sourceEventLedgerBytes,
+      previous,
+      rawServerBytes,
+      sourceUsageLedgerBytes,
+      input.wall,
+      input.phaseSegments,
+      source.items,
+      source.responses.length,
+    );
+    const core: Record<string, unknown> = JSON.parse(
+      Buffer.from(input.parentCoreSealBytes).toString("utf8"),
+    ) as Record<string, unknown>;
+    core.eventChainHeadSha256 = previous;
+    core.rawServerLedgerSha256 =
+      EvidenceBenchmarkActivityCanonical.sha256(rawServerBytes);
+    core.usageReportSha256 = EvidenceBenchmarkActivityCanonical.sha256(
+      sourceUsageLedgerBytes,
+    );
+    core.activityLedgerSha256 = EvidenceBenchmarkActivityCanonical.sha256(
+      sourceActivityLedgerBytes,
+    );
+    const parentCoreSealBytes: Buffer = Buffer.from(
+      `${JSON.stringify(core)}\n`,
+      "utf8",
+    );
+    return {
+      ...input,
+      binding: {
+        ...input.binding,
+        parentCoreSealSha256:
+          EvidenceBenchmarkActivityCanonical.sha256(parentCoreSealBytes),
+        sourceUsageLedgerSha256: EvidenceBenchmarkActivityCanonical.sha256(
+          sourceUsageLedgerBytes,
+        ),
+        sourceEventLedgerSha256: EvidenceBenchmarkActivityCanonical.sha256(
+          sourceEventLedgerBytes,
+        ),
+        sourceRawServerLedgerSha256:
+          EvidenceBenchmarkActivityCanonical.sha256(rawServerBytes),
+        sourceActivityLedgerSha256: EvidenceBenchmarkActivityCanonical.sha256(
+          sourceActivityLedgerBytes,
+        ),
+        eventChainTerminalSha256: previous,
+      },
+      parentCoreSealBytes,
+      sourceUsageLedgerBytes,
+      sourceEventLedgerBytes,
+      sourceRawServerLedgerBytes: rawServerBytes,
+      sourceActivityLedgerBytes,
+      responses: source.responses,
+      items: source.items,
+    };
+  }
+
+  function rebindRunManifest(
+    input: EvidenceBenchmarkActivityObservations.IInput,
+    mutate: (manifest: Record<string, unknown>) => void,
+  ): EvidenceBenchmarkActivityObservations.IInput {
+    const manifest: Record<string, unknown> = JSON.parse(
+      Buffer.from(input.runManifestBytes).toString("utf8"),
+    ) as Record<string, unknown>;
+    mutate(manifest);
+    const runManifestBytes: Buffer = Buffer.from(
+      `${JSON.stringify(manifest)}\n`,
+      "utf8",
+    );
+    const core: Record<string, unknown> = JSON.parse(
+      Buffer.from(input.parentCoreSealBytes).toString("utf8"),
+    ) as Record<string, unknown>;
+    core.manifestSha256 =
+      EvidenceBenchmarkActivityCanonical.sha256(runManifestBytes);
+    const parentCoreSealBytes: Buffer = Buffer.from(
+      `${JSON.stringify(core)}\n`,
+      "utf8",
+    );
+    return {
+      ...input,
+      binding: {
+        ...input.binding,
+        runManifestSha256:
+          EvidenceBenchmarkActivityCanonical.sha256(runManifestBytes),
+        parentCoreSealSha256:
+          EvidenceBenchmarkActivityCanonical.sha256(parentCoreSealBytes),
+      },
+      runManifestBytes,
+      parentCoreSealBytes,
+    };
+  }
+
+  function recordValue(input: unknown): Record<string, unknown> {
+    assert.ok(
+      typeof input === "object" && input !== null && !Array.isArray(input),
+    );
+    return input as Record<string, unknown>;
   }
 
   function item(
@@ -1071,7 +1659,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         responseId === "response-a" ? "thread-primary" : "thread-descendant",
       turnId: "turn-1",
       itemId,
-      itemType: itemId === "item-c" ? "collabAgentCall" : "commandExecution",
+      itemType: "sleep",
       phase,
       phaseSegmentId,
       startedAtSourceMs: Number(start),
@@ -1079,8 +1667,8 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       startedReceiptMonotonicNs: start,
       completedReceiptMonotonicNs: end,
       sourceDurationMs,
-      linkedResponseId: responseId,
-      linkage: "ordered_epoch",
+      linkedResponseId: itemId === "item-b" ? null : responseId,
+      linkage: itemId === "item-b" ? "unlinked" : "ordered_epoch",
       rawEventIds: [
         eventIds.get(`${itemId}-started`)!,
         eventIds.get(`${itemId}-completed`)!,
@@ -1641,12 +2229,60 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     return result;
   }
 
+  const SOURCE_TOKEN_FIELDS = [
+    "inputTokens",
+    "cachedInputTokens",
+    "cacheWriteInputTokens",
+    "outputTokens",
+    "reasoningOutputTokens",
+    "totalTokens",
+  ] as const;
+
+  type SourceTokens = Omit<
+    IEvidenceBenchmarkActivity.ITokenVector,
+    "normalizedNonCachedInputTokens"
+  >;
+
+  function sourceTokenZero(): SourceTokens {
+    return {
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
+      outputTokens: 0,
+      reasoningOutputTokens: 0,
+      totalTokens: 0,
+    };
+  }
+
+  function sourceTokenTotal(
+    responses: readonly IEvidenceBenchmarkActivity.IResponseUsage[],
+  ): SourceTokens {
+    const result: SourceTokens = sourceTokenZero();
+    for (const response of responses) {
+      if (response.usage === null) continue;
+      for (const field of SOURCE_TOKEN_FIELDS)
+        result[field] += response.usage[field];
+    }
+    return result;
+  }
+
   function usageLedger(
     responses: readonly IEvidenceBenchmarkActivity.IResponseUsage[],
   ): Buffer {
+    const exactTotal = sourceTokenTotal(responses);
+    const exactByThread: Record<string, SourceTokens> = {};
+    for (const response of responses) {
+      if (response.usage === null) continue;
+      const current = exactByThread[response.threadId] ?? sourceTokenZero();
+      for (const field of SOURCE_TOKEN_FIELDS)
+        current[field] += response.usage[field];
+      exactByThread[response.threadId] = current;
+    }
     return Buffer.from(
       `${JSON.stringify({
+        schemaVersion: 1,
         exactUsageComplete: responses.every((row) => row.usage !== null),
+        accumulatedUsageReconciled: false,
         responses: responses.map((row) => ({
           responseId: row.responseId,
           threadId: row.threadId,
@@ -1658,40 +2294,142 @@ export namespace EvidenceBenchmarkActivitySelfTest {
           rawEventId: row.rawEventId,
           usage: row.usage,
         })),
+        duplicateResponseIds: [],
+        exactTotal,
+        exactByThread,
+        latestThreadUsage: {},
+        reconciliation: [],
+        anomalies: [],
       })}\n`,
       "utf8",
     );
   }
 
+  interface RawFrameFixture {
+    key: string;
+    monotonicNs: number;
+    envelope: Record<string, unknown>;
+  }
+
+  const PROCESS_INSTANCE_NONCE = "0123456789abcdef0123456789abcdef";
+  const TRANSPORT_SESSION_ID = "fedcba9876543210fedcba9876543210";
+  const CODEX_EXECUTABLE_SHA256 =
+    "83751f15cb6a0a7b97df67752c001e3fe1c20e18ffbfec3ff63567296205eb6c";
+
   interface EventFixture {
     bytes: Buffer;
     head: string;
     ids: ReadonlyMap<string, string>;
+    rawServerBytes: Buffer;
   }
 
-  function eventLedger(eventIds: readonly string[]): EventFixture {
+  function eventLedger(frames: readonly RawFrameFixture[]): EventFixture {
     let previous: string = "0".repeat(64);
     const ids: Map<string, string> = new Map();
-    const events: Record<string, unknown>[] = eventIds.map(
-      (eventId, index): Record<string, unknown> => {
-        const body: Record<string, unknown> = {
-          runId: "todo-plain-r1",
-          seq: index + 1,
-          utc: `2026-07-29T00:00:00.${String(index).padStart(3, "0")}Z`,
-          monotonicNs: String(100 + index),
-          phase: "agent",
-          actor: "app-server",
-          type: "raw_event_observed",
-          payload: { eventId },
-          rawRef: null,
-          previousEventSha256: previous,
-        };
-        const eventSha256: string =
-          EvidenceBenchmarkActivityJcs.eventSha256(body);
-        ids.set(eventId, eventSha256);
-        previous = eventSha256;
-        return { ...body, eventSha256 };
+    const rawFrames: Buffer[] = frames.map((frame) =>
+      Buffer.from(JSON.stringify(frame.envelope), "utf8"),
+    );
+    const events: Record<string, unknown>[] = [];
+    const append = (
+      monotonicNs: number,
+      phase: "setup" | "agent",
+      actor: "runner" | "app-server",
+      type: string,
+      payload: Record<string, unknown>,
+      rawRef: Record<string, unknown> | null = null,
+    ): string => {
+      const body: Record<string, unknown> = {
+        runId: "todo-plain-r1",
+        seq: events.length + 1,
+        utc: `2026-07-29T00:00:00.${String(monotonicNs).padStart(3, "0")}Z`,
+        monotonicNs: String(monotonicNs),
+        phase,
+        actor,
+        type,
+        payload,
+        rawRef,
+        previousEventSha256: previous,
+      };
+      const eventSha256: string =
+        EvidenceBenchmarkActivityJcs.eventSha256(body);
+      events.push({ ...body, eventSha256 });
+      previous = eventSha256;
+      return eventSha256;
+    };
+    const publicLaunch = {
+      binaryRole: "codex-app-server",
+      executableFileName: "codex.exe",
+      executableVersion: "0.145.0",
+      executableSha256: CODEX_EXECUTABLE_SHA256,
+      arguments: [{ kind: "literal", value: "app-server" }],
+      environmentProvenanceSha256: digest("environment-provenance"),
+      environmentManifestFileSha256: digest("environment-manifest"),
+    };
+    const processStartEventSha256: string = append(
+      0,
+      "setup",
+      "runner",
+      "app_server_started",
+      {
+        ...publicLaunch,
+        processInstanceNonce: PROCESS_INSTANCE_NONCE,
+        transportSessionId: TRANSPORT_SESSION_ID,
+        pid: 12_345,
+        startedAtUtc: "2026-07-29T00:00:00.000Z",
+        t0Binding: "pending",
+        normalizedPublicInvocationSha256:
+          EvidenceBenchmarkActivityCanonical.sha256(
+            EvidenceBenchmarkActivityCanonical.stringify({
+              binaryRole: publicLaunch.binaryRole,
+              executableFileName: publicLaunch.executableFileName,
+              executableVersion: publicLaunch.executableVersion,
+              executableSha256: publicLaunch.executableSha256,
+              arguments: publicLaunch.arguments,
+            }),
+          ),
       },
+    );
+    const t0EventSha256: string = append(
+      1,
+      "agent",
+      "runner",
+      "milestone_reached",
+      { name: "t0" },
+    );
+    append(2, "agent", "runner", "app_server_t0_bound", {
+      processInstanceNonce: PROCESS_INSTANCE_NONCE,
+      transportSessionId: TRANSPORT_SESSION_ID,
+      processStartEventSha256,
+      t0EventSha256,
+      startMinusT0MonotonicNs: "-1",
+    });
+    let rawOffset: number = 0;
+    for (const [index, frame] of frames.entries()) {
+      const rawBytes: Buffer = rawFrames[index]!;
+      const eventSha256: string = append(
+        frame.monotonicNs,
+        "agent",
+        "app-server",
+        "app_server_frame",
+        {
+          parseError: null,
+          processInstanceNonce: PROCESS_INSTANCE_NONCE,
+          transportSessionId: TRANSPORT_SESSION_ID,
+        },
+        {
+          direction: "server",
+          path: "server.raw.jsonl",
+          byteOffset: rawOffset,
+          byteLength: rawBytes.byteLength,
+          sha256: EvidenceBenchmarkActivityCanonical.sha256(rawBytes),
+        },
+      );
+      ids.set(frame.key, eventSha256);
+      rawOffset += rawBytes.byteLength + 1;
+    }
+    const rawServerBytes: Buffer = Buffer.from(
+      `${rawFrames.map((frame) => frame.toString("utf8")).join("\n")}\n`,
+      "utf8",
     );
     return {
       bytes: Buffer.from(
@@ -1700,12 +2438,14 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       ),
       head: previous,
       ids,
+      rawServerBytes,
     };
   }
 
   function activityLedger(
     eventBytes: Uint8Array,
     eventHead: string,
+    rawServerBytes: Uint8Array,
     usageBytes: Uint8Array,
     wall: IEvidenceBenchmarkActivity.IWallInterval,
     phaseSegments: readonly IEvidenceBenchmarkActivity.IPhaseSegment[],
@@ -1718,6 +2458,8 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         runId: "todo-plain-r1",
         eventLedgerSha256:
           EvidenceBenchmarkActivityCanonical.sha256(eventBytes),
+        rawServerLedgerSha256:
+          EvidenceBenchmarkActivityCanonical.sha256(rawServerBytes),
         eventChainHeadSha256: eventHead,
         usageReportSha256:
           EvidenceBenchmarkActivityCanonical.sha256(usageBytes),
@@ -1735,6 +2477,57 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     );
   }
 
+  function responseFrameFixture(
+    key: string,
+    responseId: string,
+    threadId: string,
+    monotonicNs: number,
+    usage: Record<string, number>,
+  ): RawFrameFixture {
+    return {
+      key,
+      monotonicNs,
+      envelope: {
+        method: "rawResponse/completed",
+        params: {
+          responseId,
+          threadId,
+          turnId: "turn-1",
+          usage,
+        },
+      },
+    };
+  }
+
+  function itemFrameFixture(
+    key: string,
+    method: "item/started" | "item/completed",
+    itemId: string,
+    monotonicNs: number,
+    sourceTimestampMs: number,
+  ): RawFrameFixture {
+    return {
+      key,
+      monotonicNs,
+      envelope: {
+        method,
+        params: {
+          ...(method === "item/started"
+            ? { startedAtMs: sourceTimestampMs }
+            : { completedAtMs: sourceTimestampMs }),
+          item: {
+            id: itemId,
+            type: "sleep",
+            durationMs: 100,
+          },
+          threadId:
+            itemId === "item-c" ? "thread-descendant" : "thread-primary",
+          turnId: "turn-1",
+        },
+      },
+    };
+  }
+
   function digest(label: string): string {
     return EvidenceBenchmarkActivityCanonical.sha256(label);
   }
@@ -1743,6 +2536,103 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     return path.resolve(
       path.dirname(fileURLToPath(import.meta.url)),
       "../../protocol",
+    );
+  }
+
+  function runManifestFixture(protocolRoot: string): Record<string, unknown> {
+    const schema: Record<string, unknown> = JSON.parse(
+      protocolFile(protocolRoot, "schema/run-manifest.schema.json").toString(
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    const properties: Record<string, unknown> = recordValue(schema.properties);
+    const runnerSchema: Record<string, unknown> = recordValue(
+      properties.runner,
+    );
+    return {
+      schemaVersion: 1,
+      experiment: {
+        runId: "todo-plain-r1",
+        subject: "todo",
+        arm: "plain",
+        replicate: 1,
+        blockId: "todo-reddit-r1",
+        sourceRevision: "a".repeat(40),
+        templateSha256: digest("template"),
+        requirementsSha256: digest("requirements"),
+        materializerManifestSchemaVersion: 2,
+        treeAlgorithm: "sha256-posix-path-nul-bytes-v1",
+        subjectFreezeManifestSha256:
+          "409aa670f85c94cac653a4041a55a611e0a94873f2152f94947cbe4cefe0ac24",
+        quotaPolicySha256:
+          "5dae599895578b207c7b46628b7cfc2ee17dce1b4973288199047b0111607763",
+        protocolRawTreeAlgorithmId: "sha256-posix-path-nul-bytes-v1",
+        protocolRawTreeSha256: digest("protocol"),
+        costPredictionsSha256: digest("cost-predictions"),
+        acceptanceCatalogSha256: digest("acceptance-catalog"),
+        acceptanceCatalogCount: 1,
+        contextCatalogSha256: null,
+        contextCatalogCount: 0,
+        denominatorsSummed: false,
+        projectInputSha256: digest("materialization-input"),
+        productTgzSha256: digest("product-tgz"),
+        environmentSha256: digest("environment"),
+        concurrency: 4,
+        costAuthorization: {
+          id: "fixture-authorization",
+          approvedAtUtc: "2026-07-29T00:00:00.000Z",
+          maximumObservedTotalTokens: 1,
+          maximumObservedBlockTotalTokens: 1,
+          hardWallDurationSeconds: 1,
+          blockHardWallDurationSeconds: 1,
+          hardCeilingGuaranteed: false,
+          monetaryStatus: "unavailable",
+        },
+      },
+      runner: requiredConstObject(runnerSchema, "run manifest runner"),
+      createdAtUtc: "2026-07-29T00:00:00.000Z",
+    };
+  }
+
+  function requiredConstObject(
+    schema: Record<string, unknown>,
+    label: string,
+  ): Record<string, unknown> {
+    const required: unknown = schema.required;
+    const properties: Record<string, unknown> = recordValue(schema.properties);
+    assert.ok(Array.isArray(required));
+    return Object.fromEntries(
+      required.map((field): [string, unknown] => {
+        assert.equal(typeof field, "string");
+        const property: Record<string, unknown> = recordValue(
+          properties[field],
+        );
+        if (Object.hasOwn(property, "const"))
+          return [field, structuredClone(property.const)];
+        if (property.type === "object")
+          return [field, requiredConstObject(property, `${label}.${field}`)];
+        throw new Error(`${label}.${field} fixture lacks a frozen value.`);
+      }),
+    );
+  }
+
+  function protocolFile(
+    protocolRoot: string,
+    repositoryRelativePath: string,
+  ): Buffer {
+    const prefix = "benchmark/protocol/";
+    const relative: string = repositoryRelativePath.startsWith(prefix)
+      ? repositoryRelativePath.slice(prefix.length)
+      : repositoryRelativePath;
+    return fs.readFileSync(path.join(protocolRoot, ...relative.split("/")));
+  }
+
+  function protocolFileSha256(
+    protocolRoot: string,
+    repositoryRelativePath: string,
+  ): string {
+    return EvidenceBenchmarkActivityCanonical.sha256(
+      protocolFile(protocolRoot, repositoryRelativePath),
     );
   }
 

@@ -278,13 +278,13 @@
     },
     "ledgerSchema": {
       "path": "benchmark/protocol/schema/activity-ledger.schema.json",
-      "bytes": 5311,
-      "sha256": "ede3601ede1773ec832158eddfa2292a8ba8751bd904863bed04051018dd067d"
+      "bytes": 5409,
+      "sha256": "9460eb803ef438c4debc8ad0a1789e2c2135237ee2673290a144c9b79080d91a"
     },
     "observationSchema": {
       "path": "benchmark/protocol/schema/activity-observation.schema.json",
-      "bytes": 7885,
-      "sha256": "f229d3fc0e6be9d6ed5c08112142006cd1b4d2f8abcfb32b5ed74f5c3ee2a780"
+      "bytes": 8121,
+      "sha256": "acfea6171ce9a13e35b4a8c73166d68057d6f2ef89a8a5aca42df8278567efb1"
     },
     "reportSchema": {
       "path": "benchmark/protocol/schema/activity-report.schema.json",
@@ -293,8 +293,8 @@
     },
     "coreSealSchema": {
       "path": "benchmark/protocol/schema/core-seal.schema.json",
-      "bytes": 1934,
-      "sha256": "ba2c4c975149c1b2aa46d834a977049b4b690ef703680d12a19f63aa6364dd32"
+      "bytes": 2032,
+      "sha256": "3281f0fb958e0deeb0bdfc1cb338d686750c6f2e2594123b5dc37fbb5758358f"
     },
     "usageReportSchema": {
       "path": "benchmark/protocol/schema/usage-report.schema.json",
@@ -305,6 +305,11 @@
       "path": "benchmark/protocol/vendor/codex/0.145.0/app-server-schema-experimental/v2/RawResponseCompletedNotification.json",
       "bytes": 1525,
       "sha256": "d330286f1d9abc273837091a9a4e7b4b2454721f4f3bc3a01386c2145105b4e7"
+    },
+    "itemStartedVendorSchema": {
+      "path": "benchmark/protocol/vendor/codex/0.145.0/app-server-schema-experimental/v2/ItemStartedNotification.json",
+      "bytes": 39252,
+      "sha256": "35e7674f955c0661ad30f47f6e1b709425748df45d90293f03bfbf34ebfdadaa"
     },
     "itemCompletedVendorSchema": {
       "path": "benchmark/protocol/vendor/codex/0.145.0/app-server-schema-experimental/v2/ItemCompletedNotification.json",

@@ -8,6 +8,7 @@
     "schemaVersion",
     "runId",
     "eventLedgerSha256",
+    "rawServerLedgerSha256",
     "eventChainHeadSha256",
     "usageReportSha256",
     "eventCaptureComplete",
@@ -29,6 +30,9 @@
       "minLength": 1
     },
     "eventLedgerSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "rawServerLedgerSha256": {
       "$ref": "#/$defs/sha256"
     },
     "eventChainHeadSha256": {

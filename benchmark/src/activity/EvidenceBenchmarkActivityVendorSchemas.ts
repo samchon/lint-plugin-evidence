@@ -26,6 +26,13 @@ export namespace EvidenceBenchmarkActivityVendorSchemas {
     sha256: "047016f3132b046cedc98b62672656f834e7561c872c06c155643a018f51eef8",
   } as const;
 
+  /** Frozen started-item notification schema identity. */
+  export const ITEM_STARTED = {
+    path: "benchmark/protocol/vendor/codex/0.145.0/app-server-schema-experimental/v2/ItemStartedNotification.json",
+    bytes: 39252,
+    sha256: "35e7674f955c0661ad30f47f6e1b709425748df45d90293f03bfbf34ebfdadaa",
+  } as const;
+
   /** Validates the two exact notification parameter objects offline. */
   export function admit(
     rawResponseSchemaBytes: Uint8Array,
@@ -33,18 +40,37 @@ export namespace EvidenceBenchmarkActivityVendorSchemas {
     rawResponseParams: unknown,
     itemCompletedParams: unknown,
   ): void {
+    admitRawResponse(rawResponseSchemaBytes, rawResponseParams);
+    admitItemCompleted(itemCompletedSchemaBytes, itemCompletedParams);
+  }
+
+  /** Validates one exact raw-response notification parameter object. */
+  export function admitRawResponse(
+    schemaBytes: Uint8Array,
+    params: unknown,
+  ): void {
     validate(
       RAW_RESPONSE_COMPLETED,
-      rawResponseSchemaBytes,
-      rawResponseParams,
+      schemaBytes,
+      params,
       "rawResponse/completed params",
     );
-    validate(
-      ITEM_COMPLETED,
-      itemCompletedSchemaBytes,
-      itemCompletedParams,
-      "item/completed params",
-    );
+  }
+
+  /** Validates one exact item-started notification parameter object. */
+  export function admitItemStarted(
+    schemaBytes: Uint8Array,
+    params: unknown,
+  ): void {
+    validate(ITEM_STARTED, schemaBytes, params, "item/started params");
+  }
+
+  /** Validates one exact item-completed notification parameter object. */
+  export function admitItemCompleted(
+    schemaBytes: Uint8Array,
+    params: unknown,
+  ): void {
+    validate(ITEM_COMPLETED, schemaBytes, params, "item/completed params");
   }
 
   function validate(

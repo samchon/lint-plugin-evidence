@@ -13,6 +13,11 @@
       "invariant": "discovery-fix-discovery-fix is an ordered contiguous segment partition and repeated phase labels aggregate only their named segments"
     },
     {
+      "id": "valid-censored-item-endpoint",
+      "valid": true,
+      "invariant": "a genuinely missing lifecycle endpoint remains ambiguous with one exact raw notification and no forced response join"
+    },
+    {
       "id": "invalid-duplicate-phase-segment-id",
       "valid": false,
       "invariant": "every ordered phase segment has one non-empty globally unique phaseSegmentId"
@@ -26,6 +31,101 @@
       "id": "invalid-event-chain-after-outer-rehash",
       "valid": false,
       "invariant": "every event hash is recomputed from RFC 8785 bytes and the terminal hash equals the core"
+    },
+    {
+      "id": "invalid-null-raw-reference",
+      "valid": false,
+      "invariant": "every cited response and item endpoint has one exact server.raw.jsonl reference"
+    },
+    {
+      "id": "invalid-raw-reference-offset",
+      "valid": false,
+      "invariant": "every raw reference begins at the exact ordered LF-line offset"
+    },
+    {
+      "id": "invalid-raw-reference-length",
+      "valid": false,
+      "invariant": "every raw reference covers one complete line without its LF terminator"
+    },
+    {
+      "id": "invalid-raw-reference-sha",
+      "valid": false,
+      "invariant": "every raw reference SHA-256 equals its exact cited slice"
+    },
+    {
+      "id": "invalid-raw-frame-type-or-payload",
+      "valid": false,
+      "invariant": "cited source events are app_server_frame events with exact parse and process-session payloads"
+    },
+    {
+      "id": "invalid-membership-only-response-substitution",
+      "valid": false,
+      "invariant": "a response rawEventId resolves to rawResponse/completed rather than any event that merely belongs to the ledger"
+    },
+    {
+      "id": "invalid-membership-only-item-substitution",
+      "valid": false,
+      "invariant": "each item rawEventId resolves to its exact started or completed notification"
+    },
+    {
+      "id": "invalid-foreign-response-or-item",
+      "valid": false,
+      "invariant": "raw notification response and item identities equal their source-ledger observations"
+    },
+    {
+      "id": "invalid-forged-usage",
+      "valid": false,
+      "invariant": "usage counters equal the exact rawResponse/completed usage after coherent outer resealing"
+    },
+    {
+      "id": "invalid-uncited-raw-response",
+      "valid": false,
+      "invariant": "every rawResponse/completed line has exactly one usage row"
+    },
+    {
+      "id": "invalid-raw-line-without-event",
+      "valid": false,
+      "invariant": "the complete raw LF-line population and app_server_frame event population are one-to-one"
+    },
+    {
+      "id": "invalid-raw-gap-duplicate-overlap-or-reorder",
+      "valid": false,
+      "invariant": "raw references form the exact ordered nonempty LF-line inventory without gaps, duplicates, overlap, or reordering"
+    },
+    {
+      "id": "invalid-process-lineage",
+      "valid": false,
+      "invariant": "one exact public app-server start and one t0 binding own every later frame under one nonce and transport session"
+    },
+    {
+      "id": "invalid-public-launch-identity",
+      "valid": false,
+      "invariant": "PID, Codex version and executable digest, normalized invocation, safe arguments, and public-only start fields remain exact"
+    },
+    {
+      "id": "invalid-zero-lifecycle-item",
+      "valid": false,
+      "invariant": "every item observation owns at least one actual started or completed notification"
+    },
+    {
+      "id": "invalid-censored-item-forced-epoch",
+      "valid": false,
+      "invariant": "a started-only or completed-only item remains ambiguous and cannot force ordered_epoch"
+    },
+    {
+      "id": "invalid-ordered-epoch-response",
+      "valid": false,
+      "invariant": "ordered_epoch is mechanically derived from the earliest later same-thread same-turn response and cannot name an arbitrary known response"
+    },
+    {
+      "id": "invalid-decreasing-event-clock",
+      "valid": false,
+      "invariant": "event monotonic nanoseconds and UTC never decrease across the append-only ledger"
+    },
+    {
+      "id": "invalid-coherently-resealed-run-manifest",
+      "valid": false,
+      "invariant": "the retained run manifest exact bytes pass the canonical shared schema even when outer digests are recomputed"
     },
     {
       "id": "invalid-usage-arithmetic",

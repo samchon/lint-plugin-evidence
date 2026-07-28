@@ -12,6 +12,7 @@
     "gradingInputManifestSha256",
     "coreTreeSha256",
     "eventChainHeadSha256",
+    "rawServerLedgerSha256",
     "usageReportSha256",
     "activityLedgerSha256",
     "costReportSha256",
@@ -46,6 +47,9 @@
       "$ref": "#/$defs/sha256"
     },
     "eventChainHeadSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "rawServerLedgerSha256": {
       "$ref": "#/$defs/sha256"
     },
     "usageReportSha256": {
