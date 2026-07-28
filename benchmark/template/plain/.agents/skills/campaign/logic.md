@@ -32,15 +32,9 @@ Then the harder direction: for every invariant the schema implies, find the code
 
 ## Semantics, Not Types
 
-This is where the compiler stops helping and most defects live. A type-correct value can invert the behavior.
+Everything above walks structure: which operation, which rule, which column. This walk asks whether the code means what the requirement means, and it is where most surviving defects are, because a type-correct value can invert the behavior.
 
-- A default that means the opposite of "unset". A fallback to the current time on an expiry field means "already expired", not "no expiry".
-- An aggregate over the wrong side of a relation. It returns a plausible number.
-- A guard that checks the wrong thing. Checking a membership table alone denies the legitimate owner, who holds the permission inherently.
-- An effect implemented in one path and not its sibling. Create writes the history row; update does not.
-- A filter omitted on one of eleven reads of a soft-deleted table.
-
-After every substantial piece of work, ask four questions against the contract's meaning: what does null mean for each field here, which direction does each relation aggregate, which effects does each consumer expect, and what does the code do in the case the requirement calls out.
+A default that means the opposite of unset is the shortest example, and [the provider topic](../backend/providers.md) catalogues the rest with the four questions to ask of each. Walk that list against every provider in the round rather than only where something looks suspicious, because the whole point is that none of them look suspicious.
 
 ## Rounds
 

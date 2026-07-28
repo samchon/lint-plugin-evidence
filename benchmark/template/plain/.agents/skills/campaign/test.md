@@ -45,7 +45,7 @@ Any finding resets the count. Dry after **two consecutive complete rounds** with
 
 Vary the traversal. Walk by requirement in one round; by operation in the next; by actor in a third, following each actor through every journey the documents give them end to end. The actor traversal finds the journey that works step by step and breaks when performed in sequence by one person.
 
-A fourth traversal worth running periodically: pick a requirement, delete the behavior that implements it, and confirm a test fails. Then restore it. This is the only direct measurement of whether the suite proves anything, and it is worth its cost on the rules that matter most.
+A fourth pass measures rather than traverses: remove a behavior and see whether a test fails. [The review skill](../review/SKILL.md) owns it and says when to run it. Run it here on the rules the product cannot be wrong about, because this is the edge where a passing suite is most easily mistaken for a proven one.
 
 ## The Cascade
 

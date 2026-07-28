@@ -16,11 +16,11 @@ So the gate removes one failure completely, that a requirement has no test, and 
 
 **The standard is unchanged by the mechanism.** Write the assertion that would fail if the behavior were removed. Then cite it.
 
-## Prove It Directly, Periodically
+## Measure It, Do Not Infer It
 
-Take a requirement the product cannot be wrong about, remove the behavior implementing it, run the suite, confirm a test fails, restore it.
+Every paragraph above describes a gap you have to notice. There is one check that measures instead: remove a behavior and see whether a test fails. [The review skill](../review/SKILL.md) owns it and says when to run it.
 
-Nothing will ever prompt you to do this. It is the only direct measurement of whether the citations on this edge mean anything, and a suite that passed it before its last edit has not passed it.
+Run it here on the requirements the product cannot be wrong about, because this is the edge where a passing suite is most easily mistaken for a proven one.
 
 ## One Citation Satisfies A Rule That Spans Operations
 

@@ -147,4 +147,4 @@ Nothing in this repository will ask you to do this.
 
 It cannot tell you that an artifact nobody thought to write is missing. That is what the campaign's traversal is for, and it is why this is a lens on those rounds rather than a substitute for them: walking the population finds what is absent, and these questions decide whether what is present is real.
 
-Type-correct is not correct, and recorded is not correct. A default that means the opposite of unset, an aggregate over the wrong side of a relation, an effect implemented in one path and not its sibling: each fills its ledger row, passes every build, and is found only by someone reading the code against the claim.
+It also cannot find a defect nobody reads for. Type-correct is not correct and recorded is not correct, and the shapes that survive both are catalogued in [the provider topic](../backend/providers.md). Each of them fills its ledger row and passes every build, so the only thing that finds one is a reader holding the code against the claim.

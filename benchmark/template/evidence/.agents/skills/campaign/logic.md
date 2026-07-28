@@ -30,11 +30,6 @@ A provider that cannot cite an operation means the contract does not state the b
 
 ## What The Build Cannot See
 
-Every one of these can carry a valid, resolving citation and pass:
+A citation that resolves proves the tag is well formed. Whether the code does what the tag says is the question this campaign exists to answer, and the defects that survive it all look correct at a glance: a default that means the opposite of unset is the shortest example, and [the provider topic](../backend/providers.md) lists the rest with what to ask of each.
 
-- a default that means the opposite of unset;
-- an aggregate over the wrong side of a relation;
-- an effect implemented in create and not in update;
-- a visibility filter present on ten reads and absent on the eleventh.
-
-Type-correct is not correct, and cited is not correct either. After any substantial piece of work, ask what null means for each field, which direction each relation aggregates, and what the code does in the case the requirement calls out.
+Walk them yourself after any substantial piece of work. Type-correct is not correct, and cited is not correct either.

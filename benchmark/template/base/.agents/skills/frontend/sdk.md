@@ -37,13 +37,7 @@ await api.functional.shopping.auth.customer.join(connection, { body });
 // connection is now authenticated
 ```
 
-**Do not write the header yourself.** The accessor does it, because its controller method declares where the token goes:
-
-```ts
-/**
- * @setHeader token.access Authorization
- */
-```
+**Do not write the header yourself.** The accessor does it, because the operation behind it declares where the token goes, which [the API skill](../api/SKILL.md) covers along with the rest of the connection contract.
 
 Assigning `connection.headers.Authorization` by hand is the mistake to avoid here. It duplicates what the accessor already did, and it is written with a `Bearer ` prefix roughly every time, which then diverges from the value the accessor writes. The one place a token is handled is inside the generated call.
 

@@ -89,13 +89,7 @@ const sellerConnection: api.IConnection = { host: connection.host };
 await authorize_seller_join(sellerConnection, {});
 ```
 
-**The authorization helper does not touch headers, and neither do you.** The generated accessor for a lifecycle operation writes the issued token into the connection it was given, because its controller method declares that in JSDoc:
-
-```ts
-/**
- * @setHeader token.access Authorization
- */
-```
+**The authorization helper does not touch headers, and neither do you.** A lifecycle accessor writes the issued token into the connection it was given, because of the `@setHeader` tag [its controller method declares](controllers.md).
 
 So authenticating an actor means calling its authorize helper with that actor's connection. A connection created later and never passed to an authorize helper is anonymous, and the failure arrives as a 401 on a call that looks unrelated.
 

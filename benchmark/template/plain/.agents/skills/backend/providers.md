@@ -16,15 +16,8 @@ The test campaign re-opens, because what the tests must prove has moved.
 
 When a fix here reveals that the contract or the schema was wrong, fix it there and accept that everything below that layer re-opens with it. Patching the provider to compensate for a wrong contract hides the defect from every layer after it, and the cost of the correction grows with each layer built on top.
 
-## The Defects No Pass Finds By Reading Types
+## Record The Defects Below When You Check Them
 
-Record these in the ledger when you check them, because they are invisible to every automatic check and to a reader skimming for correctness.
+The list at the end of this document is invisible to every automatic check and to a reader skimming for correctness, so checking it leaves no trace unless you write one. An entry saying you walked it is the difference between a gap that was examined and one nobody looked at.
 
-- A default that means the opposite of unset.
-- An aggregate over the wrong side of a relation, returning a plausible number.
-- An effect implemented in create and not in update.
-- A visibility filter present on ten reads of a table and absent on the eleventh.
-
-After every substantial piece of work, ask what null means for each field here, which direction each relation aggregates, and what the code does in the case the requirement calls out.
-
-This is the layer where a ledger entry is easiest to write and hardest to keep true, because a provider realizes a behavior rather than a shape, and behavior drifts without changing anything a checker inspects. The [review skill](../review/SKILL.md) reads each of these entries against the code that is there now.
+This is also the layer where a ledger entry is easiest to write and hardest to keep true, because a provider realizes a behavior rather than a shape, and behavior drifts without changing anything a checker inspects. The [review skill](../review/SKILL.md) reads each of these entries against the code that is there now.

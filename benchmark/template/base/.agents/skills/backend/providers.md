@@ -374,6 +374,18 @@ It also means the generated client offers less than a server datasource would, a
 
 When a requirement genuinely cannot be satisfied on this datasource, report it. Adding an external dependency the benchmark cannot assume is not the repair.
 
+## The Defects That Survive Every Checker
+
+This is where the compiler stops helping and most real defects live, because a type-correct value can invert the behavior. Each of these compiles, passes review by a reader skimming for correctness, and returns something plausible.
+
+- **A default that means the opposite of unset.** A fallback to the current time on an expiry field means "already expired", not "no expiry".
+- **An aggregate over the wrong side of a relation.** It returns a number, and the number is wrong.
+- **A guard that checks the wrong thing.** Checking a membership table alone denies the legitimate owner, who holds the permission inherently.
+- **An effect implemented in one path and not its sibling.** Create writes the history row; update does not.
+- **A filter omitted on one of eleven reads** of a soft-deleted table.
+
+After any substantial piece of work, ask four questions against the requirement's meaning rather than the signature: what does null mean for each field here, which direction does each relation aggregate, which effects does each consumer expect, and what does the code do in the case the requirement calls out.
+
 ## Verification
 
 Run the build and the lint stage, then the tests, and read the output. A build proves the shapes line up; only the tests prove the behavior. When something fails, decide which layer owns it before editing.

@@ -45,13 +45,8 @@ Fix it there and let the build re-run.
 
 ## The Build Cannot See These
 
-A green lint stage means every obligation is acknowledged. It says nothing about whether the acknowledgement is true.
+A green lint stage means every obligation is acknowledged. It says nothing about whether the acknowledgement is true, and the defects listed below carry a valid, resolving citation while doing the wrong thing.
 
-- A default that means the opposite of unset.
-- An aggregate over the wrong side of a relation.
-- An effect implemented in create and not in update.
-- A visibility filter present on ten reads and absent on the eleventh.
-
-Every one of those can carry a valid citation and pass every check. After any substantial piece of work, ask what null means for each field here, which direction each relation aggregates, and what the code does in the case the requirement calls out.
+That is the whole limit of the mechanism at this layer. It removes "nobody implemented this rule at all" and leaves every one of those untouched.
 
 This is the layer where a reason is easiest to write and hardest to keep true, because a provider's citation claims a behavior rather than a shape, and behavior drifts without changing anything a checker inspects. The [review skill](../review/SKILL.md) reads each of these reasons against the code that is there now.
