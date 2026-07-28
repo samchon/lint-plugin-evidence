@@ -17,6 +17,7 @@ Read this file first, then the topic document for the layer you are about to tou
 - [providers.md](providers.md): provider structure, the select and transform pair, pagination, persistence, error behavior, and the Prisma traps. Read before writing business logic.
 - [authorization.md](authorization.md): actors, sessions, grades, ownership and scope guards, and where each check belongs. Read before anything that reads the caller's identity.
 - [testing.md](testing.md): end-to-end test structure, composition, and what a test must prove beyond its happy path. Read before writing a test.
+- [typescript.md](typescript.md): the recurring TypeScript and typia diagnostics, what causes each, and the one correct fix. Read when a type error repeats, and always before choosing a default for a nullable conversion.
 
 ## Layer Boundaries
 

@@ -14,6 +14,7 @@ Read this file first, then the topic document for what you are about to touch.
 - [sdk.md](sdk.md): consuming the generated SDK, authentication and connections, and the simulation-first development flow that closes with live integration. Read before writing any data call.
 - [architecture.md](architecture.md): layering, how far SDK types are allowed to reach, view models, hooks, and query keys. Read before adding a route, a data path, or shared state.
 - [screens.md](screens.md): screen structure, the states every screen owes, and how a screen traces to a requirement. Read before building a screen.
+- [design.md](design.md): how the interface looks, and the signatures that mark a screen as machine-generated. Read before styling anything.
 - [verification.md](verification.md): what proves the frontend works, and the record that proof leaves. Read before claiming anything is finished.
 
 ## Stack
