@@ -11,7 +11,7 @@ The canonical current-freeze chain is:
 5. `current-freeze-token-safety-cost-amendment.md`, review `4801470216`, keeps monetary results unavailable but replaces the launch consequence and monetary stop with paired observed-token and hard-deadline safety controls.
 6. `current-freeze-subject-manifest-addendum.md`, review `4801516000`, corrects Todo and Reddit byte counts and binds all four corpora to an independently recomputed freeze manifest.
 7. `current-freeze-block-safety-addendum.md`, review `4801568652`, adds a durable block-global token and deadline guard to the arm-equal cell guards.
-8. `current-freeze-template-addendum.md`, review `4801882298`, binds the shared Evidence/Plain method input to the corrected common template and carries the existing numeric priors forward with additional calibration risk.
+8. `current-freeze-template-addendum.md`, review `4801965103`, binds the shared Evidence/Plain method input to the corrected common template and carries the existing numeric priors forward with additional calibration risk.
 
 The active leaf is `current-freeze-template-addendum.md`. Together these eight immutable records form one canonical prior for the current inputs. `todo-reddit.md` and `shopping-erp.md` are older historical priors and cannot be used for current-freeze inference.
 
