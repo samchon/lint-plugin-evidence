@@ -182,6 +182,17 @@ The controller example above shows the shape. What each part of the block owes:
 | `@param` | what the value means, not the type the signature already states |
 | `@returns` | what the response represents |
 | `@tag` | the group this operation belongs to in the published document |
+| `@setHeader` | where the SDK must place a value from the response |
+
+`@setHeader` is not documentation. On a join, login, or refresh operation it is what makes the generated accessor write the issued token into the caller's connection:
+
+```ts
+/**
+ * @setHeader token.access Authorization
+ */
+```
+
+Without it every consumer, including the test suite, authenticates and then makes anonymous calls.
 
 Two habits carry most of the value.
 

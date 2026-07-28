@@ -13,22 +13,21 @@ That is worth stating because the instinct when a document seems thin is to fill
 
 Treat the directory as read-only. Never edit a document so that it agrees with code you already wrote, and never add a section because the implementation needed one.
 
-## Where They Live
+## Read What Is Actually There
 
-`docs/analysis/` holds the specification. The documents are organized by concern, and each one owns a different kind of statement:
+`docs/analysis/` holds the specification. Open the directory and read what it contains. The number of documents, their names, and their ordering belong to the project, so do not assume a layout and do not skip a file because its name looks like navigation or preamble.
 
-| File | Owns |
-| --- | --- |
-| `00-toc.md` | navigation only. It is not a requirement document and implementing it means nothing. |
-| `01-actors-and-auth.md` | who exists, how identity is established, what each role may reach, session and account lifecycle, ownership and privacy boundaries. |
-| `02-domain-model.md` | the business concepts, what information each carries, and how they relate. |
-| `03-functional-requirements.md` | the operations and the journeys users take through them. |
-| `04-business-rules.md` | policies, constraints, calculations, and the refusals they imply. |
-| `05-non-functional.md` | quality obligations stated as user-visible or organization-visible promises. |
+What is durable is that **the documents are organized by concern, and a concern lands in exactly one of them.** Expect to find, under whatever names this project uses:
 
-A concern lands in exactly one document. That is why reading only `03-functional-requirements.md` produces an application that has every endpoint and enforces none of the rules: the refusal that endpoint owes is stated in `04-business-rules.md`, and the actor allowed to call it is stated in `01-actors-and-auth.md`.
+- who exists, how identity is established, what each role may reach, and the session, account, ownership, and privacy boundaries;
+- the business concepts, what information each carries, and how they relate;
+- the operations and the journeys users take through them;
+- the policies, constraints, calculations, and the refusals they imply;
+- the quality obligations stated as promises a user or an organization can observe.
 
-Read every document before you finish. A subject's absence from one document is not evidence that it has no requirements.
+**This is why reading only the operations document produces an application with every endpoint and none of the rules.** The refusal an endpoint owes is written where the policies live, and the actor permitted to call it is written where the roles live. Neither appears beside the operation.
+
+Read every document before you finish. A subject's absence from one document is not evidence that it has no requirements, and a document that looks like a table of contents may still carry a statement nothing else repeats.
 
 ## The Documents Are The Specification
 
