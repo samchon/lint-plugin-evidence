@@ -21,17 +21,23 @@ Every unit on the left of an obligation must be acknowledged by name from the ar
 
 ```
 docs/analysis/  ->  database
-docs/analysis/  ->  API
+docs/analysis/  ->  DTO type
+docs/analysis/  ->  API operation
 docs/analysis/  ->  tests
 docs/analysis/  ->  business logic
 docs/analysis/  ->  frontend
 
-database        ->  API
+database        ->  DTO type          (the table it represents)
+database        ->  API operation     (the table it exposes)
 database        ->  business logic
+
+column, relation ->  DTO property     (the value it carries)
 
 API             ->  tests
 API             ->  business logic
 ```
+
+Granularity is part of the configuration. A DTO **type** is a claim over requirements and models; a DTO **property** is a separate claim over columns and relations, and it does not answer to a requirement. Configuring only the type level leaves every property unchecked, and the silence reads exactly like coverage.
 
 The configured graph is what the build checks. Keep it current: when the frontend takes a concrete shape or a new artifact kind appears, the obligation belongs in the configuration. **An edge that is not configured is not checked**, and nothing will tell you it is missing.
 

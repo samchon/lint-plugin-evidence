@@ -26,6 +26,35 @@ const graph: IEvidenceGraphConfig = {
         symbol: ["h2", "h3"],
       },
     },
+    // A DTO type answers to the requirement it serves and the table it
+    // represents. Its properties answer to the schema alone.
+    {
+      type: "typescript",
+      files: ["packages/api/src/structures/**/*.ts"],
+      symbol: "type",
+      reference: [
+        {
+          type: "markdown",
+          files: ["docs/analysis/**/*.md"],
+          symbol: ["h2", "h3"],
+        },
+        {
+          type: "prisma",
+          files: ["packages/backend/prisma/schema/**/*.prisma"],
+          symbol: ["model"],
+        },
+      ],
+    },
+    {
+      type: "typescript",
+      files: ["packages/api/src/structures/**/*.ts"],
+      symbol: "property",
+      reference: {
+        type: "prisma",
+        files: ["packages/backend/prisma/schema/**/*.prisma"],
+        symbol: ["column", "relation"],
+      },
+    },
     // The operations realize the requirements and expose the schema.
     {
       type: "typescript",
