@@ -1,21 +1,30 @@
 {
   "schemaVersion": 1,
-  "status": "standard-terra-rates-confirmed-source-pins-unresolved",
+  "status": "token-primary-monetary-secondary-unavailable",
   "model": "gpt-5.6-terra",
-  "primaryMonetaryUnit": "provider_credits",
-  "effectiveServiceTier": "default",
+  "authenticationMode": "chatgpt",
+  "billingMode": "chatgpt_provider_credits",
+  "apiKeyBillingAllowed": false,
+  "serviceTier": "default",
+  "unit": "provider_credits",
+  "tokenUnit": 1000000,
+  "ratesPerMillionTokens": {
+    "uncachedInput": 62.5,
+    "cachedInput": 6.25,
+    "cacheWriteInput": null,
+    "output": 375
+  },
+  "reasoningTokensIncludedInOutput": true,
+  "serviceTierSymbolic": "default",
+  "effectiveServiceTier": null,
   "speedMode": "standard",
   "retrievedAtUtc": "2026-07-28T17:52:35.509Z",
-  "creditsPerMillionTokens": {
-    "nonCachedInput": 62.5,
-    "cacheRead": 6.25,
-    "cacheWrite": 78.125,
-    "outputIncludingReasoning": 375
-  },
   "cacheWriteDerivation": {
-    "factor": 1.25,
-    "base": "nonCachedInput",
-    "source": "Official prompt-caching guidance states that GPT-5.6 cache writes are billed at 1.25 times the uncached input rate."
+    "apiOnlyCandidateFactor": 1.25,
+    "apiOnlyCandidateBase": "uncachedInput",
+    "apiOnlySource": "Official API prompt-caching guidance states that GPT-5.6 API cache writes are billed at 1.25 times the uncached API input rate.",
+    "applicabilityToChatgptProviderCredits": "unproven",
+    "executionRateUsed": null
   },
   "usdPerMillionTokens": {
     "nonCachedInput": null,
@@ -25,7 +34,8 @@
   },
   "creditToUsd": null,
   "clientRequestSemantics": {
-    "codexServiceTier": "default",
+    "codexServiceTier": null,
+    "codexServiceTierRequestMode": "omitted",
     "upstreamServiceTier": "omitted",
     "modelRerouteAllowed": false,
     "fastCreditMultiplier": 2.5,
@@ -45,22 +55,28 @@
   ],
   "calculation": {
     "normalization": "nonCachedInput = inputTokens - cachedInputTokens - cacheWriteInputTokens; cachedInputTokens and cacheWriteInputTokens are disjoint subsets of inclusive inputTokens",
-    "providerCredits": "(nonCachedInput * 62.5 + cacheRead * 6.25 + cacheWrite * 78.125 + output * 375) / 1000000",
+    "providerCredits": null,
     "reasoning": "Reasoning tokens are an output subset and are not charged again.",
     "usd": null,
-    "budgetEnforcement": "Price each deduplicated atomic response, durably append cumulative credits, and stop before the next provider request when the ceiling is reached. One already-in-flight atomic response may overshoot; record it and right-censor immediately."
+    "budgetEnforcement": "Safety authorization uses deduplicated provider total tokens and a hard wall deadline, not an unavailable monetary conversion. When either observed limit is reached, request immediate turn interruption and terminate the process tree if needed. Codex may already have multiple internal provider requests in flight, so the token threshold is not a hard ceiling; missing terminal usage makes the final token total a lower bound."
+  },
+  "monetaryUse": {
+    "status": "unavailable",
+    "primaryEstimand": false,
+    "costEffectivenessClaimsAllowed": false,
+    "launchBlocking": false,
+    "reason": "No direct source establishes the ChatGPT provider-credit rate for cache-write input and no applicable provider-credit-to-USD conversion is pinned."
   },
   "sourcePinProcedure": [
     "Within 24 hours before freezing a run wave, fetch each official source and archive the exact response outside the generated projects.",
     "Record the source URL, UTC retrieval time, response SHA-256, applicable account plan, service tier, speed mode, and whether the runner usage stream uses the same token categories.",
-    "Provider credits are the preregistered primary monetary unit. Obtain an applicable contract, invoice, or official account rate before adding USD as a secondary conversion; an unavailable USD conversion remains null and does not itself block launch.",
-    "Fill every execution-critical null field, archive and hash the official source responses, recompute this file's SHA-256, copy that digest into pins.json and every run manifest, and submit the change as a new formal protocol checkpoint.",
-    "Reject launch when requested and effective thread settings, the no-reroute signal, source-backed default-tier forwarding semantics, token semantics, or provider-credit rates differ from the pinned sheet. A null USD conversion is explicitly permitted and is not a launch failure."
+    "Provider credits and USD are optional secondary monetary outputs, not primary estimands or safety controls. Obtain a direct official ChatGPT credit rate or applicable account contract for cache-write input before calculating any provider-credit total; do not transfer an API token-price multiplier across billing surfaces.",
+    "Obtain an applicable contract, invoice, or official account rate before adding USD as a secondary conversion; an unavailable USD conversion remains null and does not itself block launch.",
+    "Before publishing provider credits, USD, or a cost-effectiveness claim, archive and hash every applicable official source response, fill every monetary null field, recompute this file's SHA-256, copy that digest into pins.json and every run manifest, and submit the change as a new formal protocol checkpoint.",
+    "Reject launch when requested and effective thread settings, the no-reroute signal, source-backed default-tier forwarding semantics, or token semantics differ from the pinned sheet. An unavailable monetary mapping remains null and does not block a token/time/quality run."
   ],
   "launchGate": {
-    "blocked": true,
-    "reasons": [
-      "Official source responses have not yet been archived with exact SHA-256 snapshots."
-    ]
+    "blocked": false,
+    "reasons": []
   }
 }

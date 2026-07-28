@@ -96,6 +96,6 @@ A verified finding names the exact atomic clauses, exact artifact locations, exp
 
 ## Interruption and resumption
 
-An interruption preserves the raw streams, current manifest, checkpoint, workspace, bundle, candidate and verdict manifests, clean streak, and outstanding fixer work. Resumption continues the same run ID from the last durable checkpoint and does not replay completed model turns.
+Every interruption preserves the raw streams, current manifest, checkpoint, workspace, bundle, candidate and verdict manifests, clean streak, outstanding fixer work, and observed cost. A deliberate harness pause may continue the same run ID only when the same live app-server process and lossless controller transport remain attached and a fixture proves no raw byte, response ID, usage notification, or turn changed during the pause.
 
-A host or provider interruption during any finder or verifier invalidates that round for the K=2 streak. The incomplete round remains in the ledger with its cost.
+App-server death, controller-transport loss, host failure, or provider interruption is terminal for a Codex `0.145.0` measured attempt because `thread/resume` disables experimental raw events. The harness verifies and seals that run as right-censored, invalidates the incomplete round for K=2, and starts any replacement from a new run ID, fresh workspace, and fresh thread. It never replays, stitches, or continues measured model turns under the old ID.

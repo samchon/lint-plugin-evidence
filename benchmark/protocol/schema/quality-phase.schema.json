@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/quality-phase.schema.json",
+  "title": "Milestone quality phase record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "runId",
+    "coreSealSha256",
+    "milestone",
+    "gradingPlanSha256",
+    "graderAGradeSha256",
+    "graderBGradeSha256",
+    "graderAArmGuessSha256",
+    "graderBArmGuessSha256",
+    "semanticAdjudicationSha256",
+    "secondaryReviewASha256",
+    "secondaryReviewBSha256",
+    "secondaryAdjudicationSha256",
+    "qualityInputsSha256",
+    "humanAuditQueueSha256",
+    "humanValidationStatus",
+    "humanValidatedCompositeClaim",
+    "denominatorsSummed"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "runId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "coreSealSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "milestone": {
+      "enum": [
+        "t_done",
+        "t_dry"
+      ]
+    },
+    "gradingPlanSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "graderAGradeSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "graderBGradeSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "graderAArmGuessSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "graderBArmGuessSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "semanticAdjudicationSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "secondaryReviewASha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "secondaryReviewBSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "secondaryAdjudicationSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "qualityInputsSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "humanAuditQueueSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "humanValidationStatus": {
+      "enum": [
+        "pending",
+        "completed"
+      ]
+    },
+    "humanValidatedCompositeClaim": {
+      "type": "boolean"
+    },
+    "denominatorsSummed": {
+      "const": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "humanValidationStatus": {
+            "const": "pending"
+          }
+        },
+        "required": [
+          "humanValidationStatus"
+        ]
+      },
+      "then": {
+        "properties": {
+          "humanValidatedCompositeClaim": {
+            "const": false
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

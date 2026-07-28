@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/arm-guess-provider.schema.json",
+  "title": "Provider-facing post-grade arm guess",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "role",
+    "gradeId",
+    "bundleId",
+    "subject",
+    "phase",
+    "graderPseudonym",
+    "sealedRatingsSha256",
+    "guess",
+    "confidence",
+    "rationale"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "blind_arm_guess"
+      ]
+    },
+    "gradeId": {
+      "type": "string"
+    },
+    "bundleId": {
+      "type": "string"
+    },
+    "subject": {
+      "type": "string",
+      "enum": [
+        "todo",
+        "reddit",
+        "shopping",
+        "erp"
+      ]
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "t_done",
+        "t_dry"
+      ]
+    },
+    "graderPseudonym": {
+      "type": "string"
+    },
+    "sealedRatingsSha256": {
+      "type": "string"
+    },
+    "guess": {
+      "type": "string",
+      "enum": [
+        "plain",
+        "evidence",
+        "unknown"
+      ]
+    },
+    "confidence": {
+      "type": "number"
+    },
+    "rationale": {
+      "type": "string"
+    }
+  }
+}

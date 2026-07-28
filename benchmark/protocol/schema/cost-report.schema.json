@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/cost-report.schema.json",
+  "title": "Immutable per-cell observed-token safety report",
+  "$comment": "Local artifact schema only; never pass to turn/start.outputSchema. Arithmetic and timestamp relations require the production semantic validator.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "unit",
+    "blockPlanSha256",
+    "maximumObservedTotalTokens",
+    "observedTotalTokens",
+    "responseObservedOvershootTokens",
+    "responseIds",
+    "thresholdReached",
+    "hardCeilingGuaranteed",
+    "responseObservedStopTriggered",
+    "usageAfterStopLowerBound",
+    "rightCensored",
+    "forcedStop",
+    "globalAbortId",
+    "stopEventSha256",
+    "descendantsQuiesced",
+    "processTreeTerminated",
+    "durableStopState",
+    "t0Utc",
+    "t0MonotonicNanoseconds",
+    "hardWallDurationSeconds",
+    "hardDeadlineUtc",
+    "hardDeadlineReached",
+    "wallClockStopTriggered",
+    "monetaryStatus",
+    "providerCredits",
+    "usd"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "unit": {
+      "const": "provider_total_tokens"
+    },
+    "blockPlanSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "maximumObservedTotalTokens": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "observedTotalTokens": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "responseObservedOvershootTokens": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "responseIds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "thresholdReached": {
+      "type": "boolean"
+    },
+    "hardCeilingGuaranteed": {
+      "const": false
+    },
+    "responseObservedStopTriggered": {
+      "type": "boolean"
+    },
+    "usageAfterStopLowerBound": {
+      "type": "boolean"
+    },
+    "rightCensored": {
+      "type": "boolean"
+    },
+    "forcedStop": {
+      "type": "boolean"
+    },
+    "globalAbortId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "stopEventSha256": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/sha256"
+        }
+      ]
+    },
+    "descendantsQuiesced": {
+      "type": "boolean"
+    },
+    "processTreeTerminated": {
+      "type": "boolean"
+    },
+    "durableStopState": {
+      "type": "boolean"
+    },
+    "t0Utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "t0MonotonicNanoseconds": {
+      "type": "string",
+      "pattern": "^[0-9]+$"
+    },
+    "hardWallDurationSeconds": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "hardDeadlineUtc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "hardDeadlineReached": {
+      "type": "boolean"
+    },
+    "wallClockStopTriggered": {
+      "type": "boolean"
+    },
+    "monetaryStatus": {
+      "const": "unavailable"
+    },
+    "providerCredits": {
+      "const": null
+    },
+    "usd": {
+      "const": null
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

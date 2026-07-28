@@ -17,6 +17,7 @@
       "const": [
         "$schema",
         "$id",
+        "$ref",
         "title",
         "type",
         "additionalProperties",
@@ -37,7 +38,11 @@
           "id",
           "turns",
           "providerSchema",
-          "localSchema"
+          "providerBytes",
+          "providerSha256",
+          "localSchema",
+          "localBytes",
+          "localSha256"
         ],
         "properties": {
           "id": {
@@ -53,7 +58,18 @@
                 "phase1-generation",
                 "phase1-completion-challenge",
                 "phase2-finder",
-                "phase2-verifier"
+                "phase2-verifier",
+                "blind-grader-a",
+                "blind-grader-b",
+                "blind-arm-guess-a",
+                "blind-arm-guess-b",
+                "secondary-review-a",
+                "secondary-review-b",
+                "semantic-adjudicator",
+                "secondary-adjudicator",
+                "activity-adjudicator",
+                "activity-rater-a",
+                "activity-rater-b"
               ]
             }
           },
@@ -61,9 +77,25 @@
             "type": "string",
             "pattern": "^schema/[a-z0-9-]+-provider\\.schema\\.json$"
           },
+          "providerBytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "providerSha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
           "localSchema": {
             "type": "string",
             "pattern": "^schema/[a-z0-9-]+-local\\.schema\\.json$"
+          },
+          "localBytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "localSha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
           }
         }
       }
@@ -129,6 +161,193 @@
               "turns": {
                 "contains": {
                   "const": "phase2-verifier"
+                }
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      }
+    },
+    {
+      "properties": {
+        "contracts": {
+          "contains": {
+            "properties": {
+              "turns": {
+                "contains": {
+                  "const": "blind-grader-a"
+                }
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      }
+    },
+    {
+      "properties": {
+        "contracts": {
+          "contains": {
+            "properties": {
+              "turns": {
+                "contains": {
+                  "const": "blind-grader-b"
+                }
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      }
+    },
+    {
+      "properties": {
+        "contracts": {
+          "contains": {
+            "properties": {
+              "turns": {
+                "contains": {
+                  "const": "blind-arm-guess-a"
+                }
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      }
+    },
+    {
+      "properties": {
+        "contracts": {
+          "contains": {
+            "properties": {
+              "turns": {
+                "contains": {
+                  "const": "blind-arm-guess-b"
+                }
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      }
+    },
+    {
+      "properties": {
+        "contracts": {
+          "contains": {
+            "properties": {
+              "turns": {
+                "contains": {
+                  "const": "secondary-review-a"
+                }
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      }
+    },
+    {
+      "properties": {
+        "contracts": {
+          "contains": {
+            "properties": {
+              "turns": {
+                "contains": {
+                  "const": "secondary-review-b"
+                }
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      }
+    },
+    {
+      "properties": {
+        "contracts": {
+          "contains": {
+            "properties": {
+              "turns": {
+                "contains": {
+                  "const": "semantic-adjudicator"
+                }
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      }
+    },
+    {
+      "properties": {
+        "contracts": {
+          "contains": {
+            "properties": {
+              "turns": {
+                "contains": {
+                  "const": "secondary-adjudicator"
+                }
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      }
+    },
+    {
+      "properties": {
+        "contracts": {
+          "contains": {
+            "properties": {
+              "turns": {
+                "contains": {
+                  "const": "activity-adjudicator"
+                }
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      }
+    },
+    {
+      "properties": {
+        "contracts": {
+          "contains": {
+            "properties": {
+              "turns": {
+                "contains": {
+                  "const": "activity-rater-a"
+                }
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      }
+    },
+    {
+      "properties": {
+        "contracts": {
+          "contains": {
+            "properties": {
+              "turns": {
+                "contains": {
+                  "const": "activity-rater-b"
                 }
               }
             }

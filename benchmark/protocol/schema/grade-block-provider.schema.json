@@ -1,0 +1,271 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/grade-block-provider.schema.json",
+  "title": "Provider-facing blind grade block",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "role",
+    "gradeId",
+    "bundleId",
+    "subject",
+    "phase",
+    "graderPseudonym",
+    "rubricSha256",
+    "catalogSha256",
+    "population",
+    "blockId",
+    "blockIndex",
+    "criterionIds",
+    "ratings",
+    "status",
+    "interruption"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "blind_grader"
+      ]
+    },
+    "gradeId": {
+      "type": "string"
+    },
+    "bundleId": {
+      "type": "string"
+    },
+    "subject": {
+      "type": "string",
+      "enum": [
+        "todo",
+        "reddit",
+        "shopping",
+        "erp"
+      ]
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "t_done",
+        "t_dry"
+      ]
+    },
+    "graderPseudonym": {
+      "type": "string"
+    },
+    "rubricSha256": {
+      "type": "string"
+    },
+    "catalogSha256": {
+      "type": "string"
+    },
+    "population": {
+      "type": "string",
+      "enum": [
+        "acceptance",
+        "context"
+      ]
+    },
+    "blockId": {
+      "type": "string"
+    },
+    "blockIndex": {
+      "type": "integer"
+    },
+    "criterionIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ratings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "criterionId",
+          "status",
+          "confidence",
+          "surfaces",
+          "test",
+          "evidence",
+          "severity",
+          "rationale"
+        ],
+        "properties": {
+          "criterionId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "implemented_correctly",
+              "partial",
+              "omitted",
+              "contradicted",
+              "unverifiable",
+              "not_applicable"
+            ]
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "surfaces": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "surface",
+                "status"
+              ],
+              "properties": {
+                "surface": {
+                  "type": "string",
+                  "enum": [
+                    "database",
+                    "api",
+                    "backend",
+                    "frontend",
+                    "integration",
+                    "test",
+                    "operations",
+                    "documentation"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "correct",
+                    "partial",
+                    "missing",
+                    "wrong",
+                    "not_applicable"
+                  ]
+                }
+              }
+            }
+          },
+          "test": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "testable",
+              "exists",
+              "executed",
+              "passes",
+              "nonVacuous",
+              "positive",
+              "negative",
+              "boundary",
+              "counterfactual"
+            ],
+            "properties": {
+              "testable": {
+                "type": "boolean"
+              },
+              "exists": {
+                "type": "boolean"
+              },
+              "executed": {
+                "type": "boolean"
+              },
+              "passes": {
+                "type": "boolean"
+              },
+              "nonVacuous": {
+                "type": "boolean"
+              },
+              "positive": {
+                "type": "boolean"
+              },
+              "negative": {
+                "type": "boolean"
+              },
+              "boundary": {
+                "type": "boolean"
+              },
+              "counterfactual": {
+                "type": "string"
+              }
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "line",
+                "observation"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "line": {
+                  "type": "integer"
+                },
+                "observation": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          "rationale": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "interrupted",
+        "failed"
+      ]
+    },
+    "interruption": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "reason",
+        "lastCompletedCriterionId"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "lastCompletedCriterionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

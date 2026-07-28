@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/subject-freeze-manifest.schema.json",
+  "title": "All-subject frozen corpus manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "freezeId",
+    "requirementsSourceRevision",
+    "materializerManifestSchemaVersion",
+    "treeAlgorithm",
+    "subjects"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 2
+    },
+    "freezeId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requirementsSourceRevision": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "materializerManifestSchemaVersion": {
+      "const": 2
+    },
+    "treeAlgorithm": {
+      "const": "sha256-posix-path-nul-bytes-v1"
+    },
+    "subjects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "todo",
+        "reddit",
+        "shopping",
+        "erp"
+      ],
+      "properties": {
+        "todo": {
+          "$ref": "#/$defs/subject"
+        },
+        "reddit": {
+          "$ref": "#/$defs/subject"
+        },
+        "shopping": {
+          "$ref": "#/$defs/subject"
+        },
+        "erp": {
+          "$ref": "#/$defs/subject"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "bytes",
+        "sha256",
+        "count"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "fileCount",
+        "byteCount",
+        "requirementsRawTreeSha256",
+        "markdownFileCount",
+        "rawH2Count",
+        "narrativeH2Count",
+        "h3Count",
+        "acceptanceCatalog",
+        "contextCatalog"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^benchmark/requirements/(todo|reddit|shopping|erp)$"
+        },
+        "fileCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "byteCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "requirementsRawTreeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "markdownFileCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rawH2Count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "narrativeH2Count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "h3Count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "acceptanceCatalog": {
+          "$ref": "#/$defs/catalog"
+        },
+        "contextCatalog": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/catalog"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

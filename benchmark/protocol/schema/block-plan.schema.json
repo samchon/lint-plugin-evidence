@@ -8,8 +8,10 @@
     "schemaVersion",
     "blockId",
     "protocolRevision",
+    "protocolRevisionSha256",
     "sourceMergedCommit",
     "priceSheetSha256",
+    "subjectFreezeManifestSha256",
     "randomizationSeed",
     "cells",
     "authorization"
@@ -26,11 +28,17 @@
       "type": "string",
       "minLength": 1
     },
+    "protocolRevisionSha256": {
+      "$ref": "#/$defs/sha256"
+    },
     "sourceMergedCommit": {
       "type": "string",
       "pattern": "^[a-f0-9]{40}$"
     },
     "priceSheetSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "subjectFreezeManifestSha256": {
       "$ref": "#/$defs/sha256"
     },
     "randomizationSeed": {
@@ -39,7 +47,9 @@
     },
     "cells": {
       "type": "array",
-      "minItems": 1,
+      "minItems": 4,
+      "maxItems": 4,
+      "uniqueItems": true,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -86,17 +96,21 @@
             "type": "object",
             "additionalProperties": false,
             "required": [
-              "providerCredits",
-              "wallClockHours"
+              "maximumObservedTotalTokens",
+              "hardWallDurationSeconds",
+              "hardCeilingGuaranteed"
             ],
             "properties": {
-              "providerCredits": {
-                "type": "number",
-                "exclusiveMinimum": 0
+              "maximumObservedTotalTokens": {
+                "type": "integer",
+                "minimum": 1
               },
-              "wallClockHours": {
-                "type": "number",
-                "exclusiveMinimum": 0
+              "hardWallDurationSeconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "hardCeilingGuaranteed": {
+                "const": false
               }
             }
           }
@@ -110,7 +124,11 @@
         "authorizedBy",
         "authorizedAtUtc",
         "quotaState",
-        "statement"
+        "statement",
+        "maximumObservedBlockTotalTokens",
+        "blockHardWallDurationSeconds",
+        "hardCeilingGuaranteed",
+        "monetaryStatus"
       ],
       "properties": {
         "authorizedBy": {
@@ -122,17 +140,94 @@
           "format": "date-time"
         },
         "quotaState": {
-          "type": "string",
-          "minLength": 1
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "bucketId",
+            "usedPercent",
+            "windowMinutes",
+            "resetsAtUtc",
+            "reached",
+            "spendControlReached",
+            "reservePolicy",
+            "capturedAtUtc",
+            "snapshotSha256",
+            "rawPayloadPersisted",
+            "guardRelation"
+          ],
+          "properties": {
+            "source": {
+              "const": "account/rateLimits/read"
+            },
+            "bucketId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "usedPercent": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "windowMinutes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "resetsAtUtc": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "reached": {
+              "type": "boolean"
+            },
+            "spendControlReached": {
+              "type": "boolean"
+            },
+            "reservePolicy": {
+              "type": "string",
+              "minLength": 1
+            },
+            "capturedAtUtc": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "snapshotSha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "rawPayloadPersisted": {
+              "const": false
+            },
+            "guardRelation": {
+              "const": "independent-first-hit-or"
+            }
+          }
         },
         "statement": {
           "type": "string",
           "minLength": 1
+        },
+        "maximumObservedBlockTotalTokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "blockHardWallDurationSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "hardCeilingGuaranteed": {
+          "const": false
+        },
+        "monetaryStatus": {
+          "const": "unavailable"
         }
       }
     }
   },
   "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "cost": {
       "type": "object",
       "additionalProperties": false,
@@ -142,7 +237,8 @@
         "p50ProviderTokens",
         "p90ProviderTokens",
         "p50ProviderCredits",
-        "p90ProviderCredits"
+        "p90ProviderCredits",
+        "monetaryStatus"
       ],
       "properties": {
         "p50WallClockHours": {
@@ -162,12 +258,13 @@
           "minimum": 0
         },
         "p50ProviderCredits": {
-          "type": "number",
-          "minimum": 0
+          "const": null
         },
         "p90ProviderCredits": {
-          "type": "number",
-          "minimum": 0
+          "const": null
+        },
+        "monetaryStatus": {
+          "const": "unavailable"
         }
       }
     },
