@@ -52,9 +52,9 @@ All sessions issued before recovery are revoked. An invalid, expired, or account
 
 ### REQ-CUSTOMER-IDENTITY-8 Delete a customer account
 
-An authenticated customer may permanently close the acting account after confirming the current password. If that identity is the final active super administrator, closure is refused so administrator governance remains reachable. Otherwise, closure immediately terminates every customer session, removes the credentials, profile, saved addresses, wishlist, and cart, and prevents later login or reactivation.
+An authenticated customer may permanently close the acting account after confirming the current password. If that identity is the final active super administrator or owns an unresolved payment attempt whose stock holds or coupon reservations have not been released or consumed, closure is refused so administrator governance and payment reconciliation remain reachable. Otherwise, closure immediately terminates every customer session, removes the credentials, profile, saved addresses, wishlist, and cart, and prevents later login or reactivation.
 
-Orders, order items, shipments, cancellation and refund requests, and purchase snapshots remain available for seller records and legal continuity. Published reviews also remain, but their author is displayed as `deleted user` rather than by the former customer's profile. Incorrect current-password confirmation or loss of the last active super administrator refuses deletion.
+Orders, order items, shipments, cancellation and refund requests, purchase snapshots, coupon redemptions, and a nonpublic coupon-quota lineage remain for commercial continuity and reuse-abuse prevention. A later account registered with the same normalized email receives no prior order, allowlist membership, redemption detail, or profile, but its per-customer coupon counts use that lineage. Published reviews also remain, but their author is displayed as `deleted user` rather than by the former customer's profile. Incorrect current-password confirmation, loss of the last active super administrator, or an unresolved payment attempt refuses deletion.
 
 ## REQ-SELLER-IDENTITY Seller identity and credential lifecycle
 
@@ -106,9 +106,9 @@ Every session issued before recovery is revoked. Recovery changes no approval, s
 
 ### REQ-SELLER-IDENTITY-8 Delete a seller account
 
-An authenticated seller may permanently close the acting account after confirming the current password, but only when no seller-owned order item remains `paid` or `shipped`, no cancellation or refund request remains `pending`, no delivered item remains within its seven-day refund-request window, and closure would not remove the final active super administrator.
+An authenticated seller may permanently close the acting account after confirming the current password, but only when no unresolved payment attempt holds stock for a seller-owned variant or quota for a seller-owned coupon, no seller-owned order item remains `paid` or `shipped`, no cancellation or refund request remains `pending`, no delivered item remains within its seven-day refund-request window, and closure would not remove the final active super administrator.
 
-Successful closure terminates all seller sessions and removes the seller's live products from listings together with their variants and inventory histories. Past orders, snapshots, and the shop name captured on past order items remain available. The identity cannot later log in or be reactivated.
+Successful closure terminates all seller sessions, removes the seller's live products from listings together with their variants and inventory histories, and retires every seller-owned coupon. Past orders, coupon redemptions, snapshots, and the shop name captured on past order items remain available. The identity cannot later log in or be reactivated.
 
 Incorrect password proof, any unresolved commercial blocker, or loss of the last active super administrator leaves the account active and refuses deletion.
 
@@ -195,3 +195,31 @@ Administrator unban restores authentication eligibility unless deletion or anoth
 An eligible regular administrator may inspect and moderate seller approvals, categories, products and product snapshots, orders, customer accounts, and seller accounts across owner boundaries. Super administrators receive those regular powers plus administrator-application and grade governance.
 
 Only the commands explicitly assigned to the holder's grade are available. Each action still preserves immutable history and obeys its target-state, force-resolution, and self-target restrictions; an identity without the required grade is refused.
+
+## REQ-COUPON-AUTHORITY Coupon ownership and use authority
+
+Coupons have one immutable authority layer. A seller coupon is owned by one approved seller and can discount only that seller's eligible items. A platform coupon is owned by the platform and is curated by regular or super administrators. Customers may discover and apply coupons for which they are eligible but never create or alter coupon policy.
+
+### REQ-COUPON-AUTHORITY-1 Limit seller coupon authority
+
+An approved seller may create, inspect, edit, publish, pause, resume, and retire only coupons owned by that seller. Suspension preserves read access and pause or retirement authority for existing coupon obligations but blocks creation, term editing, publication, and resume. Ban or deletion removes authenticated coupon authority.
+
+A seller coupon may target only products and categories that currently contain merchandise owned by that seller. It never discounts another seller's order item, and knowing another coupon identifier or code grants no access to its definition, quota, or redemption history.
+
+### REQ-COUPON-AUTHORITY-2 Reserve platform coupons for administrators
+
+A current regular or super administrator may create, inspect, edit, publish, pause, resume, and retire platform coupons across sellers. A platform coupon may target the complete catalog or an explicit set of sellers, products, or categories.
+
+Seller identity alone grants no platform-coupon authority. Platform coupon work is ordinary administration rather than super-only grade governance, and every mutation records the acting administrator.
+
+### REQ-COUPON-AUTHORITY-3 Limit customer coupon use
+
+An authenticated customer may list coupons visible and currently eligible for that customer and cart, enter a coupon code, add or remove an eligible coupon from checkout review, and inspect the discount breakdown preserved on that customer's orders.
+
+A customer cannot inspect another customer's allowlist status, usage count, reservation, or order allocation. Coupon application never grants seller, administrator, catalog, inventory, or price-edit authority.
+
+### REQ-COUPON-AUTHORITY-4 Preserve administrator oversight without transferring ownership
+
+Regular and super administrators may inspect every seller and platform coupon, its immutable revisions, quota state, reservations, and retained redemptions. They may pause or retire a seller coupon for a nonblank policy reason without becoming its seller owner.
+
+Administrator moderation does not rewrite prior order allocations, restore consumed uses, or permit the administrator to edit a published coupon's commercial terms. A non-administrator cannot use platform-wide coupon inspection or moderation.

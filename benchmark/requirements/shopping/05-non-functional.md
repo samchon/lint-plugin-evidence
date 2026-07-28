@@ -44,7 +44,7 @@ Later cancellation and refund outcomes keep money, status, evidence, and stock s
 
 For each confirmed payment attempt, the customer sees exactly one corresponding order whose `paid` items, purchase evidence, exact stock decreases, and purchased-cart removal become visible together. A successful charge is never left without its order outcome.
 
-The order total equals the confirmed charge and captured item prices. Each purchased quantity agrees across its item, negative inventory movement, and removed cart line. Repeated gateway notification duplicates neither the order nor any effect; a mismatch remains in payment reconciliation until a consistent outcome is available.
+The order gross total equals captured gross item prices, discount total equals coupon allocations, and net charge equals the confirmed gateway charge. Each purchased quantity agrees across its item, negative inventory movement, and removed cart line. Repeated gateway notification duplicates neither the order, coupon use, nor any other effect; a mismatch remains in payment reconciliation until a consistent outcome is available.
 
 ### REQ-NFR-PURCHASE-CONSISTENCY-2 Preserve a clean state after payment failure
 
@@ -56,13 +56,21 @@ A fresh attempt begins from current revalidated facts. An unknown result remains
 
 An approved cancellation, approved refund, or administrator force resolution changes the target terminal status, customer funds, exact stock-restoration evidence, request or forced-action evidence, and derived order status as one visible outcome and at most once.
 
-Cancellation produces `cancelled`; refund produces `refunded` according to the owning action. The refunded amount is the line amount and the restored quantity is the purchased quantity. A replay cannot pay or restore the line again. If a required effect fails, the prior commercial state remains visible until resolution succeeds.
+Cancellation produces `cancelled`; refund produces `refunded` according to the owning action. The returned money is the preserved item net after coupon allocations and the restored quantity is the purchased quantity. Consumed coupon uses are not restored. A replay cannot pay or restore the line again. If a required effect fails, the prior commercial state remains visible until resolution succeeds.
 
 ### REQ-NFR-PURCHASE-CONSISTENCY-4 Preserve independent item progress
 
 When one item or shipment changes, every unrelated order item retains its own status, seller, shipment, request, snapshot, unit price, quantity, and inventory evidence. One cancellation or refund does not stop another seller's fulfillment, and one shipment or delivery changes no item outside that shipment.
 
 Overall order status changes only through its documented derivation from all resulting item states. A whole-order force action changes only its complete eligible set and reports every other line unchanged.
+
+### REQ-NFR-PURCHASE-CONSISTENCY-5 Reconcile uncertain money returns exactly once
+
+Every approved cancellation, approved refund, or administrator force resolution that returns money owns a durable refund-attempt identifier bound to the order item, terminal cause, and exact preserved net line amount. The gateway receives that identifier as its idempotency key, so one commercial reversal can produce at most one money return.
+
+An explicit gateway failure leaves request, item, money, inventory, snapshot, and derived order state unchanged and permits a new attempt only after the failure is recorded. An unknown result blocks a competing resolution or new refund attempt and is reconciled under the same identifier.
+
+Confirmed gateway success finalizes the matching request or force action, item terminal state, stock restoration, decision or force evidence, and derived order state exactly once. If that local commit fails, startup and periodic reconciliation preserve the successful refund outcome and retry only the missing local finalization; repeated commands and callbacks return the one recorded result rather than returning money or stock again.
 
 ## REQ-NFR-HISTORY-CONTINUITY Commercial history and privacy continuity
 
@@ -78,7 +86,7 @@ Customer closure does not remove seller or administrator access to order evidenc
 
 ### REQ-NFR-HISTORY-CONTINUITY-2 Keep past-order presentation stable
 
-Past orders continue to show purchase-time product name and description, variant options and unit price, seller shop name and logo, quantity, total, and the complete confirmed shipping address. Later live edits or deletion do not rewrite those values.
+Past orders continue to show purchase-time product name and description, variant options and gross unit price, seller shop name and logo, quantity, coupon codes and allocations, gross total, discount total, net charge, and the complete confirmed shipping address. Later live edits, coupon changes, or deletion do not rewrite those values.
 
 The address retains recipient name, phone number, street address, city, state or province, postal code, and country. Current item status, shipment membership, carrier, tracking number, and shipping or delivery time remain live fulfillment facts. Deleted live subjects are represented by retained identifiers or purchase snapshots.
 
@@ -177,6 +185,40 @@ An unrelated actor cannot infer a private target's existence from response field
 Structured input rejects unknown capability-bearing fields, malformed identifiers, nonfinite numbers, executable markup where plain text is required, and values outside the explicit requirement ranges. User-provided text is rendered as text rather than executable HTML or script.
 
 Image upload accepts only the configured image media types after content inspection, assigns a platform-controlled name, and enforces a ten-megabyte per-file limit. Gateway callbacks verify the configured signature over the unmodified payload before reconciliation; an invalid signature changes no payment, hold, order, stock, or cart state.
+
+## REQ-NFR-COUPON-ASSURANCE Coupon concurrency, abuse, privacy, and boundary assurance
+
+Coupon correctness is a money and scarcity property. Tests and production behavior must cover quota races, canonical-code abuse, private eligibility, exact time and subtotal boundaries, integer allocation remainders, payment uncertainty, and post-order reversals rather than only a successful single-coupon example.
+
+### REQ-NFR-COUPON-ASSURANCE-1 Serialize quota and payment outcomes
+
+Concurrent attempts for the final total use or one customer's final allowed use produce exactly one complete reservation winner. Every loser starts no charge, creates no stock hold, and consumes no coupon quota.
+
+Reservation consumption, release, and reconciliation are idempotent by payment attempt and coupon. A process restart or callback reordering cannot overrun quota, strand a released reservation, or create redemption without the matching order.
+
+### REQ-NFR-COUPON-ASSURANCE-2 Limit code guessing and replay abuse
+
+Coupon-code entry canonicalizes before lookup and returns one safe inapplicable shape for unknown and private-ineligible codes. In a rolling fifteen-minute window, the twenty-first failed code entry by one customer or the one-hundred-first failed code entry from one request source is rate-limited before another coupon lookup.
+
+A successful applicable lookup clears that customer's coupon failure count but not the source-wide count. Selection replay, payment callback replay, account recreation, Unicode case variants, and surrounding whitespace cannot create another use or bypass per-customer quota.
+
+### REQ-NFR-COUPON-ASSURANCE-3 Minimize coupon and redemption disclosure
+
+Customer responses omit allowlist members, hidden target sets, exact remaining global quota, other customers' usage, and reservation identifiers. Seller responses contain only owned seller coupons and that seller's item allocations; they omit another seller's coupon terms and line amounts.
+
+Administrator inspection includes the policy and audit facts needed for moderation but never exposes credentials, session values, gateway secrets, full payment credentials, or the coupon-quota lineage token. Customer deletion removes live profile presentation without erasing attributed redemption evidence or the minimal nonpublic count lineage needed to prevent account-recreation quota bypass.
+
+### REQ-NFR-COUPON-ASSURANCE-4 Exercise every discount boundary
+
+The automated suite covers start minus one minor clock tick, exact start, end minus one tick, exact end, subtotal below minimum, exact minimum, each quota immediately below and at limit, fixed discount below and above eligible amount, percentage floor, percentage cap, zero remainder, nonzero remainder, equal fractional remainder, one seller plus platform stack, multiple seller partitions plus platform stack, exclusive conflict, and every duplicate-layer conflict.
+
+Each boundary test asserts gross, per-coupon realized discount, per-item allocation, total discount, net charge, reservation count, redemption count, and refusal side effects. A percentage-only aggregate assertion does not prove minor-unit allocation.
+
+### REQ-NFR-COUPON-ASSURANCE-5 Exercise failure and reversal continuity
+
+The automated suite covers explicit payment failure, unknown payment then success, unknown payment then failure, callback replay, process restart, coupon pause or expiry during an active reservation, cancellation, refund, administrator force action, full-order reversal, and seller or customer deletion after redemption.
+
+Each scenario proves exact money return from preserved item net, exact stock restoration, no consumed quota restoration, immutable coupon and allocation evidence, and no change to unrelated order items. Failure injection after gateway success and before local commit is mandatory for both charge and money-return reconciliation.
 
 ## REQ-NFR-ACCESSIBILITY-PERFORMANCE Usable and bounded customer experience
 
