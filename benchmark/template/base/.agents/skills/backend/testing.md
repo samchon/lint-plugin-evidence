@@ -22,51 +22,61 @@ Each folder holds one kind of thing, and the kinds do not mix.
 ## A Test
 
 ```ts
-export async function test_api_department_creation_subdepartment_nesting(
+export async function test_api_sale_unit_belongs_to_its_sale(
   connection: api.IConnection,
 ): Promise<void> {
-  // Step 1: Register a new member
-  const memberConnection: api.IConnection = { host: connection.host };
-  await authorize_member_join(memberConnection, {});
+  // Step 1: Register an administrator, who may open a section
+  const adminConnection: api.IConnection = { host: connection.host };
+  await authorize_admin_join(adminConnection, {});
 
-  // Step 2: Create an organization, whose creator becomes its owner
-  const organization = await generate_random_member_organizations_create(
-    memberConnection,
+  // Step 2: Open the section the sale will belong to
+  const section = await generate_random_shopping_admin_section_create(
+    adminConnection,
     {},
   );
-  typia.assert(organization);
+  typia.assert(section);
 
-  // Step 3: Create a top-level department
-  const operations = await generate_random_member_organizations_departments_create(
-    memberConnection,
+  // Step 3: Register a seller, who becomes the owner of what they register
+  const sellerConnection: api.IConnection = { host: connection.host };
+  await authorize_seller_join(sellerConnection, {});
+
+  // Step 4: Register a sale in that section
+  const sale = await generate_random_shopping_seller_section_sale_create(
+    sellerConnection,
+    { params: { sectionId: section.id } },
+  );
+  typia.assert(sale);
+
+  // Step 5: Add a unit to the sale
+  const unit = await generate_random_shopping_seller_section_sale_saleUnit_create(
+    sellerConnection,
     {
-      body: { name: "Operations", parentId: null },
-      params: { organizationId: organization.id },
+      body: { name: "Standard", primary: true },
+      params: { sectionId: section.id, saleId: sale.id },
     },
   );
-  typia.assert(operations);
+  typia.assert(unit);
 
-  // Step 4: Create a child department under it
-  const logistics = await generate_random_member_organizations_departments_create(
-    memberConnection,
-    {
-      body: { name: "Logistics", parentId: operations.id },
-      params: { organizationId: organization.id },
-    },
-  );
-  typia.assert(logistics);
-
-  // Step 5: Assert the parent relation
-  TestValidator.equals("logistics name", logistics.name, "Logistics");
-  TestValidator.equals(
-    "logistics parent id matches operations",
-    logistics.parent!.id,
-    operations.id,
+  // Step 6: Assert the unit belongs to the sale it was created under
+  TestValidator.equals("unit name", unit.name, "Standard");
+  TestValidator.equals("unit is primary", unit.primary, true);
+  TestValidator.predicate(
+    "the sale now lists the unit",
+    (
+      await api.functional.shopping.seller.section.sale.at(sellerConnection, {
+        sectionId: section.id,
+        id: sale.id,
+      })
+    ).units.some((u) => u.id === unit.id),
   );
 }
 ```
 
 The numbered comments mirror the numbered steps in the JSDoc block, so a reader can follow either one and land in the same place.
+
+**Two actors, two connections, and the switch is visible in the order.** The administrator opens the section because that is who may; the seller registers the sale because that is who may. A test that did both on one connection would pass only against a backend that had stopped checking.
+
+**The final assertion reads the effect back through a public operation.** The creation response already carries the unit, so asserting against it proves the response echoed its input. Reading the sale afterwards proves the row was written and is reachable the way a caller would reach it.
 
 ## Connection Isolation
 
@@ -75,8 +85,8 @@ The `connection` parameter is a **base connection** carrying the host. Never cal
 Create one connection per actor from that host, authenticate it once, and reuse that same variable for every call by that actor.
 
 ```ts
-const memberConnection: api.IConnection = { host: connection.host };
-await authorize_member_join(memberConnection, {});
+const sellerConnection: api.IConnection = { host: connection.host };
+await authorize_seller_join(sellerConnection, {});
 ```
 
 **The authorization helper does not touch headers, and neither do you.** The generated accessor for a lifecycle operation writes the issued token into the connection it was given, because its controller method declares that in JSDoc:
@@ -94,18 +104,18 @@ So authenticating an actor means calling its authorize helper with that actor's 
 One per lifecycle operation, named for the actor and the operation.
 
 ```ts
-export async function authorize_member_join(
+export async function authorize_seller_join(
   connection: api.IConnection,
   props: {
-    body?: DeepPartial<IErpHrmMember.IJoin>;
+    body?: DeepPartial<IShoppingSeller.IJoin>;
   },
-): Promise<IErpHrmMember.IAuthorized> {
+): Promise<IShoppingSeller.IAuthorized> {
   const joinInput = {
     email: props.body?.email ?? typia.random<string & tags.Format<"email">>(),
     password: props.body?.password ?? RandomGenerator.alphaNumeric(16),
     ip: props.body?.ip ?? typia.random<string & tags.Format<"ipv4">>(),
-  } satisfies IErpHrmMember.IJoin;
-  return await api.functional.erpHrm.auth.member.join(connection, {
+  } satisfies IShoppingSeller.IJoin;
+  return await api.functional.shopping.auth.seller.join(connection, {
     body: joinInput,
   });
 }
@@ -120,16 +130,16 @@ Every field defaults through `??`, so a caller passing `{}` gets a valid actor a
 **`prepare_random_*`** builds a creation body. It takes an optional partial, calls nothing, and is synchronous.
 
 ```ts
-export function prepare_random_department(
-  input?: DeepPartial<IErpHrmDepartment.ICreate> | undefined,
-): IErpHrmDepartment.ICreate {
+export function prepare_random_sale_unit(
+  input?: DeepPartial<IShoppingSaleUnit.ICreate> | undefined,
+): IShoppingSaleUnit.ICreate {
   return {
     name: input?.name ?? RandomGenerator.name(),
+    primary: input?.primary ?? true,
     description:
       input?.description !== undefined
         ? input.description
         : RandomGenerator.paragraph({ sentences: 3 }),
-    parentId: input?.parentId !== undefined ? input.parentId : null,
   };
 }
 ```
@@ -139,19 +149,23 @@ A nullable field checks `!== undefined` rather than using `??`, because `??` wou
 **`generate_random_*`** performs one call and returns what it made. It takes the connection first and a props object carrying the body and the path parameters.
 
 ```ts
-export async function generate_random_member_organizations_departments_create(
+export async function generate_random_shopping_seller_section_sale_saleUnit_create(
   connection: api.IConnection,
   props: {
-    body?: DeepPartial<IErpHrmDepartment.ICreate> | undefined;
-    params: { organizationId: string };
+    body?: DeepPartial<IShoppingSaleUnit.ICreate> | undefined;
+    params: { sectionId: string; saleId: string };
   },
-): Promise<IErpHrmDepartment> {
-  const prepared: IErpHrmDepartment.ICreate = prepare_random_department(
+): Promise<IShoppingSaleUnit> {
+  const prepared: IShoppingSaleUnit.ICreate = prepare_random_sale_unit(
     props.body,
   );
-  return await api.functional.erpHrm.member.organizations.departments.create(
+  return await api.functional.shopping.seller.section.sale.saleUnit.create(
     connection,
-    { body: prepared, organizationId: props.params.organizationId },
+    {
+      body: prepared,
+      sectionId: props.params.sectionId,
+      saleId: props.params.saleId,
+    },
   );
 }
 ```
@@ -166,17 +180,20 @@ Every test carries a JSDoc block, and it is not a summary. It is the scenario, w
 
 ```ts
 /**
- * Validate that a department can be nested under another department.
+ * Validate that a unit created under a sale belongs to that sale.
  *
- * A department belongs to an organization, and a sub-department references
- * its parent by id. This test builds the organization and the parent, then
- * creates a child and confirms the parent link survives the response.
+ * A sale lives in a section an administrator opens, and a seller registers
+ * the sale and its units. This test builds the section as an administrator
+ * and the sale as a seller, adds a unit, then reads the sale back and
+ * confirms the unit is reachable through it rather than only echoed by the
+ * creation response.
  *
- * 1. Register a member, who becomes the owner of what they create.
- * 2. Create an organization under that member.
- * 3. Create a top-level department with a null parent.
- * 4. Create a second department whose parent is the first.
- * 5. Assert the child's parent id equals the first department's id.
+ * 1. Register an administrator, who may open a section.
+ * 2. Open the section the sale will belong to.
+ * 3. Register a seller, who owns what they register.
+ * 4. Register a sale in that section, as the seller.
+ * 5. Add a unit to the sale.
+ * 6. Read the sale and assert it lists the unit.
  */
 ```
 
@@ -192,12 +209,12 @@ That makes a whole class of assertion wrong even though it passes the first time
 
 ```ts
 // Wrong: passes on an empty database and never again.
-TestValidator.equals("no departments yet", page.data.length, 0);
+TestValidator.equals("no sales yet", page.data.length, 0);
 TestValidator.equals("exactly three", page.pagination.records, 3);
 
 // Right: scoped to what this test created.
-const found = page.data.filter((d) => d.organization_id === organization.id);
-TestValidator.equals("this organization has three", found.length, 3);
+const mine = page.data.filter((s) => s.id === sale.id);
+TestValidator.equals("this seller's sale is listed once", mine.length, 1);
 ```
 
 Prove against what the scenario controls: the ids it created, a filter it owns, a state transition it caused, a stable business predicate. Never against a global count, a global emptiness, or a position in an unscoped list.
@@ -248,7 +265,7 @@ Derive each actor's setup from the contract rather than by copying another actor
 
 `test_api_<feature>_<action>_<context>`, globally unique across the suite, because each name owns one file and one exported function.
 
-Differentiate variants by input condition or expected outcome: `test_api_user_registration_when_username_taken`. A negative authority case names the grade it was refused for: `test_api_department_creation_forbidden_for_viewer`.
+Differentiate variants by input condition or expected outcome: `test_api_user_registration_when_username_taken`. A negative authority case names the grade it was refused for: `test_api_sale_registration_forbidden_for_unapproved_seller`.
 
 Renaming duplicate behavior does not make it distinct. If two names would prove the same thing, there is one test.
 
@@ -303,8 +320,8 @@ That validates the whole response: every property, type, format, and constraint.
 Then assert the business fact, with the title first so a failure names the assertion:
 
 ```ts
-TestValidator.equals("logistics parent id", logistics.parent!.id, operations.id);
-TestValidator.predicate("parent is not null", logistics.parent !== null);
+TestValidator.equals("unit belongs to the sale", unit.saleId, sale.id);
+TestValidator.predicate("the sale lists the unit", detail.units.some((u) => u.id === unit.id));
 ```
 
 **Every test needs at least one business assertion.** A test that calls an operation and validates the response type proves the framework works.
@@ -314,10 +331,10 @@ TestValidator.predicate("parent is not null", logistics.parent !== null);
 Assert that the call was refused. Do not assert which status refused it.
 
 ```ts
-await TestValidator.error("a non-owner cannot edit the department", async () => {
-  await api.functional.erpHrm.member.organizations.departments.update(
-    otherMemberConnection,
-    { organizationId: organization.id, id: logistics.id, body },
+await TestValidator.error("another seller cannot edit this sale", async () => {
+  await api.functional.shopping.seller.section.sale.update(
+    otherSellerConnection,
+    { sectionId: section.id, id: sale.id, body },
   );
 });
 ```
