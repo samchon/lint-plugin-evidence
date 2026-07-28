@@ -12,7 +12,16 @@
     "sha256": "d17cdacf7dae1eee994538c416aa4d9e8d99f0ee20c16b1b00f14e5145a0a143",
     "count": 211
   },
-  "adapter": null,
+  "adapter": {
+    "module": "quality/adapters/public-endpoint-v1/index.ts",
+    "sha256": "08c26c9b70f244295fc859104cea6643a06b84a4d6023c02207a8d12a1bc26f0",
+    "closure": {
+      "root": "quality/adapters/public-endpoint-v1",
+      "files": 1,
+      "treeSha256": "27d8f8d42d57439d9d06e66265cd2b24b60d75280f13ce2ef52f6e5f4ee57ca4"
+    },
+    "exportName": "adapter"
+  },
   "cases": [
     {
       "id": "TODO-HIDDEN-HTTP-AUTH-01",
@@ -57,9 +66,7 @@
     {
       "id": "TODO-HIDDEN-BROWSER-ACTIVE-01",
       "criterionIds": [
-        "REQ-NFR-ACCESS-1.AC-01",
-        "REQ-NFR-ACCESS-2.AC-01",
-        "REQ-NFR-ACCESS-3.AC-02"
+        "REQ-FUNC-TODO-2.AC-01"
       ],
       "kind": "browser",
       "routeState": "authenticated-active-list",

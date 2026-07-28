@@ -8,7 +8,10 @@ import { EvidenceBenchmarkArtifactInventory } from "../quality/EvidenceBenchmark
 import { EvidenceBenchmarkCoverage } from "../quality/EvidenceBenchmarkCoverage.ts";
 import { EvidenceBenchmarkHiddenAcceptance } from "../quality/EvidenceBenchmarkHiddenAcceptance.ts";
 import { EvidenceBenchmarkMutation } from "../quality/EvidenceBenchmarkMutation.ts";
+import { EvidenceBenchmarkPublicEndpointSelfTest } from "../quality/EvidenceBenchmarkPublicEndpointSelfTest.ts";
 import { EvidenceBenchmarkQualityInput } from "../quality/EvidenceBenchmarkQualityInput.ts";
+import { EvidenceBenchmarkQualityInputs } from "../quality/EvidenceBenchmarkQualityInputs.ts";
+import { EvidenceBenchmarkRuntimeLease } from "../quality/EvidenceBenchmarkRuntimeLease.ts";
 
 /** Exercises deterministic quality producers without a model or generated app. */
 export namespace EvidenceBenchmarkQualitySelfTest {
@@ -26,14 +29,241 @@ export namespace EvidenceBenchmarkQualitySelfTest {
         workspace,
         path.join(benchmarkRoot, "requirements/todo"),
       );
+      testQualityInputs(provenance);
       testInventory(workspace, provenance);
       testCoverage(workspace, provenance);
       await testMutation(workspace, provenance);
       await testHiddenAdapter(workspace);
+      await testRuntimeLease();
+      await EvidenceBenchmarkPublicEndpointSelfTest.run({
+        benchmarkRoot,
+        workspace,
+      });
       console.log("Benchmark deterministic quality self-test passed.");
     } finally {
       fs.rmSync(temporary, { recursive: true, force: true });
     }
+  }
+
+  async function testRuntimeLease(): Promise<void> {
+    const workspace: string = path.join(temporary, "runtime-workspace");
+    const runtimeRoot: string = path.join(temporary, "runtime-artifacts");
+    fs.mkdirSync(path.join(workspace, "packages/backend/prisma"), {
+      recursive: true,
+    });
+    write(
+      path.join(workspace, "package.json"),
+      `${JSON.stringify(
+        {
+          private: true,
+          packageManager: "pnpm@10.10.0",
+          scripts: {
+            start: "node api.mjs",
+            "dev:frontend": "node frontend.mjs",
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    const serverSource = (
+      portExpression: string,
+      contentType: string,
+      ignoreSigterm: boolean = false,
+    ): string =>
+      [
+        'import http from "node:http";',
+        'if (process.env.OPENAI_API_KEY) throw new Error("credential leaked");',
+        `const port = Number(${portExpression});`,
+        "const server = http.createServer((_request, response) => {",
+        `  response.writeHead(200, {"content-type": ${JSON.stringify(contentType)}});`,
+        `  response.end(${JSON.stringify(contentType === "text/html" ? "<!doctype html><title>ready</title>" : '{"ready":true}\\n')});`,
+        "});",
+        'server.listen(port, "127.0.0.1");',
+        'process.once("SIGINT", () => server.close(() => process.exit(0)));',
+        ignoreSigterm
+          ? 'process.once("SIGTERM", () => undefined);'
+          : 'process.once("SIGTERM", () => server.close(() => process.exit(0)));',
+        "",
+      ].join("\n");
+    write(
+      path.join(workspace, "api.mjs"),
+      serverSource("process.env.API_PORT", "application/json"),
+    );
+    write(
+      path.join(workspace, "frontend.mjs"),
+      serverSource(
+        'process.argv[process.argv.indexOf("--port") + 1]',
+        "text/html",
+        true,
+      ),
+    );
+    fs.writeFileSync(
+      path.join(workspace, "packages/backend/prisma/db.sqlite"),
+      Buffer.from("fresh-runtime-database\n", "utf8"),
+    );
+    const leases = [];
+    for (const milestone of ["t_done", "t_dry"] as const) {
+      const lease = await EvidenceBenchmarkRuntimeLease.acquire({
+        workspace,
+        runtimeRoot,
+        runId: "runtime-lease-self-test",
+        milestone,
+        runManifestSha256: "a".repeat(64),
+        workspaceSourceTreeSha256: "b".repeat(64),
+        environment: { OPENAI_API_KEY: "must-not-reach-child" },
+        readinessTimeoutMs: 30_000,
+        terminationGraceMs: 100,
+      });
+      leases.push(lease);
+      await lease.assertFresh();
+      assert.notEqual(lease.apiOrigin, lease.browserOrigin);
+      assert.equal((await fetch(lease.apiOrigin)).status, 200);
+      assert.equal((await fetch(lease.browserOrigin)).status, 200);
+      assert.equal(
+        EvidenceBenchmarkHash.bytes(lease.processProvenanceBytes),
+        lease.processProvenanceSha256,
+      );
+      assert.doesNotMatch(
+        Buffer.from(lease.processProvenanceBytes).toString("utf8"),
+        /OPENAI_API_KEY|must-not-reach-child/u,
+      );
+      const cleanup = await lease.cleanup();
+      assert.equal(
+        EvidenceBenchmarkHash.bytes(cleanup.cleanupSealBytes),
+        cleanup.cleanupSealSha256,
+      );
+      assert.deepEqual(await lease.cleanup(), cleanup);
+      await assert.rejects(lease.assertFresh, /already cleaned/u);
+    }
+    const done = leases[0];
+    const dry = leases[1];
+    if (done === undefined || dry === undefined)
+      throw new Error("Runtime self-test did not retain both milestones.");
+    assert.notEqual(done.instanceId, dry.instanceId);
+    assert.notEqual(done.databaseCloneSha256, dry.databaseCloneSha256);
+    assert.notEqual(done.processProvenanceSha256, dry.processProvenanceSha256);
+    const clonedDatabases: string[] = [];
+    for (const instance of fs.readdirSync(runtimeRoot))
+      if (
+        fs.existsSync(path.join(runtimeRoot, instance, "database", "db.sqlite"))
+      )
+        clonedDatabases.push(instance);
+    assert.deepEqual(clonedDatabases, []);
+
+    const concurrent = await Promise.all(
+      Array.from({ length: 4 }, async (_, index) => {
+        const cellWorkspace = path.join(
+          temporary,
+          `runtime-workspace-cell-${index}`,
+        );
+        fs.cpSync(workspace, cellWorkspace, { recursive: true });
+        return EvidenceBenchmarkRuntimeLease.acquire({
+          workspace: cellWorkspace,
+          runtimeRoot,
+          runId: `runtime-four-cell-${index}`,
+          milestone: "t_done",
+          runManifestSha256: "c".repeat(64),
+          workspaceSourceTreeSha256: "d".repeat(64),
+          environment: { OPENAI_API_KEY: "must-not-reach-child" },
+          readinessTimeoutMs: 30_000,
+          terminationGraceMs: 100,
+        });
+      }),
+    );
+    assert.equal(
+      new Set(
+        concurrent.flatMap((lease) => [lease.apiOrigin, lease.browserOrigin]),
+      ).size,
+      8,
+    );
+    await Promise.all(
+      concurrent.map(async (lease) => {
+        await lease.assertFresh();
+        await lease.cleanup();
+      }),
+    );
+  }
+
+  function testQualityInputs(
+    input: EvidenceBenchmarkQualityInput.IBound,
+  ): void {
+    const producer = EvidenceBenchmarkQualityInputs.producer({
+      producer: "fixture-producer",
+      version: "1.0.0",
+      configBytes: Buffer.from('{"config":true}\n', "utf8"),
+      resultBytes: Buffer.from('{"result":true}\n', "utf8"),
+    });
+    const qualityInputs = {
+      schemaVersion: 2 as const,
+      runId: "todo-plain-quality-self-test",
+      runManifestSha256: input.provenance.runManifestSha256,
+      milestone: "t_done" as const,
+      snapshotRawTree: input.provenance.snapshotRawTree,
+      hiddenAcceptance: producer,
+      coverage: producer,
+      sampledMutation: producer,
+      visualCapture: {
+        producer: "fixture-browser",
+        version: "1.0.0",
+        configSha256: "a".repeat(64),
+        routeInventorySha256: "b".repeat(64),
+        stateSeedSha256: "c".repeat(64),
+        sampleSeed: "fixture-seed",
+        viewports: [390, 834, 1440] as [390, 834, 1440],
+        browser: "chromium-fixture",
+        artifactsSha256: "d".repeat(64),
+      },
+    };
+    const serialized = EvidenceBenchmarkQualityInputs.serialize(qualityInputs);
+    assert.deepEqual(
+      EvidenceBenchmarkQualityInputs.parse(serialized),
+      qualityInputs,
+    );
+    assert.equal(
+      producer.resultSha256,
+      EvidenceBenchmarkHash.bytes('{"result":true}\n'),
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkQualityInputs.validate({
+          ...qualityInputs,
+          generationCoreSealSha256: "e".repeat(64),
+        }),
+      /fields are not the exact expected set/u,
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkQualityInputs.validate({
+          ...qualityInputs,
+          visualCapture: {
+            ...qualityInputs.visualCapture,
+            viewports: [390, 768, 1440],
+          },
+        }),
+      /viewports must bind widths 390, 834, and 1440/u,
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkQualityInputs.parse(
+          Buffer.from(JSON.stringify(qualityInputs), "utf8"),
+        ),
+      /canonical byte form/u,
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkQualityInputs.parse(
+          Buffer.from('{"schemaVersion":2,"schemaVersion":2}\n', "utf8"),
+        ),
+      /strict JSON/u,
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkQualityInputs.parse(
+          Buffer.from([0x7b, 0x22, 0x78, 0x22, 0x3a, 0xff, 0x7d]),
+        ),
+      /valid UTF-8/u,
+    );
   }
 
   function verifyFrozenTodoAndReddit(): void {
@@ -50,7 +280,34 @@ export namespace EvidenceBenchmarkQualitySelfTest {
         manifest,
         path.join(benchmarkRoot, "requirements", subject),
       );
+      assert.equal(
+        EvidenceBenchmarkHiddenAcceptance.launchManifest(
+          benchmarkRoot,
+          subject,
+          "wave1",
+        ).manifest.subject,
+        subject,
+      );
     }
+    for (const subject of ["shopping", "erp"] as const)
+      assert.throws(
+        () =>
+          EvidenceBenchmarkHiddenAcceptance.launchManifest(
+            benchmarkRoot,
+            subject,
+            "wave2",
+          ),
+        /hidden suite is not frozen/u,
+      );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkHiddenAcceptance.launchManifest(
+          benchmarkRoot,
+          "shopping",
+          "wave1",
+        ),
+      /does not belong to selected benchmark wave1/u,
+    );
   }
 
   function createWorkspace(): string {
@@ -560,7 +817,7 @@ export namespace EvidenceBenchmarkQualitySelfTest {
         }),
       /output root must be new/u,
     );
-    const frozenTodo = await EvidenceBenchmarkHiddenAcceptance.run({
+    const missingPublicContract = await EvidenceBenchmarkHiddenAcceptance.run({
       benchmarkRoot,
       manifestPath: path.join(
         benchmarkRoot,
@@ -568,14 +825,18 @@ export namespace EvidenceBenchmarkQualitySelfTest {
       ),
       requirements: path.join(benchmarkRoot, "requirements/todo"),
       workspace,
-      output: path.join(temporary, "hidden-blocked"),
+      output: path.join(temporary, "hidden-missing-public-contract"),
       qualityInput: qualityInput(
         workspace,
         path.join(benchmarkRoot, "requirements/todo"),
       ),
     });
-    assert.equal(frozenTodo.status, "blocked");
-    assert.equal(frozenTodo.result, null);
+    assert.equal(missingPublicContract.status, "failed");
+    assert.match(
+      missingPublicContract.reason ?? "",
+      /must expose one OpenAPI JSON document/u,
+    );
+    assert.equal(missingPublicContract.result, null);
     const incompleteManifest: Record<string, unknown> = JSON.parse(
       fs.readFileSync(manifestPath, "utf8"),
     ) as Record<string, unknown>;
@@ -636,7 +897,7 @@ import crypto from "node:crypto";
 const digest = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
 const viewports = {
   mobile: { width: 390, height: 844 },
-  tablet: { width: 768, height: 1024 },
+  tablet: { width: 834, height: 1112 },
   desktop: { width: 1440, height: 900 },
 };
 const write = (location, bytes) => {
@@ -664,6 +925,7 @@ export const adapter = {
         suiteId: input.manifest.suiteId,
         subject: input.manifest.subject,
         workspaceSourceTreeSha256: input.workspaceSourceTreeSha256,
+        runtime: null,
         hidden,
         browser,
       };
@@ -693,6 +955,25 @@ export const adapter = {
           violations: [],
         }) + "\\n");
         write(path.join(input.output, axeRelative), axe);
+        const probes = [];
+        if (viewport === "mobile") {
+          for (const probe of [
+            { kind: "reflow_320", width: 320, suffix: "reflow-320" },
+            { kind: "text_zoom_200", width: 390, suffix: "text-zoom-200" },
+          ]) {
+            const relative = "browser/" + test.id + "-" + viewport + "." + probe.suffix + ".png";
+            const content = png(probe.width, 844);
+            write(path.join(input.output, relative), content);
+            probes.push({
+              kind: probe.kind,
+              path: relative,
+              sha256: digest(content),
+              width: probe.width,
+              height: 844,
+              passed: true,
+            });
+          }
+        }
         browser.push({
           caseId: test.id,
           viewport,
@@ -716,6 +997,7 @@ export const adapter = {
             rulesetSha256: "${"a".repeat(64)}",
             violations: 0,
           },
+          probes,
         });
       }
     }
@@ -725,6 +1007,7 @@ export const adapter = {
       suiteId: input.manifest.suiteId,
       subject: input.manifest.subject,
       workspaceSourceTreeSha256: input.workspaceSourceTreeSha256,
+      runtime: null,
       hidden,
       browser,
     };
@@ -745,7 +1028,9 @@ export const adapter = {
     requirements: string,
   ): EvidenceBenchmarkQualityInput.IBound {
     return EvidenceBenchmarkQualityInput.create({
+      runId: "todo-plain-quality-self-test",
       runManifestBytes: Buffer.from('{"fixture":true}\n', "utf8"),
+      milestone: "t_done",
       sourceSnapshotFiles:
         EvidenceBenchmarkArtifactInventory.authoredFiles(workspace),
       subjectRequirementFiles: EvidenceBenchmarkHash.directory(requirements),

@@ -6,7 +6,7 @@ export namespace IEvidenceBenchmarkQualityGate {
   /** Stable status used by every harness-owned check. */
   export type Status = "passed" | "failed" | "blocked";
 
-  /** Fixed browser viewports, independent of the generated application. */
+  /** Fixed 390, 834, and 1440 CSS-pixel browser viewports. */
   export type Viewport = "mobile" | "tablet" | "desktop";
 
   /** Algorithm-qualified aggregate raw-byte tree identity. */
@@ -19,8 +19,12 @@ export namespace IEvidenceBenchmarkQualityGate {
 
   /** Pre-seal immutable inputs shared by every deterministic producer. */
   export interface IInputProvenance {
+    /** Outer benchmark run identity. */
+    runId: string;
     /** Exact immutable outer run-manifest bytes. */
     runManifestSha256: string;
+    /** Snapshot milestone measured by this producer. */
+    milestone: "t_done" | "t_dry";
     /** Generated project snapshot measured by this producer. */
     snapshotRawTree: IRawTreeDigest;
     /** Frozen subject requirements used by this run. */
@@ -251,6 +255,21 @@ export namespace IEvidenceBenchmarkQualityGate {
       rulesetSha256: string;
       violations: number;
     };
+    /** Narrow-reflow and text-zoom probes retained beside the main capture. */
+    probes: {
+      /** Stable probe identity. */
+      kind: "reflow_320" | "text_zoom_200";
+      /** Exact PNG artifact. */
+      path: string;
+      /** Exact PNG digest. */
+      sha256: string;
+      /** Captured CSS viewport width. */
+      width: number;
+      /** Captured CSS viewport height. */
+      height: number;
+      /** Whether the probe avoided nonessential horizontal overflow. */
+      passed: boolean;
+    }[];
   }
 
   /** One non-browser hidden case result. */
@@ -281,6 +300,17 @@ export namespace IEvidenceBenchmarkQualityGate {
     subject: Subject;
     /** Authored workspace identity observed by the harness. */
     workspaceSourceTreeSha256: string;
+    /** Runner-owned fresh runtime and cleanup provenance. */
+    runtime: {
+      /** Unique runtime lease identity. */
+      instanceId: string;
+      /** Exact fresh database-clone identity. */
+      databaseCloneSha256: string;
+      /** Exact API/frontend process and command provenance. */
+      processProvenanceSha256: string;
+      /** Exact cleanup completion seal. */
+      cleanupSealSha256: string;
+    } | null;
     /** Exact HTTP case results. */
     hidden: IHiddenObservation[];
     /** Exact browser case and viewport results. */
@@ -299,6 +329,37 @@ export namespace IEvidenceBenchmarkQualityGate {
     output: string;
     /** Authored workspace identity before adapter execution. */
     workspaceSourceTreeSha256: string;
+    /** Optional runner lease; mandatory for the production public adapter. */
+    runtime?: IRuntimeLease;
+  }
+
+  /** Runner-owned fresh API, frontend, and database runtime lease. */
+  export interface IRuntimeLease {
+    /** Unique per-milestone attempt identity. */
+    instanceId: string;
+    /** Outer run identity bound by the lease. */
+    runId: string;
+    /** Milestone bound by the lease. */
+    milestone: "t_done" | "t_dry";
+    /** Exact API origin started by the runner. */
+    apiOrigin: string;
+    /** Exact frontend origin started by the runner. */
+    browserOrigin: string;
+    /** Exact fresh database-clone identity. */
+    databaseCloneSha256: string;
+    /** Exact API/frontend command, source, PID, and environment provenance. */
+    processProvenanceSha256: string;
+    /** Exact canonical process-provenance artifact bytes. */
+    processProvenanceBytes: Uint8Array;
+    /** Fails unless the clone and processes are fresh and runner-owned. */
+    assertFresh(): Promise<void>;
+    /** Stops processes, removes the clone, and returns its cleanup seal. */
+    cleanup(): Promise<{
+      /** Exact canonical cleanup artifact bytes. */
+      cleanupSealBytes: Uint8Array;
+      /** Digest of cleanupSealBytes. */
+      cleanupSealSha256: string;
+    }>;
   }
 
   /** Runtime shape of the named export in a pinned adapter module. */
@@ -325,5 +386,61 @@ export namespace IEvidenceBenchmarkQualityGate {
     adapterSha256: string | null;
     /** Validated adapter result, absent on failure or blockage. */
     result: IAdapterResult | null;
+  }
+
+  /** Exact producer record embedded in protocol quality inputs. */
+  export interface IProducerReference {
+    /** Stable producer identity. */
+    producer: string;
+    /** Immutable producer version. */
+    version: string;
+    /** Exact producer configuration digest. */
+    configSha256: string;
+    /** Digest of the exact canonical producer-result bytes. */
+    resultSha256: string;
+  }
+
+  /** Exact browser capture record embedded in protocol quality inputs. */
+  export interface IVisualReference {
+    /** Stable visual producer identity. */
+    producer: string;
+    /** Immutable visual producer version. */
+    version: string;
+    /** Exact visual producer configuration digest. */
+    configSha256: string;
+    /** Exact public route inventory digest. */
+    routeInventorySha256: string;
+    /** Exact browser state-seed digest. */
+    stateSeedSha256: string;
+    /** Frozen visual sampling seed. */
+    sampleSeed: string;
+    /** Protocol numeric width binding for mobile, tablet, and desktop. */
+    viewports: [390, 834, 1440];
+    /** Exact browser engine and revision identity. */
+    browser: string;
+    /** Digest of the exact canonical visual artifact ledger bytes. */
+    artifactsSha256: string;
+  }
+
+  /** Protocol v2 pre-seal aggregate over deterministic quality producers. */
+  export interface IQualityInputs {
+    /** Quality-input aggregate contract version. */
+    schemaVersion: 2;
+    /** Outer benchmark run identity. */
+    runId: string;
+    /** Exact outer run-manifest digest. */
+    runManifestSha256: string;
+    /** Captured generation milestone. */
+    milestone: "t_done" | "t_dry";
+    /** Exact source snapshot measured at the milestone. */
+    snapshotRawTree: IRawTreeDigest;
+    /** Hidden acceptance producer result. */
+    hiddenAcceptance: IProducerReference;
+    /** Conventional coverage producer result. */
+    coverage: IProducerReference;
+    /** Sampled mutation producer result. */
+    sampledMutation: IProducerReference;
+    /** Browser visual and accessibility producer result. */
+    visualCapture: IVisualReference;
   }
 }

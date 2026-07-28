@@ -12,7 +12,16 @@
     "sha256": "ec2de911694c6f05954dda3f3ed888edc0ff0de072ebd850891def38264badb3",
     "count": 255
   },
-  "adapter": null,
+  "adapter": {
+    "module": "quality/adapters/public-endpoint-v1/index.ts",
+    "sha256": "08c26c9b70f244295fc859104cea6643a06b84a4d6023c02207a8d12a1bc26f0",
+    "closure": {
+      "root": "quality/adapters/public-endpoint-v1",
+      "files": 1,
+      "treeSha256": "27d8f8d42d57439d9d06e66265cd2b24b60d75280f13ce2ef52f6e5f4ee57ca4"
+    },
+    "exportName": "adapter"
+  },
   "cases": [
     {
       "id": "REDDIT-HIDDEN-HTTP-AUTH-01",
@@ -49,8 +58,6 @@
       "id": "REDDIT-HIDDEN-BROWSER-POPULAR-01",
       "criterionIds": [
         "AC-REDDIT-FUNC-FEED-002-01",
-        "AC-REDDIT-NFR-ACCESS-001-01",
-        "AC-REDDIT-ACCESS-001",
         "AC-REDDIT-ACCESS-005"
       ],
       "kind": "browser",

@@ -17,13 +17,17 @@ export namespace EvidenceBenchmarkQualityInput {
 
   /** Creates provenance only from the canonical versioned tree algorithm. */
   export function create(input: {
+    runId: string;
     runManifestBytes: Uint8Array;
+    milestone: "t_done" | "t_dry";
     sourceSnapshotFiles: ReadonlyMap<string, Uint8Array>;
     subjectRequirementFiles: ReadonlyMap<string, Uint8Array>;
   }): IBound {
     return {
       provenance: {
+        runId: input.runId,
         runManifestSha256: EvidenceBenchmarkHash.bytes(input.runManifestBytes),
+        milestone: input.milestone,
         snapshotRawTree: {
           algorithmId: EvidenceBenchmarkHash.TREE_ALGORITHM,
           sha256: EvidenceBenchmarkHash.tree(input.sourceSnapshotFiles),
@@ -69,10 +73,20 @@ export namespace EvidenceBenchmarkQualityInput {
   ): void {
     exactKeys(
       input as unknown as Record<string, unknown>,
-      ["runManifestSha256", "snapshotRawTree", "subjectRequirementsRawTree"],
+      [
+        "runId",
+        "runManifestSha256",
+        "milestone",
+        "snapshotRawTree",
+        "subjectRequirementsRawTree",
+      ],
       "quality input provenance",
     );
+    if (typeof input.runId !== "string" || input.runId.trim().length === 0)
+      throw new Error("Quality input runId must be a nonblank string.");
     digest(input.runManifestSha256, "quality input run manifest");
+    if (input.milestone !== "t_done" && input.milestone !== "t_dry")
+      throw new Error("Quality input milestone must be t_done or t_dry.");
     validateRawTree(input.snapshotRawTree, "quality input source snapshot");
     validateRawTree(
       input.subjectRequirementsRawTree,

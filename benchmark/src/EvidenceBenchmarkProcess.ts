@@ -111,15 +111,30 @@ export namespace EvidenceBenchmarkProcess {
     arguments_: readonly string[],
     options: IOptions,
   ): Promise<IResult> {
+    const invocation: IInvocation = pnpmInvocation(arguments_);
+    return run(invocation.command, invocation.arguments, options);
+  }
+
+  /** Direct exact-version pnpm invocation for runner-owned long-lived children. */
+  export interface IInvocation {
+    /** Executable passed directly to child_process.spawn. */
+    command: string;
+    /** Argument boundaries passed without a command shell. */
+    arguments: string[];
+  }
+
+  /** Resolves the same pinned pnpm command used by short setup processes. */
+  export function pnpmInvocation(arguments_: readonly string[]): IInvocation {
     const selector: string = `pnpm@${PNPM_VERSION}`;
-    if (process.platform !== "win32")
-      return run("corepack", [selector, ...arguments_], options);
-    const entrypoint: string = corepackEntrypoint();
-    return run(
-      process.execPath,
-      [entrypoint, selector, ...arguments_],
-      options,
-    );
+    return process.platform !== "win32"
+      ? {
+          command: "corepack",
+          arguments: [selector, ...arguments_],
+        }
+      : {
+          command: process.execPath,
+          arguments: [corepackEntrypoint(), selector, ...arguments_],
+        };
   }
 
   /**

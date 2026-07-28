@@ -14,9 +14,12 @@
     "test:package": "node --experimental-transform-types src/executable/self-test.ts --package"
   },
   "devDependencies": {
+    "@playwright/test": "1.61.1",
     "@types/node": "catalog:utils",
     "ajv": "8.17.1",
     "ajv-formats": "3.0.1",
+    "axe-core": "4.12.1",
+    "json-dup-key-validator": "1.0.3",
     "tar": "7.5.22",
     "typescript": "catalog:typescript",
     "typescript-api": "npm:typescript@5.9.3"

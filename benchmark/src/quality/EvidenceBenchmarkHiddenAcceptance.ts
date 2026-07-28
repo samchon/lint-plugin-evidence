@@ -6,6 +6,8 @@ import { EvidenceBenchmarkHash } from "../EvidenceBenchmarkHash.ts";
 import type { IEvidenceBenchmarkQualityGate } from "../structures/IEvidenceBenchmarkQualityGate.ts";
 import { EvidenceBenchmarkArtifactInventory } from "./EvidenceBenchmarkArtifactInventory.ts";
 import { EvidenceBenchmarkQualityInput } from "./EvidenceBenchmarkQualityInput.ts";
+import { EvidenceBenchmarkRuntimeLease } from "./EvidenceBenchmarkRuntimeLease.ts";
+import { EvidenceBenchmarkStrictJson } from "./EvidenceBenchmarkStrictJson.ts";
 
 /** Runs frozen hidden adapters and rejects incomplete provenance. */
 export namespace EvidenceBenchmarkHiddenAcceptance {
@@ -16,7 +18,7 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
     >
   > = {
     mobile: { width: 390, height: 844 },
-    tablet: { width: 768, height: 1024 },
+    tablet: { width: 834, height: 1112 },
     desktop: { width: 1440, height: 900 },
   };
 
@@ -24,7 +26,10 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
   export function manifest(
     location: string,
   ): IEvidenceBenchmarkQualityGate.IManifest {
-    const input: unknown = JSON.parse(fs.readFileSync(location, "utf8"));
+    const input: unknown = EvidenceBenchmarkStrictJson.file(
+      location,
+      "hidden manifest",
+    );
     const value: Record<string, unknown> = record(input, "hidden manifest");
     exactKeys(
       value,
@@ -113,6 +118,40 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
     return input as IEvidenceBenchmarkQualityGate.IManifest;
   }
 
+  /** Resolves only a production-pinned suite in the currently selected wave. */
+  export function launchManifest(
+    benchmarkRoot: string,
+    subject: IEvidenceBenchmarkQualityGate.Subject,
+    selectedWave: "wave1" | "wave2",
+  ): {
+    path: string;
+    manifest: IEvidenceBenchmarkQualityGate.IManifest;
+  } {
+    const expected: readonly IEvidenceBenchmarkQualityGate.Subject[] =
+      selectedWave === "wave1" ? ["todo", "reddit"] : ["shopping", "erp"];
+    if (!expected.includes(subject))
+      throw new Error(
+        `${subject} does not belong to selected benchmark ${selectedWave}.`,
+      );
+    const manifestPath: string = path.join(
+      benchmarkRoot,
+      "quality",
+      "hidden",
+      `${subject}.manifest.json`,
+    );
+    if (!fs.existsSync(manifestPath))
+      throw new Error(
+        `${subject} hidden suite is not frozen for ${selectedWave}.`,
+      );
+    const suite: IEvidenceBenchmarkQualityGate.IManifest =
+      manifest(manifestPath);
+    if (suite.subject !== subject)
+      throw new Error(`${subject} hidden suite names another subject.`);
+    if (suite.adapter === null)
+      throw new Error(`${subject} hidden suite has no production adapter.`);
+    return { path: manifestPath, manifest: suite };
+  }
+
   /** Verifies that a suite still binds the exact frozen requirement corpus. */
   export function verifyCorpus(
     manifest: IEvidenceBenchmarkQualityGate.IManifest,
@@ -138,11 +177,10 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
       throw new Error(
         `${manifest.subject} acceptance catalog digest has drifted.`,
       );
-    const rows: unknown[] = fs
-      .readFileSync(catalogPath, "utf8")
-      .split("\n")
-      .filter((line) => line.length !== 0)
-      .map((line) => JSON.parse(line) as unknown);
+    const rows: unknown[] = EvidenceBenchmarkStrictJson.lines(
+      fs.readFileSync(catalogPath),
+      `${manifest.subject} acceptance catalog`,
+    );
     if (rows.length !== manifest.acceptanceCatalog.count)
       throw new Error(
         `${manifest.subject} acceptance catalog count has drifted.`,
@@ -163,9 +201,62 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
   }
 
   /**
+   * Acquires and always cleans a runner-owned generated-app runtime.
+   *
+   * This is the production runner facade. A null adapter pin remains an
+   * intentional launch blocker, never a passing empty suite.
+   */
+  export async function runProduction(input: {
+    benchmarkRoot: string;
+    manifestPath: string;
+    requirements: string;
+    workspace: string;
+    output: string;
+    runtimeRoot: string;
+    qualityInput: EvidenceBenchmarkQualityInput.IBound;
+    environment?: NodeJS.ProcessEnv;
+    databaseSource?: string;
+    readinessTimeoutMs?: number;
+  }): Promise<IEvidenceBenchmarkQualityGate.IHiddenOutcome> {
+    const runtime: IEvidenceBenchmarkQualityGate.IRuntimeLease =
+      await EvidenceBenchmarkRuntimeLease.acquire({
+        workspace: input.workspace,
+        runtimeRoot: input.runtimeRoot,
+        runId: input.qualityInput.provenance.runId,
+        milestone: input.qualityInput.provenance.milestone,
+        runManifestSha256: input.qualityInput.provenance.runManifestSha256,
+        workspaceSourceTreeSha256:
+          input.qualityInput.provenance.snapshotRawTree.sha256,
+        ...(input.environment === undefined
+          ? {}
+          : { environment: input.environment }),
+        ...(input.databaseSource === undefined
+          ? {}
+          : { databaseSource: input.databaseSource }),
+        ...(input.readinessTimeoutMs === undefined
+          ? {}
+          : { readinessTimeoutMs: input.readinessTimeoutMs }),
+      });
+    try {
+      return await run({
+        benchmarkRoot: input.benchmarkRoot,
+        manifestPath: input.manifestPath,
+        requirements: input.requirements,
+        workspace: input.workspace,
+        output: input.output,
+        qualityInput: input.qualityInput,
+        runtime,
+      });
+    } finally {
+      await runtime.cleanup();
+    }
+  }
+
+  /**
    * Executes a pinned adapter.
    *
-   * A null pin is an intentional launch blocker, never a passing empty suite.
+   * Production callers use {@link runProduction}; direct leases exist for
+   * deterministic adapter tests and specialized runner recovery.
    */
   export async function run(input: {
     benchmarkRoot: string;
@@ -174,6 +265,7 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
     workspace: string;
     output: string;
     qualityInput: EvidenceBenchmarkQualityInput.IBound;
+    runtime?: IEvidenceBenchmarkQualityGate.IRuntimeLease;
   }): Promise<IEvidenceBenchmarkQualityGate.IHiddenOutcome> {
     EvidenceBenchmarkQualityInput.validate(input.qualityInput);
     const suite: IEvidenceBenchmarkQualityGate.IManifest = manifest(
@@ -246,6 +338,7 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
         workspace: path.resolve(input.workspace),
         output: path.resolve(input.output),
         workspaceSourceTreeSha256,
+        runtime: input.runtime,
       });
       validateResult(
         suite,
@@ -316,6 +409,7 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
         "suiteId",
         "subject",
         "workspaceSourceTreeSha256",
+        "runtime",
         "hidden",
         "browser",
       ],
@@ -332,6 +426,7 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
       !Array.isArray(result.browser)
     )
       throw new Error("Hidden adapter result does not bind its frozen inputs.");
+    validateRuntimeResult(result.runtime);
     const expectedHttp: Set<string> = new Set(
       suite.cases.filter((test) => test.kind === "http").map((test) => test.id),
     );
@@ -387,6 +482,7 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
           "completedMonotonicNs",
           "screenshot",
           "accessibility",
+          "probes",
         ],
         `hidden browser result ${observation.caseId}`,
       );
@@ -413,6 +509,8 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
             candidate.kind === "browser" && candidate.id === observation.caseId,
         );
       const key: string = `${observation.caseId}\0${observation.viewport}`;
+      if (!Array.isArray(observation.probes))
+        throw new Error(`Browser probes are not an array for ${key}.`);
       if (
         test === undefined ||
         !test.viewports.includes(observation.viewport) ||
@@ -467,7 +565,10 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
         true,
       );
       const accessibilityRecord: Record<string, unknown> = record(
-        JSON.parse(fs.readFileSync(accessibility, "utf8")),
+        EvidenceBenchmarkStrictJson.file(
+          accessibility,
+          `${key} accessibility artifact`,
+        ),
         `${key} accessibility artifact`,
       );
       exactKeys(
@@ -486,6 +587,35 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
           observation.accessibility.violations
       )
         throw new Error(`Accessibility artifact does not match result ${key}.`);
+      const expectedProbes: Set<string> =
+        observation.viewport === "mobile"
+          ? new Set(["reflow_320", "text_zoom_200"])
+          : new Set();
+      const observedProbes: Set<string> = new Set();
+      for (const probe of observation.probes) {
+        exactKeys(
+          probe as unknown as Record<string, unknown>,
+          ["kind", "path", "sha256", "width", "height", "passed"],
+          `${key} browser probe`,
+        );
+        if (
+          observedProbes.has(probe.kind) ||
+          !expectedProbes.has(probe.kind) ||
+          probe.width !== (probe.kind === "reflow_320" ? 320 : 390) ||
+          probe.height !== 844 ||
+          typeof probe.passed !== "boolean"
+        )
+          throw new Error(`Browser probe provenance drifted for ${key}.`);
+        observedProbes.add(probe.kind);
+        const probePath = validateArtifact(output, probe.path, probe.sha256);
+        const probeDimensions = pngDimensions(fs.readFileSync(probePath));
+        if (
+          probeDimensions.width !== probe.width ||
+          probeDimensions.height !== probe.height
+        )
+          throw new Error(`Browser probe dimensions drifted for ${key}.`);
+      }
+      exactSet(expectedProbes, observedProbes, `${key} browser probes`);
     }
     exactSet(expectedBrowser, observedBrowser, "hidden browser cases");
   }
@@ -664,7 +794,9 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
     right: IEvidenceBenchmarkQualityGate.IInputProvenance,
   ): boolean {
     return (
+      left.runId === right.runId &&
       left.runManifestSha256 === right.runManifestSha256 &&
+      left.milestone === right.milestone &&
       sameRawTree(left.snapshotRawTree, right.snapshotRawTree) &&
       sameRawTree(
         left.subjectRequirementsRawTree,
@@ -706,6 +838,26 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
   function validateStatus(input: string, label: string): void {
     if (input !== "passed" && input !== "failed")
       throw new Error(`${label} status must be passed or failed.`);
+  }
+
+  function validateRuntimeResult(
+    value: IEvidenceBenchmarkQualityGate.IAdapterResult["runtime"],
+  ): void {
+    if (value === null) return;
+    exactKeys(
+      value as unknown as Record<string, unknown>,
+      [
+        "instanceId",
+        "databaseCloneSha256",
+        "processProvenanceSha256",
+        "cleanupSealSha256",
+      ],
+      "hidden runtime result",
+    );
+    string(value.instanceId, "hidden runtime instance");
+    digest(value.databaseCloneSha256, "hidden runtime database clone");
+    digest(value.processProvenanceSha256, "hidden runtime process provenance");
+    digest(value.cleanupSealSha256, "hidden runtime cleanup seal");
   }
 
   function exactSet(
