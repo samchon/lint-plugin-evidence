@@ -36,4 +36,4 @@ Use exclusions only for an exact target this named claim deliberately does not e
 
 `packages/api/src/structures/**`, `src/diagnosers/**`, and `src/typings/**` are authored. Controllers own public operation declarations. `src/functional/**` and `swagger.json` are generated from controllers. After a controller, DTO, or public JSDoc change, regenerate and inspect the SDK/OpenAPI shape.
 
-The graph checks configured target acknowledgement, not that every contract detail is semantically correct. Review authorization, parameters, variants, pagination, response fields, errors, and reverse ownership manually.
+The graph checks configured target acknowledgement, not that every contract detail is semantically correct or that every authored contract unit has an owner. Enumerate every authored DTO root type, DTO property, and controller operation, including selected hosts with no tag, and map each back to exact requirements and schema units or a reviewed architectural reason. Review authorization, parameters, variants, pagination, response fields, and errors manually.

@@ -21,7 +21,7 @@ Do not duplicate every green graph edge by hand. Record the graph config digest,
 
 `denominator.md` records the sorted `<workspace-relative-path>#<canonical-anchor>` H2/H3 identity set, target counts for every named claim/reference, selected host counts, and mismatches between intended and materialized populations.
 
-`integrity.md` indexes each `@evidence` and `@evidenceExclude` by claim name, host identity, target scope, reason, last-reviewed digest, and verdict. Review the triple from source artifacts, never from this index alone. Broad H2/model/type scopes receive an explicit descendant audit.
+`integrity.md` indexes every selected host, including hosts with no acknowledgement, and each `@evidence` and `@evidenceExclude` by claim name, host identity, target scope, reason, last-reviewed digest, and verdict. It also records reverse-owner verdicts for every authored artifact population required by the layer checks. Review the host, source, and implementation from source artifacts, never from this index alone. Broad H2/model/type scopes receive an explicit descendant audit.
 
 An exclusion row includes the alternative owner, consequence, and veto condition. If it only says “not applicable,” it has not been reviewed.
 

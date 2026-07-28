@@ -23,6 +23,12 @@ The ledger indexes this work; it is never evidence that it passed. A reason must
 
 The host can be wrong, the named source can be wrong, or one misreading can have propagated through both. `docs/analysis/**` is immutable specification; schema, contract, implementation, tests, and screens are authored outputs and may themselves require repair.
 
+## Review Reverse Ownership
+
+The graph requires every configured target to receive an acknowledgement, but it does not require every selected host to carry one and does not reject an authored artifact merely because it has no owner. Enumerate selected hosts, models and columns, DTO types and properties, controller operations, provider branches and database accesses, meaningful test assertions, routes, screens, hooks, forms, and browser journeys. Map every unit back to an exact requirement, upstream contract, invariant, or reviewed architectural reason, including hosts with no evidence tag.
+
+An unowned artifact is invented behavior even when all forward targets are acknowledged. Record these reverse-owner verdicts at the current digest; do not infer them from graph green or from the number of selected hosts.
+
 ## Review Scope And Exclusions
 
 For a leaf target, inspect that exact unit. For an ancestor H2, Prisma model, TypeScript type, or namespace target, enumerate every selected descendant the tag discharges and verify that the one host or decision owns all of them. A broad tag that is true for only one descendant is an omission disguised as coverage.

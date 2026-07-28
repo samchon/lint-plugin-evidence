@@ -26,3 +26,5 @@ Do not cite a generated accessor by path text or place tags in generated source.
 ## Integrity
 
 The graph proves a target is acknowledged, not that an assertion depends on it. Read each citation against the test body, implementation, and source. Require success, authorization, validation, absence, forbidden transitions, boundaries, and cross-actor journeys as the requirement demands.
+
+Enumerate every exported feature-test function and every meaningful assertion, including selected functions with no tag, and map each back to the exact requirement, operation, DTO shape, or invariant it proves. A test without a reverse owner is invented behavior even when other tests collectively make the graph green.

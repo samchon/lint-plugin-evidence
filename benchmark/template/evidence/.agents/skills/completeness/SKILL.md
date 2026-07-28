@@ -7,7 +7,7 @@ description: Defines the evidence arm's Phase One structural coverage method, cl
 
 ## The Standard
 
-Every configured H2/H3 requirement section and every configured referenced artifact must receive a claim-specific acknowledgement. The graph makes missing structural acknowledgement a lint error. It does not prove that a citation is true, that an unconfigured edge is complete, or that the selected denominator is the whole product.
+Every configured H2/H3 requirement section and every configured referenced artifact must receive a claim-specific acknowledgement. Every selected host and every authored artifact population named by the layer checks must also map back to a requirement, upstream artifact, or recorded architectural reason. The graph makes the first obligation a lint error; it does not enforce the reverse-owner obligation, prove that a citation is true, establish an unconfigured edge, or prove that the selected denominator is the whole product.
 
 The evidence arm uses the graph for configured coverage and a manual ledger for integrity and residual edges. This is its Phase One mechanism.
 
@@ -35,7 +35,7 @@ References in an array are separate 100% obligations. A Markdown citation does n
 
 ## Tag Grammar And Host
 
-The exact grammar is `@evidence <target> <reason>` or `@evidenceExclude <target> <reason>`. The target is one token and the non-empty remainder is the reviewable reason.
+The exact grammar is `@evidence <target> <reason>` or `@evidenceExclude <target> <reason>`. The target is one whitespace-delimited token except that an inline `{@link ...}` target runs through its closing `}`; the non-empty remainder is the reviewable reason.
 
 | Target | Meaning |
 | --- | --- |
@@ -57,9 +57,9 @@ Within one named claim/reference obligation, each target scope is acknowledged e
 3. Keep the graph green while checking every reason against the host and target.
 4. Complete the residual manual checks in [logic.md](logic.md) and [frontend.md](frontend.md), plus the integrity review indexed by [ledger.md](ledger.md).
 5. Regenerate owned outputs, then run build, lint, tests, frontend journeys, zero-`@todo` search, and every layer-local gate.
-6. Compute the current-state digest and perform one final Phase One integrity pass over every tag, exclusion, residual edge, and reverse authored population.
+6. Compute the current-state digest and perform one final Phase One integrity pass over every tag, exclusion, residual edge, selected host, and reverse authored population.
 
-Phase One may report terminal completion only when the graph is green, no residual or integrity finding remains, all invalidated reviews were repeated at the current digest, and every required command passed with output read. That report is the first-done boundary.
+Phase One may report terminal completion only when the graph is green, every reverse-owner population is complete, no residual or integrity finding remains, all invalidated reviews were repeated at the current digest, and every required command passed with output read. That report is the first-done boundary.
 
 At the first terminal completion report, stop and wait for the benchmark runner's separate post-completion user turn. That external turn supplies the arm-neutral campaign; do not infer or pre-run it.
 
