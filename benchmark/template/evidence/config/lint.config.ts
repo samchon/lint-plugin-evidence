@@ -139,8 +139,9 @@ const graph: IEvidenceGraphConfig = {
  * The ordinary rules prove the code is well formed. The evidence rules are
  * the mechanism this arm exists for: the graph reports every unmet
  * obligation, `documented` requires the JSDoc block a citation is read from,
- * and `singular` keeps one public identity per file so citation addresses
- * stay stable.
+ * `singular` keeps one public identity per file so citation addresses stay
+ * stable, and `todo` reports every unrealized contract still carrying its
+ * stub tag.
  */
 export default {
   format: {
