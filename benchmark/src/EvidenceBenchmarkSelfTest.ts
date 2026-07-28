@@ -89,6 +89,13 @@ export namespace EvidenceBenchmarkSelfTest {
         ),
       /NFC POSIX relative path/,
     );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkHash.tree(
+          new Map([["C:/absolute.txt", Buffer.from("x", "utf8")]]),
+        ),
+      /NFC POSIX relative path/,
+    );
   }
 
   async function testComposition(

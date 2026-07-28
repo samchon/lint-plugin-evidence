@@ -136,6 +136,7 @@ export namespace EvidenceBenchmarkHash {
       relative.includes("\\") ||
       relative.includes("\0") ||
       relative.startsWith("/") ||
+      path.win32.isAbsolute(relative) ||
       relative.normalize("NFC") !== relative ||
       segments.some(
         (segment: string): boolean =>
