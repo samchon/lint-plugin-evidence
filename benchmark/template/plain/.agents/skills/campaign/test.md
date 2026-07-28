@@ -32,6 +32,12 @@ For every operation, name the tests that exercise it: the success path, each rej
 
 Then check what the test actually asserts. The contract states effects beyond the response, and those are the ones no one asserts: the membership that should now exist, the history row that should have been written, the state that should have transitioned. Read the effect back through a public operation and assert it.
 
+## Shapes To Tests
+
+The third denominator is the export list of `packages/api/src/structures`: every root DTO type, none missing.
+
+For each, name the test that builds its creation or request variant and the test that reads its response shape back. A shape no test ever built or read has never been exercised end to end, and the two ways that happens are both findings: an operation returning it that nothing tested, or a type nothing returns at all, which belongs to the API campaign as an invented artifact.
+
 ## What A Finding Here Is Not
 
 [The testing topic](../backend/testing.md) owns how a test is written: what it may assert, what it must never assert, and which shortcuts look like coverage. A round that turns up a test breaking one of those rules has found a defect in that test, not a gap in coverage, and the two go in different places in the ledger.
@@ -40,7 +46,7 @@ The distinction matters because they resolve differently. A coverage gap is clos
 
 ## Rounds
 
-A round is a complete pass over both denominators: every requirement in the inventory, and every operation in the contract.
+A round is a complete pass over all three denominators, each from its enumeration source rather than from memory: every requirement in the inventory by its identifier, every accessor in the `api.functional` export tree, and every root type in the `structures` export list.
 
 Any finding resets the count. Dry after **two consecutive complete rounds** with nothing new.
 
@@ -58,6 +64,6 @@ Never weaken an assertion to make a suite green. The suite exists to fail.
 
 ## Exit
 
-Dry when two consecutive complete rounds find nothing new, every requirement names a test that would fail without it, every operation has its success path and every stated rejection covered, and every test names the requirement it proves.
+Dry when two consecutive complete rounds find nothing new, every requirement names a test that would fail without it, every accessor has its success path and every stated rejection covered, every root shape is built and read by some test, and every test names the requirement it proves.
 
 A green suite proves the assertions you wrote hold. It says nothing about the requirement you never read.
