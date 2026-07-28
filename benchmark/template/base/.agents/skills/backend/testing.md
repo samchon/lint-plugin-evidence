@@ -346,6 +346,7 @@ Positive paths stay clean: valid bodies, a qualified caller, no manufactured fai
 - **Authorization explicitly.** A route that leaks another actor's data returns 200 and looks correct in every test written as the owner.
 - **The state after the effect.** An operation whose requirement says it also closes something is not proven by a 200.
 - **History.** Where the schema keeps snapshots, create, reference, mutate the source, then read the reference and assert it still shows what it showed before.
+- **Recovery, end to end.** Where a delete has a restore, delete and then restore, and assert the row came back with its content and its owner intact. A delete test alone passes against an implementation that empties the row on the way out, and the loss surfaces only when someone restores.
 
 ## Prove Through The Public Surface
 

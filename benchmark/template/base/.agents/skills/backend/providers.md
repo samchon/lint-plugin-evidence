@@ -220,6 +220,56 @@ Four rules are visible here.
 
 A field the requirements say is mutated in place, such as a state timestamp, is an ordinary update and does not create a snapshot. Decide from the requirement, not from convenience.
 
+## Deletion Is One Of Two Shapes, And They Are Not Alike
+
+The schema decides which. **A model carrying a deletion marker is soft-deleted; one without it is physically deleted.** A resource that also exposes a recovery operation is always the first, because nothing can restore a row that is gone.
+
+**A physical delete removes the target row and nothing else.**
+
+```ts
+await MyGlobal.prisma.shopping_sales.delete({ where: { id: props.id } });
+```
+
+The declared `onDelete: Cascade` removes the dependents. Deleting children by hand first is not extra safety: it is a second deletion order that the schema does not know about, and it drifts the moment a relation is added.
+
+**A soft delete sets the marker on the target row, and changes nothing else.**
+
+```ts
+await MyGlobal.prisma.shopping_sales.update({
+  where: { id: props.id },
+  data: { deleted_at: new Date() },
+});
+```
+
+Everything else about the row survives: the owner foreign key, the content, the payload. That is not laziness, and the reasons are load-bearing.
+
+- **Restore has to have something to restore.** Clearing or anonymizing the content on delete makes the recovery operation return an empty row, and no test written against delete alone will show it.
+- **Authorization still runs against the deleted row.** The owner check that decides who may restore it reads the owner foreign key, so nulling that column locks the owner out of their own recovery.
+- **"Is it deleted" reads the marker.** Never "the owner is null" or "the content is empty", because those are states an ordinary row can also reach.
+
+Do not cascade a soft delete to children either. If a child should disappear with its parent, that belongs in the read filter, where it is reversible, rather than in the write, where it is not.
+
+## Nullable On One Side Is Not Nullable On The Other
+
+A column and the DTO field that carries it disagree about nullability more often than they agree, and each direction has its own repair.
+
+**A non-null column behind a nullable field takes a default, never `null`.** The field is nullable because the caller may omit it, and the column is not because the row always has one. Supply the value the requirement states.
+
+```ts
+// column: expired_at DateTime, field: expiredAt?: string | null
+expired_at: props.body.expiredAt
+  ? new Date(props.body.expiredAt)
+  : refreshHorizon(),
+```
+
+**That column cannot be filtered for null either.** `{ equals: null }` against a non-null column is a type error, and the question being asked is almost always temporal or value-based instead.
+
+```ts
+where: { expired_at: { gt: new Date() } }, // not yet expired
+```
+
+**A nullable value feeding a non-null column needs a guard, not a coercion.** When the session's scope or the caller's optional reference may be absent, decide what its absence means and refuse there, rather than passing an empty string or the current time and writing a row that means something nobody asked for.
+
 ## Stance Decides What A Write May Do
 
 The kind a table was given in the schema is not a label. It governs which operations a provider may perform on it.
@@ -303,7 +353,7 @@ The datasource is SQLite so that anyone can clone this repository and run it wit
 
 It also means the generated client offers less than a server datasource would, and the gaps surface either as a compile error or as a filter that silently matches nothing.
 
-- **There is no case-insensitive filter mode.** A search that must ignore case normalizes the value on the way in and compares against a stored normalized column, rather than asking the query to fold case.
+- **There is no case-insensitive filter mode.** `mode: "insensitive"` and `Prisma.QueryMode` are the two spellings to know, because both are the reflex from a server datasource and neither exists on this client. A search that must ignore case normalizes the value on the way in and compares against a stored normalized column, rather than asking the query to fold case.
 - **Prefer a comparison the datasource can index.** A prefix match is a range; a contains match is a scan, and on a listing that scan runs for every page.
 
 When a requirement genuinely cannot be satisfied on this datasource, report it. Adding an external dependency the benchmark cannot assume is not the repair.
