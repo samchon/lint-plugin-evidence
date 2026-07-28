@@ -117,7 +117,7 @@ The em dash is the most-violated item on this list and the single clearest signa
 
 Restructure instead. Two sentences with a period, a comma, parentheses, or a colon. For attribution, a hyphen with spaces or a line break.
 
-Phrasings like "use sparingly" have historically been ignored, which is why this one is not phrased that way.
+Grep the built copy for both characters before calling a screen finished. It is a one-command check and it is the only one that settles the question.
 
 ## Accessibility Is Not A Later Pass
 
