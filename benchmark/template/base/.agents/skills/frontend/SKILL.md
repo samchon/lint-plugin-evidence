@@ -27,15 +27,15 @@ Read this file first, then the topic document for what you are about to touch.
 
 ## The Build Order
 
-Each step consumes the previous one, which is why the order is not a preference.
+Each step consumes the previous one, which is why the order is not a preference. Every path below sits inside `packages/frontend/`; [architecture.md](architecture.md) owns the full folder layout.
 
 1. Read the SDK and the requirement journeys, and set the [design dials](design.md).
-2. Build the `ui` primitives, the shell, and the composed providers.
-3. Build `lib/<domain>`: the connection, the view-model types, the fixtures, and the hooks with their keys.
-4. Lay the route table with its guarded layouts.
-5. Build the screens journey by journey against simulation, every state from the start, adding each screen's gallery rows as it lands.
-6. Write the journey specs mirroring the requirement journeys, still against simulation.
-7. Close against the live backend: sessions, persistence, authorization, and the verification record.
+2. Build the primitives under `src/components/ui/`, the layout chrome in `src/components/app-frame.tsx`, and the composed providers in `src/components/providers/app-providers.tsx`.
+3. Build `src/lib/<domain>/`: the connection, the view-model types, the fixtures, and the hooks with their keys.
+4. Lay the route table in `src/App.tsx` with its guarded layouts.
+5. Build the screens in their domain folders under `src/components/<domain>/`, journey by journey against simulation, every state from the start, adding each screen's gallery rows as it lands.
+6. Write the journey specs under `tests/journeys/` mirroring the requirement journeys, still against simulation.
+7. Close against the live backend: sessions, persistence, authorization, and the verification record in `wiki/verification.md`.
 
 The backend's stubs make step 1 possible on day one: the SDK exists before any provider does, so the frontend never waits for realize. What simulation cannot prove, the closing pass owns, and [verification.md](verification.md) says what that requires.
 

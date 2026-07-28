@@ -1,6 +1,6 @@
 # Testing
 
-The end-to-end suite is the only artifact that proves the product behaves as the requirements say.
+The end-to-end suite under `packages/backend/test/` is the only artifact that proves the product behaves as the requirements say.
 
 ## Read Three Things Before Writing One Test
 

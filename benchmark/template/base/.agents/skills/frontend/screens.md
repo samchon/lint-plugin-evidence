@@ -1,6 +1,6 @@
 # Screens
 
-This document owns what a screen is and what it owes.
+This document owns what a screen is and what it owes. A screen is a route's page component in its domain folder, `src/components/<domain>/<name>-page.tsx`, beside the sub-components only it uses.
 
 ## A Screen Traces To A Requirement
 

@@ -165,11 +165,11 @@ The API skill owns the full consumption contract, including simulation mode.
 Given only the requirement documents and an empty repository, this is the sequence that gets to a running server.
 
 1. Read every document under `docs/analysis/`.
-2. Write the schema, then `build:prisma` and `prepare`.
-3. Write the DTOs, the controller stubs with their `@todo` tags, and their modules, then `build:sdk`.
-4. Write the tests from the requirements and the generated SDK.
-5. Write the transformers and the collectors, one per DTO that needs each.
-6. Realize: swap each stub body for its provider call and drop the `@todo`, then `build:main` and run the tests.
+2. Write the schema under `packages/backend/prisma/schema/`, then `build:prisma` and `prepare`.
+3. Write the DTOs under `packages/api/src/structures/`, the controller stubs with their `@todo` tags under `packages/backend/src/controllers/`, and their modules, then `build:sdk`.
+4. Write the tests under `packages/backend/test/features/` from the requirements and the generated SDK.
+5. Write the transformers under `packages/backend/src/transformers/` and the collectors under `packages/backend/src/collectors/`, one per DTO that needs each.
+6. Realize: swap each stub body for its call into a provider under `packages/backend/src/providers/` and drop the `@todo`, then `build:main` and run the tests.
 7. Start the server and confirm it answers.
 8. Build the frontend against simulation, then against this server.
 

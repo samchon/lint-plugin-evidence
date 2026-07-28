@@ -1,6 +1,6 @@
 # Providers
 
-This document owns the business logic and every database access.
+This document owns the business logic and every database access, under `packages/backend/src/providers/`.
 
 ## What A Provider Is
 

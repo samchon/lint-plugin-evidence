@@ -42,12 +42,12 @@ When something will not fit, go back to the layer that owns it and fix it there.
 
 Work the layers in order, and let each one read everything the earlier ones decided.
 
-1. Read the requirements.
-2. Design the schema, and generate the client from it.
-3. Declare the operations and their DTOs as stubs: the full contract JSDoc, a body of `return typia.random<T>();`, and an `@todo` tag naming what realize owes. Build the SDK from the stubs.
-4. Write the tests from the requirements and the stub SDK.
-5. Write the transformers and the collectors that each DTO needs.
-6. Realize: replace each stub body with its provider call, remove the `@todo`, and run the tests until they hold.
+1. Read every requirement document under `docs/analysis/`.
+2. Design the schema under `packages/backend/prisma/schema/`, split by domain, and generate the client from it.
+3. Declare the operations under `packages/backend/src/controllers/` and their DTOs under `packages/api/src/structures/` as stubs: the full contract JSDoc, a body of `return typia.random<T>();`, and an `@todo` tag naming what realize owes. Build the SDK from the stubs into `packages/api/src/functional/`.
+4. Write the tests under `packages/backend/test/features/` from the requirements and the stub SDK.
+5. Write the transformers under `packages/backend/src/transformers/` and the collectors under `packages/backend/src/collectors/`, one namespace per DTO that needs each.
+6. Realize: replace each stub body with its call into a provider under `packages/backend/src/providers/`, remove the `@todo`, and run the tests until they hold.
 
 **The stub is what makes this order executable.** The SDK generates from controllers, so without stubs nothing downstream can start until the providers exist; with them, the contract ships to the tests and the frontend on day one, and the `@todo` tags are the exact ledger of what realize still owes. A suite written at step 4 runs red against random stub answers, and that is the point: realize turns it green.
 
@@ -60,8 +60,8 @@ Reading an earlier layer is itself a review. Hold what you just read against wha
 When facts disagree, this is the order:
 
 1. The requirement documents under `docs/analysis/`.
-2. The Prisma schema.
-3. The DTOs and the generated SDK contract.
+2. The Prisma schema under `packages/backend/prisma/schema/`.
+3. The DTOs under `packages/api/src/structures/` and the SDK contract generated into `packages/api/src/functional/`.
 4. Existing patterns in this repository.
 5. Compiler, lint, and test output.
 

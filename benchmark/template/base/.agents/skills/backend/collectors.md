@@ -1,6 +1,6 @@
 # Collectors
 
-A collector owns one creation DTO's write side: it assembles the Prisma creation payload. Providers call it; they do not build payloads inline.
+A collector owns one creation DTO's write side: it assembles the Prisma creation payload, one namespace per creation DTO under `packages/backend/src/collectors/`. Providers call it; they do not build payloads inline.
 
 The read side and the write side are independent. A missing helper on one never forces manual code on the other.
 

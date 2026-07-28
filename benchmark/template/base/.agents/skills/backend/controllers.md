@@ -1,6 +1,6 @@
 # Controllers
 
-This document owns the endpoints: their shape, their request and response contracts, and the JSDoc that becomes the published documentation.
+This document owns the endpoints under `packages/backend/src/controllers/`: their shape, their request and response contracts, and the JSDoc that becomes the published documentation.
 
 The types they exchange are declared in `packages/api/src/structures` and owned by [dtos.md](dtos.md).
 

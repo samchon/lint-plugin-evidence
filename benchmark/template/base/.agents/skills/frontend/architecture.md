@@ -61,7 +61,10 @@ packages/frontend/
         fixtures.ts                view-model fixtures for the state gallery
         client.ts                  the shared connection and request helper
   tests/
-    *.spec.ts                      browser programs, one per purpose
+    journeys/
+      *.spec.ts                    one exported journey function per flow
+    ui-review.spec.ts              presentation review, not a journey
+    readme.spec.ts                 screenshot capture for the readme
   wiki/
     architecture.md                this project's stack, routes, choices
     omissions.md                   what was deliberately left out and why

@@ -1,13 +1,14 @@
 import type { ITtscLintConfig } from "@ttsc/lint";
 
 /**
- * The workspace lint configuration for the plain arm.
+ * Shared lint configuration every package extends.
  *
- * Nothing here checks whether the specification is realized. These rules prove
- * the code is well formed; establishing that every requirement has an artifact
- * is the campaign's job, performed by reading, not by the build.
+ * A package's own `lint.config.ts` is one line: `{ extends:
+ * "../../config/lint.config.ts" }` plus whatever it must ignore. Keeping the
+ * rule set here is what stops two packages from drifting into different
+ * definitions of correct.
  */
-export default {
+const config = {
   format: {
     // Formatting is applied by `ttsc format`, not reported as a lint failure,
     // so a formatting difference never competes with a real diagnostic.
@@ -154,3 +155,5 @@ export default {
     "unicorn/prefer-node-protocol": "error",
   },
 } satisfies ITtscLintConfig;
+
+export default config;

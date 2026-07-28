@@ -1,6 +1,6 @@
 # Components
 
-This document owns component discipline: when one exists, what it may know, and the mechanics that keep a tree honest.
+This document owns component discipline: when one exists, what it may know, and the mechanics that keep a tree honest. A component lives in its domain folder under `src/components/<domain>/`, a shared piece at the `src/components/` level, and a primitive under `src/components/ui/`.
 
 ## A Component Earns Extraction
 
