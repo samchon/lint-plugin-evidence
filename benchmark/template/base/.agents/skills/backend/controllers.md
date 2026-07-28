@@ -1,6 +1,8 @@
-# Operations
+# Controllers
 
-Read [SKILL.md](SKILL.md) first. This document owns the public API contract: the endpoints and the DTOs they exchange.
+Read [SKILL.md](SKILL.md) first. This document owns the endpoints: their shape, their request and response contracts, and the JSDoc that becomes the published documentation.
+
+The types they exchange are declared in `packages/api/src/structures` and owned by [dtos.md](dtos.md).
 
 ## Two Views Of One Behavior
 
@@ -34,44 +36,6 @@ When both a delete and a recovery exist for a resource, they share one deletion 
 Read cardinality from the requirement, not from the route. "All X", "every X", "the list of X", a tree with several roots, and bulk verbs mean multiple. "The X with id" and single-subject aggregates such as a dashboard mean single.
 
 A multi-item response always uses the page wrapper. A bare array is not a legal response type, and declaring a single-item response for an operation that returns many is a compile failure at the call site rather than a style problem. A bounded full collection still uses the page wrapper; a single-page result is valid.
-
-## DTO Naming And Variants
-
-Form the root from the table name: keep every word including the prefix, PascalCase it, singularize it, prefix `I`. `shopping_sale_reviews` becomes `IShoppingSaleReview`. Dropping the prefix or an intermediate word produces a name that no longer identifies its table.
-
-Variants attach with a dot. The page wrapper prefixes the base name with no dot.
-
-| Variant     | Contains                                                  |
-| ----------- | --------------------------------------------------------- |
-| `.ICreate`  | caller-supplied creation fields, no ids and no timestamps |
-| `.IUpdate`  | the mutable fields                                        |
-| `.ISummary` | the list-item projection                                  |
-| `.IRequest` | search, filter, pagination, and sort controls             |
-| `.IInvert`  | the view from the opposite relation                       |
-
-A mutable state field such as `completed`, `published`, or a small status enum stays in `.IUpdate` unless a dedicated transition operation already owns the change. Excluding it because such an operation might be added later leaves the state unreachable through the API.
-
-Every DTO and every property carries a description, and those descriptions are published. Write what the property means to the caller, where its value comes from, why it may be null, and any security implication. A label is not a description.
-
-## Types And Nullability
-
-Map a stored column to the type and format it actually has. A uuid column crosses as a string with `uuid` format, a datetime as a string with `date-time`. Mapping a format-carrying column to a bare string discards the meaning the schema chose.
-
-A stored calendar date reaches the caller as its UTC-midnight instant, and the description says so, so clients compare and render by the date part without a local-time shift.
-
-Nullability has direction. A nullable stored value stays observable in every response DTO. A request DTO may require a present value for the same column. A column that becomes nullable only when a later transition clears it, but is always set at creation, is required and non-null in `.ICreate` and nullable in the read and update variants.
-
-Constrain values with `typia` tags rather than hand-written validation. The generated validator enforces them at the boundary, so a manual check duplicates the rule and then drifts from it.
-
-## Every Property Has A Source
-
-Before exposing a property, find it: check the columns, check the relations, and verify that any stated derivation uses only what exists. A property whose specification says a column "needs to be added" is not ready to design; add the column first.
-
-The inverse mistake is describing a property as computed when the schema already stores it.
-
-Properties legitimately without a stored source are the pagination and search controls in a request DTO, aggregate counts in a read DTO, and the issued token in an authorization result.
-
-Credential columns are excluded from every response DTO. A plaintext password appears only in a credential-input DTO.
 
 ## The Request DTO
 
