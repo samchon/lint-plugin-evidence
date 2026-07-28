@@ -68,7 +68,7 @@ Another seller's owner view, or access by a banned or deleted seller, is refused
 
 An eligible seller may replace the shop name, description, or logo. Later customer views show the new live values, and a complete immutable seller-profile snapshot records time, changed fields, and before-and-after values across the profile.
 
-Purchase-time seller snapshots on existing order items remain unchanged. Another seller, or a suspended, banned, or deleted seller, cannot perform the edit.
+Purchase-time seller snapshots on existing order items remain unchanged. Another seller, or a banned or deleted seller, cannot perform the edit. A suspended seller retains profile-edit authority because suspension restricts catalog mutation rather than the public shop profile.
 
 ### REQ-SELLER-PROFILE-FUNCTIONS-3 View a public seller profile
 

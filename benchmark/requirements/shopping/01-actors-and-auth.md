@@ -106,7 +106,7 @@ Every session issued before recovery is revoked. Recovery changes no approval, s
 
 ### REQ-SELLER-IDENTITY-8 Delete a seller account
 
-An authenticated seller may permanently close the acting account after confirming the current password, but only when no seller-owned order item remains `paid` or `shipped`, no cancellation or refund request remains `pending`, and closure would not remove the final active super administrator.
+An authenticated seller may permanently close the acting account after confirming the current password, but only when no seller-owned order item remains `paid` or `shipped`, no cancellation or refund request remains `pending`, no delivered item remains within its seven-day refund-request window, and closure would not remove the final active super administrator.
 
 Successful closure terminates all seller sessions and removes the seller's live products from listings together with their variants and inventory histories. Past orders, snapshots, and the shop name captured on past order items remain available. The identity cannot later log in or be reactivated.
 

@@ -42,7 +42,7 @@ Each customer may have zero or one default. Selecting a default transfers the de
 
 Adding or editing an address requires nonempty recipient name, phone number, street address, city, state or province, postal code, and country. Whitespace-only input is missing, and one field cannot stand in for another.
 
-All eight values belong to the same saved address. State or province remains required even where local terminology differs; the platform does not impose an unstated universal phone or postal-code format.
+All seven values belong to the same saved address. State or province remains required even where local terminology differs; the platform does not impose an unstated universal phone or postal-code format.
 
 ### REQ-ADDRESS-POLICIES-2 Enforce address ownership
 
@@ -102,9 +102,9 @@ Seller deletion requires zero retained seller-attributed items in `paid` or `shi
 
 ### REQ-SELLER-ACCOUNT-POLICIES-5 Block seller deletion during unresolved requests
 
-Seller deletion also requires zero `pending` cancellation or refund requests for seller-attributed order items. A pending cancellation blocks while its item is paid, and a pending refund blocks while its item is delivered.
+Seller deletion also requires zero `pending` cancellation or refund requests for seller-attributed order items. A pending cancellation blocks while its item is paid, and a pending refund blocks while its item is delivered. A delivered item whose seven-day refund-request deadline has not passed also blocks closure, even when it has no current request, so account deletion cannot remove the only ordinary decision maker during a customer's open refund opportunity.
 
-Approved and rejected requests do not block through request state alone. Eligibility is rechecked at closure commit across retained order-item attribution, including items whose live product was deleted. Any matching pending request refuses deletion and leaves account and listings unchanged.
+Approved and rejected requests do not block through request state alone. A delivered item stops blocking after its deadline only when no pending refund request remains. Eligibility is rechecked at closure commit across retained order-item attribution, including items whose live product was deleted. Any matching unresolved request or open refund opportunity refuses deletion and leaves account and listings unchanged.
 
 ## REQ-CATEGORY-POLICIES Category hierarchy and curation policies
 
@@ -250,7 +250,9 @@ A successful purchase consumes its own matching hold and is not blocked by that 
 
 Successful order creation posts one negative `purchase` movement for each distinct purchased variant, equal to its order-item quantity. Three units consolidated into one item produce one movement of `-3`; different variants receive separate records.
 
-The matching hold is consumed. Order, paid items, purchase snapshots, cart removal, hold consumption, and movements commit together. Payment or order-commit failure writes no purchase movement and releases every hold for that attempt.
+The matching hold is consumed. Order, paid items, purchase snapshots, cart removal, hold consumption, and movements commit together. An explicit gateway failure writes no purchase movement and releases every hold for that attempt.
+
+An order-commit failure after confirmed gateway success writes no partial purchase effect but retains or reacquires the attempt's protected quantities while the paid result is reconciled. The platform does not release those quantities or permit a replacement attempt merely because its own commit failed.
 
 ### REQ-INVENTORY-POLICIES-5 Restore returned item quantity exactly once
 
@@ -466,6 +468,16 @@ A valid unreconciled success atomically:
 - removes only the purchased lines from the cart.
 
 Excluded or newly added cart lines remain. If current facts no longer match the held attempt, or any required effect cannot be persisted, none of these effects becomes visible; the paid result enters reconciliation before any retry.
+
+## REQ-PRICE-SCOPE-POLICIES Merchandise-only price scope
+
+The platform has no coupon, promotion, discount-stacking, tax, shipping-fee, service-fee, credit, gift-card, or partial-payment capability. This is an explicit product boundary rather than an omitted price rule: every payable and refundable amount comes only from purchase-time order-item prices and quantities.
+
+### REQ-PRICE-SCOPE-POLICIES-1 Exclude unsupported price adjustments
+
+Cart, review, charge, order, cancellation, refund, and force-resolution totals contain no price adjustment beyond each selected variant's effective unit price multiplied by its quantity. Multi-seller composition does not add a platform fee or delivery charge, and a zero price override remains a genuine zero-price line.
+
+An input that attempts to apply a coupon, promotion, manual discount, tax, fee, credit, gift card, split tender, or partial line refund is refused as unsupported and changes no cart, payment attempt, order, refund, or inventory state.
 
 ## REQ-ORDER-POLICIES Order composition, pricing, and status policies
 
