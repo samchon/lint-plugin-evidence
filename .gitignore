@@ -24,6 +24,12 @@ coverage/
 # AI assistant data
 .claude/
 
+# Benchmark run state and generated applications. Permanent measurements belong
+# in the results ledger; each local run preserves its own raw stream and
+# workspace below this ignored root.
+/benchmark/result/
+/benchmark/.work/
+
 # Local Go workspace overlays
 go.work
 go.work.sum
