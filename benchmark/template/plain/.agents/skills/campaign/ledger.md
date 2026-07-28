@@ -14,7 +14,7 @@ Name the files for what they hold rather than for the round that wrote them: the
 
 ## What It Holds
 
-**The requirement inventory.** One entry per heading in `docs/analysis/`, with the five extracted parts. This is the denominator every other campaign counts against, so it is the one artifact that must be complete before anything else can claim to be.
+**The requirement inventory.** One entry per heading in `docs/analysis/`, with the five extracted parts and a stable identifier: number the documents in reading order and the headings within each, so the third heading of the second document is `REQ-2.3`. Every campaign row, finding, and journey entry names requirements by that identifier, which is what lets two rows about one section be recognized as such. This inventory is the denominator every other campaign counts against, so it is the one artifact that must be complete before anything else can claim to be.
 
 **Per-campaign state.** For each edge: the round number, the date, what the round covered, what it found, and whether it was clean. A campaign's dryness claim is a claim about a specific state of the repository, so record what that state was.
 

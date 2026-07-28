@@ -43,6 +43,35 @@ Granularity is part of the configuration. A DTO **type** is a claim over require
 
 The configured graph is what the build checks. Keep it current: when the frontend takes a concrete shape or a new artifact kind appears, the obligation belongs in the configuration. **An edge that is not configured is not checked**, and nothing will tell you it is missing.
 
+## The Tag, Exactly
+
+Two tags, one grammar: `@evidence <target> <reason>` and `@evidenceExclude <target> <reason>`. The reason is required, and the target is one whitespace-delimited token, so everything after the first space is the reason.
+
+The tag lives in the block the host publishes: a JSDoc `/** */` on a TypeScript declaration the claim selects, a `///` comment on a Prisma model or member.
+
+| Target form | Cites |
+| --- | --- |
+| `docs/analysis/<file>.md` | the document and every selected heading below it |
+| `docs/analysis/<file>.md#<anchor>` | one heading section and its selected descendants |
+| `prisma:<model>` | the model, covering its selected columns |
+| `prisma:<model>.<column>` | one member of the model |
+| `{@link <symbol>}` | an exported TypeScript type, function, or property, resolved through the citing file's own imports |
+
+Targets are exact tokens. A Markdown anchor is the one the heading declares with a `{#anchor}` suffix or generates from its text; copy it out of the document rather than composing it from the title. A Prisma target always carries its `prisma:` prefix and never a file path. A `{@link}` target must resolve through an import in the citing file, which is what makes a rename break it loudly.
+
+When a reason spans lines, the continuation aligns under the column where the target starts:
+
+```ts
+/**
+ * @evidence docs/analysis/02-domain-model.md#sales The sale concept this
+ *           document describes, as a caller receives it.
+ */
+```
+
+`@evidenceExclude` records that this claim intentionally does not use the target. It follows the same hierarchy, must sit on a host the claim selects, and affects only that claim; overlapping an exclusion with a citation for the same unit is rejected, because the two state contradictory intent.
+
+**Every reason is written for the reviewer who will read it against the code.** A citation's reason states which part of the target this artifact answers for; an exclusion's reason states the decision a reviewer could veto. The [review skill](../review/SKILL.md) reads exactly these sentences as the claims under test, so a reason that only restates the tag hands the review nothing to check.
+
 ## Two Rules Run Beside The Graph
 
 The graph is the obligation checker. Two smaller rules run with it, and both fail the build the same way.

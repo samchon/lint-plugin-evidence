@@ -10,8 +10,8 @@ Every configured requirement section, every operation, and every DTO type must b
  *
  * @evidence docs/analysis/04-business-rules.md#coupon-stacking Attempts the
  *           forbidden combination and asserts the refusal.
- * @evidence api.functional.shopping.customer.order.create Exercises the
- *           operation where the combination is rejected.
+ * @evidence {@link api.functional.shopping.customer.order.create} Exercises
+ *           the operation where the combination is rejected.
  */
 export async function test_api_order_coupon_stacking_is_refused(
   connection: api.IConnection,
@@ -20,7 +20,7 @@ export async function test_api_order_coupon_stacking_is_refused(
 }
 ```
 
-**The operation citation is the accessor**, the exported function this test calls. It is an ordinary TypeScript symbol, so a renamed operation breaks the citation instead of leaving a path string that quietly resolves to nothing.
+**The operation citation is a `{@link}` to the accessor**, resolved through this file's own `api` import, so it is an ordinary TypeScript symbol: a renamed operation breaks the citation instead of leaving a path string that quietly resolves to nothing.
 
 Read [the evidence skill](../evidence/SKILL.md) before starting.
 

@@ -20,7 +20,7 @@ Read every document, not the ones that seem relevant to what you are building ri
 
 One round is a complete pass over every heading of every document.
 
-For each heading, extract five things and write them into the ledger:
+For each heading, assign its identifier and extract five things into the ledger ([ledger.md](ledger.md) owns the identifier scheme):
 
 1. **The actor or concept** the statement is about.
 2. **The circumstance** that makes it apply: an input, a state, a permission, a time.
