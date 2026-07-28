@@ -9,6 +9,14 @@ description: Defines the workspace layout, package boundaries, generated artifac
 
 A requirement set under `docs/analysis/` realized as a running application. The documents state what must be true; the packages make it true. A stub that satisfies a type without satisfying the requirement is not progress, and neither is an endpoint nobody can reach from the product.
 
+## Where You Are Starting From
+
+The workspace is scaffolded and empty. The build chain, the lint configuration, the test harness, the server bootstrap, and the frontend shell exist and work. There is no schema, no controller, no provider, no test, and no screen.
+
+Everything else in this repository is yours to write, from the documents alone. Nobody will hand you a data model or a route list.
+
+Start by reading `docs/analysis/` in full, then read the backend skill's wiring topic for the order that gets an empty repository to a running server. Do not begin writing a schema after skimming one document: the concern that decides a table's shape usually lives in a different document from the one that names the table.
+
 ## Layout
 
 ```

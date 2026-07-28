@@ -11,6 +11,7 @@ Read this file first, then the topic document for the layer you are about to tou
 
 ## Topics
 
+- [wiring.md](wiring.md): module registration, the global singleton, the bootstrap, the environment, the generators, and the order of a first run. **Read this first if the repository is empty**, and again whenever you add a controller, because a controller that is not registered produces a route that does not exist.
 - [database.md](database.md): schema organization, naming, the documentation-comment contract, stance, temporal and deletion rules, snapshots, ownership. Read before adding or changing a model.
 - [operations.md](operations.md): endpoint shape, DTO variants and naming, response cardinality, sort grammar, and the JSDoc that becomes the published contract. Read before adding or changing an endpoint or a DTO.
 - [providers.md](providers.md): provider structure, the select and transform pair, pagination, persistence, error behavior, and the Prisma traps. Read before writing business logic.
