@@ -107,10 +107,10 @@ The frontend imports it from the package like any other export. The backend re-e
 ## Consuming An Accessor
 
 ```ts
-import Api, { IShoppingSale, IPage } from "{{apiPackageName}}";
+import api, { IShoppingSale, IPage } from "{{apiPackageName}}";
 
 const page: IPage<IShoppingSale.ISummary> =
-  await Api.functional.shoppings.customers.sales.index(connection, {
+  await api.functional.shoppings.customers.sales.index(connection, {
     limit: 20,
   });
 ```

@@ -52,7 +52,7 @@ export const generate_random_sale = async (
   pool: ConnectionPool,
   input?: Partial<IShoppingSale.ICreate>,
 ): Promise<IShoppingSale> =>
-  ShoppingApi.functional.shoppings.sellers.sales.create(
+  api.functional.shoppings.sellers.sales.create(
     pool.seller,
     await prepare_random_sale(pool, input),
   );
@@ -73,31 +73,48 @@ export const validate_sale_at = async (props: {
   visibleToCustomer: boolean;
 }): Promise<void> => {
   await validate(
-    (id) => ShoppingApi.functional.shoppings.sellers.sales.at(props.pool.seller, id),
+    (id) => api.functional.shoppings.sellers.sales.at(props.pool.seller, id),
     props.sale,
   );
   await validate(
-    (id) => ShoppingApi.functional.shoppings.admins.sales.at(props.pool.admin, id),
+    (id) => api.functional.shoppings.admins.sales.at(props.pool.admin, id),
     props.sale,
   );
 
   if (props.visibleToCustomer)
     await validate(
-      (id) => ShoppingApi.functional.shoppings.customers.sales.at(props.pool.customer, id),
+      (id) => api.functional.shoppings.customers.sales.at(props.pool.customer, id),
       props.sale,
     );
   else
-    await TestValidator.httpError(
-      "customer cannot see the sale",
-      [404, 410, 422],
-      () => ShoppingApi.functional.shoppings.customers.sales.at(props.pool.customer, props.sale.id),
-    );
+    await TestValidator.error("customer cannot see the sale", async () => {
+      await api.functional.shoppings.customers.sales.at(
+        props.pool.customer,
+        props.sale.id,
+      );
+    });
 };
 ```
 
 Read what that proves. The same entity is fetched through the seller route, the admin route, and the customer route, and the customer branch flips on a flag the scenario supplies. A sale that should be invisible is asserted invisible, not merely left unfetched.
 
-The accepted-status array is deliberate. Several statuses are correct depending on which check the provider reaches first, so pinning one would fail on a correct refactor. Assert the class of rejection, not one code.
+## Assert The Rejection, Not The Status Code
+
+This is the rule most often gotten wrong, and getting it wrong produces a test that fails on a correct change.
+
+```ts
+// Right: the call is refused.
+await TestValidator.error("a non-owner cannot edit", async () => {
+  await api.functional.shoppings.sellers.sales.update(otherSeller, id, body);
+});
+
+// Wrong: which 4xx the server returns is not part of the contract.
+await TestValidator.httpError("a non-owner cannot edit", 403, async () => {});
+```
+
+Whether a refusal arrives as 401, 403, 404, or 409 depends on which check the provider reaches first. A provider that verifies existence before authority returns a not-found where you expected a forbidden, and both are correct. Pinning the code turns a legitimate reordering into a red suite, so the assertion pins the fact that matters: the call was refused.
+
+Assert the status only when the class of status is itself part of the requirement, and then as a set rather than a single value.
 
 ## Connections
 
@@ -138,8 +155,7 @@ This is the class of requirement that passes every structural check and is almos
 ## Idioms
 
 - `TestValidator.equals("title", actual, expected)` reports the differing property path. Title first, so a failure identifies the assertion.
-- `TestValidator.error` for a business rejection, awaiting both the assertion and the call inside it.
-- `TestValidator.httpError("title", [statuses], fn)` when the class of status is part of the claim.
+- `TestValidator.error` for a business rejection, awaiting both the assertion and the call inside it. This is the default; see the section above.
 - `RandomGenerator` for human-readable values; the type-driven random generator for format-constrained ones. A hardcoded value makes a test pass for the wrong reason.
 - Await every call. A missing await turns a failure into unhandled-rejection noise that reports as a pass.
 - Never suppress the compiler with an ignore comment, `any`, or a double cast. A missing required property usually means an omitted prerequisite whose response should have supplied the value.

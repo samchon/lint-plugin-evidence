@@ -73,11 +73,46 @@ Properties legitimately without a stored source are the pagination and search co
 
 Credential columns are excluded from every response DTO. A plaintext password appears only in a credential-input DTO.
 
+## The Request DTO
+
+A listing request carries pagination, search, and ordering, and each part has a fixed shape.
+
+```ts
+export namespace ISale {
+  export interface IRequest extends IPage.IRequest {
+    search?: IRequest.ISearch;
+    sort?: IPage.Sort<IRequest.SortableColumns>;
+  }
+  export namespace IRequest {
+    export interface ISearch {
+      title?: string;
+      section_codes?: string[];
+      show_paused?: boolean;
+    }
+    export type SortableColumns =
+      | "sale.created_at"
+      | "sale.updated_at"
+      | "sale.opened_at";
+  }
+}
+```
+
+`IPage.IRequest` supplies `page` and `limit`, so every listing paginates the same way and a caller learns it once. The search object groups the filters, which keeps a request body with a dozen optional filters readable and keeps `sort` from being mistaken for one.
+
+Every search field is optional, and absent means no filter rather than match nothing. A required filter on a listing is a different operation.
+
 ## Sort Grammar
 
 Ordering is one property named `sort`, typed as an array of `"+field"` and `"-field"` literals. `+` is ascending, `-` is descending, and array order is priority. A single-field sort is an array of one.
 
-Enumerate only fields with a real ordering use case: the entity timestamps, a natural ordering field, and the id as a deterministic tiebreaker. Do not enumerate every column, and do not split the concept into `sortBy` and `sortOrder`.
+```ts
+// ascending by open time, then descending by creation time
+sort: ["+sale.opened_at", "-sale.created_at"];
+```
+
+Enumerate only fields with a real ordering use case: the entity timestamps, a natural ordering field such as a display order or a priority, and the id as a deterministic tiebreaker. A listing without a tiebreaker returns rows in an order the database is free to change between identical requests, and the symptom is a row appearing on two pages.
+
+Do not enumerate every column, and do not split the concept into `sortBy` and `sortOrder`. Two properties can disagree; one cannot.
 
 ## Not Every Operation Maps To A Table
 
@@ -101,16 +136,27 @@ The JSDoc on a controller method becomes the Swagger operation description and t
 /**
  * List up every sale.
  *
- * List up every {@link ISale sale} with detailed information.
+ * List up every {@link ISale sale} with detailed information, paginated and
+ * ordered by the request.
  *
  * If you are a {@link ISeller seller} you see only your own sales. A
- * {@link ICustomer customer} sees only the operating ones.
+ * {@link ICustomer customer} sees only the sales currently operating: a
+ * paused, suspended, or unopened sale is not returned.
  *
  * @param input Request info of pagination, searching and sorting
  * @returns Paginated sales with detailed information
  * @tag Sale
  */
+@core.TypedRoute.Patch("details")
+public async details(
+  @props.AuthGuard() actor: Actor,
+  @core.TypedBody() input: ISale.IRequest,
+): Promise<IPage<ISale>> {
+  return SaleProvider.details({ actor, input });
+}
 ```
+
+The block sits on the method, not beside it, because the generator reads it from there.
 
 The first line is the operation title. State the authorization and visibility rule whenever it differs by actor, because that is usually the requirement the endpoint exists to satisfy and a caller cannot infer it from the signature. Link related types with `{@link}`. Do not stop at "creates X": include the effects, the transitions, and the rejections.
 

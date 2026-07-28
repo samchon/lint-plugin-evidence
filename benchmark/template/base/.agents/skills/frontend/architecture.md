@@ -11,10 +11,10 @@ Do not add a server tier, an API route layer, a backend-for-frontend, or a serve
 ## Call The SDK From The Screen That Owns The Workflow
 
 ```ts
-import Api, { IShoppingSale, IPage } from "{{apiPackageName}}";
+import api, { IShoppingSale, IPage } from "{{apiPackageName}}";
 
 const page: IPage<IShoppingSale.ISummary> =
-  await Api.functional.shoppings.customers.sales.index(connection, {
+  await api.functional.shoppings.customers.sales.index(connection, {
     limit: 20,
   });
 ```

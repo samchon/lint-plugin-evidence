@@ -7,10 +7,10 @@ Read [SKILL.md](SKILL.md) first. This document owns how the frontend talks to th
 `packages/api` is generated from the backend's controllers by Nestia. Its `functional` tree mirrors the route tree, and every accessor carries the request and response types with it.
 
 ```ts
-import Api, { IShoppingSale, IPage } from "{{apiPackageName}}";
+import api, { IShoppingSale, IPage } from "{{apiPackageName}}";
 
 const page: IPage<IShoppingSale.ISummary> =
-  await Api.functional.shoppings.customers.sales.index(connection, {
+  await api.functional.shoppings.customers.sales.index(connection, {
     limit: 20,
   });
 ```

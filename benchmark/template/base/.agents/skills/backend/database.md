@@ -15,7 +15,49 @@ prisma/schema/
 
 The numeric prefix orders domains from foundational to dependent, so a reader meets a table before the tables that reference it. Prisma parses the folder as one schema, so a model may reference a model in another file and a model name is unique across the whole folder. Add a new domain as a new numbered file.
 
-`main.prisma` declares two generators: the Prisma client, and `prisma-markdown`, which writes `docs/ERD.md`. That second generator is why schema comments are published documentation.
+`main.prisma` holds the datasource and both generators, and nothing else:
+
+```prisma
+datasource db {
+  provider = "sqlite"
+}
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../../src/prisma"
+  moduleFormat = "cjs"
+}
+
+generator markdown {
+  provider = "prisma-markdown"
+  title    = "{{name}}"
+  output   = "../../docs/ERD.md"
+}
+```
+
+The second generator is why schema comments are published documentation rather than internal notes: they become `docs/ERD.md`, which a reader sees without opening the schema.
+
+## Field Types
+
+The vocabulary is closed. There is no JSON, object, or array type, and structure that needs querying is normalized into a child table instead.
+
+| Use        | For                                                             |
+| ---------- | --------------------------------------------------------------- |
+| `String`   | text, and every semantic string below                           |
+| `Int`      | counts, ordinals                                                |
+| `Float`    | approximate measurements: ratings, ratios, scores               |
+| `Decimal`  | money, tax, fees, balances, anything requiring exact arithmetic |
+| `Boolean`  | a flag whose absence has no third meaning                       |
+| `DateTime` | instants, and calendar dates normalized to UTC midnight         |
+| `Bytes`    | opaque binary, rarely                                           |
+
+**Pick the most specific meaning, and record it in the comment.** A column holding an email, a URL, a UUID, or an IP address is still `String` at the database level, but the DTO derives its format from what the schema says it is. A semantic column documented only as text produces a DTO property with no format, and every consumer then accepts anything.
+
+**Use `Decimal` for money and `Float` for nothing that is added up.** Floating arithmetic on a ledger drifts, and the drift appears as a balance that is wrong by a cent after a thousand rows.
+
+**A money column is an amount plus its currency.** Store the currency code beside the amount whenever it can vary. A row posted outside its scope's base currency also stores the rate used at posting and the converted amount, because the rate table owns current rates and this row owns the rate that was honored.
+
+Every primary key is named `id` and is a UUID assigned by the application. Never a domain-specific name: relations reference `[id]`, so renaming it breaks every inbound relation. If the old key is business-meaningful, keep it as an ordinary field with a unique index. Every foreign key is a UUID too, matching what it points at.
 
 ## Stance
 
@@ -76,11 +118,80 @@ A nullable foreign key does not protect a child that must outlive its parent, be
 
 If a requirement names a restore, recover, or reactivate workflow, the schema must contain storage that can perform it. Otherwise a later layer has to invent the missing state.
 
+## A Complete Model
+
+This is the shape to copy. Columns first, then relations, each group under a banner comment, with the indexes last.
+
+```prisma
+/// Seller **sales** products.
+///
+/// The revisable content lives in {@link shopping_sale_snapshots}, not here.
+/// When a seller edits a registered item this row does not change and a new
+/// snapshot is created, so a customer's purchase history survives the edit.
+///
+/// @namespace Sales
+model shopping_sales {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+
+  /// Belonged section's {@link shopping_sections.id}
+  shopping_section_id String
+
+  /// Registering seller's {@link shopping_customers.id}
+  shopping_seller_customer_id String
+
+  /// Creation time of record.
+  created_at DateTime
+
+  /// Opening time of sale.
+  ///
+  /// If `null`, the sale has not opened yet.
+  opened_at DateTime?
+
+  /// Closing time of sale.
+  ///
+  /// If `null`, the sale runs forever.
+  closed_at DateTime?
+
+  //----
+  // RELATIONS
+  //----
+  /// Belonged section.
+  section shopping_sections @relation(fields: [shopping_section_id], references: [id], onDelete: Cascade)
+
+  /// Registering seller.
+  sellerCustomer shopping_customers @relation(fields: [shopping_seller_customer_id], references: [id], onDelete: Cascade)
+
+  /// Every revision of this sale.
+  snapshots shopping_sale_snapshots[]
+
+  /// Pointer to the current revision.
+  mv_last mv_shopping_sale_last_snapshots?
+
+  @@index([shopping_section_id])
+  @@index([shopping_seller_customer_id])
+  @@index([created_at])
+}
+```
+
+Read what the shape encodes. The foreign key column and its relation are separate declarations: the column stores the value, the relation names how code traverses it. The relation name is camelCase and says which side it is, so `sellerCustomer` reads as the seller's customer row rather than as a bag of customers.
+
 ## Relations
 
-Foreign keys flow child to parent. Parent tables do not store child ids. Declare both sides, because the back-reference is what lets a provider's `select` traverse the relation.
+Foreign keys flow child to parent. Parent tables do not store child ids, because a pointer in both directions has two places to be wrong.
 
-A tenant or scope has exactly one storage owner per entity graph. The table the scope directly owns carries the scope id; every descendant reaches the scope through its required parent chain. A second direct scope foreign key on a descendant gives that row two ancestor paths and a route shape that differs table by table.
+**Declare both sides.** The back-reference is what lets a provider's `select` traverse the relation, and without it the relation exists in the database and not in the generated client.
+
+**Name the inverse for the direction it represents.** `authoredArticles` and `submittedRequests` say what the rows are; a bare `articles` reads as "rows about this row" and invites aggregating the wrong side. A one-to-many inverse is plural, a one-to-one inverse is singular and optional.
+
+**Several foreign keys to the same table each need a distinct semantic name**, on both the column and the relation. Two columns named `user_id` on one table is an error, and two relations named `user` is worse because it compiles.
+
+A tenant or scope has exactly one storage owner per entity graph. The table the scope directly owns carries the scope id; every descendant reaches it through its required parent chain. A second direct scope foreign key on a descendant gives that row two ancestor paths, and the public route shape then differs table by table.
+
+When several kinds of actor can own or target the same record, use a main table plus subtype tables, each unique on the main entity and carrying its own context. **Do not use a row of nullable owner foreign keys**: every reader then has to decide which of four columns is authoritative, and they will decide differently.
 
 ## Uniqueness And Indexes
 
