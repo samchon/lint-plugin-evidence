@@ -178,6 +178,10 @@ export namespace EvidenceBenchmarkActivityReducer {
           .toString(),
         estimatedDenominator: 10_000,
       }));
+    const phaseAllocations: IEvidenceBenchmarkActivity.IPhaseAllocation[] =
+      input.observations.phaseWalls.map((phaseWall) =>
+        phaseAllocation(input.observations, phaseWall, resolutions),
+      );
     const semanticIncomplete: boolean =
       unresolvedResponseIds.length !== 0 ||
       (queue.length !== 0 && input.adjudicator === undefined);
@@ -203,6 +207,7 @@ export namespace EvidenceBenchmarkActivityReducer {
       timeAllocations: timing.allocations,
       pairwiseOverlap: timing.overlap,
       burdenAllocations,
+      phaseAllocations,
       raterAgreement: agreement(input.observations, left, right),
       adjudicationQueue: queue,
       unresolvedResponseIds,
@@ -228,6 +233,103 @@ export namespace EvidenceBenchmarkActivityReducer {
     roleActivity: Map<IEvidenceBenchmarkActivity.CausalRole, bigint>;
     censoredObservationIds: string[];
     exclusiveReconciled: boolean;
+  }
+
+  function phaseAllocation(
+    observations: IEvidenceBenchmarkActivity.IObservations,
+    phaseWall: IEvidenceBenchmarkActivity.IPhaseWall,
+    resolutions: ReadonlyMap<string, IResolution>,
+  ): IEvidenceBenchmarkActivity.IPhaseAllocation {
+    const exactTotal: IEvidenceBenchmarkActivity.ITokenVector = zeroVector();
+    const whole: Map<
+      IEvidenceBenchmarkActivity.PrimaryActivity,
+      IEvidenceBenchmarkActivity.ITokenVector
+    > = vectorTable();
+    const point: Map<IEvidenceBenchmarkActivity.PrimaryActivity, Numerator> =
+      numeratorTable();
+    const lower: Map<IEvidenceBenchmarkActivity.PrimaryActivity, Numerator> =
+      numeratorTable();
+    const upper: Map<IEvidenceBenchmarkActivity.PrimaryActivity, Numerator> =
+      numeratorTable();
+    const burdenWhole: Map<
+      IEvidenceBenchmarkActivity.CausalRole,
+      IEvidenceBenchmarkActivity.ITokenVector
+    > = roleVectorTable();
+    const burdenPoint: Map<IEvidenceBenchmarkActivity.CausalRole, Numerator> =
+      roleNumeratorTable();
+    for (const response of observations.responses.filter(
+      (row) => row.phase === phaseWall.phase,
+    )) {
+      if (response.usage === null) continue;
+      const resolution: IResolution = requiredResolution(
+        resolutions,
+        response.responseId,
+      );
+      const vector: IEvidenceBenchmarkActivity.ITokenVector =
+        EvidenceBenchmarkActivityObservations.tokenVector(response.usage);
+      addVector(exactTotal, vector);
+      addVector(whole.get(resolution.primary)!, vector);
+      addWeighted(point, vector, resolution.point);
+      addWeighted(lower, vector, resolution.lower);
+      addWeighted(upper, vector, resolution.upper);
+      addVector(burdenWhole.get(resolution.causalRole)!, vector);
+      addNumerator(
+        burdenPoint.get(resolution.causalRole)!,
+        weighted(vector, 10_000),
+      );
+    }
+    const phaseObservations: IEvidenceBenchmarkActivity.IObservations = {
+      ...observations,
+      wall: phaseWall.wall,
+      phaseWalls: [phaseWall],
+      responses: observations.responses.filter(
+        (row) => row.phase === phaseWall.phase,
+      ),
+      items: observations.items.filter((row) => row.phase === phaseWall.phase),
+    };
+    const timing: Timing = time(phaseObservations, resolutions);
+    const exactTokenReconciled: boolean =
+      equalVector(exactTotal, sumVectors([...whole.values()])) &&
+      equalNumerator(
+        weighted(exactTotal, 10_000),
+        sumNumerators([...point.values()]),
+      );
+    if (!exactTokenReconciled)
+      throw new Error(
+        `Activity phase ${phaseWall.phase} tokens do not reconcile.`,
+      );
+    return {
+      phase: phaseWall.phase,
+      wallTimeNs: timing.wall.toString(),
+      exactTotal,
+      tokenAllocations:
+        EvidenceBenchmarkActivityCodebook.PRIMARY_ACTIVITIES.map((primary) => ({
+          primary,
+          wholeResponseExact: whole.get(primary)!,
+          estimatedPoint: serialize(point.get(primary)!),
+          estimatedLower: serialize(lower.get(primary)!),
+          estimatedUpper: serialize(upper.get(primary)!),
+        })),
+      timeAllocations: timing.allocations,
+      pairwiseOverlap: timing.overlap,
+      burdenAllocations: EvidenceBenchmarkActivityCodebook.CAUSAL_ROLES.map(
+        (causalRole) => ({
+          causalRole,
+          exactWholeResponseTokens: burdenWhole.get(causalRole)!,
+          estimatedPointTokens: serialize(burdenPoint.get(causalRole)!),
+          estimatedPointActivityNsNumerator: timing.roleActivity
+            .get(causalRole)!
+            .toString(),
+          estimatedDenominator: 10_000,
+        }),
+      ),
+      coveredUnionWallNs: timing.coveredUnion.toString(),
+      residualWallNs: timing.residualUnion.toString(),
+      censoredObservationIds: timing.censoredObservationIds,
+      exactTokenReconciled,
+      exclusiveWallReconciled: timing.exclusiveReconciled,
+      semanticQuantitiesAreEstimates: true,
+    };
   }
 
   function time(

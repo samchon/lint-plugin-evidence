@@ -36,6 +36,9 @@ export namespace EvidenceBenchmarkActivityObservations {
     /** Complete cell wall in monotonic nanoseconds. */
     wall: IEvidenceBenchmarkActivity.IWallInterval;
 
+    /** Contiguous runner phase partition of the complete cell wall. */
+    phaseWalls: readonly IEvidenceBenchmarkActivity.IPhaseWall[];
+
     /** One exact observation per source usage-ledger row. */
     responses: readonly IEvidenceBenchmarkActivity.IResponseUsage[];
 
@@ -88,6 +91,7 @@ export namespace EvidenceBenchmarkActivityObservations {
     );
     retainedChain(input);
     wall(input.wall);
+    phaseWalls(input.phaseWalls, input.wall);
     const ledger: ISourceLedger = sourceLedger(input.sourceUsageLedgerBytes);
     const eventLedger: IEventLedger = events(
       input.sourceEventLedgerBytes,
@@ -97,15 +101,28 @@ export namespace EvidenceBenchmarkActivityObservations {
       input.sourceActivityLedgerBytes,
       input.binding,
       input.wall,
+      input.phaseWalls,
       input.items,
       input.responses.length,
     );
-    responses(input.responses, ledger.responses, eventLedger.eventIds);
-    items(input.items, input.responses, input.wall, eventLedger.eventIds);
+    responses(
+      input.responses,
+      ledger.responses,
+      eventLedger.eventIds,
+      input.phaseWalls,
+    );
+    items(
+      input.items,
+      input.responses,
+      input.wall,
+      eventLedger.eventIds,
+      input.phaseWalls,
+    );
     const body = {
       schemaVersion: 1 as const,
       binding: input.binding,
       wall: input.wall,
+      phaseWalls: input.phaseWalls,
       responses: input.responses,
       sourceExactUsageComplete: ledger.exactUsageComplete,
       sourceEventCaptureComplete: activityLedger.eventCaptureComplete,
@@ -315,6 +332,7 @@ export namespace EvidenceBenchmarkActivityObservations {
     observations: readonly IEvidenceBenchmarkActivity.IResponseUsage[],
     ledger: readonly unknown[],
     eventIds: ReadonlySet<string>,
+    phases: readonly IEvidenceBenchmarkActivity.IPhaseWall[],
   ): void {
     if (observations.length !== ledger.length)
       throw new Error(
@@ -385,6 +403,18 @@ export namespace EvidenceBenchmarkActivityObservations {
         counterpart.receivedMonotonicNs,
         `${responseId}.receivedMonotonicNs`,
       );
+      const phase: IEvidenceBenchmarkActivity.IPhaseWall | undefined =
+        phases.find((row) => row.phase === counterpart.phase);
+      if (
+        phase === undefined ||
+        BigInt(counterpart.receivedMonotonicNs) <
+          BigInt(phase.wall.startedMonotonicNs) ||
+        BigInt(counterpart.receivedMonotonicNs) >
+          BigInt(phase.wall.completedMonotonicNs)
+      )
+        throw new Error(
+          `Source response ${responseId} is outside its phase wall.`,
+        );
       if (!Number.isFinite(Date.parse(counterpart.receivedAtUtc)))
         throw new Error(`${responseId}.receivedAtUtc is not a date-time.`);
     }
@@ -411,6 +441,7 @@ export namespace EvidenceBenchmarkActivityObservations {
     responses: readonly IEvidenceBenchmarkActivity.IResponseUsage[],
     interval: IEvidenceBenchmarkActivity.IWallInterval,
     eventIds: ReadonlySet<string>,
+    phases: readonly IEvidenceBenchmarkActivity.IPhaseWall[],
   ): void {
     const responseIds: Set<string> = new Set(
       responses.map((response) => response.responseId),
@@ -456,6 +487,15 @@ export namespace EvidenceBenchmarkActivityObservations {
         throw new Error(`${item.observationId} completes outside cell wall.`);
       if (started !== null && completed !== null && completed < started)
         throw new Error(`${item.observationId} completes before it starts.`);
+      const phase: IEvidenceBenchmarkActivity.IPhaseWall | undefined =
+        phases.find((row) => row.phase === item.phase);
+      if (
+        phase === undefined ||
+        (started !== null && started < BigInt(phase.wall.startedMonotonicNs)) ||
+        (completed !== null &&
+          completed > BigInt(phase.wall.completedMonotonicNs))
+      )
+        throw new Error(`${item.observationId} is outside its phase wall.`);
       sourceTime(
         item.startedAtSourceMs,
         `${item.observationId}.startedAtSourceMs`,
@@ -547,6 +587,7 @@ export namespace EvidenceBenchmarkActivityObservations {
     bytes: Uint8Array,
     binding: IEvidenceBenchmarkActivity.IBinding,
     interval: IEvidenceBenchmarkActivity.IWallInterval,
+    phases: readonly IEvidenceBenchmarkActivity.IPhaseWall[],
     observations: readonly IEvidenceBenchmarkActivity.IItemObservation[],
     responseCount: number,
   ): IActivityLedger {
@@ -580,6 +621,8 @@ export namespace EvidenceBenchmarkActivityObservations {
     if (
       EvidenceBenchmarkActivityCanonical.stringify(source.wall) !==
         EvidenceBenchmarkActivityCanonical.stringify(interval) ||
+      EvidenceBenchmarkActivityCanonical.stringify(source.phaseWalls) !==
+        EvidenceBenchmarkActivityCanonical.stringify(phases) ||
       EvidenceBenchmarkActivityCanonical.stringify(source.items) !==
         EvidenceBenchmarkActivityCanonical.stringify(observations)
     )
@@ -603,6 +646,27 @@ export namespace EvidenceBenchmarkActivityObservations {
     );
     if (completion <= start)
       throw new Error("Activity observation wall must have positive duration.");
+  }
+
+  function phaseWalls(
+    input: readonly IEvidenceBenchmarkActivity.IPhaseWall[],
+    complete: IEvidenceBenchmarkActivity.IWallInterval,
+  ): void {
+    if (input.length === 0)
+      throw new Error("Activity observation requires at least one phase wall.");
+    if (new Set(input.map((row) => row.phase)).size !== input.length)
+      throw new Error("Activity observation repeats a phase wall.");
+    let cursor: bigint = BigInt(complete.startedMonotonicNs);
+    for (const row of input) {
+      wall(row.wall);
+      const start: bigint = BigInt(row.wall.startedMonotonicNs);
+      const end: bigint = BigInt(row.wall.completedMonotonicNs);
+      if (start !== cursor)
+        throw new Error("Activity phase walls are not a contiguous partition.");
+      cursor = end;
+    }
+    if (cursor !== BigInt(complete.completedMonotonicNs))
+      throw new Error("Activity phase walls do not cover the complete wall.");
   }
 
   function exactDigest(

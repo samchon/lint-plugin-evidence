@@ -243,6 +243,15 @@ export namespace IEvidenceBenchmarkActivity {
     completedMonotonicNs: string;
   }
 
+  /** One exact, non-overlapping runner phase wall. */
+  export interface IPhaseWall {
+    /** Frozen harness phase represented by this wall. */
+    phase: Phase;
+
+    /** Exact monotonic wall for this phase. */
+    wall: IWallInterval;
+  }
+
   /** Machine-only observation artifact supplied to isolated raters. */
   export interface IObservations {
     /** Observation artifact schema revision. */
@@ -253,6 +262,9 @@ export namespace IEvidenceBenchmarkActivity {
 
     /** Complete cell wall used by interval reconciliation. */
     wall: IWallInterval;
+
+    /** Contiguous phase partition of the complete cell wall. */
+    phaseWalls: readonly IPhaseWall[];
 
     /** Exact usage rows, including nullable right-censored rows. */
     responses: readonly IResponseUsage[];
@@ -580,17 +592,20 @@ export namespace IEvidenceBenchmarkActivity {
     /** Required standard-tier thread-start response value. */
     effectiveServiceTier: null;
 
-    /** Runner assignment identity executed by this process. */
-    assignmentId: string;
+    /** Runner-generated process-instance nonce. */
+    processInstanceId: string;
 
-    /** Logical activity role of this process. */
-    agentRole: "activity-rater-a" | "activity-rater-b" | "activity-adjudicator";
+    /** Operating-system process identifier. */
+    processId: number;
 
-    /** Controller session identity. */
-    sessionId: string;
+    /** UTC process spawn time. */
+    startedAtUtc: string;
 
-    /** App-server thread identity. */
-    threadId: string;
+    /** Monotonic process spawn time in nanoseconds. */
+    startedMonotonicNs: string;
+
+    /** Exact app-server invocation vector. */
+    invocation: readonly string[];
 
     /** Canonical identity without this field. */
     identitySha256: string;
@@ -634,6 +649,9 @@ export namespace IEvidenceBenchmarkActivity {
     /** Assignment-issued runner event hash. */
     assignmentEventId: string;
 
+    /** App-server process-start runner event hash. */
+    processStartedEventId: string;
+
     /** Turn-started runner event hash. */
     turnStartedEventId: string;
 
@@ -654,6 +672,24 @@ export namespace IEvidenceBenchmarkActivity {
 
     /** Exact provider output produced by this response. */
     providerOutputSha256: string;
+
+    /** Exact item-completed event carrying the structured output text. */
+    itemCompletedEventId: string;
+
+    /** Terminal agent-message item identity. */
+    structuredOutputItemId: string;
+
+    /** Exact retained item-completed envelope ledger path. */
+    structuredOutputEnvelopePath: "logs/server.raw.jsonl";
+
+    /** Byte offset of the item-completed envelope in the raw ledger. */
+    structuredOutputEnvelopeByteOffset: number;
+
+    /** Exact retained item-completed envelope byte length. */
+    structuredOutputEnvelopeBytes: number;
+
+    /** Exact retained item-completed envelope digest. */
+    structuredOutputEnvelopeSha256: string;
 
     /** Exact retained raw app-server envelope byte length. */
     rawResponseEnvelopeBytes: number;
@@ -708,6 +744,9 @@ export namespace IEvidenceBenchmarkActivity {
 
     /** Exact raw app-server response-completed envelope bytes. */
     rawResponseEnvelopeBytes: Uint8Array;
+
+    /** Exact item-completed envelope containing structured output text. */
+    structuredOutputEnvelopeBytes: Uint8Array;
   }
 
   /** One queued unit and every deterministic reason it needs fresh review. */
@@ -851,6 +890,48 @@ export namespace IEvidenceBenchmarkActivity {
     meanProbabilityJensenShannonBits: number;
   }
 
+  /** Phase-specific semantic allocations over one exact phase wall. */
+  export interface IPhaseAllocation {
+    /** Frozen phase represented by this row. */
+    phase: Phase;
+
+    /** Exact phase wall duration in nanoseconds. */
+    wallTimeNs: string;
+
+    /** Exact sum of non-null response usage observed in this phase. */
+    exactTotal: ITokenVector;
+
+    /** Exact-under-label and weighted token rows for this phase. */
+    tokenAllocations: readonly ITokenAllocation[];
+
+    /** Union, activity, exclusive, and weighted timing rows for this phase. */
+    timeAllocations: readonly ITimeAllocation[];
+
+    /** Pairwise point-category lifecycle overlap within this phase. */
+    pairwiseOverlap: readonly ITimeOverlap[];
+
+    /** Separate causal burden rows within this phase. */
+    burdenAllocations: readonly IBurdenAllocation[];
+
+    /** Union of complete observed item lifecycles in this phase. */
+    coveredUnionWallNs: string;
+
+    /** Residual point and uncovered wall within this phase. */
+    residualWallNs: string;
+
+    /** Item observations censored within this phase. */
+    censoredObservationIds: readonly string[];
+
+    /** Proof that exact and point phase token tables reconcile. */
+    exactTokenReconciled: boolean;
+
+    /** Proof that phase exclusive rows reconcile to the phase wall. */
+    exclusiveWallReconciled: boolean;
+
+    /** Explicit boundary preventing phase allocations from reading as facts. */
+    semanticQuantitiesAreEstimates: true;
+  }
+
   /** Deterministic output derived from exact observations and semantic ratings. */
   export interface IReport {
     /** Activity report schema revision. */
@@ -891,6 +972,9 @@ export namespace IEvidenceBenchmarkActivity {
 
     /** Separate shared, direct, induced, quality, and residual burden rows. */
     burdenAllocations: readonly IBurdenAllocation[];
+
+    /** Complete semantic allocation repeated within each exact phase wall. */
+    phaseAllocations: readonly IPhaseAllocation[];
 
     /** Agreement statistics computed before fresh adjudication. */
     raterAgreement: IAgreement;

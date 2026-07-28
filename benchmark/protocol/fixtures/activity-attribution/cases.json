@@ -30,12 +30,17 @@
     {
       "id": "invalid-provider-output-spliced-onto-assignment",
       "valid": false,
-      "invariant": "the exact app-server response event and execution record bind the provider output digest"
+      "invariant": "the exact final agent-message item text, not raw response usage, binds the provider output digest"
     },
     {
       "id": "invalid-process-identity-bytes",
       "valid": false,
-      "invariant": "the retained process identity exact bytes bind ChatGPT auth, OpenAI provider, model, effort, standard tier, Codex version, assignment, role, session, and thread"
+      "invariant": "the retained process identity exact bytes bind ChatGPT auth, OpenAI provider, model, effort, standard tier, Codex version, process nonce, PID, start times, and invocation"
+    },
+    {
+      "id": "invalid-same-process-different-assignment",
+      "valid": false,
+      "invariant": "independent raters and adjudicator cannot reuse one process instance under different assignments"
     },
     {
       "id": "invalid-rater-session-reuse",

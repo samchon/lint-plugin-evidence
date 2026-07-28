@@ -16,6 +16,7 @@
     "turnId",
     "responseId",
     "rawEventId",
+    "processStartedEventId",
     "assignmentEventId",
     "turnStartedEventId",
     "assignmentMonotonicNs",
@@ -24,6 +25,12 @@
     "responseReceivedAtUtc",
     "responseUsage",
     "providerOutputSha256",
+    "itemCompletedEventId",
+    "structuredOutputItemId",
+    "structuredOutputEnvelopePath",
+    "structuredOutputEnvelopeByteOffset",
+    "structuredOutputEnvelopeBytes",
+    "structuredOutputEnvelopeSha256",
     "rawResponseEnvelopeBytes",
     "rawResponseEnvelopePath",
     "rawResponseEnvelopeByteOffset",
@@ -80,6 +87,9 @@
     "rawEventId": {
       "$ref": "#/$defs/sha256"
     },
+    "processStartedEventId": {
+      "$ref": "#/$defs/sha256"
+    },
     "assignmentEventId": {
       "$ref": "#/$defs/sha256"
     },
@@ -103,6 +113,27 @@
       "$ref": "#/$defs/tokens"
     },
     "providerOutputSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "itemCompletedEventId": {
+      "$ref": "#/$defs/sha256"
+    },
+    "structuredOutputItemId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "structuredOutputEnvelopePath": {
+      "const": "logs/server.raw.jsonl"
+    },
+    "structuredOutputEnvelopeByteOffset": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "structuredOutputEnvelopeBytes": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "structuredOutputEnvelopeSha256": {
       "$ref": "#/$defs/sha256"
     },
     "rawResponseEnvelopeBytes": {

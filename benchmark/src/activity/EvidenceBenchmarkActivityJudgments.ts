@@ -80,7 +80,6 @@ export namespace EvidenceBenchmarkActivityJudgments {
       artifact.execution,
       evidence,
       {
-        assignmentId: assignment.assignmentId,
         assignmentSha256: assignment.assignmentSha256,
         agentRole: assignment.turnClass,
         sessionId: assignment.sessionId,
@@ -304,7 +303,6 @@ export namespace EvidenceBenchmarkActivityJudgments {
       artifact.execution,
       evidence,
       {
-        assignmentId: assignment.assignmentId,
         assignmentSha256: assignment.assignmentSha256,
         agentRole: "activity-adjudicator",
         sessionId: assignment.sessionId,

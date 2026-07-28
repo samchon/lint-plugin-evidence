@@ -15,10 +15,11 @@
     "requestedServiceTierMode",
     "requestedServiceTier",
     "effectiveServiceTier",
-    "assignmentId",
-    "agentRole",
-    "sessionId",
-    "threadId",
+    "processInstanceId",
+    "processId",
+    "startedAtUtc",
+    "startedMonotonicNs",
+    "invocation",
     "identitySha256"
   ],
   "properties": {
@@ -52,24 +53,29 @@
     "effectiveServiceTier": {
       "const": null
     },
-    "assignmentId": {
+    "processInstanceId": {
       "type": "string",
       "minLength": 1
     },
-    "agentRole": {
-      "enum": [
-        "activity-rater-a",
-        "activity-rater-b",
-        "activity-adjudicator"
-      ]
+    "processId": {
+      "type": "integer",
+      "minimum": 1
     },
-    "sessionId": {
+    "startedAtUtc": {
       "type": "string",
-      "minLength": 1
+      "format": "date-time"
     },
-    "threadId": {
+    "startedMonotonicNs": {
       "type": "string",
-      "minLength": 1
+      "pattern": "^(0|[1-9][0-9]*)$"
+    },
+    "invocation": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "identitySha256": {
       "$ref": "#/$defs/sha256"

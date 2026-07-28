@@ -17,6 +17,7 @@
     "expectedResponseCount",
     "expectedItemObservationCount",
     "wall",
+    "phaseWalls",
     "items"
   ],
   "properties": {
@@ -58,6 +59,13 @@
     },
     "wall": {
       "$ref": "#/$defs/wall"
+    },
+    "phaseWalls": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/phaseWall"
+      }
     },
     "items": {
       "type": "array",
@@ -109,6 +117,22 @@
         },
         "completedMonotonicNs": {
           "$ref": "#/$defs/nanoseconds"
+        }
+      }
+    },
+    "phaseWall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase",
+        "wall"
+      ],
+      "properties": {
+        "phase": {
+          "$ref": "#/$defs/phase"
+        },
+        "wall": {
+          "$ref": "#/$defs/wall"
         }
       }
     },

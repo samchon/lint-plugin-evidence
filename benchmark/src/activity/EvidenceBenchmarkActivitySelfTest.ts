@@ -467,6 +467,12 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     assert.equal(report.residualWallNs, "200");
     assert.equal(report.semanticQuantitiesAreEstimates, true);
     assert.equal(report.semanticAttributionStatus, "complete");
+    assert.equal(report.phaseAllocations.length, 1);
+    assert.equal(report.phaseAllocations[0]!.phase, "phase1");
+    assert.equal(report.phaseAllocations[0]!.wallTimeNs, "1000");
+    assert.deepEqual(report.phaseAllocations[0]!.exactTotal, report.exactTotal);
+    assert.equal(report.phaseAllocations[0]!.exactTokenReconciled, true);
+    assert.equal(report.phaseAllocations[0]!.exclusiveWallReconciled, true);
     assert.equal(report.raterAgreement.primaryObservedAgreement, 1);
     assert.equal(report.raterAgreement.primaryCohenKappa, 1);
     assert.equal(report.raterAgreement.causalRoleAgreement, 1);
@@ -641,6 +647,42 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         EvidenceBenchmarkActivityJudgments.independent(admittedA, admittedB),
       /sessionId/,
     );
+    const sharedProcess: ProcessFixture = processIdentity(
+      "shared-process-instance",
+      800,
+    );
+    const sharedProcessA: IEvidenceBenchmarkActivity.IRaterArtifact = rater(
+      fixture.observations,
+      "a",
+      structuredClone(valid.providerOutput.ratings),
+      undefined,
+      sharedProcess,
+    );
+    const sharedProcessB: IEvidenceBenchmarkActivity.IRaterArtifact = rater(
+      fixture.observations,
+      "b",
+      structuredClone(valid.providerOutput.ratings),
+      undefined,
+      sharedProcess,
+    );
+    const sharedAdmittedA = EvidenceBenchmarkActivityJudgments.admitRater(
+      fixture.observations,
+      sharedProcessA,
+      executionEvidence(sharedProcessA),
+    );
+    const sharedAdmittedB = EvidenceBenchmarkActivityJudgments.admitRater(
+      fixture.observations,
+      sharedProcessB,
+      executionEvidence(sharedProcessB),
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkActivityJudgments.independent(
+          sharedAdmittedA,
+          sharedAdmittedB,
+        ),
+      /processIdentityArtifactSha256/,
+    );
   }
 
   interface Fixture {
@@ -740,11 +782,18 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       startedMonotonicNs: "0",
       completedMonotonicNs: "1000",
     };
+    const observedPhaseWalls: IEvidenceBenchmarkActivity.IPhaseWall[] = [
+      {
+        phase: "phase1",
+        wall: observedWall,
+      },
+    ];
     const sourceActivityLedgerBytes: Buffer = activityLedger(
       sourceEventLedger.bytes,
       sourceEventLedger.head,
       sourceUsageLedgerBytes,
       observedWall,
+      observedPhaseWalls,
       observedItems,
       responses.length,
     );
@@ -819,6 +868,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       sourceEventLedgerBytes: sourceEventLedger.bytes,
       sourceActivityLedgerBytes,
       wall: observedWall,
+      phaseWalls: observedPhaseWalls,
       responses,
       items: observedItems,
     };
@@ -888,16 +938,14 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     side: "a" | "b",
     ratings: readonly IEvidenceBenchmarkActivity.IProviderRating[],
     sessionOverride?: string,
+    processOverride?: ProcessFixture,
   ): IEvidenceBenchmarkActivity.IRaterArtifact {
     const assignmentId: string = `activity-rater-${side}-assignment`;
     const threadId: string = `rating-thread-${side}`;
     const sessionId: string = sessionOverride ?? `rating-session-${side}`;
-    const process: ProcessFixture = processIdentity(
-      assignmentId,
-      `activity-rater-${side}`,
-      sessionId,
-      threadId,
-    );
+    const process: ProcessFixture =
+      processOverride ??
+      processIdentity(`process-rater-${side}`, side === "a" ? 900 : 1_900);
     const providerOutput: IEvidenceBenchmarkActivity.IProviderRatingBlock = {
       schemaVersion: 1,
       role: "activity_rater",
@@ -945,7 +993,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     const executionFixture: ExecutionFixture = modelExecution(
       observations.binding,
       assignment,
-      providerOutputSha256,
+      providerOutput,
       process,
       side === "a" ? 1_000 : 2_000,
     );
@@ -975,10 +1023,8 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     const threadId: string = "adjudication-thread-c";
     const sessionId: string = "adjudication-session-c";
     const process: ProcessFixture = processIdentity(
-      assignmentId,
-      "activity-adjudicator",
-      sessionId,
-      threadId,
+      "process-adjudicator-c",
+      2_900,
     );
     const queueSha256: string =
       EvidenceBenchmarkActivityCanonical.object(queue);
@@ -1040,7 +1086,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     const executionFixture: ExecutionFixture = modelExecution(
       observations.binding,
       assignment,
-      providerOutputSha256,
+      providerOutput,
       process,
       3_000,
     );
@@ -1091,6 +1137,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
   interface ProcessFixture {
     bytes: Buffer;
     sha256: string;
+    identity: IEvidenceBenchmarkActivity.IProcessIdentityArtifact;
   }
 
   interface ExecutionFixture {
@@ -1099,10 +1146,8 @@ export namespace EvidenceBenchmarkActivitySelfTest {
   }
 
   function processIdentity(
-    assignmentId: string,
-    agentRole: "activity-rater-a" | "activity-rater-b" | "activity-adjudicator",
-    sessionId: string,
-    threadId: string,
+    processInstanceId: string,
+    startedMonotonicNs: number,
   ): ProcessFixture {
     const body = {
       schemaVersion: 1 as const,
@@ -1116,10 +1161,11 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       requestedServiceTierMode: "omitted" as const,
       requestedServiceTier: null,
       effectiveServiceTier: null,
-      assignmentId,
-      agentRole,
-      sessionId,
-      threadId,
+      processInstanceId,
+      processId: startedMonotonicNs,
+      startedAtUtc: "2026-07-29T00:59:59.999Z",
+      startedMonotonicNs: String(startedMonotonicNs),
+      invocation: ["codex", "app-server"],
     };
     const identity: IEvidenceBenchmarkActivity.IProcessIdentityArtifact = {
       ...body,
@@ -1129,6 +1175,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     return {
       bytes,
       sha256: EvidenceBenchmarkActivityCanonical.sha256(bytes),
+      identity,
     };
   }
 
@@ -1137,7 +1184,9 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     assignment:
       | IEvidenceBenchmarkActivity.IRaterAssignment
       | IEvidenceBenchmarkActivity.IAdjudicatorAssignment,
-    providerOutputSha256: string,
+    providerOutput:
+      | IEvidenceBenchmarkActivity.IProviderRatingBlock
+      | IEvidenceBenchmarkActivity.IProviderAdjudication,
     process: ProcessFixture,
     baseMonotonicNs: number,
   ): ExecutionFixture {
@@ -1146,6 +1195,8 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       "turnClass" in assignment ? assignment.turnClass : "activity-adjudicator";
     const turnId: string = `${agentRole}-turn`;
     const responseId: string = `${agentRole}-response`;
+    const providerOutputSha256: string =
+      EvidenceBenchmarkActivityCanonical.object(providerOutput);
     const responseUsage = {
       inputTokens: 10,
       cachedInputTokens: 2,
@@ -1162,17 +1213,53 @@ export namespace EvidenceBenchmarkActivitySelfTest {
           threadId: assignment.threadId,
           turnId,
           usage: responseUsage,
-          providerOutputSha256,
         },
       })}\n`,
       "utf8",
     );
     const rawResponseEnvelopeSha256: string =
       EvidenceBenchmarkActivityCanonical.sha256(rawResponseEnvelopeBytes);
+    const structuredOutputItemId: string = `${agentRole}-final-item`;
+    const structuredOutputEnvelopeBytes: Buffer = Buffer.from(
+      `${JSON.stringify({
+        method: "item/completed",
+        params: {
+          completedAtMs: 1_775_000_000_000,
+          threadId: assignment.threadId,
+          turnId,
+          item: {
+            id: structuredOutputItemId,
+            type: "agentMessage",
+            phase: "final",
+            text: EvidenceBenchmarkActivityCanonical.stringify(providerOutput),
+          },
+        },
+      })}\n`,
+      "utf8",
+    );
+    const structuredOutputEnvelopeSha256: string =
+      EvidenceBenchmarkActivityCanonical.sha256(structuredOutputEnvelopeBytes);
     const eventBodies: Record<string, unknown>[] = [
       {
         runId: binding.runId,
         seq: 1,
+        utc: process.identity.startedAtUtc,
+        monotonicNs: process.identity.startedMonotonicNs,
+        phase: "reconciliation",
+        actor: "runner",
+        type: "activity_process_started",
+        payload: {
+          processInstanceId: process.identity.processInstanceId,
+          processId: process.identity.processId,
+          invocation: process.identity.invocation,
+          codexExecutableSha256: process.identity.codexExecutableSha256,
+        },
+        rawRef: null,
+        previousEventSha256: "0".repeat(64),
+      },
+      {
+        runId: binding.runId,
+        seq: 2,
         utc: "2026-07-29T01:00:00.000Z",
         monotonicNs: String(baseMonotonicNs),
         phase: "reconciliation",
@@ -1188,7 +1275,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       },
       {
         runId: binding.runId,
-        seq: 2,
+        seq: 3,
         utc: "2026-07-29T01:00:00.001Z",
         monotonicNs: String(baseMonotonicNs + 100),
         phase: "reconciliation",
@@ -1204,14 +1291,13 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       },
       {
         runId: binding.runId,
-        seq: 3,
+        seq: 4,
         utc: "2026-07-29T01:00:00.002Z",
         monotonicNs: String(baseMonotonicNs + 200),
         phase: "reconciliation",
         actor: "app-server",
         type: "activity_raw_response_completed",
         payload: {
-          providerOutputSha256,
           responseId,
           threadId: assignment.threadId,
           turnId,
@@ -1222,6 +1308,28 @@ export namespace EvidenceBenchmarkActivitySelfTest {
           byteOffset: 0,
           byteLength: rawResponseEnvelopeBytes.byteLength,
           sha256: rawResponseEnvelopeSha256,
+        },
+        previousEventSha256: "",
+      },
+      {
+        runId: binding.runId,
+        seq: 5,
+        utc: "2026-07-29T01:00:00.003Z",
+        monotonicNs: String(baseMonotonicNs + 300),
+        phase: "reconciliation",
+        actor: "app-server",
+        type: "activity_item_completed",
+        payload: {
+          itemId: structuredOutputItemId,
+          threadId: assignment.threadId,
+          turnId,
+        },
+        rawRef: {
+          direction: "server",
+          path: "logs/server.raw.jsonl",
+          byteOffset: rawResponseEnvelopeBytes.byteLength,
+          byteLength: structuredOutputEnvelopeBytes.byteLength,
+          sha256: structuredOutputEnvelopeSha256,
         },
         previousEventSha256: "",
       },
@@ -1239,7 +1347,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       `${events.map((event) => JSON.stringify(event)).join("\n")}\n`,
       "utf8",
     );
-    const rawEventId: string = events[2]!.eventSha256 as string;
+    const rawEventId: string = events[3]!.eventSha256 as string;
     const responseReceivedMonotonicNs: string = String(baseMonotonicNs + 200);
     const responseReceivedAtUtc = "2026-07-29T01:00:00.002Z";
     const usageLedgerBytes: Buffer = Buffer.from(
@@ -1273,14 +1381,21 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       turnId,
       responseId,
       rawEventId,
-      assignmentEventId: events[0]!.eventSha256 as string,
-      turnStartedEventId: events[1]!.eventSha256 as string,
+      processStartedEventId: events[0]!.eventSha256 as string,
+      assignmentEventId: events[1]!.eventSha256 as string,
+      turnStartedEventId: events[2]!.eventSha256 as string,
       assignmentMonotonicNs: String(baseMonotonicNs),
       turnStartedMonotonicNs: String(baseMonotonicNs + 100),
       responseReceivedMonotonicNs,
       responseReceivedAtUtc,
       responseUsage,
       providerOutputSha256,
+      itemCompletedEventId: events[4]!.eventSha256 as string,
+      structuredOutputItemId,
+      structuredOutputEnvelopePath: "logs/server.raw.jsonl" as const,
+      structuredOutputEnvelopeByteOffset: rawResponseEnvelopeBytes.byteLength,
+      structuredOutputEnvelopeBytes: structuredOutputEnvelopeBytes.byteLength,
+      structuredOutputEnvelopeSha256,
       rawResponseEnvelopeBytes: rawResponseEnvelopeBytes.byteLength,
       rawResponseEnvelopePath: "logs/server.raw.jsonl" as const,
       rawResponseEnvelopeByteOffset: 0,
@@ -1307,6 +1422,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         usageLedgerBytes,
         processIdentityArtifactBytes: process.bytes,
         rawResponseEnvelopeBytes,
+        structuredOutputEnvelopeBytes,
       },
     };
   }
@@ -1389,6 +1505,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     eventHead: string,
     usageBytes: Uint8Array,
     wall: IEvidenceBenchmarkActivity.IWallInterval,
+    phaseWalls: readonly IEvidenceBenchmarkActivity.IPhaseWall[],
     items: readonly IEvidenceBenchmarkActivity.IItemObservation[],
     responseCount: number,
   ): Buffer {
@@ -1408,6 +1525,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         expectedResponseCount: responseCount,
         expectedItemObservationCount: items.length,
         wall,
+        phaseWalls,
         items,
       })}\n`,
       "utf8",

@@ -14,7 +14,6 @@ export namespace EvidenceBenchmarkActivityExecutions {
     execution: IEvidenceBenchmarkActivity.IModelExecutionProvenance,
     evidence: IEvidenceBenchmarkActivity.IModelExecutionEvidence,
     expected: {
-      assignmentId: string;
       assignmentSha256: string;
       agentRole:
         "activity-rater-a" | "activity-rater-b" | "activity-adjudicator";
@@ -66,11 +65,21 @@ export namespace EvidenceBenchmarkActivityExecutions {
       execution.rawResponseEnvelopeSha256,
       "raw response envelope",
     );
+    exactDigest(
+      evidence.structuredOutputEnvelopeBytes,
+      execution.structuredOutputEnvelopeSha256,
+      "structured output envelope",
+    );
     if (
       evidence.rawResponseEnvelopeBytes.byteLength !==
       execution.rawResponseEnvelopeBytes
     )
       throw new Error("Raw response envelope byte length differs.");
+    if (
+      evidence.structuredOutputEnvelopeBytes.byteLength !==
+      execution.structuredOutputEnvelopeBytes
+    )
+      throw new Error("Structured output envelope byte length differs.");
     if (
       evidence.processIdentityArtifactBytes.byteLength !==
       execution.processIdentityArtifactBytes
@@ -82,7 +91,11 @@ export namespace EvidenceBenchmarkActivityExecutions {
       !Number.isSafeInteger(execution.rawResponseEnvelopeBytes) ||
       execution.rawResponseEnvelopeBytes <= 0 ||
       !Number.isSafeInteger(execution.rawResponseEnvelopeByteOffset) ||
-      execution.rawResponseEnvelopeByteOffset < 0
+      execution.rawResponseEnvelopeByteOffset < 0 ||
+      !Number.isSafeInteger(execution.structuredOutputEnvelopeBytes) ||
+      execution.structuredOutputEnvelopeBytes <= 0 ||
+      !Number.isSafeInteger(execution.structuredOutputEnvelopeByteOffset) ||
+      execution.structuredOutputEnvelopeByteOffset < 0
     )
       throw new Error("Activity execution byte span is invalid.");
     if (
@@ -93,15 +106,18 @@ export namespace EvidenceBenchmarkActivityExecutions {
     )
       throw new Error("Activity execution uses an unpinned identity schema.");
     portablePath(execution.processIdentityArtifactPath);
-    identity(
+    const processIdentity: Record<string, unknown> = identity(
       evidence.processIdentityArtifactBytes,
-      execution,
-      expected.assignmentId,
     );
     const events: ReadonlyMap<string, Record<string, unknown>> = eventLedger(
       evidence.eventLedgerBytes,
       execution.eventChainHeadSha256,
       binding.runId,
+    );
+    const processEvent: Record<string, unknown> = event(
+      events,
+      execution.processStartedEventId,
+      "activity_process_started",
     );
     const assignmentEvent: Record<string, unknown> = event(
       events,
@@ -118,6 +134,12 @@ export namespace EvidenceBenchmarkActivityExecutions {
       execution.rawEventId,
       "activity_raw_response_completed",
     );
+    const itemEvent: Record<string, unknown> = event(
+      events,
+      execution.itemCompletedEventId,
+      "activity_item_completed",
+    );
+    processEventPayload(processEvent, processIdentity);
     eventPayload(assignmentEvent, {
       assignmentSha256: execution.assignmentSha256,
       sessionId: execution.sessionId,
@@ -129,12 +151,22 @@ export namespace EvidenceBenchmarkActivityExecutions {
       turnId: execution.turnId,
     });
     eventPayload(responseEvent, {
-      providerOutputSha256: execution.providerOutputSha256,
       responseId: execution.responseId,
       threadId: execution.threadId,
       turnId: execution.turnId,
     });
+    eventPayload(itemEvent, {
+      itemId: execution.structuredOutputItemId,
+      threadId: execution.threadId,
+      turnId: execution.turnId,
+    });
     rawReference(responseEvent, execution);
+    structuredOutput(
+      itemEvent,
+      evidence.structuredOutputEnvelopeBytes,
+      execution,
+    );
+    rawResponse(evidence.rawResponseEnvelopeBytes, execution);
     const assignmentNs: bigint = eventTime(
       assignmentEvent,
       execution.assignmentMonotonicNs,
@@ -150,7 +182,21 @@ export namespace EvidenceBenchmarkActivityExecutions {
       execution.responseReceivedMonotonicNs,
       "response",
     );
-    if (!(assignmentNs < turnNs && turnNs < responseNs))
+    const processNs: bigint = eventTime(
+      processEvent,
+      processIdentity.startedMonotonicNs as string,
+      "process start",
+    );
+    const itemNs: bigint = nanoseconds(
+      itemEvent.monotonicNs as string,
+      "item completion",
+    );
+    if (!(
+      processNs < assignmentNs &&
+      assignmentNs < turnNs &&
+      turnNs < responseNs &&
+      responseNs < itemNs
+    ))
       throw new Error(
         "Activity assignment, turn, and response order is invalid.",
       );
@@ -177,11 +223,7 @@ export namespace EvidenceBenchmarkActivityExecutions {
     }
   }
 
-  function identity(
-    bytes: Uint8Array,
-    execution: IEvidenceBenchmarkActivity.IModelExecutionProvenance,
-    assignmentId: string,
-  ): void {
+  function identity(bytes: Uint8Array): Record<string, unknown> {
     const value: Record<string, unknown> = record(
       EvidenceBenchmarkActivityStrictJson.parse(bytes, "process identity"),
       "process identity",
@@ -201,10 +243,11 @@ export namespace EvidenceBenchmarkActivityExecutions {
       "requestedServiceTierMode",
       "requestedServiceTier",
       "effectiveServiceTier",
-      "assignmentId",
-      "agentRole",
-      "sessionId",
-      "threadId",
+      "processInstanceId",
+      "processId",
+      "startedAtUtc",
+      "startedMonotonicNs",
+      "invocation",
       "identitySha256",
     ]);
     const { identitySha256: _ignored, ...body } = value;
@@ -221,12 +264,22 @@ export namespace EvidenceBenchmarkActivityExecutions {
       value.requestedServiceTierMode !== "omitted" ||
       value.requestedServiceTier !== null ||
       value.effectiveServiceTier !== null ||
-      value.assignmentId !== assignmentId ||
-      value.agentRole !== execution.agentRole ||
-      value.sessionId !== execution.sessionId ||
-      value.threadId !== execution.threadId
+      typeof value.processInstanceId !== "string" ||
+      value.processInstanceId.length === 0 ||
+      !Number.isSafeInteger(value.processId) ||
+      (value.processId as number) <= 0 ||
+      typeof value.startedAtUtc !== "string" ||
+      !Number.isFinite(Date.parse(value.startedAtUtc)) ||
+      typeof value.startedMonotonicNs !== "string" ||
+      !Array.isArray(value.invocation) ||
+      value.invocation.length === 0 ||
+      value.invocation.some(
+        (part) => typeof part !== "string" || part.length === 0,
+      )
     )
       throw new Error("Process identity does not prove the frozen execution.");
+    nanoseconds(value.startedMonotonicNs as string, "process start");
+    return value;
   }
 
   function eventLedger(
@@ -296,6 +349,33 @@ export namespace EvidenceBenchmarkActivityExecutions {
         throw new Error(`Activity execution event differs at ${field}.`);
   }
 
+  function processEventPayload(
+    event: Record<string, unknown>,
+    identity: Record<string, unknown>,
+  ): void {
+    const payload: Record<string, unknown> = record(
+      event.payload,
+      "activity process-start event payload",
+    );
+    exactKeys(payload, [
+      "processInstanceId",
+      "processId",
+      "invocation",
+      "codexExecutableSha256",
+    ]);
+    for (const field of [
+      "processInstanceId",
+      "processId",
+      "invocation",
+      "codexExecutableSha256",
+    ] as const)
+      if (
+        EvidenceBenchmarkActivityCanonical.stringify(payload[field]) !==
+        EvidenceBenchmarkActivityCanonical.stringify(identity[field])
+      )
+        throw new Error(`Activity process event differs at ${field}.`);
+  }
+
   function eventTime(
     event: Record<string, unknown>,
     expected: string,
@@ -354,6 +434,7 @@ export namespace EvidenceBenchmarkActivityExecutions {
       "turnId",
       "responseId",
       "rawEventId",
+      "processStartedEventId",
       "assignmentEventId",
       "turnStartedEventId",
       "assignmentMonotonicNs",
@@ -362,6 +443,12 @@ export namespace EvidenceBenchmarkActivityExecutions {
       "responseReceivedAtUtc",
       "responseUsage",
       "providerOutputSha256",
+      "itemCompletedEventId",
+      "structuredOutputItemId",
+      "structuredOutputEnvelopePath",
+      "structuredOutputEnvelopeByteOffset",
+      "structuredOutputEnvelopeBytes",
+      "structuredOutputEnvelopeSha256",
       "rawResponseEnvelopeBytes",
       "rawResponseEnvelopePath",
       "rawResponseEnvelopeByteOffset",
@@ -409,6 +496,96 @@ export namespace EvidenceBenchmarkActivityExecutions {
     )
       throw new Error(
         "Activity raw response reference differs from exact bytes.",
+      );
+  }
+
+  function rawResponse(
+    bytes: Uint8Array,
+    execution: IEvidenceBenchmarkActivity.IModelExecutionProvenance,
+  ): void {
+    const envelope: Record<string, unknown> = record(
+      EvidenceBenchmarkActivityStrictJson.parse(bytes, "raw response envelope"),
+      "raw response envelope",
+    );
+    exactKeys(envelope, ["method", "params"]);
+    const params: Record<string, unknown> = record(
+      envelope.params,
+      "raw response params",
+    );
+    exactKeys(params, ["responseId", "threadId", "turnId", "usage"]);
+    if (
+      envelope.method !== "rawResponse/completed" ||
+      params.responseId !== execution.responseId ||
+      params.threadId !== execution.threadId ||
+      params.turnId !== execution.turnId ||
+      EvidenceBenchmarkActivityCanonical.stringify(params.usage) !==
+        EvidenceBenchmarkActivityCanonical.stringify(execution.responseUsage)
+    )
+      throw new Error(
+        "Raw response envelope does not match the pinned notification shape.",
+      );
+  }
+
+  function structuredOutput(
+    event: Record<string, unknown>,
+    bytes: Uint8Array,
+    execution: IEvidenceBenchmarkActivity.IModelExecutionProvenance,
+  ): void {
+    const rawRef: Record<string, unknown> = record(
+      event.rawRef,
+      "structured output raw reference",
+    );
+    if (
+      rawRef.direction !== "server" ||
+      rawRef.path !== execution.structuredOutputEnvelopePath ||
+      rawRef.byteOffset !== execution.structuredOutputEnvelopeByteOffset ||
+      rawRef.byteLength !== execution.structuredOutputEnvelopeBytes ||
+      rawRef.sha256 !== execution.structuredOutputEnvelopeSha256
+    )
+      throw new Error(
+        "Structured output raw reference differs from exact bytes.",
+      );
+    const envelope: Record<string, unknown> = record(
+      EvidenceBenchmarkActivityStrictJson.parse(
+        bytes,
+        "structured output envelope",
+      ),
+      "structured output envelope",
+    );
+    exactKeys(envelope, ["method", "params"]);
+    const params: Record<string, unknown> = record(
+      envelope.params,
+      "item completed params",
+    );
+    exactKeys(params, ["completedAtMs", "item", "threadId", "turnId"]);
+    const item: Record<string, unknown> = record(
+      params.item,
+      "item completed agent message",
+    );
+    exactKeys(item, ["id", "type", "phase", "text"]);
+    if (
+      envelope.method !== "item/completed" ||
+      !Number.isSafeInteger(params.completedAtMs) ||
+      params.threadId !== execution.threadId ||
+      params.turnId !== execution.turnId ||
+      item.id !== execution.structuredOutputItemId ||
+      item.type !== "agentMessage" ||
+      item.phase !== "final" ||
+      typeof item.text !== "string"
+    )
+      throw new Error(
+        "Structured output is not a final agent-message item completion.",
+      );
+    const providerOutput: unknown = EvidenceBenchmarkActivityStrictJson.parse(
+      Buffer.from(item.text as string, "utf8"),
+      "structured provider output text",
+    );
+    if (
+      EvidenceBenchmarkActivityCanonical.object(providerOutput) !==
+      execution.providerOutputSha256
+    )
+      throw new Error(
+        "Structured output text differs from the provider output artifact.",
       );
   }
 

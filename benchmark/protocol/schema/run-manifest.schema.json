@@ -321,19 +321,19 @@
           "const": "4631758e48d986903a0f129c07ceb718ff303529963995b157f90f3e5e0b0053"
         },
         "activityProcessIdentitySchemaSha256": {
-          "const": "3ad10f6b8edff7773ff9b056c7cb0380e9bfb90b51c843125059af82758b31b8"
+          "const": "d0d9572594b58779b66a0b516d439ebb3ead18764725ec79ef94051242c8b9ec"
         },
         "activityExecutionSchemaSha256": {
-          "const": "7201a9ec92f0c4f73dc8d14b0d91c9779491dab1895ca2fca693d43c847baf80"
+          "const": "7d48b48208516730e0f11481e56339694f5f90cf4f61a75b72b927751ded3a45"
         },
         "activityLedgerSchemaSha256": {
-          "const": "f7622bd0100b3768e77c4571863c971a60a5462b161b35973c72358575d5693a"
+          "const": "6a1b52d3bf2c38efa74e9d093afe850574b6aa47f6abdb1dfe78bbb8eeacfecc"
         },
         "activityObservationSchemaSha256": {
-          "const": "9946d6e44e89e0fa19cf341d2bfdb7e91d29f7657c229414e95a0b4938254cc4"
+          "const": "325dc402a8bbb458766dd19901d9a1e547f5866c6dd44dc799e66bb75ad5c074"
         },
         "activityReportSchemaSha256": {
-          "const": "cd437325b8592d3c244ea3496ec78f907a7d00d109684461c18f8088a5266ae7"
+          "const": "a59e5f9ea0ad6c2905400e97e9c22444bf32d3b40845696f26f32b54edd5e677"
         },
         "promptSha256": {
           "const": "d538f0697e4f7d9eb5903b292c70a0fc6f034801f8c8554ca9c181a3a143bfa1"

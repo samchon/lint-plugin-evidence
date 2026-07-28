@@ -268,28 +268,28 @@
     },
     "processIdentitySchema": {
       "path": "benchmark/protocol/schema/activity-process-identity.schema.json",
-      "bytes": 1782,
-      "sha256": "3ad10f6b8edff7773ff9b056c7cb0380e9bfb90b51c843125059af82758b31b8"
+      "bytes": 1937,
+      "sha256": "d0d9572594b58779b66a0b516d439ebb3ead18764725ec79ef94051242c8b9ec"
     },
     "executionSchema": {
       "path": "benchmark/protocol/schema/activity-execution.schema.json",
-      "bytes": 4691,
-      "sha256": "7201a9ec92f0c4f73dc8d14b0d91c9779491dab1895ca2fca693d43c847baf80"
+      "bytes": 5499,
+      "sha256": "7d48b48208516730e0f11481e56339694f5f90cf4f61a75b72b927751ded3a45"
     },
     "ledgerSchema": {
       "path": "benchmark/protocol/schema/activity-ledger.schema.json",
-      "bytes": 4610,
-      "sha256": "f7622bd0100b3768e77c4571863c971a60a5462b161b35973c72358575d5693a"
+      "bytes": 5063,
+      "sha256": "6a1b52d3bf2c38efa74e9d093afe850574b6aa47f6abdb1dfe78bbb8eeacfecc"
     },
     "observationSchema": {
       "path": "benchmark/protocol/schema/activity-observation.schema.json",
-      "bytes": 7581,
-      "sha256": "9946d6e44e89e0fa19cf341d2bfdb7e91d29f7657c229414e95a0b4938254cc4"
+      "bytes": 7758,
+      "sha256": "325dc402a8bbb458766dd19901d9a1e547f5866c6dd44dc799e66bb75ad5c074"
     },
     "reportSchema": {
       "path": "benchmark/protocol/schema/activity-report.schema.json",
-      "bytes": 11052,
-      "sha256": "cd437325b8592d3c244ea3496ec78f907a7d00d109684461c18f8088a5266ae7"
+      "bytes": 13177,
+      "sha256": "a59e5f9ea0ad6c2905400e97e9c22444bf32d3b40845696f26f32b54edd5e677"
     },
     "coreSealSchema": {
       "path": "benchmark/protocol/schema/core-seal.schema.json",
