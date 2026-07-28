@@ -7,14 +7,22 @@ import type { IEvidenceBenchmarkActivity } from "./IEvidenceBenchmarkActivity.ts
 export namespace EvidenceBenchmarkActivityJudgments {
   /** Locally admitted rating with mechanically extracted event citations. */
   export interface IRating {
+    /** Restricted provider-facing rating row. */
     source: IEvidenceBenchmarkActivity.IProviderRating;
+
+    /** Unique maximum-probability primary category. */
     primary: IEvidenceBenchmarkActivity.PrimaryActivity;
+
+    /** Rater-selected citations admitted against the sealed event allowlist. */
     evidenceEventIds: readonly string[];
   }
 
   /** Locally admitted artifact indexed by exact response ID. */
   export interface IAdmittedRater {
+    /** Complete provenance wrapper admitted by local invariants. */
     artifact: IEvidenceBenchmarkActivity.IRaterArtifact;
+
+    /** One locally admitted rating per exact response. */
     ratings: ReadonlyMap<string, IRating>;
   }
 

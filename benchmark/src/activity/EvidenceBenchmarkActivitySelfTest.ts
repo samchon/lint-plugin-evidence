@@ -20,9 +20,12 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     );
     try {
       testRegistryAdmission(temporary);
-      testExactObservationIntegrity();
-      testIndependentJudgmentsAndReducer();
-      testFailClosedJudgments();
+      const protocolRoot: string = writeProtocol(
+        path.join(temporary, "fixture-protocol"),
+      ).root;
+      testExactObservationIntegrity(protocolRoot);
+      testIndependentJudgmentsAndReducer(protocolRoot);
+      testFailClosedJudgments(protocolRoot);
       console.log("Activity attribution self-test passed without paid calls.");
     } finally {
       fs.rmSync(temporary, { recursive: true, force: true });
@@ -40,37 +43,8 @@ export namespace EvidenceBenchmarkActivitySelfTest {
    * 3. Reject a traversal path before any model-facing turn can start.
    */
   function testRegistryAdmission(temporary: string): void {
-    const root: string = path.join(temporary, "protocol");
-    fs.mkdirSync(path.join(root, "schema"), { recursive: true });
-    const ratingProvider: Buffer = writeBytes(
-      path.join(root, "schema/activity-rating-provider.schema.json"),
-      '{"type":"object","properties":{"role":{"type":"string"}}}\n',
-    );
-    const ratingLocal: Buffer = writeBytes(
-      path.join(root, "schema/activity-rating-local.schema.json"),
-      '{"$ref":"activity-rating-provider.schema.json"}\n',
-    );
-    const adjudicationProvider: Buffer = writeBytes(
-      path.join(root, "schema/adjudication-provider.schema.json"),
-      '{"type":"object","properties":{"population":{"type":"string"}}}\n',
-    );
-    const adjudicationLocal: Buffer = writeBytes(
-      path.join(root, "schema/adjudication-local.schema.json"),
-      '{"$ref":"adjudication-provider.schema.json"}\n',
-    );
-    const registry = registryFixture({
-      ratingProvider,
-      ratingLocal,
-      adjudicationProvider,
-      adjudicationLocal,
-    });
-    fs.writeFileSync(
-      path.join(root, "provider-output-registry.json"),
-      `${JSON.stringify(registry)}\n`,
-      "utf8",
-    );
-    const admitted: EvidenceBenchmarkActivityRegistry.IBinding =
-      EvidenceBenchmarkActivityRegistry.admit(root);
+    const fixture = writeProtocol(path.join(temporary, "protocol"));
+    const { root, registry, ratingProvider, admitted } = fixture;
     assert.equal(
       admitted.activityRatingProviderSchemaSha256,
       EvidenceBenchmarkActivityCanonical.sha256(ratingProvider),
@@ -99,8 +73,8 @@ export namespace EvidenceBenchmarkActivitySelfTest {
    * 2. Mutate the core seal and duplicate a response independently.
    * 3. Assert both invalid variants fail before semantic judgment.
    */
-  function testExactObservationIntegrity(): void {
-    const fixture: Fixture = fixtureObservations();
+  function testExactObservationIntegrity(protocolRoot: string): void {
+    const fixture: Fixture = fixtureObservations(protocolRoot);
     assert.equal(fixture.observations.responses.length, 2);
     assert.throws(
       () =>
@@ -109,6 +83,30 @@ export namespace EvidenceBenchmarkActivitySelfTest {
           parentCoreSealBytes: Buffer.from("altered\n"),
         }),
       /parent core seal/,
+    );
+    const disconnectedCore: Buffer = Buffer.from(
+      `${JSON.stringify({
+        schemaVersion: 1,
+        complete: true,
+        runId: fixture.input.binding.runId,
+        manifestSha256: fixture.input.binding.runManifestSha256,
+        usageSha256: digest("other-ledger"),
+        finalEventSha256: fixture.input.binding.eventChainTerminalSha256,
+      })}\n`,
+      "utf8",
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkActivityObservations.create({
+          ...fixture.input,
+          binding: {
+            ...fixture.input.binding,
+            parentCoreSealSha256:
+              EvidenceBenchmarkActivityCanonical.sha256(disconnectedCore),
+          },
+          parentCoreSealBytes: disconnectedCore,
+        }),
+      /does not bind/,
     );
     assert.throws(
       () =>
@@ -121,6 +119,15 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     const invalidUsage = structuredClone(fixture.input.responses);
     invalidUsage[0]!.usage!.totalTokens += 1;
     const ledgerBytes: Buffer = usageLedger(invalidUsage);
+    const invalidCore = JSON.parse(
+      Buffer.from(fixture.input.parentCoreSealBytes).toString("utf8"),
+    ) as Record<string, unknown>;
+    invalidCore.usageSha256 =
+      EvidenceBenchmarkActivityCanonical.sha256(ledgerBytes);
+    const invalidCoreBytes: Buffer = Buffer.from(
+      `${JSON.stringify(invalidCore)}\n`,
+      "utf8",
+    );
     assert.throws(
       () =>
         EvidenceBenchmarkActivityObservations.create({
@@ -129,7 +136,10 @@ export namespace EvidenceBenchmarkActivitySelfTest {
             ...fixture.input.binding,
             sourceUsageLedgerSha256:
               EvidenceBenchmarkActivityCanonical.sha256(ledgerBytes),
+            parentCoreSealSha256:
+              EvidenceBenchmarkActivityCanonical.sha256(invalidCoreBytes),
           },
+          parentCoreSealBytes: invalidCoreBytes,
           sourceUsageLedgerBytes: ledgerBytes,
           responses: invalidUsage,
         }),
@@ -148,8 +158,8 @@ export namespace EvidenceBenchmarkActivitySelfTest {
    * 2. Bind a third session to the exact queue and both rating digests.
    * 3. Reconcile exact tokens and the complete wall while preserving estimates.
    */
-  function testIndependentJudgmentsAndReducer(): void {
-    const fixture: Fixture = fixtureObservations();
+  function testIndependentJudgmentsAndReducer(protocolRoot: string): void {
+    const fixture: Fixture = fixtureObservations(protocolRoot);
     const raterA: IEvidenceBenchmarkActivity.IRaterArtifact = rater(
       fixture.observations,
       "a",
@@ -278,8 +288,8 @@ export namespace EvidenceBenchmarkActivitySelfTest {
    * 2. Reuse one rater session under a second turn class.
    * 3. Assert local admission rejects both otherwise schema-shaped outputs.
    */
-  function testFailClosedJudgments(): void {
-    const fixture: Fixture = fixtureObservations();
+  function testFailClosedJudgments(protocolRoot: string): void {
+    const fixture: Fixture = fixtureObservations(protocolRoot);
     const valid: IEvidenceBenchmarkActivity.IRaterArtifact = rater(
       fixture.observations,
       "a",
@@ -342,8 +352,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     observations: IEvidenceBenchmarkActivity.IObservations;
   }
 
-  function fixtureObservations(): Fixture {
-    const coreSealBytes: Buffer = Buffer.from('{"sealed":true}\n', "utf8");
+  function fixtureObservations(protocolRoot: string): Fixture {
     const responses: IEvidenceBenchmarkActivity.IResponseUsage[] = [
       {
         responseId: "response-a",
@@ -381,12 +390,67 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       },
     ];
     const sourceUsageLedgerBytes: Buffer = usageLedger(responses);
+    const registry: EvidenceBenchmarkActivityRegistry.IBinding =
+      EvidenceBenchmarkActivityRegistry.admit(protocolRoot);
+    const materializationManifest = {
+      schemaVersion: 2,
+      treeAlgorithm: "sha256-posix-path-nul-bytes-v1",
+      baseTreeSha256: digest("base-tree"),
+      armTreeSha256: digest("arm-tree"),
+      requirementsTreeSha256: digest("requirements-tree"),
+      workspaceTreeSha256: digest("workspace-tree"),
+      inputSha256: digest("materialization-input"),
+    };
+    const materializationManifestBytes: Buffer = Buffer.from(
+      `${JSON.stringify(materializationManifest)}\n`,
+      "utf8",
+    );
+    const runManifest = {
+      experiment: {
+        runId: "todo-plain-r1",
+        blockId: "todo-reddit-r1",
+        projectInputSha256: digest("materialization-input"),
+        protocolRevisionSha256: digest("protocol"),
+      },
+      runner: {
+        providerOutputRegistrySha256: registry.registrySha256,
+      },
+    };
+    const runManifestBytes: Buffer = Buffer.from(
+      `${JSON.stringify(runManifest)}\n`,
+      "utf8",
+    );
+    const coreSealBytes: Buffer = Buffer.from(
+      `${JSON.stringify({
+        schemaVersion: 1,
+        complete: true,
+        runId: "todo-plain-r1",
+        manifestSha256:
+          EvidenceBenchmarkActivityCanonical.sha256(runManifestBytes),
+        usageSha256: EvidenceBenchmarkActivityCanonical.sha256(
+          sourceUsageLedgerBytes,
+        ),
+        finalEventSha256: digest("events"),
+      })}\n`,
+      "utf8",
+    );
     const binding: IEvidenceBenchmarkActivity.IBinding = {
       schemaVersion: 1,
       exactByteDigestAlgorithm: "sha256(exact-bytes)",
       canonicalObjectDigestAlgorithm: "sha256(utf8-bytewise-key-order-json-lf)",
+      frozenInputTreeAlgorithm: "sha256-posix-path-nul-bytes-v1",
       runId: "todo-plain-r1",
       blockId: "todo-reddit-r1",
+      baseTreeSha256: digest("base-tree"),
+      armTreeSha256: digest("arm-tree"),
+      requirementsTreeSha256: digest("requirements-tree"),
+      workspaceTreeSha256: digest("workspace-tree"),
+      materializationInputSha256: digest("materialization-input"),
+      materializationManifestSha256: EvidenceBenchmarkActivityCanonical.sha256(
+        materializationManifestBytes,
+      ),
+      runManifestSha256:
+        EvidenceBenchmarkActivityCanonical.sha256(runManifestBytes),
       parentCoreSealSha256:
         EvidenceBenchmarkActivityCanonical.sha256(coreSealBytes),
       protocolRevisionSha256: digest("protocol"),
@@ -395,15 +459,20 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         sourceUsageLedgerBytes,
       ),
       eventChainTerminalSha256: digest("events"),
-      providerOutputRegistrySha256: digest("registry"),
-      activityRatingProviderSchemaSha256: digest("rating-provider"),
-      activityRatingLocalSchemaSha256: digest("rating-local"),
-      adjudicationProviderSchemaSha256: digest("adjudication-provider"),
-      adjudicationLocalSchemaSha256: digest("adjudication-local"),
+      providerOutputRegistrySha256: registry.registrySha256,
+      activityRatingProviderSchemaSha256:
+        registry.activityRatingProviderSchemaSha256,
+      activityRatingLocalSchemaSha256: registry.activityRatingLocalSchemaSha256,
+      adjudicationProviderSchemaSha256:
+        registry.adjudicationProviderSchemaSha256,
+      adjudicationLocalSchemaSha256: registry.adjudicationLocalSchemaSha256,
     };
     const input: EvidenceBenchmarkActivityObservations.IInput = {
+      protocolRoot,
       binding,
       parentCoreSealBytes: coreSealBytes,
+      runManifestBytes,
+      materializationManifestBytes,
       sourceUsageLedgerBytes,
       wall: {
         startedMonotonicNs: "0",
@@ -601,6 +670,43 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     const bytes: Buffer = Buffer.from(content, "utf8");
     fs.writeFileSync(location, bytes);
     return bytes;
+  }
+
+  function writeProtocol(root: string) {
+    fs.mkdirSync(path.join(root, "schema"), { recursive: true });
+    const ratingProvider: Buffer = writeBytes(
+      path.join(root, "schema/activity-rating-provider.schema.json"),
+      '{"type":"object","properties":{"role":{"type":"string"}}}\n',
+    );
+    const ratingLocal: Buffer = writeBytes(
+      path.join(root, "schema/activity-rating-local.schema.json"),
+      '{"$ref":"activity-rating-provider.schema.json"}\n',
+    );
+    const adjudicationProvider: Buffer = writeBytes(
+      path.join(root, "schema/adjudication-provider.schema.json"),
+      '{"type":"object","properties":{"population":{"type":"string"}}}\n',
+    );
+    const adjudicationLocal: Buffer = writeBytes(
+      path.join(root, "schema/adjudication-local.schema.json"),
+      '{"$ref":"adjudication-provider.schema.json"}\n',
+    );
+    const registry = registryFixture({
+      ratingProvider,
+      ratingLocal,
+      adjudicationProvider,
+      adjudicationLocal,
+    });
+    fs.writeFileSync(
+      path.join(root, "provider-output-registry.json"),
+      `${JSON.stringify(registry)}\n`,
+      "utf8",
+    );
+    return {
+      root,
+      registry,
+      ratingProvider,
+      admitted: EvidenceBenchmarkActivityRegistry.admit(root),
+    };
   }
 
   function registryFixture(input: {

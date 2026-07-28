@@ -11,11 +11,16 @@ import type { IEvidenceBenchmarkActivity } from "./IEvidenceBenchmarkActivity.ts
 export namespace EvidenceBenchmarkActivityReducer {
   /** Complete reducer request; adjudication may be absent but never synthesized. */
   export interface IInput {
+    /** Exact core-bound observations. */
     observations: IEvidenceBenchmarkActivity.IObservations;
+
+    /** Ordered independent rater artifacts. */
     raters: readonly [
       IEvidenceBenchmarkActivity.IRaterArtifact,
       IEvidenceBenchmarkActivity.IRaterArtifact,
     ];
+
+    /** Optional fresh adjudicator artifact for the deterministic queue. */
     adjudicator?: IEvidenceBenchmarkActivity.IAdjudicatorArtifact;
   }
 

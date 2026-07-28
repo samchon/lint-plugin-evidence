@@ -4,7 +4,7 @@ This module separates exact observations from semantic estimates. It never claim
 
 ## Adapter boundary
 
-The runner supplies the exact parent core-seal bytes, exact usage-ledger bytes, the immutable binding, one deduplicated observation per usage-ledger response, and item lifecycle observations. `EvidenceBenchmarkActivityObservations.create` verifies both byte digests, response identity and counters, token arithmetic, unique IDs, interval bounds, and ordered-epoch links before a rating turn may run.
+The runner supplies the exact parent core-seal, outer run-manifest, materialization-manifest, and usage-ledger bytes, the immutable binding, one deduplicated observation per usage-ledger response, and item lifecycle observations. The validator proves the core seal names the run-manifest, usage-ledger, and event-chain digests; the run manifest names the run, block, and materialization input; and the materialization manifest names its base, arm, requirements, workspace, and aggregate input digests together with `sha256-posix-path-nul-bytes-v1`. An unqualified or disconnected frozen-input digest cannot pass. `EvidenceBenchmarkActivityObservations.create` then verifies response identity and counters, token arithmetic, unique IDs, interval bounds, and ordered-epoch links before a rating turn may run.
 
 The CLI admits `provider-output-registry.json` through `EvidenceBenchmarkActivityRegistry.admit`. It rejects remote references, root escape, symbolic schema files, byte or digest drift, missing activity turn classes, and provider keywords outside the registry allowlist. The returned schema identities must equal the immutable binding.
 

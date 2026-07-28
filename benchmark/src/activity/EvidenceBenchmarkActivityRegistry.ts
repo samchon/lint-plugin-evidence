@@ -7,10 +7,19 @@ import { EvidenceBenchmarkActivityCanonical } from "./EvidenceBenchmarkActivityC
 export namespace EvidenceBenchmarkActivityRegistry {
   /** Exact schema identities copied into the immutable run binding. */
   export interface IBinding {
+    /** Exact-byte identity of the provider output registry. */
     registrySha256: string;
+
+    /** Exact-byte identity of the provider-facing rating schema. */
     activityRatingProviderSchemaSha256: string;
+
+    /** Exact-byte identity of the local rating schema. */
     activityRatingLocalSchemaSha256: string;
+
+    /** Exact-byte identity of the provider-facing adjudication schema. */
     adjudicationProviderSchemaSha256: string;
+
+    /** Exact-byte identity of the local adjudication schema. */
     adjudicationLocalSchemaSha256: string;
   }
 
@@ -211,6 +220,16 @@ export namespace EvidenceBenchmarkActivityRegistry {
     const resolved: string = path.resolve(root, ...relative.split("/"));
     if (!resolved.startsWith(`${root}${path.sep}`))
       throw new Error(`Registry path escapes its protocol root: ${relative}`);
+    const real: string = fs.realpathSync(resolved);
+    const comparable = (value: string): string =>
+      process.platform === "win32" ? value.toLowerCase() : value;
+    if (
+      comparable(real) !== comparable(resolved) ||
+      !comparable(real).startsWith(`${comparable(root)}${path.sep}`)
+    )
+      throw new Error(
+        `Registry path traverses a symbolic-link boundary: ${relative}`,
+      );
     return resolved;
   }
 

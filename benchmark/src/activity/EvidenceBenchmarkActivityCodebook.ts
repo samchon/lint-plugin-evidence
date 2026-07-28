@@ -44,6 +44,7 @@ export namespace EvidenceBenchmarkActivityCodebook {
     probabilityDenominator: 10_000,
     exactByteDigestAlgorithm: "sha256(exact-bytes)",
     canonicalObjectDigestAlgorithm: "sha256(utf8-bytewise-key-order-json-lf)",
+    frozenInputTreeAlgorithm: "sha256-posix-path-nul-bytes-v1",
     semanticConfidenceMaximumExclusive: 1,
     adjudication: {
       lowConfidenceBelow: 0.7,
