@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { EvidenceBenchmarkMarkdown } from "./EvidenceBenchmarkMarkdown.ts";
+
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 
@@ -535,8 +537,8 @@ export namespace EvidenceBenchmarkTemplate {
           );
         continue;
       }
-      const headings: string[] = markdownLines(source).filter((line) =>
-        /^# [^#]/.test(line),
+      const headings: string[] = EvidenceBenchmarkMarkdown.lines(source).filter(
+        (line) => /^# [^#]/.test(line),
       );
       if (headings.length !== 1)
         throw new Error(
@@ -570,7 +572,7 @@ export namespace EvidenceBenchmarkTemplate {
     source: string,
     files: ReadonlyMap<string, Uint8Array>,
   ): void {
-    for (const line of markdownLines(source)) {
+    for (const line of EvidenceBenchmarkMarkdown.lines(source)) {
       for (const match of line.matchAll(
         /!?\[[^\]]*\]\(([^)\s]+)(?:\s+[^)]*)?\)/g,
       )) {
@@ -597,22 +599,6 @@ export namespace EvidenceBenchmarkTemplate {
           );
       }
     }
-  }
-
-  function markdownLines(source: string): string[] {
-    const output: string[] = [];
-    let fence: string | null = null;
-    for (const line of source.split("\n")) {
-      const marker: RegExpExecArray | null = /^\s*(```+|~~~+)/.exec(line);
-      if (marker !== null) {
-        const family: string = marker[1]![0]!;
-        if (fence === null) fence = family;
-        else if (fence === family) fence = null;
-        continue;
-      }
-      if (fence === null) output.push(line);
-    }
-    return output;
   }
 
   interface IFrontmatter {
