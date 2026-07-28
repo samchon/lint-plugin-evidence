@@ -72,15 +72,17 @@ When a reason spans lines, the continuation aligns under the column where the ta
 
 **Every reason is written for the reviewer who will read it against the code.** A citation's reason states which part of the target this artifact answers for; an exclusion's reason states the decision a reviewer could veto. The [review skill](../review/SKILL.md) reads exactly these sentences as the claims under test, so a reason that only restates the tag hands the review nothing to check.
 
-## Two Rules Run Beside The Graph
+## Three Rules Run Beside The Graph
 
-The graph is the obligation checker. Two smaller rules run with it, and both fail the build the same way.
+The graph is the obligation checker. Three smaller rules run with it, and all three fail the build the same way.
 
 **Every selected export carries a JSDoc block.** That block is the only place an `@evidence` tag is ever read from, so a declaration without one can never cite anything. An empty block fails too: it states nothing and carries no tag.
 
 **One public identity per file, named after the file.** `IShoppingSale.ts` declares `IShoppingSale` and its namespace, and nothing else public. That is what makes an index re-export predictable and a citation address stable, and it is the rule behind one file per root type.
 
-Neither rule reads what you wrote. A block containing only a tag satisfies the first one completely, which is why the paragraph below is a rule you keep rather than a check you pass.
+**Every remaining `@todo` is an error.** The tag is how a stub names what realize owes, so `evidence/todo` turns the realize finish line into a diagnostic: the report lists each tag with its own text, which is the realize ledger, and the build is green only when the ledger is empty.
+
+None of the three reads whether a citation is true. A block containing only a tag satisfies the first completely, which is why the paragraph below is a rule you keep rather than a check you pass.
 
 ## The Examples Here Show Tags, Not Whole Declarations
 

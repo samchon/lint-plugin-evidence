@@ -169,5 +169,7 @@ export default {
     "evidence/graph": ["error", graph],
     "evidence/documented": "error",
     "evidence/singular": "error",
+    // Every remaining @todo is an unrealized contract: the realize ledger.
+    "evidence/todo": "error",
   },
 } satisfies ITtscLintConfig;

@@ -24,7 +24,7 @@ public async index(
 
 The block is shortened to the two tags. The published documentation this method owes is unchanged and lives beside them.
 
-Write the citations when the stub is born. They cite the contract, which is complete before realize, so nothing about a citation waits for a provider; the `@todo` beside them is the one tag realize removes.
+Write the citations when the stub is born. They cite the contract, which is complete before realize, so nothing about a citation waits for a provider; the `@todo` beside them is the one tag realize removes. The build reports every tag still standing, so realize's finish line is a diagnostic rather than a discipline.
 
 A declaration may carry several citations, and each is judged independently. Cite the requirement this operation serves and the model it exposes, and say which part of each it is responsible for.
 
