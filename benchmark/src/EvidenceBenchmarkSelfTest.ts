@@ -258,6 +258,31 @@ export namespace EvidenceBenchmarkSelfTest {
       () => EvidenceBenchmarkTemplate.validate(invalidPath),
       "not portable to Windows",
     );
+    const fenced: Map<string, Uint8Array> = new Map(first.files);
+    fenced.set(
+      "docs/fenced-markdown.md",
+      Buffer.from(
+        [
+          "# Visible",
+          "",
+          "````md",
+          "# Hidden by four backticks",
+          "```",
+          "[Missing](missing.md)",
+          "~~~",
+          "````",
+          "",
+          "~~~~",
+          "# Hidden by four tildes",
+          "```",
+          "~~~",
+          "[Missing](also-missing.md)",
+          "~~~~",
+          "",
+        ].join("\n"),
+      ),
+    );
+    EvidenceBenchmarkTemplate.validate(fenced);
   }
 
   async function testRepositoryInputs(repository: string): Promise<void> {
@@ -293,8 +318,16 @@ export namespace EvidenceBenchmarkSelfTest {
       const hasInventory: boolean =
         fs.existsSync(path.join(subject, "acceptance-criteria.jsonl")) ||
         fs.existsSync(path.join(subject, "metadata.json"));
-      if (hasInventory) EvidenceBenchmarkCorpus.read(subject);
-      else
+      if (hasInventory) {
+        const corpus: EvidenceBenchmarkCorpus.IResult =
+          EvidenceBenchmarkCorpus.read(subject);
+        if (entry.name === "erp") {
+          assert.equal(corpus.h2, 261);
+          assert.equal(corpus.h3, 1_344);
+          assert.equal(corpus.atomicAcceptanceClauses, 1_724);
+          assert.equal(corpus.contextCriteria, 986);
+        }
+      } else
         await expectFailure(
           () => EvidenceBenchmarkCorpus.read(subject),
           "no audited machine-readable inventory",
@@ -496,6 +529,18 @@ export namespace EvidenceBenchmarkSelfTest {
       EvidenceBenchmarkCorpus.read(root);
     assert.equal(result.inventory, "metadata.json");
     assert.equal(result.atomicAcceptanceClauses, 1);
+    assert.equal(result.contextCriteria, 0);
+    write(
+      path.join(root, "00-corpus-contract.md"),
+      "# Corpus Contract\r\n\r\nThe inventory is authoritative.\r\n",
+    );
+    const rawResult: EvidenceBenchmarkCorpus.IResult =
+      EvidenceBenchmarkCorpus.read(root);
+    assert.deepEqual(
+      rawResult.files.get("00-corpus-contract.md"),
+      fs.readFileSync(path.join(root, "00-corpus-contract.md")),
+      "parser normalization must never rewrite copied corpus bytes",
+    );
 
     const raw: string = path.join(temporary, "raw-corpus");
     fs.cpSync(root, raw, { recursive: true });
@@ -512,6 +557,65 @@ export namespace EvidenceBenchmarkSelfTest {
     await expectFailure(
       () => EvidenceBenchmarkCorpus.read(root),
       "total h3 must be 1",
+    );
+
+    const dual: string = path.join(temporary, "dual-corpus");
+    createDualCorpus(dual);
+    const dualResult: EvidenceBenchmarkCorpus.IResult =
+      EvidenceBenchmarkCorpus.read(dual);
+    assert.equal(dualResult.inventory, "acceptance-criteria.jsonl");
+    assert.equal(dualResult.h2, 2);
+    assert.equal(dualResult.h3, 2);
+    assert.equal(dualResult.atomicAcceptanceClauses, 2);
+    assert.equal(dualResult.contextCriteria, 3);
+
+    const missingContext: string = path.join(temporary, "missing-context");
+    fs.cpSync(dual, missingContext, { recursive: true });
+    write(
+      path.join(missingContext, "context-criteria.jsonl"),
+      `${readJsonLines(path.join(missingContext, "context-criteria.jsonl"))
+        .slice(0, 2)
+        .map((row) => JSON.stringify(row))
+        .join("\n")}\n`,
+    );
+    writeCorpusManifest(missingContext, {
+      h2: 2,
+      h3: 2,
+      acceptanceCriteria: 2,
+      contextCriteria: 2,
+    });
+    await expectFailure(
+      () => EvidenceBenchmarkCorpus.read(missingContext),
+      "does not cover every REQ H2",
+    );
+
+    const wrongSource: string = path.join(temporary, "wrong-context-source");
+    fs.cpSync(dual, wrongSource, { recursive: true });
+    const wrongSourceRows: Record<string, unknown>[] = readJsonLines(
+      path.join(wrongSource, "context-criteria.jsonl"),
+    );
+    wrongSourceRows[2]!.source = "00-toc.md";
+    write(
+      path.join(wrongSource, "context-criteria.jsonl"),
+      `${wrongSourceRows.map((row) => JSON.stringify(row)).join("\n")}\n`,
+    );
+    writeCorpusManifest(wrongSource, {
+      h2: 2,
+      h3: 2,
+      acceptanceCriteria: 2,
+      contextCriteria: 3,
+    });
+    await expectFailure(
+      () => EvidenceBenchmarkCorpus.read(wrongSource),
+      "does not own REQ H2",
+    );
+
+    const drifted: string = path.join(temporary, "drifted-corpus");
+    fs.cpSync(dual, drifted, { recursive: true });
+    fs.appendFileSync(path.join(drifted, "00-toc.md"), "\nDrift.\n", "utf8");
+    await expectFailure(
+      () => EvidenceBenchmarkCorpus.read(drifted),
+      "file hash drifted",
     );
   }
 
@@ -544,7 +648,7 @@ export namespace EvidenceBenchmarkSelfTest {
     const variables: IEvidenceBenchmarkMaterialization.IVariables =
       benchmarkVariables("self-test");
     const cells: Map<string, IEvidenceBenchmarkMaterialization> = new Map();
-    for (const project of ["todo", "reddit"] as const)
+    for (const project of ["todo", "reddit", "erp"] as const)
       for (const arm of ["evidence", "plain"] as const) {
         const cell = await EvidenceBenchmarkMaterializer.materialize({
           repository,
@@ -641,7 +745,7 @@ export namespace EvidenceBenchmarkSelfTest {
 
   function assertIntegratedCell(props: {
     repository: string;
-    project: "todo" | "reddit";
+    project: IEvidenceBenchmarkMaterialization.Project;
     arm: "evidence" | "plain";
     variables: IEvidenceBenchmarkMaterialization.IVariables;
     artifact: IEvidenceBenchmarkPackageArtifact;
@@ -672,6 +776,11 @@ export namespace EvidenceBenchmarkSelfTest {
       fs.readFileSync(props.cell.manifest, "utf8"),
     ) as IEvidenceBenchmarkMaterialization.IManifest;
     assert.equal(manifest.artifact.sha256, props.artifact.sha256);
+    assert.equal(
+      manifest.corpus.contextCriteria,
+      corpus.contextCriteria,
+      `${props.project}/${props.arm} must retain the separate context denominator`,
+    );
     const archiveRelative: string = `.benchmark-deps/e-${props.artifact.sha256.slice(0, 12)}.tgz`;
     const packageManifest = JSON.parse(
       fs.readFileSync(path.join(props.cell.workspace, "package.json"), "utf8"),
@@ -941,6 +1050,155 @@ export namespace EvidenceBenchmarkSelfTest {
       }
     }
     write(location, `${clauses.join("\n")}\n`);
+  }
+
+  function createDualCorpus(root: string): void {
+    write(
+      path.join(root, "00-corpus-contract.md"),
+      [
+        "# Corpus Contract",
+        "",
+        "## Protocol",
+        "",
+        "````md",
+        "### REQ-HIDDEN-001 Hidden by a longer fence",
+        "```",
+        "~~~",
+        "````",
+        "",
+      ].join("\n"),
+    );
+    write(
+      path.join(root, "00-toc.md"),
+      "# Corpus Contents\n\nEvery file is frozen.\n",
+    );
+    write(
+      path.join(root, "01-requirements.md"),
+      [
+        "# Requirements",
+        "",
+        "## REQ-GROUP-A: Group A",
+        "",
+        "First group context. Second group context.",
+        "",
+        "### REQ-GROUP-A-001: First leaf",
+        "",
+        "First leaf behavior.",
+        "",
+        "## REQ-GROUP-B: Group B",
+        "",
+        "Third group context.",
+        "",
+        "### REQ-GROUP-B-001: Second leaf",
+        "",
+        "Second leaf behavior.",
+        "",
+      ].join("\n"),
+    );
+    write(
+      path.join(root, "acceptance-criteria.jsonl"),
+      [
+        {
+          id: "REQ-GROUP-A-001.AC-01",
+          requirement: "REQ-GROUP-A-001",
+          source: "01-requirements.md",
+          criterion: "First leaf behavior.",
+        },
+        {
+          id: "REQ-GROUP-B-001.AC-01",
+          requirement: "REQ-GROUP-B-001",
+          source: "01-requirements.md",
+          criterion: "Second leaf behavior.",
+        },
+      ]
+        .map((row) => JSON.stringify(row))
+        .join("\n") + "\n",
+    );
+    write(
+      path.join(root, "context-criteria.jsonl"),
+      [
+        {
+          id: "REQ-GROUP-A.CTX-01",
+          requirement: "REQ-GROUP-A",
+          source: "01-requirements.md",
+          criterion: "First group context.",
+        },
+        {
+          id: "REQ-GROUP-A.CTX-02",
+          requirement: "REQ-GROUP-A",
+          source: "01-requirements.md",
+          criterion: "Second group context.",
+        },
+        {
+          id: "REQ-GROUP-B.CTX-01",
+          requirement: "REQ-GROUP-B",
+          source: "01-requirements.md",
+          criterion: "Third group context.",
+        },
+      ]
+        .map((row) => JSON.stringify(row))
+        .join("\n") + "\n",
+    );
+    write(
+      path.join(root, "validate.mjs"),
+      'process.stdout.write("dual corpus fixture valid\\n");\n',
+    );
+    writeCorpusManifest(root, {
+      h2: 2,
+      h3: 2,
+      acceptanceCriteria: 2,
+      contextCriteria: 3,
+    });
+  }
+
+  function writeCorpusManifest(
+    root: string,
+    counts: {
+      h2: number;
+      h3: number;
+      acceptanceCriteria: number;
+      contextCriteria: number;
+    },
+  ): void {
+    const files: Map<string, Uint8Array> =
+      EvidenceBenchmarkHash.directory(root);
+    files.delete("corpus-manifest.json");
+    const paths: string[] = [...files.keys()].sort();
+    const chunks: Uint8Array[] = [];
+    const entries = paths.map((relative) => {
+      const content: Uint8Array = files.get(relative)!;
+      chunks.push(
+        Buffer.from(relative, "utf8"),
+        Buffer.from([0]),
+        content,
+        Buffer.from([0]),
+      );
+      return {
+        path: relative,
+        sha256: EvidenceBenchmarkHash.bytes(content),
+      };
+    });
+    write(
+      path.join(root, "corpus-manifest.json"),
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          ...counts,
+          files: entries,
+          aggregateSha256: EvidenceBenchmarkHash.bytes(Buffer.concat(chunks)),
+        },
+        null,
+        2,
+      )}\n`,
+    );
+  }
+
+  function readJsonLines(location: string): Record<string, unknown>[] {
+    return fs
+      .readFileSync(location, "utf8")
+      .split(/\r?\n/)
+      .filter((line) => line.length !== 0)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
   }
 
   function writeIfMissing(location: string, content: string): void {

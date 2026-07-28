@@ -1,5 +1,8 @@
-import { spawn } from "node:child_process";
-import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import type {
+  ChildProcessWithoutNullStreams,
+  SpawnSyncReturns,
+} from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -72,15 +75,34 @@ export namespace EvidenceBenchmarkProcess {
       elapsedMs: Number(process.hrtime.bigint() - started) / 1_000_000,
     };
     if (status !== 0 && options.allowFailure !== true)
-      throw new Error(
-        [
-          `${options.label ?? command} failed with status ${String(status)}.`,
-          result.stderr.trim(),
-          result.stdout.trim(),
-        ]
-          .filter((part) => part.length !== 0)
-          .join("\n"),
-      );
+      throw failure(command, options, result);
+    return result;
+  }
+
+  /** Runs one short deterministic gate synchronously without a command shell. */
+  export function runSync(
+    command: string,
+    arguments_: readonly string[],
+    options: IOptions,
+  ): IResult {
+    const started: bigint = process.hrtime.bigint();
+    const child: SpawnSyncReturns<string> = spawnSync(command, arguments_, {
+      cwd: options.cwd,
+      env: options.env ?? process.env,
+      shell: false,
+      windowsHide: true,
+      encoding: "utf8",
+      stdio: "pipe",
+    });
+    if (child.error !== undefined) throw child.error;
+    const result: IResult = {
+      status: child.status,
+      stdout: child.stdout ?? "",
+      stderr: child.stderr ?? "",
+      elapsedMs: Number(process.hrtime.bigint() - started) / 1_000_000,
+    };
+    if (result.status !== 0 && options.allowFailure !== true)
+      throw failure(command, options, result);
     return result;
   }
 
@@ -162,5 +184,17 @@ export namespace EvidenceBenchmarkProcess {
         `Pinned pnpm requires the Corepack entrypoint beside Node.js: ${entrypoint}.`,
       );
     return entrypoint;
+  }
+
+  function failure(command: string, options: IOptions, result: IResult): Error {
+    return new Error(
+      [
+        `${options.label ?? command} failed with status ${String(result.status)}.`,
+        result.stderr.trim(),
+        result.stdout.trim(),
+      ]
+        .filter((part) => part.length !== 0)
+        .join("\n"),
+    );
   }
 }

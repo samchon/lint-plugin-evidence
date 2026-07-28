@@ -129,6 +129,9 @@ export namespace IEvidenceBenchmarkMaterialization {
       /** Number of validated atomic acceptance clauses. */
       atomicAcceptanceClauses: number;
 
+      /** Separately scored H2 context criteria, never added to atomic clauses. */
+      contextCriteria: number;
+
       /** Machine-readable corpus contract selected by filename. */
       inventory: "acceptance-criteria.jsonl" | "metadata.json";
     };

@@ -126,6 +126,7 @@ export namespace EvidenceBenchmarkMaterializer {
           h2: corpus.h2,
           h3: corpus.h3,
           atomicAcceptanceClauses: corpus.atomicAcceptanceClauses,
+          contextCriteria: corpus.contextCriteria,
           inventory: corpus.inventory,
         },
         artifact: {

@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkMarkdown } from "./EvidenceBenchmarkMarkdown.ts";
+import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 
 /** Reads and validates one complete benchmark requirement corpus. */
 export namespace EvidenceBenchmarkCorpus {
@@ -22,6 +24,9 @@ export namespace EvidenceBenchmarkCorpus {
     /** Number of validated atomic acceptance criteria. */
     atomicAcceptanceClauses: number;
 
+    /** Separately scored H2 context criteria, never added to atomic clauses. */
+    contextCriteria: number;
+
     /** Machine-readable inventory contract detected for this subject. */
     inventory: "acceptance-criteria.jsonl" | "metadata.json";
   }
@@ -40,25 +45,49 @@ export namespace EvidenceBenchmarkCorpus {
       EvidenceBenchmarkHash.directory(root);
     if (files.size === 0)
       throw new Error(`Benchmark requirement corpus is empty: ${root}.`);
-    const normalized: Map<string, Uint8Array> = normalizeText(files);
-    const markdown: IMarkdownInventory = readMarkdown(normalized);
-    const hasJsonLines: boolean = normalized.has("acceptance-criteria.jsonl");
-    const hasMetadata: boolean = normalized.has("metadata.json");
+    const parserFiles: Map<string, Uint8Array> = normalizeText(files);
+    const markdown: IMarkdownInventory = readMarkdown(parserFiles);
+    const hasJsonLines: boolean = parserFiles.has("acceptance-criteria.jsonl");
+    const hasMetadata: boolean = parserFiles.has("metadata.json");
+    const hasContext: boolean = parserFiles.has("context-criteria.jsonl");
+    const hasManifest: boolean = parserFiles.has("corpus-manifest.json");
     if (hasJsonLines && hasMetadata)
       throw new Error(
         "Requirement corpus must select exactly one inventory adapter, not both acceptance-criteria.jsonl and metadata.json.",
       );
     if (hasJsonLines) {
-      const clauses: number = validateJsonLines(normalized, markdown);
-      return result(normalized, markdown, clauses, "acceptance-criteria.jsonl");
+      const clauses: number = validateJsonLines(parserFiles, markdown);
+      if (hasContext !== hasManifest)
+        throw new Error(
+          "Dual-denominator corpus requires both context-criteria.jsonl and corpus-manifest.json.",
+        );
+      const contextCriteria: number = hasContext
+        ? validateContextJsonLines(parserFiles, markdown)
+        : 0;
+      if (hasManifest) {
+        validateCorpusManifest(files, markdown, clauses, contextCriteria);
+        validateCorpusExecutable(root);
+      }
+      return result(
+        files,
+        markdown,
+        clauses,
+        contextCriteria,
+        "acceptance-criteria.jsonl",
+        hasContext ? markdown.groups.size : markdown.h2,
+      );
     }
     if (hasMetadata) {
+      if (hasContext || hasManifest)
+        throw new Error(
+          "metadata.json corpus cannot also declare the dual-denominator contract.",
+        );
       const clauses: number = validateMetadata(
-        normalized,
+        parserFiles,
         markdown,
         path.basename(root),
       );
-      return result(normalized, markdown, clauses, "metadata.json");
+      return result(files, markdown, clauses, 0, "metadata.json", markdown.h2);
     }
     throw new Error(
       `Benchmark requirement corpus has no audited machine-readable inventory: ${root}.`,
@@ -68,11 +97,13 @@ export namespace EvidenceBenchmarkCorpus {
   interface IMarkdownDocument {
     path: string;
     h2: number;
+    groups: ReadonlySet<string>;
     requirements: ReadonlySet<string>;
   }
 
   interface IMarkdownInventory {
     documents: ReadonlyMap<string, IMarkdownDocument>;
+    groups: ReadonlyMap<string, string>;
     h2: number;
     h3: number;
   }
@@ -81,14 +112,17 @@ export namespace EvidenceBenchmarkCorpus {
     files: ReadonlyMap<string, Uint8Array>,
     markdown: IMarkdownInventory,
     atomicAcceptanceClauses: number,
+    contextCriteria: number,
     inventory: IResult["inventory"],
+    h2: number,
   ): IResult {
     return {
       files,
       documents: markdown.documents.size,
-      h2: markdown.h2,
+      h2,
       h3: markdown.h3,
       atomicAcceptanceClauses,
+      contextCriteria,
       inventory,
     };
   }
@@ -115,6 +149,7 @@ export namespace EvidenceBenchmarkCorpus {
   ): IMarkdownInventory {
     const documents: Map<string, IMarkdownDocument> = new Map();
     const numbers: Set<string> = new Set();
+    const groups: Map<string, string> = new Map();
     let h2: number = 0;
     let h3: number = 0;
     for (const [relative, content] of files) {
@@ -126,16 +161,31 @@ export namespace EvidenceBenchmarkCorpus {
           `Requirement Markdown must be a root-level numbered document: ${relative}.`,
         );
       const number: string = filename.groups!.number!;
-      if (numbers.has(number))
+      if (number !== "00" && numbers.has(number))
         throw new Error(
           `Requirement Markdown number is duplicated: ${number} (${relative}).`,
         );
       numbers.add(number);
       const source: string = Buffer.from(content).toString("utf8");
-      const lines: string[] = markdownLines(source);
+      const lines: string[] = EvidenceBenchmarkMarkdown.lines(source);
+      const documentGroups: Set<string> = new Set();
       const requirements: Set<string> = new Set();
       for (const line of lines) {
-        if (/^## [^#]/.test(line)) ++h2;
+        if (/^## [^#]/.test(line)) {
+          ++h2;
+          const heading: RegExpExecArray | null =
+            /^## (REQ-[A-Za-z0-9._-]+)(?::|\s|$)/.exec(line);
+          if (heading !== null) {
+            const group: string = heading[1]!;
+            const previous: string | undefined = groups.get(group);
+            if (previous !== undefined)
+              throw new Error(
+                `Requirement group heading is duplicated: ${group} (${previous}, ${relative}).`,
+              );
+            groups.set(group, relative);
+            documentGroups.add(group);
+          }
+        }
         const heading: RegExpExecArray | null =
           /^### (REQ-[A-Za-z0-9._-]+)(?::|\s|$)/.exec(line);
         if (heading !== null) {
@@ -154,6 +204,7 @@ export namespace EvidenceBenchmarkCorpus {
       documents.set(relative, {
         path: relative,
         h2: countH2(lines),
+        groups: documentGroups,
         requirements,
       });
     }
@@ -161,36 +212,20 @@ export namespace EvidenceBenchmarkCorpus {
       throw new Error(
         "Benchmark requirement corpus has no Markdown documents.",
       );
-    return { documents, h2, h3 };
+    return { documents, groups, h2, h3 };
   }
 
   function validateJsonLines(
     files: ReadonlyMap<string, Uint8Array>,
     markdown: IMarkdownInventory,
   ): number {
-    const source: string = textFile(files, "acceptance-criteria.jsonl");
-    const lines: string[] = source
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length !== 0);
-    if (lines.length === 0)
-      throw new Error("acceptance-criteria.jsonl must not be empty.");
+    const records: Record<string, unknown>[] = jsonLineRecords(
+      files,
+      "acceptance-criteria.jsonl",
+    );
     const identifiers: Set<string> = new Set();
     const covered: Set<string> = new Set();
-    for (const [index, line] of lines.entries()) {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(line);
-      } catch (error) {
-        throw new Error(
-          `acceptance-criteria.jsonl line ${index + 1} is not valid JSON.`,
-          { cause: error },
-        );
-      }
-      const record: Record<string, unknown> = object(
-        parsed,
-        `acceptance-criteria.jsonl line ${index + 1}`,
-      );
+    for (const record of records) {
       const id: string = nonEmptyString(record.id, "criterion id");
       const requirement: string = nonEmptyString(
         record.requirement,
@@ -205,7 +240,171 @@ export namespace EvidenceBenchmarkCorpus {
       covered.add(`${sourcePath}\0${requirement}`);
     }
     requireExhaustive(markdown, covered, "acceptance-criteria.jsonl");
-    return lines.length;
+    return records.length;
+  }
+
+  function validateContextJsonLines(
+    files: ReadonlyMap<string, Uint8Array>,
+    markdown: IMarkdownInventory,
+  ): number {
+    const records: Record<string, unknown>[] = jsonLineRecords(
+      files,
+      "context-criteria.jsonl",
+    );
+    const identifiers: Set<string> = new Set();
+    const covered: Set<string> = new Set();
+    const ownerSequences: Map<string, number> = new Map();
+    for (const [index, record] of records.entries()) {
+      const location: string = `context-criteria.jsonl line ${index + 1}`;
+      const fields: string[] = Object.keys(record).sort();
+      if (
+        JSON.stringify(fields) !==
+        JSON.stringify(["criterion", "id", "requirement", "source"])
+      )
+        throw new Error(
+          `${location} fields must be exactly id, requirement, source, criterion.`,
+        );
+      const id: string = nonEmptyString(record.id, `${location} id`);
+      const requirement: string = nonEmptyString(
+        record.requirement,
+        `${id} requirement`,
+      );
+      const source: string = nonEmptyString(record.source, `${id} source`);
+      const criterion: string = nonEmptyString(
+        record.criterion,
+        `${id} criterion`,
+      );
+      if (criterion !== criterion.trim())
+        throw new Error(`${id} criterion must be trimmed.`);
+      if (identifiers.has(id))
+        throw new Error(`Context criterion id is duplicated: ${id}.`);
+      identifiers.add(id);
+      const sequence: number = (ownerSequences.get(requirement) ?? 0) + 1;
+      ownerSequences.set(requirement, sequence);
+      const expected: string = `${requirement}.CTX-${String(sequence).padStart(2, "0")}`;
+      if (id !== expected)
+        throw new Error(
+          `${location} id must follow its owner-local sequence: ${expected}.`,
+        );
+      resolveGroup(markdown, source, requirement, id);
+      covered.add(requirement);
+    }
+    const missing: string[] = [...markdown.groups.keys()].filter(
+      (group) => !covered.has(group),
+    );
+    if (missing.length !== 0)
+      throw new Error(
+        `context-criteria.jsonl does not cover every REQ H2: ${missing.join(", ")}.`,
+      );
+    return records.length;
+  }
+
+  function validateCorpusManifest(
+    files: ReadonlyMap<string, Uint8Array>,
+    markdown: IMarkdownInventory,
+    acceptanceCriteria: number,
+    contextCriteria: number,
+  ): void {
+    const manifest: Record<string, unknown> = object(
+      JSON.parse(textFile(files, "corpus-manifest.json")),
+      "corpus-manifest.json",
+    );
+    if (manifest.schemaVersion !== 1)
+      throw new Error("corpus-manifest.json schemaVersion must be 1.");
+    manifestCount(manifest.h2, markdown.groups.size, "h2");
+    manifestCount(manifest.h3, markdown.h3, "h3");
+    manifestCount(
+      manifest.acceptanceCriteria,
+      acceptanceCriteria,
+      "acceptanceCriteria",
+    );
+    manifestCount(manifest.contextCriteria, contextCriteria, "contextCriteria");
+    if ("links" in manifest) {
+      const links: number = jsonLineRecords(
+        files,
+        "requirement-links.jsonl",
+      ).length;
+      manifestCount(manifest.links, links, "links");
+    }
+
+    const expectedPaths: string[] = [...files.keys()]
+      .filter((relative) => relative !== "corpus-manifest.json")
+      .sort();
+    const declared: unknown[] = array(
+      manifest.files,
+      "corpus-manifest.json files",
+    );
+    const declaredPaths: string[] = [];
+    for (const [index, input] of declared.entries()) {
+      const entry: Record<string, unknown> = object(
+        input,
+        `corpus-manifest.json files[${index}]`,
+      );
+      const relative: string = portablePath(
+        nonEmptyString(entry.path, `corpus-manifest.json files[${index}] path`),
+        "Corpus manifest file",
+      );
+      const sha256: string = nonEmptyString(
+        entry.sha256,
+        `corpus-manifest.json ${relative} sha256`,
+      );
+      if (!/^[a-f0-9]{64}$/.test(sha256))
+        throw new Error(
+          `corpus-manifest.json ${relative} sha256 must be lowercase hexadecimal SHA-256.`,
+        );
+      const content: Uint8Array | undefined = files.get(relative);
+      if (content === undefined)
+        throw new Error(
+          `corpus-manifest.json file is absent from the corpus: ${relative}.`,
+        );
+      if (EvidenceBenchmarkHash.bytes(content) !== sha256)
+        throw new Error(`corpus-manifest.json file hash drifted: ${relative}.`);
+      declaredPaths.push(relative);
+    }
+    if (JSON.stringify(declaredPaths) !== JSON.stringify(expectedPaths))
+      throw new Error(
+        "corpus-manifest.json file inventory must exactly match the sorted corpus path set.",
+      );
+
+    const chunks: Uint8Array[] = [];
+    for (const relative of expectedPaths)
+      chunks.push(
+        Buffer.from(relative, "utf8"),
+        Buffer.from([0]),
+        files.get(relative)!,
+        Buffer.from([0]),
+      );
+    const aggregate: string = EvidenceBenchmarkHash.bytes(
+      Buffer.concat(chunks),
+    );
+    if (manifest.aggregateSha256 !== aggregate)
+      throw new Error(
+        `corpus-manifest.json aggregateSha256 must be ${aggregate}.`,
+      );
+  }
+
+  function validateCorpusExecutable(root: string): void {
+    const executable: string = path.join(root, "validate.mjs");
+    if (!fs.existsSync(executable))
+      throw new Error(
+        "Dual-denominator corpus must provide its frozen validate.mjs.",
+      );
+    const result: EvidenceBenchmarkProcess.IResult =
+      EvidenceBenchmarkProcess.runSync(process.execPath, [executable], {
+        cwd: root,
+        allowFailure: true,
+        label: "requirement corpus validator",
+      });
+    if (result.status !== 0)
+      throw new Error(
+        [
+          `Requirement corpus validator failed with status ${String(result.status)}.`,
+          result.stderr.trim(),
+          result.stdout.trim(),
+        ]
+          .filter((part) => part.length !== 0)
+          .join("\n"),
+      );
   }
 
   function validateMetadata(
@@ -357,6 +556,28 @@ export namespace EvidenceBenchmarkCorpus {
       );
   }
 
+  function resolveGroup(
+    markdown: IMarkdownInventory,
+    inputPath: string,
+    requirement: string,
+    criterion: string,
+  ): void {
+    const relative: string = portableSource(inputPath);
+    if (!/^REQ-[A-Za-z0-9._-]+$/.test(requirement))
+      throw new Error(
+        `Context criterion ${criterion} has an invalid requirement identifier: ${requirement}.`,
+      );
+    const source: string | undefined = markdown.groups.get(requirement);
+    if (source === undefined)
+      throw new Error(
+        `Context criterion ${criterion} does not map to a REQ H2: ${requirement}.`,
+      );
+    if (source !== relative)
+      throw new Error(
+        `Context criterion ${criterion} source ${relative} does not own REQ H2 ${requirement}; expected ${source}.`,
+      );
+  }
+
   function requireExhaustive(
     markdown: IMarkdownInventory,
     covered: ReadonlySet<string>,
@@ -389,6 +610,10 @@ export namespace EvidenceBenchmarkCorpus {
   }
 
   function portableSource(source: string): string {
+    return portablePath(source, "Requirement inventory source");
+  }
+
+  function portablePath(source: string, label: string): string {
     if (
       source.startsWith("/") ||
       source.includes("\\") ||
@@ -396,26 +621,30 @@ export namespace EvidenceBenchmarkCorpus {
       source === ".." ||
       source.startsWith("../")
     )
-      throw new Error(
-        `Requirement inventory source is not portable: ${source}.`,
-      );
+      throw new Error(`${label} is not portable: ${source}.`);
     return source;
   }
 
-  function markdownLines(source: string): string[] {
-    const output: string[] = [];
-    let fence: string | null = null;
-    for (const line of source.split("\n")) {
-      const marker: RegExpExecArray | null = /^\s*(```+|~~~+)/.exec(line);
-      if (marker !== null) {
-        const family: string = marker[1]![0]!;
-        if (fence === null) fence = family;
-        else if (fence === family) fence = null;
-        continue;
+  function jsonLineRecords(
+    files: ReadonlyMap<string, Uint8Array>,
+    relative: string,
+  ): Record<string, unknown>[] {
+    const lines: string[] = textFile(files, relative)
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length !== 0);
+    if (lines.length === 0) throw new Error(`${relative} must not be empty.`);
+    return lines.map((line, index): Record<string, unknown> => {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(line);
+      } catch (error) {
+        throw new Error(`${relative} line ${index + 1} is not valid JSON.`, {
+          cause: error,
+        });
       }
-      if (fence === null) output.push(line);
-    }
-    return output;
+      return object(parsed, `${relative} line ${index + 1}`);
+    });
   }
 
   function countH2(lines: readonly string[]): number {
@@ -436,6 +665,13 @@ export namespace EvidenceBenchmarkCorpus {
     if (input !== actual)
       throw new Error(
         `metadata.json ${label} must be ${actual}, received ${JSON.stringify(input)}.`,
+      );
+  }
+
+  function manifestCount(input: unknown, actual: number, label: string): void {
+    if (input !== actual)
+      throw new Error(
+        `corpus-manifest.json ${label} must be ${actual}, received ${JSON.stringify(input)}.`,
       );
   }
 
