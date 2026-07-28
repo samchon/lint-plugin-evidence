@@ -1,6 +1,6 @@
 # Current-freeze common-template addendum — prediction, not measurement
 
-Formal review: https://github.com/samchon/lint-plugin-evidence/pull/105#pullrequestreview-4801882298.
+Formal review: https://github.com/samchon/lint-plugin-evidence/pull/105#pullrequestreview-4801965103.
 
 This append-only addendum binds the current prior chain to the common benchmark template integrated at exact revision `1145ce9c5453269b37ce2e44621507a7da1a541d`. Under `sha256-posix-path-nul-bytes-v1`, `benchmark/template` contains 139 files and 405,327 bytes with tree SHA-256 `c659fa3ee230bcd1426ca0dee0492a56dfedf7f58bce36c23066e9bbc43cdc45`.
 
