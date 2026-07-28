@@ -167,4 +167,3 @@ The target-only unique is the one worth reading twice. A unique index on a repor
 - **Ownership.** No field or foreign key duplicates a fact another table owns.
 - **Lifecycle.** The temporal fields, the nullability, the deletion decision, the retained copies, the repeatable history, the stance, and the indexes all match the lifecycle the requirements describe.
 - **Representability.** The schema holds every state the requirements allow and refuses every state they forbid, in both directions, as above.
-

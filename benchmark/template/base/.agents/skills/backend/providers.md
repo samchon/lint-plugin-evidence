@@ -304,4 +304,3 @@ An in-process timer would have no operation, no test, and no requirement owner, 
 A retried cron, an operator rerun, and a redelivered queue message all arrive as a second call, and without the key each posts the work again. Assert that with a second call in the test.
 
 Record the trigger in the operation's own documentation and in the requirement it serves. Omitting both silently turns a scheduled obligation into a manual endpoint nobody knows to schedule.
-

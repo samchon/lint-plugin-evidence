@@ -59,11 +59,11 @@ A path describes a resource and a workflow state, under one service root.
 
 Join, login, and refresh live under the authentication surface, at `/shopping/auth/{actor}/{operation}`, all three as `post`, each returning the actor's `.IAuthorized`.
 
-| Operation | Route | Request |
-| --- | --- | --- |
-| join | `POST /shopping/auth/seller/join` | `.IJoin` |
-| login | `POST /shopping/auth/seller/login` | `.ILogin` |
-| refresh | `POST /shopping/auth/seller/refresh` | `.IRefresh` |
+| Operation | Route                                | Request     |
+| --------- | ------------------------------------ | ----------- |
+| join      | `POST /shopping/auth/seller/join`    | `.IJoin`    |
+| login     | `POST /shopping/auth/seller/login`   | `.ILogin`   |
+| refresh   | `POST /shopping/auth/seller/refresh` | `.IRefresh` |
 
 Every one of the three carries `@setHeader token.access Authorization` in its JSDoc, which is what makes the generated accessor write the issued token into the caller's connection; the JSDoc section below owns that tag. Which of the three an actor gets is decided in [authorization.md](authorization.md): an anonymous visitor has join and refresh and no login.
 

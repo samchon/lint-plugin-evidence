@@ -101,4 +101,3 @@ Positive paths stay clean: valid bodies, a qualified caller, no manufactured fai
 Use public operations for setup and assertions. Do not read the database as a fallback.
 
 When neither the response nor any reachable follow-up read exposes the effect a requirement names, that is a finding about the API. An effect nobody can observe through the product is an effect the product does not deliver.
-
