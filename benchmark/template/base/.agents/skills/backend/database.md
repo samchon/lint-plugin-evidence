@@ -259,6 +259,28 @@ The extra reason is that a bare `target_id` column with no foreign key behind it
 
 When the target is single-type, it is an ordinary foreign key with no discriminator at all.
 
+## The Schema Admits Exactly The Allowed States
+
+Run this test on every model before moving on, in both directions. It is the one schema question no compiler and no constraint can ask for you.
+
+**Is there a state the requirements allow that this schema cannot hold?** A nullable field the requirements say is always present is harmless; a required field the requirements say may be absent means the valid unset state cannot be written at all, and the provider will invent a placeholder to get past it.
+
+**Is there a state the requirements forbid that this schema still admits?** This is the direction people skip, and it is where the expensive defects live.
+
+- Two rows collide where the design calls them distinct, because the uniqueness the requirement states is not in the schema.
+- Two mutually exclusive facts coexist, because each is its own nullable column instead of one state the row can only hold once.
+- A quantity the requirements bound is an unbounded `Int`, so the rule lives only in a provider and only where someone remembered it.
+
+For each model, state which allowed states it holds and which forbidden ones it refuses. When you cannot answer the second half concretely, the schema is admitting something nobody decided it should.
+
+## Nothing Exists Because It Seemed Likely
+
+Every table traces to a requirement that asked for it, and a table that exists because a product like this usually has one is a defect that looks like foresight.
+
+The stances make two over-designs easy to name. **A `material` projection nothing reads from** is a maintained cache with no reader. **A `snapshot` table nothing writes to** is a history nobody records. Both compile, both look complete in the ERD, and both are cost with no requirement behind them.
+
+Delete them, and record why in the same pass, so the next reader does not add them back for the same reason you first did.
+
 ## Uniqueness And Indexes
 
 A business rule that says something is unique belongs in the schema as `@@unique`, not only in a provider check. Only the schema holds under concurrency.
@@ -350,11 +372,12 @@ Each row is a design that compiles and is wrong. Recognizing them is faster than
 
 The target-only unique is the one worth reading twice. A unique index on a report's target alone means **exactly one actor in the entire system can ever report that target**, and the second person to try is refused for a reason nobody will guess.
 
-## Three Lenses Before Finishing A Model
+## Four Lenses Before Finishing A Model
 
-- **Traceability.** Every requirement fact is stored, referenced, or deliberately left as query output, and every field traces back to a requirement.
+- **Traceability.** Every requirement fact is stored, referenced, or deliberately left as query output, and every field traces back to a requirement. Nothing exists because a product like this usually has one.
 - **Ownership.** No field or foreign key duplicates a fact another table owns.
 - **Lifecycle.** The temporal fields, the nullability, the deletion decision, the retained copies, the repeatable history, the stance, and the indexes all match the lifecycle the requirements describe.
+- **Representability.** The schema holds every state the requirements allow and refuses every state they forbid, in both directions, as above.
 
 ## After Changing The Schema
 
