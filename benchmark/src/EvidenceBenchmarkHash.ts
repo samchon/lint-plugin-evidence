@@ -6,6 +6,14 @@ import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBe
 
 /** Computes portable file, object, and tree identities for benchmark inputs. */
 export namespace EvidenceBenchmarkHash {
+  /**
+   * Versioned aggregate tree identity used by every benchmark manifest.
+   *
+   * Each NFC POSIX relative path is encoded as UTF-8 and sorted by its raw
+   * bytes. The digest input repeats `path || NUL || exact bytes || NUL`.
+   */
+  export const TREE_ALGORITHM = "sha256-posix-path-nul-bytes-v1" as const;
+
   /** Returns a hexadecimal SHA-256 identity for one byte sequence. */
   export function bytes(input: Uint8Array | string): string {
     return crypto.createHash("sha256").update(input).digest("hex");
@@ -31,22 +39,32 @@ export namespace EvidenceBenchmarkHash {
     files: ReadonlyMap<string, Uint8Array>,
   ): IEvidenceBenchmarkMaterialization.ITreeEntry[] {
     return [...files.entries()]
-      .sort(([left], [right]) => left.localeCompare(right, "en"))
+      .sort(([left], [right]) => compareUtf8Path(left, right))
       .map(
-        ([
-          relative,
-          content,
-        ]): IEvidenceBenchmarkMaterialization.ITreeEntry => ({
-          path: relative,
-          bytes: content.byteLength,
-          sha256: bytes(content),
-        }),
+        ([relative, content]): IEvidenceBenchmarkMaterialization.ITreeEntry => {
+          validatePortablePath(relative);
+          return {
+            path: relative,
+            bytes: content.byteLength,
+            sha256: bytes(content),
+          };
+        },
       );
   }
 
-  /** Returns one aggregate SHA-256 over a stable tree ledger. */
+  /** Returns one aggregate SHA-256 over exact paths and file bytes. */
   export function tree(files: ReadonlyMap<string, Uint8Array>): string {
-    return bytes(`${JSON.stringify(entries(files))}\n`);
+    const hash: crypto.Hash = crypto.createHash("sha256");
+    for (const [relative, content] of [...files.entries()].sort(
+      ([left], [right]) => compareUtf8Path(left, right),
+    )) {
+      validatePortablePath(relative);
+      hash.update(Buffer.from(relative, "utf8"));
+      hash.update(Buffer.from([0]));
+      hash.update(content);
+      hash.update(Buffer.from([0]));
+    }
+    return hash.digest("hex");
   }
 
   /** Returns one aggregate SHA-256 over a canonical JSON-compatible value. */
@@ -74,7 +92,7 @@ export namespace EvidenceBenchmarkHash {
     const directory: string = path.join(root, relative);
     const entries: fs.Dirent[] = fs
       .readdirSync(directory, { withFileTypes: true })
-      .sort((left, right) => left.name.localeCompare(right.name, "en"));
+      .sort((left, right) => compareUtf8Path(left.name, right.name));
     for (const entry of entries) {
       const child: string =
         relative.length === 0
@@ -99,8 +117,33 @@ export namespace EvidenceBenchmarkHash {
     if (typeof input !== "object" || input === null) return input;
     return Object.fromEntries(
       Object.entries(input)
-        .sort(([left], [right]) => left.localeCompare(right, "en"))
+        .sort(([left], [right]) => compareUtf8Path(left, right))
         .map(([key, value]) => [key, sortValue(value)]),
     );
+  }
+
+  function compareUtf8Path(left: string, right: string): number {
+    return Buffer.compare(
+      Buffer.from(left, "utf8"),
+      Buffer.from(right, "utf8"),
+    );
+  }
+
+  function validatePortablePath(relative: string): void {
+    const segments: string[] = relative.split("/");
+    if (
+      relative.length === 0 ||
+      relative.includes("\\") ||
+      relative.includes("\0") ||
+      relative.startsWith("/") ||
+      relative.normalize("NFC") !== relative ||
+      segments.some(
+        (segment: string): boolean =>
+          segment.length === 0 || segment === "." || segment === "..",
+      )
+    )
+      throw new Error(
+        `Benchmark tree path must be an NFC POSIX relative path: ${JSON.stringify(relative)}.`,
+      );
   }
 }

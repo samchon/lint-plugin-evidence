@@ -33,6 +33,7 @@ export namespace EvidenceBenchmarkSelfTest {
       await testPinnedSetup(temporary);
       await testRepositoryInputs(repository);
       await testRetentionIgnore(repository);
+      testHashContract();
       await testCorpusAdapters(temporary);
       await testComposition(fixture, temporary);
       await testMaterialization(repository, temporary);
@@ -53,6 +54,41 @@ export namespace EvidenceBenchmarkSelfTest {
       if (!preserveFailure)
         fs.rmSync(temporary, { recursive: true, force: true });
     }
+  }
+
+  function testHashContract(): void {
+    const files: ReadonlyMap<string, Uint8Array> = new Map([
+      ["é.txt", Buffer.from("E", "utf8")],
+      ["z.txt", Buffer.from("Z", "utf8")],
+    ]);
+    assert.equal(
+      EvidenceBenchmarkHash.TREE_ALGORITHM,
+      "sha256-posix-path-nul-bytes-v1",
+    );
+    assert.equal(
+      EvidenceBenchmarkHash.tree(files),
+      "681de99007bb676ae125bd5844860c636e4077fa35857ae5f86a5e412fbf099a",
+      "tree identity must use raw UTF-8 path order and exact bytes",
+    );
+    assert.deepEqual(
+      EvidenceBenchmarkHash.entries(files).map((entry) => entry.path),
+      ["z.txt", "é.txt"],
+      "tree ledgers must use the same raw UTF-8 path order",
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkHash.tree(
+          new Map([["escape/../file.txt", Buffer.from("x", "utf8")]]),
+        ),
+      /NFC POSIX relative path/,
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkHash.tree(
+          new Map([["decomposed-e\u0301.txt", Buffer.from("x", "utf8")]]),
+        ),
+      /NFC POSIX relative path/,
+    );
   }
 
   async function testComposition(
@@ -310,6 +346,14 @@ export namespace EvidenceBenchmarkSelfTest {
       "benchmark",
       "requirements",
     );
+    const frozenRequirementTrees: Readonly<Record<string, string>> = {
+      todo: "26aba99e190b37785278a20f6858b6000f41f3885d9e6bcead09eb49db99ee9b",
+      reddit:
+        "279209425c009df00e9702cf618ebe7153d8a39d805f673a59b848f84f3bc456",
+      shopping:
+        "92c8bcf6f7362c8d8a3249cf0e4ab33ff5d1a5dddd8302fee96cf1e455790213",
+      erp: "8db2de692f79ddb856aefd6cda8ae3bb49612a741ca06661bcabc38972d57555",
+    };
     for (const entry of fs.readdirSync(requirements, {
       withFileTypes: true,
     })) {
@@ -321,6 +365,14 @@ export namespace EvidenceBenchmarkSelfTest {
       if (hasInventory) {
         const corpus: EvidenceBenchmarkCorpus.IResult =
           EvidenceBenchmarkCorpus.read(subject);
+        const frozenTree: string | undefined =
+          frozenRequirementTrees[entry.name];
+        if (frozenTree !== undefined)
+          assert.equal(
+            EvidenceBenchmarkHash.tree(corpus.files),
+            frozenTree,
+            `${entry.name} requirements must match the frozen raw-byte tree`,
+          );
         if (entry.name === "erp") {
           assert.equal(corpus.h2, 261);
           assert.equal(corpus.h3, 1_344);

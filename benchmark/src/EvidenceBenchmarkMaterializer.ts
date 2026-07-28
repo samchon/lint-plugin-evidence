@@ -96,7 +96,8 @@ export namespace EvidenceBenchmarkMaterializer {
         toolchain: path.join(output, "cache", "toolchain-bin"),
       };
       const manifestRecord: IEvidenceBenchmarkMaterialization.IManifest = {
-        schemaVersion: 1,
+        schemaVersion: 2,
+        treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
         project: request.project,
         arm: request.arm,
         materializedAt: new Date().toISOString(),
@@ -110,6 +111,7 @@ export namespace EvidenceBenchmarkMaterializer {
         requirementsTreeSha256,
         workspaceTreeSha256,
         inputSha256: EvidenceBenchmarkHash.object({
+          treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
           project: request.project,
           arm: request.arm,
           variables: request.variables,

@@ -80,7 +80,10 @@ export namespace IEvidenceBenchmarkMaterialization {
   /** Permanent pre-run record written beside the workspace and input copy. */
   export interface IManifest {
     /** Manifest schema version; readers reject unsupported future shapes. */
-    schemaVersion: 1;
+    schemaVersion: 2;
+
+    /** Versioned algorithm shared by every aggregate tree identity. */
+    treeAlgorithm: "sha256-posix-path-nul-bytes-v1";
 
     /** Requirement subject rendered into the workspace. */
     project: Project;
