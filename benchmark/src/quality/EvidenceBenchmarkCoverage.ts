@@ -198,10 +198,7 @@ export namespace EvidenceBenchmarkCoverage {
       EvidenceBenchmarkArtifactInventory.authoredFiles(workspace);
     const workspaceSourceTreeSha256: string =
       EvidenceBenchmarkArtifactInventory.treeSha256(files);
-    if (
-      workspaceSourceTreeSha256 !==
-      input.provenance.sourceSnapshotRawTree.sha256
-    )
+    if (workspaceSourceTreeSha256 !== input.provenance.snapshotRawTree.sha256)
       throw new Error(
         "Coverage workspace differs from the bound source snapshot.",
       );

@@ -22,7 +22,7 @@ export namespace IEvidenceBenchmarkQualityGate {
     /** Exact immutable outer run-manifest bytes. */
     runManifestSha256: string;
     /** Generated project snapshot measured by this producer. */
-    sourceSnapshotRawTree: IRawTreeDigest;
+    snapshotRawTree: IRawTreeDigest;
     /** Frozen subject requirements used by this run. */
     subjectRequirementsRawTree: IRawTreeDigest;
   }

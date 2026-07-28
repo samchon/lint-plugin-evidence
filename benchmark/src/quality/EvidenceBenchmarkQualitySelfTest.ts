@@ -312,8 +312,8 @@ export namespace EvidenceBenchmarkQualitySelfTest {
           ...provenance,
           provenance: {
             ...provenance.provenance,
-            sourceSnapshotRawTree: {
-              ...provenance.provenance.sourceSnapshotRawTree,
+            snapshotRawTree: {
+              ...provenance.provenance.snapshotRawTree,
               algorithmId: "unqualified" as never,
             },
           },
@@ -334,6 +334,22 @@ export namespace EvidenceBenchmarkQualitySelfTest {
     });
     assert.equal(plan.mutations.length, 2);
     const originalTree: string = plan.workspaceSourceTreeSha256;
+    await assert.rejects(
+      () =>
+        EvidenceBenchmarkMutation.execute({
+          workspace,
+          output: path.join(temporary, "mutation-extra-field"),
+          plan: { ...plan, extra: true } as never,
+          qualityInput: provenance,
+          test: {
+            command: process.execPath,
+            arguments: ["-e", "process.exit(1)"],
+            cwd: workspace,
+            timeoutMs: 5_000,
+          },
+        }),
+      /mutation plan fields are not the exact expected set/u,
+    );
     const killed = await EvidenceBenchmarkMutation.execute({
       workspace,
       output: path.join(temporary, "mutation-killed"),
@@ -579,6 +595,24 @@ export namespace EvidenceBenchmarkQualitySelfTest {
     });
     assert.equal(incomplete.status, "failed");
     assert.match(incomplete.reason ?? "", /exact frozen set/u);
+    const extraManifest: Record<string, unknown> =
+      structuredClone(incompleteManifest);
+    extraManifest.suiteId = "fixture-extra-v1";
+    const extraPath: string = path.join(
+      fixtureBenchmark,
+      "quality/hidden/extra.manifest.json",
+    );
+    write(extraPath, `${JSON.stringify(extraManifest, null, 2)}\n`);
+    const extra = await EvidenceBenchmarkHiddenAcceptance.run({
+      benchmarkRoot: fixtureBenchmark,
+      manifestPath: extraPath,
+      requirements,
+      workspace,
+      output: path.join(temporary, "hidden-extra"),
+      qualityInput: provenance,
+    });
+    assert.equal(extra.status, "failed");
+    assert.match(extra.reason ?? "", /fields are not the exact expected set/u);
     const invalidManifest: Record<string, unknown> =
       structuredClone(incompleteManifest);
     invalidManifest.cases = [];
@@ -685,7 +719,7 @@ export const adapter = {
         });
       }
     }
-    return {
+    const result = {
       schemaVersion: 1,
       input: input.input,
       suiteId: input.manifest.suiteId,
@@ -694,6 +728,8 @@ export const adapter = {
       hidden,
       browser,
     };
+    if (input.manifest.suiteId.includes("extra")) result.extra = true;
+    return result;
   },
 };
 `.trimStart();

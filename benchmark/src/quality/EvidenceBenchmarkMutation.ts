@@ -63,7 +63,7 @@ export namespace EvidenceBenchmarkMutation {
       EvidenceBenchmarkArtifactInventory.treeSha256(authored);
     if (
       workspaceSourceTreeSha256 !==
-      input.qualityInput.provenance.sourceSnapshotRawTree.sha256
+      input.qualityInput.provenance.snapshotRawTree.sha256
     )
       throw new Error(
         "Mutation workspace differs from the bound source snapshot.",
@@ -240,6 +240,20 @@ export namespace EvidenceBenchmarkMutation {
     plan: IEvidenceBenchmarkQualityGate.IMutationPlan,
     input: EvidenceBenchmarkQualityInput.IBound,
   ): void {
+    exactKeys(
+      plan as unknown as Record<string, unknown>,
+      [
+        "schemaVersion",
+        "input",
+        "seed",
+        "workspaceSourceTreeSha256",
+        "candidateCount",
+        "requestedSampleSize",
+        "mutations",
+        "planSha256",
+      ],
+      "mutation plan",
+    );
     const { planSha256: _ignored, ...core } = plan;
     EvidenceBenchmarkQualityInput.validate(input);
     EvidenceBenchmarkQualityInput.validateProvenance(plan.input);
@@ -259,6 +273,20 @@ export namespace EvidenceBenchmarkMutation {
       throw new Error("Mutation plan workspace tree has drifted.");
     const ids: Set<string> = new Set();
     for (const mutation of plan.mutations) {
+      exactKeys(
+        mutation as unknown as Record<string, unknown>,
+        [
+          "id",
+          "path",
+          "kind",
+          "start",
+          "end",
+          "before",
+          "after",
+          "sourceSha256",
+        ],
+        `mutation ${mutation.id}`,
+      );
       if (ids.has(mutation.id))
         throw new Error(`Mutation plan repeats ID ${mutation.id}.`);
       ids.add(mutation.id);
@@ -472,5 +500,17 @@ export namespace EvidenceBenchmarkMutation {
     if (relation === ".." || relation.startsWith(`..${path.sep}`))
       throw new Error(`Harness path escapes its root: ${relative}.`);
     return resolved;
+  }
+
+  function exactKeys(
+    input: Record<string, unknown>,
+    keys: readonly string[],
+    label: string,
+  ): void {
+    if (
+      JSON.stringify(Object.keys(input).sort()) !==
+      JSON.stringify([...keys].sort())
+    )
+      throw new Error(`${label} fields are not the exact expected set.`);
   }
 }

@@ -198,7 +198,7 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
       EvidenceBenchmarkArtifactInventory.treeSha256(authored);
     if (
       workspaceSourceTreeSha256 !==
-      input.qualityInput.provenance.sourceSnapshotRawTree.sha256
+      input.qualityInput.provenance.snapshotRawTree.sha256
     )
       throw new Error(
         "Hidden adapter workspace differs from the bound source snapshot.",
@@ -308,6 +308,19 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
     output: string,
     result: IEvidenceBenchmarkQualityGate.IAdapterResult,
   ): void {
+    exactKeys(
+      result as unknown as Record<string, unknown>,
+      [
+        "schemaVersion",
+        "input",
+        "suiteId",
+        "subject",
+        "workspaceSourceTreeSha256",
+        "hidden",
+        "browser",
+      ],
+      "hidden adapter result",
+    );
     EvidenceBenchmarkQualityInput.validateProvenance(result.input);
     if (
       result.schemaVersion !== 1 ||
@@ -324,6 +337,18 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
     );
     const observedHttp: Set<string> = new Set();
     for (const observation of result.hidden) {
+      exactKeys(
+        observation as unknown as Record<string, unknown>,
+        [
+          "caseId",
+          "status",
+          "startedMonotonicNs",
+          "completedMonotonicNs",
+          "artifact",
+          "artifactSha256",
+        ],
+        `hidden HTTP result ${observation.caseId}`,
+      );
       if (!expectedHttp.has(observation.caseId))
         throw new Error(`Unexpected hidden HTTP result ${observation.caseId}.`);
       if (observedHttp.has(observation.caseId))
@@ -349,6 +374,39 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
           expectedBrowser.add(`${test.id}\0${viewport}`);
     const observedBrowser: Set<string> = new Set();
     for (const observation of result.browser) {
+      exactKeys(
+        observation as unknown as Record<string, unknown>,
+        [
+          "caseId",
+          "viewport",
+          "routeState",
+          "requestedUrl",
+          "finalUrl",
+          "status",
+          "startedMonotonicNs",
+          "completedMonotonicNs",
+          "screenshot",
+          "accessibility",
+        ],
+        `hidden browser result ${observation.caseId}`,
+      );
+      exactKeys(
+        observation.screenshot as unknown as Record<string, unknown>,
+        ["path", "sha256", "width", "height"],
+        `hidden browser screenshot ${observation.caseId}`,
+      );
+      exactKeys(
+        observation.accessibility as unknown as Record<string, unknown>,
+        [
+          "artifact",
+          "sha256",
+          "engine",
+          "engineVersion",
+          "rulesetSha256",
+          "violations",
+        ],
+        `hidden browser accessibility ${observation.caseId}`,
+      );
       const test: IEvidenceBenchmarkQualityGate.IHiddenCase | undefined =
         suite.cases.find(
           (candidate) =>
@@ -410,6 +468,11 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
       );
       const accessibilityRecord: Record<string, unknown> = record(
         JSON.parse(fs.readFileSync(accessibility, "utf8")),
+        `${key} accessibility artifact`,
+      );
+      exactKeys(
+        accessibilityRecord,
+        ["engine", "engineVersion", "rulesetSha256", "violations"],
         `${key} accessibility artifact`,
       );
       if (
@@ -602,7 +665,7 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
   ): boolean {
     return (
       left.runManifestSha256 === right.runManifestSha256 &&
-      sameRawTree(left.sourceSnapshotRawTree, right.sourceSnapshotRawTree) &&
+      sameRawTree(left.snapshotRawTree, right.snapshotRawTree) &&
       sameRawTree(
         left.subjectRequirementsRawTree,
         right.subjectRequirementsRawTree,

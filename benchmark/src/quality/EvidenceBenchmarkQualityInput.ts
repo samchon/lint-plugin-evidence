@@ -24,7 +24,7 @@ export namespace EvidenceBenchmarkQualityInput {
     return {
       provenance: {
         runManifestSha256: EvidenceBenchmarkHash.bytes(input.runManifestBytes),
-        sourceSnapshotRawTree: {
+        snapshotRawTree: {
           algorithmId: EvidenceBenchmarkHash.TREE_ALGORITHM,
           sha256: EvidenceBenchmarkHash.tree(input.sourceSnapshotFiles),
         },
@@ -49,7 +49,7 @@ export namespace EvidenceBenchmarkQualityInput {
       throw new Error("Quality input run manifest bytes have drifted.");
     if (
       EvidenceBenchmarkHash.tree(input.sourceSnapshotFiles) !==
-      input.provenance.sourceSnapshotRawTree.sha256
+      input.provenance.snapshotRawTree.sha256
     )
       throw new Error(
         "Quality input source snapshot raw-byte tree has drifted.",
@@ -69,18 +69,11 @@ export namespace EvidenceBenchmarkQualityInput {
   ): void {
     exactKeys(
       input as unknown as Record<string, unknown>,
-      [
-        "runManifestSha256",
-        "sourceSnapshotRawTree",
-        "subjectRequirementsRawTree",
-      ],
+      ["runManifestSha256", "snapshotRawTree", "subjectRequirementsRawTree"],
       "quality input provenance",
     );
     digest(input.runManifestSha256, "quality input run manifest");
-    validateRawTree(
-      input.sourceSnapshotRawTree,
-      "quality input source snapshot",
-    );
+    validateRawTree(input.snapshotRawTree, "quality input source snapshot");
     validateRawTree(
       input.subjectRequirementsRawTree,
       "quality input subject requirements",

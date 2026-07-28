@@ -99,10 +99,7 @@ export namespace EvidenceBenchmarkArtifactInventory {
     EvidenceBenchmarkQualityInput.validate(input);
     const files: Map<string, Uint8Array> = authoredFiles(workspace);
     const workspaceSourceTreeSha256: string = treeSha256(files);
-    if (
-      workspaceSourceTreeSha256 !==
-      input.provenance.sourceSnapshotRawTree.sha256
-    )
+    if (workspaceSourceTreeSha256 !== input.provenance.snapshotRawTree.sha256)
       throw new Error(
         "Inventory workspace differs from the bound source snapshot.",
       );
