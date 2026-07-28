@@ -52,7 +52,7 @@ const graph: IEvidenceGraphConfig = {
       reference: {
         type: "prisma",
         files: ["packages/backend/prisma/schema/**/*.prisma"],
-        symbol: ["column", "relation"],
+        symbol: ["column"],
       },
     },
     // The operations realize the requirements and expose the schema.

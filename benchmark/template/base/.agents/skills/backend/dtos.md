@@ -84,15 +84,15 @@ If a `.ISummary` contains a pagination property, it was shaped as a page rather 
 
 ## Every Property Has A Source
 
-This is the rule the rest of the document serves. Build the property list outward from the database model: every property either maps to a real column or relation, or justifies itself in its description as a computed value or a request control.
+This is the rule the rest of the document serves. Build the property list outward from the database model: every property either maps to a real column, or justifies itself in its description as a computed value or a request control. A property carrying a nested object maps to the foreign key column that reaches it, because that column is what has to exist for the join to be possible.
 
 **A property with neither is a phantom.** It compiles, it reaches the provider, and there is nothing to fill it with.
 
 Run this before declaring a property computed:
 
-1. check the column list;
-2. check the relation list;
-3. verify the stated derivation uses only columns and relations that exist.
+1. check the column list of the model this DTO represents;
+2. check the foreign key columns that reach the models it joins;
+3. verify the stated derivation uses only columns that exist.
 
 A description saying a column "needs to be added" or is "pending migration" means the property is not ready to design. Add the column first.
 

@@ -31,13 +31,13 @@ database        ->  DTO type          (the table it represents)
 database        ->  API operation     (the table it exposes)
 database        ->  business logic
 
-column, relation ->  DTO property     (the value it carries)
+column           ->  DTO property     (the value it carries)
 
 API             ->  tests
 API             ->  business logic
 ```
 
-Granularity is part of the configuration. A DTO **type** is a claim over requirements and models; a DTO **property** is a separate claim over columns and relations, and it does not answer to a requirement. Configuring only the type level leaves every property unchecked, and the silence reads exactly like coverage.
+Granularity is part of the configuration. A DTO **type** is a claim over requirements and models; a DTO **property** is a separate claim over columns alone, and it does not answer to a requirement. Configuring only the type level leaves every property unchecked, and the silence reads exactly like coverage.
 
 The configured graph is what the build checks. Keep it current: when the frontend takes a concrete shape or a new artifact kind appears, the obligation belongs in the configuration. **An edge that is not configured is not checked**, and nothing will tell you it is missing.
 
@@ -45,7 +45,7 @@ The configured graph is what the build checks. Keep it current: when the fronten
 
 A declaration carries as many `@evidence` tags as it needs, and this is what makes the graph usable for anything that is not one-to-one.
 
-An aggregate cites every column and relation it is computed from. A statistics type cites every requirement it serves and every model it reads. An operation that realizes three sections cites three sections.
+An aggregate cites every column it is computed from. A statistics type cites every requirement it serves and every model it reads. An operation that realizes three sections cites three sections.
 
 **Breadth is the correct answer, not a reason to skip citing.** The instinct to write nothing because a value does not correspond to a single row is backwards: several sources is a reason to name several sources, and naming them is what lets a reviewer check the derivation against the code.
 

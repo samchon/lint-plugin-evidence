@@ -4,7 +4,7 @@ A DTO carries two obligations, and they sit at different granularities.
 
 **The type answers to a requirement and a table.** It exists because the specification named a concept, and it represents a row someone can point at.
 
-**A property answers to the schema alone.** Not to a requirement: the question a property can actually answer is where its value comes from, which is a column, a relation, or a stated derivation.
+**A property answers to the schema alone.** Not to a requirement: the question a property can actually answer is where its value comes from, which is a column or a stated derivation.
 
 **Nothing checks either one.** A DTO compiles whether or not any requirement asked for it, and a property compiles whether or not anything can fill it. The phantom is the specific failure: a property that reaches the provider with no source, discovered when someone tries to implement the transformer.
 
@@ -16,7 +16,7 @@ Read [the campaign skill](../campaign/SKILL.md) and [its API edge](../campaign/a
 
 **Type level, both directions.** Every requirement concept that a caller must receive has a DTO, and every DTO names the requirement that asked for it plus the table it represents. A DTO with no requirement is one you invented for the implementation's convenience.
 
-**Property level, both directions.** Every property names its column, its relation, or its derivation, and every column that a requirement says a caller must see appears in some read variant. The second direction is the one that finds the field the schema stores and the API never exposes, which passes every check the first direction makes.
+**Property level, both directions.** Every property names the column it carries or the derivation it is computed from, and every column that a requirement says a caller must see appears in some read variant. A property carrying a nested object names the foreign key column that reaches it. The second direction is the one that finds the field the schema stores and the API never exposes, which passes every check the first direction makes.
 
 Record each mapping in the ledger as you make it. A property whose source you resolved once and did not write down is a property you will re-derive on the next round.
 

@@ -4,7 +4,7 @@ A DTO carries two obligations, and they sit at different granularities.
 
 **The type answers to a requirement and a table.** It exists because the specification named a concept, and it represents a row someone can point at.
 
-**A property answers to the schema alone.** It does not cite a requirement. It cites the column or the relation it carries, because that is the question a property can actually answer: where does this value come from.
+**A property answers to the schema alone.** It does not cite a requirement. It cites the column it carries, because that is the question a property can actually answer: where does this value come from.
 
 ```ts
 /**
@@ -34,13 +34,14 @@ export interface IShoppingSale {
   /**
    * Registering seller.
    *
-   * @evidence prisma:shopping_sales.sellerCustomer
+   * @evidence prisma:shopping_sales.shopping_seller_customer_id The seller this
+   * sale belongs to, loaded through the foreign key.
    */
   seller: IShoppingSeller.ISummary;
 }
 ```
 
-The build fails until every selected property carries one. That is the mechanism that removes the phantom: a property with no column and no relation has nothing to cite, and it cannot be argued into existence.
+The build fails until every selected property carries one. That is the mechanism that removes the phantom: a property with no column has nothing to cite, and it cannot be argued into existence.
 
 Read [the campaign skill](../campaign/SKILL.md) before starting.
 
@@ -52,24 +53,25 @@ Read [the campaign skill](../campaign/SKILL.md) before starting.
 
 **A property citing a requirement instead of a column** is the common mistake here, and it passes nothing: the property obligation is against the schema, so the requirement citation does not discharge it, and the build keeps reporting the property while the tag sits there looking like work.
 
+**A property that carries a nested object cites the foreign key column that reaches it**, as `seller` does above. The join is how the value is loaded; the column is where the value comes from, and it is the column that has to exist for the property to be fillable at all.
+
 ## A Computed Property Cites Everything It Is Computed From
 
-**A declaration may carry as many `@evidence` tags as it needs.** This is the difference that makes a computed value expressible: an aggregate does not correspond to one column, so it cites every column and relation the computation draws on.
+**A declaration may carry as many `@evidence` tags as it needs.** This is the difference that makes a computed value expressible: an aggregate does not correspond to one column, so it cites every column the computation draws on.
 
 ```ts
 /**
- * Number of currently active subscribers.
+ * Number of customers who have favorited this sale.
  *
- * @evidence prisma:shopping_sale_subscriptions Counted from this relation.
- * @evidence prisma:shopping_sale_subscriptions.state Only rows in the active
- * state are counted.
- * @evidence prisma:shopping_sale_subscriptions.shopping_sale_id Scoped to this
- * sale.
+ * @evidence prisma:shopping_sale_favorites.shopping_sale_id Counted over the
+ * favorite rows pointing at this sale.
+ * @evidence prisma:shopping_sale_favorites.deleted_at Rows a customer has
+ * un-favorited are excluded from the count.
  */
-subscriberCount: number & tags.Type<"uint32">;
+favoriteCount: number & tags.Type<"uint32">;
 ```
 
-Read what that does. A reviewer can now check the transformer against three named sources and see whether the aggregate is the one the property claims. A single exclusion saying "computed" would have told them nothing.
+Read what that does. A reviewer can now check the transformer against two named columns and see whether the aggregate is the one the property claims. A single exclusion saying "computed" would have told them nothing.
 
 A statistics or dashboard type does the same at the type level: it cites every requirement it serves and every model it draws on, rather than declining to cite because it maps to no single table.
 
@@ -77,7 +79,7 @@ A statistics or dashboard type does the same at the type level: it cites every r
 
 ## The Two Granularities Are Two Claims
 
-The type obligation and the property obligation are configured as **separate claims**: one selecting types and referencing requirements and models, one selecting properties and referencing columns and relations.
+The type obligation and the property obligation are configured as **separate claims**: one selecting types and referencing requirements and models, one selecting properties and referencing columns.
 
 That is what makes the design work rather than collapse. Each claim counts its acknowledgements in its own tally, so a type citing a model and a property citing one of that model's columns never collide. They are answering different questions in different obligations.
 
@@ -93,7 +95,7 @@ Three shapes report a duplicate:
 - a model and one of that model's columns cited from one property, since a citation covers its target and every selected descendant;
 - the same column cited by two different properties.
 
-The third is the one that surprises. If two aggregates both derive from a state column, only one of them may name it. Give the column to the property whose meaning depends on it most directly, and let the other cite the sources that are its own.
+The third is the one that surprises. If two aggregates both derive from a `deleted_at` column, only one of them may name it. Give the column to the property whose meaning depends on it most directly, and let the other cite the sources that are its own.
 
 So the rule is not "name everything the computation touches" without qualification. It is: **name every source that is yours to name.** Within one property, cite the full set it draws on. Across properties, a source belongs to one of them.
 

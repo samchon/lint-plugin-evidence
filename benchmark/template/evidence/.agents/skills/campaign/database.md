@@ -6,7 +6,7 @@ Read [SKILL.md](SKILL.md) first. This document covers the edges into and out of 
 
 **Into the schema.** Every configured requirement section must be acknowledged by a model. A section nothing cites is a requirement with no storage.
 
-**Out of the schema.** Every selected model, and depending on the configuration its columns and relations, must be acknowledged by an operation that exposes it and by the provider that reads or writes it. A model nothing cites is storage nothing reaches.
+**Out of the schema.** Every selected model must be acknowledged by an operation that exposes it and by the provider that reads or writes it, and every selected column must be acknowledged by the DTO property that carries it. A model nothing cites is storage nothing reaches.
 
 A citation acknowledges its target and every selected descendant, so one tag on a model can discharge its columns when the configuration selects them beneath it.
 
