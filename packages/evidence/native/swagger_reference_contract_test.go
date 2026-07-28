@@ -53,9 +53,9 @@ func TestSwaggerConfigurationDecodesExactReferenceSources(t *testing.T) {
 }
 
 /**
- * Verifies Swagger configuration failures: claims, selectors, duplicate
- * locations, escaping paths, and unsupported URL schemes stay outside the
- * public contract.
+ * Verifies Swagger configuration failures: claims, selectors, plural globs,
+ * directories, drive-relative paths, and unsupported URL schemes stay outside
+ * the public contract.
  *
  * TypeScript prevents most of these shapes, but unchecked JavaScript config
  * still reaches the Go decoder. Every boundary needs an actionable runtime
@@ -99,13 +99,22 @@ func TestSwaggerConfigurationRejectsClaimAndLocatorViolations(t *testing.T) {
 			want: "a Swagger reference owns one document",
 		},
 		{
-			name: "parent escape",
+			name: "directory",
 			raw: `{"claims":[{
 				"type":"typescript",
 				"files":["src/**"],
-				"reference":{"type":"swagger","file":"../openapi.json"}
+				"reference":{"type":"swagger","file":"../contracts/"}
 			}]}`,
-			want: "must name a file below the project root",
+			want: "names a directory rather than a document",
+		},
+		{
+			name: "drive relative",
+			raw: `{"claims":[{
+				"type":"typescript",
+				"files":["src/**"],
+				"reference":{"type":"swagger","file":"C:openapi.json"}
+			}]}`,
+			want: "is drive-relative",
 		},
 		{
 			name: "file URL",
@@ -231,7 +240,7 @@ func TestSwaggerOperationsParticipateInCoverage(t *testing.T) {
 		t.Fatal(problem)
 	}
 	states, stateProblems := materializeClaimStates(
-		config,
+		anchoredGraph("", config),
 		map[string]*artifactInventory{},
 		map[string]*artifactInventory{},
 		map[string]*artifactInventory{

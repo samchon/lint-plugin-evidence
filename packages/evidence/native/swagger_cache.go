@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 )
@@ -162,8 +161,9 @@ func swaggerDigestOf(content []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// swaggerSourcePath locates a local document, which may sit outside the project.
 func swaggerSourcePath(root string, source string) string {
-	return filepath.Join(root, filepath.FromSlash(source))
+	return resolveProjectPath(root, source)
 }
 
 // rememberSwaggerDocument records an outcome under the bytes it was produced

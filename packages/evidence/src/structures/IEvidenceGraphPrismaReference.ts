@@ -18,8 +18,28 @@ export interface IEvidenceGraphPrismaReference {
   type: "prisma";
 
   /**
-   * Project-relative glob patterns for the Prisma schema files in this evidence
-   * population. Every matching regular file is parsed as part of one schema
+   * Directory this population's {@link files} patterns resolve against.
+   *
+   * Omit this property to resolve against the active `ttsc` project root, which
+   * is where every population resolved before this property existed.
+   *
+   * The value names one directory, never a glob. It may sit inside the project
+   * (`prisma`), above it (`../../prisma`), or on an absolute path
+   * (`/srv/schema`, `C:/schema`). A drive-relative Windows path such as
+   * `C:prisma` is refused, because it resolves against whatever directory that
+   * drive currently sits on rather than against a stable base.
+   *
+   * A Prisma target carries no path, so a declared root changes which files
+   * belong to the schema set and where a diagnostic points, never how a model
+   * is cited. Diagnostics name the resolved base, and the resolved patterns are
+   * published to the `ttsc` host as watched inputs.
+   */
+  root?: string;
+
+  /**
+   * Glob patterns for the Prisma schema files in this evidence population,
+   * resolved against {@link root} or against the project root when none is
+   * declared. Every matching regular file is parsed as part of one schema
    * regardless of extension.
    *
    * These are globs, not regular expressions. `*` matches within one path

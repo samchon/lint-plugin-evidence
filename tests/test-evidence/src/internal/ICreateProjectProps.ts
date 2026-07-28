@@ -13,6 +13,16 @@ export interface ICreateProjectProps {
   /** File map, project-relative. Values are written verbatim. */
   readonly files: Readonly<Record<string, string>>;
 
+  /**
+   * File map relative to the directory the project sits inside.
+   *
+   * Where a shared document set, a sibling package's schema, or a generated
+   * OpenAPI document goes. A population reaches these through its declared
+   * `root`, or a Swagger reference through an ancestor-relative `file` — which
+   * is behavior no project-relative fixture can exercise at all.
+   */
+  readonly workspaceFiles?: Readonly<Record<string, string>>;
+
   /** Complete `lint.config.ts` source, evaluated by the real config loader. */
   readonly lintConfig: string;
 

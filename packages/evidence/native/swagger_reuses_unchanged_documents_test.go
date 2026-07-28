@@ -46,7 +46,9 @@ func swaggerCacheConfig(t *testing.T, sources ...string) graphConfig {
 			`{"type":"swagger","file":"`+source+`"}`,
 		)
 	}
-	return decodeInventoryConfig(t, `{"claims":[{
+	// A Swagger reference owns an exact path rather than a population base, so
+	// the root this anchors against is irrelevant to what these cases assert.
+	return decodeInventoryConfig(t, "", `{"claims":[{
 		"type":"typescript",
 		"files":["src/**"],
 		"reference":[`+strings.Join(references, ",")+`]

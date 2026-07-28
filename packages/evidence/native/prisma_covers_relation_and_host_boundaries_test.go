@@ -199,13 +199,13 @@ model Sale {
 		unit.Path = "prisma/schema.prisma"
 		hosts[joinPrismaIdentity(unit.Identity)] = unit
 	}
-	if problems := prismaDeclarationsFromComments(scan.Comments, hosts, inventories); len(problems) != 0 {
+	if problems := prismaDeclarationsFromComments(scan.Comments, hosts, prismaInventoriesByDisplay(inventories)); len(problems) != 0 {
 		t.Fatalf("validity belongs to the graph, not the scan: %v", problems)
 	}
-	document, _ := scanMarkdownInventory("docs/spec.md", "## Amounts {#amounts}\n")
+	document, _ := scanProjectMarkdown("docs/spec.md", "## Amounts {#amounts}\n")
 	loader := newTypeScriptLoader("", map[string]*artifactInventory{})
 	states, problems := materializeClaimStates(
-		graphConfig{Claims: []claimSpec{{
+		anchoredGraph("", graphConfig{Claims: []claimSpec{{
 			Type:    artifactPrisma,
 			Files:   mustGlobSet(t, []string{"prisma/**/*.prisma"}),
 			Symbols: symbolSet{"model": true},
@@ -214,7 +214,7 @@ model Sale {
 				Files:   mustGlobSet(t, []string{"docs/spec.md"}),
 				Symbols: symbolSet{"h2": true},
 			}},
-		}}},
+		}}}),
 		map[string]*artifactInventory{"docs/spec.md": document},
 		inventories,
 		map[string]*artifactInventory{},
@@ -259,13 +259,13 @@ func TestPrismaClaimSelectorRefusesAnUnselectedHost(t *testing.T) {
 		unit.Path = "prisma/schema.prisma"
 		hosts[joinPrismaIdentity(unit.Identity)] = unit
 	}
-	if problems := prismaDeclarationsFromComments(scan.Comments, hosts, inventories); len(problems) != 0 {
+	if problems := prismaDeclarationsFromComments(scan.Comments, hosts, prismaInventoriesByDisplay(inventories)); len(problems) != 0 {
 		t.Fatalf("host eligibility belongs to the graph, not the scan: %v", problems)
 	}
-	document, _ := scanMarkdownInventory("docs/spec.md", "## Amounts {#amounts}\n")
+	document, _ := scanProjectMarkdown("docs/spec.md", "## Amounts {#amounts}\n")
 	loader := newTypeScriptLoader("", map[string]*artifactInventory{})
 	states, problems := materializeClaimStates(
-		graphConfig{Claims: []claimSpec{{
+		anchoredGraph("", graphConfig{Claims: []claimSpec{{
 			Type:    artifactPrisma,
 			Files:   mustGlobSet(t, []string{"prisma/**/*.prisma"}),
 			Symbols: symbolSet{"model": true},
@@ -274,7 +274,7 @@ func TestPrismaClaimSelectorRefusesAnUnselectedHost(t *testing.T) {
 				Files:   mustGlobSet(t, []string{"docs/spec.md"}),
 				Symbols: symbolSet{"h2": true},
 			}},
-		}}},
+		}}}),
 		map[string]*artifactInventory{"docs/spec.md": document},
 		inventories,
 		map[string]*artifactInventory{},
@@ -363,13 +363,13 @@ model Seller {
 			hosts[joinPrismaIdentity(unit.Identity)] = unit
 		}
 	}
-	if problems := prismaDeclarationsFromComments(scan.Comments, hosts, inventories); len(problems) != 0 {
+	if problems := prismaDeclarationsFromComments(scan.Comments, hosts, prismaInventoriesByDisplay(inventories)); len(problems) != 0 {
 		t.Fatalf("the contradiction belongs to the graph, not the scan: %v", problems)
 	}
-	document, _ := scanMarkdownInventory("docs/spec.md", "## Amounts {#amounts}\n")
+	document, _ := scanProjectMarkdown("docs/spec.md", "## Amounts {#amounts}\n")
 	loader := newTypeScriptLoader("", map[string]*artifactInventory{})
 	states, problems := materializeClaimStates(
-		graphConfig{Claims: []claimSpec{{
+		anchoredGraph("", graphConfig{Claims: []claimSpec{{
 			Type:    artifactPrisma,
 			Files:   mustGlobSet(t, []string{"prisma/**/*.prisma"}),
 			Symbols: symbolSet{"model": true},
@@ -378,7 +378,7 @@ model Seller {
 				Files:   mustGlobSet(t, []string{"docs/spec.md"}),
 				Symbols: symbolSet{"h2": true},
 			}},
-		}}},
+		}}}),
 		map[string]*artifactInventory{"docs/spec.md": document},
 		inventories,
 		map[string]*artifactInventory{},

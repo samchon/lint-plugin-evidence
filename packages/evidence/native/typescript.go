@@ -21,6 +21,9 @@ func loadTypeScriptInventories(
 		if !ok || !isTypeScriptPath(relative) {
 			continue
 		}
+		// A TypeScript population always sits at the default base: its files come
+		// from the ttsc Program, and no directory outside the project contributes
+		// one. Its key is therefore the project-relative path, unchanged.
 		inventories[relative] = scanTypeScriptInventory(relative, file)
 	}
 	return inventories

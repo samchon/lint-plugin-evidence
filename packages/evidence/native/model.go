@@ -34,9 +34,16 @@ type graphConfig struct {
 }
 
 type claimSpec struct {
-	Index      int
-	Type       artifactKind
-	Name       string
+	Index int
+	Type  artifactKind
+	Name  string
+	// Root is the author's spelling of the directory this population resolves
+	// against, empty when the ttsc project root is the base. It is kept beside
+	// the resolved Base because the two are produced at different times: the
+	// spelling decodes from options alone, while the resolution needs a project
+	// identity the decoder never sees.
+	Root       string
+	Base       populationBase
 	Files      globSet
 	Symbols    symbolSet
 	References []referenceSpec
@@ -45,6 +52,8 @@ type claimSpec struct {
 type referenceSpec struct {
 	Index  int
 	Type   artifactKind
+	Root   string
+	Base   populationBase
 	Files  globSet
 	Source string
 	// Entry names a module whose public export graph defines the population.
@@ -146,6 +155,10 @@ func (declaration *evidenceDeclaration) valid() bool {
 }
 
 type artifactInventory struct {
+	// Path is the location a diagnostic names: project-relative, ascending with
+	// `..` when the file sits above the project root. It is not the key this
+	// inventory is filed under — that key carries the population base as well,
+	// because one file reached through two roots owns two sets of targets.
 	Path         string
 	Type         artifactKind
 	Units        []*evidenceUnit

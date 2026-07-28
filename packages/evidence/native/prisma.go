@@ -126,14 +126,19 @@ func loadPrismaInventories(
 	if !configuresPrisma(config) {
 		return map[string]*artifactInventory{}, nil
 	}
-	sources, problems := configuredPrismaFiles(root, config)
+	addresses, problems := configuredPrismaAddresses(config)
 	inventories := map[string]*artifactInventory{}
-	for _, source := range sources {
-		inventories[source] = &artifactInventory{
-			Path: source,
+	for _, address := range addresses {
+		inventories[address.Key] = &artifactInventory{
+			Path: address.Display,
 			Type: artifactPrisma,
 		}
 	}
+	// The set is composed of physical files, deduplicated across bases. Prisma
+	// parses one schema at a time and a file listed twice is a duplicate
+	// declaration to its own parser, so two populations that reach one file
+	// through different roots must still contribute it once.
+	sources := distinctPrismaSources(addresses)
 	if len(sources) == 0 {
 		return inventories, problems
 	}
@@ -199,56 +204,100 @@ func prismaOutcomeOf(result prismaNormalizationResult) (prismaSetOutcome, string
 	}, ""
 }
 
-// configuredPrismaFiles lists the schema files every configured Prisma glob
-// selects, claim and reference alike, in one sorted order.
+// configuredPrismaAddresses lists the schema files every configured Prisma glob
+// selects, claim and reference alike, once per population base.
 //
 // Order is the digest's, so it must not depend on filesystem enumeration.
-func configuredPrismaFiles(
-	root string,
+func configuredPrismaAddresses(
 	config graphConfig,
-) ([]string, []string) {
-	sources := []string{}
+) ([]artifactAddress, []string) {
+	addresses := []artifactAddress{}
 	problems := []string{}
-	err := filepath.WalkDir(root, func(current string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			relative, ok := relativeProjectPath(root, current)
-			relevant := ok &&
-				(matchesConfiguredPrismaFile(config, relative) ||
-					couldContainConfiguredPrisma(config, relative))
-			if !relevant {
+	for _, base := range configuredBases(config, artifactPrisma) {
+		if problem := unreadableBaseProblem(base, artifactPrisma); problem != "" {
+			problems = append(problems, problem)
+			continue
+		}
+		err := filepath.WalkDir(base.Absolute, func(current string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				relative, ok := relativeProjectPath(base.Absolute, current)
+				relevant := ok &&
+					(matchesConfiguredPrismaFile(config, base, relative) ||
+						couldContainConfiguredPrisma(config, base, relative))
+				if !relevant {
+					if entry != nil && entry.IsDir() {
+						return filepath.SkipDir
+					}
+					return nil
+				}
+				problems = append(problems, "Evidence graph could not inspect '"+current+"': "+walkErr.Error()+". Fix filesystem access so configured Prisma sources can be indexed.")
 				if entry != nil && entry.IsDir() {
 					return filepath.SkipDir
 				}
 				return nil
 			}
-			problems = append(problems, "Evidence graph could not inspect '"+current+"': "+walkErr.Error()+". Fix filesystem access so configured Prisma sources can be indexed.")
-			if entry != nil && entry.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if entry.IsDir() {
-			if current == root {
+			if entry.IsDir() {
+				if current == base.Absolute {
+					return nil
+				}
+				relative, ok := relativeProjectPath(base.Absolute, current)
+				if !ok || !couldContainConfiguredPrisma(config, base, relative) {
+					return filepath.SkipDir
+				}
 				return nil
 			}
-			relative, ok := relativeProjectPath(root, current)
-			if !ok || !couldContainConfiguredPrisma(config, relative) {
-				return filepath.SkipDir
+			relative, ok := relativeProjectPath(base.Absolute, current)
+			if !ok || !matchesConfiguredPrismaFile(config, base, relative) {
+				return nil
 			}
+			addresses = append(addresses, base.addressOf(relative))
 			return nil
+		})
+		if err != nil {
+			problems = append(problems, "Evidence graph could not walk Prisma root '"+populationRootLabel(base)+"': "+err.Error()+".")
 		}
-		relative, ok := relativeProjectPath(root, current)
-		if !ok || !matchesConfiguredPrismaFile(config, relative) {
-			return nil
-		}
-		sources = append(sources, relative)
-		return nil
+	}
+	sort.Slice(addresses, func(left int, right int) bool {
+		return addresses[left].Key < addresses[right].Key
 	})
-	if err != nil {
-		problems = append(problems, "Evidence graph could not walk project root '"+root+"': "+err.Error()+".")
+	return addresses, problems
+}
+
+// distinctPrismaSources reduces the configured addresses to the physical files
+// the parser is handed, in one stable order.
+func distinctPrismaSources(addresses []artifactAddress) []string {
+	seen := map[string]bool{}
+	sources := []string{}
+	for _, address := range addresses {
+		if seen[address.Display] {
+			continue
+		}
+		seen[address.Display] = true
+		sources = append(sources, address.Display)
 	}
 	sort.Strings(sources)
-	return sources, problems
+	return sources
+}
+
+// prismaInventoriesByDisplay indexes the inventories that share one physical
+// file.
+//
+// Two populations reaching one schema through different roots own separate
+// inventories of it, because each answers a different set of globs — while the
+// file itself is parsed once and its models are located once. Everything derived
+// from those bytes therefore has to reach every inventory of the file rather
+// than one of them.
+func prismaInventoriesByDisplay(
+	inventories map[string]*artifactInventory,
+) map[string][]*artifactInventory {
+	indexed := map[string][]*artifactInventory{}
+	for _, inventory := range inventories {
+		if inventory == nil {
+			continue
+		}
+		indexed[inventory.Path] = append(indexed[inventory.Path], inventory)
+	}
+	return indexed
 }
 
 // failPrismaSet records one whole-set failure against every file of the set.
@@ -265,15 +314,14 @@ func failPrismaSet(
 	sources []string,
 	message string,
 ) string {
+	indexed := prismaInventoriesByDisplay(inventories)
 	for _, source := range sources {
-		inventory := inventories[source]
-		if inventory == nil {
-			continue
+		for _, inventory := range indexed[source] {
+			inventory.Problems = append(inventory.Problems, inventoryProblem{
+				Symbol:  "*",
+				Message: message,
+			})
 		}
-		inventory.Problems = append(inventory.Problems, inventoryProblem{
-			Symbol:  "*",
-			Message: message,
-		})
 	}
 	return message
 }
@@ -294,13 +342,21 @@ func configuresPrisma(config graphConfig) bool {
 	return false
 }
 
-func matchesConfiguredPrismaFile(config graphConfig, path string) bool {
+func matchesConfiguredPrismaFile(
+	config graphConfig,
+	base populationBase,
+	path string,
+) bool {
 	for _, claim := range config.Claims {
-		if claim.Type == artifactPrisma && claim.Files.matches(path) {
+		if claim.Type == artifactPrisma &&
+			claim.Base.Absolute == base.Absolute &&
+			claim.Files.matches(path) {
 			return true
 		}
 		for _, reference := range claim.References {
-			if reference.Type == artifactPrisma && reference.Files.matches(path) {
+			if reference.Type == artifactPrisma &&
+				reference.Base.Absolute == base.Absolute &&
+				reference.Files.matches(path) {
 				return true
 			}
 		}
@@ -308,14 +364,20 @@ func matchesConfiguredPrismaFile(config graphConfig, path string) bool {
 	return false
 }
 
-func couldContainConfiguredPrisma(config graphConfig, directory string) bool {
+func couldContainConfiguredPrisma(
+	config graphConfig,
+	base populationBase,
+	directory string,
+) bool {
 	for _, claim := range config.Claims {
 		if claim.Type == artifactPrisma &&
+			claim.Base.Absolute == base.Absolute &&
 			claim.Files.couldMatchDescendant(directory) {
 			return true
 		}
 		for _, reference := range claim.References {
 			if reference.Type == artifactPrisma &&
+				reference.Base.Absolute == base.Absolute &&
 				reference.Files.couldMatchDescendant(directory) {
 				return true
 			}
@@ -421,7 +483,7 @@ func prismaModelUnits(model prismaModel) []*evidenceUnit {
 func prismaDeclarationsFromComments(
 	comments []prismaCommentRun,
 	hosts map[string]*evidenceUnit,
-	inventories map[string]*artifactInventory,
+	inventories map[string][]*artifactInventory,
 ) []string {
 	problems := []string{}
 	sequence := 0
@@ -455,8 +517,8 @@ func prismaDeclarationsFromComments(
 			}
 			continue
 		}
-		inventory := inventories[run.Path]
-		if inventory == nil {
+		hosted := inventories[run.Path]
+		if len(hosted) == 0 {
 			continue
 		}
 		for _, offset := range prismaBuriedTagLines(run.Body) {
@@ -468,7 +530,12 @@ func prismaDeclarationsFromComments(
 		for _, parsed := range parseCommentDeclarations(run.Body, true) {
 			sequence++
 			line := run.Line + parsed.LineOffset
-			inventory.Declarations = append(inventory.Declarations, &evidenceDeclaration{
+			// One declaration, one identity, shared by every inventory of the
+			// file it is written in. Two populations that reached this schema
+			// through different roots each need to see it, and giving each its
+			// own copy would make one comment two declarations in the map
+			// `evaluateEvidenceGraph` keys by ID.
+			declaration := &evidenceDeclaration{
 				ID:       "prisma:" + run.Path + ":" + decimal(line) + ":" + decimal(sequence),
 				Type:     artifactPrisma,
 				Tag:      parsed.Tag,
@@ -478,7 +545,10 @@ func prismaDeclarationsFromComments(
 				Path:     run.Path,
 				Line:     line,
 				Sequence: sequence,
-			})
+			}
+			for _, inventory := range hosted {
+				inventory.Declarations = append(inventory.Declarations, declaration)
+			}
 		}
 	}
 	return problems

@@ -100,18 +100,12 @@ const readSource = async (
     return { text: await readRemoteSource(source), digest: "" };
   if (source.includes("://"))
     throw new Error("only http: and https: URLs are supported");
-  if (path.isAbsolute(source))
-    throw new Error("local Swagger paths must be project-relative");
 
+  // A local document may sit anywhere on the filesystem, including above the
+  // project or on an absolute path. The native decoder is what validates the
+  // spelling; this side only has to resolve it the same way, which
+  // `path.resolve` already does for both forms.
   const location: string = path.resolve(root, source);
-  const relative: string = path.relative(root, location);
-  if (
-    relative === ".." ||
-    relative.startsWith(`..${path.sep}`) ||
-    path.isAbsolute(relative)
-  )
-    throw new Error("local Swagger paths must stay below the project root");
-
   const stat: Awaited<ReturnType<typeof fs.stat>> = await fs.stat(location);
   if (!stat.isFile()) throw new Error("the local Swagger source is not a file");
   if (stat.size > MAX_DOCUMENT_BYTES)

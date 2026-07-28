@@ -54,7 +54,7 @@ func decodeClaim(raw json.RawMessage, index int) (claimSpec, []string) {
 	}
 	problems := rejectUnknownFields(
 		object,
-		[]string{"type", "name", "files", "symbol", "reference"},
+		[]string{"type", "name", "root", "files", "symbol", "reference"},
 		graphRuleName,
 		path,
 	)
@@ -68,6 +68,8 @@ func decodeClaim(raw json.RawMessage, index int) (claimSpec, []string) {
 			problems = append(problems, "Invalid evidence/graph configuration at "+path+".name: expected a diagnostic-only string label.")
 		}
 	}
+	root, rootProblems := decodeRoot(object["root"], kind, path+".root")
+	problems = append(problems, rootProblems...)
 	files, fileProblems := decodeFiles(object["files"], path+".files")
 	problems = append(problems, fileProblems...)
 	symbols, symbolProblems := decodeSymbols(object["symbol"], kind, false, graphRuleName, path+".symbol")
@@ -81,6 +83,7 @@ func decodeClaim(raw json.RawMessage, index int) (claimSpec, []string) {
 		Index:      index,
 		Type:       kind,
 		Name:       name,
+		Root:       root,
 		Files:      files,
 		Symbols:    symbols,
 		References: references,
@@ -143,7 +146,7 @@ func decodeReference(
 	}
 	problems := rejectUnknownFields(
 		object,
-		[]string{"type", "package", "file", "files", "symbol"},
+		[]string{"type", "package", "root", "file", "files", "symbol"},
 		graphRuleName,
 		path,
 	)
@@ -154,6 +157,8 @@ func decodeReference(
 	if problem := rejectForeignTypeScriptReference(claimKind, kind, path); problem != "" {
 		problems = append(problems, problem)
 	}
+	root, rootProblems := decodeRoot(object["root"], kind, path+".root")
+	problems = append(problems, rootProblems...)
 	files := globSet{}
 	source := ""
 	entry := ""
@@ -215,6 +220,7 @@ func decodeReference(
 	return referenceSpec{
 		Index:   index,
 		Type:    kind,
+		Root:    root,
 		Files:   files,
 		Source:  source,
 		Entry:   entry,
@@ -394,13 +400,58 @@ func decodeArtifactKind(
 	}
 }
 
+// decodeRoot reads the directory a Markdown or Prisma population resolves
+// against.
+//
+// The property is refused on the two artifact kinds that cannot use it, and
+// each refusal names the channel that artifact does have. A TypeScript
+// population is materialized from the ttsc Program, so a directory outside the
+// project contains no file it could ever reach — `package` is the escape there,
+// and it already exists. A Swagger reference names one exact document, so the
+// location belongs in `file`, where it is visible without a second property.
+func decodeRoot(
+	raw json.RawMessage,
+	kind artifactKind,
+	configPath string,
+) (string, []string) {
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return "", nil
+	}
+	switch kind {
+	case artifactMarkdown, artifactPrisma:
+	case artifactTypeScript:
+		return "", []string{
+			"Invalid evidence/graph configuration at " + configPath + ": a TypeScript population is materialized from the ttsc program, so no directory outside the project contains a file it can reach. Select an installed package with 'package', or add the directory to the program.",
+		}
+	case artifactSwagger:
+		return "", []string{
+			"Invalid evidence/graph configuration at " + configPath + ": a Swagger reference owns one exact document; write the ancestor-relative or absolute location in 'file' instead.",
+		}
+	default:
+		// The discriminator is already reported; a second message about a
+		// property of an unknown artifact kind would only add noise.
+		return "", nil
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return "", []string{
+			"Invalid evidence/graph configuration at " + configPath + ": expected one directory path this population's globs resolve against.",
+		}
+	}
+	normalized, problem := normalizeRootPath(value)
+	if problem != "" {
+		return "", []string{"Invalid evidence/graph configuration at " + configPath + ": " + problem}
+	}
+	return normalized, nil
+}
+
 func decodeSwaggerSource(raw json.RawMessage, configPath string) (string, string) {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return "", "Invalid evidence/graph configuration at " + configPath + ": the required Swagger file path or URL is missing."
 	}
 	var value string
 	if err := json.Unmarshal(raw, &value); err != nil {
-		return "", "Invalid evidence/graph configuration at " + configPath + ": expected one exact project-relative file path or http(s) URL."
+		return "", "Invalid evidence/graph configuration at " + configPath + ": expected one exact file path or http(s) URL."
 	}
 	source, problem := normalizeSwaggerSource(value)
 	if problem != "" {
@@ -409,6 +460,23 @@ func decodeSwaggerSource(raw json.RawMessage, configPath string) (string, string
 	return source, ""
 }
 
+// normalizeSwaggerSource reduces a declared Swagger location to one canonical
+// spelling, without deciding where on the filesystem it may sit.
+//
+// A local path is free to ascend with `..` or to be absolute, and the ordering
+// this restores is the point: the rule already accepts an arbitrary http(s) URL
+// on any host, so refusing `../contracts/swagger.json` refused the one form the
+// author can pin, version, and diff. An OpenAPI document is routinely generated
+// somewhere with no relationship to the project that consumes it — a sibling
+// package's output, a shared contract checkout, a CI artifact directory — and
+// none of those is reachable through a project-relative path.
+//
+// A Windows drive prefix is recognized before the URL parse rather than after
+// it. `url.Parse` reads the single letter of `C:/api/swagger.json` as a scheme,
+// so an absolute Windows path would otherwise be rejected as an unsupported
+// protocol — a diagnostic naming the wrong thing entirely. The drive-relative
+// form stays refused for the reason `files` refuses it: it resolves against
+// whatever directory that drive currently sits on.
 func normalizeSwaggerSource(value string) (string, string) {
 	if value == "" {
 		return "", "Swagger sources must not be empty."
@@ -416,11 +484,16 @@ func normalizeSwaggerSource(value string) (string, string) {
 	if strings.TrimSpace(value) != value {
 		return "", "Swagger sources must not have leading or trailing whitespace."
 	}
+	normalized := strings.ReplaceAll(value, "\\", "/")
+	drive := hasWindowsDrivePrefix(normalized)
+	if drive && !strings.HasPrefix(normalized[2:], "/") {
+		return "", "local Swagger path '" + value + "' is drive-relative, so it resolves against whatever directory that drive currently sits on rather than against a stable base. Write the full path."
+	}
 	parsed, err := url.Parse(value)
 	if err != nil {
 		return "", "invalid Swagger source '" + value + "': " + err.Error() + "."
 	}
-	if parsed.Scheme != "" {
+	if !drive && parsed.Scheme != "" {
 		if parsed.Scheme != "http" && parsed.Scheme != "https" {
 			return "", "unsupported URL scheme '" + parsed.Scheme + "'; only http: and https: are supported."
 		}
@@ -432,19 +505,29 @@ func normalizeSwaggerSource(value string) (string, string) {
 		}
 		return value, ""
 	}
-	if strings.Contains(value, "://") {
+	if !drive && strings.Contains(value, "://") {
 		return "", "invalid Swagger source URL '" + value + "'."
 	}
-	normalized := strings.ReplaceAll(value, "\\", "/")
-	if strings.HasPrefix(normalized, "/") || path.IsAbs(normalized) {
-		return "", "local Swagger paths must be project-relative."
+	// A trailing separator is read before cleaning, because `path.Clean` removes
+	// it — after which `docs/` and `docs` are one string and the author who
+	// meant a directory gets a missing-file diagnostic instead.
+	directory := strings.HasSuffix(normalized, "/")
+	// A UNC share is cleaned by hand, because `path.Clean` collapses its leading
+	// `//` into one slash and turns a network location into a local one that
+	// still reads like what was written.
+	if strings.HasPrefix(normalized, "//") {
+		normalized = "//" + strings.TrimPrefix(path.Clean(normalized), "/")
+	} else {
+		normalized = path.Clean(normalized)
 	}
-	normalized = path.Clean(normalized)
-	for strings.HasPrefix(normalized, "./") {
-		normalized = strings.TrimPrefix(normalized, "./")
-	}
-	if normalized == "." || normalized == ".." || strings.HasPrefix(normalized, "../") {
-		return "", "local Swagger paths must name a file below the project root."
+	switch {
+	case directory,
+		normalized == ".",
+		normalized == "..",
+		normalized == "/",
+		strings.HasSuffix(normalized, "/.."),
+		len(normalized) == 2 && hasWindowsDrivePrefix(normalized):
+		return "", "Swagger source '" + value + "' names a directory rather than a document; a reference owns one exact file."
 	}
 	return normalized, ""
 }
@@ -623,9 +706,23 @@ func describePatterns(globs globSet) string {
 	return "[" + strings.Join(quoted, ", ") + "]"
 }
 
+// describePopulation names the patterns a population selects with, and the base
+// they were resolved against when that base is not the project root.
+//
+// The base is stated rather than assumed, because a citation that resolves
+// outside the project has to be repairable from the diagnostic alone: patterns
+// that look correct against a root the reader is imagining are the failure this
+// property introduces, and naming the resolved base is what removes it.
+func describePopulation(base populationBase, globs globSet) string {
+	if base.Default {
+		return describePatterns(globs)
+	}
+	return describePatterns(globs) + " under root '" + populationRootLabel(base) + "'"
+}
+
 func describeReferenceSources(reference referenceSpec) string {
 	if reference.Type != artifactSwagger {
-		return describePatterns(reference.Files)
+		return describePopulation(reference.Base, reference.Files)
 	}
 	return "'" + displaySwaggerSource(reference.Source) + "'"
 }
