@@ -274,15 +274,18 @@ export namespace EvidenceBenchmarkProtocolValidator {
     schemaRoot: string,
     files: readonly string[],
   ): void {
-    const repository: string = childProcess
-      .execFileSync(
-        "git",
-        ["-C", path.resolve(protocolRoot), "rev-parse", "--show-toplevel"],
-        { encoding: "utf8", windowsHide: true },
-      )
-      .trim();
+    const repository: string = fs.realpathSync.native(
+      childProcess
+        .execFileSync(
+          "git",
+          ["-C", path.resolve(protocolRoot), "rev-parse", "--show-toplevel"],
+          { encoding: "utf8", windowsHide: true },
+        )
+        .trim(),
+    );
+    const canonicalSchemaRoot: string = fs.realpathSync.native(schemaRoot);
     const relativeRoot: string = path
-      .relative(repository, schemaRoot)
+      .relative(repository, canonicalSchemaRoot)
       .split(path.sep)
       .join("/");
     if (
@@ -292,7 +295,7 @@ export namespace EvidenceBenchmarkProtocolValidator {
       path.isAbsolute(relativeRoot)
     )
       throw new Error(
-        `Protocol schema root escapes its Git repository: ${schemaRoot}.`,
+        `Protocol schema root escapes its Git repository: ${canonicalSchemaRoot}.`,
       );
     const tracked: string[] = childProcess
       .execFileSync(
@@ -309,7 +312,7 @@ export namespace EvidenceBenchmarkProtocolValidator {
       )
       .sort(compareUtf8);
     const present: string[] = files
-      .map((file) => path.relative(repository, file).split(path.sep).join("/"))
+      .map((file) => `${relativeRoot}/${path.basename(file)}`)
       .sort(compareUtf8);
     if (
       tracked.length === 0 ||
