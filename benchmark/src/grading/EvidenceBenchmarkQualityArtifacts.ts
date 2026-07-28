@@ -849,8 +849,28 @@ export namespace EvidenceBenchmarkQualityArtifacts {
   export function validatePostprocessSeal(
     input: unknown,
     parentCoreSealSha256: string,
+    contentFiles: ReadonlyMap<string, Uint8Array>,
   ): void {
     const seal = record(input, "postprocess seal");
+    const content = record(
+      seal.postprocessContent,
+      "postprocess content identity",
+    );
+    const contentRawTree = rawTree(
+      content.rawTree,
+      "postprocess content raw tree",
+    );
+    if (
+      [...contentFiles.keys()].some(
+        (entry) =>
+          entry === "postprocess-seal.json" ||
+          entry.endsWith("/postprocess-seal.json"),
+      )
+    )
+      throw new Error(
+        "Postprocess seal must be a sibling of the content tree.",
+      );
+    const contentEntries = EvidenceBenchmarkHash.entries(contentFiles);
     const { sealSha256, ...unsigned } = seal;
     if (
       seal.parentCoreSealSha256 !== parentCoreSealSha256 ||
@@ -858,6 +878,16 @@ export namespace EvidenceBenchmarkQualityArtifacts {
       seal.humanValidatedCompositeClaim !== false ||
       Object.hasOwn(seal, "publicPromotionAllowed") ||
       Object.hasOwn(seal, "publicSafetyScanSha256") ||
+      Object.hasOwn(seal, "postprocessTreeSha256") ||
+      content.root !== "postprocess/content" ||
+      contentEntries.length === 0 ||
+      contentRawTree.sha256 !== EvidenceBenchmarkHash.tree(contentFiles) ||
+      JSON.stringify(content.files) !== JSON.stringify(contentEntries) ||
+      content.fileSetSha256 !==
+        EvidenceBenchmarkHash.object(contentEntries) ||
+      content.fileCount !== contentEntries.length ||
+      content.byteLength !==
+        contentEntries.reduce((sum, entry) => sum + entry.bytes, 0) ||
       seal.tDoneQualityPhaseSha256 === seal.tDryQualityPhaseSha256 ||
       sealSha256 !== EvidenceBenchmarkHash.object(unsigned)
     )
@@ -986,6 +1016,7 @@ export namespace EvidenceBenchmarkQualityArtifacts {
       publicSafetyScannerSha256: string;
       publicSafetyRulesSha256: string;
       publicSafetyFileSetSha256: string;
+      postprocessContentRawTreeSha256: string;
     },
   ): void {
     const promotion = record(input, "result promotion");
@@ -995,6 +1026,14 @@ export namespace EvidenceBenchmarkQualityArtifacts {
     const latest = record(promotion.latestPointer, "promoted latest pointer");
     const demo = record(promotion.demoWorkspace, "promoted demo workspace");
     const git = record(promotion.gitRoundTrip, "promotion Git round trip");
+    const postprocessContentRawTree = rawTree(
+      postprocess.postprocessContentRawTree,
+      "promotion postprocess content raw tree",
+    );
+    const retainedPostprocessContentRawTree = rawTree(
+      retained.postprocessContentRawTree,
+      "retained postprocess content raw tree",
+    );
     const { manifestSha256, ...unsigned } = promotion;
     const prefix = `benchmark/result/${text(
       promotion.subject,
@@ -1014,6 +1053,10 @@ export namespace EvidenceBenchmarkQualityArtifacts {
         expected.publicSafetyRulesSha256 ||
       postprocess.publicSafetyFileSetSha256 !==
         expected.publicSafetyFileSetSha256 ||
+      postprocessContentRawTree.sha256 !==
+        expected.postprocessContentRawTreeSha256 ||
+      retainedPostprocessContentRawTree.sha256 !==
+        expected.postprocessContentRawTreeSha256 ||
       postprocess.publicSafetyHighConfidenceFindings !== 0 ||
       !["not_required", "cleared"].includes(
         postprocess.publicSafetyManualReviewStatus as string,

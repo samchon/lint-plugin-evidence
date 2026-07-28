@@ -117,7 +117,7 @@
         "publicPromotionAllowed",
         "finalReportSha256",
         "reportSchemaSha256",
-        "postprocessTreeSha256",
+        "postprocessContentRawTree",
         "postprocessSealSha256",
         "appendOnlyVerified",
         "freshProcessVerified"
@@ -270,8 +270,8 @@
         "reportSchemaSha256": {
           "$ref": "#/$defs/sha256"
         },
-        "postprocessTreeSha256": {
-          "$ref": "#/$defs/sha256"
+        "postprocessContentRawTree": {
+          "$ref": "#/$defs/rawTree"
         },
         "postprocessSealSha256": {
           "$ref": "#/$defs/sha256"
@@ -290,7 +290,7 @@
       "required": [
         "path",
         "coreTreeSha256",
-        "postprocessTreeSha256",
+        "postprocessContentRawTree",
         "finalRecordTreeSha256",
         "workspacePath",
         "retainedTreeSha256"
@@ -303,8 +303,8 @@
         "coreTreeSha256": {
           "$ref": "#/$defs/sha256"
         },
-        "postprocessTreeSha256": {
-          "$ref": "#/$defs/sha256"
+        "postprocessContentRawTree": {
+          "$ref": "#/$defs/rawTree"
         },
         "finalRecordTreeSha256": {
           "$ref": "#/$defs/sha256"
@@ -479,6 +479,22 @@
     }
   },
   "$defs": {
+    "rawTree": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithmId",
+        "sha256"
+      ],
+      "properties": {
+        "algorithmId": {
+          "const": "sha256-posix-path-nul-bytes-v1"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
     "sha256": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$"

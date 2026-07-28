@@ -1075,6 +1075,14 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
     assert.equal(manualSafetyScan.highConfidenceFindings.length, 0);
     assert.equal(manualSafetyScan.manualReviewStatus, "pending");
     assert.equal(manualSafetyScan.publicPromotionAllowed, false);
+    const postprocessContentFiles = new Map<string, Uint8Array>([
+      ["t_done.json", Buffer.from(donePhaseEmission.text, "utf8")],
+      ["t_dry.json", Buffer.from(dryPhaseEmission.text, "utf8")],
+      ["report.json", Buffer.from('{"status":"machine-complete"}\n', "utf8")],
+    ]);
+    const postprocessContentEntries = EvidenceBenchmarkHash.entries(
+      postprocessContentFiles,
+    );
     const unsignedSeal = {
       schemaVersion: 1,
       runId,
@@ -1087,7 +1095,20 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
       humanValidationStatus: "pending",
       humanValidatedCompositeClaim: false,
       reportSha256: digest("quality-report"),
-      postprocessTreeSha256: digest("postprocess-tree"),
+      postprocessContent: {
+        root: "postprocess/content",
+        rawTree: {
+          algorithmId: EvidenceBenchmarkHash.TREE_ALGORITHM,
+          sha256: EvidenceBenchmarkHash.tree(postprocessContentFiles),
+        },
+        files: postprocessContentEntries,
+        fileSetSha256: EvidenceBenchmarkHash.object(postprocessContentEntries),
+        fileCount: postprocessContentEntries.length,
+        byteLength: postprocessContentEntries.reduce(
+          (sum, entry) => sum + entry.bytes,
+          0,
+        ),
+      },
       sealedAtUtc: "2026-07-29T00:00:03.000Z",
     };
     const postprocessSeal = {
@@ -1097,6 +1118,7 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
     EvidenceBenchmarkQualityArtifacts.validatePostprocessSeal(
       postprocessSeal,
       parentCore,
+      postprocessContentFiles,
     );
     const postprocessEmission = roundTrip(
       protocolRoot,
@@ -1114,6 +1136,18 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
             ...postprocessSeal,
             publicSafetyScanSha256: safetyEmission.sha256,
           },
+      ),
+      "additional properties",
+    );
+    expectInvalid(
+      () =>
+        EvidenceBenchmarkQualityArtifacts.emit(
+          protocolRoot,
+          "postprocess-seal.schema.json",
+          {
+            ...postprocessSeal,
+            postprocessTreeSha256: digest("self-inclusive-postprocess-tree"),
+          },
         ),
       "additional properties",
     );
@@ -1125,6 +1159,68 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
             publicPromotionAllowed: true,
           },
           parentCore,
+          postprocessContentFiles,
+        ),
+      "ownership",
+    );
+    const driftedContentInventoryUnsigned = {
+      ...postprocessSeal,
+      postprocessContent: {
+        ...postprocessSeal.postprocessContent,
+        files: postprocessSeal.postprocessContent.files.slice(1),
+      },
+    };
+    delete (driftedContentInventoryUnsigned as { sealSha256?: string })
+      .sealSha256;
+    const driftedContentInventory = {
+      ...driftedContentInventoryUnsigned,
+      sealSha256: EvidenceBenchmarkHash.object(driftedContentInventoryUnsigned),
+    };
+    expectInvalid(
+      () =>
+        EvidenceBenchmarkQualityArtifacts.validatePostprocessSeal(
+          driftedContentInventory,
+          parentCore,
+          postprocessContentFiles,
+        ),
+      "ownership",
+    );
+    const sealInsideContent = new Map(postprocessContentFiles);
+    sealInsideContent.set(
+      "postprocess-seal.json",
+      Buffer.from(`${JSON.stringify(postprocessSeal, null, 2)}\n`, "utf8"),
+    );
+    expectInvalid(
+      () =>
+        EvidenceBenchmarkQualityArtifacts.validatePostprocessSeal(
+          postprocessSeal,
+          parentCore,
+          sealInsideContent,
+        ),
+      "sibling",
+    );
+    const mutatedPostprocessContent = new Map(postprocessContentFiles);
+    mutatedPostprocessContent.set(
+      "report.json",
+      Buffer.from('{"status":"mutated-after-seal"}\n', "utf8"),
+    );
+    expectInvalid(
+      () =>
+        EvidenceBenchmarkQualityArtifacts.validatePostprocessSeal(
+          postprocessSeal,
+          parentCore,
+          mutatedPostprocessContent,
+        ),
+      "ownership",
+    );
+    const omittedPostprocessContent = new Map(postprocessContentFiles);
+    omittedPostprocessContent.delete("t_done.json");
+    expectInvalid(
+      () =>
+        EvidenceBenchmarkQualityArtifacts.validatePostprocessSeal(
+          postprocessSeal,
+          parentCore,
+          omittedPostprocessContent,
         ),
       "ownership",
     );
@@ -1180,7 +1276,7 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
         publicPromotionAllowed: true,
         finalReportSha256: digest("final-report"),
         reportSchemaSha256: digest("report-schema"),
-        postprocessTreeSha256: digest("postprocess-tree"),
+        postprocessContentRawTree: postprocessSeal.postprocessContent.rawTree,
         postprocessSealSha256: postprocessEmission.sha256,
         appendOnlyVerified: true,
         freshProcessVerified: true,
@@ -1188,7 +1284,7 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
       retainedRun: {
         path: `benchmark/result/todo/evidence/runs/${runId}`,
         coreTreeSha256: digest("core-tree"),
-        postprocessTreeSha256: digest("postprocess-tree"),
+        postprocessContentRawTree: postprocessSeal.postprocessContent.rawTree,
         finalRecordTreeSha256: digest("final-record-tree"),
         workspacePath: `benchmark/result/todo/evidence/runs/${runId}/workspace`,
         retainedTreeSha256: digest("retained-tree"),
@@ -1242,6 +1338,8 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
       publicSafetyScannerSha256: safetyScan.scanner.implementationSha256,
       publicSafetyRulesSha256: safetyScan.scanner.rulesSha256,
       publicSafetyFileSetSha256: safetyScan.scannedFileSetSha256,
+      postprocessContentRawTreeSha256:
+        postprocessSeal.postprocessContent.rawTree.sha256,
     };
     EvidenceBenchmarkQualityArtifacts.validateResultPromotion(
       promotion,

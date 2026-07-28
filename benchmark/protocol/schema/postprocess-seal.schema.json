@@ -16,7 +16,7 @@
     "humanValidationStatus",
     "humanValidatedCompositeClaim",
     "reportSha256",
-    "postprocessTreeSha256",
+    "postprocessContent",
     "sealedAtUtc",
     "sealSha256"
   ],
@@ -55,8 +55,43 @@
     "reportSha256": {
       "$ref": "#/$defs/sha256"
     },
-    "postprocessTreeSha256": {
-      "$ref": "#/$defs/sha256"
+    "postprocessContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root",
+        "rawTree",
+        "files",
+        "fileSetSha256",
+        "fileCount",
+        "byteLength"
+      ],
+      "properties": {
+        "root": {
+          "const": "postprocess/content"
+        },
+        "rawTree": {
+          "$ref": "#/$defs/rawTree"
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/file"
+          }
+        },
+        "fileSetSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "fileCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
     },
     "sealedAtUtc": {
       "type": "string",
@@ -67,6 +102,44 @@
     }
   },
   "$defs": {
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "bytes",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "rawTree": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithmId",
+        "sha256"
+      ],
+      "properties": {
+        "algorithmId": {
+          "const": "sha256-posix-path-nul-bytes-v1"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
     "sha256": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$"
