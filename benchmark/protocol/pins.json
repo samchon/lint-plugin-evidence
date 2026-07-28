@@ -42,7 +42,9 @@
     "authorityRequestProjection": "authorityRequestId,phase,blockId,planSha256,subjects",
     "canonicalImplementationScope": "rfc8785-equivalent-closed-ascii-projection-v1",
     "startExecutionAdmissionConsumer": "benchmark/protocol/schema/quota-start-authority.schema.json",
-    "startExecutionAdmissionValidator": "EvidenceBenchmarkProtocolValidator.validateStartQuotaAuthorityAdmissionValue"
+    "startExecutionAdmissionValidator": "EvidenceBenchmarkProtocolValidator.validateStartQuotaAuthorityAdmissionValue",
+    "startExecutionClosedPlanInput": "exact-block-plan-bytes",
+    "startExecutionDerivedFields": "planSha256,prepareAuthorityRequestId,blockId,subjects"
   },
   "armMap": {
     "plain": {

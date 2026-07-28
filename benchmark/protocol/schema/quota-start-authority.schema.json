@@ -9,7 +9,6 @@
     "blockId",
     "planSha256",
     "subjects",
-    "prepareAuthorityRequestId",
     "authorization"
   ],
   "properties": {
@@ -25,11 +24,6 @@
     },
     "subjects": {
       "$ref": "block-plan.schema.json#/$defs/subjectWave"
-    },
-    "prepareAuthorityRequestId": {
-      "description": "Prepare-time request nonce retained by the closed block plan; start must use a different nonce.",
-      "type": "string",
-      "pattern": "^[a-f0-9]{64}$"
     },
     "authorization": {
       "type": "object",

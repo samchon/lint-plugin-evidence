@@ -460,9 +460,18 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
       startFixture.validAdmission,
       "valid start quota authority admission",
     );
+    const closedPlanBytes: Buffer = fs.readFileSync(
+      path.join(
+        protocolRoot,
+        "fixtures",
+        "quota-start-authority",
+        "closed-plan.json",
+      ),
+    );
     EvidenceBenchmarkProtocolValidator.validateStartQuotaAuthorityAdmissionValue(
       protocolRoot,
       startBaseline,
+      closedPlanBytes,
     );
     for (const input of list(
       startFixture.invalidCases,
@@ -471,11 +480,16 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
       const invalid = object(input, "invalid start quota authority admission");
       const value: Record<string, unknown> = structuredClone(startBaseline);
       applyMutation(value, invalid);
+      const actualClosedPlanBytes: Uint8Array =
+        invalid.actualPlanBytesVariant === "append-space"
+          ? Buffer.concat([closedPlanBytes, Buffer.from(" ", "utf8")])
+          : closedPlanBytes;
       assert.throws(
         () =>
           EvidenceBenchmarkProtocolValidator.validateStartQuotaAuthorityAdmissionValue(
             protocolRoot,
             value,
+            actualClosedPlanBytes,
           ),
         new RegExp(text(invalid.expectedPattern, "expected failure pattern")),
         text(invalid.id, "start quota authority admission id"),
@@ -594,6 +608,7 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
     mutation: Record<string, unknown>,
   ): void {
     const operation: string = text(mutation.operation, "mutation operation");
+    if (operation === "identity") return;
     if (operation === "replaceMany") {
       for (const input of list(mutation.changes, "mutation changes")) {
         const change = object(input, "mutation change");

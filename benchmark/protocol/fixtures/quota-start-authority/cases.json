@@ -3,19 +3,18 @@
   "validAdmission": {
     "schemaVersion": 1,
     "blockId": "block-todo-reddit-r1",
-    "planSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "planSha256": "d3585487b3efec4175b95dbdba9bc53859d40db0cc3c5d78bd0ddfa36c5afad0",
     "subjects": [
       "todo",
       "reddit"
     ],
-    "prepareAuthorityRequestId": "1111111111111111111111111111111111111111111111111111111111111111",
     "authorization": {
       "quotaState": {
         "authorityRequestId": "2222222222222222222222222222222222222222222222222222222222222222",
-        "authorityRequestSha256": "64b83f549fec4fd57354c19076cc7a325fff53919c3e325331dc57e50bf04687",
+        "authorityRequestSha256": "131fba13279d75edfb67bbb4923cb770c821e8d30ce6fee25b2451c10dd94112",
         "phase": "start",
         "blockId": "block-todo-reddit-r1",
-        "planSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "planSha256": "d3585487b3efec4175b95dbdba9bc53859d40db0cc3c5d78bd0ddfa36c5afad0",
         "subjects": [
           "todo",
           "reddit"
@@ -33,17 +32,17 @@
         "policySha256": "04d18a23379260b2f899c1620a775a48f20b1463cb4b82a59454d09f2e4989d4",
         "capturedAtUtc": "2026-07-29T00:05:01Z",
         "attestationAlgorithmId": "sha256-rfc8785-sanitized-quota-attestation-v1",
-        "attestationSha256": "71c8e1eb2d219f561187b5473003a32fd5a7d94c35db4a98d02270a43206cc14",
+        "attestationSha256": "07884b9eeaae9458242cc7f1d2746b1c8ff1a5938a605e1b2adc76436f7fefa7",
         "privateCheckpointPersistence": "ephemeral-non-promoted",
         "exactTelemetryPromoted": false,
         "guardRelation": "independent-first-hit-or"
       },
       "quotaAuthorityBoundary": {
         "authorityRequestId": "2222222222222222222222222222222222222222222222222222222222222222",
-        "authorityRequestSha256": "64b83f549fec4fd57354c19076cc7a325fff53919c3e325331dc57e50bf04687",
+        "authorityRequestSha256": "131fba13279d75edfb67bbb4923cb770c821e8d30ce6fee25b2451c10dd94112",
         "phase": "start",
         "blockId": "block-todo-reddit-r1",
-        "planSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "planSha256": "d3585487b3efec4175b95dbdba9bc53859d40db0cc3c5d78bd0ddfa36c5afad0",
         "subjects": [
           "todo",
           "reddit"
@@ -53,7 +52,7 @@
         "elapsedMonotonicNs": "2000000000",
         "maximumDurationMs": 60000,
         "capturedWithinLiveInterval": true,
-        "attestationSha256": "71c8e1eb2d219f561187b5473003a32fd5a7d94c35db4a98d02270a43206cc14"
+        "attestationSha256": "07884b9eeaae9458242cc7f1d2746b1c8ff1a5938a605e1b2adc76436f7fefa7"
       }
     }
   },
@@ -69,6 +68,22 @@
         {
           "path": "/authorization/quotaAuthorityBoundary/authorityRequestId",
           "value": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        {
+          "path": "/authorization/quotaState/authorityRequestSha256",
+          "value": "43e9a33a5c5ae2da821dc6441ffc7d24e5939e5a20a953d79333625768c5f22d"
+        },
+        {
+          "path": "/authorization/quotaAuthorityBoundary/authorityRequestSha256",
+          "value": "43e9a33a5c5ae2da821dc6441ffc7d24e5939e5a20a953d79333625768c5f22d"
+        },
+        {
+          "path": "/authorization/quotaState/attestationSha256",
+          "value": "ab80ccc9f32706c8e4a6948730ea8ffa8d5b59e86d3e1ff52f3b2018ad304f17"
+        },
+        {
+          "path": "/authorization/quotaAuthorityBoundary/attestationSha256",
+          "value": "ab80ccc9f32706c8e4a6948730ea8ffa8d5b59e86d3e1ff52f3b2018ad304f17"
         }
       ],
       "expectedPattern": "fresh request nonce"
@@ -87,6 +102,62 @@
         }
       ],
       "expectedPattern": "start quota authority admission failed"
+    },
+    {
+      "id": "actual-closed-plan-digest-swap",
+      "operation": "replace",
+      "path": "/planSha256",
+      "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "expectedPattern": "exact closed block-plan bytes"
+    },
+    {
+      "id": "coherent-cross-plan-forgery",
+      "operation": "replaceMany",
+      "changes": [
+        {
+          "path": "/planSha256",
+          "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+          "path": "/authorization/quotaState/planSha256",
+          "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+          "path": "/authorization/quotaAuthorityBoundary/planSha256",
+          "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+          "path": "/authorization/quotaState/authorityRequestId",
+          "value": "3333333333333333333333333333333333333333333333333333333333333333"
+        },
+        {
+          "path": "/authorization/quotaAuthorityBoundary/authorityRequestId",
+          "value": "3333333333333333333333333333333333333333333333333333333333333333"
+        },
+        {
+          "path": "/authorization/quotaState/authorityRequestSha256",
+          "value": "c2c0eeebdfac33f3047a18a7699af9a84de29e694fe39689d2630886b5504bf5"
+        },
+        {
+          "path": "/authorization/quotaAuthorityBoundary/authorityRequestSha256",
+          "value": "c2c0eeebdfac33f3047a18a7699af9a84de29e694fe39689d2630886b5504bf5"
+        },
+        {
+          "path": "/authorization/quotaState/attestationSha256",
+          "value": "db4efd267e0443bd78f0bf4dade9f84e8c8c993ef84b1db2132893f998e66191"
+        },
+        {
+          "path": "/authorization/quotaAuthorityBoundary/attestationSha256",
+          "value": "db4efd267e0443bd78f0bf4dade9f84e8c8c993ef84b1db2132893f998e66191"
+        }
+      ],
+      "expectedPattern": "exact closed block-plan bytes"
+    },
+    {
+      "id": "same-start-artifact-different-closed-plan-bytes",
+      "operation": "identity",
+      "actualPlanBytesVariant": "append-space",
+      "expectedPattern": "exact closed block-plan bytes"
     },
     {
       "id": "other-plan-at-start",

@@ -378,7 +378,7 @@ export namespace EvidenceBenchmarkProtocolValidator {
       input,
       "prepare quota authority admission",
     );
-    validateQuotaAuthorityAdmissionValue(protocolRoot, value, "prepare");
+    validateQuotaAuthorityAdmissionValue(protocolRoot, value, "prepare", null);
   }
 
   /**
@@ -388,20 +388,76 @@ export namespace EvidenceBenchmarkProtocolValidator {
   export function validateStartQuotaAuthorityAdmissionValue(
     protocolRoot: string,
     input: unknown,
+    closedPlanBytes: Uint8Array,
   ): void {
+    const closedPlan = validateBytes<Record<string, unknown>>(
+      protocolRoot,
+      "block-plan.schema.json",
+      closedPlanBytes,
+      "closed block plan",
+    );
+    const closedPlanSha256: string = sha256(closedPlanBytes);
     const value = validateValue<Record<string, unknown>>(
       protocolRoot,
       "quota-start-authority.schema.json",
       input,
       "start quota authority admission",
     );
-    validateQuotaAuthorityAdmissionValue(protocolRoot, value, "start");
+    if (
+      digest(value.planSha256, "start authority closed plan SHA-256") !==
+      closedPlanSha256
+    )
+      throw new Error(
+        "Start quota authority does not bind the exact closed block-plan bytes.",
+      );
+    const closedBlockId: string = nonblank(
+      closedPlan.blockId,
+      "closed block plan id",
+    );
+    const closedSubjects: string[] = stringArray(
+      closedPlan.subjects,
+      "closed block plan subject wave",
+    );
+    if (
+      value.blockId !== closedBlockId ||
+      canonical(value.subjects) !== canonical(closedSubjects)
+    )
+      throw new Error(
+        "Start quota authority block or subject wave disagrees with the closed plan.",
+      );
+    const closedAuthorization = record(
+      closedPlan.authorization,
+      "closed block plan authorization",
+    );
+    const closedQuotaState = record(
+      closedAuthorization.quotaState,
+      "closed block plan quota state",
+    );
+    validateQuotaAuthorityBoundaryValue(protocolRoot, {
+      schemaVersion: 1,
+      blockId: closedBlockId,
+      subjects: closedSubjects,
+      authorization: {
+        quotaState: closedQuotaState,
+        quotaAuthorityBoundary: closedAuthorization.quotaAuthorityBoundary,
+      },
+    });
+    validateQuotaAuthorityAdmissionValue(
+      protocolRoot,
+      value,
+      "start",
+      nonblank(
+        closedQuotaState.authorityRequestId,
+        "closed block plan prepare request id",
+      ),
+    );
   }
 
   function validateQuotaAuthorityAdmissionValue(
     protocolRoot: string,
     input: unknown,
     phase: "prepare" | "start",
+    prepareAuthorityRequestId: string | null,
   ): void {
     const policy = quotaAuthorityBoundaryPolicy(path.resolve(protocolRoot));
     const plan = record(input, "quota authority plan");
@@ -473,8 +529,8 @@ export namespace EvidenceBenchmarkProtocolValidator {
       phase === "start" &&
       requestId ===
         nonblank(
-          plan.prepareAuthorityRequestId,
-          "prepare quota authority request id",
+          prepareAuthorityRequestId,
+          "closed block plan prepare request id",
         )
     )
       throw new Error(
@@ -1299,7 +1355,10 @@ export namespace EvidenceBenchmarkProtocolValidator {
       policy.startExecutionAdmissionConsumer !==
         "benchmark/protocol/schema/quota-start-authority.schema.json" ||
       policy.startExecutionAdmissionValidator !==
-        "EvidenceBenchmarkProtocolValidator.validateStartQuotaAuthorityAdmissionValue"
+        "EvidenceBenchmarkProtocolValidator.validateStartQuotaAuthorityAdmissionValue" ||
+      policy.startExecutionClosedPlanInput !== "exact-block-plan-bytes" ||
+      policy.startExecutionDerivedFields !==
+        "planSha256,prepareAuthorityRequestId,blockId,subjects"
     )
       throw new Error("Quota authority boundary protocol pins drifted.");
     return {
