@@ -6,6 +6,8 @@ A provider is an exported namespace named for the entity it owns. There is no de
 
 Every function takes a single object named `props`. Positional parameters are not used, including in the private helpers a provider keeps for itself.
 
+**The caller arrives as a payload**, the small `{ id, session_id, type }` object the authorize provider returned. A function reachable by several actors takes the union and narrows on `type`, which is what makes a per-actor rule readable as a branch instead of a lookup. [authorization.md](authorization.md) owns the payload and where it comes from.
+
 The provider composes rather than maps. The selection and the row-to-DTO mapping belong to the [transformer](transformers.md); the creation payload belongs to the [collector](collectors.md). What is left here is the business logic: which rows this caller may see, what a write means, what is refused.
 
 ## Readers
@@ -14,7 +16,7 @@ A list endpoint builds one where clause, then runs the count and the page agains
 
 ```ts
 export const index = async (props: {
-  actor: IShoppingActorEntity;
+  actor: SellerPayload | CustomerPayload;
   input: IShoppingSale.IRequest;
 }): Promise<IPage<IShoppingSale.ISummary>> => {
   const where = {
@@ -60,7 +62,7 @@ A detail read uses the throwing finder so a missing row becomes a 404 without a 
 
 ```ts
 export const at = async (props: {
-  actor: IShoppingActorEntity;
+  actor: SellerPayload | CustomerPayload;
   id: string;
 }): Promise<IShoppingSale> => {
   const record = await ShoppingGlobal.prisma.shopping_sales.findFirstOrThrow({
@@ -81,13 +83,13 @@ The rule that decides which rows an actor may see is a function, reused by every
 
 ```ts
 const visibility = (props: {
-  actor: IShoppingActorEntity;
+  actor: SellerPayload | CustomerPayload;
   strict: boolean;
 }) =>
   [
-    { sellerCustomer: { shopping_channel_id: channelOf(props.actor).id } },
+    { deleted_at: null },
     ...(props.actor.type === "seller"
-      ? [{ sellerCustomer: { member: { of_seller: { id: props.actor.id } } } }]
+      ? [{ shopping_seller_id: props.actor.id }]
       : props.actor.type === "customer" && props.strict === true
         ? [
             {
@@ -166,7 +168,7 @@ The payload comes from the collector, the response from the transformer. What th
 
 ```ts
 export const create = async (props: {
-  seller: IShoppingSeller.IInvert;
+  seller: SellerPayload;
   body: IShoppingSale.ICreate;
 }): Promise<IShoppingSale> => {
   const record = await ShoppingGlobal.prisma.shopping_sales.create({
@@ -188,7 +190,7 @@ An update creates a **new snapshot** and repoints the materialized pointer, rath
 
 ```ts
 export const update = async (props: {
-  seller: IShoppingSeller.IInvert;
+  seller: SellerPayload;
   id: string;
   body: IShoppingSale.IUpdate;
 }): Promise<IShoppingSale> => {

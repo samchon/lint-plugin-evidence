@@ -61,7 +61,7 @@ Form the root from the table name: keep every word including the service prefix,
 | `bbs_article_comments` | `IBbsComment` | `IBbsArticleComment` | dropped an intermediate word |
 | any | `IShoppingSaleICreate` | `IShoppingSale.ICreate` | missing the dot; that type does not exist downstream |
 
-Variants attach with a dot. The page wrapper prefixes the base name with no dot: `IPageIShoppingSale.ISummary`.
+Variants attach with a dot. A multi-item response wraps the item type in the shared generic instead of gaining a name of its own: `IPage<IShoppingSale.ISummary>`.
 
 Do not pluralize an interface name or invent a pagination variant of your own.
 

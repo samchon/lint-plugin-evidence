@@ -78,7 +78,7 @@ At registration the server writes the default grade the requirements state. The 
 
 An assignment history table preserves change over time. It never replaces the current store, and a reader must never have to reconstruct the present from the history.
 
-A grade-management operation writes to the target user named by the path, not to the caller, and it verifies that the caller may remove the target's current grade before assigning a lower one.
+A grade-management operation writes to the target user, never to the caller, and it verifies that the caller may remove the target's current grade before assigning a lower one. The target is named the way [controllers.md](controllers.md) requires: an existing assignment record by its own bare `id`, and a new grant by a target user id in the request body. It is never a path segment, because the actor in the path is the caller.
 
 ## Scoped Authority
 
@@ -181,7 +181,47 @@ Give each of those a resource-shaped path of its own rather than filing it under
 
 ## Where Each Check Lives
 
-Each actor gets a parameter decorator that does two things at once, and both halves are load-bearing.
+Each actor gets a payload type, an authorize provider, and a parameter decorator.
+
+The payload is what a route receives, and it is deliberately small.
+
+```ts
+export interface SellerPayload {
+  id: string & tags.Format<"uuid">;
+  session_id: string & tags.Format<"uuid">;
+  type: "seller";
+}
+```
+
+Three fields, and each earns its place. `id` is the actor row. `session_id` is the session the token was issued for, which is what makes a per-session revocation check possible and what a session listing marks as current. `type` is the discriminant the authorize provider checks, so a token minted for one actor cannot pass as another.
+
+Nothing else belongs here. A provider that needs the grade, the profile, or the membership loads it from `id`, because a route that carries them pays for that read whether or not it uses them.
+
+```ts
+export namespace SellerProvider {
+  export async function authorize(props: {
+    request: { headers: { authorization?: string } };
+  }): Promise<SellerPayload> {
+    const payload: SellerPayload = JwtProvider.authorize({
+      request: props.request,
+    }) as SellerPayload;
+    if (payload.type !== "seller")
+      throw ErrorProvider.forbidden(`Not a seller, but a ${payload.type}.`);
+
+    const seller = await MyGlobal.prisma.shopping_sellers.findFirst({
+      where: { id: payload.id, deleted_at: null },
+      select: { id: true },
+    });
+    if (seller === null)
+      throw ErrorProvider.forbidden("Not an active seller.");
+    return payload;
+  }
+}
+```
+
+Both checks are needed. The token check proves the claim was minted for this actor; the row read proves the account still exists and has not been withdrawn, banned, or suspended. A token outlives the account it names, so verifying the signature alone authorizes a caller the requirements say is gone.
+
+The decorator then does two things at once, and both halves are load-bearing.
 
 ```ts
 export const SellerAuth =
@@ -196,7 +236,7 @@ export const SellerAuth =
 
 const singleton = new Singleton(() =>
   createParamDecorator(async (_0: unknown, ctx: ExecutionContext) =>
-    SellerProvider.authorize(ctx.switchToHttp().getRequest()),
+    SellerProvider.authorize({ request: ctx.switchToHttp().getRequest() }),
   )(),
 );
 ```
@@ -208,8 +248,6 @@ The parameter decorator resolves the actor from the request and hands it to the 
 The decorator is wrapped in a deferred singleton because the framework's factory must be invoked once, not once per decorated parameter.
 
 The route declares who may reach it. The provider owns everything the route cannot express: which rows this caller may see, whether they own this one, whether the scope permits it, whether the current state allows the transition.
-
-The provider owns everything the route cannot express: which rows this caller may see, whether they own this one, whether the scope permits it, whether the current state allows the transition.
 
 Never accept caller identity from the request body or the path when it should come from the session. An actor-scoped listing takes its actor from the session; an actor id in the path is an authorization hole with a convenient name.
 

@@ -16,7 +16,7 @@ If either view mentions ownership assignment, a membership side effect, session 
 
 | Name | Method | Request to response | Purpose |
 | --- | --- | --- | --- |
-| `index` | patch | `IExample.IRequest` to `IPageIExample.ISummary` | search or list with filters |
+| `index` | patch | `IExample.IRequest` to `IPage<IExample.ISummary>` | search or list with filters |
 | `at` | get | none to `IExample` | single detail, never the summary shape |
 | `create` | post | `IExample.ICreate` to `IExample` | create |
 | `update` | put | `IExample.IUpdate` to `IExample` | update by id, never `patch /resource/{id}` |
@@ -35,17 +35,35 @@ When both a delete and a recovery exist for a resource, they share one deletion 
 
 A path describes a resource and a workflow state.
 
-**Segments are singular and camelCase, named after the schema's own noun.** A schema called `orderItem` gives `/orderItem/{id}`, never a generic `/item/{id}`. One schema keeps one spelling everywhere it appears.
+**A protected route leads with the actor that may reach it; a public route has no actor segment at all.** The seller's own sale surface is `/seller/sale`, the administrator's order surface is `/admin/order`, and a catalogue anyone may read is `/product`. That leading segment is the one place an actor name belongs, and it names **who calls**, never whose data is addressed.
 
-**Nest each required foreign-key ancestor root-first**, named from its table without the service prefix, singularized and camelCased. `shopping_sales` contributes `{saleId}`. Stop the chain at the first nullable or optional parent, because an optional ancestor cannot be part of an address.
+**A public route and a guest route are different things.** A surface both an anonymous visitor and a signed-in member may call is public, so it carries no actor segment. A protected surface names only the credentialed actors that may reach it. Never mix a guest actor with credentialed ones on one route: whatever the guest can reach, everyone can, which makes the route public.
 
-**Address the target row by its own bare `id`**, and that is always the identifier, never a name, a slug, or a code, even where a single-column unique constraint would allow one.
+**Do not repeat the actor inside its own surface.** The seller's sales are `/seller/sale`, not `/seller/sellerSale`, and the caller's own profile is `/customer/profile`.
 
-**Authenticated self-access carries no actor id.** The caller is the session's, and putting it in the path lets a caller name someone else.
+**Segments are singular and camelCase, named after the schema's own noun.** A schema called `orderItem` gives `/orderItem/{id}`, never a generic `/item/{id}`. One schema keeps one spelling everywhere it appears, and a child segment does not restate its parent: under `/order` the child is `/item`'s own noun `orderItem`, not `orderOrderItem`.
+
+**Nest each required foreign-key ancestor root-first**, named from its table without the service prefix, singularized and camelCased. `shopping_sales` contributes `{saleId}`, giving `/section/{sectionId}/sale/{saleId}/saleUnit/{id}`. Stop the chain at the first nullable or optional parent, because an optional ancestor cannot be part of an address.
+
+**Address the target row by its own bare `id`**, and that is always the identifier, never a name, a slug, or a code, even where a single-column unique constraint would allow one. The target's own id is never `{saleUnitId}`: an ancestor-shaped name there reads as already supplied, and the parameter gets dropped. A bulk update or delete over a nested sub-collection keeps the ancestors and omits the trailing `id`.
+
+**No actor id is ever a path parameter.** Not `{customerId}`, not `{sellerId}`, not `{memberId}`. The caller's identity comes from the session, and another actor is reached one of two ways: when that actor's own record is the target, address it by the bare `id`, as in `/admin/member/{id}`; when the actor merely scopes some other resource, pass its id as a request-body filter, as in `PATCH /admin/post` with the member id in the body.
 
 **A scope chosen once at login stays out of the path.** When an organization or a workspace is selected at sign-in and every later call runs inside it, the provider derives it from the session and filters by it. Putting it in the path lets a caller name a scope the session never selected, and forces every route to carry a parameter no client can vary. Routes that manage the scope row itself remain ordinary resource routes.
 
-A recovery path ends in `/restore`.
+**A recovery path ends in `/restore`**, as in `PUT /member/community/{communityId}/post/{id}/restore`. Never a synonym: `/recover`, `/reactivate`, `/reinstate`, `/undelete`, and `/activate` all describe the same surface in a vocabulary nothing else in the repository shares, and the recovery half of the deletion model is identified by that exact segment.
+
+## Authentication Owns Three Operations, And The Rest Are Ordinary Routes
+
+Join, login, and refresh live under the authentication surface. Everything else that feels like authentication is an ordinary endpoint over its own resource, at a resource-shaped path: `/session` for session visibility and revocation, `/password` for a change, `/passwordResetRequest` for a reset record, `/verificationRequest` for verification, and the actor's own path for withdrawal and external connections.
+
+Filing these under an authentication prefix hides them from the resource ledger, and each one has its own schema, its own lifecycle, and its own requirement.
+
+**Do not exclude a credential support table because it is security-related.** A password reset record, an email verification record, an OAuth connection, and a withdrawal record are user-visible workflows unless you can state a concrete reason this one is internal.
+
+**When one support workflow serves several actors whose rows live in different tables, it is several endpoints.** One route resolves one table, so a combined session, password, or withdrawal route across customer, seller, and administrator cannot faithfully represent any of them. Split it per actor and point each at its own table.
+
+**A grade that can be granted needs a route that grants it**, and a grade that can be removed needs one that removes it. A grant names the target user in the request body; a change or removal addresses the existing assignment record by its own bare `id`. Without those routes the promised authority is unreachable and every rejection depending on it is untestable. [authorization.md](authorization.md) owns which grades exist and who may move them.
 
 ## Methods Follow The Response, Not The Caller
 
@@ -167,6 +185,14 @@ A table with no entry is either an endpoint nobody designed or an unrecorded dec
 
 Coverage is by exact method and path. A trash listing does not cover the ordinary listing, an item endpoint does not cover its collection, and a mention in a description covers nothing.
 
+**A child table with its own row identity and its own user-visible fields needs its own coverage.** Option and value rows, image and file rows, attachments, requester link rows, and snapshot component rows all qualify. A parent's detail response may embed those values, and embedding covers nothing: the row is still separately real, and either something reaches it or the ledger says why nothing does.
+
+**A nested route belongs to the most specific table it touches**, not to the parent its URL happens to nest under. A product snapshot route belongs to the snapshot table; an order item's captured variant belongs to the order-item variant snapshot table. Compound nouns in the path name the depth, so read the deepest one.
+
+**A route that belongs to no single table is a workflow.** Dashboards, feeds, reports, computed projections, and cross-model search have no owning table, and saying so is an entry in the ledger rather than an omission from it.
+
+**A request or approval workflow whose requesters live in different tables per actor is several surfaces.** The parent request table does not cover the per-actor link rows. Each requester actor gets its own view of its own requests, and the approver gets a cross-actor queue, which is a `patch` collection filtered by state.
+
 Exposure follows the stance the schema was given.
 
 | Stance | Surface |
@@ -233,54 +259,55 @@ The first line is the operation title. State the authorization and visibility ru
 Group by domain, then by actor. One plain class per actor and resource, with an explicit route and an explicit guard.
 
 ```ts
-@Controller("shoppings/sellers/sales")
-export class ShoppingSellerSaleController {
-    /**
-     * List up every sales.
-     *
-     * List up every {@link IShoppingSale sales} with detailed information.
-     *
-     * As you can see, returned sales are detailed, not summarized. If you
-     * want to get the summarized information of sale for a brief, use
-     * {@link index} function instead.
-     *
-     * For reference, if you're a {@link IShoppingSeller seller}, you can only
-     * access to the your own {@link IShoppingSale sale}s. Otherwise you're a
-     * {@link IShoppingCustomer customer}, you can see only the operating
-     * sales in the market. Instead, you can't see the unopened, closed, or
-     * suspended sales.
-     *
-     * @param input Request info of pagination, searching and sorting
-     * @returns Paginated sales with detailed information
-     * @tag Sale
-     */
-  @core.TypedRoute.Patch("details")
-  public async details(
-    @ShoppingSellerAuth() seller: IShoppingSeller.IInvert,
+@Controller("seller/sale")
+export class SellerSaleController {
+  /**
+   * List the seller's own sales.
+   *
+   * List the {@link IShoppingSale sales} this seller registered, as a
+   * paginated page of summaries filtered and ordered by the request.
+   *
+   * A seller reaches only their own sales here. The customer surface at
+   * `PATCH /sale` shows the operating sales of every seller, and excludes
+   * the unopened, closed, paused, and suspended ones.
+   *
+   * The summaries omit the SKU tree. Call {@link at} for one sale when the
+   * options and stocks are needed.
+   *
+   * @param input Pagination, search conditions, and sort order
+   * @returns One page of the seller's own sales, summarized
+   * @tag Sale
+   */
+  @core.TypedRoute.Patch()
+  public async index(
+    @SellerAuth() seller: SellerPayload,
     @core.TypedBody() input: IShoppingSale.IRequest,
-  ): Promise<IPage<IShoppingSale>> {
-    return ShoppingSaleProvider.details({ actor: seller, input });
+  ): Promise<IPage<IShoppingSale.ISummary>> {
+    return ShoppingSaleProvider.index({ actor: seller, input });
   }
 
-    /**
-     * Get a sale with detailed information.
-     *
-     * Get a {@link IShoppingSale sale} with detailed information including
-     * the SKU (Stock Keeping Unit) information represented by the
-     * {@link IShoppingSaleUnitOption} and {@link IShoppingSaleUnitStock}
-     * types.
-     *
-     * > If the user wants to buy or compose a
-     * > {@link IShoppingCartCommodity shopping cart} from a sale, call this
-     * > operation at least once to get detailed SKU information about it.
-     *
-     * @param id Target sale's {@link IShoppingSale.id}
-     * @returns Detailed sale information
-     * @tag Sale
-     */
+  /**
+   * Get one of the seller's own sales in full.
+   *
+   * Get a {@link IShoppingSale sale} with its SKU tree, meaning the
+   * {@link IShoppingSaleUnitOption options} and
+   * {@link IShoppingSaleUnitStock stocks} a buyer chooses between.
+   *
+   * > Call this at least once before composing a
+   * > {@link IShoppingCartCommodity cart commodity} from a sale. The
+   * > summaries returned by {@link index} carry no stock identifiers, so a
+   * > cart cannot be built from them.
+   *
+   * Rejects with `403` when the sale belongs to another seller, and with
+   * `404` when no sale carries this identifier.
+   *
+   * @param id Target sale's {@link IShoppingSale.id}
+   * @returns The sale, with its full SKU tree
+   * @tag Sale
+   */
   @core.TypedRoute.Get(":id")
   public async at(
-    @ShoppingSellerAuth() seller: IShoppingSeller.IInvert,
+    @SellerAuth() seller: SellerPayload,
     @core.TypedParam("id") id: string & tags.Format<"uuid">,
   ): Promise<IShoppingSale> {
     return ShoppingSaleProvider.at({ actor: seller, id });
@@ -288,7 +315,9 @@ export class ShoppingSellerSaleController {
 }
 ```
 
-Each actor that reaches a resource gets its own controller, with its own route prefix and its own guard. The behavior they share lives in the provider both of them call, so a reader opening `ShoppingSellerSaleController` sees the seller's routes and the seller's guard and nothing else.
+Each actor that reaches a resource gets its own controller, with its own route prefix and its own guard. The behavior they share lives in the provider both of them call, so a reader opening `SellerSaleController` sees the seller's routes and the seller's guard and nothing else.
+
+**The actor parameter is a payload, not a DTO.** `SellerPayload` carries the identifier, the session identifier, and the actor discriminant, and nothing else. The provider loads whatever else it needs from the identifier. Handing the controller a full actor DTO makes every route pay for a read it usually does not use, and invites building the response out of it.
 
 **A controller contains no business logic and no database access.** It resolves the actor, delegates to the provider, and returns.
 
