@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "validTopologies": [
+    {
+      "subjects": [
+        "todo",
+        "reddit"
+      ],
+      "arms": [
+        "plain",
+        "evidence"
+      ],
+      "cellCount": 4
+    },
+    {
+      "subjects": [
+        "shopping",
+        "erp"
+      ],
+      "arms": [
+        "plain",
+        "evidence"
+      ],
+      "cellCount": 4
+    }
+  ],
+  "invalidCases": [
+    "one-cell-block",
+    "mixed-replicate",
+    "duplicate-run-id",
+    "duplicate-launch-order",
+    "duplicate-subject-arm",
+    "launch-order-not-a-run-id-permutation",
+    "subject-pair-does-not-match-plan",
+    "cell-prepared-manifest-does-not-match-cell",
+    "sealed-source-revision-mismatch",
+    "windows-drive-root-path",
+    "absolute-path",
+    "parent-traversal-path",
+    "self-referential-plan-sha256"
+  ]
+}

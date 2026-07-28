@@ -1,0 +1,3 @@
+# Canonical block-plan semantic fixtures
+
+The production validator applies the block-plan schema and then the cases in `semantic-cases.json`. A valid plan has exactly four cells for one replicate and one frozen subject pair crossed with both arms. It also proves that `launchOrder` is a permutation of the four cell `runId` values, each cell replicate equals the plan replicate, each prepared manifest belongs to its cell, source revision fields agree, and every path is repository-relative POSIX form. The exact closed plan bytes are hashed externally; a `planSha256` member is rejected as a self-hash.

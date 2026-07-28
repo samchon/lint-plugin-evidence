@@ -7,12 +7,20 @@
   "required": [
     "schemaVersion",
     "blockId",
+    "repository",
+    "preparedAtUtc",
+    "replicate",
+    "subjects",
     "protocolRevision",
     "protocolRevisionSha256",
     "sourceMergedCommit",
     "priceSheetSha256",
     "subjectFreezeManifestSha256",
     "randomizationSeed",
+    "sourceAdmission",
+    "productProvenance",
+    "concurrency",
+    "launchOrder",
     "cells",
     "authorization"
   ],
@@ -23,6 +31,47 @@
     "blockId": {
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9._-]{5,127}$"
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "remoteUrl",
+        "relativeRoot"
+      ],
+      "properties": {
+        "remoteUrl": {
+          "type": "string",
+          "pattern": "^https://github\\.com/samchon/lint-plugin-evidence(?:\\.git)?$"
+        },
+        "relativeRoot": {
+          "const": "."
+        }
+      }
+    },
+    "preparedAtUtc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "replicate": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "subjects": {
+      "oneOf": [
+        {
+          "const": [
+            "todo",
+            "reddit"
+          ]
+        },
+        {
+          "const": [
+            "shopping",
+            "erp"
+          ]
+        }
+      ]
     },
     "protocolRevision": {
       "type": "string",
@@ -45,6 +94,53 @@
       "type": "string",
       "minLength": 16
     },
+    "sourceAdmission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mergedBaseRef",
+        "mergedBaseRevision",
+        "remoteVerifiedAtUtc",
+        "sealedSource",
+        "sealedSourceManifest"
+      ],
+      "properties": {
+        "mergedBaseRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mergedBaseRevision": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "remoteVerifiedAtUtc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sealedSource": {
+          "$ref": "#/$defs/pathDigest"
+        },
+        "sealedSourceManifest": {
+          "$ref": "#/$defs/pathDigest"
+        }
+      }
+    },
+    "productProvenance": {
+      "$ref": "#/$defs/pathDigest"
+    },
+    "concurrency": {
+      "const": 4
+    },
+    "launchOrder": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]{5,127}$"
+      }
+    },
     "cells": {
       "type": "array",
       "minItems": 4,
@@ -59,6 +155,7 @@
           "arm",
           "replicate",
           "launchOrder",
+          "prepared",
           "predicted",
           "limits"
         ],
@@ -88,6 +185,30 @@
           "launchOrder": {
             "type": "integer",
             "minimum": 1
+          },
+          "prepared": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "root",
+              "workspace",
+              "materializationManifest",
+              "setupRecord"
+            ],
+            "properties": {
+              "root": {
+                "$ref": "#/$defs/repositoryRelativePath"
+              },
+              "workspace": {
+                "$ref": "#/$defs/repositoryRelativePath"
+              },
+              "materializationManifest": {
+                "$ref": "#/$defs/pathDigest"
+              },
+              "setupRecord": {
+                "$ref": "#/$defs/pathDigest"
+              }
+            }
           },
           "predicted": {
             "$ref": "#/$defs/cost"
@@ -224,6 +345,26 @@
     }
   },
   "$defs": {
+    "repositoryRelativePath": {
+      "type": "string",
+      "pattern": "^(?![A-Za-z]:)(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+$"
+    },
+    "pathDigest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/repositoryRelativePath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
     "sha256": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$"

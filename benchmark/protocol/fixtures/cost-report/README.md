@@ -8,6 +8,6 @@
 - deadline-reached and wall-clock-stop flags agree;
 - a forced stop with incomplete terminal usage sets `usageAfterStopLowerBound = true`.
 - cell and block absolute deadlines equal their write-once start instants plus frozen durations;
-- every outer response ID occurs once, every cell report binds the same block plan, and a block stop has one shared durable event digest referenced by affected cell terminal seals.
+- every outer response ID occurs once, every cell report binds the same `blockId`, block plan, and write-once execution-safety artifact, and a block stop has one shared durable event digest referenced by every affected cell cost report and terminal seal.
 
 The launch gate must pass every valid record and materialize each `invalidSemantic` base-plus-patch case, then reject it for the named reason.
