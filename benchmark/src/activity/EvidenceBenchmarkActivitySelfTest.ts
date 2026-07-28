@@ -495,7 +495,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
           event.type = "raw_event_observed";
         },
       }),
-      /one app-server start, one t0 binding|one-to-one/,
+      /one app-server start, one t0 milestone, one t0 binding|one-to-one/,
     );
     reject(
       rebuildSource(fixture.input, {
@@ -643,7 +643,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
           source.events.push(bound);
         },
       }),
-      /one app-server start, one t0 binding/,
+      /one app-server start, one t0 milestone, one t0 binding/,
     );
     reject(
       rebuildSource(fixture.input, {
@@ -653,7 +653,25 @@ export namespace EvidenceBenchmarkActivitySelfTest {
           )!.type = "app_server_t0_missing";
         },
       }),
-      /one app-server start, one t0 binding/,
+      /one app-server start, one t0 milestone, one t0 binding/,
+    );
+    reject(
+      rebuildSource(fixture.input, {
+        mutate(source): void {
+          const t0: Record<string, unknown> = structuredClone(
+            source.events.find(
+              (event) =>
+                event.type === "milestone_reached" &&
+                recordValue(event.payload).name === "t0",
+            )!,
+          );
+          t0.eventSha256 = digest("duplicate-t0-event");
+          t0.monotonicNs = "900";
+          t0.utc = "2026-07-29T00:00:00.900Z";
+          source.events.push(t0);
+        },
+      }),
+      /one app-server start, one t0 milestone, one t0 binding/,
     );
     reject(
       rebuildSource(fixture.input, {
@@ -2390,7 +2408,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       },
     );
     const t0EventSha256: string = append(
-      1,
+      0,
       "agent",
       "runner",
       "milestone_reached",
@@ -2401,7 +2419,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       transportSessionId: TRANSPORT_SESSION_ID,
       processStartEventSha256,
       t0EventSha256,
-      startMinusT0MonotonicNs: "-1",
+      startMinusT0MonotonicNs: "0",
     });
     let rawOffset: number = 0;
     for (const [index, frame] of frames.entries()) {

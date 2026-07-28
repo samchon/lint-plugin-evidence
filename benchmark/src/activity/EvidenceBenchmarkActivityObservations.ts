@@ -122,6 +122,7 @@ export namespace EvidenceBenchmarkActivityObservations {
       input.sourceEventLedgerBytes,
       input.binding,
       retainedRun,
+      input.wall,
     );
     const rawNotifications: IRawNotificationInventory = rawInventory(
       eventLedger,
@@ -939,6 +940,7 @@ export namespace EvidenceBenchmarkActivityObservations {
     bytes: Uint8Array,
     binding: IEvidenceBenchmarkActivity.IBinding,
     retainedRun: IRetainedRun,
+    interval: IEvidenceBenchmarkActivity.IWallInterval,
   ): IEventLedger {
     const content: string = new TextDecoder("utf-8", { fatal: true }).decode(
       bytes,
@@ -1000,7 +1002,7 @@ export namespace EvidenceBenchmarkActivityObservations {
     }
     if (previous !== binding.eventChainTerminalSha256)
       throw new Error("Source event ledger terminal hash differs.");
-    processLineage(ordered, retainedRun);
+    processLineage(ordered, retainedRun, interval);
     return { eventIds, events: eventMap, ordered };
   }
 
@@ -1091,6 +1093,7 @@ export namespace EvidenceBenchmarkActivityObservations {
   function processLineage(
     events: readonly Record<string, unknown>[],
     retainedRun: IRetainedRun,
+    interval: IEvidenceBenchmarkActivity.IWallInterval,
   ): void {
     const starts: Record<string, unknown>[] = events.filter(
       (event) => event.type === "app_server_started",
@@ -1101,9 +1104,19 @@ export namespace EvidenceBenchmarkActivityObservations {
     const frames: Record<string, unknown>[] = events.filter(
       (event) => event.type === "app_server_frame",
     );
-    if (starts.length !== 1 || bindings.length !== 1 || frames.length === 0)
+    const t0Events: Record<string, unknown>[] = events.filter(
+      (event) =>
+        event.type === "milestone_reached" &&
+        record(event.payload, "milestone payload").name === "t0",
+    );
+    if (
+      starts.length !== 1 ||
+      bindings.length !== 1 ||
+      t0Events.length !== 1 ||
+      frames.length === 0
+    )
       throw new Error(
-        "Source event ledger must contain one app-server start, one t0 binding, and at least one frame.",
+        "Source event ledger must contain one app-server start, one t0 milestone, one t0 binding, and at least one frame.",
       );
     const start: Record<string, unknown> = starts[0]!;
     const bound: Record<string, unknown> = bindings[0]!;
@@ -1237,8 +1250,10 @@ export namespace EvidenceBenchmarkActivityObservations {
       bindingPayload.processStartEventSha256 !== start.eventSha256 ||
       !/^(0|-[1-9][0-9]*)$/.test(startMinusT0) ||
       t0Event === undefined ||
+      t0Event !== t0Events[0] ||
       t0Event.type !== "milestone_reached" ||
       record(t0Event.payload, "t0 event payload").name !== "t0" ||
+      t0Event.monotonicNs !== interval.startedMonotonicNs ||
       (start.seq as number) >= (t0Event.seq as number) ||
       (t0Event.seq as number) >= (bound.seq as number) ||
       BigInt(startMinusT0) !==

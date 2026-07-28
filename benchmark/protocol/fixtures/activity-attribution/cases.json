@@ -95,7 +95,7 @@
     {
       "id": "invalid-process-lineage",
       "valid": false,
-      "invariant": "one exact public app-server start and one t0 binding own every later frame under one nonce and transport session"
+      "invariant": "one exact public app-server start, one wall-start t0 milestone, and one t0 binding own every later frame under one nonce and transport session"
     },
     {
       "id": "invalid-public-launch-identity",
