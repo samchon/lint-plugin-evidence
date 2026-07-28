@@ -117,26 +117,7 @@ Four things here are the convention.
 
 **`SortableColumns` composes a related resource's sortable columns** rather than restating them. Sorting a sale by its seller's fields stays legal without a second vocabulary that drifts from the first.
 
-The page wrapper and its pagination block are the shared shape every listing returns:
-
-```ts
-export interface IPage<T extends object> {
-  pagination: IPage.IPagination;
-  data: T[];
-}
-export namespace IPage {
-  export interface IPagination {
-    current: number & tags.Type<"uint32">;
-    /** @default 100 */
-    limit: number & tags.Type<"uint32">;
-    records: number & tags.Type<"uint32">;
-    /** Equal to {@link records} / {@link limit} with ceiling. */
-    pages: number & tags.Type<"uint32">;
-  }
-}
-```
-
-The counts carry `tags.Type<"uint32">`, so a negative or fractional page count is rejected at the boundary rather than rendered.
+`IPage` and `IPage.IRequest` already exist in `packages/api/src/structures/common/IPage.ts`. Read that file rather than redeclaring either: the wrapper is shared by every listing in the product, and a second definition of it is a second contract.
 
 ## Sort Grammar
 

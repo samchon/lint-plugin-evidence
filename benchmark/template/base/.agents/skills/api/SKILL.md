@@ -66,25 +66,6 @@ Three kinds recur.
 **Validation that produces diagnoses.** A rule the client should check before submitting and the server must enforce on arrival.
 
 ```ts
-/**
- * A diagnosis.
- *
- * Description of a problem found in a submitted value.
- */
-export interface IDiagnosis {
-  /**
-   * Where the problem is.
-   *
-   * Accessor path into the submitted value, so a field-level error lands on
-   * the field that caused it.
-   */
-  accessor: string;
-
-  /**
-   * What is wrong, in words the user can act on.
-   */
-  message: string;
-}
 
 /**
  * Diagnoser of uniqueness.
@@ -158,14 +139,7 @@ Take accessor names from the generated exports, never from a path or a verb. If 
 
 Import every request and response type from here. A locally redeclared DTO is the second copy that drifts.
 
-A multi-item response always arrives in the page wrapper:
-
-```ts
-export interface IPage<T> {
-  pagination: IPage.IPagination; // current, limit, records, pages
-  data: T[];
-}
-```
+A multi-item response always arrives in the page wrapper, which is declared in `src/structures/common/IPage.ts` and shared by every listing. Read it there.
 
 The generated JSDoc carries the operation's purpose, its authorization rule, and what its response means. Read it rather than guessing from the name.
 

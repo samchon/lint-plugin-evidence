@@ -75,11 +75,21 @@ A statistics or dashboard type does the same at the type level: it cites every r
 
 **Do not reach for an exclusion because a value has no single owner.** Having several owners is a reason to name all of them.
 
-## Keep Citations Disjoint
+## One Target, One Citation, Across The Whole Claim
 
-The one constraint on multiple tags is that two scopes within the same obligation must not overlap. A citation acknowledges its target and every selected descendant, so citing a model **and** one of that model's columns from the same host reports a duplicate.
+The constraint on multiple tags is disjointness, and its scope is wider than one declaration. Two citations of the same target inside one obligation are a duplicate **even when they sit on different properties**, because the obligation is counted across every host the claim selects.
 
-Cite siblings, not a parent and its child. Either name the model, or name the specific columns, whichever matches what the property actually draws on.
+Three shapes report a duplicate:
+
+- the same target cited twice from one property;
+- a model and one of that model's columns cited from one property, since a citation covers its target and every selected descendant;
+- the same column cited by two different properties.
+
+The third is the one that surprises. If two aggregates both derive from a state column, only one of them may name it. Give the column to the property whose meaning depends on it most directly, and let the other cite the sources that are its own.
+
+So the rule is not "name everything the computation touches" without qualification. It is: **name every source that is yours to name.** Within one property, cite the full set it draws on. Across properties, a source belongs to one of them.
+
+When two properties genuinely cannot be separated that way, they are usually one property, or one of them belongs to a different DTO.
 
 ## When Nothing Can Be Cited
 

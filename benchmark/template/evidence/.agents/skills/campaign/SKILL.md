@@ -49,7 +49,13 @@ An aggregate cites every column and relation it is computed from. A statistics t
 
 **Breadth is the correct answer, not a reason to skip citing.** The instinct to write nothing because a value does not correspond to a single row is backwards: several sources is a reason to name several sources, and naming them is what lets a reviewer check the derivation against the code.
 
-The one constraint is that two scopes must not overlap inside one obligation. A citation acknowledges its target and every selected descendant, so naming a model **and** one of its columns from the same declaration is reported as a duplicate. Cite siblings, or cite the parent, not both.
+The constraint is disjointness, and it spans the whole obligation rather than one declaration. A citation covers its target and every selected descendant, and a target may be acknowledged once per obligation, so all three of these report a duplicate:
+
+- the same target cited twice from one declaration;
+- a parent and one of its descendants cited from one declaration;
+- the same target cited from two different declarations in the same claim.
+
+The third is the one to keep in mind while citing broadly. A source belongs to one acknowledger. Within a declaration, name the full set it draws on; across declarations, decide which one owns the shared source.
 
 ## What The Diagnostics Mean
 
