@@ -30,6 +30,10 @@ export namespace EvidenceBenchmarkSetup {
       env: environment,
       label: "benchmark pnpm version",
     });
+    if (pnpm.stdout.trim() !== EvidenceBenchmarkProcess.PNPM_VERSION)
+      throw new Error(
+        `Benchmark setup requires pnpm ${EvidenceBenchmarkProcess.PNPM_VERSION}, received ${pnpm.stdout.trim()}.`,
+      );
     const lock = await EvidenceBenchmarkProcess.pnpm(
       ["install", "--lockfile-only", "--no-frozen-lockfile"],
       {
@@ -94,7 +98,7 @@ export namespace EvidenceBenchmarkSetup {
       lockElapsedMs: lock.elapsedMs,
       installElapsedMs: install.elapsedMs,
       lockSha256: afterInstall,
-      pnpmVersion: pnpm.stdout.trim(),
+      pnpmVersion: EvidenceBenchmarkProcess.PNPM_VERSION,
       ttscVersion: "0.23.0",
       lintVersion: "0.23.0",
       typescriptVersion: "7.0.2",

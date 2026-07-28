@@ -8,7 +8,9 @@ import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
+import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 import type { IEvidenceBenchmarkPackageArtifact } from "./structures/IEvidenceBenchmarkPackageArtifact.ts";
 
 /** Runs deterministic fixture tests and the optional release-package smoke. */
@@ -25,10 +27,12 @@ export namespace EvidenceBenchmarkSelfTest {
     try {
       const fixture: string = path.join(temporary, "fixture");
       createFixture(repository, fixture);
+      await testPinnedPnpm(repository);
+      await testPinnedSetup(temporary);
       await testRepositoryInputs(repository);
       await testCorpusAdapters(temporary);
       await testComposition(fixture, temporary);
-      await testMaterialization(fixture, temporary);
+      await testMaterialization(repository, temporary);
       if (args.includes("--package")) await testPackage(repository, temporary);
       console.log(
         `Benchmark self-test passed${args.includes("--package") ? " with package smoke" : ""}.`,
@@ -42,10 +46,8 @@ export namespace EvidenceBenchmarkSelfTest {
     fixture: string,
     temporary: string,
   ): Promise<void> {
-    const variables: Readonly<Record<string, string>> = {
-      name: "self-test",
-      apiPackageName: "@self-test/api",
-    };
+    const variables: IEvidenceBenchmarkMaterialization.IVariables =
+      benchmarkVariables("self-test");
     const first: EvidenceBenchmarkTemplate.IComposition =
       EvidenceBenchmarkTemplate.compose({
         template: path.join(fixture, "benchmark", "template"),
@@ -67,11 +69,64 @@ export namespace EvidenceBenchmarkSelfTest {
       Buffer.from(first.files.get("AGENTS.md")!).toString("utf8"),
       /\{\{base\}\}|benchmark-template-splice/,
     );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkTemplate.compose({
+          template: path.join(fixture, "benchmark", "template"),
+          arm: "evidence",
+          variables: {
+            name: variables.name,
+            apiPackageName: variables.apiPackageName,
+            backendPackageName: variables.backendPackageName,
+          } as IEvidenceBenchmarkMaterialization.IVariables,
+        }),
+      "missing=frontendPackageName",
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkTemplate.compose({
+          template: path.join(fixture, "benchmark", "template"),
+          arm: "evidence",
+          variables: {
+            ...variables,
+            unknownPackageName: "@self-test/unknown",
+          } as IEvidenceBenchmarkMaterialization.IVariables,
+        }),
+      "unknown=unknownPackageName",
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkTemplate.compose({
+          template: path.join(fixture, "benchmark", "template"),
+          arm: "evidence",
+          variables: {
+            ...variables,
+            backendPackageName: "@Self-Test/backend",
+          },
+        }),
+      "backendPackageName is not a valid npm package name",
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkTemplate.compose({
+          template: path.join(fixture, "benchmark", "template"),
+          arm: "evidence",
+          variables: {
+            ...variables,
+            frontendPackageName: variables.backendPackageName,
+          },
+        }),
+      "backendPackageName and frontendPackageName",
+    );
 
     const collision: string = path.join(temporary, "collision");
     fs.cpSync(fixture, collision, { recursive: true });
     write(
       path.join(collision, "benchmark/template/plain/CLAUDE.md"),
+      "@AGENTS.md\n",
+    );
+    write(
+      path.join(collision, "benchmark/template/evidence/CLAUDE.md"),
       "@AGENTS.md\n",
     );
     await expectFailure(
@@ -81,7 +136,64 @@ export namespace EvidenceBenchmarkSelfTest {
           arm: "plain",
           variables,
         }),
-      "collision is not authorized",
+      "requires exactly one splice comment",
+    );
+
+    const extra: string = path.join(temporary, "extra-overlay-path");
+    fs.cpSync(fixture, extra, { recursive: true });
+    write(
+      path.join(
+        extra,
+        "benchmark/template/plain/.agents/skills/completeness/extra.md",
+      ),
+      "# Extra\n",
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkTemplate.compose({
+          template: path.join(extra, "benchmark", "template"),
+          arm: "evidence",
+          variables,
+        }),
+      "evidence and plain overlay path sets differ",
+    );
+
+    const missing: string = path.join(temporary, "missing-overlay-path");
+    fs.cpSync(fixture, missing, { recursive: true });
+    fs.rmSync(
+      path.join(
+        missing,
+        "benchmark/template/plain/.agents/skills/completeness/SKILL.md",
+      ),
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkTemplate.compose({
+          template: path.join(missing, "benchmark", "template"),
+          arm: "plain",
+          variables,
+        }),
+      "plain template is missing required paths",
+    );
+
+    const replacementDrift: string = path.join(temporary, "replacement-drift");
+    fs.cpSync(fixture, replacementDrift, { recursive: true });
+    fs.appendFileSync(
+      path.join(
+        replacementDrift,
+        "benchmark/template/plain/packages/api/lint.config.ts",
+      ),
+      "\n<!-- benchmark-template-splice: base-body -->\n{{base}}\n",
+      "utf8",
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkTemplate.compose({
+          template: path.join(replacementDrift, "benchmark", "template"),
+          arm: "evidence",
+          variables,
+        }),
+      "must contain no splice marker or token",
     );
 
     const malformed: string = path.join(temporary, "malformed");
@@ -138,29 +250,13 @@ export namespace EvidenceBenchmarkSelfTest {
   async function testRepositoryInputs(repository: string): Promise<void> {
     const template: string = path.join(repository, "benchmark", "template");
     for (const arm of ["evidence", "plain"] as const) {
-      try {
-        const composition: EvidenceBenchmarkTemplate.IComposition =
-          EvidenceBenchmarkTemplate.compose({
-            template,
-            arm,
-            variables: {
-              name: "integrated-self-test",
-              apiPackageName: "@integrated-self-test/api",
-            },
-          });
-        assert.ok(composition.files.size > 0);
-      } catch (error) {
-        if (
-          error instanceof Error &&
-          error.message.includes("base template is missing required paths")
-        ) {
-          console.log(
-            `Integrated ${arm} template launch gate remains closed: ${error.message}`,
-          );
-          continue;
-        }
-        throw error;
-      }
+      const composition: EvidenceBenchmarkTemplate.IComposition =
+        EvidenceBenchmarkTemplate.compose({
+          template,
+          arm,
+          variables: benchmarkVariables("integrated-self-test"),
+        });
+      assert.ok(composition.files.size > 0);
     }
 
     const requirements: string = path.join(
@@ -183,6 +279,89 @@ export namespace EvidenceBenchmarkSelfTest {
           "no audited machine-readable inventory",
         );
     }
+  }
+
+  async function testPinnedPnpm(repository: string): Promise<void> {
+    const version = await EvidenceBenchmarkProcess.pnpm(["--version"], {
+      cwd: repository,
+      label: "self-test pinned pnpm",
+    });
+    assert.equal(version.stdout.trim(), EvidenceBenchmarkProcess.PNPM_VERSION);
+    const rootPackageManager: string = (
+      JSON.parse(
+        fs.readFileSync(path.join(repository, "package.json"), "utf8"),
+      ) as { packageManager: string }
+    ).packageManager;
+    if (rootPackageManager !== `pnpm@${EvidenceBenchmarkProcess.PNPM_VERSION}`)
+      assert.notEqual(
+        version.stdout.trim(),
+        rootPackageManager.replace(/^pnpm@/, ""),
+        "benchmark pnpm must not inherit the repository package manager",
+      );
+    const scaffoldPackageManager: string = (
+      JSON.parse(
+        fs.readFileSync(
+          path.join(
+            repository,
+            "benchmark",
+            "template",
+            "base",
+            "package.json",
+          ),
+          "utf8",
+        ),
+      ) as { packageManager: string }
+    ).packageManager;
+    assert.equal(
+      scaffoldPackageManager,
+      `pnpm@${EvidenceBenchmarkProcess.PNPM_VERSION}`,
+    );
+  }
+
+  async function testPinnedSetup(temporary: string): Promise<void> {
+    const root: string = path.join(temporary, "setup-cell");
+    const workspace: string = path.join(root, "workspace");
+    const cache: string = path.join(root, "cache");
+    write(
+      path.join(workspace, "package.json"),
+      `${JSON.stringify(
+        {
+          private: true,
+          name: "benchmark-setup-self-test",
+          packageManager: `pnpm@${EvidenceBenchmarkProcess.PNPM_VERSION}`,
+          devDependencies: {
+            "@ttsc/lint": "0.23.0",
+            ttsc: "0.23.0",
+            typescript: "7.0.2",
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    write(path.join(workspace, "pnpm-workspace.yaml"), 'packages:\n  - "."\n');
+    const materialization: IEvidenceBenchmarkMaterialization = {
+      root,
+      workspace,
+      immutableInputs: path.join(root, "inputs", "requirements"),
+      manifest: path.join(root, "materialization.json"),
+      workspaceTreeSha256: EvidenceBenchmarkHash.bytes("setup fixture"),
+      environment: {
+        ...process.env,
+        npm_config_store_dir: path.join(cache, "pnpm-store"),
+        TTSC_CACHE_DIR: path.join(cache, "ttsc"),
+        TTSC_GO_CACHE_DIR: path.join(cache, "go-build"),
+        GOCACHE: path.join(cache, "go-build"),
+        GOTMPDIR: path.join(cache, "go-tmp"),
+      },
+    };
+    const setup = await EvidenceBenchmarkSetup.prepare({
+      materialization,
+      arm: "plain",
+    });
+    assert.equal(setup.pnpmVersion, EvidenceBenchmarkProcess.PNPM_VERSION);
+    assert.ok(fs.existsSync(path.join(workspace, "pnpm-lock.yaml")));
+    assert.ok(fs.existsSync(path.join(root, "setup.json")));
   }
 
   async function testCorpusAdapters(temporary: string): Promise<void> {
@@ -256,7 +435,7 @@ export namespace EvidenceBenchmarkSelfTest {
   }
 
   async function testMaterialization(
-    fixture: string,
+    repository: string,
     temporary: string,
   ): Promise<void> {
     const archive: string = path.join(temporary, "fake.tgz");
@@ -276,36 +455,42 @@ export namespace EvidenceBenchmarkSelfTest {
       packElapsedMs: 0,
       smokeInstallElapsedMs: 0,
       smokeCheckElapsedMs: 0,
-      pnpmVersion: "10.10.0",
+      pnpmVersion: EvidenceBenchmarkProcess.PNPM_VERSION,
       nodeVersion: process.version,
       platform: process.platform,
       architecture: process.arch,
     };
-    const variables: Readonly<Record<string, string>> = {
-      name: "self-test",
-      apiPackageName: "@self-test/api",
-    };
-    const evidenceOne = await EvidenceBenchmarkMaterializer.materialize({
-      repository: fixture,
-      output: path.join(temporary, "evidence-one"),
-      project: "todo",
-      arm: "evidence",
-      variables,
-      artifact,
-    });
+    const variables: IEvidenceBenchmarkMaterialization.IVariables =
+      benchmarkVariables("self-test");
+    const cells: Map<string, IEvidenceBenchmarkMaterialization> = new Map();
+    for (const project of ["todo", "reddit"] as const)
+      for (const arm of ["evidence", "plain"] as const) {
+        const cell = await EvidenceBenchmarkMaterializer.materialize({
+          repository,
+          output: path.join(temporary, `${project}-${arm}`),
+          project,
+          arm,
+          variables,
+          artifact,
+        });
+        cells.set(`${project}/${arm}`, cell);
+        assertIntegratedCell({
+          repository,
+          project,
+          arm,
+          variables,
+          artifact,
+          cell,
+        });
+      }
+    const evidenceOne: IEvidenceBenchmarkMaterialization =
+      cells.get("todo/evidence")!;
+    const plain: IEvidenceBenchmarkMaterialization = cells.get("todo/plain")!;
     const evidenceTwo = await EvidenceBenchmarkMaterializer.materialize({
-      repository: fixture,
-      output: path.join(temporary, "evidence-two"),
+      repository,
+      output: path.join(temporary, "todo-evidence-repeat"),
       project: "todo",
       arm: "evidence",
-      variables,
-      artifact,
-    });
-    const plain = await EvidenceBenchmarkMaterializer.materialize({
-      repository: fixture,
-      output: path.join(temporary, "plain"),
-      project: "todo",
-      arm: "plain",
       variables,
       artifact,
     });
@@ -322,85 +507,6 @@ export namespace EvidenceBenchmarkSelfTest {
         EvidenceBenchmarkHash.directory(evidenceTwo.workspace),
       ),
     );
-    const evidenceManifest: Record<string, unknown> = JSON.parse(
-      fs.readFileSync(evidenceOne.manifest, "utf8"),
-    );
-    const plainManifest: Record<string, unknown> = JSON.parse(
-      fs.readFileSync(plain.manifest, "utf8"),
-    );
-    assert.equal(
-      (
-        JSON.parse(
-          fs.readFileSync(
-            path.join(evidenceOne.workspace, "package.json"),
-            "utf8",
-          ),
-        ) as { devDependencies: Record<string, string> }
-      ).devDependencies["@samchon/lint-plugin-evidence"],
-      "file:.benchmark-deps/e-" + `${artifact.sha256.slice(0, 12)}.tgz`,
-    );
-    assert.ok(
-      fs.existsSync(
-        path.join(
-          evidenceOne.workspace,
-          `.benchmark-deps/e-${artifact.sha256.slice(0, 12)}.tgz`,
-        ),
-      ),
-    );
-    assert.equal(
-      fs.existsSync(path.join(plain.workspace, ".benchmark-deps")),
-      false,
-    );
-    assert.equal(
-      (
-        plainManifest.artifact as {
-          sha256: string;
-          relativeArchive?: string;
-        }
-      ).sha256,
-      artifact.sha256,
-    );
-    assert.equal(
-      (
-        plainManifest.artifact as {
-          relativeArchive?: string;
-        }
-      ).relativeArchive,
-      undefined,
-    );
-    assert.equal(
-      (evidenceManifest.artifact as { sha256: string }).sha256,
-      artifact.sha256,
-    );
-    const requirementRelative: string = EvidenceBenchmarkHash.directory(
-      path.join(fixture, "benchmark/requirements/todo"),
-    )
-      .keys()
-      .next().value!;
-    assert.deepEqual(
-      fs.readFileSync(
-        path.join(evidenceOne.workspace, "docs/analysis", requirementRelative),
-      ),
-      fs.readFileSync(
-        path.join(evidenceOne.immutableInputs, requirementRelative),
-      ),
-    );
-    assert.deepEqual(
-      fs.readFileSync(
-        path.join(
-          evidenceOne.workspace,
-          "docs/analysis/acceptance-criteria.jsonl",
-        ),
-      ),
-      fs.readFileSync(
-        path.join(evidenceOne.immutableInputs, "acceptance-criteria.jsonl"),
-      ),
-      "machine-readable corpus files must be copied with the Markdown",
-    );
-    assert.ok(
-      (evidenceManifest.corpus as { atomicAcceptanceClauses: number })
-        .atomicAcceptanceClauses > 0,
-    );
     assert.equal(
       fs.readdirSync(temporary).some((entry) => entry.includes(".tmp")),
       false,
@@ -409,7 +515,7 @@ export namespace EvidenceBenchmarkSelfTest {
     await expectFailure(
       () =>
         EvidenceBenchmarkMaterializer.materialize({
-          repository: fixture,
+          repository,
           output: evidenceOne.root,
           project: "todo",
           arm: "evidence",
@@ -417,6 +523,125 @@ export namespace EvidenceBenchmarkSelfTest {
           artifact,
         }),
       "refuses to overwrite",
+    );
+    assert.equal(
+      fs.existsSync(path.join(plain.workspace, ".benchmark-deps")),
+      false,
+    );
+  }
+
+  function assertIntegratedCell(props: {
+    repository: string;
+    project: "todo" | "reddit";
+    arm: "evidence" | "plain";
+    variables: IEvidenceBenchmarkMaterialization.IVariables;
+    artifact: IEvidenceBenchmarkPackageArtifact;
+    cell: IEvidenceBenchmarkMaterialization;
+  }): void {
+    const corpus: EvidenceBenchmarkCorpus.IResult =
+      EvidenceBenchmarkCorpus.read(
+        path.join(props.repository, "benchmark", "requirements", props.project),
+      );
+    const workspaceCorpus: Map<string, Uint8Array> =
+      EvidenceBenchmarkHash.directory(
+        path.join(props.cell.workspace, "docs", "analysis"),
+      );
+    const immutableCorpus: Map<string, Uint8Array> =
+      EvidenceBenchmarkHash.directory(props.cell.immutableInputs);
+    assert.equal(
+      EvidenceBenchmarkHash.tree(workspaceCorpus),
+      EvidenceBenchmarkHash.tree(corpus.files),
+      `${props.project}/${props.arm} workspace must receive the whole corpus`,
+    );
+    assert.equal(
+      EvidenceBenchmarkHash.tree(immutableCorpus),
+      EvidenceBenchmarkHash.tree(corpus.files),
+      `${props.project}/${props.arm} immutable input must receive the whole corpus`,
+    );
+
+    const manifest = JSON.parse(
+      fs.readFileSync(props.cell.manifest, "utf8"),
+    ) as IEvidenceBenchmarkMaterialization.IManifest;
+    assert.equal(manifest.artifact.sha256, props.artifact.sha256);
+    const archiveRelative: string = `.benchmark-deps/e-${props.artifact.sha256.slice(0, 12)}.tgz`;
+    const packageManifest = JSON.parse(
+      fs.readFileSync(path.join(props.cell.workspace, "package.json"), "utf8"),
+    ) as { devDependencies?: Record<string, string> };
+    if (props.arm === "evidence") {
+      assert.equal(manifest.artifact.relativeArchive, archiveRelative);
+      assert.equal(
+        packageManifest.devDependencies?.["@samchon/lint-plugin-evidence"],
+        `file:${archiveRelative}`,
+      );
+      assert.ok(
+        fs.existsSync(
+          path.join(props.cell.workspace, ...archiveRelative.split("/")),
+        ),
+      );
+    } else {
+      assert.equal(manifest.artifact.relativeArchive, undefined);
+      assert.equal(
+        packageManifest.devDependencies?.["@samchon/lint-plugin-evidence"],
+        undefined,
+      );
+      assert.equal(
+        fs.existsSync(path.join(props.cell.workspace, ".benchmark-deps")),
+        false,
+      );
+    }
+
+    for (const packageName of ["api", "backend", "frontend"]) {
+      const relative: string = `packages/${packageName}/lint.config.ts`;
+      const overlay: string = fs
+        .readFileSync(
+          path.join(
+            props.repository,
+            "benchmark",
+            "template",
+            props.arm,
+            ...relative.split("/"),
+          ),
+          "utf8",
+        )
+        .replaceAll("\r\n", "\n");
+      const expected: string = renderFixtureVariables(overlay, props.variables);
+      assert.equal(
+        fs.readFileSync(
+          path.join(props.cell.workspace, ...relative.split("/")),
+          "utf8",
+        ),
+        expected,
+        `${props.project}/${props.arm} must fully replace ${relative}`,
+      );
+    }
+    for (const [relative, content] of EvidenceBenchmarkHash.directory(
+      props.cell.workspace,
+    )) {
+      if (!/\.(?:c?js|mjs|json|md|ts|ya?ml)$/i.test(relative)) continue;
+      const source: string = Buffer.from(content).toString("utf8");
+      assert.doesNotMatch(
+        source,
+        /benchmark-template-splice:\s*base-body|\{\{base\}\}/,
+        `${props.project}/${props.arm} retained a splice marker in ${relative}`,
+      );
+      assert.doesNotMatch(
+        source,
+        /\{\{(?:name|apiPackageName|backendPackageName|frontendPackageName)\}\}/,
+        `${props.project}/${props.arm} retained a package placeholder in ${relative}`,
+      );
+    }
+  }
+
+  function renderFixtureVariables(
+    source: string,
+    variables: IEvidenceBenchmarkMaterialization.IVariables,
+  ): string {
+    return source.replace(
+      /\{\{(name|apiPackageName|backendPackageName|frontendPackageName)\}\}/g,
+      (
+        _match: string,
+        key: keyof IEvidenceBenchmarkMaterialization.IVariables,
+      ) => variables[key],
     );
   }
 
@@ -588,6 +813,17 @@ export namespace EvidenceBenchmarkSelfTest {
   function write(location: string, content: string): void {
     fs.mkdirSync(path.dirname(location), { recursive: true });
     fs.writeFileSync(location, content, "utf8");
+  }
+
+  function benchmarkVariables(
+    name: string,
+  ): IEvidenceBenchmarkMaterialization.IVariables {
+    return {
+      name,
+      apiPackageName: `@${name}/api`,
+      backendPackageName: `@${name}/backend`,
+      frontendPackageName: `@${name}/frontend`,
+    };
   }
 
   async function expectFailure(
