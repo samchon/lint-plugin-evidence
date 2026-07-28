@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/adjudication-record.schema.json",
+  "title": "Runner-owned fresh adjudication provenance record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "runId",
+    "milestone",
+    "modelId",
+    "codexVersion",
+    "assignmentId",
+    "assignmentSha256",
+    "threadId",
+    "responseIds",
+    "processProvenanceSha256",
+    "sealedInputAlgorithmId",
+    "graderAGradeSha256",
+    "graderBGradeSha256",
+    "comparisonQueueSha256",
+    "sealedInputsSha256",
+    "recomputedSealedInputsSha256",
+    "providerOutputSha256",
+    "graderAIdentity",
+    "graderBIdentity",
+    "freshIdentityVerified"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "runId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "milestone": {
+      "enum": [
+        "t_done",
+        "t_dry"
+      ]
+    },
+    "modelId": {
+      "const": "gpt-5.6-terra"
+    },
+    "codexVersion": {
+      "const": "0.145.0"
+    },
+    "assignmentId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "assignmentSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "threadId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "responseIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "processProvenanceSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "sealedInputAlgorithmId": {
+      "const": "sha256-label-nul-bytes-v1"
+    },
+    "graderAGradeSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "graderBGradeSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "comparisonQueueSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "sealedInputsSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "recomputedSealedInputsSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "providerOutputSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "graderAIdentity": {
+      "$ref": "#/$defs/graderIdentity"
+    },
+    "graderBIdentity": {
+      "$ref": "#/$defs/graderIdentity"
+    },
+    "freshIdentityVerified": {
+      "const": true
+    }
+  },
+  "$defs": {
+    "graderIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assignmentId",
+        "threadId"
+      ],
+      "properties": {
+        "assignmentId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "threadId": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}
