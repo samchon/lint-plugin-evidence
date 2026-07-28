@@ -44,6 +44,8 @@ packages/frontend/
       ui/                          primitives: button, card, input, select, skeleton
       providers/
         app-providers.tsx          every app-wide provider, composed here
+      dev/
+        gallery-page.tsx           every screen's states from fixtures, env-gated
       catalog/
         catalog-page.tsx           the route component AND its sub-components
       cart/
@@ -56,6 +58,7 @@ packages/frontend/
       <domain>/
         types.ts                   view models the interface consumes
         hooks.ts                   queries, mutations, and the query keys
+        fixtures.ts                view-model fixtures for the state gallery
         client.ts                  the shared connection and request helper
   tests/
     *.spec.ts                      browser programs, one per purpose

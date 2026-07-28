@@ -24,6 +24,7 @@ docs/analysis/  ->  database
 docs/analysis/  ->  DTO type
 docs/analysis/  ->  API operation
 docs/analysis/  ->  tests
+docs/analysis/  ->  browser tests
 docs/analysis/  ->  frontend
 
 database        ->  DTO type          (the table it represents)

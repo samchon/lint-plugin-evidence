@@ -17,7 +17,7 @@ packages/frontend/
   playwright.config.ts
   scripts/run-playwright.mjs
   tests/
-    e2e.spec.ts          the main user journeys
+    journeys/            one spec per requirement journey
     ui-review.spec.ts    layout and interaction review across viewports
     readme.spec.ts       screenshots for the documentation
 ```
@@ -32,6 +32,21 @@ packages/frontend/
 The runner serves the production build on a fixed local port and points the browser at it, so every mode tests what actually ships rather than the development server. Take the port from the environment with a validated default, and fail loudly on a bad value rather than silently binding somewhere else.
 
 Install the browser before the first run. In Linux CI the install needs its system dependencies explicitly, run from the frontend package directory.
+
+## A Journey Is An Exported Function
+
+Each spec under `tests/journeys/` exports one async function named `journey_<actor>_<flow>`, and one `test()` call wraps it.
+
+```ts
+export async function journey_customer_checkout(page: Page): Promise<void> {
+  // walk the flow the requirement describes, end to end
+}
+test("customer checkout", ({ page }) => journey_customer_checkout(page));
+```
+
+The export is the point. A journey that exists only inside a `test()` callback cannot be named, counted, or pointed at, and the walk from the requirement documents to the specs needs something to land on. **Every journey the documents give an actor has a spec, and every spec names the journey it walks**: both directions, with the same discipline the backend suite gets.
+
+The e2e mode runs everything under `journeys/`, first against simulation during development, then against the live backend to close.
 
 ## Two Meanings, Named Apart
 

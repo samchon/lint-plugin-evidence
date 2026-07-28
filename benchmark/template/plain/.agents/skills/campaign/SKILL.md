@@ -32,6 +32,7 @@ docs/analysis/  ->  database
 docs/analysis/  ->  DTO type
 docs/analysis/  ->  API operation
 docs/analysis/  ->  tests
+docs/analysis/  ->  browser tests
 docs/analysis/  ->  business logic
 docs/analysis/  ->  frontend
 

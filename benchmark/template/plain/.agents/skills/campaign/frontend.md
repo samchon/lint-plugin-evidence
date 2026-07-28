@@ -25,9 +25,10 @@ Then walk backward from every data call to the operation it uses. A call assembl
 Once the folders take shape the frontend grows internal obligations, and they need the same treatment as the outer edges.
 
 ```
-requirement     ->  screen      (the screen that delivers it)
-component       ->  screen      (the screen that renders it)
-SDK operation   ->  screen      (the screen that consumes it)
+requirement     ->  screen          (the screen that delivers it)
+component       ->  screen          (the screen that renders it)
+SDK operation   ->  screen          (the screen that consumes it)
+journey         ->  browser spec    (the spec that walks it)
 ```
 
 Read each with the same sentence as every other edge: the artifact on the right owes an account of every unit on the left. So the denominators here are the requirements, the components, and the operations, and the screen is what has to account for all three.
@@ -45,6 +46,12 @@ A screen is not the success case with the rest deferred.
 For each screen, walk loading, empty, error, retry, and post-mutation invalidation. Then walk the refusals: every rejection the contract states has a visible outcome in words a user can act on. The business rules say what the refusal means; the screen says it.
 
 A screen that renders a spinner forever when a request fails is a defect the requirements never had to state.
+
+## Journeys To Specs, Both Directions
+
+For every journey the documents give an actor, name the spec under `tests/journeys/` that walks it; for every spec, name the journey. The exported `journey_` functions are the countable denominator, and [verification.md](../frontend/verification.md) owns their shape.
+
+A journey without a spec is a flow that has never been performed as one person; a spec without a journey is a flow someone invented. Record the mapping in the ledger, and a contract or requirements finding re-opens this walk with the rest.
 
 ## Verify By Running It
 
