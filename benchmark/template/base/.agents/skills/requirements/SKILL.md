@@ -89,7 +89,15 @@ Walk the lattice per concept. When the documents state a cell, implement it. Whe
 
 A rule that says something is not permitted is as binding as one that says something is. It is also the part most often left unbuilt, because the application appears to work without it: nothing fails until the case arrives.
 
-Every constraint, threshold, uniqueness rule, and authority limit in `04-business-rules.md` and `01-actors-and-auth.md` needs an implementation that refuses, and a test that proves the refusal.
+Every constraint, threshold, uniqueness rule, and authority limit stated anywhere in `docs/analysis/` needs an implementation that refuses, and a test that proves the refusal. They cluster in the policy and the identity documents, and they are not confined to them.
+
+## Every Section Is Realized, And None May Be Missed
+
+That is the standard, and it is not a summary of the sections above but the thing they exist to serve.
+
+Not most requirements. Not the ones that were easy to see, and not the ones a reasonable reader would call the important ones. **An omitted requirement is a defect of the same severity as one implemented incorrectly, and it is harder to find**, because nothing in the repository points at the place where it should have been. A build that compiles, a suite that passes, and a server that starts are all fully compatible with a requirement nobody read.
+
+So finishing a section means finishing it: the five parts extracted, every cell of the lattice the documents state, every refusal, every named value. A section read once and implemented halfway is worse than one not started, because it looks done from every direction.
 
 ## Trace In Both Directions
 
@@ -97,4 +105,4 @@ Completeness is not established by walking the code and finding a requirement fo
 
 Walk from the documents to the artifacts as the primary direction: every section, in order, to the model, endpoint, provider, screen, and test that realize it. Then walk back from the artifacts to the documents to catch behavior nothing asked for.
 
-The method skill owns how far to carry that traversal and how to know when it is finished.
+The [campaign skill](../campaign/SKILL.md) owns how far to carry that traversal and how to know when it is finished, and the [review skill](../review/SKILL.md) owns whether what you found there is actually true.

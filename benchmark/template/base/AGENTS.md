@@ -42,6 +42,12 @@ What `packages/api` is, why it is never edited by hand, and how to consume it, `
 
 This is not optional and not a final checklist. Read it **before starting any work at all**, again **whenever any artifact changes**, and again **whenever you believe the work is finished**. Every other skill teaches how to build one thing well; this one is the only thing that tells you whether the specification is actually realized. A repository that satisfies every other skill and skips this one looks complete and is not.
 
+### Review
+
+**Mandatory.** How the truth of what you built is established: reading each claim against both the artifact making it and the source it names, why the source is under review too, and the rounds it runs in, `.agents/skills/review/SKILL.md`.
+
+The campaign establishes that nothing is **missing**. This establishes that what is there is **true**, and those are different states. Every artifact can be present, every obligation discharged, and every claim still wrong, because nothing that reports completeness examines meaning. Read this once the campaign reports dry, and again whenever anything it reviewed has moved.
+
 ## Language
 
 Repository artifacts are English: source, tests, documents, and commit messages.

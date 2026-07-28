@@ -20,3 +20,7 @@ A change here re-opens two campaigns, and the verdicts they last reported are vo
 Record which campaigns you re-opened in the ledger at the moment you make the change. Deciding later means deciding from memory.
 
 If the change came from a requirements finding, everything below the requirements campaign re-opens, not only these two.
+
+**A change that breaks nothing is the one to watch.** Rename a column and the build stops you. Change its nullability, widen its meaning, or add a state it can now hold, and everything still compiles while every artifact built on the old meaning is now unverified, and both campaigns above still report dry because their rows are still filled.
+
+This schema is what the most artifacts are built on, so one wrong meaning here propagates furthest. The [review skill](../review/SKILL.md) owns finding that, and it is why it reads the source rather than only the artifact claiming to realize it.

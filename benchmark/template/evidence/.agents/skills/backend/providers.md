@@ -43,3 +43,5 @@ A green lint stage means every obligation is acknowledged. It says nothing about
 - A visibility filter present on ten reads and absent on the eleventh.
 
 Every one of those can carry a valid citation and pass every check. After any substantial piece of work, ask what null means for each field here, which direction each relation aggregates, and what the code does in the case the requirement calls out.
+
+This is the layer where a reason is easiest to write and hardest to keep true, because a provider's citation claims a behavior rather than a shape, and behavior drifts without changing anything a checker inspects. The [review skill](../review/SKILL.md) reads each of these reasons against the code that is there now.

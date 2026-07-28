@@ -26,3 +26,5 @@ Record these in the ledger when you check them, because they are invisible to ev
 - A visibility filter present on ten reads of a table and absent on the eleventh.
 
 After every substantial piece of work, ask what null means for each field here, which direction each relation aggregates, and what the code does in the case the requirement calls out.
+
+This is the layer where a ledger entry is easiest to write and hardest to keep true, because a provider realizes a behavior rather than a shape, and behavior drifts without changing anything a checker inspects. The [review skill](../review/SKILL.md) reads each of these entries against the code that is there now.

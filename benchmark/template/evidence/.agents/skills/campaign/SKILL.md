@@ -41,6 +41,20 @@ Granularity is part of the configuration. A DTO **type** is a claim over require
 
 The configured graph is what the build checks. Keep it current: when the frontend takes a concrete shape or a new artifact kind appears, the obligation belongs in the configuration. **An edge that is not configured is not checked**, and nothing will tell you it is missing.
 
+## Each Edge Has Its Own Document
+
+The graph above is configured as a set of claims, and each group of them has a document covering what its diagnostics mean and where the repair usually belongs.
+
+- [requirements.md](requirements.md): the edges out of `docs/analysis/`, which is given input and never edited to make a diagnostic stop.
+- [database.md](database.md): into and out of the schema.
+- [api.md](api.md): requirements and schema to the public contract.
+- [logic.md](logic.md): requirements, schema, and contract to the implementation.
+- [test.md](test.md): requirements and contract to the tests.
+- [frontend.md](frontend.md): requirements and contract to the screens, plus the frontend's own subgraph.
+- [ledger.md](ledger.md): what still has to be written down even though the build tracks the obligations.
+
+When the build reports nothing, the [review skill](../review/SKILL.md) takes over. It owns the question this one cannot ask: whether each citation is true.
+
 ## Cite As Many Targets As The Work Draws On
 
 A declaration carries as many `@evidence` tags as it needs, and this is what makes the graph usable for anything that is not one-to-one.
@@ -97,16 +111,14 @@ Each hides a gap no later pass will find, because the report that would have fou
 
 ## What The Build Cannot Check
 
-It checks that a citation exists and resolves. It does not check that the reason is true.
+It checks that a citation exists and resolves. It does not check that the reason is true, and a tag written to clear a diagnostic is indistinguishable from one written after doing the work.
 
-The remaining work is yours. The reason beside each citation must survive a reader comparing it to the code: state which part of the target this artifact is responsible for, not a restatement of the tag. A citation whose reason is filler passes the build and tells the next reader nothing.
-
-Type-correct is not correct either. A default that means the opposite of unset, an aggregate over the wrong side of a relation, an effect implemented in one path and not its sibling: all of these carry valid citations and satisfy every check.
+So a green lint stage completes this skill and finishes nothing. Write each reason to survive a reader comparing it to the code, then hand the repository to the [review skill](../review/SKILL.md), which owns that examination in full.
 
 ## When You Believe You Are Done
 
-Run the build and read it. A clean lint stage means every configured obligation is acknowledged.
+Run the build and read it. A clean lint stage means every configured obligation is acknowledged, which is the whole of what this skill establishes.
 
-Then check the two things it cannot: that each citation names work the artifact genuinely does, and that each exclusion records a decision a reviewer would accept. Run the tests and read their output.
+Then run the review, and run the tests and read their output.
 
 Report what you did and what you verified. If any part of the specification is unrealized, say which part and why, rather than reporting completion and leaving it to be discovered.

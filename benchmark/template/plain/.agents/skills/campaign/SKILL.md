@@ -69,6 +69,8 @@ Each campaign has its own document.
 - [frontend.md](frontend.md): requirements and contract to the screens, plus the frontend's own subgraph.
 - [ledger.md](ledger.md): where campaign state is written down, because none of this survives in your head.
 
+When every campaign reports dry, the [review skill](../review/SKILL.md) takes over. It owns the question this one cannot ask: whether each thing the ledger calls realized actually is.
+
 ## The Cascade
 
 This is the part that decides whether the method works.
@@ -108,14 +110,13 @@ You are finished when all of the following hold at once, and you can show the le
 - every requirement section maps to the artifacts that realize it, and you read those artifacts rather than assuming them;
 - every artifact traces back to a requirement, and anything that does not has a recorded reason to exist;
 - every campaign is dry against the current state, with no verdict inherited from before the last change;
+- the [review skill](../review/SKILL.md) is dry too, because a filled ledger row and a true one are different things;
 - the build, the lint stage, and the tests pass, and you read their output.
 
 Report what you did and what you verified. If any part of the specification is unrealized, say which part and why, rather than reporting completion and leaving it to be discovered.
 
 ## Verify Rather Than Assume
 
-Check each claim against the artifact, not against your recollection of writing it.
+Check each claim against the artifact, not against your recollection of writing it. Open the file and read what it does before recording a requirement as realized, and run the build and the tests rather than predicting them.
 
-- Open the file and read what it does before recording a requirement as realized.
-- Run the build and the tests, and read their output.
-- Confirm that a test asserting a requirement fails when the behavior is removed. A test that passes either way proves nothing about the requirement it names.
+The review skill owns this in full, including the one check nothing else performs: removing a behavior to confirm the test that names it fails.

@@ -34,3 +34,7 @@ Read [the campaign skill](../campaign/SKILL.md) before starting, especially the 
 Run the build. A new model may make a previously unsatisfiable citation resolve, and a removed one may leave a citation dangling somewhere else entirely.
 
 A dangling citation is not noise. It means either the schema changed under a claim that still believes the old shape, or the address was wrong from the start. Fix whichever is actually wrong, and never delete the citation to stop the message.
+
+**The dangerous changes are the ones that dangle nothing.** Rename a column and every citation of it breaks loudly. Change its nullability, widen its meaning, or add a state it can now hold, and every citation still resolves while every reason written against the old meaning is now unverified. Nothing reports that.
+
+This schema is the most-cited reference in the repository, which makes it the place where one wrong meaning propagates furthest: a model that means something other than what its citations assume produces a green build over DTOs, providers, and tests that are each individually faithful. The [review skill](../review/SKILL.md) owns finding that, and it is the reason it reads the referenced side rather than only the citing side.
