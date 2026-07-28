@@ -19,11 +19,20 @@ export namespace EvidenceBenchmarkBlindBundle {
     /** Random identity unrelated to arm or run naming. */
     bundleId: string;
 
-    /** Exact source snapshot tree digest before stripping. */
-    sourceSnapshotSha256: string;
+    /** Versioned algorithm used by every aggregate raw-tree identity. */
+    treeAlgorithm: "sha256-posix-path-nul-bytes-v1";
 
-    /** Exact neutral bundle tree digest. */
-    bundleTreeSha256: string;
+    /** Exact pre-run materialization/run manifest byte digest. */
+    runManifestSha256: string;
+
+    /** Exact selected-subject requirement raw-tree digest. */
+    requirementsRawTreeSha256: string;
+
+    /** Exact source snapshot raw-tree digest before stripping. */
+    sourceSnapshotRawTreeSha256: string;
+
+    /** Exact neutral bundle raw-tree digest. */
+    bundleRawTreeSha256: string;
 
     /** Canonical manifest digest. */
     manifestSha256: string;
@@ -72,7 +81,7 @@ export namespace EvidenceBenchmarkBlindBundle {
     const expectedFields: string[] = [
       "blindScale",
       "bundleId",
-      "bundleTreeSha256",
+      "bundleRawTreeSha256",
       "deterministicDoubleHashPassed",
       "leakScanPassed",
       "manifestSha256",
@@ -81,10 +90,13 @@ export namespace EvidenceBenchmarkBlindBundle {
       "rawScale",
       "readOnly",
       "relativeBundlePath",
+      "requirementsRawTreeSha256",
+      "runManifestSha256",
       "schemaVersion",
-      "sourceSnapshotSha256",
+      "sourceSnapshotRawTreeSha256",
       "stripperProvenance",
       "stripperProvenanceSha256",
+      "treeAlgorithm",
     ];
     if (
       JSON.stringify(Object.keys(manifest).sort()) !==
@@ -95,14 +107,17 @@ export namespace EvidenceBenchmarkBlindBundle {
     if (
       manifest.schemaVersion !== 1 ||
       manifest.phase !== phase ||
+      manifest.treeAlgorithm !== EvidenceBenchmarkHash.TREE_ALGORITHM ||
       manifest.relativeBundlePath !== "bundle" ||
       manifest.readOnly !== true ||
       manifest.postGradeRehashRequired !== true ||
       manifest.leakScanPassed !== true ||
       manifest.deterministicDoubleHashPassed !== true ||
       !text(manifest.bundleId) ||
-      !sha(manifest.sourceSnapshotSha256) ||
-      !sha(manifest.bundleTreeSha256) ||
+      !sha(manifest.runManifestSha256) ||
+      !sha(manifest.requirementsRawTreeSha256) ||
+      !sha(manifest.sourceSnapshotRawTreeSha256) ||
+      !sha(manifest.bundleRawTreeSha256) ||
       !sha(manifestDigest) ||
       manifestDigest !== canonicalSha256(unsigned)
     )
@@ -121,7 +136,7 @@ export namespace EvidenceBenchmarkBlindBundle {
     const bundleRoot: string = path.join(inputRoot, "bundle");
     const observed = tree(bundleRoot);
     if (
-      observed.sha256 !== manifest.bundleTreeSha256 ||
+      observed.sha256 !== manifest.bundleRawTreeSha256 ||
       observed.fileCount !== blindScale.fileCount ||
       observed.byteLength !== blindScale.byteLength
     )
@@ -138,8 +153,12 @@ export namespace EvidenceBenchmarkBlindBundle {
     return {
       phase,
       bundleId: manifest.bundleId as string,
-      sourceSnapshotSha256: manifest.sourceSnapshotSha256 as string,
-      bundleTreeSha256: manifest.bundleTreeSha256 as string,
+      treeAlgorithm: manifest.treeAlgorithm as IResult["treeAlgorithm"],
+      runManifestSha256: manifest.runManifestSha256 as string,
+      requirementsRawTreeSha256: manifest.requirementsRawTreeSha256 as string,
+      sourceSnapshotRawTreeSha256:
+        manifest.sourceSnapshotRawTreeSha256 as string,
+      bundleRawTreeSha256: manifest.bundleRawTreeSha256 as string,
       manifestSha256: manifestDigest as string,
       bundleRoot,
       rawScale,
@@ -152,7 +171,7 @@ export namespace EvidenceBenchmarkBlindBundle {
   export function verifyAfterGrade(input: IResult): void {
     const observed = tree(input.bundleRoot);
     if (
-      observed.sha256 !== input.bundleTreeSha256 ||
+      observed.sha256 !== input.bundleRawTreeSha256 ||
       observed.fileCount !== input.blindScale.fileCount ||
       observed.byteLength !== input.blindScale.byteLength
     )
@@ -160,7 +179,7 @@ export namespace EvidenceBenchmarkBlindBundle {
   }
 
   /** Returns the same canonical tree digest used by runner bundle manifests. */
-  export function treeSha256(root: string): string {
+  export function rawTreeSha256(root: string): string {
     return tree(root).sha256;
   }
 
@@ -169,62 +188,16 @@ export namespace EvidenceBenchmarkBlindBundle {
     fileCount: number;
     byteLength: number;
   } {
-    const absolute: string = path.resolve(root);
-    const entries: Array<{
-      path: string;
-      kind: "file" | "symlink";
-      executable: boolean;
-      byteLength: number;
-      contentSha256: string;
-    }> = [];
-    const visit = (directory: string): void => {
-      const children: fs.Dirent[] = fs
-        .readdirSync(directory, { withFileTypes: true })
-        .sort((left, right) =>
-          Buffer.compare(
-            Buffer.from(left.name, "utf8"),
-            Buffer.from(right.name, "utf8"),
-          ),
-        );
-      for (const child of children) {
-        const target: string = path.join(directory, child.name);
-        if (child.isDirectory()) {
-          visit(target);
-          continue;
-        }
-        if (!child.isFile() && !child.isSymbolicLink())
-          throw new Error(`Blind bundle has unsupported entry: ${target}.`);
-        const relative: string = path
-          .relative(absolute, target)
-          .split(path.sep)
-          .join("/")
-          .normalize("NFC");
-        if (relative.startsWith("../") || path.posix.isAbsolute(relative))
-          throw new Error(`Blind bundle path escapes its root: ${relative}.`);
-        const stat: fs.Stats = fs.lstatSync(target);
-        const bytes: Buffer = child.isSymbolicLink()
-          ? Buffer.from(fs.readlinkSync(target), "utf8")
-          : fs.readFileSync(target);
-        entries.push({
-          path: relative,
-          kind: child.isSymbolicLink() ? "symlink" : "file",
-          executable: (stat.mode & 0o111) !== 0,
-          byteLength: bytes.length,
-          contentSha256: EvidenceBenchmarkHash.bytes(bytes),
-        });
-      }
-    };
-    visit(absolute);
-    entries.sort((left, right) =>
-      Buffer.compare(
-        Buffer.from(left.path, "utf8"),
-        Buffer.from(right.path, "utf8"),
-      ),
+    const files: Map<string, Uint8Array> = EvidenceBenchmarkHash.directory(
+      path.resolve(root),
     );
     return {
-      sha256: EvidenceBenchmarkHash.bytes(canonicalJson(entries)),
-      fileCount: entries.length,
-      byteLength: entries.reduce((sum, entry) => sum + entry.byteLength, 0),
+      sha256: EvidenceBenchmarkHash.tree(files),
+      fileCount: files.size,
+      byteLength: [...files.values()].reduce(
+        (sum, bytes) => sum + bytes.byteLength,
+        0,
+      ),
     };
   }
 

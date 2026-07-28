@@ -65,10 +65,18 @@ export namespace EvidenceBenchmarkQualityPostprocess {
     const order: IEvidenceBenchmarkQualityGrade.Phase[] = request.phases.map(
       (entry) => entry.report.phase,
     );
+    const coreSealSha256: string = EvidenceBenchmarkHash.file(
+      request.coreSealPath,
+    );
     if (
       new Set(order).size !== order.length ||
       (request.generationStatus === "completed" &&
-        JSON.stringify(order) !== JSON.stringify(["t_done", "t_dry"]))
+        JSON.stringify(order) !== JSON.stringify(["t_done", "t_dry"])) ||
+      request.phases.some(
+        (entry) =>
+          entry.report.gradePlan.bindings.generationCoreSealSha256 !==
+          coreSealSha256,
+      )
     )
       throw new Error(
         "Completed postprocess requires exact t_done and t_dry phase order.",
@@ -86,8 +94,11 @@ export namespace EvidenceBenchmarkQualityPostprocess {
         );
         if (
           entry.bundle.bundleId !== entry.report.bundleId ||
-          entry.bundle.sourceSnapshotSha256 !== entry.report.snapshotSha256 ||
-          entry.bundle.bundleTreeSha256 !== entry.report.bundleSha256
+          entry.bundle.sourceSnapshotRawTreeSha256 !==
+            entry.report.snapshotRawTreeSha256 ||
+          entry.bundle.bundleRawTreeSha256 !==
+            entry.report.bundleRawTreeSha256 ||
+          entry.bundle.treeAlgorithm !== entry.report.rawScale.treeAlgorithm
         )
           throw new Error(
             `${entry.report.phase} postprocess bundle identity drifted.`,
@@ -105,9 +116,9 @@ export namespace EvidenceBenchmarkQualityPostprocess {
           artifactSha256: EvidenceBenchmarkHash.file(artifactLocation),
           gradingInputManifestSha256:
             entry.report.gradePlan.bindings.gradingInputManifestSha256,
-          postGradeBundleSha256: EvidenceBenchmarkBlindBundle.treeSha256(
-            entry.bundle.bundleRoot,
-          ),
+          treeAlgorithm: entry.bundle.treeAlgorithm,
+          postGradeBundleRawTreeSha256:
+            EvidenceBenchmarkBlindBundle.rawTreeSha256(entry.bundle.bundleRoot),
           firstGradeSha256: EvidenceBenchmarkHash.object(
             entry.report.firstGrade,
           ),
@@ -133,7 +144,7 @@ export namespace EvidenceBenchmarkQualityPostprocess {
         runId: request.runId,
         subject: request.subject,
         generationStatus: request.generationStatus,
-        coreSealSha256: EvidenceBenchmarkHash.file(request.coreSealPath),
+        coreSealSha256,
         safetyStopSha256: request.safetyStopSha256,
         phases,
         requiredQualityComplete:
@@ -198,9 +209,12 @@ export namespace EvidenceBenchmarkQualityPostprocess {
       );
       if (
         report.phase !== phase.phase ||
+        report.gradePlan.bindings.generationCoreSealSha256 !==
+          seal.coreSealSha256 ||
         report.gradePlan.bindings.gradingInputManifestSha256 !==
           phase.gradingInputManifestSha256 ||
-        report.bundleSha256 !== phase.postGradeBundleSha256 ||
+        report.rawScale.treeAlgorithm !== phase.treeAlgorithm ||
+        report.bundleRawTreeSha256 !== phase.postGradeBundleRawTreeSha256 ||
         EvidenceBenchmarkHash.object(report.firstGrade) !==
           phase.firstGradeSha256 ||
         EvidenceBenchmarkHash.object(report.secondGrade) !==

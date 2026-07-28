@@ -52,14 +52,18 @@ export namespace EvidenceBenchmarkQualityGrade {
     EvidenceBenchmarkGradingPlan.verify(catalog, plan);
     const bundleFiles: Map<string, Uint8Array> =
       EvidenceBenchmarkHash.directory(bundle.bundleRoot);
-    const bundleSha256: string = EvidenceBenchmarkBlindBundle.treeSha256(
-      bundle.bundleRoot,
-    );
+    const bundleRawTreeSha256: string =
+      EvidenceBenchmarkBlindBundle.rawTreeSha256(bundle.bundleRoot);
     if (
-      bundleSha256 !== plan.bindings.bundleSha256 ||
+      bundle.treeAlgorithm !== plan.bindings.treeAlgorithm ||
+      bundle.runManifestSha256 !== plan.bindings.runManifestSha256 ||
+      bundle.requirementsRawTreeSha256 !==
+        plan.bindings.requirementsRawTreeSha256 ||
+      bundleRawTreeSha256 !== plan.bindings.bundleRawTreeSha256 ||
       bundle.bundleId !== plan.bindings.bundleId ||
       bundle.manifestSha256 !== plan.bindings.gradingInputManifestSha256 ||
-      bundle.sourceSnapshotSha256 !== plan.bindings.sourceSnapshotSha256 ||
+      bundle.sourceSnapshotRawTreeSha256 !==
+        plan.bindings.sourceSnapshotRawTreeSha256 ||
       bundle.phase !== plan.phase
     )
       throw new Error(
@@ -119,6 +123,7 @@ export namespace EvidenceBenchmarkQualityGrade {
       grader: structuredClone(first.grader),
       blind: true,
       planSha256: plan.planSha256,
+      generationCoreSealSha256: plan.bindings.generationCoreSealSha256,
       acceptanceCatalogSha256: catalog.acceptanceCatalogSha256,
       contextCatalogSha256: catalog.contextCatalogSha256,
       acceptanceRatings,

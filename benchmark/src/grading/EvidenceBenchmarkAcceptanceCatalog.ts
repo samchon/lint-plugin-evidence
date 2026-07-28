@@ -25,8 +25,11 @@ export namespace EvidenceBenchmarkAcceptanceCatalog {
     /** Subject whose corpus is pinned. */
     subject: IEvidenceBenchmarkQualityGrade.Subject;
 
-    /** Exact requirement directory tree digest. */
-    requirementsTreeSha256: string;
+    /** Versioned algorithm used by the requirement raw-tree identity. */
+    treeAlgorithm: "sha256-posix-path-nul-bytes-v1";
+
+    /** Exact requirement directory raw-tree digest. */
+    requirementsRawTreeSha256: string;
 
     /** Exact acceptance JSONL byte digest. */
     acceptanceCatalogSha256: string;
@@ -103,7 +106,8 @@ export namespace EvidenceBenchmarkAcceptanceCatalog {
     const result: IEvidenceBenchmarkQualityGrade.ICatalog = {
       schemaVersion: 1,
       subject,
-      requirementsTreeSha256: EvidenceBenchmarkHash.tree(files),
+      treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
+      requirementsRawTreeSha256: EvidenceBenchmarkHash.tree(files),
       acceptanceCatalogSha256: EvidenceBenchmarkHash.bytes(acceptanceBytes),
       acceptance,
       contextCatalogSha256:
@@ -115,7 +119,9 @@ export namespace EvidenceBenchmarkAcceptanceCatalog {
     };
     if (
       freeze.subject !== subject ||
-      freeze.requirementsTreeSha256 !== result.requirementsTreeSha256 ||
+      freeze.treeAlgorithm !== EvidenceBenchmarkHash.TREE_ALGORITHM ||
+      freeze.treeAlgorithm !== result.treeAlgorithm ||
+      freeze.requirementsRawTreeSha256 !== result.requirementsRawTreeSha256 ||
       freeze.acceptanceCatalogSha256 !== result.acceptanceCatalogSha256 ||
       freeze.contextCatalogSha256 !== result.contextCatalogSha256 ||
       freeze.documents !== corpus.documents ||

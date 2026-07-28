@@ -375,8 +375,16 @@ export namespace EvidenceBenchmarkQualityReport {
       phase.adjudication.denominatorsSummed !== false ||
       phase.gradePlan.bindings.runId !== cell.runId ||
       phase.gradePlan.bindings.bundleId !== phase.bundleId ||
-      phase.gradePlan.bindings.bundleSha256 !== phase.bundleSha256 ||
-      phase.gradePlan.bindings.sourceSnapshotSha256 !== phase.snapshotSha256 ||
+      phase.gradePlan.bindings.treeAlgorithm !== phase.rawScale.treeAlgorithm ||
+      phase.rawScale.treeAlgorithm !== phase.blindScale.treeAlgorithm ||
+      phase.gradePlan.bindings.bundleRawTreeSha256 !==
+        phase.bundleRawTreeSha256 ||
+      phase.gradePlan.bindings.sourceSnapshotRawTreeSha256 !==
+        phase.snapshotRawTreeSha256 ||
+      phase.firstGrade.generationCoreSealSha256 !==
+        phase.gradePlan.bindings.generationCoreSealSha256 ||
+      phase.secondGrade.generationCoreSealSha256 !==
+        phase.gradePlan.bindings.generationCoreSealSha256 ||
       phase.firstGrade.planSha256 !== phase.gradePlan.planSha256 ||
       phase.secondGrade.planSha256 !== phase.gradePlan.planSha256 ||
       phase.gradePlan.bindings.deterministicInputsSha256 !==
@@ -573,7 +581,8 @@ export namespace EvidenceBenchmarkQualityReport {
       scale.files < 1 ||
       !Number.isSafeInteger(scale.bytes) ||
       scale.bytes < 1 ||
-      !/^[a-f0-9]{64}$/.test(scale.treeSha256)
+      scale.treeAlgorithm !== EvidenceBenchmarkHash.TREE_ALGORITHM ||
+      !/^[a-f0-9]{64}$/.test(scale.rawTreeSha256)
     )
       throw new Error(`${label} artifact scale is invalid.`);
   }

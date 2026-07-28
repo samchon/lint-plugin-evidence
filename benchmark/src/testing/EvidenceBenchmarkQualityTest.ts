@@ -56,7 +56,7 @@ export namespace EvidenceBenchmarkQualityTest {
       testBlindBundle(fixture, temporary);
       testGrading(fixture);
       await testReport(fixture, temporary);
-      await testPostprocess(fixture, temporary);
+      await testPostprocess(temporary);
       console.log(
         "Benchmark quality test passed with deterministic fake graders only.",
       );
@@ -318,13 +318,22 @@ export namespace EvidenceBenchmarkQualityTest {
     assert.equal(fixture.phase.adjudication.humanValidationStatus, "pending");
   }
 
-  async function testPostprocess(
-    done: IFixture,
-    temporary: string,
-  ): Promise<void> {
-    const dry: IFixture = createFixture(temporary, "quality-run", "t_dry");
+  async function testPostprocess(temporary: string): Promise<void> {
     const core: string = path.join(temporary, "core-seal.json");
     fs.writeFileSync(core, '{"immutable":true}\n', "utf8");
+    const coreSealSha256: string = EvidenceBenchmarkHash.file(core);
+    const done: IFixture = createFixture(
+      temporary,
+      "quality-run",
+      "t_done",
+      coreSealSha256,
+    );
+    const dry: IFixture = createFixture(
+      temporary,
+      "quality-run",
+      "t_dry",
+      coreSealSha256,
+    );
     const output: string = path.join(temporary, "postprocess");
     const seal = await EvidenceBenchmarkQualityPostprocess.write({
       runId: "quality-run",
@@ -417,6 +426,7 @@ export namespace EvidenceBenchmarkQualityTest {
     temporary: string,
     runId: string,
     phase: IEvidenceBenchmarkQualityGrade.Phase,
+    generationCoreSealSha256: string = digest("generation-core-seal"),
   ): IFixture {
     const record: string = path.join(
       temporary,
@@ -426,7 +436,8 @@ export namespace EvidenceBenchmarkQualityTest {
     const catalog: IEvidenceBenchmarkQualityGrade.ICatalog = {
       schemaVersion: 1,
       subject: "todo",
-      requirementsTreeSha256: digest("requirements"),
+      treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
+      requirementsRawTreeSha256: digest("requirements"),
       acceptanceCatalogSha256: digest("acceptance-catalog"),
       acceptance: [
         clause("AC-001", "REQ-TODO-001"),
@@ -445,11 +456,16 @@ export namespace EvidenceBenchmarkQualityTest {
       {
         runId,
         bundleId: bundle.bundleId,
-        bundleSha256: bundle.bundleTreeSha256,
+        treeAlgorithm: bundle.treeAlgorithm,
+        bundleRawTreeSha256: bundle.bundleRawTreeSha256,
         gradingInputManifestSha256: bundle.manifestSha256,
-        sourceSnapshotSha256: bundle.sourceSnapshotSha256,
-        requirementsTreeSha256: catalog.requirementsTreeSha256,
-        materializedRequirementsTreeSha256: digest("materialized-requirements"),
+        sourceSnapshotRawTreeSha256: bundle.sourceSnapshotRawTreeSha256,
+        requirementsRawTreeSha256: catalog.requirementsRawTreeSha256,
+        materializedRequirementsRawTreeSha256: digest(
+          "materialized-requirements",
+        ),
+        runManifestSha256: bundle.runManifestSha256,
+        generationCoreSealSha256,
         hiddenAcceptanceCatalogSha256: catalog.acceptanceCatalogSha256,
         deterministicInputsSha256: digest(`deterministic-${phase}`),
         rubricSha256: SHA.rubric,
@@ -515,17 +531,19 @@ export namespace EvidenceBenchmarkQualityTest {
     const qualityPhase: IEvidenceBenchmarkQualityReport.IPhase = {
       phase,
       bundleId: bundle.bundleId,
-      snapshotSha256: bundle.sourceSnapshotSha256,
-      bundleSha256: bundle.bundleTreeSha256,
+      snapshotRawTreeSha256: bundle.sourceSnapshotRawTreeSha256,
+      bundleRawTreeSha256: bundle.bundleRawTreeSha256,
       rawScale: {
         files: bundle.rawScale.fileCount,
         bytes: bundle.rawScale.byteLength,
-        treeSha256: bundle.sourceSnapshotSha256,
+        treeAlgorithm: bundle.treeAlgorithm,
+        rawTreeSha256: bundle.sourceSnapshotRawTreeSha256,
       },
       blindScale: {
         files: bundle.blindScale.fileCount,
         bytes: bundle.blindScale.byteLength,
-        treeSha256: bundle.bundleTreeSha256,
+        treeAlgorithm: bundle.treeAlgorithm,
+        rawTreeSha256: bundle.bundleRawTreeSha256,
       },
       gradePlan: plan,
       firstGrade: first,
@@ -710,7 +728,8 @@ export namespace EvidenceBenchmarkQualityTest {
     fs.mkdirSync(path.join(bundle, "src"), { recursive: true });
     const source: string = "export const value = true;\n";
     fs.writeFileSync(path.join(bundle, "src/app.ts"), source, "utf8");
-    const bundleTreeSha256 = EvidenceBenchmarkBlindBundle.treeSha256(bundle);
+    const bundleRawTreeSha256 =
+      EvidenceBenchmarkBlindBundle.rawTreeSha256(bundle);
     const provenanceValue = {
       name: "deterministic-test-stripper",
       version: "1.0.0",
@@ -720,8 +739,11 @@ export namespace EvidenceBenchmarkQualityTest {
       schemaVersion: 1,
       phase,
       bundleId,
-      sourceSnapshotSha256: digest(`source-${phase}`),
-      bundleTreeSha256,
+      treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
+      runManifestSha256: digest("run-manifest"),
+      requirementsRawTreeSha256: digest("requirements"),
+      sourceSnapshotRawTreeSha256: digest(`source-${phase}`),
+      bundleRawTreeSha256,
       relativeBundlePath: "bundle",
       rawScale: { fileCount: 1, byteLength: Buffer.byteLength(source) },
       blindScale: { fileCount: 1, byteLength: Buffer.byteLength(source) },
@@ -754,7 +776,8 @@ export namespace EvidenceBenchmarkQualityTest {
     const context = files.get("context-criteria.jsonl");
     return {
       subject,
-      requirementsTreeSha256: EvidenceBenchmarkHash.tree(files),
+      treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
+      requirementsRawTreeSha256: EvidenceBenchmarkHash.tree(files),
       acceptanceCatalogSha256: EvidenceBenchmarkHash.bytes(acceptance),
       contextCatalogSha256:
         context === undefined ? null : EvidenceBenchmarkHash.bytes(context),

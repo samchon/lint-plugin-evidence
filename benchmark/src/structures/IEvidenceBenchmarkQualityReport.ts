@@ -46,8 +46,11 @@ export namespace IEvidenceBenchmarkQualityReport {
     /** Exact aggregate bytes. */
     bytes: number;
 
-    /** Deterministic tree digest. */
-    treeSha256: string;
+    /** Versioned algorithm used by the aggregate raw-tree identity. */
+    treeAlgorithm: "sha256-posix-path-nul-bytes-v1";
+
+    /** Deterministic raw path-and-byte tree digest. */
+    rawTreeSha256: string;
   }
 
   /** Exact milestone times and elapsed durations for one run. */
@@ -352,11 +355,11 @@ export namespace IEvidenceBenchmarkQualityReport {
     /** Blind bundle identifier. */
     bundleId: string;
 
-    /** Source snapshot digest before stripping. */
-    snapshotSha256: string;
+    /** Source snapshot raw-tree digest before stripping. */
+    snapshotRawTreeSha256: string;
 
-    /** Neutral bundle digest after stripping. */
-    bundleSha256: string;
+    /** Neutral bundle raw-tree digest after stripping. */
+    bundleRawTreeSha256: string;
 
     /** Raw retained source scale. */
     rawScale: IArtifactScale;

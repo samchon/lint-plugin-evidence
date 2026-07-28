@@ -16,8 +16,11 @@ export namespace IEvidenceBenchmarkQualityPostprocess {
     /** Runner-owned blind input manifest digest. */
     gradingInputManifestSha256: string;
 
-    /** Post-grade observed neutral tree digest. */
-    postGradeBundleSha256: string;
+    /** Versioned algorithm used by the post-grade raw-tree identity. */
+    treeAlgorithm: "sha256-posix-path-nul-bytes-v1";
+
+    /** Post-grade observed neutral raw-tree digest. */
+    postGradeBundleRawTreeSha256: string;
 
     /** First independent grade digest. */
     firstGradeSha256: string;

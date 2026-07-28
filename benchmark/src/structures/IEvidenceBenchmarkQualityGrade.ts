@@ -70,8 +70,11 @@ export namespace IEvidenceBenchmarkQualityGrade {
     /** Subject whose requirements were read. */
     subject: Subject;
 
-    /** SHA-256 of the complete requirement directory tree. */
-    requirementsTreeSha256: string;
+    /** Versioned algorithm used by every aggregate raw-tree identity. */
+    treeAlgorithm: "sha256-posix-path-nul-bytes-v1";
+
+    /** SHA-256 of exact raw requirement paths and bytes. */
+    requirementsRawTreeSha256: string;
 
     /** SHA-256 of exact acceptance JSONL bytes. */
     acceptanceCatalogSha256: string;
@@ -132,20 +135,29 @@ export namespace IEvidenceBenchmarkQualityGrade {
       /** Blind bundle identifier. */
       bundleId: string;
 
-      /** Exact neutral bundle tree digest. */
-      bundleSha256: string;
+      /** Versioned algorithm used by every aggregate raw-tree identity. */
+      treeAlgorithm: "sha256-posix-path-nul-bytes-v1";
+
+      /** Exact neutral bundle raw-tree digest. */
+      bundleRawTreeSha256: string;
 
       /** Exact runner-owned grading-input manifest digest. */
       gradingInputManifestSha256: string;
 
-      /** Exact pre-strip source snapshot digest. */
-      sourceSnapshotSha256: string;
+      /** Exact pre-strip source snapshot raw-tree digest. */
+      sourceSnapshotRawTreeSha256: string;
 
-      /** Exact requirement tree digest. */
-      requirementsTreeSha256: string;
+      /** Exact selected-subject requirement raw-tree digest. */
+      requirementsRawTreeSha256: string;
 
-      /** Exact docs/analysis requirement tree visible in the generated project. */
-      materializedRequirementsTreeSha256: string;
+      /** Exact docs/analysis requirement raw-tree visible to the generator. */
+      materializedRequirementsRawTreeSha256: string;
+
+      /** Exact pre-run materialization/run manifest byte digest. */
+      runManifestSha256: string;
+
+      /** Immutable generation core seal binding all grading inputs. */
+      generationCoreSealSha256: string;
 
       /** Hidden acceptance catalog digest unavailable to the generator. */
       hiddenAcceptanceCatalogSha256: string;
@@ -530,6 +542,9 @@ export namespace IEvidenceBenchmarkQualityGrade {
 
     /** Deterministic grade plan digest. */
     planSha256: string;
+
+    /** Immutable generation core seal the grade postprocess reads. */
+    generationCoreSealSha256: string;
 
     /** Exact acceptance catalog digest. */
     acceptanceCatalogSha256: string;

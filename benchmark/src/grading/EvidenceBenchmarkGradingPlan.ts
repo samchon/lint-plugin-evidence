@@ -146,7 +146,8 @@ export namespace EvidenceBenchmarkGradingPlan {
     const identity: string = blockIdentity(
       {
         subject: plan.subject,
-        requirementsTreeSha256: plan.bindings.requirementsTreeSha256,
+        treeAlgorithm: plan.bindings.treeAlgorithm,
+        requirementsRawTreeSha256: plan.bindings.requirementsRawTreeSha256,
       } as IEvidenceBenchmarkQualityGrade.ICatalog,
       plan.phase,
       plan.bindings,
@@ -188,13 +189,18 @@ export namespace EvidenceBenchmarkGradingPlan {
   ): void {
     const sha256: RegExp = /^[a-f0-9]{64}$/;
     if (
-      bindings.requirementsTreeSha256 !== catalog.requirementsTreeSha256 ||
+      bindings.treeAlgorithm !== EvidenceBenchmarkHash.TREE_ALGORITHM ||
+      bindings.treeAlgorithm !== catalog.treeAlgorithm ||
+      bindings.requirementsRawTreeSha256 !==
+        catalog.requirementsRawTreeSha256 ||
       !bindings.runId.trim() ||
       !bindings.bundleId.trim() ||
-      !sha256.test(bindings.bundleSha256) ||
+      !sha256.test(bindings.bundleRawTreeSha256) ||
       !sha256.test(bindings.gradingInputManifestSha256) ||
-      !sha256.test(bindings.sourceSnapshotSha256) ||
-      !sha256.test(bindings.materializedRequirementsTreeSha256) ||
+      !sha256.test(bindings.sourceSnapshotRawTreeSha256) ||
+      !sha256.test(bindings.materializedRequirementsRawTreeSha256) ||
+      !sha256.test(bindings.runManifestSha256) ||
+      !sha256.test(bindings.generationCoreSealSha256) ||
       !sha256.test(bindings.hiddenAcceptanceCatalogSha256) ||
       !sha256.test(bindings.deterministicInputsSha256) ||
       !sha256.test(bindings.rubricSha256) ||
@@ -252,7 +258,7 @@ export namespace EvidenceBenchmarkGradingPlan {
   function blockIdentity(
     catalog: Pick<
       IEvidenceBenchmarkQualityGrade.ICatalog,
-      "subject" | "requirementsTreeSha256"
+      "subject" | "treeAlgorithm" | "requirementsRawTreeSha256"
     >,
     phase: IEvidenceBenchmarkQualityGrade.Phase,
     bindings: IEvidenceBenchmarkQualityGrade.IBlockPlan["bindings"],
@@ -260,7 +266,8 @@ export namespace EvidenceBenchmarkGradingPlan {
     return EvidenceBenchmarkHash.object({
       subject: catalog.subject,
       phase,
-      requirementsTreeSha256: catalog.requirementsTreeSha256,
+      treeAlgorithm: catalog.treeAlgorithm,
+      requirementsRawTreeSha256: catalog.requirementsRawTreeSha256,
       bindings,
     }).slice(0, 12);
   }
