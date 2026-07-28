@@ -4,6 +4,7 @@
   "version": "0.4.3",
   "description": "Evidence-graph lint contributor for @ttsc/lint workspace.",
   "scripts": {
+    "benchmark": "pnpm --dir benchmark run benchmark",
     "build": "pnpm --filter=./packages/* -r build",
     "format": "prettier --write \"**/*.ts\" \"**/*.md\" && pnpm run format:go",
     "format:go": "gofmt -w packages/evidence/native",

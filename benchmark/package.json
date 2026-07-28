@@ -5,11 +5,13 @@
   "description": "Deterministic materialization and package preparation for the evidence benchmark.",
   "type": "module",
   "scripts": {
+    "benchmark": "node --experimental-transform-types src/executable/benchmark.ts",
     "check": "pnpm run check:source && tsc --noEmit -p tsconfig.json",
     "check:source": "node --experimental-transform-types src/executable/check-source-contract.ts",
     "test": "pnpm run test:unit && pnpm run test:package",
     "test:baseline": "node --experimental-transform-types src/executable/self-test.ts --baseline",
     "test:unit": "node --experimental-transform-types src/executable/self-test.ts",
+    "test:operations": "node --experimental-transform-types src/executable/test-operations.ts",
     "test:package": "node --experimental-transform-types src/executable/self-test.ts --package"
   },
   "devDependencies": {
