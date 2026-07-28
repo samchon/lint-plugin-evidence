@@ -253,7 +253,11 @@ model content_report_of_members {
 
 Every report then references exactly one owner, and no reader has to work out which of several nullable columns is the authoritative one.
 
-A generic target identifier with a type discriminator must preserve every target type the requirements name. When the target is single-type, it is an ordinary foreign key with no discriminator at all.
+**A row that points at several kinds of target takes the same shape**, for the same reasons plus one more. A vote, a report, or a bookmark that can attach to a post or a comment gets a discriminator on the main row and one subtype row per target kind, each carrying a real foreign key.
+
+The extra reason is that a bare `target_id` column with no foreign key behind it is unreachable from the target's side. The database cannot cascade it, cannot keep it referentially honest, and no read can reach it through a relation, so every count and every aggregate over it becomes a separate query. With subtype rows the target has an ordinary relation and those reads are ordinary selections.
+
+When the target is single-type, it is an ordinary foreign key with no discriminator at all.
 
 ## Uniqueness And Indexes
 

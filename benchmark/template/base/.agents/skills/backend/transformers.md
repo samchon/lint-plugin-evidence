@@ -76,6 +76,22 @@ tags: await ArrayUtil.asyncMap(input.articleTags, (at) =>
 
 `transform` returns every DTO property. Every field it reads is selected, and **every selected entry is consumed**. A selected relation the mapping never reads is dead over-fetch, and it costs on every row of every listing.
 
+**Close the return object with `satisfies`**, which is what turns "returns every property" from a discipline into a compile error:
+
+```ts
+export async function transform(input: Payload): Promise<IShoppingSale> {
+  return {
+    id: input.id,
+    createdAt: input.created_at.toISOString(),
+    closedAt: input.closed_at?.toISOString() ?? null,
+  } satisfies IShoppingSale;
+}
+```
+
+The return type annotation alone reports a missing property as a mismatch on the whole function, which points at the signature. The `satisfies` reports it on the object literal, which points at the line you forgot.
+
+**Reading a relation you did not select is the other half of that alignment**, and it fails as a property that does not exist on the payload type. The payload is derived from the selection, so the type is telling the truth: nothing selected it, so nothing fetched it.
+
 Null handling follows the DTO signature rather than the column. An optional property takes `input.x ?? undefined`; a nullable property takes `input.x ? ... : null`. A nullable column feeding a required property takes a fallback whose meaning is correct for that field.
 
 A string column feeding a literal-union property narrows through the DTO's own indexed access:
@@ -102,7 +118,9 @@ subscriberCount: input._count.subscriptions,
 
 Loading the collection and measuring its length scans every related row for every transformed row, which turns one page read into a table scan.
 
-**Never query inside `transform`.** A `prisma` call there runs once per row, which is the N+1 in its purest form. When the model has a relation to the source, select the minimal scalars and reduce them in the mapping.
+**Never query inside `transform`.** A `prisma` call there runs once per row, which is the N+1 in its purest form. Select the minimal scalars and reduce them in the mapping instead.
+
+That rule is absolute because the schema makes it possible to keep: every reference is a real foreign key, including the ones that point at several kinds of target, so a relation always exists to select through. When you find a value that seems to need a query here, what you have found is a missing relation, and [database.md](database.md) owns the repair.
 
 **Verify the direction before deriving.** Records an entity produced and records it received often live in similarly named relations, and choosing the wrong side yields a plausible number that is wrong.
 

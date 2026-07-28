@@ -32,6 +32,8 @@ Do not debug from memory or from a paraphrase of the error. The line that broke 
 
 **A field that "does not exist" on a create or select input** is usually a table name written where a relation property name belongs.
 
+**A property that "does not exist" on a transformer's payload** means the selection never asked for it. The payload type is derived from `select()`, so it is reporting the truth: add the field there and the mapping compiles, because now the query fetches it.
+
 **A payload type that collapsed to `never`** comes from a null inside a selection, and the errors it produces appear far from the line that caused them.
 
 **A confusing 401 on the second call** means a connection was created and never authenticated.
