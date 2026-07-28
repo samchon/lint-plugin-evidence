@@ -93,3 +93,115 @@ Orders retain their immutable destination as purchase evidence without restoring
 The purchasing customer may inspect their retained orders. Each seller may inspect only their attributed items and owned evidence, including fulfillment and request records needed for existing-order duties. A review author with a usable identity may inspect their own review evidence.
 
 Current regular and super administrators may inspect platform records under oversight authority; super-only governance data keeps its separate higher-grade rule. An unauthenticated, deleted, banned, unrelated, or insufficiently graded actor is refused, and no account-state change broadens access for anyone else.
+
+## REQ-NFR-CONCURRENCY-TIME Concurrent commerce and authoritative time
+
+Commands that compete for stock, state transitions, or one-time effects resolve against committed state rather than stale application reads. Time-dependent eligibility uses one authoritative UTC instant captured for the committing operation, so retries, scheduler work, and boundary tests agree.
+
+### REQ-NFR-CONCURRENCY-TIME-1 Serialize stock holds and inventory movements
+
+Concurrent checkout confirmations and seller inventory deductions for one variant serialize their available-stock check with the hold or movement they commit. The total of active holds and committed deductions never consumes more than the committed stock available to them, and each losing command is refused without a hold, charge, order, movement, or cart effect.
+
+Releasing, consuming, or reconciling one hold changes that hold exactly once. A stale read cannot overwrite a later movement, resurrect a released hold, or make the live inventory sum negative.
+
+### REQ-NFR-CONCURRENCY-TIME-2 Select one winner for competing item transitions
+
+Shipment creation, cancellation decision, refund decision, administrator force action, delivery confirmation, and automatic delivery each recheck the target request, item, and shipment states in the same transaction as their effects. If two commands race for an incompatible transition, at most one commits and every loser reports the resulting conflict without money, stock, request, snapshot, shipment, or status side effects.
+
+Replaying the winning command or callback returns its already-recorded terminal outcome when it has an idempotency identity. It never repeats a refund, stock restoration, shipment, decision, or delivery transition.
+
+### REQ-NFR-CONCURRENCY-TIME-3 Use one UTC instant at every time boundary
+
+Persisted business times are UTC instants. One command captures one authoritative instant and uses it for eligibility, state, snapshots, movements, and response data; client clocks and display time zones do not decide business rules.
+
+A refund request committing exactly at `delivery time + 7 days` is timely and one committing later is refused. Automatic delivery becomes due exactly at `shipping time + 14 days`, records that deadline as delivery time, and does not shift because a scheduler observes it later.
+
+### REQ-NFR-CONCURRENCY-TIME-4 Recover due work after interruption
+
+Startup and periodic scheduler passes find every shipment whose fourteen-day deadline is due and whose items remain shipped. Each pass applies the same idempotent package-wide transition, so downtime delays observation but neither changes the recorded deadline nor strands an eligible shipment.
+
+An unresolved payment attempt is reconciled with the gateway before its hold can be released or a replacement attempt can start. Process restart does not turn an unknown result into failure, lose a confirmed success, or create a second charge.
+
+## REQ-NFR-PAGINATION-ERRORS Stable traversal and refusal semantics
+
+Collection traversal remains complete under equal timestamps and concurrent writes. Refusals use a stable machine-readable contract and reveal no cross-owner resource existence; every rejected command has the no-partial-effect behavior stated by its requirement.
+
+### REQ-NFR-PAGINATION-ERRORS-1 Bind a cursor to a stable result snapshot
+
+Every paginated response orders by its documented business key followed by a stable unique identifier and returns an opaque continuation cursor. The cursor is bound to the acting authorization scope, filter, sort, page size, and an upper result watermark captured for the first page.
+
+Following that cursor reaches every row in the first-page result snapshot exactly once even when later inserts occur. A cursor reused with another actor, query, sort, or page size, or a malformed or expired cursor, is refused rather than interpreted in a broader context.
+
+### REQ-NFR-PAGINATION-ERRORS-2 Bound every collection response
+
+A paginated query defaults to `20` rows and accepts an integer page size from `1` through `100`. A zero, negative, fractional, nonnumeric, or larger value is refused, and no collection endpoint silently returns an unbounded retained history.
+
+Aggregate values such as current stock, dashboard counts, rating average, cart total, and order total use the complete authorized dataset rather than only the current page.
+
+### REQ-NFR-PAGINATION-ERRORS-3 Return stable errors without partial effects
+
+Every refusal returns a nonblank stable error `code`, a human-readable `message`, and the request correlation identifier. Authentication failure, authorization or ownership failure, invalid input, missing resource, stale state, conflicting transition, payment reconciliation, and unsupported capability have distinct codes.
+
+No refusal returns credentials, recovery values, session values, another actor's private fields, gateway secrets, or stack traces. Unless a requirement explicitly defines an idempotent already-completed outcome, a refused command commits no domain record, snapshot, movement, hold, payment initiation, cart change, session change, or scheduler effect.
+
+## REQ-NFR-SECURITY-PRIVACY Credential, boundary, and input protection
+
+Credentials and bearer capabilities receive stronger protection than ordinary profile data. Authorization is enforced at the persisted ownership query or committing transition, and untrusted text, identifiers, images, and gateway callbacks cannot escape their intended data boundary.
+
+### REQ-NFR-SECURITY-PRIVACY-1 Protect stored credentials and bearer values
+
+Passwords are stored only through a salted, deliberately slow password hash accepted for password storage; plaintext or reversibly encrypted passwords are never persisted or logged. Session, recovery, and payment-callback secrets are generated from cryptographically secure randomness, stored as nonreversible digests where later plaintext recovery is unnecessary, and compared without timing-dependent early disclosure.
+
+Application logs, errors, snapshots, analytics, and administrator views redact passwords, session tokens, recovery challenges, gateway signatures, and full payment credentials.
+
+### REQ-NFR-SECURITY-PRIVACY-2 Make recovery challenges short-lived and single-use
+
+A customer or seller recovery challenge expires fifteen minutes after issuance, is scoped to one account type and identity, and succeeds at most once. Issuing a newer challenge invalidates every older outstanding challenge for that identity.
+
+Successful recovery atomically consumes the challenge, changes the password, and revokes earlier sessions. An expired, replayed, mismatched, or already consumed challenge has the same externally safe refusal shape and changes no password or session.
+
+### REQ-NFR-SECURITY-PRIVACY-3 Limit credential guessing and account enumeration
+
+Registration, login, and recovery initiation use canonical identity comparison but do not reveal through their public message whether an email exists, which credential failed, or whether another account type uses the same email. In a rolling fifteen-minute window, the sixth failed credential or recovery proof for one normalized account identity is refused without evaluating another proof, and the fifty-first failure from one request source is refused across identities.
+
+A successful credential proof clears that identity's failure count but not the source-wide count; expiry of each recorded failure removes only that failure from its window. A deterministic test clock can advance and clear the limiter. Rate limiting creates no authenticated session and never changes the account's ban, approval, profile, order, or administrator state.
+
+### REQ-NFR-SECURITY-PRIVACY-4 Enforce ownership in the data operation
+
+Reads and writes that target customer, seller, product, cart, order, shipment, request, review, snapshot, or administrator records include the acting ownership or grade boundary in the persisted lookup or committing predicate. Fetching a record and checking ownership only after a mutable gap is insufficient.
+
+An unrelated actor cannot infer a private target's existence from response fields or gain it through identifier substitution, pagination cursor reuse, batch selection, nested identifiers, or a concurrent owner-state change.
+
+### REQ-NFR-SECURITY-PRIVACY-5 Validate text, identifiers, uploads, and callbacks at trust boundaries
+
+Structured input rejects unknown capability-bearing fields, malformed identifiers, nonfinite numbers, executable markup where plain text is required, and values outside the explicit requirement ranges. User-provided text is rendered as text rather than executable HTML or script.
+
+Image upload accepts only the configured image media types after content inspection, assigns a platform-controlled name, and enforces a ten-megabyte per-file limit. Gateway callbacks verify the configured signature over the unmodified payload before reconciliation; an invalid signature changes no payment, hold, order, stock, or cart state.
+
+## REQ-NFR-ACCESSIBILITY-PERFORMANCE Usable and bounded customer experience
+
+The customer, seller, and administrator journeys remain operable without a pointing device and do not hide correctness behind an unbounded response. Performance is measured against a repeatable local reference profile rather than an unspecified production promise.
+
+### REQ-NFR-ACCESSIBILITY-PERFORMANCE-1 Support keyboard and focus operation
+
+Every interactive control in registration, login, catalog discovery, cart, checkout, order tracking, request, seller fulfillment, and administrator moderation is reachable and operable by keyboard alone in a logical order. Focus is visible, dialogs trap and restore focus, and a route or validation transition moves focus to the new heading or first invalid field.
+
+No essential action depends only on hover, pointer precision, drag, color, or an unannounced timed change.
+
+### REQ-NFR-ACCESSIBILITY-PERFORMANCE-2 Expose names, state, and errors accessibly
+
+Forms associate visible labels, instructions, required state, and validation errors with their controls. Images have meaningful alternatives or explicit decorative treatment; tables identify headers; status, availability, price, rating, tracking, and request changes are available to assistive technology.
+
+Core workflow pages pass automated WCAG 2.2 AA checks with no serious or critical violation, retain readable content at 200 percent zoom, and meet AA text and control contrast. Automated checks supplement rather than replace keyboard and focus assertions.
+
+### REQ-NFR-ACCESSIBILITY-PERFORMANCE-3 Meet the reference query budget
+
+With a warm single application instance and benchmark database containing at least 10,000 live products, 50,000 retained order items, and 100,000 combined inventory, snapshot, request, and review records, each documented 20-row paginated list and detail query completes at or below `750 ms` at the 95th percentile over 100 sequential measurements after 10 warm-up measurements on the benchmark host.
+
+The measurement records host, runtime, database, seed, query, filters, warm-up count, all sample durations, and percentile method. A smaller dataset, omitted authorization, omitted aggregate, cache-only stub, or response with fewer required fields does not satisfy the budget.
+
+### REQ-NFR-ACCESSIBILITY-PERFORMANCE-4 Keep command latency bounded separately from gateways
+
+Excluding time spent waiting on the external payment or refund gateway, authenticated commands that do not upload an image complete at or below `1,000 ms` at the 95th percentile under the same reference profile and sample procedure. Gateway time and application time are recorded separately.
+
+Meeting a latency budget never permits a skipped ownership check, stale checkout validation, weakened transaction, incomplete snapshot, partial response, or reduced test assertion.
