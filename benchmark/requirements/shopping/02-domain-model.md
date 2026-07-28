@@ -315,7 +315,7 @@ A later positive inventory movement can return the variant to availability if th
 
 ### REQ-VARIANT-LIFECYCLE-3 Retire a deletable variant
 
-The owning seller may delete a variant only when it has no order item in `paid` or `shipped` status and no pending cancellation or refund request. Otherwise, deletion is refused.
+The owning seller may delete a variant only when no unresolved payment attempt holds its stock, it has no order item in `paid` or `shipped` status, and it has no pending cancellation or refund request. An explicit payment failure whose hold was released is not a blocker. Eligibility is rechecked when deletion commits; otherwise, deletion is refused.
 
 Successful deletion removes the live variant and all of its inventory-history records. It cannot be selected or newly added to a cart, and an existing cart reference becomes unavailable. If this was the product's last variant, the product remains discoverable but is shown unavailable.
 
@@ -486,9 +486,9 @@ A later live price change is reflected when the cart is viewed; successful order
 
 ### REQ-CART-DOMAIN-4 Calculate the cart total
 
-The displayed cart total is the sum of every current line subtotal, including unavailable lines so the full saved cart remains understandable. Removing a line removes its subtotal.
+The displayed gross cart total is the sum of every current line subtotal, including unavailable lines so the full saved cart remains understandable. Removing a line removes its subtotal.
 
-This total is informative. Checkout separately recalculates the payable total from eligible lines and the prices being confirmed.
+Selected coupons produce a separate informative discount preview and net payable preview. Checkout separately recalculates gross, per-coupon allocations, total discount, and net charge from eligible lines and the facts being confirmed.
 
 ### REQ-CART-DOMAIN-5 Expose cart availability problems
 
@@ -508,10 +508,12 @@ Each order records:
 
 - a system-generated, globally unique and immutable `order number`;
 - the `purchase time` at which payment success creates it;
-- `total price`, equal to the sum of fixed item unit price multiplied by item quantity; and
+- `gross total`, equal to the sum of fixed item unit price multiplied by item quantity;
+- `discount total`, equal to the sum of preserved coupon allocations;
+- `net charge`, equal to gross total minus discount total; and
 - an immutable shipping-address copy containing recipient name, phone, street address, city, state or province, postal code, and country.
 
-The order number and copied destination cannot be changed later.
+The order number, amount components, coupon evidence, and copied destination cannot be changed later.
 
 ### REQ-ORDER-DOMAIN-2 Relate an order to its customer and items
 
@@ -565,19 +567,19 @@ The delivery time is the confirmation time or the automatic transition time. Cus
 
 Seller approval of a pending cancellation changes its `paid` item to `cancelled`. An administrator may force-cancel an item in `paid` or `shipped`, but not one already `delivered`, `cancelled`, or `refunded`.
 
-Cancellation refunds that item and posts a positive cancellation-restoration movement for its quantity. Other items are unchanged. If a shipped item is force-cancelled, its shipment and tracking remain historical evidence.
+Cancellation returns that item's preserved net refundable amount and posts a positive cancellation-restoration movement for its quantity. Gross price and coupon allocations remain historical evidence. Other items are unchanged. If a shipped item is force-cancelled, its shipment and tracking remain historical evidence.
 
 ### REQ-ORDER-ITEM-LIFECYCLE-5 Transition an item to refunded
 
 Seller approval of a pending refund changes its `delivered` item to `refunded`. An administrator may force-refund an item in `paid`, `shipped`, or `delivered`, but not one already `cancelled` or `refunded`.
 
-Refunding returns that item's payment and posts a positive refund-restoration movement for its quantity. Other items remain unchanged, and any shipment or delivery evidence remains linked as history.
+Refunding returns that item's preserved net refundable amount and posts a positive refund-restoration movement for its quantity. Gross price and coupon allocations remain historical evidence. Other items remain unchanged, and any shipment or delivery evidence remains linked as history.
 
 ### REQ-ORDER-ITEM-LIFECYCLE-6 Preserve item facts across status changes
 
-Items in `paid`, `shipped`, `delivered`, `cancelled`, and `refunded` retain the same purchased quantity, fixed unit price, and product, variant, and seller-profile snapshots.
+Items in `paid`, `shipped`, `delivered`, `cancelled`, and `refunded` retain the same purchased quantity, fixed gross unit price, coupon allocations, net refundable amount, and product, variant, and seller-profile snapshots.
 
-Stock restoration does not change the item quantity or price. Live catalog and shop changes cannot rewrite the item, and shipment or request history remains linked after a final status.
+Stock restoration does not change the item quantity, gross price, discount, or net amount. Live catalog, coupon, and shop changes cannot rewrite the item, and shipment or request history remains linked after a final status.
 
 ## REQ-ORDER-LIFECYCLE Derived order states
 
@@ -678,7 +680,7 @@ Only one cancellation request may be pending for an item. A duplicate pending re
 
 The target item's seller may approve its `pending` request only while the item remains `paid`. The request becomes `approved`, the item becomes `cancelled`, and a decision snapshot records the transition.
 
-The customer is refunded for that item, and a positive cancellation-restoration movement returns its quantity to stock. Other items continue unchanged. A different seller, non-pending request, or no-longer-paid item is refused.
+The customer receives that item's preserved net refundable amount, and a positive cancellation-restoration movement returns its quantity to stock. Gross price and coupon allocations stay preserved. Other items continue unchanged. A different seller, non-pending request, or no-longer-paid item is refused.
 
 ### REQ-CANCELLATION-DOMAIN-3 Reject a cancellation request
 
@@ -714,7 +716,7 @@ Only one refund request may be pending for an item. A duplicate pending request 
 
 The target item's seller may approve its `pending` request only while the item remains `delivered`. The request becomes `approved`, the item becomes `refunded`, and a decision snapshot records the transition.
 
-The customer is refunded for that item and a positive refund-restoration movement returns its quantity to stock. Other items remain unaffected. A different seller, non-pending request, or no-longer-delivered item is refused.
+The customer receives that item's preserved net refundable amount and a positive refund-restoration movement returns its quantity to stock. Gross price and coupon allocations stay preserved. Other items remain unaffected. A different seller, non-pending request, or no-longer-delivered item is refused.
 
 ### REQ-REFUND-DOMAIN-3 Reject a refund request
 
@@ -829,3 +831,169 @@ The applicant remains the same customer or seller and can view the result. A lat
 Every request retains its applicant identity, applicant reason, status, and creation time. An approved or rejected request also retains its decision time and deciding super administrator; those decision fields are absent while pending.
 
 A later application does not overwrite an earlier rejection. Super administrators can view pending requests, and retained decisions remain available to authorized administrators as governance history.
+
+## REQ-MONEY-DISCOUNT-DOMAIN Money and discount values
+
+Every commercial amount uses one configured platform currency and its integer minor unit. Coupons reduce merchandise amounts within that currency; they do not create a second tender, negative line, or hidden adjustment.
+
+### REQ-MONEY-DISCOUNT-DOMAIN-1 Represent money in integer minor units
+
+Product base price, variant price override, cart subtotal, coupon minimum, fixed discount, discount cap, order amount, allocated discount, charge, cancellation return, and refund return are nonnegative integer minor-unit values in the one configured platform currency.
+
+No commercial calculation uses binary floating-point money. Display conversion and currency symbols do not change stored minor-unit values.
+
+### REQ-MONEY-DISCOUNT-DOMAIN-2 Define fixed-amount coupons
+
+A fixed coupon has one positive integer minor-unit discount value. Its realized discount is limited to the eligible remaining merchandise amount at its application step.
+
+The fixed value is not multiplied by item count or seller count. One coupon application contributes at most that one fixed value across all lines eligible for it.
+
+### REQ-MONEY-DISCOUNT-DOMAIN-3 Define percentage coupons
+
+A percentage coupon has an integer rate from `1` through `10000` basis points. Its pre-cap discount is the floor of eligible remaining merchandise amount multiplied by the rate and divided by `10000`.
+
+An optional positive minor-unit cap limits that result. An absent cap imposes no limit other than the eligible remaining merchandise amount.
+
+### REQ-MONEY-DISCOUNT-DOMAIN-4 Preserve gross, discount, and net amounts
+
+Every checkout and order distinguishes gross merchandise amount, total allocated coupon discount, and net payable amount. Net equals gross minus discount and is never negative.
+
+The gateway charge equals net. Later cancellation or refund returns the target item's preserved net amount rather than its gross amount or a newly recalculated coupon value.
+
+## REQ-COUPON-DOMAIN Coupon definition and eligibility model
+
+A coupon is a durable discount policy with an immutable code identity, authority layer, terms, targets, audience, validity window, quotas, and stacking mode. Mutable drafts become immutable commercial terms at publication; later operational state changes do not rewrite them.
+
+### REQ-COUPON-DOMAIN-1 Define coupon identity and presentation
+
+Each coupon has an opaque immutable identifier, a required public code, a customer-facing name and description, creation time, authority layer, and owner. Code canonicalization trims surrounding whitespace and compares Unicode-normalized uppercase text.
+
+The canonical code identity is globally unique and is never reused after retirement. Orders retain the code and identifier that were applied.
+
+### REQ-COUPON-DOMAIN-2 Distinguish seller and platform ownership
+
+A seller coupon has authority layer `seller` and exactly one seller owner. A platform coupon has authority layer `platform` and no seller owner.
+
+Authority layer and owner cannot change after creation. Seller closure retires that seller's coupons without transferring them to the platform.
+
+### REQ-COUPON-DOMAIN-3 Define subject eligibility
+
+A coupon selects eligible merchandise through the intersection of its authority boundary and optional target sets. Target sets may name sellers, products, or categories; an empty set for every supported target dimension means every item allowed by the authority boundary.
+
+A seller coupon can target only its owner's items. A platform coupon may target items across sellers. Product and category eligibility use current live catalog relationships when checkout confirmation commits.
+
+### REQ-COUPON-DOMAIN-4 Define customer eligibility
+
+A coupon audience is either every authenticated customer or an explicit nonempty set of customer identities. An allowlisted coupon is eligible only for a listed active customer.
+
+Audience membership is private coupon policy. A retained redemption keeps customer attribution for authorized audit after later customer deletion without making the allowlist public.
+
+### REQ-COUPON-DOMAIN-5 Define the validity window
+
+Every coupon has a required start UTC instant and end UTC instant with start earlier than end. The coupon is time-eligible at instants greater than or equal to start and strictly earlier than end.
+
+The same authoritative checkout commit instant evaluates every selected coupon. Display time zones never change validity.
+
+### REQ-COUPON-DOMAIN-6 Define minimum and usage quotas
+
+A coupon has a nonnegative minimum eligible merchandise subtotal, a positive per-customer redemption limit, and a positive total redemption limit. The per-customer limit cannot exceed the total limit.
+
+Eligibility compares the coupon's minimum against only the gross subtotal of lines eligible for that coupon before that coupon's own discount. Reservations count against both limits until consumed or released.
+
+### REQ-COUPON-DOMAIN-7 Define stacking mode and layer
+
+Each coupon has stacking mode `stackable` or `exclusive`. An exclusive coupon must be the only coupon in the checkout.
+
+A stackable checkout may contain at most one seller coupon for each participating seller and at most one platform coupon. Seller coupons form the seller layer and the platform coupon forms the platform layer.
+
+### REQ-COUPON-DOMAIN-8 Preserve coupon revisions
+
+Every coupon definition mutation before publication creates an immutable before-and-after revision identifying actor, time, and changed terms. Publication captures one immutable terms revision used by every later reservation and redemption.
+
+Pause, resume, exhaustion, expiry, retirement, and moderation create operational history without changing published terms. Prior orders and redemptions always cite the published terms revision they used.
+
+### REQ-COUPON-DOMAIN-9 Anchor per-customer quota across account recreation
+
+Each customer has a nonpublic coupon-quota lineage keyed by a platform-secret equality token derived from the normalized verified email. Reservations and redemptions count per coupon against that lineage, not only the replaceable live customer identifier.
+
+Customer deletion removes the live email and profile but retains the token and coupon counts. Re-registration with the same normalized verified email resumes those counts without receiving the former identity, orders, allowlist membership, coupon selections, reservations, redemption details, or authentication authority. The token is never accepted as a credential or returned in a response.
+
+## REQ-COUPON-LIFECYCLE Coupon publication and retirement states
+
+Coupon definition moves from editable preparation to immutable commerce. Scheduled time, operational enablement, quota, and retirement determine whether published terms can accept a new reservation.
+
+### REQ-COUPON-LIFECYCLE-1 Begin as an editable draft
+
+Creation produces a `draft` coupon that cannot be discovered, reserved, applied, or redeemed. Its authorized owner may edit code, presentation, discount, target, audience, validity, quota, and stacking terms.
+
+A draft may be retired before publication. Retirement preserves its identity as a terminal record, and the canonical code cannot be assigned to another coupon.
+
+### REQ-COUPON-LIFECYCLE-2 Publish immutable terms
+
+Publishing validates the complete definition and records its immutable published terms revision. A future start produces `scheduled`; a start already reached with remaining quota produces `active`.
+
+After publication, commercial terms cannot be edited. Correction requires retirement and a new coupon with a new canonical code.
+
+### REQ-COUPON-LIFECYCLE-3 Pause and resume a published coupon
+
+An authorized owner may pause a scheduled or active coupon. Pausing prevents new discovery and reservation but does not invalidate an existing payment-attempt reservation or rewrite a completed redemption.
+
+Resume returns the coupon to scheduled or active only when it is not retired, its end has not passed, and quota remains. Resume never extends its validity window or restores quota.
+
+### REQ-COUPON-LIFECYCLE-4 Derive exhaustion and expiry
+
+A published coupon is `exhausted` when consumed redemptions plus active reservations reach its total limit for new attempts. It is customer-exhausted for a customer when that customer's consumed redemptions plus reservations reach the per-customer limit.
+
+A coupon is `expired` at or after its end instant. Released reservations can restore availability before expiry, but neither release nor cancellation after redemption can move an expired coupon back to active.
+
+### REQ-COUPON-LIFECYCLE-5 Retire a coupon permanently
+
+An authorized owner or administrator moderator may retire a draft, scheduled, active, paused, exhausted, or expired coupon. Retirement prevents every new discovery, reservation, and redemption and cannot be reversed.
+
+Existing payment reservations continue to reconciliation under the terms they captured. Completed orders, allocations, revisions, reservations, and redemption history remain.
+
+### REQ-COUPON-LIFECYCLE-6 Retire seller coupons with their owner
+
+Seller-account deletion retires every coupon owned by that seller in the same closure. The retirement creates no new discount, refund, or quota restoration.
+
+Closure is refused while a payment attempt still holds seller-owned stock or coupon quota, so no held attempt can outlive ordinary seller deletion. Completed order allocations remain attributable to the deleted seller identity. A deleted seller cannot inspect them, while relevant customers and administrators retain their authorized history.
+
+## REQ-COUPON-REDEMPTION-DOMAIN Coupon selection, reservation, and order evidence
+
+A cart selection is a request to use a code, not a quota claim. Checkout review computes a deterministic preview; confirmation reserves quota with stock; successful payment consumes both reservations and preserves the exact allocation on the order.
+
+### REQ-COUPON-REDEMPTION-DOMAIN-1 Keep cart coupon selection nonreserving
+
+The customer may select coupon codes for the current cart. Selection stores no discount money, consumes no quota, and grants no right to future terms or availability.
+
+Cart view re-evaluates selected coupons against current customer, item, time, subtotal, operational state, and quota facts. An ineligible selection remains explainable but cannot enter a payable review.
+
+### REQ-COUPON-REDEMPTION-DOMAIN-2 Preview one deterministic discount allocation
+
+Checkout review records selected coupon identifiers and published revisions, eligible line set, gross line amounts, each coupon's realized discount, per-line allocation, and final net amount.
+
+The same facts always produce the same preview. A material coupon, customer, cart, catalog, price, time, or quota change invalidates it before charge.
+
+### REQ-COUPON-REDEMPTION-DOMAIN-3 Reserve quota with the payment attempt
+
+Payment initiation creates one reservation per selected coupon under the same payment-attempt identifier as the stock holds. Each reservation claims one total use and one use for the acting customer's coupon-quota lineage.
+
+Reservation and limit checks serialize for each coupon and customer. A payment attempt acquires every selected coupon reservation and stock hold or acquires none.
+
+### REQ-COUPON-REDEMPTION-DOMAIN-4 Consume or release reservations exactly once
+
+Confirmed payment success consumes every coupon reservation exactly once and creates one redemption per selected coupon. Explicit payment failure releases every coupon reservation exactly once.
+
+An unknown payment result keeps reservations until reconciliation. Retry, callback replay, process restart, pause, expiry, or retirement never duplicates consumption or release.
+
+### REQ-COUPON-REDEMPTION-DOMAIN-5 Preserve order-level and item-level discount evidence
+
+The order preserves gross total, discount total, net charge, selected coupon identities, codes, authority layers, published terms revisions, and realized coupon amounts. Each order item preserves gross subtotal, each coupon allocation, total item discount, and net refundable amount.
+
+Later coupon, seller, product, category, customer, or account changes cannot rewrite that evidence. Allocation totals reconcile exactly to each coupon discount and the order discount.
+
+### REQ-COUPON-REDEMPTION-DOMAIN-6 Preserve redemption history and privacy
+
+Each redemption links one coupon, customer, order, payment attempt, consumed reservation, redemption time, published terms revision, realized discount, and item allocations.
+
+The customer sees only redemptions on owned orders. A seller sees seller-coupon redemptions and allocations only for that seller's items. Administrators see platform-wide redemption evidence; unrelated customers and sellers cannot inspect allowlists, quotas, reservations, or redemptions.
