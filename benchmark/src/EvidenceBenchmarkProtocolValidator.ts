@@ -61,17 +61,7 @@ export namespace EvidenceBenchmarkProtocolValidator {
 
   /** Fatally decodes exact UTF-8 bytes before strict JSON parsing. */
   export function parseBytes(bytes: Uint8Array, label: string): unknown {
-    let text: string;
-    try {
-      text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    } catch (error) {
-      throw new SyntaxError(
-        `${label} is not UTF-8: ${
-          error instanceof Error ? error.message : String(error)
-        }.`,
-      );
-    }
-    return parse(text, label);
+    return parse(decodeUtf8(bytes, label), label);
   }
 
   /** Parses and validates exact artifact text against one protocol schema. */
@@ -219,16 +209,16 @@ export namespace EvidenceBenchmarkProtocolValidator {
     const root: string = path.resolve(protocolRoot);
     const artifactPath: string = path.join(root, "cost-predictions.json");
     const artifactBytes: Buffer = fs.readFileSync(artifactPath);
-    const value = validateText<Record<string, unknown>>(
+    const value = validateBytes<Record<string, unknown>>(
       root,
       "cost-predictions.schema.json",
-      artifactBytes.toString("utf8"),
+      artifactBytes,
       artifactPath,
     );
     validateCostPredictionsValue(root, value);
     const pinsPath: string = path.join(root, "pins.json");
     const pins = record(
-      parse(fs.readFileSync(pinsPath, "utf8"), pinsPath),
+      parseBytes(fs.readFileSync(pinsPath), pinsPath),
       "protocol pins",
     );
     const pin = record(pins.costPredictions, "cost prediction pin");
@@ -255,13 +245,11 @@ export namespace EvidenceBenchmarkProtocolValidator {
    * Proves that the null-by-default safety pins are complete by subject and
    * wave and that every populated wave is internally authorized.
    */
-  export function preflightSafetyAuthorizationPins(
-    protocolRoot: string,
-  ): void {
+  export function preflightSafetyAuthorizationPins(protocolRoot: string): void {
     const root: string = path.resolve(protocolRoot);
     const pinsPath: string = path.join(root, "pins.json");
     const pins = record(
-      parse(fs.readFileSync(pinsPath, "utf8"), pinsPath),
+      parseBytes(fs.readFileSync(pinsPath), pinsPath),
       "protocol pins",
     );
     validateSafetyAuthorizationValue(root, pins.safetyAuthorization);
@@ -322,10 +310,7 @@ export namespace EvidenceBenchmarkProtocolValidator {
           );
         continue;
       }
-      const leftTokens: number = integer(
-        tokens[left],
-        `${left} token limit`,
-      );
+      const leftTokens: number = integer(tokens[left], `${left} token limit`);
       const rightTokens: number = integer(
         tokens[right],
         `${right} token limit`,
@@ -349,10 +334,7 @@ export namespace EvidenceBenchmarkProtocolValidator {
           `Safety authorization ${wave} block wall limit exceeds the four-cell wall-duration sum.`,
         );
     }
-    if (
-      selectedWave !== null &&
-      !waves.some(([wave]) => wave === selectedWave)
-    )
+    if (selectedWave !== null && !waves.some(([wave]) => wave === selectedWave))
       throw new Error(`Safety authorization wave is unknown: ${selectedWave}.`);
   }
 
@@ -364,7 +346,7 @@ export namespace EvidenceBenchmarkProtocolValidator {
     const root: string = path.resolve(protocolRoot);
     const pinsPath: string = path.join(root, "pins.json");
     const pins = record(
-      parse(fs.readFileSync(pinsPath, "utf8"), pinsPath),
+      parseBytes(fs.readFileSync(pinsPath), pinsPath),
       "protocol pins",
     );
     validateProtocolIdentityValue(
@@ -399,6 +381,27 @@ export namespace EvidenceBenchmarkProtocolValidator {
       !Object.hasOwn(runtime, "sealedProtocolRawTreeSha256")
     )
       throw new Error("Runtime sealed protocol raw-tree contract drifted.");
+    const reviewedCommit: unknown = formal.reviewedMergedCommit;
+    const runtimeCommit: unknown = runtime.mergedSourceCommit;
+    const commitPattern: RegExp = /^[a-f0-9]{40}$/u;
+    if (
+      reviewedCommit !== null &&
+      (typeof reviewedCommit !== "string" ||
+        !commitPattern.test(reviewedCommit))
+    )
+      throw new Error("Formal reviewed merged commit is invalid.");
+    if (
+      runtimeCommit !== null &&
+      (typeof runtimeCommit !== "string" || !commitPattern.test(runtimeCommit))
+    )
+      throw new Error("Runtime merged source commit is invalid.");
+    if (
+      (reviewedCommit === null) !== (runtimeCommit === null) ||
+      reviewedCommit !== runtimeCommit
+    )
+      throw new Error(
+        "Formal reviewed merged commit disagrees with the runtime merged source commit.",
+      );
   }
 
   /** Verifies a runtime-sealed protocol raw-tree digest after sealing. */
@@ -433,7 +436,7 @@ export namespace EvidenceBenchmarkProtocolValidator {
     if (plan.costPredictionsSha256 !== artifactSha256)
       throw new Error("Block plan cost-predictions artifact digest drifted.");
     const artifact = record(
-      parse(artifactBytes.toString("utf8"), artifactPath),
+      parseBytes(artifactBytes, artifactPath),
       "cost predictions",
     );
     validateCostPredictionsValue(root, artifact);
@@ -463,8 +466,7 @@ export namespace EvidenceBenchmarkProtocolValidator {
         );
       if (
         prediction.wallClockUnit !== "hours" ||
-        prediction.providerTokensUnit !==
-          "millions-of-provider-total-tokens"
+        prediction.providerTokensUnit !== "millions-of-provider-total-tokens"
       )
         throw new Error(
           `Block plan prediction units drifted for ${subject}/${arm}.`,
@@ -507,7 +509,9 @@ export namespace EvidenceBenchmarkProtocolValidator {
           `Cost prediction source order drifted at ${source.path}.`,
         );
       if (sources.has(source.path))
-        throw new Error(`Cost prediction source is duplicated: ${source.path}.`);
+        throw new Error(
+          `Cost prediction source is duplicated: ${source.path}.`,
+        );
       sources.set(source.path, source);
     }
     const activeLeaf = costPredictionSource(
@@ -607,10 +611,7 @@ export namespace EvidenceBenchmarkProtocolValidator {
         throw new Error(
           `Cost prediction row is not tracked by both Markdown tables: ${subject}/${arm}.`,
         );
-      const milestones = record(
-        row.milestones,
-        `${subject}/${arm} milestones`,
-      );
+      const milestones = record(row.milestones, `${subject}/${arm} milestones`);
       compareMilestone(
         milestones.t_done,
         expectedWall.tDone,
@@ -672,14 +673,9 @@ export namespace EvidenceBenchmarkProtocolValidator {
     const file: string = resolveProtocolPath(root, relative);
     const bytes: Buffer = fs.readFileSync(file);
     const expectedBytes: number = integer(source.bytes, `${label} bytes`);
-    const expectedSha256: string = nonblank(
-      source.sha256,
-      `${label} SHA-256`,
-    );
-    if (
-      bytes.byteLength !== expectedBytes ||
-      sha256(bytes) !== expectedSha256
-    )
+    const expectedSha256: string = nonblank(source.sha256, `${label} SHA-256`);
+    const text: string = decodeUtf8(bytes, file);
+    if (bytes.byteLength !== expectedBytes || sha256(bytes) !== expectedSha256)
       throw new Error(`${label} source byte pin drifted: ${relative}.`);
     return {
       order: requireOrder ? integer(source.order, `${label} order`) : null,
@@ -687,7 +683,7 @@ export namespace EvidenceBenchmarkProtocolValidator {
       bytes: expectedBytes,
       sha256: expectedSha256,
       reviewId: integer(source.reviewId, `${label} review id`),
-      text: bytes.toString("utf8"),
+      text,
     };
   }
 
@@ -720,7 +716,9 @@ export namespace EvidenceBenchmarkProtocolValidator {
     if (source === undefined)
       throw new Error(`${label} names an untracked source: ${relative}.`);
     if (source.sha256 !== digest)
-      throw new Error(`${label} source digest disagrees with the source chain.`);
+      throw new Error(
+        `${label} source digest disagrees with the source chain.`,
+      );
     return source;
   }
 
@@ -732,7 +730,9 @@ export namespace EvidenceBenchmarkProtocolValidator {
     const lines: string[] = markdown.split(/\r?\n/u);
     const headingIndex: number = lines.indexOf(heading);
     if (headingIndex < 0)
-      throw new Error(`Cost prediction Markdown heading is absent: ${heading}.`);
+      throw new Error(
+        `Cost prediction Markdown heading is absent: ${heading}.`,
+      );
     if (lines.lastIndexOf(heading) !== headingIndex)
       throw new Error(
         `Cost prediction Markdown heading is duplicated: ${heading}.`,
@@ -783,9 +783,7 @@ export namespace EvidenceBenchmarkProtocolValidator {
     hours: boolean,
     label: string,
   ): IQuantilePair {
-    const normalized: string = hours
-      ? input.replace(/\s+h$/u, "")
-      : input;
+    const normalized: string = hours ? input.replace(/\s+h$/u, "") : input;
     const values: number[] = normalized.split("/").map((part) => {
       const token: string = part.trim().replaceAll(",", "");
       if (!/^[0-9]+$/u.test(token))
@@ -1188,6 +1186,18 @@ export namespace EvidenceBenchmarkProtocolValidator {
 
   function sha256(bytes: Uint8Array): string {
     return crypto.createHash("sha256").update(bytes).digest("hex");
+  }
+
+  function decodeUtf8(bytes: Uint8Array, label: string): string {
+    try {
+      return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch (error) {
+      throw new SyntaxError(
+        `${label} is not UTF-8: ${
+          error instanceof Error ? error.message : String(error)
+        }.`,
+      );
+    }
   }
 
   function isRecord(value: unknown): value is Record<string, unknown> {

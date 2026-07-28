@@ -21,6 +21,12 @@
       "expectedPattern": "legacy protocol digest"
     },
     {
+      "id": "reviewed-commit-mismatch",
+      "formalCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "runtimeCommit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "expectedPattern": "reviewed merged commit disagrees"
+    },
+    {
       "id": "sealed-tree-mutation",
       "sealedTree": {
         "algorithmId": "sha256-posix-path-nul-bytes-v1",

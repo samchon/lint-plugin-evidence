@@ -72,10 +72,52 @@
           "const": "conditional-on-reaching-milestone"
         },
         "wallClock": {
-          "$ref": "#/$defs/tableSelection"
+          "allOf": [
+            {
+              "$ref": "#/$defs/tableSelection"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "sourcePath": {
+                  "const": "predictions/current-freeze-standard-tier.md"
+                },
+                "sourceSha256": {
+                  "const": "963a3f8dfc6c91680384b3d0d38779a7c596504c77fca14830580f8d79f71fda"
+                },
+                "sectionHeading": {
+                  "const": "## Revised Standard wall-clock prior"
+                },
+                "unit": {
+                  "const": "hours"
+                }
+              }
+            }
+          ]
         },
         "providerTokens": {
-          "$ref": "#/$defs/tableSelection"
+          "allOf": [
+            {
+              "$ref": "#/$defs/tableSelection"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "sourcePath": {
+                  "const": "predictions/current-freeze-all-subjects.md"
+                },
+                "sourceSha256": {
+                  "const": "371ed9d85a0d305a36c4d88bd4727af35ddf1f41d045b0491401c2b1a61a15f0"
+                },
+                "sectionHeading": {
+                  "const": "## Provider-token total prior"
+                },
+                "unit": {
+                  "const": "millions-of-provider-total-tokens"
+                }
+              }
+            }
+          ]
         },
         "monetary": {
           "type": "object",
