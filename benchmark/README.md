@@ -4,6 +4,52 @@ This benchmark generates the same full-stack application with and without `@samc
 
 The benchmark is expensive and the current protocol intentionally blocks paid launch while required pins remain null. Read `.agents/skills/benchmark/SKILL.md` and `protocol/README.md` before operating it.
 
+## Current readiness
+
+The tracked protocol is not yet authorized for a paid run. `protocol/pins.json` is the authoritative repository-static gate; `launchGate.blocked` is currently `true`, the subject-specific token and wall limits are unresolved, and the production runner, grading, promotion, and reporting vertical fixtures are not yet pinned green. `prepare` must fail closed in this state. Do not edit a pin, bypass the preflight, or invoke Codex directly to make progress.
+
+Everything through the free validation section below is safe to run without model usage. A paid `start` becomes valid only after the exact benchmark implementation is merged, every repository and benchmark suite passes at that merged SHA, the selected wave's numeric safety pins are non-null, the formal issue-ledger checkpoints name that revision, `prepare` completes its zero-model live quota preflight, and the resulting four-cell plan validates without modification.
+
+## Operator prerequisites
+
+Operate from the repository root on the platform pinned by `protocol/pins.json`. The current protocol pins Windows x64, Codex `0.145.0`, signed-in ChatGPT authentication, `gpt-5.6-terra`, high reasoning effort, Standard speed, workspace-write sandboxing, and approval policy `never`.
+
+The host needs Git, Node.js with Corepack, and enough disk for four independent full-stack workspaces, installed dependency trees, logs, snapshots, and retained results. The repository itself uses pnpm `10.6.4`; setup inside the harness and generated projects is launched through the separately pinned pnpm `10.10.0` wrapper in `src/EvidenceBenchmarkProcess.ts`. Do not replace either version with a machine-global package-manager default.
+
+Install the repository without changing the lockfile:
+
+```powershell
+corepack enable
+pnpm --version
+pnpm install --frozen-lockfile
+```
+
+The version command must print `10.6.4`, matching the root `packageManager` field. The operator must also have a valid signed-in ChatGPT session available to the pinned Codex binary. API-key authentication, API billing, Fast mode, Priority processing, model fallback, or a different Codex binary defines a different experiment and is rejected by launch admission.
+
+## Free validation
+
+Run the complete free gate before preparing a plan:
+
+```powershell
+pnpm build
+pnpm test:go
+pnpm test:features
+pnpm --dir benchmark check
+pnpm --dir benchmark test
+git diff --check
+pnpm exec prettier --check benchmark/README.md
+```
+
+`benchmark check` validates the source contract and type-checks the harness. `benchmark test` runs deterministic unit, package, operation, runner, grading, reporting, and promotion fixtures exposed by the integrated package scripts; it must make no model call. The exact script set is the authority—do not treat the absence of a named vertical fixture from the installed revision as a pass.
+
+Confirm the static gate without rewriting the protocol:
+
+```powershell
+node -e "const p=require('./benchmark/protocol/pins.json'); console.log(JSON.stringify(p.launchGate,null,2)); if(p.launchGate.blocked) process.exitCode=2"
+```
+
+An exit code of `2` means launch is deliberately blocked. It is not a request to edit `pins.json`.
+
 ## What belongs here
 
 ```text
@@ -14,15 +60,18 @@ benchmark/
   prompts/                      frozen arm-neutral user, goal, challenge, and campaign prompts
   protocol/                     frozen procedure, schemas, pins, price sheet, and priors
   src/                          materializer and Codex runner
-  fixtures/                     deterministic runner and materializer fixtures
-  .work/<run-id>/               temporary live workspace; never a canonical result
+  plans/<block-id>.json         prepared immutable four-cell operation plan
+  .work/<block-id>/cells/<run-id>/
+                                temporary live cell, operation journal, and workspace
   result/<subject>/<arm>/
     latest.json                 pointer to the latest retained completed run
     workspace/                  reproducible t_dry project snapshot for the latest run
     runs/<run-id>/              immutable run core plus append-only postprocess grades and report
 ```
 
-`benchmark/.work/` is transient and ignored. `benchmark/result/` is retained because each latest workspace is also the future demo-repository source. Updating `latest.json` and `workspace/` never deletes prior run records.
+Protocol fixtures live under `protocol/fixtures/`; executable test code lives under `src/`. `benchmark/plans/` and `benchmark/.work/` are operation state, not measured output. A plan is written once and copied into each cell as `operation-plan.json`; do not edit either copy after preparation.
+
+`benchmark/.work/` is transient and ignored, but it is not disposable while a cell is live or its terminal result has not been durably published. `benchmark/result/` is retained because each latest workspace is also the future demo-repository source. Updating `latest.json` and `workspace/` never deletes prior run records.
 
 Every terminal attempt is retained immediately under `runs/<run-id>/`, including failed, interrupted, and safety-limited rows. The runner seals an immutable canonical core containing the manifest, raw streams, event chain, usage, gates, snapshots, campaign, terminal state, and core digest. Later `grade` and `report` commands may only append content-addressed artifacts under the postprocess area; they bind the core seal and cannot rewrite core bytes or an existing postprocess byte.
 
@@ -59,19 +108,51 @@ Do not run an arm-specific evidence lint or native compile as a pre-`t0` baselin
 
 ## Required CLI contract
 
-Packaging must expose the following commands before the first paid run. They are the operator contract for the materializer and runner; if any command is absent, launch remains blocked.
+The integrated package must expose the following commands before the first paid run. They are the operator contract for the materializer and runner; if a command or its production adapter is absent, launch remains blocked.
 
 ```bash
-pnpm benchmark -- prepare --plan benchmark/plans/todo-reddit-r1.json
-pnpm benchmark -- start --plan benchmark/plans/todo-reddit-r1.json
-pnpm benchmark -- status --run <run-id>
-pnpm benchmark -- resume --run <run-id>
-pnpm benchmark -- abort --run <run-id> --reason "<specific reason>"
-pnpm benchmark -- grade --run <run-id>
-pnpm benchmark -- report --block <block-id>
+pnpm --dir benchmark run benchmark -- prepare --plan benchmark/plans/todo-reddit-r1.json
+pnpm --dir benchmark run benchmark -- start --plan benchmark/plans/todo-reddit-r1.json
+pnpm --dir benchmark run benchmark -- status --run <run-id>
+pnpm --dir benchmark run benchmark -- resume --run <run-id>
+pnpm --dir benchmark run benchmark -- abort --run <run-id> --reason "<specific reason>"
+pnpm --dir benchmark run benchmark -- grade --run <run-id>
+pnpm --dir benchmark run benchmark -- report --block <block-id>
 ```
 
-`prepare` performs every deterministic launch check and writes an immutable plan and run manifests without contacting the model. `start` refuses an unprepared or digest-mismatched plan and launches the complete block. The other commands address one preserved run by ID. In this Codex revision, `resume` may inspect and terminally seal a stale record but cannot continue measured generation after app-server or transport death.
+`prepare` requires `--plan`. It accepts `--subjects todo,reddit` or `--subjects shopping,erp`, `--replicate <positive integer>`, `--block <id>`, and an optional 64-hex-character `--seed`; the defaults are Todo/Reddit, replicate 1, a block ID derived from the plan filename, and a cryptographically generated scheduling seed retained in the plan. There is no `--authorization` escape hatch. Reviewed subject and wave safety limits come from tracked protocol pins, and the production adapter performs the zero-model native quota preflight before writing the plan.
+
+`prepare` performs source admission, deterministic launch checks, materialization, isolated dependency setup, and plan publication without contacting the model. The plan path must be a new canonical path under `benchmark/plans/`; an existing plan is never overwritten. It contains exactly two preregistered subjects crossed with both arms for one replicate, records a randomized launch order, and binds all four cells to one block safety contract.
+
+`start` refuses an unprepared, modified, stale, or digest-mismatched plan and launches the complete four-cell block. It does not accept a subject, arm, run ID, or safety override. `status`, `resume`, `abort`, and `grade` address one preserved cell by run ID; `report` addresses the complete block by block ID. `grade` and `report` reject a nonterminal cell, including `liveness_unknown`.
+
+In Codex `0.145.0`, `resume` never resumes model generation. It verifies an abandoned `running` or `liveness_unknown` record, proves that the controller and descendants are dead, and seals the row as right-censored. If death cannot be proved, the state remains `liveness_unknown`; grading, reporting, promotion, lock release, and sibling continuation remain blocked.
+
+The current tracked revision does not yet expose the complete production facade named by this section. Until it is integrated, merged, pinned, and proven by the vertical fixtures, these commands are a fail-closed interface contract rather than paid-run authorization.
+
+## Prepare and launch one four-cell block
+
+The first paid wave is Todo and Reddit, both arms, one replicate at a time. Before launch, publish the preregistered P50/P90 time and provider-token vectors, the selected-wave safety limits, monetary status, quota attestation class, merged source SHA, and plan digest in the campaign ledger. Announcing them after observation does not satisfy preregistration.
+
+Once the launch gate is genuinely open, prepare replicate 1:
+
+```powershell
+pnpm --dir benchmark run benchmark -- prepare --plan benchmark/plans/todo-reddit-r1.json --subjects todo,reddit --replicate 1
+$plan = Get-Content benchmark/plans/todo-reddit-r1.json -Raw | ConvertFrom-Json
+$plan.cells | Sort-Object launchOrder | Format-Table launchOrder,runId,subject,arm
+```
+
+Inspect the printed four rows and the plan's source, input, prior, quota-attestation, and safety identities. Do not edit the plan to correct an unexpected value; correct the source of the value, preserve the failed preparation record where applicable, and prepare a new plan ID.
+
+Launch all four cells through the coordinator:
+
+```powershell
+pnpm --dir benchmark run benchmark -- start --plan benchmark/plans/todo-reddit-r1.json
+```
+
+Do not launch the four cells separately. The block-level deadline, observed-token guard, response-ID deduplication, shared stop record, and randomized concurrency order exist only when the coordinator owns the full block.
+
+Repeat with a new plan and replicate number only after the preceding block has reached a durable terminal state and its integrity review is complete. Shopping and ERP use `--subjects shopping,erp`; they remain a separate later wave and cannot be mixed into a Todo/Reddit plan.
 
 Do not substitute a direct `codex exec`, interactive Codex session, or hand-written app-server request. The pinned runner owns Goal activation, same-thread continuation, raw usage, descendant threads, checkpoints, and exact stream preservation.
 
@@ -83,10 +164,10 @@ Every plan states:
 - P50 and P90 non-cached input, cache read, cache write, output, and provider-total tokens;
 - P50 and P90 provider credits and USD only when an applicable official conversion exists, otherwise the literal value `unavailable`;
 - an observed-response provider-total-token threshold and hard-wall duration identical for both arms of the same subject and replicate, plus one aggregate observed-token threshold and hard-wall duration for the complete concurrency block;
-- only an operator-declared coarse authorization state that is safe to publish;
-- the human authorizer and UTC authorization time.
+- the exact reviewed selected-wave safety-pin and cost-prior identities;
+- a sanitized live quota attestation class, digest, policy identity, and UTC without account identifiers, balances, raw percentages, reset windows, or credentials.
 
-Account and rate-limit endpoints are account-wide and may expose identifiers or balances. A dedicated zero-cost launch preflight may inspect account source and quota only long enough to prove `authenticationMode=chatgpt`, reject API-key billing, and obtain a directly comparable provider-total-token guard when one exists. It immediately discards the raw response and never preserves identifiers, balances, credentials, or payloads. Credit-based or otherwise incomparable quota is `unavailable`, never converted by guess. The effective safety limit is the minimum of the audited prior guard, operator loss-tolerance authorization, and applicable live token guard; only the provenance class, numeric limit, UTC, and authorization ID are retained.
+Account and rate-limit endpoints are account-wide and may expose identifiers or balances. A dedicated zero-model launch preflight may inspect account source and quota only long enough to prove `authenticationMode=chatgpt`, reject API-key billing, and obtain a directly comparable provider-total-token guard when one exists. It immediately discards the raw response and never preserves identifiers, balances, credentials, exact utilization, reset windows, or payloads. Credit-based or otherwise incomparable quota is `unavailable`, never converted by guess. The tracked reviewed pins express the operator's loss tolerance; a command-line document cannot replace them. The effective safety limit is the minimum of that selected-wave pin and any applicable live token guard, and only the sanitized attestation fields admitted by `quota-policy.json` are retained.
 
 Preparation verifies the exact `protocol/price-sheet.json` digest and the tracked experimental app-server schema snapshot at the pinned path, including its file count, byte count, and tree hash. It fails while `price-sheet.json.launchGate.blocked` is true, a token semantic is unavailable, the exact schema tree differs, or effective thread tier and speed mode differ from the sheet. The frozen price mapping currently leaves provider credits and USD unavailable because the ChatGPT cache-write credit rate and credit-to-USD conversion are not directly sourced. That monetary absence does not block a token/time/quality run, but it forbids provider-credit totals, USD totals, and every cost-effectiveness claim. Operators cannot infer a missing rate or bypass an execution-critical gate with a CLI flag; a future monetary result requires a formal protocol checkpoint.
 
@@ -110,25 +191,49 @@ The outer block coordinator deduplicates every response ID across all cells and 
 
 ## Start and live monitoring
 
-`start` stages the frozen Goal objective with status `paused`, sends the exact first utterance with the frozen terminal structured-output schema, waits for that user turn's `turn/started`, records `t0`, and then activates the same Goal by omitting the objective and setting only `status = active`. This marks the current turn Goal-active without injecting objective text, so the first utterance must contain every substantive requirement and the Goal may contain only persistence and completion conditions. Staging an active idle Goal is forbidden because Codex `0.145.0` would auto-start a Goal-only turn before the measured user prompt. It writes:
+`start` stages the frozen Goal objective with status `paused`, sends the exact first utterance with the frozen terminal structured-output schema, waits for that user turn's `turn/started`, records `t0`, and then activates the same Goal by omitting the objective and setting only `status = active`. This marks the current turn Goal-active without injecting objective text, so the first utterance must contain every substantive requirement and the Goal may contain only persistence and completion conditions. Staging an active idle Goal is forbidden because Codex `0.145.0` would auto-start a Goal-only turn before the measured user prompt.
+
+The coordinator owns the following operation records:
 
 ```text
-<run>/
-  manifest.json
-  state.json
-  heartbeat.json
-  checkpoint.json
-  logs/
-    client.raw.jsonl
-    server.raw.jsonl
-    stderr.raw.log
-    transport.envelopes.jsonl
-    runner.events.jsonl
-  rollouts/
-  gates/
+benchmark/.work/<block-id>/cells/<run-id>/
+  operation-plan.json
+  operations/
+    controller.lock.json
+    heartbeat.<owner-id>.jsonl
+    state.jsonl
+    events.jsonl
+    abort-request.json
+    safety-abort-request.json
+    terminal.json
 ```
 
-Monitor through `status`, `heartbeat.json`, and append-only events. Do not edit a live workspace, send ad hoc messages, or run competing commands inside it. The sole post-claim user intervention is the frozen completion challenge, sent only after `t_done` and its immutable snapshot.
+Only the files applicable to a cell's lifecycle are present. The runner separately owns raw transport logs under its admitted cell output:
+
+```text
+logs/
+  client.raw.jsonl
+  server.raw.jsonl
+  stderr.raw.log
+  transport.envelopes.jsonl
+  runner.events.jsonl
+snapshots/<t_done|t_dry|terminal>/
+  project/
+  snapshot-manifest.json
+  live-inventory.json
+  exclusion-policy.json
+  exclusion-drift-report.json
+```
+
+The exact filenames of the remaining state, usage, activity, cost, and core artifacts are owned by the production runner and schemas and must be documented only after their vertical integration passes. The raw logs and snapshots above are the stable runner contract.
+
+Monitor with the command, not by parsing a partially written ledger:
+
+```powershell
+pnpm --dir benchmark run benchmark -- status --run <run-id>
+```
+
+`status` returns `runId`, durable `status`, conservative controller `liveness`, `heartbeatAgeMs`, `terminalReason`, and the cell root. Do not edit a live workspace, send ad hoc messages, run competing commands inside it, or remove a controller lock. The sole post-claim user intervention is the frozen completion challenge, sent only after `t_done` and its immutable snapshot.
 
 The runner records `t0`, `t_done`, `t_green`, and `t_dry` exactly once. `turn/completed` alone does not establish `t_done`: the terminal assistant item must validate with `outcome = complete`. A valid `outcome = interrupted` right-censors the run and forbids the completion challenge; malformed or missing output is a preserved runner failure. An agent claim does not establish `t_green`; only harness-owned build and test gates do.
 
@@ -149,7 +254,7 @@ The disabled recovery-continuation prompt is a guard artifact only and is never 
 Use abort only for a named integrity, safety, cost, or operator reason.
 
 ```bash
-pnpm benchmark -- abort --run <run-id> --reason "<specific reason>"
+pnpm --dir benchmark run benchmark -- abort --run <run-id> --reason "<specific reason>"
 ```
 
 Abort writes a final checkpoint, stops the controller and complete descendant process tree, verifies liveness has ended, records `interrupted` with subtype `user_abort`, inventories the live workspace, preserves a reproducible project snapshot, reconciles exact usage, and seals the run. It does not delete or relabel the row.
@@ -171,6 +276,32 @@ Every terminal run is appended to the permanent GitHub results ledger in [issue 
 Predictions under `protocol/predictions/` are never edited after observation. Measurements come only from live run records. Any reconstructed, model-attributed, or extrapolated value is labelled as an estimate and cannot replace an exact field.
 
 The machine-local `.wiki/` keeps Korean research and design decisions. It is not the permanent result ledger.
+
+## Terminal postprocess and durable handoff
+
+Do not grade a cell merely because Codex stopped speaking. The runner must first publish a terminal outer seal and an immutable complete core. `liveness_unknown`, a live controller, a missing descendant-death proof, a mutable core, or an incomplete exact-usage reconciliation blocks postprocess.
+
+For each cell that has a complete gradeable core:
+
+```powershell
+pnpm --dir benchmark run benchmark -- grade --run <run-id>
+```
+
+`grade` consumes the sealed `t_done` and `t_dry` source and neutral-bundle manifests. It must produce two independent blind grade sets, separate arm guesses made only after semantic grades are sealed, fresh third-AI adjudication of disagreements, the local semantic grade and defect taxonomy, deterministic secondary quality inputs, and a human-audit queue. The human queue remains `pending` until a real human completes it; never relabel an AI-only result as human-validated or publish a composite quality score while it is pending.
+
+After all four cells are terminal and every gradeable core has its complete postprocess:
+
+```powershell
+pnpm --dir benchmark run benchmark -- report --block todo-reddit-r1
+```
+
+The block report includes completed, failed, interrupted, safety-limited, and right-censored rows; it never drops a row because it cannot be compared normally. It reports setup separately from measured generation, preserves token categories and completeness flags, uses the acceptance catalog as the primary denominator, keeps ERP acceptance and context populations separate, and labels unavailable monetary values and estimates literally.
+
+The production `grade`, `report`, postprocess seal, result promotion, demo update, and Git compare-and-swap writers remain launch blockers until one vertical fixture validates their actual emitted bytes against the pinned schemas. Schema files and protocol prose alone do not prove this handoff exists.
+
+Promotion copies the canonical retained `t_dry` project snapshot to both `result/<subject>/<arm>/runs/<run-id>/workspace/` and the arm-level demo `workspace/`, then updates `latest.json` atomically. It must preserve all older `runs/<run-id>/` directories, every failed or interrupted core, raw logs, package archives required by relative `file:` dependencies, grades, reports, and seals. Never replace `benchmark/result/` with an unsealed live workspace.
+
+Before committing a promoted result, verify that `latest.json` points to the intended run, the run-level and demo workspaces match the promotion record, the temporary Git commit-and-clean-clone round trip passed, and no live process owns the corresponding `.work` root. Commit and push the retained result and append the exact report digest and run identities to issue #99. A future standalone demo repository must be created from the promoted demo `workspace/`, not from `.work/`, a stripped grading bundle, or a reconstructed archive.
 
 ## Safe document checks
 
