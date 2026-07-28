@@ -131,8 +131,8 @@ A provider that uses the throwing finder expects a missing row to become a `404`
 **A Prisma error message interpolates the model, the field, the constraint, the table, the column, the offending value, and query fragments.** That message must never reach an HTTP client. Registering the mapper is what stops your schema from being readable from the outside.
 
 ```ts
-// src/providers/common/PrismaErrorProvider.ts
-export namespace PrismaErrorProvider {
+// src/utils/PrismaErrorUtil.ts
+export namespace PrismaErrorUtil {
   export function from(error: PrismaClientKnownRequestError): HttpException {
     switch (error.code) {
       case "P2025": // record not found
@@ -157,7 +157,7 @@ export namespace PrismaErrorProvider {
 // src/MyConfiguration.ts, at module scope so it runs on import
 ExceptionManager.insert(
   PrismaClientKnownRequestError,
-  PrismaErrorProvider.from,
+  PrismaErrorUtil.from,
 );
 ```
 
@@ -210,7 +210,7 @@ Three things here are the convention.
 
 **`cause` is carried, never rendered.** The framework's response excludes it, which is what lets the mapper above attach the original Prisma error for server-side diagnosis without leaking the schema.
 
-It lives in `src/utils` rather than `src/providers` because it owns no entity and reads no table. The same is true of `PasswordUtil` and the date helpers.
+It lives in `src/utils` rather than `src/providers` because it owns no entity and reads no table. That is the test for the whole folder: `PasswordUtil`, `JwtUtil`, `PrismaErrorUtil`, and the date helpers all pass it, and a namespace named `*Provider` that fails it is in the wrong folder no matter what it is called.
 
 ## Generation Is Configured, Not Improvised
 
