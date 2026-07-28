@@ -41,6 +41,22 @@ Granularity is part of the configuration. A DTO **type** is a claim over require
 
 The configured graph is what the build checks. Keep it current: when the frontend takes a concrete shape or a new artifact kind appears, the obligation belongs in the configuration. **An edge that is not configured is not checked**, and nothing will tell you it is missing.
 
+## Two Rules Run Beside The Graph
+
+The graph is the obligation checker. Two smaller rules run with it, and both fail the build the same way.
+
+**Every selected export carries a JSDoc block.** That block is the only place an `@evidence` tag is ever read from, so a declaration without one can never cite anything. An empty block fails too: it states nothing and carries no tag.
+
+**One public identity per file, named after the file.** `IShoppingSale.ts` declares `IShoppingSale` and its namespace, and nothing else public. That is what makes an index re-export predictable and a citation address stable, and it is the rule behind one file per root type.
+
+Neither rule reads what you wrote. A block containing only a tag satisfies the first one completely, which is why the paragraph below is a rule you keep rather than a check you pass.
+
+## The Examples Here Show Tags, Not Whole Declarations
+
+Every example in this arm's topic documents is trimmed to the citation it is making. A controller method still owes its full published JSDoc, a model still owes its documentation comment, a test still owes its numbered scenario, and a DTO property still owes its description. The base document for each layer owns those, and a citation is added beside them rather than in place of them.
+
+**A declaration whose entire comment is an `@evidence` tag is the failure to watch for.** It satisfies the graph and publishes an operation, a type, or a property that reaches its consumers with a machine-readable claim and no human-readable meaning.
+
 ## Each Edge Has Its Own Document
 
 The graph above is configured as a set of claims, and each group of them has a document covering what its diagnostics mean and where the repair usually belongs.
