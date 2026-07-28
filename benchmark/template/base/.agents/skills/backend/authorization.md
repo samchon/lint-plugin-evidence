@@ -214,7 +214,7 @@ Give each of those a resource-shaped path of its own rather than filing it under
 
 ## Where Each Check Lives
 
-Each actor gets a payload type, an authorize provider, and a parameter decorator.
+Each actor gets a payload type and a parameter decorator under `packages/backend/src/decorators/`, and an authorize provider under `packages/backend/src/providers/`.
 
 The payload is what a route receives, and it is deliberately small.
 
@@ -258,7 +258,7 @@ export namespace SellerProvider {
 
 Both checks are needed, and the second one reads the session, not only the actor. The token check proves the claim was minted for this actor. The session read, filtered through the actor relation, proves three things at once: the session is still live, it belongs to this actor, and the account has not been withdrawn. **Checking only the actor row leaves sign-out and password change ineffective**: those flows revoke the session row, and a token whose session is never re-validated stays usable until it expires on its own.
 
-Every actor's authorize provider is that same shape, differing only in the discriminant it checks and the table it reads. The token half is shared: `JwtUtil` in `src/utils`, beside the other helpers that own no entity.
+Every actor's authorize provider is that same shape, differing only in the discriminant it checks and the table it reads. The token half is shared: `JwtUtil` in `packages/backend/src/utils/`, beside the other helpers that own no entity.
 
 **The prefix is optional, and that is not leniency.** The generated SDK writes the bare token into the connection, while a browser tool or a curl command sends `Bearer <token>`. Requiring the prefix rejects every call the SDK makes, which is every test in the suite, and the failure reads as an authentication defect rather than a parsing one.
 

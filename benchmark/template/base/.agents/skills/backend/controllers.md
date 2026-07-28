@@ -27,13 +27,29 @@ public async index(
   @SellerAuth() seller: SellerPayload,
   @core.TypedBody() input: IShoppingSale.IRequest,
 ): Promise<IPage<IShoppingSale.ISummary>> {
+  seller;
+  input;
   return typia.random<IPage<IShoppingSale.ISummary>>();
 }
 ```
 
-The random return satisfies the contract type, so `build:sdk` works before any provider exists, the tests and the frontend consume the real contract immediately, and simulation mode answers from the same shape. **The `@todo` names what realize owes**, and realize is finished when no operation carries one: the body is a provider call, the tag is gone, and the suite that ran red against random answers holds.
+The body simply enumerates each parameter once as a bare statement and returns `typia.random<T>()`; the mentions keep the parameters from reading as unused while nothing consumes them, and the `@todo` names what realize owes. The random return satisfies the contract type, so `build:sdk` works before any provider exists, the tests and the frontend consume the real contract immediately, and simulation mode answers from the same shape.
 
 Design regressions are normal in this phase. An operation that turns out to need a column goes back to the schema, and the stub costs nothing to revise because nothing implements it yet.
+
+## Realize, After The Tests Are Written
+
+Realize begins only when the suite under `packages/backend/test/features/` is complete and red against the random answers, because tests written before any implementation describe what should happen rather than what a provider happens to do.
+
+The swap itself is bound by three principles:
+
+**The body becomes one provider call, and nothing else changes.** The bare parameter mentions and the random return give way to `return ShoppingSaleProvider.index({ actor: seller, input });`, and the `@todo` goes. The route, the signature, and the JSDoc stay exactly as published: the contract shipped to the tests and the frontend on day one, and realize implements it rather than renegotiating it.
+
+**A contract the provider cannot satisfy is a design regression, not a controller problem.** Go back to the layer that owns the gap, the schema for a missing column or the DTO for a wrong shape; revise the stub, rebuild the SDK, and let the tests follow. Never bend the controller body around the gap, and never adjust a response to whatever the provider found convenient.
+
+**Business logic stays out.** After realize a controller method is still routing, authorization, and delegation; [providers.md](providers.md) owns everything the call performs. A branch or a computation appearing here is a piece of the provider that leaked.
+
+Realize is finished when no operation carries a `@todo` and the suite that ran red against random answers holds green.
 
 ## Operation Shape
 
@@ -298,10 +314,6 @@ Two habits carry most of the value.
 **Distinguish an operation from its siblings by name.** "If you want the summarized form, use `index` instead" saves every consumer from comparing two return types to work out which endpoint they want.
 
 **State the visibility rule in full, including what is not returned.** A seller sees only their own; a customer sees only operating sales and not the unopened, closed, or suspended ones. That rule is usually the requirement the endpoint exists to satisfy, and nothing in the signature carries it.
-
-Write it for someone who will never open this repository. They get the SDK function and its documentation, and nothing else.
-
-The first line is the operation title. State the authorization and visibility rule whenever it differs by actor, because that is usually the requirement the endpoint exists to satisfy and a caller cannot infer it from the signature. Link related types with `{@link}`. Do not stop at "creates X": include the effects, the transitions, and the rejections.
 
 ## Controllers
 

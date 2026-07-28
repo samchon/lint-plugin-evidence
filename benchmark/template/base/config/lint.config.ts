@@ -3,10 +3,9 @@ import type { ITtscLintConfig } from "@ttsc/lint";
 /**
  * Shared lint configuration every package extends.
  *
- * A package's own `lint.config.ts` is one line: `{ extends:
- * "../../config/lint.config.ts" }` plus whatever it must ignore. Keeping the
- * rule set here is what stops two packages from drifting into different
- * definitions of correct.
+ * Every package lays a `lint.config.ts` extending this file, as is or with the
+ * rules that package alone needs. Keeping the rule set here is what stops two
+ * packages from drifting into different definitions of correct.
  */
 const config = {
   format: {

@@ -46,6 +46,7 @@ DTO type        ->  tests             (the shape it exchanges)
 
 API             ->  tests
 API             ->  business logic
+API             ->  frontend          (the operations its screens consume)
 ```
 
 Granularity is part of the edge. A DTO **type** owes a requirement and a table, because it exists for a named concept and represents a row. A DTO **property** owes a column and **not** a requirement, because the question a property answers is where its value comes from. Walking the type level alone leaves every property unaccounted for, and a property with no source is the phantom that reaches the provider with nothing to fill it.

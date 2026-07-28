@@ -8,7 +8,7 @@ An edge has a denominator on each side, and the two directions find different de
 
 **Forward, requirements to schema.** For every requirement in the inventory, name the tables and columns that make it storable. A requirement that names persistent state, a lifecycle, a history, a threshold that must survive a restart, or an authority that must be checked later needs somewhere to live. If you cannot name where, it has no storage and that is a finding.
 
-**Backward, schema to requirements.** For every table and every column, name the requirement that makes it necessary. A column no requirement asks for is either a requirement you have not read or a table you invented. Both are findings, and they need different fixes.
+**Backward, schema to requirements.** For every table and every column of the schema under `packages/backend/prisma/schema/`, name the requirement that makes it necessary. A column no requirement asks for is either a requirement you have not read or a table you invented. Both are findings, and they need different fixes.
 
 The backward direction is the one people skip because it feels redundant after the forward pass. It is not. The forward pass cannot find an invented column, and an invented column carries invented semantics that the API and the logic will then honor.
 

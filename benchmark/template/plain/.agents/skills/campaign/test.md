@@ -1,6 +1,6 @@
 # Test Campaign
 
-Read [SKILL.md](SKILL.md) first. This campaign discharges three edges: `docs/analysis/ -> tests`, `API -> tests`, and `DTO type -> tests`.
+Read [SKILL.md](SKILL.md) first. This campaign discharges three edges into the suite under `packages/backend/test/features/`: `docs/analysis/ -> tests`, `API -> tests`, and `DTO type -> tests`.
 
 ## Why Three Edges
 
@@ -46,7 +46,7 @@ The distinction matters because they resolve differently. A coverage gap is clos
 
 ## Rounds
 
-A round is a complete pass over all three denominators, each from its enumeration source rather than from memory: every requirement in the inventory by its identifier, every accessor in the `api.functional` export tree, and every root type in the `structures` export list.
+A round is a complete pass over all three denominators, each from its enumeration source rather than from memory: every requirement in the inventory by its identifier, every accessor in the `api.functional` export tree generated into `packages/api/src/functional/`, and every root type in the `structures` export list.
 
 Any finding resets the count. Dry after **two consecutive complete rounds** with nothing new.
 

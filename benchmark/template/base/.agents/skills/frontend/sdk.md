@@ -64,6 +64,7 @@ This is the mocking seam at the contract boundary, and it is the primary axis of
 Drive the flag from the environment rather than from code, so the same build can run either way:
 
 ```ts
+// src/lib/config.ts
 export const config = {
   get apiHost() {
     return process.env.VITE_API_HOST?.trim() || "http://127.0.0.1:37001";

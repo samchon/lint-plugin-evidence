@@ -63,5 +63,8 @@ export default {
     // from, and one public identity per file keeps citation addresses stable.
     "evidence/documented": "error",
     "evidence/singular": "error",
+    // DTOs are declared during the interface phase, so every remaining @todo
+    // is an unrealized contract: the realize ledger.
+    "evidence/todo": "error",
   },
 } satisfies ITtscLintConfig;

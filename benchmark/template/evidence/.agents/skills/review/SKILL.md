@@ -31,7 +31,7 @@ This is the part that decides whether the skill is worth running.
 
 When a reason does not hold, **the citing artifact is not automatically what is wrong.** The reference is under review too, and it fails in ways only a reader arriving from the citation is placed to notice.
 
-**The citing side is wrong** when the code does less than the reason says, does it in one path and not its sibling, or does something adjacent that reads similar. A provider whose reason says it refuses stacked coupons and which refuses only the same coupon twice is this.
+**The citing side is wrong** when the code does less than the reason says, does it in one path and not its sibling, or does something adjacent that reads similar. An operation whose reason says it refuses stacked coupons and whose provider refuses only the same coupon twice is this.
 
 **The referenced side is wrong** when the target does not mean what its citations assume. A column nullable where three DTOs treat it as always present. A contract omitting an effect four tests assert. A model storing a state under a name meaning the opposite of what the requirement calls it.
 
@@ -111,7 +111,7 @@ The difference shows up under review as the third failure above. Someone who pic
 
 Every citation says the same thing: this artifact answers for this part of this target. It never says the target holds.
 
-That distinction decides which citation is worth trusting for which kind of requirement. A shape requirement is settled by reading the model or the DTO, and a citation there is close to proof. **A behavioral rule is settled by nothing except a test that fails when the behavior is removed.** A model, a contract, and a provider may each cite the coupon-stacking section truthfully and none of them demonstrates that stacking is refused.
+That distinction decides which citation is worth trusting for which kind of requirement. A shape requirement is settled by reading the model or the DTO, and a citation there is close to proof. **A behavioral rule is settled by nothing except a test that fails when the behavior is removed.** A model, a contract, and a screen may each cite the coupon-stacking section truthfully and none of them demonstrates that stacking is refused.
 
 So when reviewing a behavioral section, find the test citing it and read what it asserts. If no test cites it, the section is traced through three layers and proven by none, and every one of those citations is honest.
 

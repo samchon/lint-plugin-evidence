@@ -8,6 +8,8 @@ The exported journey function is the host, which is why the export pattern is no
 /**
  * @evidence docs/analysis/03-functional-requirements.md#checkout Walks the
  *           checkout journey end to end as the customer performing it.
+ * @evidence {@link CheckoutPage} Traverses this screen for payment entry and
+ *           the order confirmation it renders.
  */
 export async function journey_customer_checkout(page: Page): Promise<void> {}
 ```
@@ -17,6 +19,8 @@ Read [the evidence skill](../evidence/SKILL.md) before starting.
 {{base}}
 
 ## What The Claim Selects, And What It Leaves Alone
+
+A journey also cites each screen it traverses, as `{@link ThatPage}` resolved through its own type-only import; the page components are a reference population of the journey claim, so a screen no journey walks is a build failure rather than a review discovery.
 
 The claim covers `tests/journeys/**`. The ui-review spec, the readme spec, the state gallery, and the fixtures carry no citations: they verify presentation, not requirements, and a tag there would acknowledge a section from an artifact that cannot prove it.
 

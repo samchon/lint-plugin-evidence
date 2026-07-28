@@ -3,7 +3,7 @@ name: evidence
 description: Defines the evidence graph this repository is checked against: what each obligation means, how a citation is written and where it belongs, what each diagnostic is telling you, and which failures the build cannot see. Use before any work, whenever a diagnostic appears, and again before believing a green build.
 ---
 
-# Campaign
+# Evidence
 
 ## The Goal
 
@@ -35,6 +35,7 @@ column          ->  DTO property      (the value it carries)
 DTO type        ->  tests             (the shape it exchanges)
 
 API             ->  tests
+screen          ->  browser tests     (the spec that walks it)
 ```
 
 **The business-logic edges are deliberately absent.** A provider carries no citations, because the operation it implements already cites the requirement and the model, and a second acknowledgement of the same target from an unpublished layer would be a duplicate. So the build checks every edge above and says nothing about the providers at all; [the provider topic](../backend/providers.md) owns what that silence costs and where the real check for that layer lives.
@@ -78,7 +79,7 @@ The graph is the obligation checker. Two smaller rules run with it, and both fai
 
 **Every selected export carries a JSDoc block.** That block is the only place an `@evidence` tag is ever read from, so a declaration without one can never cite anything. An empty block fails too: it states nothing and carries no tag.
 
-**One public identity per file, named after the file.** `IShoppingSale.ts` declares `IShoppingSale` and its namespace, and nothing else public. That is what makes an index re-export predictable and a citation address stable, and it is the rule behind one file per root type.
+**One public identity per file, named after the file.** `IShoppingSale.ts` declares `IShoppingSale` and its namespace, and nothing else public. That is what makes an index re-export predictable and a citation address stable, and it is the rule behind one file per root type. The configuration enables it for the DTO tree and the backend; the frontend deliberately omits it, because a domain folder keeps a page beside the sub-components only it uses.
 
 Neither rule reads whether a citation is true. A block containing only a tag satisfies the first completely, which is why the paragraph below is a rule you keep rather than a check you pass.
 
@@ -132,7 +133,7 @@ Before adding any citation, ask what the diagnostic is actually telling you.
 
 - The API cannot cite a requirement. Is there a table for it? If not, the finding belongs to the schema.
 - A test cannot cite an operation's behavior. Does the contract actually state that behavior? If not, the finding belongs to the contract.
-- A provider cannot cite a rule. Does the schema hold the state the rule needs? If not, the finding belongs to the schema again.
+- An operation cannot cite the rule its provider must enforce. Does the schema hold the state the rule needs? If not, the finding belongs to the schema again.
 - A screen cannot cite a requirement. Does an operation expose it? If not, the finding belongs to the API.
 
 Fix it there and let the build re-run. One upstream repair usually clears several downstream diagnostics at once, and it clears them correctly.

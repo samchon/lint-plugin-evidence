@@ -38,6 +38,7 @@ packages/frontend/
     main.tsx                       entry
     App.tsx                        routes and the shell
     styles.css
+    design.ts                      the three design dials
     components/
       app-frame.tsx                layout chrome shared by every route
       error-state.tsx              shared cross-domain pieces, at this level
@@ -54,6 +55,7 @@ packages/frontend/
         orders-page.tsx
         order-detail-page.tsx
     lib/
+      config.ts                    the environment dials: apiHost, simulate
       utils.ts                     cn, formatCurrency, formatDateTime
       <domain>/
         types.ts                   view models the interface consumes
@@ -67,6 +69,7 @@ packages/frontend/
     readme.spec.ts                 screenshot capture for the readme
   wiki/
     architecture.md                this project's stack, routes, choices
+    screen-plan.md                 each screen, its requirement, its operations
     omissions.md                   what was deliberately left out and why
     verification.md                what was verified, when, and how
 ```

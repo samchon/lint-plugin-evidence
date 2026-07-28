@@ -44,7 +44,7 @@ Work the layers in order, and let each one read everything the earlier ones deci
 
 1. Read every requirement document under `docs/analysis/`.
 2. Design the schema under `packages/backend/prisma/schema/`, split by domain, and generate the client from it.
-3. Declare the operations under `packages/backend/src/controllers/` and their DTOs under `packages/api/src/structures/` as stubs: the full contract JSDoc, a body of `return typia.random<T>();`, and an `@todo` tag naming what realize owes. Build the SDK from the stubs into `packages/api/src/functional/`.
+3. Declare the operations under `packages/backend/src/controllers/` and their DTOs under `packages/api/src/structures/` as stubs: the full contract JSDoc, a body that enumerates each parameter once and returns `typia.random<T>()`, and an `@todo` tag naming what realize owes. Build the SDK from the stubs into `packages/api/src/functional/`.
 4. Write the tests under `packages/backend/test/features/` from the requirements and the stub SDK.
 5. Write the transformers under `packages/backend/src/transformers/` and the collectors under `packages/backend/src/collectors/`, one namespace per DTO that needs each.
 6. Realize: replace each stub body with its call into a provider under `packages/backend/src/providers/`, remove the `@todo`, and run the tests until they hold.

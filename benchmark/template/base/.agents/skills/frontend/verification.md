@@ -93,7 +93,7 @@ Fall back to screenshots or raw API checks only when no automation is available 
 
 Verification that leaves no record cannot be trusted later, because a reader cannot tell whether a gap was checked and clean or never checked.
 
-Keep `wiki/verification.md` with the date, what was running, the automated checks by command name, the flows exercised per viewport in the order performed, and what could not be verified and why.
+Keep `packages/frontend/wiki/verification.md` with the date, what was running, the automated checks by command name, the flows exercised per viewport in the order performed, and what could not be verified and why.
 
 ```markdown
 ## Date

@@ -29,15 +29,16 @@ Read this file first, then the topic document for what you are about to touch.
 
 Each step consumes the previous one, which is why the order is not a preference. Every path below sits inside `packages/frontend/`; [architecture.md](architecture.md) owns the full folder layout.
 
-1. Read the SDK and the requirement journeys, and set the [design dials](design.md).
-2. Build the primitives under `src/components/ui/`, the layout chrome in `src/components/app-frame.tsx`, and the composed providers in `src/components/providers/app-providers.tsx`.
-3. Build `src/lib/<domain>/`: the connection, the view-model types, the fixtures, and the hooks with their keys.
-4. Lay the route table in `src/App.tsx` with its guarded layouts.
-5. Build the screens in their domain folders under `src/components/<domain>/`, journey by journey against simulation, every state from the start, adding each screen's gallery rows as it lands.
-6. Write the journey specs under `tests/journeys/` mirroring the requirement journeys, still against simulation.
-7. Close against the live backend: sessions, persistence, authorization, and the verification record in `wiki/verification.md`.
+1. Read the SDK and the requirement journeys, write the screen plan in `wiki/screen-plan.md`, and set the [design dials](design.md).
+2. Pre-design the screens as stubs in `src/components/<domain>/`: each page component and its sub-components with their props enumerated, the contract JSDoc, an `@todo` tag naming what the screen still owes, and a placeholder body. The whole surface is declared before any screen works.
+3. Build the primitives under `src/components/ui/`, the layout chrome in `src/components/app-frame.tsx`, and the composed providers in `src/components/providers/app-providers.tsx`.
+4. Build `src/lib/<domain>/`: the connection, the view-model types, the fixtures, and the hooks with their keys.
+5. Lay the route table in `src/App.tsx` with its guarded layouts, over the stubs, so the whole surface navigates from the first day.
+6. Crack the screens one by one against simulation, every state from the start, adding each screen's gallery rows as it lands and removing its `@todo` as it realizes. [screens.md](screens.md) owns the cracking discipline.
+7. Write the journey specs under `tests/journeys/` mirroring the requirement journeys, still against simulation.
+8. Close against the live backend: sessions, persistence, authorization, and the verification record in `wiki/verification.md`.
 
-The backend's stubs make step 1 possible on day one: the SDK exists before any provider does, so the frontend never waits for realize. What simulation cannot prove, the closing pass owns, and [verification.md](verification.md) says what that requires.
+The backend's stubs make step 1 possible on day one: the SDK exists before any provider does, so the frontend never waits for realize. Cracking a screen is experimental work: run the app with simulation on and drive it through the Playwright MCP browser while you build, against the SDK's mockup simulator, so every state is provoked and seen rather than imagined. What simulation cannot prove, the closing pass owns, and [verification.md](verification.md) says what that requires.
 
 ## Stack
 
@@ -59,7 +60,7 @@ A screen designed before reading the contract gets rebuilt after reading it.
 
 Do not turn every operation into a feature. Prefer a coherent product over exhaustive coverage, and leave out operations that are diagnostic, redundant, or that expose backend mechanics no user benefits from.
 
-Record every deliberate omission with its reason in `wiki/omissions.md`, the way a real project keeps an omissions log:
+Record every deliberate omission with its reason in `packages/frontend/wiki/omissions.md`, the way a real project keeps an omissions log:
 
 ```markdown
 ## Omitted On Purpose
