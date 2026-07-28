@@ -52,4 +52,4 @@ The phrase comes from the requirements, which is where the state was named for a
 
 `lib/utils.ts` holds the formatters and every screen calls them. Two components formatting a date inline will differ, and the difference reads as a bug in the data rather than in the code.
 
-A formatter takes the value and what it needs to interpret it, and returns a string. It does not fetch, it does not read a global, and it does not decide whether the value should be shown at all: that is the screen's decision, and mixing the two is how a formatter grows a special case for one caller.
+A formatter does not fetch, does not read a global, and does not decide whether the value should be shown at all: that is the screen's decision, and mixing the two is how a formatter grows a special case for one caller.

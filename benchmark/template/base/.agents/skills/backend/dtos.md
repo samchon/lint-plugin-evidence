@@ -2,8 +2,6 @@
 
 This document owns the data transfer objects: where they live, what they are named, what each variant means, how every property earns its place, and how relations are shaped.
 
-A DTO is a published contract. It reaches consumers who never open this repository, and changing it later breaks them.
-
 ## They Live In The API Package
 
 **Declare every DTO under `packages/api/src/structures`, never inside `packages/backend`.**
@@ -40,7 +38,7 @@ export * from "./common";
 export * from "./shopping";
 ```
 
-Every folder re-exports its children, and the package entry re-exports the whole tree. Add the export in the same edit that adds the file: a type present in the tree and absent from an index compiles here, fails to import there, and the failure surfaces in the frontend rather than where it was caused.
+Add the export in the same edit that adds the file: a type present in the tree and absent from an index compiles here, fails to import there, and the failure surfaces in the frontend rather than where it was caused.
 
 ## Contract Direction
 

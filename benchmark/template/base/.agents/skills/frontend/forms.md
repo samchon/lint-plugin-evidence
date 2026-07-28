@@ -2,8 +2,6 @@
 
 This document owns everything between a user typing and a row existing: validation, submission, failure, and what the screen does with each.
 
-Most of a product's interaction happens here, and most of what goes wrong here is invisible from a screenshot.
-
 ## The DTO Is The Schema
 
 **Never write a second validation schema.** The request DTO already declares every rule: `tags.Format<"email">`, `tags.MinLength<8>`, `tags.Type<"uint32">`, the nullability, the required set. Restating those in a form library's schema produces two definitions of one contract, and the copy drifts the moment either side changes.

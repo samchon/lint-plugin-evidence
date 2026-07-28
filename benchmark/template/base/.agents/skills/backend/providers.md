@@ -4,7 +4,7 @@ This document owns the business logic and every database access.
 
 ## What A Provider Is
 
-An exported namespace named for the entity it owns. There is no dependency injection: callers import the namespace and call its functions.
+An exported namespace named for the entity it owns. There is no dependency injection.
 
 Every function takes a single object named `props`. Positional parameters are not used, including in the private helpers a provider keeps for itself.
 
