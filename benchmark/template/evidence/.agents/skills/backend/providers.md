@@ -6,12 +6,22 @@ Every configured requirement section, every selected model, and every operation 
 
 ```ts
 /**
- * @evidence docs/analysis/04-business-rules.md#coupon-stacking Enforces the
- * combination limit before a discount is applied.
- * @evidence prisma:shopping_coupons Reads the coupon and its criteria.
+ * @evidence docs/analysis/04-business-rules.md#coupon-stacking Rejects a second
+ * coupon of a kind the order already carries.
+ * @evidence prisma:shopping_coupons Reads each coupon's issuer and validity
+ * window to decide the refusal.
+ * @evidence POST:/shopping/customer/order Implements the creation contract,
+ * including the rejection it documents.
  */
-export const apply = async (props: {}) => {};
+export const create = async (props: {
+  customer: CustomerPayload;
+  body: IShoppingOrder.ICreate;
+}): Promise<IShoppingOrder> => {};
 ```
+
+Three tags for three obligations, and the third is the one most often left off: an operation with no provider citing it is a contract nothing implements, and the diagnostic for it names this layer.
+
+The test for the same rule cites that same operation, and the two never collide. They are separate claims, so each counts its acknowledgements in its own tally.
 
 Read [the campaign skill](../campaign/SKILL.md) before starting.
 
