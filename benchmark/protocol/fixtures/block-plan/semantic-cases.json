@@ -80,6 +80,12 @@
   },
   "retainedQuotaPrivacyCases": {
     "allowedKeys": [
+      "authorityRequestId",
+      "authorityRequestSha256",
+      "phase",
+      "blockId",
+      "planSha256",
+      "subjects",
       "sourceClass",
       "windowResults",
       "passedAtAuthorization",
@@ -114,6 +120,15 @@
     ],
     "validAttestation": {
       "projection": {
+        "authorityRequestId": "1111111111111111111111111111111111111111111111111111111111111111",
+        "authorityRequestSha256": "b11f38ceac641a1e871f7878b470704725d9ad75afb132055f2ebe0d2dd6cba6",
+        "phase": "prepare",
+        "blockId": "block-todo-reddit-r1",
+        "planSha256": null,
+        "subjects": [
+          "todo",
+          "reddit"
+        ],
         "sourceClass": "chatgpt-native-rate-limit",
         "windowResults": {
           "primary": "pass",
@@ -124,15 +139,15 @@
         "passedAtAuthorization": true,
         "policyId": "chatgpt-native-first-hit-v1",
         "policyPath": "benchmark/protocol/quota-policy.json",
-        "policySha256": "5dae599895578b207c7b46628b7cfc2ee17dce1b4973288199047b0111607763",
+        "policySha256": "04d18a23379260b2f899c1620a775a48f20b1463cb4b82a59454d09f2e4989d4",
         "capturedAtUtc": "2026-07-29T00:00:00Z",
         "attestationAlgorithmId": "sha256-rfc8785-sanitized-quota-attestation-v1",
         "privateCheckpointPersistence": "ephemeral-non-promoted",
         "exactTelemetryPromoted": false,
         "guardRelation": "independent-first-hit-or"
       },
-      "canonicalBytes": 605,
-      "sha256": "b536bb292b1dbd9d6ba665ee2a4136e4356630d04353312497629aadda8b17e2"
+      "canonicalBytes": 883,
+      "sha256": "baa25553283eee34b9dfa36947b023b63342d76dfa4927f82d57220bb3f0a3ee"
     },
     "rawDerivedAttestationNegative": {
       "syntheticForbiddenFields": {
@@ -140,9 +155,9 @@
         "usedPercent": 50,
         "resetsAtUtc": "2026-07-29T01:00:00Z"
       },
-      "rawDerivedCanonicalBytes": 689,
-      "rawDerivedSha256": "eca93d38f8b64954bdf965b1be0325f52635838cb53b1052ebf8cd2bea5f92e3",
-      "expectedFailure": "production validator must recompute the sanitized 605-byte projection and reject the raw-derived digest"
+      "rawDerivedCanonicalBytes": 967,
+      "rawDerivedSha256": "7f4db7c4ed27d4e7ae224beba9462630cf7ea1e0274e9265b8fc57324083c2a3",
+      "expectedFailure": "production validator must recompute the sanitized 883-byte projection and reject the raw-derived digest"
     }
   }
 }

@@ -91,7 +91,7 @@
           "const": "409aa670f85c94cac653a4041a55a611e0a94873f2152f94947cbe4cefe0ac24"
         },
         "quotaPolicySha256": {
-          "const": "5dae599895578b207c7b46628b7cfc2ee17dce1b4973288199047b0111607763"
+          "const": "04d18a23379260b2f899c1620a775a48f20b1463cb4b82a59454d09f2e4989d4"
         },
         "protocolRawTreeAlgorithmId": {
           "const": "sha256-posix-path-nul-bytes-v1"
