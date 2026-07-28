@@ -128,37 +128,29 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
   function testCostPredictionParity(protocolRoot: string): void {
     EvidenceBenchmarkProtocolValidator.preflightCostPredictions(protocolRoot);
     const artifact = object(
-      EvidenceBenchmarkProtocolValidator.parse(
-        fs.readFileSync(
-          path.join(protocolRoot, "cost-predictions.json"),
-          "utf8",
-        ),
+      EvidenceBenchmarkProtocolValidator.parseBytes(
+        fs.readFileSync(path.join(protocolRoot, "cost-predictions.json")),
         "cost predictions",
       ),
       "cost predictions",
     );
     const fixture = object(
-      EvidenceBenchmarkProtocolValidator.parse(
+      EvidenceBenchmarkProtocolValidator.parseBytes(
         fs.readFileSync(
-          path.join(
-            protocolRoot,
-            "fixtures",
-            "cost-predictions",
-            "cases.json",
-          ),
-          "utf8",
+          path.join(protocolRoot, "fixtures", "cost-predictions", "cases.json"),
         ),
         "cost prediction fixture",
       ),
       "cost prediction fixture",
     );
     const expected = object(fixture.validExpected, "valid expectations");
-    assert.equal(list(artifact.rows, "prediction rows").length, expected.rowCount);
     assert.equal(
-      object(
-        artifact.zeroObservationProvenance,
-        "zero-observation provenance",
-      ).observationCount,
+      list(artifact.rows, "prediction rows").length,
+      expected.rowCount,
+    );
+    assert.equal(
+      object(artifact.zeroObservationProvenance, "zero-observation provenance")
+        .observationCount,
       expected.observationCount,
     );
     for (const entry of list(fixture.invalidCases, "invalid cases")) {
@@ -175,7 +167,63 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
         text(invalid.id, "invalid case id"),
       );
     }
+    testCostPredictionInvalidUtf8(protocolRoot, fixture);
     testBlockPlanCostPredictionParity(protocolRoot, artifact);
+  }
+
+  function testCostPredictionInvalidUtf8(
+    protocolRoot: string,
+    fixture: Record<string, unknown>,
+  ): void {
+    const temporary: string = fs.mkdtempSync(
+      path.join(os.tmpdir(), "evidence-cost-utf8-"),
+    );
+    try {
+      const cloneRoot: string = path.join(temporary, "benchmark", "protocol");
+      fs.cpSync(protocolRoot, cloneRoot, { recursive: true });
+      childProcess.execFileSync("git", ["init", temporary], {
+        windowsHide: true,
+      });
+      childProcess.execFileSync(
+        "git",
+        [
+          "-C",
+          temporary,
+          "-c",
+          "core.autocrlf=false",
+          "add",
+          "--",
+          "benchmark/protocol/schema",
+        ],
+        { windowsHide: true },
+      );
+      for (const input of list(
+        fixture.invalidUtf8Cases,
+        "invalid UTF-8 cases",
+      )) {
+        const invalid = object(input, "invalid UTF-8 case");
+        const relative: string = text(invalid.path, "invalid UTF-8 path");
+        const target: string = path.join(cloneRoot, ...relative.split("/"));
+        const original: Buffer = fs.readFileSync(target);
+        if (original.byteLength < 2)
+          throw new Error(`UTF-8 fixture target is too short: ${relative}.`);
+        const corrupted: Buffer = Buffer.from(original);
+        corrupted[0] = 0xc3;
+        corrupted[1] = 0x28;
+        fs.writeFileSync(target, corrupted);
+        assert.throws(
+          () =>
+            EvidenceBenchmarkProtocolValidator.preflightCostPredictions(
+              cloneRoot,
+            ),
+          new RegExp(text(invalid.expectedPattern, "expected failure pattern")),
+          text(invalid.id, "invalid UTF-8 case id"),
+        );
+        fs.writeFileSync(target, original);
+      }
+    } finally {
+      fs.rmSync(temporary, { recursive: true, force: true });
+    }
   }
 
   function testBlockPlanCostPredictionParity(
@@ -190,7 +238,7 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
       .update(artifactBytes)
       .digest("hex");
     const fixture = object(
-      EvidenceBenchmarkProtocolValidator.parse(
+      EvidenceBenchmarkProtocolValidator.parseBytes(
         fs.readFileSync(
           path.join(
             protocolRoot,
@@ -198,7 +246,6 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
             "cost-predictions",
             "block-plan-parity.json",
           ),
-          "utf8",
         ),
         "block-plan prediction parity fixture",
       ),
@@ -214,8 +261,7 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
         const subject: string = text(binding.subject, "binding subject");
         const arm: string = text(binding.arm, "binding arm");
         const row = rows.find(
-          (candidate) =>
-            candidate.subject === subject && candidate.arm === arm,
+          (candidate) => candidate.subject === subject && candidate.arm === arm,
         );
         if (row === undefined)
           throw new Error(`Cost fixture row is absent: ${subject}/${arm}.`);
@@ -258,18 +304,15 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
       protocolRoot,
     );
     const pins = object(
-      EvidenceBenchmarkProtocolValidator.parse(
-        fs.readFileSync(path.join(protocolRoot, "pins.json"), "utf8"),
+      EvidenceBenchmarkProtocolValidator.parseBytes(
+        fs.readFileSync(path.join(protocolRoot, "pins.json")),
         "protocol pins",
       ),
       "protocol pins",
     );
-    const baseline = object(
-      pins.safetyAuthorization,
-      "safety authorization",
-    );
+    const baseline = object(pins.safetyAuthorization, "safety authorization");
     const fixture = object(
-      EvidenceBenchmarkProtocolValidator.parse(
+      EvidenceBenchmarkProtocolValidator.parseBytes(
         fs.readFileSync(
           path.join(
             protocolRoot,
@@ -277,7 +320,6 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
             "safety-authorization",
             "cases.json",
           ),
-          "utf8",
         ),
         "safety authorization fixture",
       ),
@@ -309,8 +351,7 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
       if (source === undefined)
         throw new Error(`Safety population is absent: ${populationId}.`);
       const value: Record<string, unknown> = structuredClone(source);
-      if (typeof invalid.operation === "string")
-        applyMutation(value, invalid);
+      if (typeof invalid.operation === "string") applyMutation(value, invalid);
       const selectedWave: string | null =
         invalid.selectedWave === null
           ? null
@@ -365,14 +406,14 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
       protocolRoot,
     );
     const pins = object(
-      EvidenceBenchmarkProtocolValidator.parse(
-        fs.readFileSync(path.join(protocolRoot, "pins.json"), "utf8"),
+      EvidenceBenchmarkProtocolValidator.parseBytes(
+        fs.readFileSync(path.join(protocolRoot, "pins.json")),
         "protocol pins",
       ),
       "protocol pins",
     );
     const fixture = object(
-      EvidenceBenchmarkProtocolValidator.parse(
+      EvidenceBenchmarkProtocolValidator.parseBytes(
         fs.readFileSync(
           path.join(
             protocolRoot,
@@ -380,7 +421,6 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
             "protocol-identity",
             "cases.json",
           ),
-          "utf8",
         ),
         "protocol identity fixture",
       ),
@@ -407,6 +447,20 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
       const runtime = structuredClone(
         object(pins.prepareTimeRuntimeRequired, "runtime identity"),
       );
+      if (id === "reviewed-commit-mismatch") {
+        formal.reviewedMergedCommit = invalid.formalCommit;
+        runtime.mergedSourceCommit = invalid.runtimeCommit;
+        assert.throws(
+          () =>
+            EvidenceBenchmarkProtocolValidator.validateProtocolIdentityValue(
+              formal,
+              runtime,
+            ),
+          new RegExp(text(invalid.expectedPattern, "expected failure pattern")),
+          id,
+        );
+        continue;
+      }
       const target =
         invalid.target === "formal"
           ? formal
@@ -478,12 +532,15 @@ export namespace EvidenceBenchmarkProtocolValidatorTest {
     pointer: string,
   ): { parent: Record<string, unknown> | unknown[]; key: string } {
     const tokens: string[] = pointerTokens(pointer);
-    if (tokens.length === 0) throw new Error("Fixture cannot replace the root.");
+    if (tokens.length === 0)
+      throw new Error("Fixture cannot replace the root.");
     const parent: unknown = tokens
       .slice(0, -1)
       .reduce<unknown>((value, token) => child(value, token), root);
     if (typeof parent !== "object" || parent === null)
-      throw new Error(`Fixture mutation parent is not a container: ${pointer}.`);
+      throw new Error(
+        `Fixture mutation parent is not a container: ${pointer}.`,
+      );
     return {
       parent: parent as Record<string, unknown> | unknown[],
       key: tokens.at(-1)!,

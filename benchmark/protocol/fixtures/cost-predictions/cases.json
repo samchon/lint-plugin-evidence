@@ -7,6 +7,18 @@
     "observationCount": 0,
     "monetaryStatus": "unavailable"
   },
+  "invalidUtf8Cases": [
+    {
+      "id": "artifact-invalid-utf8",
+      "path": "cost-predictions.json",
+      "expectedPattern": "is not UTF-8"
+    },
+    {
+      "id": "markdown-source-invalid-utf8",
+      "path": "predictions/current-freeze-all-subjects.md",
+      "expectedPattern": "is not UTF-8"
+    }
+  ],
   "invalidCases": [
     {
       "id": "markdown-value-drift",
