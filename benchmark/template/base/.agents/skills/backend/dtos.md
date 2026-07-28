@@ -13,8 +13,9 @@ packages/api/src/structures/
   common/
     IPage.ts
     IDiagnosis.ts
-  shoppings/
-    sales/
+    IEntity.ts
+  shopping/
+    sale/
       IShoppingSale.ts
       IShoppingSaleSnapshot.ts
 ```
@@ -28,7 +29,7 @@ Mirror the route and domain structure in the folder layout, one file per root ty
 A type that is not reachable from the package entry does not exist for a consumer.
 
 ```ts
-// packages/api/src/structures/shoppings/sales/index.ts
+// packages/api/src/structures/shopping/sale/index.ts
 export * from "./IShoppingSale";
 export * from "./IShoppingSaleSnapshot";
 ```
@@ -36,7 +37,7 @@ export * from "./IShoppingSaleSnapshot";
 ```ts
 // packages/api/src/structures/index.ts
 export * from "./common";
-export * from "./shoppings";
+export * from "./shopping";
 ```
 
 Every folder re-exports its children, and the package entry re-exports the whole tree. Add the export in the same edit that adds the file: a type present in the tree and absent from an index compiles here, fails to import there, and the failure surfaces in the frontend rather than where it was caused.
