@@ -47,7 +47,7 @@ API             ->  business logic
 
 Granularity is part of the edge. A DTO **type** owes a requirement and a table, because it exists for a named concept and represents a row. A DTO **property** owes a column and **not** a requirement, because the question a property answers is where its value comes from. Walking the type level alone leaves every property unaccounted for, and a property with no source is the phantom that reaches the provider with nothing to fill it.
 
-Read each edge as a sentence with a denominator. "Every requirement section is accounted for by the schema." "Every table and column is accounted for by an endpoint or by a recorded decision that none exposes it." "Every operation is accounted for by a test."
+Read each edge as a sentence with a denominator, taking the acknowledger from the edge rather than from habit. "Every requirement section is accounted for by the schema." "Every table is accounted for by an endpoint that exposes it, or by a recorded decision that none does." "Every column is accounted for by the DTO property that carries it." "Every operation is accounted for by a test."
 
 **These edges are the known minimum, not the complete set.** More exist, and finding them is part of the work. Whenever you notice that one artifact silently depends on another, you have found an edge, and it needs a campaign like the rest.
 
