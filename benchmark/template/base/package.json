@@ -1,0 +1,30 @@
+{
+  "private": true,
+  "name": "{{name}}",
+  "version": "0.1.0",
+  "description": "Benchmark full-stack application for {{name}}",
+  "packageManager": "pnpm@10.10.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "pnpm --filter {{backendPackageName}} build:prisma && pnpm --filter {{backendPackageName}} build:sdk && pnpm --filter {{apiPackageName}} build && pnpm --filter {{backendPackageName}} build:main && pnpm --filter {{backendPackageName}} build:test && pnpm --filter {{frontendPackageName}} build",
+    "build:frontend": "pnpm --filter {{frontendPackageName}} build",
+    "build:prisma": "pnpm --filter {{backendPackageName}} build:prisma",
+    "dev:frontend": "pnpm --filter {{frontendPackageName}} dev",
+    "format": "pnpm -r --if-present format",
+    "lint": "pnpm --filter {{backendPackageName}} build:prisma && pnpm -r --if-present lint",
+    "prepare:database": "pnpm --filter {{backendPackageName}} prepare",
+    "start": "pnpm --filter {{backendPackageName}} start",
+    "test": "pnpm test:backend && pnpm test:frontend",
+    "test:backend": "pnpm --filter {{backendPackageName}} test",
+    "test:frontend": "pnpm --filter {{frontendPackageName}} test:e2e"
+  },
+  "devDependencies": {
+    "@ttsc/lint": "catalog:typescript",
+    "@types/node": "catalog:backend",
+    "rimraf": "catalog:typescript",
+    "ttsc": "catalog:typescript",
+    "typescript": "catalog:typescript"
+  }
+}
