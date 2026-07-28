@@ -233,21 +233,28 @@ Every actor's authorize provider is that same shape, differing only in the discr
 
 ```ts
 // src/utils/JwtUtil.ts
+const BEARER = "Bearer ";
+
 export namespace JwtUtil {
   export function authorize(props: {
     request: { headers: { authorization?: string } };
   }): unknown {
     const header: string | undefined = props.request.headers.authorization;
-    if (header === undefined || header.startsWith("Bearer ") === false)
-      throw ErrorUtil.unauthorized("No bearer token was supplied.");
+    if (header === undefined || header.length === 0)
+      throw ErrorUtil.unauthorized("No token was supplied.");
+    const token: string = header.startsWith(BEARER)
+      ? header.slice(BEARER.length)
+      : header;
     try {
-      return jwt.verify(header.slice("Bearer ".length), MyGlobal.env().JWT_SECRET_KEY);
+      return jwt.verify(token, MyGlobal.env().JWT_SECRET_KEY);
     } catch {
       throw ErrorUtil.unauthorized("The token is invalid or has expired.");
     }
   }
 }
 ```
+
+**The prefix is optional, and that is not leniency.** The generated SDK writes the bare token into the connection, while a browser tool or a curl command sends `Bearer <token>`. Requiring the prefix rejects every call the SDK makes, which is every test in the suite, and the failure reads as an authentication defect rather than a parsing one.
 
 **It returns `unknown` deliberately.** The caller narrows to its own payload after checking `type`, so a token minted for one actor cannot be read as another's simply because the shapes happen to match.
 

@@ -29,15 +29,27 @@ That is where a validation the client should run before submitting and the serve
 
 ## Connections And Authentication
 
-A connection carries the host and the headers. Authenticating means putting the issued token into that connection's headers, and whoever authenticates owns doing it.
+A connection carries the host and the headers. Authenticating means calling a lifecycle accessor with it.
 
 ```ts
-const connection: IConnection = { host: apiHost };
-connection.headers ??= {};
-connection.headers.Authorization = `Bearer ${authorized.token.access}`;
+const connection: IConnection = { host: config.apiHost };
+await api.functional.shopping.auth.customer.join(connection, { body });
+// connection is now authenticated
 ```
 
-One connection per actor, authenticated once and reused. A fresh connection object built from the same host is anonymous, and the resulting failure appears on the second call rather than the first.
+**Do not write the header yourself.** The accessor does it, because its controller method declares where the token goes:
+
+```ts
+/**
+ * @setHeader token.access Authorization
+ */
+```
+
+Assigning `connection.headers.Authorization` by hand is the mistake to avoid here. It duplicates what the accessor already did, and it is written with a `Bearer ` prefix roughly every time, which then diverges from the value the accessor writes. The one place a token is handled is inside the generated call.
+
+One connection per actor, authenticated once and reused for every later call by that actor. A fresh connection object built from the same host is anonymous, and the resulting failure appears on some later call rather than at the point the mistake was made.
+
+Persisting a session across a reload means storing the issued token and putting it back on the connection at startup, which is the one time you touch the header directly. Read it back through the same accessor's response type rather than a shape of your own.
 
 Model join, login, refresh, logout, and any grade-management flow from the operations the SDK actually exposes. Do not invent a frontend-only permission model: if the contract exposes role grants, membership, ownership-scoped operations, or session refresh, the interface calls those and reflects their typed state.
 

@@ -194,13 +194,15 @@ export interface IConnection {
 }
 ```
 
-Authenticating means putting the issued token into that connection's headers, and whoever authenticates owns doing it:
+Authenticating means calling a lifecycle accessor with the connection. **The accessor writes the token into it**, because the controller method behind it declares `@setHeader token.access Authorization`:
 
 ```ts
 const connection: IConnection = { host: apiHost };
-connection.headers ??= {};
-connection.headers.Authorization = `Bearer ${authorized.token.access}`;
+await api.functional.shopping.auth.customer.join(connection, { body });
+// every later call on this connection is authenticated
 ```
+
+The generated function ends with the assignment, so nothing outside it needs to know the header name or the token's shape. Writing that header by hand is how a `Bearer ` prefix gets added that the accessor never adds.
 
 **One connection per actor, authenticated once, reused for every call by that actor.** The SDK copies the token nowhere else, so a fresh `{ host }` object is anonymous. The resulting failure appears on the second call rather than the first, which is why it reads as a puzzle rather than a mistake.
 
