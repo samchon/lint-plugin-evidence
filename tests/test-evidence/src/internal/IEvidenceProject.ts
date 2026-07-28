@@ -10,6 +10,14 @@ export interface IEvidenceProject {
   readonly directory: string;
 
   /**
+   * Absolute path of the directory the project sits inside.
+   *
+   * This is what a population's `root` can ascend into, and what a case writes
+   * a shared document set to. Disposing the fixture disposes it too.
+   */
+  readonly workspace: string;
+
+  /**
    * Removes the fixture, tolerating a directory the OS has not released yet.
    *
    * Safe to call more than once, and safe to call after a failed run.

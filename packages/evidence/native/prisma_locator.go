@@ -2,7 +2,6 @@ package evidence
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 	"unicode"
 )
@@ -92,7 +91,7 @@ func locatePrismaDeclarations(
 	locations := map[string]prismaLocation{}
 	comments := []prismaCommentRun{}
 	for _, source := range sources {
-		content, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(source)))
+		content, err := os.ReadFile(resolveProjectPath(root, source))
 		if err != nil {
 			continue
 		}

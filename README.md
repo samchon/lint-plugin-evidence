@@ -176,12 +176,40 @@ Swagger is reference-only. It cannot host declarations and has no `symbol` selec
 
 ### File patterns
 
-Every Markdown, Prisma, or TypeScript `files` property takes project-relative glob patterns, not regular expressions. `*` matches inside one path segment, `**` crosses segments, and `?` matches one character. A bare directory such as `docs` does not select its descendants; write `docs/**` for the subtree.
+Every Markdown, Prisma, or TypeScript `files` property takes glob patterns, not regular expressions. `*` matches inside one path segment, `**` crosses segments, and `?` matches one character. A bare directory such as `docs` does not select its descendants; write `docs/**` for the subtree.
 
 - `docs/**/*.md` selects every document below `docs`.
 - `backend/src/**/*.ts` selects every backend source file.
 - `frontend/src/components/**/*.tsx` selects every React component.
 - `test/features/**/*.ts` selects every feature test function.
+
+A pattern resolves against its population's base — the `ttsc` project root unless the population declares a `root` — and it may not escape that base: `..` and an absolute path are both refused inside a pattern, because a base spread across every pattern is a base nobody can read off the configuration. Declare it once instead.
+
+### Populations above the project
+
+A monorepo usually keeps one requirements set that several packages implement together, and each package is its own `ttsc` project with its own `tsconfig.json` and `lint.config.ts`. A Markdown or Prisma population declares the directory it resolves against with `root`:
+
+```ts
+// packages/backend/lint.config.ts and packages/api/lint.config.ts, identically
+{
+  type: "markdown",
+  root: "../../docs",
+  files: ["requirements/**"],
+  symbol: "h2",
+}
+```
+
+`root` is one directory, never a glob. It may sit inside the project (`docs`), above it (`../../docs`), or on an absolute path (`/srv/contracts`, `C:/contracts`). A Windows drive-relative path such as `C:docs` is refused, because it resolves against whatever directory that drive is currently on rather than against a stable base.
+
+**Moving the root moves the addresses with it.** Under the configuration above, a section is cited as `requirements/pricing.md#discounts` — not through the citing package's distance from the documents. That is what lets two packages share one document set: they declare the same base and write the same citation, so adopting the set costs a `root` line and nothing else. A Prisma target carries no path at all, so a root there changes which files join the schema set and where a diagnostic points, never how a model is cited.
+
+Diagnostics name the resolved base, so a population that selects nothing says which directory it looked in, and a unit above the project is located through it: `Missing acknowledgement for 'requirements/pricing.md#discounts' (Markdown H2 'Discount Policy' at ../../docs/requirements/pricing.md:12)`. A root that names no directory is reported as a root, with the spelling you wrote and the path it resolved to.
+
+Everything a rooted population reads is published to the `ttsc` host as a watched dependency, so editing a document two directories up starts the next `ttsc check --watch` cycle exactly as editing one inside the project does.
+
+There is no `root` on a TypeScript population. Its files come from the `ttsc` program, which no outside directory contributes to; `package` is the channel that reaches a population you do not own, and `files` narrows it from there.
+
+**Each project still owes its own coverage.** Two projects referencing one document set are two independent obligations, so a section only the backend implements needs an `@evidenceExclude` in the API project, and the reverse for an API-only one. That is the intended form rather than a gap: the claim that a requirement does not apply to a package is a reviewable decision, and a shared population with a per-project filter would let one package silently drop a requirement the other still enforces.
 
 ### TypeScript populations
 
@@ -225,7 +253,9 @@ const graph: IEvidenceGraphConfig = {
 };
 ```
 
-`file` is either one exact project-relative path or one exact `http:`/`https:` URL; it is never a glob. Use a `reference` array when one claim owes separate coverage to several API documents.
+`file` is either one exact local path or one exact `http:`/`https:` URL; it is never a glob and never a directory. Use a `reference` array when one claim owes separate coverage to several API documents.
+
+A local path resolves against the `ttsc` project root and may name a document anywhere on the filesystem — `api/openapi.yaml` inside the project, `../contracts/swagger.json` beside it, or `/srv/contracts/swagger.json` outside it entirely. An OpenAPI document is routinely generated somewhere with no relationship to the project that consumes it: a sibling package's generator output, a shared contract repository checked out alongside, a CI artifact directory. Since a `reference` may already name an arbitrary URL on any host, refusing the local form would have refused the one an author can pin, version, and diff. A Windows drive-relative path such as `C:openapi.json` is still refused, because it resolves against whatever directory that drive is currently on.
 
 Swagger 2.0 and OpenAPI 3.0, 3.1, and 3.2 JSON or YAML documents are normalized through `@typia/utils` to `OpenApi.IDocument` before indexing. A local document is read and a remote document is fetched on every evidence-graph project evaluation; failures, non-2xx responses, invalid documents, 30-second remote timeouts, and documents larger than 16 MiB fail the build.
 
@@ -233,7 +263,7 @@ Normalization runs a Node process, and starting it costs far more than the docum
 
 Only operations under `paths` become evidence units. Webhooks and component schemas are outside this reference type. Standard and additional operation methods use the same target identity.
 
-One-shot checks always evaluate the current Markdown, TypeScript, and Swagger sources. `ttsc check --watch` and the editor server do too: the rule declares its configured Markdown globs and local Swagger paths to the host, so editing a spec section or regenerating an OpenAPI document starts the next cycle on its own, with no TypeScript file touched. A path stays declared while it is missing, which is what lets a document that has not been generated yet be observed the moment it appears.
+One-shot checks always evaluate the current Markdown, TypeScript, and Swagger sources. `ttsc check --watch` and the editor server do too: the rule declares its configured Markdown globs and local Swagger paths to the host, so editing a spec section or regenerating an OpenAPI document starts the next cycle on its own, with no TypeScript file touched. A path stays declared while it is missing, which is what lets a document that has not been generated yet be observed the moment it appears. A source above the project is declared on the same terms, so a rooted population and an ancestor-relative Swagger document are watched exactly like ones inside it.
 
 An `http:`/`https:` Swagger source is the one exception, and it is not a gap that will close. A URL has no filesystem event to observe, so nothing wakes the watcher when the served document changes — and because it is fetched once per process, an editor session keeps the document it started with until it restarts.
 

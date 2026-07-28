@@ -18,12 +18,24 @@ import { suiteRoot } from "./suiteRoot.ts";
  * while every unit test stays green.
  */
 export const createProject = (props: ICreateProjectProps): IEvidenceProject => {
-  const directory: string = fs.mkdtempSync(
+  // The fixture is a workspace with the project one directory inside it, so a
+  // case can place a document, a schema, or an OpenAPI file *beside* the
+  // project. Writing above a project that sat directly in the temp directory
+  // would litter a directory every other case shares, and the ancestor
+  // population is precisely what has to be reachable.
+  const workspace: string = fs.mkdtempSync(
     path.join(os.tmpdir(), `evidence-${props.name}-`),
   );
+  const directory: string = path.join(workspace, "project");
+  fs.mkdirSync(directory, { recursive: true });
 
   const write = (relative: string, content: string): void => {
     const location: string = path.join(directory, relative);
+    fs.mkdirSync(path.dirname(location), { recursive: true });
+    fs.writeFileSync(location, content, "utf8");
+  };
+  const writeOutside = (relative: string, content: string): void => {
+    const location: string = path.join(workspace, relative);
     fs.mkdirSync(path.dirname(location), { recursive: true });
     fs.writeFileSync(location, content, "utf8");
   };
@@ -59,6 +71,8 @@ export const createProject = (props: ICreateProjectProps): IEvidenceProject => {
   write("lint.config.ts", props.lintConfig);
   for (const [relative, content] of Object.entries(props.files))
     write(relative, content);
+  for (const [relative, content] of Object.entries(props.workspaceFiles ?? {}))
+    writeOutside(relative, content);
 
   // Link rather than install: the workspace build is what is under test, and an
   // npm-resolved copy would be testing whatever was last published. Materialize
@@ -82,7 +96,7 @@ export const createProject = (props: ICreateProjectProps): IEvidenceProject => {
   );
   linkDirectory(resolveDependency("ttsc"), path.join(modules, "ttsc"));
 
-  return { directory, cleanup: () => cleanupQuietly(directory) };
+  return { directory, workspace, cleanup: () => cleanupQuietly(workspace) };
 };
 
 /**

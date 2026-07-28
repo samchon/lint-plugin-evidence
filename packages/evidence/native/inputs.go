@@ -44,12 +44,12 @@ func graphProjectInputs(config graphConfig) []rule.ProjectInput {
 	for _, claim := range config.Claims {
 		switch claim.Type {
 		case artifactMarkdown, artifactPrisma:
-			inputs = append(inputs, globInputs(claim.Files)...)
+			inputs = append(inputs, globInputs(claim.Root, claim.Files)...)
 		}
 		for _, reference := range claim.References {
 			switch reference.Type {
 			case artifactMarkdown, artifactPrisma:
-				inputs = append(inputs, globInputs(reference.Files)...)
+				inputs = append(inputs, globInputs(reference.Root, reference.Files)...)
 			case artifactSwagger:
 				inputs = append(inputs, localSwaggerInputs(reference.Source)...)
 			}
@@ -58,7 +58,8 @@ func graphProjectInputs(config graphConfig) []rule.ProjectInput {
 	return inputs
 }
 
-// globInputs publishes the positive half of one glob set.
+// globInputs publishes the positive half of one glob set, anchored on the root
+// its population resolves against.
 //
 // Exclusions are dropped rather than translated, because the host's dependency
 // model has no negation — declaring `!docs/private/**` as a glob would watch
@@ -68,17 +69,29 @@ func graphProjectInputs(config graphConfig) []rule.ProjectInput {
 // whole failure this contract exists to remove.
 //
 // The declared pattern is the compiled segment form rather than `Raw`, so the
-// host receives a project-relative pattern with the exclusion marker already
-// stripped, `\` already normalized to `/`, and a leading `./` already gone.
-func globInputs(globs globSet) []rule.ProjectInput {
+// host receives a pattern with the exclusion marker already stripped, `\`
+// already normalized to `/`, and a leading `./` already gone.
+//
+// The root is prefixed as the author wrote it rather than resolved here. The
+// host anchors a relative pattern against the same physical project root this
+// rule uses (`linthost/project_inputs.go:151-171`), and it accepts one that
+// ascends or is absolute — so `../../docs/**/*.md` and `C:/shared/docs/**/*.md`
+// both arrive at the directory `Check` will read. Resolving it here would
+// duplicate that arithmetic and make this contract depend on a project identity
+// it is supposed to be able to answer without.
+func globInputs(root string, globs globSet) []rule.ProjectInput {
 	inputs := make([]rule.ProjectInput, 0, len(globs.Patterns))
 	for _, pattern := range globs.Patterns {
 		if pattern.Exclude {
 			continue
 		}
+		joined := strings.Join(pattern.Segments, "/")
+		if root != "" {
+			joined = strings.TrimSuffix(root, "/") + "/" + joined
+		}
 		inputs = append(inputs, rule.ProjectInput{
 			Kind:    rule.ProjectInputGlob,
-			Pattern: strings.Join(pattern.Segments, "/"),
+			Pattern: joined,
 		})
 	}
 	return inputs
@@ -95,6 +108,11 @@ func globInputs(globs globSet) []rule.ProjectInput {
 //
 // The boundary is also real rather than imposed: a URL has no filesystem event
 // to observe, so its freshness is per-evaluation and belongs to the loader.
+//
+// A local path is published exactly as it normalized, including one that
+// ascends out of the project or names an absolute location. The host resolves
+// both against the same root this rule reads them from, so a generated document
+// in a sibling package is watched on the same terms as one inside the project.
 func localSwaggerInputs(source string) []rule.ProjectInput {
 	if source == "" || isRemoteSwaggerSource(source) {
 		return nil

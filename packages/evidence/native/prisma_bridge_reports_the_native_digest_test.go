@@ -374,7 +374,7 @@ func TestPrismaLoaderReportsAnUnparseableSchema(t *testing.T) {
 	root := prismaBridgeRoot(t, map[string]string{
 		"prisma/schema.prisma": "model Sale {\n  id String @id\n",
 	})
-	inventories, problems := loadPrismaInventories(root, graphConfig{
+	inventories, problems := loadPrismaInventories(root, anchoredGraph(root, graphConfig{
 		Claims: []claimSpec{{
 			Type:    artifactTypeScript,
 			Files:   mustGlobSet(t, []string{"src/**/*.ts"}),
@@ -385,7 +385,7 @@ func TestPrismaLoaderReportsAnUnparseableSchema(t *testing.T) {
 				Symbols: symbolSet{"model": true},
 			}},
 		}},
-	})
+	}))
 	if len(problems) == 0 {
 		t.Fatal("an unparseable schema must be reported, never answered as an empty population")
 	}
@@ -427,7 +427,7 @@ func TestPrismaLoaderMaterializesALocatedPopulation(t *testing.T) {
 	root := prismaBridgeRoot(t, map[string]string{
 		"prisma/schema.prisma": prismaBridgeSchema,
 	})
-	inventories, problems := loadPrismaInventories(root, graphConfig{
+	inventories, problems := loadPrismaInventories(root, anchoredGraph(root, graphConfig{
 		Claims: []claimSpec{{
 			Type:    artifactTypeScript,
 			Files:   mustGlobSet(t, []string{"src/**/*.ts"}),
@@ -438,7 +438,7 @@ func TestPrismaLoaderMaterializesALocatedPopulation(t *testing.T) {
 				Symbols: symbolSet{"model": true, "column": true, "relation": true},
 			}},
 		}},
-	})
+	}))
 	if len(problems) != 0 {
 		t.Fatalf("a valid schema must load cleanly: %v", problems)
 	}
