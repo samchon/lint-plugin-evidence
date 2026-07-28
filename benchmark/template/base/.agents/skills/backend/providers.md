@@ -57,31 +57,51 @@ A relation that must exist but is nullable in the payload is checked once at the
 
 ## Readers
 
-A list endpoint is a call to the shared pagination helper with a where-clause builder and a sort mapper.
+A list endpoint builds one where clause, then runs the count and the page against it.
 
 ```ts
 export const index = async (props: {
   actor: IShoppingActorEntity;
   input: IShoppingSale.IRequest;
-}): Promise<IPage<IShoppingSale.ISummary>> =>
-  PaginationUtil.paginate({
-    schema: ShoppingGlobal.prisma.shopping_sales,
-    payload: summary.select(),
-    transform: summary.transform,
-  })({
-    where: {
-      AND: [
-        ...where(props.actor, true),
-        ...(await search({ actor: props.actor, input: props.input.search })),
-      ],
+}): Promise<IPage<IShoppingSale.ISummary>> => {
+  const where = {
+    AND: [
+      ...visibility({ actor: props.actor, strict: true }),
+      ...(await search({ input: props.input.search })),
+    ],
+  } satisfies Prisma.shopping_salesWhereInput;
+
+  const current: number = props.input.page ?? 1;
+  const limit: number = props.input.limit ?? 100;
+
+  const [records, rows] = await Promise.all([
+    ShoppingGlobal.prisma.shopping_sales.count({ where }),
+    ShoppingGlobal.prisma.shopping_sales.findMany({
+      where,
+      orderBy: orderBy({ sort: props.input.sort }),
+      skip: (current - 1) * limit,
+      take: limit,
+      ...summary.select(),
+    }),
+  ]);
+
+  return {
+    pagination: {
+      current,
+      limit,
+      records,
+      pages: Math.ceil(records / limit),
     },
-    orderBy: props.input.sort?.length
-      ? PaginationUtil.orderBy(orderBy)(props.input.sort)
-      : [{ created_at: "desc" }],
-  } satisfies Prisma.shopping_salesFindManyArgs)(props.input);
+    data: await Promise.all(rows.map(summary.transform)),
+  };
+};
 ```
 
-The helper takes the delegate, the payload, and the transformer, then the query, then the page request. It runs `count` and `findMany` against the same `where`, clamps the page into range, and returns the wrapper. The total comes from the count, never from the length of the rows.
+**The count and the page share one `where` object.** Building the filter twice is how a total stops matching the rows it counts, and the symptom is a last page that is empty or a count that never lets the caller reach the end.
+
+**The total comes from the count query**, never from the length of the returned rows. Those agree only on the final page.
+
+`skip` and `take` come from the request with explicit defaults, so a caller who omits both gets a bounded response rather than the whole table.
 
 A detail read uses the throwing finder so a missing row becomes a 404 without a hand-written branch, and it applies the same visibility clause as the list:
 
@@ -91,7 +111,7 @@ export const at = async (props: {
   id: string;
 }): Promise<IShoppingSale> => {
   const record = await ShoppingGlobal.prisma.shopping_sales.findFirstOrThrow({
-    where: { id: props.id, AND: where(props.actor, false) },
+    where: { id: props.id, AND: visibility({ actor: props.actor, strict: false }) },
     ...json.select(),
   });
   return json.transform(record);
@@ -107,12 +127,15 @@ Reserve the non-throwing finder for states where absence is a valid business out
 The rule that decides which rows an actor may see is a function, reused by every read of that entity.
 
 ```ts
-const where = (actor: IShoppingActorEntity, strict: boolean) =>
+const visibility = (props: {
+  actor: IShoppingActorEntity;
+  strict: boolean;
+}) =>
   [
-    { sellerCustomer: { shopping_channel_id: channelOf(actor).id } },
-    ...(actor.type === "seller"
-      ? [{ sellerCustomer: { member: { of_seller: { id: actor.id } } } }]
-      : actor.type === "customer" && strict === true
+    { sellerCustomer: { shopping_channel_id: channelOf(props.actor).id } },
+    ...(props.actor.type === "seller"
+      ? [{ sellerCustomer: { member: { of_seller: { id: props.actor.id } } } }]
+      : props.actor.type === "customer" && props.strict === true
         ? [
             {
               opened_at: { lte: new Date() },
@@ -134,7 +157,6 @@ Build optional search terms by spreading a conditional array, so an absent filte
 
 ```ts
 const search = async (props: {
-  actor: IShoppingActorEntity;
   input: IShoppingSale.IRequest.ISearch | null | undefined;
 }) =>
   [
@@ -142,9 +164,9 @@ const search = async (props: {
       ? [{ section: { code: { in: props.input.section_codes } } }]
       : []),
     ...(props.input?.show_paused === false ? [{ paused_at: null }] : []),
-    ...(await ShoppingSaleSnapshotProvider.search({ input: props.input })).map(
-      (snapshot) => ({ mv_last: { snapshot } }),
-    ),
+    ...(await ShoppingSaleSnapshotProvider.search({ input: props.input })).map((snapshot) => ({
+      mv_last: { snapshot },
+    })),
   ] satisfies Prisma.shopping_salesWhereInput["AND"];
 ```
 
@@ -154,23 +176,36 @@ Check a boolean filter with `=== false` rather than falsiness, or an absent filt
 
 ## Sorting Goes Through A Mapper
 
-The request carries `"+field"` and `"-field"` tokens. A mapper turns each into a real ordering object and returns `null` for anything it does not recognize, which the helper drops.
+The request carries `"+field"` and `"-field"` tokens. One function turns the whole array into ordering objects, dropping anything it does not recognize and falling back when nothing survives.
 
 ```ts
-const orderBy = (
-  key: IShoppingSale.IRequest.SortableColumns,
-  direction: "asc" | "desc",
-) =>
-  key === "sale.created_at"
-    ? { created_at: direction }
-    : key === "sale.updated_at"
-      ? { mv_last: { snapshot: { created_at: direction } } }
-      : key === "sale.opened_at"
-        ? { opened_at: direction }
-        : null;
+const COLUMNS = {
+  "sale.created_at": (direction) => ({ created_at: direction }),
+  "sale.updated_at": (direction) => ({
+    mv_last: { snapshot: { created_at: direction } },
+  }),
+  "sale.opened_at": (direction) => ({ opened_at: direction }),
+} satisfies Record<
+  IShoppingSale.IRequest.SortableColumns,
+  (direction: "asc" | "desc") => Prisma.shopping_salesOrderByWithRelationInput
+>;
+
+const orderBy = (props: {
+  sort: IShoppingSale.IRequest["sort"];
+}): Prisma.shopping_salesOrderByWithRelationInput[] => {
+  const parsed = (props.sort ?? [])
+    .map((token) => {
+      const column = COLUMNS[token.slice(1) as keyof typeof COLUMNS];
+      return column?.(token[0] === "+" ? "asc" : "desc") ?? null;
+    })
+    .filter((elem) => elem !== null);
+  return parsed.length !== 0 ? parsed : [{ created_at: "desc" }];
+};
 ```
 
-Never feed a request string into an ordering clause. Always supply a static fallback when the sort is absent or every token was dropped, and verify the fallback column exists rather than assuming a creation timestamp.
+**A request string never reaches an ordering clause.** The map is the whitelist: a token outside it produces nothing rather than a query against a column that may not exist.
+
+**The fallback is explicit and its column is real.** A listing whose sort is absent, or whose every token was unrecognized, still returns a defined order. Verify the fallback column exists rather than assuming a creation timestamp is there.
 
 ## Writers
 

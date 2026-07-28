@@ -171,94 +171,103 @@ For actor-owned resources, distinguish public browsing from authenticated self-m
 
 The JSDoc on a controller method becomes the Swagger operation description and the SDK function's documentation. Its readers never open this repository.
 
-```ts
-/**
- * List up every sales.
- *
- * List up every {@link IShoppingSale sales} with detailed information.
- *
- * As you can see, returned sales are detailed, not summarized. If you want
- * to get the summarized information of sale for a brief, use {@link index}
- * function instead.
- *
- * For reference, if you're a {@link IShoppingSeller seller}, you can only
- * access to the your own {@link IShoppingSale sale}s. Otherwise you're a
- * {@link IShoppingCustomer customer}, you can see only the operating sales
- * in the market. Instead, you can't see the unopened, closed, or suspended
- * sales.
- *
- * @param input Request info of pagination, searching and sorting
- * @returns Paginated sales with detailed information
- * @tag Sale
- */
-@core.TypedRoute.Patch("details")
-public async details(
-  @props.AuthGuard() actor: Actor,
-  @core.TypedBody() input: IShoppingSale.IRequest,
-): Promise<IPage<IShoppingSale>> {
-  return ShoppingSaleProvider.details({ actor, input });
-}
-```
+The controller example above shows the shape. What each part of the block owes:
 
-The block sits on the method, not beside it, because the generator reads it from there.
+| Part | Owes |
+| --- | --- |
+| first line | the operation title, one sentence |
+| body paragraphs | purpose, the per-actor visibility rule, effects, transitions, rejections |
+| `{@link}` | a cross-reference the generated documentation resolves |
+| blockquote | a directive to the caller: do this, in this order, at least once |
+| `@param` | what the value means, not the type the signature already states |
+| `@returns` | what the response represents |
+| `@tag` | the group this operation belongs to in the published document |
 
-Notice what the middle paragraphs do. One distinguishes this operation from its sibling by name, so a consumer choosing between two similar endpoints does not have to compare their return types. The other states the visibility rule per actor, in full, including which states a customer cannot see. That rule is usually the requirement the endpoint exists to satisfy, and nothing in the signature carries it.
+Two habits carry most of the value.
+
+**Distinguish an operation from its siblings by name.** "If you want the summarized form, use `index` instead" saves every consumer from comparing two return types to work out which endpoint they want.
+
+**State the visibility rule in full, including what is not returned.** A seller sees only their own; a customer sees only operating sales and not the unopened, closed, or suspended ones. That rule is usually the requirement the endpoint exists to satisfy, and nothing in the signature carries it.
+
+Write it for someone who will never open this repository. They get the SDK function and its documentation, and nothing else.
 
 The first line is the operation title. State the authorization and visibility rule whenever it differs by actor, because that is usually the requirement the endpoint exists to satisfy and a caller cannot infer it from the signature. Link related types with `{@link}`. Do not stop at "creates X": include the effects, the transitions, and the rejections.
 
 ## Controllers
 
-Group by domain, then by actor. Write the shared behavior once as a base controller factory and specialize it per actor.
+Group by domain, then by actor. One plain class per actor and resource, with an explicit route and an explicit guard.
 
 ```ts
-export interface IShoppingControllerProps<Path extends ActorPath = ActorPath> {
-  AuthGuard: (
-    customerLevel?: "guest" | "member" | "citizen",
-  ) => ParameterDecorator;
-  path: Path;
-}
-
-export function ShoppingSaleController<Actor extends IShoppingActorEntity>(
-  props: IShoppingControllerProps,
-) {
-  @Controller(`shoppings/${props.path}/sales`)
-  abstract class ShoppingSaleController {
-    @core.TypedRoute.Patch("details")
-    public async details(
-      @props.AuthGuard() actor: Actor,
-      @core.TypedBody() input: IShoppingSale.IRequest,
-    ): Promise<IPage<IShoppingSale>> {
-      return ShoppingSaleProvider.details({ actor, input });
-    }
-
-    @core.TypedRoute.Get(":id")
-    public async at(
-      @props.AuthGuard() actor: Actor,
-      @core.TypedParam("id") id: string & tags.Format<"uuid">,
-    ): Promise<IShoppingSale> {
-      return ShoppingSaleProvider.at({ actor, id });
-    }
+@Controller("shoppings/sellers/sales")
+export class ShoppingSellerSaleController {
+    /**
+     * List up every sales.
+     *
+     * List up every {@link IShoppingSale sales} with detailed information.
+     *
+     * As you can see, returned sales are detailed, not summarized. If you
+     * want to get the summarized information of sale for a brief, use
+     * {@link index} function instead.
+     *
+     * For reference, if you're a {@link IShoppingSeller seller}, you can only
+     * access to the your own {@link IShoppingSale sale}s. Otherwise you're a
+     * {@link IShoppingCustomer customer}, you can see only the operating
+     * sales in the market. Instead, you can't see the unopened, closed, or
+     * suspended sales.
+     *
+     * @param input Request info of pagination, searching and sorting
+     * @returns Paginated sales with detailed information
+     * @tag Sale
+     */
+  @core.TypedRoute.Patch("details")
+  public async details(
+    @ShoppingSellerAuth() seller: IShoppingSeller.IInvert,
+    @core.TypedBody() input: IShoppingSale.IRequest,
+  ): Promise<IPage<IShoppingSale>> {
+    return ShoppingSaleProvider.details({ actor: seller, input });
   }
-  return ShoppingSaleController;
+
+    /**
+     * Get a sale with detailed information.
+     *
+     * Get a {@link IShoppingSale sale} with detailed information including
+     * the SKU (Stock Keeping Unit) information represented by the
+     * {@link IShoppingSaleUnitOption} and {@link IShoppingSaleUnitStock}
+     * types.
+     *
+     * > If the user wants to buy or compose a
+     * > {@link IShoppingCartCommodity shopping cart} from a sale, call this
+     * > operation at least once to get detailed SKU information about it.
+     *
+     * @param id Target sale's {@link IShoppingSale.id}
+     * @returns Detailed sale information
+     * @tag Sale
+     */
+  @core.TypedRoute.Get(":id")
+  public async at(
+    @ShoppingSellerAuth() seller: IShoppingSeller.IInvert,
+    @core.TypedParam("id") id: string & tags.Format<"uuid">,
+  ): Promise<IShoppingSale> {
+    return ShoppingSaleProvider.at({ actor: seller, id });
+  }
 }
 ```
 
-```ts
-export class ShoppingAdminSaleController extends ShoppingSaleController({
-  path: "admins",
-  AuthGuard: ShoppingAdminAuth,
-}) {}
-```
+Each actor that reaches a resource gets its own controller, with its own route prefix and its own guard. The behavior they share lives in the provider both of them call, so a reader opening `ShoppingSellerSaleController` sees the seller's routes and the seller's guard and nothing else.
 
-The factory returns the class, and the actor's controller extends the call. `AuthGuard` is a function returning a parameter decorator, which is what lets a route demand a stricter level of the same actor by passing an argument.
+**A controller contains no business logic and no database access.** It resolves the actor, delegates to the provider, and returns.
+
+**Every method carries its JSDoc.** There is no endpoint too small to document, because the block is the published API reference and an undocumented operation reaches its consumers as a name and a type signature.
+
+The blockquote in the second method is a directive to the caller rather than a description. Use it where the contract needs the consumer to act in a particular order or at a particular time, which a description alone does not convey.
 
 A path parameter arrives through `@core.TypedParam` with its constrained type, so an identifier that is not a UUID is rejected at the boundary and never reaches a query.
 
-The factory takes the route segment and the guard; each actor's controller is the one-line specialization, and an actor whose behavior genuinely differs overrides that one method. This is what keeps a per-actor visibility rule honest: the difference lives in the provider's query and the actor type, not in three handlers that drift.
+The actor arrives through that actor's authentication decorator, which resolves it from the request and declares the security requirement on the operation. The authorization topic owns both halves.
 
-Use the typed route and body decorators rather than the plain framework ones. They are what makes the SDK and the OpenAPI document derivable from the signature.
+Use the typed route, body, and parameter decorators. They are what makes the SDK and the OpenAPI document derivable from the signature.
 
-A controller contains no business logic and no database access.
+A per-actor visibility rule lives in the provider's query, keyed by the actor the guard resolved, so three controllers calling one provider enforce one rule.
 
 ## After Changing An Endpoint
 

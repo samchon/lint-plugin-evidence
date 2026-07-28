@@ -66,21 +66,60 @@ Three kinds recur.
 **Validation that produces diagnoses.** A rule the client should check before submitting and the server must enforce on arrival.
 
 ```ts
+/**
+ * A diagnosis.
+ *
+ * Description of a problem found in a submitted value.
+ */
 export interface IDiagnosis {
-  /** Where the problem is, as an accessor path into the submitted value. */
+  /**
+   * Where the problem is.
+   *
+   * Accessor path into the submitted value, so a field-level error lands on
+   * the field that caused it.
+   */
   accessor: string;
-  /** What is wrong, in words the user can act on. */
+
+  /**
+   * What is wrong, in words the user can act on.
+   */
   message: string;
 }
 
+/**
+ * Diagnoser of uniqueness.
+ *
+ * Finds every duplicated element.
+ */
 export namespace UniqueDiagnoser {
-  export const validate = <Element>(props: {
+  /**
+   * Properties of the unique diagnoser.
+   */
+  export interface IProps<Element> {
+    /**
+     * Key getter function.
+     */
     key(x: Element): string;
+
+    /**
+     * Message generator called when a duplicate is found.
+     */
     message(elem: Element, index: number): IDiagnosis;
+
+    /**
+     * Target elements to validate.
+     */
     items: Element[];
-  }): IDiagnosis[] => {};
+  }
+
+  /**
+   * Diagnose duplicated elements.
+   */
+  export const validate = <Element>(props: IProps<Element>): IDiagnosis[] => {};
 }
 ```
+
+**Everything published carries JSDoc, down to each property.** This package is the API reference: its types reach consumers who never open this repository, and a property documented only by its name tells them nothing about what value belongs there.
 
 `IDiagnosis` is the same shape the server's error responses carry. That is the point: a client-side check and a server-side rejection speak one vocabulary, so a screen renders either without branching, and a field-level error lands on the right field because `accessor` says which one.
 
