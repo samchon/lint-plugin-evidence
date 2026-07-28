@@ -166,10 +166,10 @@ Given only the requirement documents and an empty repository, this is the sequen
 
 1. Read every document under `docs/analysis/`.
 2. Write the schema, then `build:prisma` and `prepare`.
-3. Write the DTOs, the controllers, and their modules, then `build:sdk`.
+3. Write the DTOs, the controller stubs with their `@todo` tags, and their modules, then `build:sdk`.
 4. Write the tests from the requirements and the generated SDK.
 5. Write the transformers and the collectors, one per DTO that needs each.
-6. Write the providers, which compose them, then `build:main` and run the tests.
+6. Realize: swap each stub body for its provider call and drop the `@todo`, then `build:main` and run the tests.
 7. Start the server and confirm it answers.
 8. Build the frontend against simulation, then against this server.
 

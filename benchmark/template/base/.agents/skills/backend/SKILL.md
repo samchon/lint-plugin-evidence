@@ -43,11 +43,13 @@ When something will not fit, go back to the layer that owns it and fix it there.
 Work the layers in order, and let each one read everything the earlier ones decided.
 
 1. Read the requirements.
-2. Design the schema and make it compile.
-3. Design the operations and their DTOs.
-4. Write the tests from the requirements and the operation contracts.
+2. Design the schema, and generate the client from it.
+3. Declare the operations and their DTOs as stubs: the full contract JSDoc, a body of `return typia.random<T>();`, and an `@todo` tag naming what realize owes. Build the SDK from the stubs.
+4. Write the tests from the requirements and the stub SDK.
 5. Write the transformers and the collectors that each DTO needs.
-6. Implement the providers against those contracts and run the tests.
+6. Realize: replace each stub body with its provider call, remove the `@todo`, and run the tests until they hold.
+
+**The stub is what makes this order executable.** The SDK generates from controllers, so without stubs nothing downstream can start until the providers exist; with them, the contract ships to the tests and the frontend on day one, and the `@todo` tags are the exact ledger of what realize still owes. A suite written at step 4 runs red against random stub answers, and that is the point: realize turns it green.
 
 The read side and the write side come before the provider that composes them. A provider written first inlines a selection and a mapping, and that copy is what the transformer then has to be reconciled with. [wiring.md](wiring.md) has the same sequence with the commands each step runs.
 

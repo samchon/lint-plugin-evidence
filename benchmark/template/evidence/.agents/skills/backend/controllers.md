@@ -24,6 +24,8 @@ public async index(
 
 The block is shortened to the two tags. The published documentation this method owes is unchanged and lives beside them.
 
+Write the citations when the stub is born. They cite the contract, which is complete before realize, so nothing about a citation waits for a provider; the `@todo` beside them is the one tag realize removes.
+
 A declaration may carry several citations, and each is judged independently. Cite the requirement this operation serves and the model it exposes, and say which part of each it is responsible for.
 
 Read [the evidence skill](../evidence/SKILL.md) before starting, especially the section on discharging a diagnostic at the layer that owns it.

@@ -25,6 +25,20 @@ Read this file first, then the topic document for what you are about to touch.
 - [design.md](design.md): how the interface looks, and the signatures that mark a screen as machine-generated. Read before styling anything.
 - [verification.md](verification.md): what proves the frontend works, and the record that proof leaves. Read before claiming anything is finished.
 
+## The Build Order
+
+Each step consumes the previous one, which is why the order is not a preference.
+
+1. Read the SDK and the requirement journeys, and set the [design dials](design.md).
+2. Build the `ui` primitives, the shell, and the composed providers.
+3. Build `lib/<domain>`: the connection, the view-model types, the fixtures, and the hooks with their keys.
+4. Lay the route table with its guarded layouts.
+5. Build the screens journey by journey against simulation, every state from the start, adding each screen's gallery rows as it lands.
+6. Write the journey specs mirroring the requirement journeys, still against simulation.
+7. Close against the live backend: sessions, persistence, authorization, and the verification record.
+
+The backend's stubs make step 1 possible on day one: the SDK exists before any provider does, so the frontend never waits for realize. What simulation cannot prove, the closing pass owns, and [verification.md](verification.md) says what that requires.
+
 ## Stack
 
 TypeScript with Vite, React Router for routing, Tailwind with a small set of local primitives for styling, a query library for client-side query and mutation orchestration, and Playwright for browser verification.

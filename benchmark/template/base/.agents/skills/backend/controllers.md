@@ -12,6 +12,29 @@ Every core business effect appears in both. The provider is written from this co
 
 If either view mentions ownership assignment, a membership side effect, session creation, audit logging, a default state, a snapshot write, or a notification, the other carries the same effect.
 
+## Born A Stub, Finished By Realize
+
+An operation is declared before anything can implement it, and the declaration is complete from the first day: the route, the exact signature, and the full published JSDoc. Only the body waits.
+
+```ts
+/**
+ * ...the full consumer contract, written now, not later...
+ *
+ * @todo Realize with ShoppingSaleProvider.index once the read side exists.
+ */
+@core.TypedRoute.Patch()
+public async index(
+  @SellerAuth() seller: SellerPayload,
+  @core.TypedBody() input: IShoppingSale.IRequest,
+): Promise<IPage<IShoppingSale.ISummary>> {
+  return typia.random<IPage<IShoppingSale.ISummary>>();
+}
+```
+
+The random return satisfies the contract type, so `build:sdk` works before any provider exists, the tests and the frontend consume the real contract immediately, and simulation mode answers from the same shape. **The `@todo` names what realize owes**, and realize is finished when no operation carries one: the body is a provider call, the tag is gone, and the suite that ran red against random answers holds.
+
+Design regressions are normal in this phase. An operation that turns out to need a column goes back to the schema, and the stub costs nothing to revise because nothing implements it yet.
+
 ## Operation Shape
 
 | Name | Method | Request to response | Purpose |
