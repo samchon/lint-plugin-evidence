@@ -241,18 +241,22 @@ export namespace SellerProvider {
     if (payload.type !== "seller")
       throw ErrorUtil.forbidden(`Not a seller, but a ${payload.type}.`);
 
-    const seller = await MyGlobal.prisma.shopping_sellers.findFirst({
-      where: { id: payload.id, deleted_at: null },
+    const session = await MyGlobal.prisma.shopping_seller_sessions.findFirst({
+      where: {
+        id: payload.session_id,
+        expired_at: { gt: new Date() },
+        seller: { id: payload.id, deleted_at: null },
+      },
       select: { id: true },
     });
-    if (seller === null)
-      throw ErrorUtil.forbidden("Not an active seller.");
+    if (session === null)
+      throw ErrorUtil.forbidden("No live session for this token.");
     return payload;
   }
 }
 ```
 
-Both checks are needed. The token check proves the claim was minted for this actor; the row read proves the account still exists and has not been withdrawn, banned, or suspended. A token outlives the account it names, so verifying the signature alone authorizes a caller the requirements say is gone.
+Both checks are needed, and the second one reads the session, not only the actor. The token check proves the claim was minted for this actor. The session read, filtered through the actor relation, proves three things at once: the session is still live, it belongs to this actor, and the account has not been withdrawn. **Checking only the actor row leaves sign-out and password change ineffective**: those flows revoke the session row, and a token whose session is never re-validated stays usable until it expires on its own.
 
 Every actor's authorize provider is that same shape, differing only in the discriminant it checks and the table it reads. The token half is shared: `JwtUtil` in `src/utils`, beside the other helpers that own no entity.
 

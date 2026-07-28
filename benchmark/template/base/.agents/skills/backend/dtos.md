@@ -198,7 +198,9 @@ The actor is who; the session is how they connected.
 
 Merely sensitive data is not a credential. Whether it is exposed is an authorization decision, and hard-excluding it hides a field the requirements may need visible.
 
-**The issued token lives only in `.IAuthorized`**, returned once at join, login, or refresh. The authorized variant carries the actor's identifier and that token, and nothing else: no session fields, no stored token.
+**The issued token lives only in `.IAuthorized`**, returned once at join, login, or refresh. The authorized variant carries the actor's identifier and a `token` object of exactly four properties: `access` and `refresh`, both strings, and `expired_at` and `refreshable_until`, both date-time strings. `expired_at` is the access token's horizon; `refreshable_until` is the refresh horizon, and it matches the session row's own expiry, because they are the same promise. Nothing else belongs in the variant: no session fields, no stored token.
+
+When the actor owns a required one-to-one composition such as a profile, `.IJoin` embeds that child's `.ICreate` as a property, so registration creates both rows in one call and the collector connects them.
 
 **Session context follows a fixed matrix.** The connection address, the referring page, and the origin are optional in join and login, because a server-rendered client cannot know its own address and the provider falls back to what it observed. They are required on a session read variant, because the stored value exists. They are absent from the actor variant, the authorized variant, and the refresh variant.
 
