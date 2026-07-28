@@ -104,15 +104,26 @@ A password is not one of them. It maps to the stored hash column as a transforma
 
 ## Types, Nullability, Formats
 
-Map a column to the type and format it actually has. Discarding a format turns a semantic column into a bare string, and every consumer then accepts anything.
+Map a column to the type and format it actually has, and say so with a typia tag. Discarding the tag turns a semantic column into a bare string, and every consumer then accepts anything.
 
-| Column          | Property                       |
-| --------------- | ------------------------------ |
-| uuid            | string with `uuid` format      |
-| datetime        | string with `date-time` format |
-| decimal, double | number                         |
-| int             | integer                        |
-| boolean         | boolean                        |
+| Column | Property |
+| --- | --- |
+| uuid | `string & tags.Format<"uuid">` |
+| datetime | `string & tags.Format<"date-time">` |
+| decimal, double | `number` |
+| int | `number & tags.Type<"int32">`, or `"uint32"` when it cannot be negative |
+| boolean | `boolean` |
+| email, url, ip | `string & tags.Format<"email">`, `<"url">`, `<"ipv4">` |
+| bounded text | `string & tags.MinLength<1> & tags.MaxLength<255>` |
+| bounded number | `number & tags.Minimum<1> & tags.Maximum<100>` |
+
+**A tag is not documentation. It is the boundary check, the OpenAPI constraint, and the random generator all at once.** `TypedBody` rejects a malformed value before any provider runs, the published document tells consumers the rule, and `typia.random<T>()` in a test produces a value that satisfies it. A property typed as bare `string` gets none of those, so every one of them becomes something a person has to remember instead.
+
+**Tag every constraint the requirements state**, not only the formats. A quantity the documents bound belongs in the type as `tags.Minimum`, because a bound that lives only in a provider is a rule the contract does not publish and no consumer can honor before submitting.
+
+**`tags.` is part of the name.** A bare `Format<"uuid">` is a different, unimported symbol, and the error it produces says the two types have no properties in common rather than naming the mistake.
+
+Intersect tags rather than nesting them, and put the tag on the value type: a nullable formatted string is `null | (string & tags.Format<"date-time">)`, never `(null | string) & tags.Format<...>`.
 
 **Decimal exactness stops at the contract boundary.** Storage and provider arithmetic stay exact; the wire carries a number. State the currency and the business scale in the description so clients format and compare at that scale, expose the currency code as its own property, and for a cross-currency row expose the posting rate and the converted amount as separate properties.
 
