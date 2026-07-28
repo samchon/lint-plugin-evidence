@@ -47,7 +47,7 @@ A declaration, type, comment, citation, route name, or test title is not impleme
 
 ## Surface assessment
 
-The clause grade separately records each applicable surface as `correct`, `partial`, `missing`, `wrong`, or `not_applicable`:
+The clause grade records the fixed eight-surface set as an exact array of `{ surface, status }` rows, with each surface present once and rated `correct`, `partial`, `missing`, `wrong`, or `not_applicable`:
 
 - database schema and persistence;
 - API operation and contract;
@@ -55,6 +55,8 @@ The clause grade separately records each applicable surface as `correct`, `parti
 - frontend route, state, interaction, accessibility, loading, empty, and error behavior;
 - integration and generated client use;
 - tests and hidden acceptance behavior.
+- operations and production-readiness behavior;
+- documentation required by the product specification.
 
 The primary clause status is the worst material applicable surface. A correct backend does not compensate for a missing required frontend, and several partial consumers do not pool into one complete project.
 
@@ -84,9 +86,19 @@ The semantic grader receives the neutral bundle, acceptance catalog, optional co
 
 The grader does not receive arm identity, raw workspace, AGENTS or skills, evidence diagnostics or annotations, campaign history, transcript, token counts, elapsed time, predictions, or another grade.
 
+## Block execution and local assembly
+
+A single provider response cannot safely carry Shopping's 2,083 acceptance ratings or ERP's 1,724 acceptance plus 986 context ratings. Before either blind grader starts, the harness freezes one `schema/grading-block-plan.schema.json` record from the exact catalog order. The plan binds the run and bundle IDs and digest, all-subject freeze manifest, subject requirements tree, catalog digests, rubric, grader prompt, provider/local grade and arm-guess schemas, provider registry, protocol revision, and two grader assignments. It partitions acceptance and context independently into contiguous blocks of at most 50 criterion IDs. The ordered blocks must be non-overlapping, preserve catalog order, have unique IDs, and form the exact catalog set and count; any missing, extra, duplicate, reordered, or cross-population ID blocks grading.
+
+`blind-grader-a` and `blind-grader-b` are independent logical graders. Each grader processes every frozen block in an isolated fresh top-level context that receives only the neutral grading inputs and that block's criteria. It never receives another block's ratings or the other grader's output. This bounds context and output while preserving independent criterion judgments; block order and boundaries are identical for both graders.
+
+Every block response first validates against the registry-owned provider schema `schema/grade-block-provider.schema.json`, then against the stricter local schema `schema/grade-block-local.schema.json`. The harness additionally requires the returned `criterionIds` to equal the plan block in order, the rating IDs to equal that same set exactly, and the eight surface IDs to form the exact fixed surface set once each. `completed` requires one rating per planned ID and a null interruption. An interrupted or failed block is retained as right-censored grading evidence, but no complete grade or quality comparison may be published for that logical grader until a separately identified replacement grading attempt completes the whole frozen plan.
+
+The model-facing block does not contain Evidence-specific defect classes. After semantic ratings are sealed, each logical grader makes one separate arm guess under the registry-owned `schema/arm-guess-provider.schema.json` and stricter `schema/arm-guess-local.schema.json`; that record binds the sealed-ratings digest and cannot alter a rating. The model never emits the large final `grade.schema.json` object. The harness concatenates ratings in catalog order, joins the separately sealed guess, restores arm identity, assigns the defect taxonomy as a separate classification artifact, and assembles the final grade locally. It rejects overlapping blocks, a non-exact union, count drift, acceptance/context crossover, summary drift, a guess-to-ratings digest mismatch, or a catalog digest mismatch. The plan, every raw and locally validated model output, the post-unblinding classification, and the assembled grade are immutable grading artifacts. Grading model tokens and elapsed time are reported as evaluation overhead and never mixed into generation-arm consumption; monetary overhead is reported only if a later directly sourced mapping makes it available.
+
 ## Defect taxonomy
 
-Semantic grades and campaign findings preserve these distinctions:
+After blind semantic ratings and arm guesses are sealed, the harness restores arm identity and classifies these distinctions without sending the arm-specific taxonomy to a blind grader:
 
 - unacknowledged in-denominator omission;
 - out-of-denominator configuration omission;
@@ -102,7 +114,7 @@ H4 predicts only the first class approaches zero in the treatment arm. A false a
 
 Two independent blind graders assess every acceptance clause and, when present, every context criterion for every `t_done` and `t_dry` bundle in fresh contexts. Graders receive no previous ratings and cannot communicate.
 
-A human reviewer audits:
+A fresh third AI adjudicator receives only the neutral inputs, both sealed grades, and the disagreement/mandatory-audit queue. It resolves:
 
 - a stratified 20% sample from every subject × arm × phase cell;
 - every primary-status disagreement;
@@ -110,11 +122,11 @@ A human reviewer audits:
 - every `not_applicable` or `unverifiable` rating;
 - every case where hidden acceptance and semantic grade disagree.
 
-The human preserves both original grades and writes a separate adjudication with rationale. Raw ratings are never overwritten.
+The adjudicator preserves both original grades and writes a separate decision with rationale. Raw ratings are never overwritten. The harness then emits the same stratified and mandatory cases as a deterministic human-audit queue. If no real human completes it, `humanValidationStatus = pending`; the AI-graded vector remains publishable as such, but no report may call it human-validated or publish a composite quality claim. A later human audit is append-only and never rewrites the AI grades or adjudication.
 
-Report exact agreement and the disagreement matrix, weighted Cohen's kappa or Krippendorff's alpha for ordinal statuses, and ICC for continuous coverage and quality values. If ordinal reliability is below 0.67, do not publish a composite quality claim; expand human adjudication and report the vector with uncertainty.
+Report exact agreement and the disagreement matrix, weighted Cohen's kappa or Krippendorff's alpha for ordinal statuses, and ICC for continuous coverage and quality values. If ordinal reliability is below 0.67, do not publish a composite quality claim; expand the third-AI adjudication queue and report the vector with uncertainty. Human validation, when available, remains a separately labelled layer.
 
-Each blind grader guesses `plain`, `evidence`, or `unknown` and supplies confidence after grading. Accuracy materially above 60% triggers a contamination investigation before results are accepted.
+Each blind grader guesses `plain`, `evidence`, or `unknown` with confidence in the separate post-grade turn bound to its sealed rating digest. Accuracy materially above 60% triggers a contamination investigation before results are accepted.
 
 ## Reporting
 
@@ -131,3 +143,11 @@ Report, by subject, arm, replicate, and phase:
 - grader agreement, human changes, and arm-guess accuracy.
 
 The primary report is this vector. Acceptance and context counts or percentages are never added together. If a secondary composite is frozen later, publish its exact formula, weights, cap, and all component values. A high score cannot conceal a critical authorization, integrity, or data-loss defect.
+
+## Secondary UI and maintainability review
+
+Requirement coverage remains the primary semantic population and is never summed with UI or maintainability ratings. Before sealing the core, the runner creates `schema/quality-inputs.schema.json` records for `t_done` and `t_dry`; each binds non-null hidden-acceptance, conventional-coverage, sampled-mutation, and visual-capture producer/version/config/result digests to the run manifest and the algorithm-qualified snapshot raw-tree digest. The runner-owned grading-input manifest hashes those records, and the core seal hashes that manifest. Postprocess grades bind the resulting core seal. This one-way ownership order is mandatory; a pre-seal input containing `coreSealSha256` is schema-invalid because it would create a digest cycle. A missing producer or result blocks a complete quality report.
+
+Visual capture uses a frozen seeded application state, route inventory, browser/version, and deterministic sample seed. It records screenshots or browser-flow evidence at widths 390, 834, and 1440 with exact artifact digests. When every route-state pair is impractical, the preregistered stratified sample covers public/authenticated, list/detail/form, loading/empty/error/success, and critical transaction strata identically across arms. Capture provenance records viewport, browser, state seed, route, UTC, and image/flow digest. Dynamic timestamps, animation, fonts, network data, and other nondeterminism are frozen or reported as contamination.
+
+Two independent blind secondary reviewers receive only the neutral source bundle and frozen visual evidence. Each emits the exact six-dimension vector—usability, legibility, responsiveness, state feedback, accessibility, and maintainability—through the registry-owned `secondary-review-provider` and stricter local schema. A fresh third AI adjudicates disagreements. These secondary values remain separate from acceptance coverage, context conformance, hidden checks, coverage, and mutation results; no weighted quality composite is published while human validation is pending.

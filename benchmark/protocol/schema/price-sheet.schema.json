@@ -1,0 +1,329 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/price-sheet.schema.json",
+  "title": "Frozen Standard Terra price sheet",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "status",
+    "model",
+    "authenticationMode",
+    "billingMode",
+    "apiKeyBillingAllowed",
+    "serviceTier",
+    "unit",
+    "tokenUnit",
+    "ratesPerMillionTokens",
+    "reasoningTokensIncludedInOutput",
+    "serviceTierSymbolic",
+    "effectiveServiceTier",
+    "speedMode",
+    "retrievedAtUtc",
+    "cacheWriteDerivation",
+    "usdPerMillionTokens",
+    "creditToUsd",
+    "clientRequestSemantics",
+    "sources",
+    "calculation",
+    "monetaryUse",
+    "sourcePinProcedure",
+    "launchGate"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "const": "gpt-5.6-terra"
+    },
+    "authenticationMode": {
+      "const": "chatgpt"
+    },
+    "billingMode": {
+      "const": "chatgpt_provider_credits"
+    },
+    "apiKeyBillingAllowed": {
+      "const": false
+    },
+    "serviceTier": {
+      "const": "default"
+    },
+    "unit": {
+      "const": "provider_credits"
+    },
+    "tokenUnit": {
+      "const": 1000000
+    },
+    "ratesPerMillionTokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "uncachedInput",
+        "cachedInput",
+        "cacheWriteInput",
+        "output"
+      ],
+      "properties": {
+        "uncachedInput": {
+          "const": 62.5
+        },
+        "cachedInput": {
+          "const": 6.25
+        },
+        "cacheWriteInput": {
+          "const": null
+        },
+        "output": {
+          "const": 375
+        }
+      }
+    },
+    "reasoningTokensIncludedInOutput": {
+      "const": true
+    },
+    "serviceTierSymbolic": {
+      "const": "default"
+    },
+    "effectiveServiceTier": {
+      "const": null
+    },
+    "speedMode": {
+      "const": "standard"
+    },
+    "retrievedAtUtc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "cacheWriteDerivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "apiOnlyCandidateFactor",
+        "apiOnlyCandidateBase",
+        "apiOnlySource",
+        "applicabilityToChatgptProviderCredits",
+        "executionRateUsed"
+      ],
+      "properties": {
+        "apiOnlyCandidateFactor": {
+          "const": 1.25
+        },
+        "apiOnlyCandidateBase": {
+          "const": "uncachedInput"
+        },
+        "apiOnlySource": {
+          "type": "string",
+          "minLength": 1
+        },
+        "applicabilityToChatgptProviderCredits": {
+          "const": "unproven"
+        },
+        "executionRateUsed": {
+          "const": null
+        }
+      }
+    },
+    "usdPerMillionTokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "nonCachedInput",
+        "cacheRead",
+        "cacheWrite",
+        "outputIncludingReasoning"
+      ],
+      "properties": {
+        "nonCachedInput": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "cacheRead": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "cacheWrite": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "outputIncludingReasoning": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "creditToUsd": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "clientRequestSemantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "codexServiceTier",
+        "codexServiceTierRequestMode",
+        "upstreamServiceTier",
+        "modelRerouteAllowed",
+        "fastCreditMultiplier",
+        "fastModeUsed"
+      ],
+      "properties": {
+        "codexServiceTier": {
+          "const": null
+        },
+        "codexServiceTierRequestMode": {
+          "const": "omitted"
+        },
+        "upstreamServiceTier": {
+          "const": "omitted"
+        },
+        "modelRerouteAllowed": {
+          "const": false
+        },
+        "fastCreditMultiplier": {
+          "const": 2.5
+        },
+        "fastModeUsed": {
+          "const": false
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "url",
+          "snapshotSha256"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "snapshotSha256": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "calculation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "normalization",
+        "providerCredits",
+        "reasoning",
+        "usd",
+        "budgetEnforcement"
+      ],
+      "properties": {
+        "normalization": {
+          "type": "string",
+          "minLength": 1
+        },
+        "providerCredits": {
+          "const": null
+        },
+        "reasoning": {
+          "type": "string",
+          "minLength": 1
+        },
+        "usd": {
+          "const": null
+        },
+        "budgetEnforcement": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "monetaryUse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "primaryEstimand",
+        "costEffectivenessClaimsAllowed",
+        "launchBlocking",
+        "reason"
+      ],
+      "properties": {
+        "status": {
+          "const": "unavailable"
+        },
+        "primaryEstimand": {
+          "const": false
+        },
+        "costEffectivenessClaimsAllowed": {
+          "const": false
+        },
+        "launchBlocking": {
+          "const": false
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "sourcePinProcedure": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "launchGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "blocked",
+        "reasons"
+      ],
+      "properties": {
+        "blocked": {
+          "const": false
+        },
+        "reasons": {
+          "type": "array",
+          "maxItems": 0,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

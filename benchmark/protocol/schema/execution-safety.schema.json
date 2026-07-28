@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/execution-safety.schema.json",
+  "title": "Write-once derived execution safety deadlines",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "blockId",
+    "blockPlanSha256",
+    "blockStartEventSha256",
+    "blockStartedAtUtc",
+    "blockStartedMonotonicNanoseconds",
+    "blockHardWallDurationSeconds",
+    "blockHardDeadlineUtc",
+    "cells",
+    "writeOnce"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "blockId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "blockPlanSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "blockStartEventSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "blockStartedAtUtc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "blockStartedMonotonicNanoseconds": {
+      "type": "string",
+      "pattern": "^[0-9]+$"
+    },
+    "blockHardWallDurationSeconds": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "blockHardDeadlineUtc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "cells": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "runId",
+          "t0EventSha256",
+          "t0Utc",
+          "t0MonotonicNanoseconds",
+          "hardWallDurationSeconds",
+          "hardDeadlineUtc"
+        ],
+        "properties": {
+          "runId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "t0EventSha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "t0Utc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "t0MonotonicNanoseconds": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "hardWallDurationSeconds": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "hardDeadlineUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "writeOnce": {
+      "const": true
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

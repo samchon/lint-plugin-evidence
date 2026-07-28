@@ -33,9 +33,9 @@ Every run owns one immutable result root under `benchmark/result/<subject>/<arm>
   grading/
 ```
 
-The runner-owned files through `gates/` are the minimum durable layout. Snapshot, campaign, and grading producers append below the same run root. No producer rewrites raw streams.
+The runner-owned manifest, streams, usage, gates, snapshots, campaign, terminal state, pre-seal quality inputs, and grading-input manifest form the immutable canonical run core. The grading-input manifest binds the run manifest and algorithm-qualified `t_done`/`t_dry` source and neutral-bundle raw-tree digests; it never contains the not-yet-created core seal. The core seal hashes that grading-input manifest. Failed, interrupted, safety-limited, and completed cores are retained immediately. Grading and reporting are separate postprocess owners: they append content-addressed artifacts that bind the core seal and never rewrite core bytes or an existing postprocess byte. Schema `additionalProperties: false` rejects a pre-seal `coreSealSha256`, preventing the digest cycle `grading input -> core seal -> grading input`.
 
-Failed and interrupted attempts remain under `runs/` but never update `latest.json` or the demo `workspace/`. A completed `t_dry` run may be promoted only after a fresh process validates `schema/result-promotion.schema.json`, reopens every raw reference, verifies the envelope and RFC 8785 event chain, rejects unresolved orphan tails, and proves previous run directories were not changed.
+No core seal updates `latest.json` or the demo `workspace`. Final promotion requires a completed `t_dry` core, two blind grades and post-grade arm guesses at both `t_done` and `t_dry`, fresh third-AI adjudication, a deterministic human-audit queue, deterministic gate and secondary review artifacts, a schema-valid final report, and a fresh-process core-to-postprocess verification. Human validation may remain explicitly pending; that forbids human-validated and composite claims but does not block machine-complete preservation or demo promotion. `schema/result-promotion.schema.json` also requires a clean Git round trip and compare-and-swap ownership.
 
 ## Workspace evidence and retained snapshots
 
@@ -82,7 +82,7 @@ Required event families:
 
 - setup and digest verification;
 - run, thread, turn, request, response, message, and tool lifecycle;
-- token usage and price attribution;
+- token usage, safety-threshold attribution, and monetary availability;
 - gate start, command, result, and diagnostic fingerprints;
 - completion candidate, adjudication, milestone, and workspace snapshot;
 - completion challenge lifecycle;
@@ -97,7 +97,7 @@ Raw app-server envelopes remain in `client.raw.jsonl`, `server.raw.jsonl`, and `
 
 Run status is one of `running`, `interrupted`, `failed`, or `completed`. An operator-requested abort is an `interrupted` run with subtype `user_abort`, not deletion. Each turn separately records `completed`, `interrupted`, or `failed`.
 
-Interruption subtypes are `quota`, `provider`, `host`, `watchdog`, `user_abort`, and `harness`. Product build or test failures that the agent cannot resolve are run failures, not infrastructure interruptions.
+Interruption subtypes are `quota`, `provider`, `host`, `watchdog`, `safety_limit`, `user_abort`, and `harness`. A `safety_limit` record distinguishes `observed_total_tokens` from `hard_deadline`. Product build or test failures that the agent cannot resolve are run failures, not infrastructure interruptions.
 
 A run that has not reached `t_done` or `t_dry` is right-censored at its last heartbeat. Report intention-to-treat rows, completer-only summaries, interruption rates, and best/worst bounds. Never replace an interrupted or failed row with a silent rerun.
 
@@ -114,11 +114,11 @@ Every completed model request stores:
 - reasoning output tokens when available;
 - provider total tokens;
 - the phase and activity category;
-- the exact price-sheet digest and calculated credits or monetary cost.
+- the exact price-sheet digest and literal monetary status; provider credits and USD remain null while the mapping is unavailable.
 
 In Codex `0.145.0`, `thread/tokenUsage/updated` exposes accumulated thread snapshots with `last` and `total`; each contains input, cached-input, output, reasoning-output, and total counters, while cache-write input is optional and normalizes to zero when absent. These snapshots reconcile the ledger but do not define individual requests. Exact request rows come from the pinned generated schema's raw response-completion event, are deduplicated by upstream response ID across every primary and descendant thread, and are never reconstructed by differencing two accumulated snapshots.
 
-Exact response usage requires the tracked exact experimental schema snapshot, `thread/start` with `experimentalRawEvents = true`, `allowProviderModelFallback = false`, model `gpt-5.6-terra`, Codex service tier `default`, and a non-null `RawResponseCompletedNotification.usage`. `default` is the Standard path and omits an upstream priority override; Fast/`priority` is forbidden because it uses a different credit multiplier. The notification schema permits `usage = null`; the runner treats that as unavailable exact measurement, preserves the row and raw event, and fails the run rather than substituting accumulated differences. That notification does not expose provider model or service tier. The runner instead records the requested thread settings and reconciles them against `ThreadStartResponse.model`, `modelProvider`, and `serviceTier`; it proves every later request preserves the same model, effort, and tier and fails on a settings update, `model/rerouted` notification, or mismatch.
+Exact response usage requires the tracked exact experimental schema snapshot, `thread/start` with `experimentalRawEvents = true`, `allowProviderModelFallback = false`, model `gpt-5.6-terra`, omitted wire `serviceTier`, and a non-null `RawResponseCompletedNotification.usage`. The manifest calls this symbolic tier `default`, while `ThreadStartResponse.serviceTier = null` is the required effective value; the string `default` is never sent. Fast/`priority` is forbidden because it uses a different credit multiplier. The notification schema permits `usage = null`; the runner treats that as unavailable exact measurement, preserves the row and raw event, and fails the run rather than substituting accumulated differences. That notification does not expose provider model or service tier. The runner instead records the requested thread settings and reconciles them against `ThreadStartResponse.model`, `modelProvider`, and `serviceTier`; it proves every later request preserves the same model, effort, and tier omission and fails on a settings update, `model/rerouted` notification, or mismatch.
 
 Codex `0.145.0` enables raw response events only when a thread is started. Its `thread/resume` path installs a listener with raw events disabled and has no re-enable field. Consequently an app-server process or controller transport loss is terminal for exact-token measurement. The runner seals the attempt `interrupted`, retains all prior usage and workspace evidence, and never stitches post-resume accumulated snapshots or model turns into the row. A replacement starts from a fresh workspace under a new run ID.
 
@@ -130,13 +130,25 @@ normalized_non_cached_input = raw_inclusive_input - cache_read - cache_write
 
 For this pinned contract, cached input and cache-write input are subsets of inclusive input. The runner requires all fields to be nonnegative, `cache_read + cache_write <= raw_inclusive_input`, `provider_total = raw_inclusive_input + output`, and `reasoning_output <= output`; a violation fails exact accounting instead of clamping. Provider total is retained exactly as reported. The normalized comparison total adds each mutually exclusive billed category once. Reasoning output is a diagnostic subset of output and is not added twice.
 
-Each deduplicated raw response is an indivisible billing unit. The runner applies the pinned per-million rates to normalized non-cached input, cache read, cache write, and output, then durably appends response credits and cumulative credits before any next provider request. Before sending a request it requires cumulative credits to be strictly below the authorization ceiling. Because final response usage is unknowable at request time, the one already-authorized atomic response may overshoot; the runner records `creditsBefore`, `responseCredits`, `creditsAfter`, `ceiling`, and `overshoot`, right-censors the run as `budget_exhausted`, and sends no challenge, finder, verifier, fixer, or other model request afterward. A second overshoot, a request begun at or above the ceiling, an unpriced response, or a price-sheet mismatch is a harness integrity failure. The official price-source snapshots remain null, so this enforcement contract does not remove the current launch block.
+The runner durably appends each observed deduplicated raw response's provider `totalTokens` and the cumulative observed total. It records cache read, cache write, normalized non-cached input, output, and reasoning separately, but never converts them to provider credits or USD while the pinned mapping is unavailable. The authorization value is an observed-response provider-total-token threshold, not a hard ceiling: one Codex top-level turn may issue multiple upstream Responses requests through its internal tool loop and descendant agents, and the harness sees each only after `rawResponse/completed`. The app-server exposes no synchronous per-provider-request authorization hook.
+
+When cumulative observed provider total tokens reach the threshold, the runner immediately requests turn interruption, terminates the app-server and descendant process tree if needed, and sends no new harness-owned turn. Already-issued upstream requests may still complete, so overshoot is not bounded to one response. A forced stop can also lose a terminal raw notification; the record then preserves exact observed usage as a lower bound, sets completeness false, and right-censors the run as `safety_limit`. The safety report records the threshold, observed total, observed overshoot, response IDs, stop-observation state, hard deadline, and whether the wall-clock stop fired. The hard deadline independently terminates the complete process tree when reached. A true hard token or monetary ceiling requires an upstream request gateway or synchronous hook.
+
+The same subject and replicate use identical `maximumObservedTotalTokens` and hard-deadline duration in both arms. Their absolute deadline timestamps differ only by their recorded start instants. The plan validator rejects an arm-specific threshold or duration. These are safety controls, not estimands; every stopped row remains visible and right-censored.
+
+A concurrent plan additionally freezes `maximumObservedBlockTotalTokens` and a block hard-wall duration. The outer coordinator owns an append-only response-ID set and aggregate provider-total-token ledger across every cell. When either block limit is observed, it durably writes one idempotent shared stop event before quiescing all campaigns and terminating all primary and descendant process trees. Every cell terminal seal references the shared event digest and the cell and block lower bounds. A restart reconstructs the coordinator from that durable ledger and reissues an incomplete stop idempotently; it never forgets a previously observed response or reopens a sealed cell. The block guard is not a hard ceiling because several cells and responses may already be in flight.
+
+Cell `hardDeadlineUtc` is derived exactly as `t0 UTC + hardWallDurationSeconds`; block `blockHardDeadlineUtc` is derived as `blockStartedAtUtc + blockHardWallDurationSeconds`. The durations are immutable plan inputs, while the derived timestamps are durably appended at the corresponding exact start event. The local validator rejects any arithmetic mismatch.
+
+Provider credits and USD are optional secondary outputs. The current price sheet marks both unavailable because no direct source establishes the ChatGPT cache-write credit rate or credit-to-USD conversion. This does not block a token/time/quality run, but it forbids monetary totals, monetary stop rules, and cost-effectiveness claims. A future monetary result requires a new pinned mapping, source snapshots, fixtures, and formal protocol checkpoint.
+
+`schema/cost-report.schema.json` is a local artifact schema and is never registered as a model-facing output schema. The production validator enforces threshold comparison, exact overshoot arithmetic, stop-trigger implications, deadline consistency, and lower-bound state against `fixtures/cost-report/cases.json`; JSON Schema validation alone is insufficient.
 
 The primary token comparison reports non-cached input, cache read, cache write, output, reasoning subset, and provider total separately. “Millions of tokens” always means cumulative provider tokens including cache replay unless a table explicitly names a normalized category.
 
 ## Activity attribution
 
-Each request receives one primary activity and any number of secondary tags.
+The unit is one unique upstream `rawResponse/completed` response ID. Its exact token vector is an immutable ledger fact; phase, activity probabilities, labels, and causal roles are separate adjudicated values and never alter token totals. Two independent activity raters process identical catalog-order blocks of at most 50 response IDs, then a fresh AI adjudicates disagreements.
 
 | Primary activity | Definition |
 | --- | --- |
@@ -150,13 +162,16 @@ Each request receives one primary activity and any number of secondary tags.
 | `phase2_discovery` | Finder, deduplication, and adversarial verification |
 | `phase2_fix` | Fixing verified Phase 2 findings |
 | `grading` | Blind semantic grading and human audit; excluded from generation cost |
+| `residual_unclassified` | Evidence is insufficient to allocate the response without invention |
 
-Reads under `.agents/skills/`, writes to method ledgers, build invocations, and diagnostic episodes can be classified mechanically. A request's semantic purpose may require retrospective AI judgment; such judgments store rubric version, confidence, evidence event IDs, and reviewer identity. Primary categories must reconcile exactly to phase totals.
+Classification first fixes the phase from exact events, then assigns an 11-category basis-point probability vector summing to 10,000. The primary label is the deterministic maximum with a frozen tie break. Secondary mechanism tags distinguish direct method campaign, induced method campaign, quality-producing fix, and shared product work; the causal role symmetrically reports direct and induced burden for both Plain and Evidence. A quality-producing correction is never relabelled as pure procedure overhead merely because a method exposed it. Ratings bind rubric, response IDs, exact ledger digest, evidence events, rater, confidence anchor, and fresh adjudication under the provider/local activity schemas.
+
+Reads under `.agents/skills/`, writes to method ledgers, build invocations, and diagnostic episodes can be observed mechanically, while semantic purpose remains an AI judgment. Low confidence, rater disagreement, a residual share above the frozen threshold, or a direct/induced causal disagreement enters the human-validation queue. Report point allocation, residual, inter-rater agreement, and best/worst bounds.
 
 Report three distinct method-cost quantities:
 
 1. Unique static instruction size by files, bytes, words, and tokenizer estimate.
-2. Replayed billed context attributable to method files.
+2. Replayed billed context attributable to method files, currently `unavailable` because Codex usage does not expose file-level prompt-token attribution.
 3. Active time and request tokens whose primary activity is method reading, planning, trace maintenance, or method-specific correction.
 
 ## Time accounting
@@ -170,9 +185,9 @@ tail = t_dry - t_done
 generation_total = t_dry - t0
 ```
 
-Within each phase, classify non-overlapping intervals as model active, tool/build/test, provider wait or throttle, runner wait, idle, and operator intervention. Parallel tool and model work is represented by interval sets as well as summed busy time; sums that can exceed wall-clock are labelled CPU/activity time.
+Within each phase, sweep exact interval endpoints and report category union, activity sum, every pairwise overlap, and equal-split exclusive-equivalent time. Codex exposes no response-start event that can exactly separate model-active, provider-wait, and idle complements, so their unresolved complement is reported as `unresolved_model_provider_idle`, never guessed apart. Tool/build/test, runner wait, and operator intervals remain distinct. Parallel sums that exceed wall-clock are labelled activity time.
 
-Four simultaneous Todo/Reddit cells form one randomized concurrency block. Record launch order, overlap intervals, CPU, RAM, disk, process count, provider waits, and quota state. Pair arm comparisons within the same block; do not compare those raw wall times directly with a future sequential Shopping or ERP run.
+Four simultaneous Todo/Reddit cells form one randomized concurrency block. Record launch order, overlap intervals, CPU, RAM, disk, process count, provider waits, quota state, measured block wall from the earliest cell `t0` to the last terminal, and conservative safety block wall from outer launch start to its derived deadline. Pair arm comparisons within the same block; do not compare those raw wall times directly with a future sequential Shopping or ERP run.
 
 ## Diagnostic and remediation episodes
 

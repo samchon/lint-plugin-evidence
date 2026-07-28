@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "schema": "benchmark/protocol/schema/grading-input-manifest.schema.json",
+  "valid": {
+    "schemaVersion": 2,
+    "runId": "todo-plain-r1",
+    "runManifestSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "subjectFreezeManifestSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "requirementsRawTreeSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "acceptanceCatalogSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "contextCatalogSha256": null,
+    "tDoneSourceRawTree": {
+      "algorithmId": "sha256-posix-path-nul-bytes-v1",
+      "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    },
+    "tDoneBundleRawTree": {
+      "algorithmId": "sha256-posix-path-nul-bytes-v1",
+      "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    "tDrySourceRawTree": {
+      "algorithmId": "sha256-posix-path-nul-bytes-v1",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    "tDryBundleRawTree": {
+      "algorithmId": "sha256-posix-path-nul-bytes-v1",
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    "rubricSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+    "promptSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+    "providerOutputRegistrySha256": "5555555555555555555555555555555555555555555555555555555555555555",
+    "qualityInputsSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+    "protocolRevisionSha256": "7777777777777777777777777777777777777777777777777777777777777777"
+  },
+  "invalidPatches": [
+    {
+      "id": "digest-cycle-core-seal",
+      "patch": {
+        "coreSealSha256": "8888888888888888888888888888888888888888888888888888888888888888"
+      },
+      "expectedFailure": "additionalProperties rejects a core seal digest in its own preimage"
+    },
+    {
+      "id": "unqualified-tree-algorithm",
+      "patch": {
+        "tDoneSourceRawTree": {
+          "algorithmId": "sha256-unspecified-tree",
+          "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      },
+      "expectedFailure": "raw-tree digest must use the exact pinned algorithm identifier"
+    }
+  ]
+}

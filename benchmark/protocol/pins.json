@@ -1,6 +1,17 @@
 {
   "schemaVersion": 1,
   "status": "blocked-until-all-null-execution-pins-are-resolved",
+  "formalProtocolRevision": {
+    "decisionReviewId": 4801471324,
+    "decisionReviewUrl": "https://github.com/samchon/lint-plugin-evidence/pull/105#pullrequestreview-4801471324",
+    "activePriorReviewId": 4801568652,
+    "activePriorReviewUrl": "https://github.com/samchon/lint-plugin-evidence/pull/105#pullrequestreview-4801568652",
+    "issue88CommentId": 5109235729,
+    "issue88CommentUrl": "https://github.com/samchon/lint-plugin-evidence/issues/88#issuecomment-5109235729",
+    "issue99CommentId": 5109239236,
+    "issue99CommentUrl": "https://github.com/samchon/lint-plugin-evidence/issues/99#issuecomment-5109239236",
+    "protocolRevisionSha256": null
+  },
   "armMap": {
     "plain": {
       "registered": "A",
@@ -79,6 +90,7 @@
       "schemaGenerationCommand": "codex app-server generate-json-schema --experimental --out <directory>",
       "threadStartExperimentalRawEvents": true,
       "generatedSchemaTree": {
+        "algorithmId": "sha256-posix-path-nul-bytes-v1",
         "algorithm": "Enumerate regular files recursively; normalize each relative path to POSIX separators; sort by UTF-8 path bytes; update SHA-256 with path, one NUL byte, exact file bytes, and one NUL byte for every file.",
         "files": 347,
         "bytes": 3303877,
@@ -117,7 +129,13 @@
   "model": {
     "requestedId": "gpt-5.6-terra",
     "reasoningEffort": "high",
-    "requestedServiceTier": "default",
+    "authenticationMode": "chatgpt",
+    "billingMode": "chatgpt_provider_credits",
+    "apiKeyBillingAllowed": false,
+    "serviceTierSymbolic": "default",
+    "requestedServiceTier": null,
+    "serviceTierRequestMode": "omitted",
+    "expectedThreadStartServiceTier": null,
     "speedMode": "standard",
     "providerModelFallbackAllowed": false,
     "perResponseModelAndTierAvailable": false,
@@ -165,13 +183,14 @@
   },
   "providerOutputRegistry": {
     "path": "benchmark/protocol/provider-output-registry.json",
-    "bytes": 937,
-    "sha256": "359cb8caeeb85d22cae7689348bb26e6ebf708ced469884f09e6007aba4fff21",
+    "bytes": 4175,
+    "sha256": "e4346830af533ce34fffbf85fa331ff805ff9fe82c7ed05906dd70362ea88335",
     "schemaPath": "benchmark/protocol/schema/provider-output-registry.schema.json",
     "recursiveKeywordFixture": "benchmark/protocol/fixtures/provider-output-schemas/cases.json",
     "providerKeywordAllowlist": [
       "$schema",
       "$id",
+      "$ref",
       "title",
       "type",
       "additionalProperties",
@@ -195,8 +214,43 @@
         "id": "phase2-verifier",
         "providerSha256": "24afab7f9fc655ad1cf16924e065a00860a248ca2a0402b47c6ed814d8db3cbd",
         "localSha256": "a5bd8cbb160963f4e4f205620f2d34378f73e782cdb4005666c9d33224741ee6"
+      },
+      {
+        "id": "blind-grade-block",
+        "providerSha256": "11b54384a529fe3b953a237670d296c5e56a7da6c725c5f224cd364861cfdc83",
+        "localSha256": "e2b484fc79aa98da04e2c1ca0d6780211e27e7efa627a9d4754b221203681061"
+      },
+      {
+        "id": "blind-arm-guess",
+        "providerSha256": "826581ca5004834d52eb7ef03f9eaeadf4b7d966a098f70f377c946c905f8a2e",
+        "localSha256": "9af0f9f69579b183b9602942a44628314e79fde8e0f4687d8763b8c1d3a01f32"
+      },
+      {
+        "id": "blind-secondary-review",
+        "providerSha256": "a782f18f366afeae0a6390cb0046453a81650857fd6cf1fd0055000d756b3dfd",
+        "localSha256": "b9f8437970157623bc323657cbd84acc36c79f3827098f94fe1d86b079953cf6"
+      },
+      {
+        "id": "fresh-ai-adjudication",
+        "providerSha256": "8d73e46677b78f660a19455123a5740c4dc64ecca2913b922a7b2b430b6c1817",
+        "localSha256": "e8fb145226c6096fdfc0041b3f0c3c336218320f62834925a4577ab28802db59"
+      },
+      {
+        "id": "activity-rating-block",
+        "providerSha256": "052b7852420a74af42f77abc70f1994258392ff1253d7d4438ec02da1d704969",
+        "localSha256": "4787177aaa6db680f9192bd5dcebefc8e24c304c910075434581bd51a459fe94"
       }
     ]
+  },
+  "subjectFreeze": {
+    "path": "benchmark/protocol/subject-freeze-manifest.json",
+    "bytes": 2737,
+    "sha256": "409aa670f85c94cac653a4041a55a611e0a94873f2152f94947cbe4cefe0ac24",
+    "schemaPath": "benchmark/protocol/schema/subject-freeze-manifest.schema.json",
+    "materializerManifestSchemaVersion": 2,
+    "treeAlgorithm": "sha256-posix-path-nul-bytes-v1",
+    "requirementsSourceRevision": "45922cc9403aa60fdf1808067a82329efc58bfea",
+    "recomputeAllSubjects": true
   },
   "usage": {
     "responseSource": "rawResponse/completed, enabled by thread/start experimentalRawEvents=true and validated against v2/RawResponseCompletedNotification.json, deduplicated by responseId",
@@ -215,6 +269,18 @@
     ],
     "cacheWriteInputTokens": "optional; normalize an absent value to zero",
     "rule": "Exact per-response usage is primary. Accumulated thread usage is reconciliation evidence and must not be differenced into invented response rows. A missing raw notification or null usage makes exact token measurement unavailable and fails the run closed."
+  },
+  "safetyAuthorization": {
+    "unit": "provider_total_tokens",
+    "maximumObservedTotalTokens": null,
+    "maximumObservedBlockTotalTokens": null,
+    "hardWallDurationSeconds": null,
+    "blockHardWallDurationSeconds": null,
+    "armParity": "identical-within-subject-and-replicate",
+    "hardCeilingGuaranteed": false,
+    "monetaryStatus": "unavailable",
+    "costReportSchemaPath": "benchmark/protocol/schema/cost-report.schema.json",
+    "costReportFixturePath": "benchmark/protocol/fixtures/cost-report/cases.json"
   },
   "prompts": [
     {
@@ -260,7 +326,11 @@
       "sha256": "a345d67a4fbae4967c260e59d99cd26c60f3ad78b37d10e86e0e0af67d04b349"
     }
   ],
-  "frozenDigests": {
+  "repositoryFrozenDigests": {
+    "subjectFreezeManifestSha256": "409aa670f85c94cac653a4041a55a611e0a94873f2152f94947cbe4cefe0ac24",
+    "priceSheetSha256": "4ba82b1e0b80e72e59e64ca3ba07ee4b9568036ff686e7455359e600ab36ae09"
+  },
+  "prepareTimeRuntimeRequired": {
     "mergedSourceCommit": null,
     "effectiveTemplateTreeSha256": null,
     "requirementsTreeSha256": null,
@@ -270,15 +340,18 @@
     "contextCriteriaCatalogSha256": null,
     "hiddenAcceptanceSuiteSha256": null,
     "strippingImplementationSha256": null,
-    "priceSheetSha256": "b2bf2597daaeaec41b69480edd5d7c58fa4b9a4a0c97e66cef45772437b0075b",
+    "protocolRevisionSha256": null,
     "productTgzSha256": null,
     "lockfileSha256": null
   },
   "launchGate": {
+    "scope": "repository-static-readiness-template",
     "blocked": true,
     "reasons": [
-      "The exact official pricing and cache-semantics source responses are not yet archived.",
-      "Merged source, effective inputs, grading assets, product tarball, and toolchain digests are null."
-    ]
+      "The merged protocol implementation and its non-self-referential revision digest are not yet pinned.",
+      "Subject-specific observed-total-token thresholds and hard wall durations are null.",
+      "Production runner, grading, promotion, and report vertical fixtures have not yet closed every pinned contract."
+    ],
+    "runtimeResolutionPolicy": "A false static gate authorizes prepare only. Before spawn, the immutable block plan must resolve merged source, effective template and requirements, tarball, lockfiles, environment, hidden suite, and per-run output digests without editing pins.json."
   }
 }

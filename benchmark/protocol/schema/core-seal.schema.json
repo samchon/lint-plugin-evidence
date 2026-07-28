@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/core-seal.schema.json",
+  "title": "Immutable terminal run core seal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "runId",
+    "terminalStatus",
+    "manifestSha256",
+    "gradingInputManifestSha256",
+    "coreTreeSha256",
+    "eventChainHeadSha256",
+    "usageReportSha256",
+    "costReportSha256",
+    "tDoneSnapshotManifestSha256",
+    "tDrySnapshotManifestSha256",
+    "sealedAtUtc",
+    "sealSha256"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "runId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "terminalStatus": {
+      "enum": [
+        "completed",
+        "interrupted",
+        "safety_limit",
+        "failed"
+      ]
+    },
+    "manifestSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "gradingInputManifestSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "coreTreeSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "eventChainHeadSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "usageReportSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "costReportSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "tDoneSnapshotManifestSha256": {
+      "$ref": "#/$defs/nullableSha256"
+    },
+    "tDrySnapshotManifestSha256": {
+      "$ref": "#/$defs/nullableSha256"
+    },
+    "sealedAtUtc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sealSha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "nullableSha256": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/sha256"
+        }
+      ]
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

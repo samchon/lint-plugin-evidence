@@ -27,6 +27,7 @@
     "lastActivityAtUtc",
     "campaignCheckpointSha256",
     "tDrySourceSnapshotSha256",
+    "safetyStop",
     "terminal"
   ],
   "properties": {
@@ -37,6 +38,7 @@
       "enum": [
         "running",
         "interrupted",
+        "safety_limit",
         "failed",
         "completed"
       ]
@@ -169,6 +171,16 @@
     },
     "tDrySourceSnapshotSha256": {
       "$ref": "#/$defs/nullableSha256"
+    },
+    "safetyStop": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/safetyStop"
+        }
+      ]
     },
     "terminal": {
       "oneOf": [
@@ -565,6 +577,7 @@
                 "provider",
                 "host",
                 "watchdog",
+                "safety_limit",
                 "user_abort",
                 "harness"
               ]
@@ -572,6 +585,73 @@
           ]
         },
         "lastCheckpointSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "safetyStop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "globalAbortId",
+        "scope",
+        "trigger",
+        "state",
+        "requestedAtUtc",
+        "observedTotalTokens",
+        "observedBlockTotalTokens",
+        "descendantsQuiesced",
+        "processTreeTerminated",
+        "usageLowerBound",
+        "stopEventSha256",
+        "costReportSha256"
+      ],
+      "properties": {
+        "globalAbortId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "enum": [
+            "cell",
+            "block"
+          ]
+        },
+        "trigger": {
+          "enum": [
+            "observed_total_tokens",
+            "hard_deadline",
+            "observed_block_total_tokens",
+            "block_hard_deadline"
+          ]
+        },
+        "state": {
+          "const": "sealed"
+        },
+        "requestedAtUtc": {
+          "$ref": "#/$defs/dateTime"
+        },
+        "observedTotalTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "observedBlockTotalTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "descendantsQuiesced": {
+          "const": true
+        },
+        "processTreeTerminated": {
+          "const": true
+        },
+        "usageLowerBound": {
+          "type": "boolean"
+        },
+        "stopEventSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "costReportSha256": {
           "$ref": "#/$defs/sha256"
         }
       }

@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 2,
+  "freezeId": "current-four-subject-freeze-2026-07-29",
+  "requirementsSourceRevision": "45922cc9403aa60fdf1808067a82329efc58bfea",
+  "materializerManifestSchemaVersion": 2,
+  "treeAlgorithm": "sha256-posix-path-nul-bytes-v1",
+  "subjects": {
+    "todo": {
+      "path": "benchmark/requirements/todo",
+      "fileCount": 7,
+      "byteCount": 108306,
+      "requirementsRawTreeSha256": "26aba99e190b37785278a20f6858b6000f41f3885d9e6bcead09eb49db99ee9b",
+      "markdownFileCount": 6,
+      "rawH2Count": 22,
+      "narrativeH2Count": 22,
+      "h3Count": 66,
+      "acceptanceCatalog": {
+        "path": "acceptance-criteria.jsonl",
+        "bytes": 46141,
+        "sha256": "d17cdacf7dae1eee994538c416aa4d9e8d99f0ee20c16b1b00f14e5145a0a143",
+        "count": 211
+      },
+      "contextCatalog": null
+    },
+    "reddit": {
+      "path": "benchmark/requirements/reddit",
+      "fileCount": 7,
+      "byteCount": 169334,
+      "requirementsRawTreeSha256": "279209425c009df00e9702cf618ebe7153d8a39d805f673a59b848f84f3bc456",
+      "markdownFileCount": 6,
+      "rawH2Count": 48,
+      "narrativeH2Count": 48,
+      "h3Count": 176,
+      "acceptanceCatalog": {
+        "path": "acceptance-criteria.jsonl",
+        "bytes": 49848,
+        "sha256": "ec2de911694c6f05954dda3f3ed888edc0ff0de072ebd850891def38264badb3",
+        "count": 255
+      },
+      "contextCatalog": null
+    },
+    "shopping": {
+      "path": "benchmark/requirements/shopping",
+      "fileCount": 7,
+      "byteCount": 803964,
+      "requirementsRawTreeSha256": "92c8bcf6f7362c8d8a3249cf0e4ab33ff5d1a5dddd8302fee96cf1e455790213",
+      "markdownFileCount": 6,
+      "rawH2Count": 93,
+      "narrativeH2Count": 93,
+      "h3Count": 471,
+      "acceptanceCatalog": {
+        "path": "acceptance-criteria.jsonl",
+        "bytes": 512481,
+        "sha256": "fbf1de75b34e630790b4c7b13ebef88cbd4883e3a98675368f0ae087818d5dbc",
+        "count": 2083
+      },
+      "contextCatalog": null
+    },
+    "erp": {
+      "path": "benchmark/requirements/erp",
+      "fileCount": 13,
+      "byteCount": 1055883,
+      "requirementsRawTreeSha256": "8db2de692f79ddb856aefd6cda8ae3bb49612a741ca06661bcabc38972d57555",
+      "markdownFileCount": 7,
+      "rawH2Count": 265,
+      "narrativeH2Count": 261,
+      "h3Count": 1344,
+      "acceptanceCatalog": {
+        "path": "acceptance-criteria.jsonl",
+        "bytes": 398658,
+        "sha256": "a0f117ab23c49a73f320b748d9d07c874f7ba94fb5c6689427f5fde90ccae74d",
+        "count": 1724
+      },
+      "contextCatalog": {
+        "path": "context-criteria.jsonl",
+        "bytes": 210069,
+        "sha256": "7bdd9e138b3b6dcb4762da1d98de6e1a76a52713dd29d785cb9e297a79fadabc",
+        "count": 986
+      }
+    }
+  }
+}

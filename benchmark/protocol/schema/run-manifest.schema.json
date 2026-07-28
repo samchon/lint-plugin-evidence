@@ -26,6 +26,10 @@
         "sourceRevision",
         "templateSha256",
         "requirementsSha256",
+        "materializerManifestSchemaVersion",
+        "treeAlgorithm",
+        "subjectFreezeManifestSha256",
+        "protocolRevisionSha256",
         "acceptanceCatalogSha256",
         "acceptanceCatalogCount",
         "contextCatalogSha256",
@@ -74,6 +78,18 @@
         "requirementsSha256": {
           "$ref": "#/$defs/sha256"
         },
+        "materializerManifestSchemaVersion": {
+          "const": 2
+        },
+        "treeAlgorithm": {
+          "const": "sha256-posix-path-nul-bytes-v1"
+        },
+        "subjectFreezeManifestSha256": {
+          "const": "409aa670f85c94cac653a4041a55a611e0a94873f2152f94947cbe4cefe0ac24"
+        },
+        "protocolRevisionSha256": {
+          "$ref": "#/$defs/sha256"
+        },
         "acceptanceCatalogSha256": {
           "$ref": "#/$defs/sha256"
         },
@@ -117,8 +133,12 @@
           "required": [
             "id",
             "approvedAtUtc",
-            "maximumCost",
-            "currency"
+            "maximumObservedTotalTokens",
+            "maximumObservedBlockTotalTokens",
+            "hardWallDurationSeconds",
+            "blockHardWallDurationSeconds",
+            "hardCeilingGuaranteed",
+            "monetaryStatus"
           ],
           "properties": {
             "id": {
@@ -129,20 +149,27 @@
               "type": "string",
               "format": "date-time"
             },
-            "maximumCost": {
-              "type": "number",
-              "minimum": 0
+            "maximumObservedTotalTokens": {
+              "type": "integer",
+              "minimum": 1
             },
-            "currency": {
-              "oneOf": [
-                {
-                  "type": "string",
-                  "pattern": "^[A-Z]{3}$"
-                },
-                {
-                  "const": "PROVIDER_CREDITS"
-                }
-              ]
+            "maximumObservedBlockTotalTokens": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "hardWallDurationSeconds": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "blockHardWallDurationSeconds": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "hardCeilingGuaranteed": {
+              "const": false
+            },
+            "monetaryStatus": {
+              "const": "unavailable"
             }
           }
         }
@@ -164,6 +191,8 @@
         "model",
         "effort",
         "serviceTier",
+        "serviceTierRequestMode",
+        "threadStartResponseServiceTier",
         "initialGoalStatus",
         "goalActivationPolicy",
         "allowProviderModelFallback",
@@ -205,7 +234,7 @@
           "const": "benchmark/protocol/vendor/codex/0.145.0/app-server-schema-experimental"
         },
         "codexSchemaTreeAlgorithm": {
-          "const": "sha256(sorted-posix-path-nul-bytes-nul)"
+          "const": "sha256-posix-path-nul-bytes-v1"
         },
         "codexSourceCommit": {
           "const": "25af12f7e61572b0bc18ddb1008be543b91519b0"
@@ -218,6 +247,12 @@
         },
         "serviceTier": {
           "const": "default"
+        },
+        "serviceTierRequestMode": {
+          "const": "omitted"
+        },
+        "threadStartResponseServiceTier": {
+          "const": null
         },
         "initialGoalStatus": {
           "const": "paused"
@@ -232,7 +267,7 @@
           "const": "b4ae167f12f0ed48e14d014eaa131c097dc237613081e597e08f486149312933"
         },
         "providerOutputRegistrySha256": {
-          "const": "359cb8caeeb85d22cae7689348bb26e6ebf708ced469884f09e6007aba4fff21"
+          "const": "e4346830af533ce34fffbf85fa331ff805ff9fe82c7ed05906dd70362ea88335"
         },
         "generationOutcomeSchemaSha256": {
           "const": "3244af0bcb0816ebc0278c753836d4674617c1fd597548d92f13e1fc9b43d37f"
@@ -285,7 +320,7 @@
           }
         },
         "priceSheetSha256": {
-          "const": "b2bf2597daaeaec41b69480edd5d7c58fa4b9a4a0c97e66cef45772437b0075b"
+          "const": "4ba82b1e0b80e72e59e64ca3ba07ee4b9568036ff686e7455359e600ab36ae09"
         }
       }
     },

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/result-promotion.schema.json",
-  "title": "Append-only benchmark result promotion",
+  "title": "Final core-plus-postprocess benchmark result promotion",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -9,14 +9,16 @@
     "subject",
     "arm",
     "runId",
-    "terminalStatus",
     "sourceRunRoot",
     "sourceManifestSha256",
+    "coreSeal",
+    "postprocess",
     "retainedRun",
     "latestPointer",
     "demoWorkspace",
     "gitRoundTrip",
     "priorRunSet",
+    "concurrencyControl",
     "promotedAtUtc",
     "manifestSha256"
   ],
@@ -42,9 +44,6 @@
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9._-]{5,127}$"
     },
-    "terminalStatus": {
-      "const": "completed"
-    },
     "sourceRunRoot": {
       "type": "string",
       "minLength": 1
@@ -52,49 +51,194 @@
     "sourceManifestSha256": {
       "$ref": "#/$defs/sha256"
     },
-    "retainedRun": {
+    "coreSeal": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "path",
-        "recordTreeSha256",
-        "workspacePath",
-        "snapshotManifestSha256",
-        "liveWorkspaceInventorySha256",
-        "retainedTreeSha256",
-        "eventChainVerified",
+        "terminalStatus",
+        "coreTreeSha256",
+        "coreSealSha256",
+        "tDoneSnapshotManifestSha256",
+        "tDrySnapshotManifestSha256",
+        "eventChainHeadSha256",
         "rawReferencesVerified",
-        "orphanTailsAbsent"
+        "orphanTailsAbsent",
+        "immutableVerified"
       ],
       "properties": {
-        "path": {
-          "type": "string",
-          "pattern": "^benchmark/result/(todo|reddit|shopping|erp)/(plain|evidence)/runs/[a-z0-9][a-z0-9._-]{5,127}$"
+        "terminalStatus": {
+          "const": "completed"
         },
-        "recordTreeSha256": {
+        "coreTreeSha256": {
           "$ref": "#/$defs/sha256"
         },
-        "workspacePath": {
-          "type": "string",
-          "pattern": "^benchmark/result/(todo|reddit|shopping|erp)/(plain|evidence)/runs/[a-z0-9][a-z0-9._-]{5,127}/workspace$"
-        },
-        "snapshotManifestSha256": {
+        "coreSealSha256": {
           "$ref": "#/$defs/sha256"
         },
-        "liveWorkspaceInventorySha256": {
+        "tDoneSnapshotManifestSha256": {
           "$ref": "#/$defs/sha256"
         },
-        "retainedTreeSha256": {
+        "tDrySnapshotManifestSha256": {
           "$ref": "#/$defs/sha256"
         },
-        "eventChainVerified": {
-          "const": true
+        "eventChainHeadSha256": {
+          "$ref": "#/$defs/sha256"
         },
         "rawReferencesVerified": {
           "const": true
         },
         "orphanTailsAbsent": {
           "const": true
+        },
+        "immutableVerified": {
+          "const": true
+        }
+      }
+    },
+    "postprocess": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "parentCoreSealSha256",
+        "gradeSets",
+        "deterministicGateResultsSha256",
+        "secondaryReviewSha256",
+        "aiAdjudicationSha256",
+        "humanAuditQueueSha256",
+        "humanValidationStatus",
+        "finalReportSha256",
+        "reportSchemaSha256",
+        "postprocessTreeSha256",
+        "postprocessSealSha256",
+        "appendOnlyVerified",
+        "freshProcessVerified"
+      ],
+      "properties": {
+        "parentCoreSealSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "gradeSets": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "milestone",
+              "bundleSha256",
+              "gradingPlanSha256",
+              "graderAGradeSha256",
+              "graderBGradeSha256",
+              "graderAArmGuessSha256",
+              "graderBArmGuessSha256",
+              "adjudicationSha256",
+              "humanAuditQueueSha256"
+            ],
+            "properties": {
+              "milestone": {
+                "enum": [
+                  "t_done",
+                  "t_dry"
+                ]
+              },
+              "bundleSha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "gradingPlanSha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "graderAGradeSha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "graderBGradeSha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "graderAArmGuessSha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "graderBArmGuessSha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "adjudicationSha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "humanAuditQueueSha256": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
+          }
+        },
+        "deterministicGateResultsSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "secondaryReviewSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "aiAdjudicationSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "humanAuditQueueSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "humanValidationStatus": {
+          "enum": [
+            "pending",
+            "completed"
+          ]
+        },
+        "finalReportSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "reportSchemaSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "postprocessTreeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "postprocessSealSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "appendOnlyVerified": {
+          "const": true
+        },
+        "freshProcessVerified": {
+          "const": true
+        }
+      }
+    },
+    "retainedRun": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "coreTreeSha256",
+        "postprocessTreeSha256",
+        "finalRecordTreeSha256",
+        "workspacePath",
+        "retainedTreeSha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^benchmark/result/(todo|reddit|shopping|erp)/(plain|evidence)/runs/[a-z0-9][a-z0-9._-]{5,127}$"
+        },
+        "coreTreeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "postprocessTreeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "finalRecordTreeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "workspacePath": {
+          "type": "string",
+          "pattern": "^benchmark/result/(todo|reddit|shopping|erp)/(plain|evidence)/runs/[a-z0-9][a-z0-9._-]{5,127}/workspace$"
+        },
+        "retainedTreeSha256": {
+          "$ref": "#/$defs/sha256"
         }
       }
     },
@@ -162,8 +306,8 @@
         "cloneTreeSha256",
         "sourceSnapshotManifestSha256",
         "cloneSnapshotManifestSha256",
-        "sourceTerminalSealSha256",
-        "cloneTerminalSealSha256",
+        "sourceCoreSealSha256",
+        "cloneCoreSealSha256",
         "allDigestsMatch"
       ],
       "properties": {
@@ -186,10 +330,10 @@
         "cloneSnapshotManifestSha256": {
           "$ref": "#/$defs/sha256"
         },
-        "sourceTerminalSealSha256": {
+        "sourceCoreSealSha256": {
           "$ref": "#/$defs/sha256"
         },
-        "cloneTerminalSealSha256": {
+        "cloneCoreSealSha256": {
           "$ref": "#/$defs/sha256"
         },
         "allDigestsMatch": {
@@ -201,28 +345,50 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "beforeCount",
-        "afterExistingCount",
-        "beforeSha256",
-        "afterExistingSha256",
-        "preserved"
+        "beforeCoreSealSetSha256",
+        "afterCoreSealSetSha256",
+        "priorCoreSealsPreserved",
+        "existingPostprocessPrefixesPreserved"
       ],
       "properties": {
-        "beforeCount": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "afterExistingCount": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "beforeSha256": {
+        "beforeCoreSealSetSha256": {
           "$ref": "#/$defs/sha256"
         },
-        "afterExistingSha256": {
+        "afterCoreSealSetSha256": {
           "$ref": "#/$defs/sha256"
         },
-        "preserved": {
+        "priorCoreSealsPreserved": {
+          "const": true
+        },
+        "existingPostprocessPrefixesPreserved": {
+          "const": true
+        }
+      }
+    },
+    "concurrencyControl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lockId",
+        "expectedPreviousLatestSha256",
+        "compareAndSwapSucceeded"
+      ],
+      "properties": {
+        "lockId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expectedPreviousLatestSha256": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/sha256"
+            }
+          ]
+        },
+        "compareAndSwapSucceeded": {
           "const": true
         }
       }

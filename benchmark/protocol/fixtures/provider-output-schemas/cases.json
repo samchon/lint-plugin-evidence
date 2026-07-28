@@ -1,6 +1,24 @@
 {
   "schemaVersion": 1,
   "registry": "benchmark/protocol/provider-output-registry.json",
+  "expectedContractCount": 8,
+  "expectedRegisteredTurns": [
+    "phase1-generation",
+    "phase1-completion-challenge",
+    "phase2-finder",
+    "phase2-verifier",
+    "blind-grader-a",
+    "blind-grader-b",
+    "blind-arm-guess-a",
+    "blind-arm-guess-b",
+    "secondary-review-a",
+    "secondary-review-b",
+    "semantic-adjudicator",
+    "secondary-adjudicator",
+    "activity-adjudicator",
+    "activity-rater-a",
+    "activity-rater-b"
+  ],
   "valid": [
     {
       "id": "core-subset",
@@ -17,10 +35,7 @@
     {
       "id": "unsupported-through-ref-closure",
       "path": "benchmark/protocol/fixtures/provider-output-schemas/unsupported-via-ref-root.schema.json",
-      "expectedKeywords": [
-        "$ref",
-        "pattern"
-      ],
+      "expectedKeyword": "pattern",
       "expectedReferencedPath": "benchmark/protocol/fixtures/provider-output-schemas/unsupported-via-ref-child.schema.json",
       "expectedReferencedPointer": "/properties/value/pattern"
     },

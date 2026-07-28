@@ -359,32 +359,10 @@
       }
     },
     "acceptanceRating": {
-      "allOf": [
-        {
-          "$ref": "#/$defs/rating"
-        },
-        {
-          "properties": {
-            "criterionId": {
-              "pattern": "^REQ-[A-Z0-9-]+\\.AC-[0-9]{2}$"
-            }
-          }
-        }
-      ]
+      "$ref": "#/$defs/rating"
     },
     "contextRating": {
-      "allOf": [
-        {
-          "$ref": "#/$defs/rating"
-        },
-        {
-          "properties": {
-            "criterionId": {
-              "pattern": "^REQ-[A-Z0-9-]+\\.CTX-[0-9]{2}$"
-            }
-          }
-        }
-      ]
+      "$ref": "#/$defs/rating"
     },
     "rating": {
       "type": "object",
@@ -421,27 +399,40 @@
           "maximum": 1
         },
         "surfaces": {
-          "type": "object",
-          "additionalProperties": {
-            "enum": [
-              "correct",
-              "partial",
-              "missing",
-              "wrong",
-              "not_applicable"
-            ]
-          },
-          "propertyNames": {
-            "enum": [
-              "database",
-              "api",
-              "backend",
-              "frontend",
-              "integration",
-              "test",
-              "operations",
-              "documentation"
-            ]
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "surface",
+              "status"
+            ],
+            "properties": {
+              "surface": {
+                "enum": [
+                  "database",
+                  "api",
+                  "backend",
+                  "frontend",
+                  "integration",
+                  "test",
+                  "operations",
+                  "documentation"
+                ]
+              },
+              "status": {
+                "enum": [
+                  "correct",
+                  "partial",
+                  "missing",
+                  "wrong",
+                  "not_applicable"
+                ]
+              }
+            }
           }
         },
         "test": {

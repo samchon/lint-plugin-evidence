@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/secondary-review-provider.schema.json",
+  "title": "Provider-facing blind UI and maintainability review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "role",
+    "reviewId",
+    "bundleId",
+    "subject",
+    "phase",
+    "graderPseudonym",
+    "visualEvidenceSha256",
+    "ratings",
+    "rationale"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "blind_secondary_review"
+      ]
+    },
+    "reviewId": {
+      "type": "string"
+    },
+    "bundleId": {
+      "type": "string"
+    },
+    "subject": {
+      "type": "string",
+      "enum": [
+        "todo",
+        "reddit",
+        "shopping",
+        "erp"
+      ]
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "t_done",
+        "t_dry"
+      ]
+    },
+    "graderPseudonym": {
+      "type": "string"
+    },
+    "visualEvidenceSha256": {
+      "type": "string"
+    },
+    "ratings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "dimension",
+          "score",
+          "confidence",
+          "rationale"
+        ],
+        "properties": {
+          "dimension": {
+            "type": "string",
+            "enum": [
+              "usability",
+              "legibility",
+              "responsiveness",
+              "state_feedback",
+              "accessibility",
+              "maintainability"
+            ]
+          },
+          "score": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ]
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "rationale": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "rationale": {
+      "type": "string"
+    }
+  }
+}

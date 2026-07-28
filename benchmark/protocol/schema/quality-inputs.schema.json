@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/quality-inputs.schema.json",
+  "title": "Deterministic and visual quality inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "runId",
+    "runManifestSha256",
+    "milestone",
+    "snapshotRawTree",
+    "hiddenAcceptance",
+    "coverage",
+    "sampledMutation",
+    "visualCapture"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 2
+    },
+    "runId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "runManifestSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "milestone": {
+      "enum": [
+        "t_done",
+        "t_dry"
+      ]
+    },
+    "snapshotRawTree": {
+      "$ref": "#/$defs/rawTreeDigest"
+    },
+    "hiddenAcceptance": {
+      "$ref": "#/$defs/producerResult"
+    },
+    "coverage": {
+      "$ref": "#/$defs/producerResult"
+    },
+    "sampledMutation": {
+      "$ref": "#/$defs/producerResult"
+    },
+    "visualCapture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "producer",
+        "version",
+        "configSha256",
+        "routeInventorySha256",
+        "stateSeedSha256",
+        "sampleSeed",
+        "viewports",
+        "browser",
+        "artifactsSha256"
+      ],
+      "properties": {
+        "producer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "configSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "routeInventorySha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "stateSeedSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sampleSeed": {
+          "type": "string",
+          "minLength": 1
+        },
+        "viewports": {
+          "const": [
+            390,
+            834,
+            1440
+          ]
+        },
+        "browser": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifactsSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "rawTreeDigest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithmId",
+        "sha256"
+      ],
+      "properties": {
+        "algorithmId": {
+          "const": "sha256-posix-path-nul-bytes-v1"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "producerResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "producer",
+        "version",
+        "configSha256",
+        "resultSha256"
+      ],
+      "properties": {
+        "producer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "configSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "resultSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}
