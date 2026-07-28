@@ -33,29 +33,31 @@ When both a delete and a recovery exist for a resource, they share one deletion 
 
 ## Paths
 
-A path describes a resource and a workflow state.
+A path describes a resource and a workflow state, under one service root.
 
-**A protected route leads with the actor that may reach it; a public route has no actor segment at all.** The seller's own sale surface is `/seller/sale`, the administrator's order surface is `/admin/order`, and a catalogue anyone may read is `/product`. That leading segment is the one place an actor name belongs, and it names **who calls**, never whose data is addressed.
+**Every route begins with the service segment**, singular and camelCase, the same word for the whole product. It becomes the first namespace of every generated accessor, so `/shopping/...` gives `api.functional.shopping....`. Choose it once and never vary it.
+
+**After the service root, a protected route names the actor that may reach it; a public route names none.** The seller's own sale surface is `/shopping/seller/sale`, the administrator's order surface is `/shopping/admin/order`, and a catalogue anyone may read is `/shopping/product`. That segment is the one place an actor name belongs, and it names **who calls**, never whose data is addressed.
 
 **A public route and a guest route are different things.** A surface both an anonymous visitor and a signed-in member may call is public, so it carries no actor segment. A protected surface names only the credentialed actors that may reach it. Never mix a guest actor with credentialed ones on one route: whatever the guest can reach, everyone can, which makes the route public.
 
-**Do not repeat the actor inside its own surface.** The seller's sales are `/seller/sale`, not `/seller/sellerSale`, and the caller's own profile is `/customer/profile`.
+**Do not repeat the actor inside its own surface.** The seller's sales are `/shopping/seller/sale`, not `/shopping/seller/sellerSale`, and the caller's own profile is `/shopping/customer/profile`.
 
 **Segments are singular and camelCase, named after the schema's own noun.** A schema called `orderItem` gives `/orderItem/{id}`, never a generic `/item/{id}`. One schema keeps one spelling everywhere it appears, and a child segment does not restate its parent: under `/order` the child is `/item`'s own noun `orderItem`, not `orderOrderItem`.
 
-**Nest each required foreign-key ancestor root-first**, named from its table without the service prefix, singularized and camelCased. `shopping_sales` contributes `{saleId}`, giving `/section/{sectionId}/sale/{saleId}/saleUnit/{id}`. Stop the chain at the first nullable or optional parent, because an optional ancestor cannot be part of an address.
+**Nest each required foreign-key ancestor root-first**, named from its table without the service prefix, singularized and camelCased. `shopping_sales` contributes `{saleId}`, giving `/shopping/seller/section/{sectionId}/sale/{saleId}/saleUnit/{id}`. Stop the chain at the first nullable or optional parent, because an optional ancestor cannot be part of an address.
 
 **Address the target row by its own bare `id`**, and that is always the identifier, never a name, a slug, or a code, even where a single-column unique constraint would allow one. The target's own id is never `{saleUnitId}`: an ancestor-shaped name there reads as already supplied, and the parameter gets dropped. A bulk update or delete over a nested sub-collection keeps the ancestors and omits the trailing `id`.
 
-**No actor id is ever a path parameter.** Not `{customerId}`, not `{sellerId}`, not `{memberId}`. The caller's identity comes from the session, and another actor is reached one of two ways: when that actor's own record is the target, address it by the bare `id`, as in `/admin/member/{id}`; when the actor merely scopes some other resource, pass its id as a request-body filter, as in `PATCH /admin/post` with the member id in the body.
+**No actor id is ever a path parameter.** Not `{customerId}`, not `{sellerId}`, not `{memberId}`. The caller's identity comes from the session, and another actor is reached one of two ways: when that actor's own record is the target, address it by the bare `id`, as in `/shopping/admin/member/{id}`; when the actor merely scopes some other resource, pass its id as a request-body filter, as in `PATCH /shopping/admin/post` with the member id in the body.
 
 **A scope chosen once at login stays out of the path.** When an organization or a workspace is selected at sign-in and every later call runs inside it, the provider derives it from the session and filters by it. Putting it in the path lets a caller name a scope the session never selected, and forces every route to carry a parameter no client can vary. Routes that manage the scope row itself remain ordinary resource routes.
 
-**A recovery path ends in `/restore`**, as in `PUT /member/community/{communityId}/post/{id}/restore`. Never a synonym: `/recover`, `/reactivate`, `/reinstate`, `/undelete`, and `/activate` all describe the same surface in a vocabulary nothing else in the repository shares, and the recovery half of the deletion model is identified by that exact segment.
+**A recovery path ends in `/restore`**, as in `PUT /shopping/seller/sale/{id}/restore`. Never a synonym: `/recover`, `/reactivate`, `/reinstate`, `/undelete`, and `/activate` all describe the same surface in a vocabulary nothing else in the repository shares, and the recovery half of the deletion model is identified by that exact segment.
 
 ## Authentication Owns Three Operations, And The Rest Are Ordinary Routes
 
-Join, login, and refresh live under the authentication surface. Everything else that feels like authentication is an ordinary endpoint over its own resource, at a resource-shaped path: `/session` for session visibility and revocation, `/password` for a change, `/passwordResetRequest` for a reset record, `/verificationRequest` for verification, and the actor's own path for withdrawal and external connections.
+Join, login, and refresh live under the authentication surface. Everything else that feels like authentication is an ordinary endpoint over its own resource, at a resource-shaped path: `/shopping/customer/session` for session visibility and revocation, `/shopping/customer/password` for a change, `/shopping/customer/passwordResetRequest` for a reset record, `/shopping/customer/verificationRequest` for verification, and the actor's own path for withdrawal and external connections.
 
 Filing these under an authentication prefix hides them from the resource ledger, and each one has its own schema, its own lifecycle, and its own requirement.
 
@@ -259,7 +261,7 @@ The first line is the operation title. State the authorization and visibility ru
 Group by domain, then by actor. One plain class per actor and resource, with an explicit route and an explicit guard.
 
 ```ts
-@Controller("seller/sale")
+@Controller("shopping/seller/sale")
 export class SellerSaleController {
   /**
    * List the seller's own sales.

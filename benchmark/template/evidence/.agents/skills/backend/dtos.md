@@ -10,7 +10,7 @@ A DTO carries two obligations, and they sit at different granularities.
 /**
  * Seller sales products.
  *
- * @evidence docs/analysis/domain.md#sales The sale concept this document
+ * @evidence docs/analysis/02-domain-model.md#sales The sale concept this document
  * describes, as a caller receives it.
  * @evidence prisma:shopping_sales Represents one sale identity row.
  */

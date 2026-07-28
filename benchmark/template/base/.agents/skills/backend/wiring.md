@@ -248,7 +248,7 @@ import api, { IShoppingSale, IPage } from "{{apiPackageName}}";
 
 const connection: api.IConnection = { host: "http://127.0.0.1:37001" };
 const page: IPage<IShoppingSale.ISummary> =
-  await api.functional.shoppings.customers.sales.index(connection, {
+  await api.functional.shopping.customer.sale.index(connection, {
     limit: 20,
   });
 ```

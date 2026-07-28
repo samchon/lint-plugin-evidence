@@ -10,11 +10,17 @@ Every configured requirement section and every operation must be acknowledged by
  *
  * @evidence docs/analysis/04-business-rules.md#coupon-stacking Attempts the
  * forbidden combination and asserts the refusal.
- * @evidence POST:/shoppings/customers/orders Exercises the operation where the
- * combination is rejected.
+ * @evidence POST:/customer/order Exercises the operation where the combination
+ * is rejected.
  */
-export const test_api_coupon_stacking_is_refused = async () => {};
+export async function test_api_order_coupon_stacking_is_refused(
+  connection: api.IConnection,
+): Promise<void> {
+  // the setup, the attempt, and the refusal assertion
+}
 ```
+
+The operation citation is the method and the path exactly as the generated document carries them. It is not the accessor name and not the controller method.
 
 Read [the campaign skill](../campaign/SKILL.md) before starting.
 

@@ -14,7 +14,7 @@ Do not add a server tier, an API route layer, a backend-for-frontend, or a serve
 import api, { IShoppingSale, IPage } from "{{apiPackageName}}";
 
 const page: IPage<IShoppingSale.ISummary> =
-  await api.functional.shoppings.customers.sales.index(connection, {
+  await api.functional.shopping.customer.sale.index(connection, {
     limit: 20,
   });
 ```

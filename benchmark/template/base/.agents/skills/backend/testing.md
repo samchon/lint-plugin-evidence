@@ -202,11 +202,43 @@ TestValidator.equals("this organization has three", found.length, 3);
 
 Prove against what the scenario controls: the ids it created, a filter it owns, a state transition it caused, a stable business predicate. Never against a global count, a global emptiness, or a position in an unscoped list.
 
+## What Each Kind Of Operation Owes
+
+A scenario proves one distinct observable behavior, and the kind of operation under test fixes the minimum it owes.
+
+| The operation | Owes |
+| --- | --- |
+| a public read | one success, proved in the response |
+| a persisted mutation | one success, plus the effect observed somewhere |
+| a list or search | a collection-query proof: the filter selects, the sort orders, the page bounds |
+| a create whose body carries a value under a single-column unique constraint | one duplicate rejection, submitting that same value again as the same owner |
+| a grade-restricted operation | a positive proof at a sufficient grade, and a negative at an insufficient one where that grade is reachable |
+
+**The duplicate obligation is narrow, and its boundary is the point.** It applies when the caller supplies the value that collides. It does not apply to a value the server generates, to a composite unique index a client cannot steer into a collision, or to login and refresh, which are not creations. Writing a duplicate case for any of those tests the database rather than the requirement.
+
 ## Setup Uses Join, And Does Not Repeat Side Effects
 
 Use the join operation for ordinary authenticated setup. It registers the account and returns the authorization in one call, so a second login for the same actor buys nothing.
 
-Login appears in setup only when the scenario is about login.
+The lifecycle operations are the exception, because there the lifecycle is the subject.
+
+- **A join test** has no prior identity setup. That is the whole point of it.
+- **A login test** joins first to create an account with credentials it keeps, then calls login on a **fresh, unauthenticated connection**. Reusing the joined connection proves nothing, because that connection already carries a token.
+- **A refresh test** joins, then passes the issued refresh value through the refresh operation's own request DTO.
+
+## Setup Order Is The Scenario
+
+The setup calls are the scenario's structure, so write them as an ordered list before writing any of them.
+
+1. Authenticate the actor that performs the next protected step.
+2. Create parents before children.
+3. Establish the membership, ownership, approval, or grade through the public operation that grants it.
+4. Switch actors only after the previous actor's setup is finished.
+5. Then call the target.
+
+**Every actor switch is visible in that order.** An administrator joins, the administrator creates a product, a customer joins, the customer orders it: four steps, two connections, and a reader can see which call runs as whom.
+
+**The target is not one of its own prerequisites**, and one method-and-path appears once in one scenario. Needing it twice means either the scenario proves two things, or the second call is the target.
 
 **Read what a prerequisite already does before adding the next call.** A create operation whose contract says the creator becomes the owner and is auto-subscribed has already established that state. Subscribing again is a duplicate that the provider correctly rejects, and the failure looks like a defect in the operation under test rather than in the setup.
 
@@ -220,11 +252,21 @@ Differentiate variants by input condition or expected outcome: `test_api_user_re
 
 Renaming duplicate behavior does not make it distinct. If two names would prove the same thing, there is one test.
 
+## A Grade Must Be Reachable Before It Can Be Proved
+
+**Join establishes the default grade and nothing else.** Any higher grade in a test comes from calling the operation that grants it, as that grade's holder, exactly as a user would.
+
+That makes the negative case conditional. Write it when an insufficient grade is publicly reachable, using the correct actor at a grade the operation does not accept, with otherwise valid input. Skip it when the actor has no grades, when every declared grade satisfies the gate, or when no insufficient grade can be reached at all.
+
+**When no public operation can establish a sufficient grade, the scenario is currently impossible, and that is the finding.** Record it and repair the API. Do not invent setup, write to the database, or let the caller assign their own authority to get the test running: a test that reaches a grade by a route no user has proves a behavior the product does not offer. [controllers.md](controllers.md) owns the grant and removal routes this depends on.
+
 ## Do Not Assert What The Contract Does Not Expose
 
 Token claims are not part of the contract unless a response DTO carries them. Do not decode a token to assert an expiry, a subject, or an address.
 
 Expiry cannot be manufactured without the server's secret, and tampering with an issued token proves only that a bad token is rejected. One such rejection is enough for the suite; there is no separate expired, forged, and malformed case a client can actually steer into distinct outcomes.
+
+**Refresh-token reuse is provable only where the contract exposes revocation or rotation.** When a refresh extends the same session and the previously issued token is self-contained, that older token stays valid by design, so a test asserting it is now rejected asserts a behavior the design does not have. Check what the contract says before writing that case.
 
 An operation that returns nothing needs a public follow-up read to prove its effect. Without one, the test can prove the call succeeded and can prove its rejections, and it cannot claim the state changed.
 

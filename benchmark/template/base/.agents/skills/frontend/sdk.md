@@ -10,7 +10,7 @@ Read [SKILL.md](SKILL.md) first. This document owns how the frontend talks to th
 import api, { IShoppingSale, IPage } from "{{apiPackageName}}";
 
 const page: IPage<IShoppingSale.ISummary> =
-  await api.functional.shoppings.customers.sales.index(connection, {
+  await api.functional.shopping.customer.sale.index(connection, {
     limit: 20,
   });
 ```
