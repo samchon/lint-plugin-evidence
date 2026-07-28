@@ -2,58 +2,11 @@
 
 Read [SKILL.md](SKILL.md) first. This document owns the business logic and every database access.
 
-A provider is an exported namespace named for the entity it owns. Everything below is the shape it takes.
+A provider is an exported namespace named for the entity it owns. There is no dependency injection: a provider is a namespace of functions, and callers import it.
 
-## Projections: `select` And `transform`
+Every function takes a single object named `props`. Positional parameters are not used, including in the private helpers a provider keeps for itself.
 
-Each read shape is its own nested namespace holding exactly two exports.
-
-```ts
-export namespace ShoppingSaleProvider {
-  export namespace summary {
-    export const transform = async (
-      input: Prisma.shopping_salesGetPayload<ReturnType<typeof select>>,
-    ): Promise<IShoppingSale.ISummary> => {
-      const snapshot = input.mv_last?.snapshot;
-      if (!snapshot) throw ErrorProvider.internal("No snapshot found.");
-      return {
-        section: ShoppingSectionProvider.json.transform(input.section),
-        seller: ShoppingSellerProvider.summary.transform(() =>
-          ErrorProvider.internal("The sale has not been registered by seller."),
-        )(input.sellerCustomer),
-        created_at: input.created_at.toISOString(),
-        updated_at: snapshot.created_at.toISOString(),
-        opened_at: input.opened_at?.toISOString() ?? null,
-        closed_at: input.closed_at?.toISOString() ?? null,
-        ...(await ShoppingSaleSnapshotProvider.summary.transform(snapshot)),
-      };
-    };
-    export const select = () =>
-      ({
-        include: {
-          section: ShoppingSectionProvider.json.select(),
-          sellerCustomer: ShoppingSellerProvider.invert.select(),
-          mv_last: {
-            include: {
-              snapshot: ShoppingSaleSnapshotProvider.summary.select(),
-            },
-          },
-        },
-      }) satisfies Prisma.shopping_salesFindManyArgs;
-  }
-
-  export namespace json { /* the detail shape, same two exports */ }
-}
-```
-
-Four things in that block are the convention rather than the example.
-
-1. **`transform`'s parameter type is derived from `select`**, through `GetPayload<ReturnType<typeof select>>`. `GetPayload` is the generated client's helper that turns a query shape into the row type that query returns, so declaring the parameter this way means the argument type is computed from the selector rather than written beside it. The two cannot drift: add a field to the DTO and it fails to compile until `select` fetches it; drop a relation from `select` and `transform` stops compiling. **Never widen that payload type by hand to clear an error.** That single edit is what breaks the guarantee, and nothing afterwards will catch it.
-2. **`select` ends in `satisfies Prisma.<table>FindManyArgs`.** `satisfies` checks the value against that type while keeping the value's own narrower type, which is what a plain annotation would discard. So a mistyped relation key fails here at the selector, and `GetPayload` still sees exactly which relations were included rather than the wide argument type. Using `:` instead of `satisfies` compiles and silently destroys the derivation in the line above.
-3. **`transform` composes other providers' transforms, and `select` composes their selects.** A nested projection stays owned by the provider that knows it, and the two halves compose in lockstep.
-4. **One namespace per shape.** `summary` for the list item, `json` for the detail, `history` when a timeline needs a third. Do not parameterize one transform with a flag; the payload type is what makes each shape safe, and a flag erases it.
-
-A relation that must exist but is nullable in the payload is checked once at the top of `transform` and turned into an internal error. Silently emitting a half-built DTO is worse than failing.
+The provider composes rather than maps. The selection and the row-to-DTO mapping belong to the [transformer](transformers.md); the creation payload belongs to the [collector](collectors.md). What is left here is the business logic: which rows this caller may see, what a write means, what is refused.
 
 ## Readers
 
@@ -81,7 +34,7 @@ export const index = async (props: {
       orderBy: orderBy({ sort: props.input.sort }),
       skip: (current - 1) * limit,
       take: limit,
-      ...summary.select(),
+      ...ShoppingSaleAtSummaryTransformer.select(),
     }),
   ]);
 
@@ -92,7 +45,7 @@ export const index = async (props: {
       records,
       pages: Math.ceil(records / limit),
     },
-    data: await Promise.all(rows.map(summary.transform)),
+    data: await Promise.all(rows.map(ShoppingSaleAtSummaryTransformer.transform)),
   };
 };
 ```
@@ -112,9 +65,9 @@ export const at = async (props: {
 }): Promise<IShoppingSale> => {
   const record = await ShoppingGlobal.prisma.shopping_sales.findFirstOrThrow({
     where: { id: props.id, AND: visibility({ actor: props.actor, strict: false }) },
-    ...json.select(),
+    ...ShoppingSaleTransformer.select(),
   });
-  return json.transform(record);
+  return ShoppingSaleTransformer.transform(record);
 };
 ```
 
@@ -209,38 +162,27 @@ const orderBy = (props: {
 
 ## Writers
 
-A create writes the row, its first snapshot, and the materialized current pointer in one nested insert, then reads back through the same selector it will return.
+The payload comes from the collector, the response from the transformer. What the provider owns is the guard, the ordering, and the transaction boundary.
 
 ```ts
 export const create = async (props: {
   seller: IShoppingSeller.IInvert;
-  input: IShoppingSale.ICreate;
+  body: IShoppingSale.ICreate;
 }): Promise<IShoppingSale> => {
-  const section: IShoppingSection = await ShoppingSectionProvider.get(
-    props.input.section_code,
-  );
-  const snapshot = await ShoppingSaleSnapshotProvider.collect({
-    channel: props.seller.customer.channel,
-    input: props.input,
-  });
   const record = await ShoppingGlobal.prisma.shopping_sales.create({
-    data: {
-      id: v4(),
-      section: { connect: { id: section.id } },
-      sellerCustomer: { connect: { id: props.seller.customer.id } },
-      snapshots: { create: [snapshot] },
-      mv_last: { create: { snapshot: { connect: { id: snapshot.id } } } },
-      created_at: new Date(),
-      opened_at: props.input.opened_at,
-      closed_at: props.input.closed_at,
-    },
-    ...json.select(),
+    data: await ShoppingSaleCollector.collect({
+      body: props.body,
+      seller: props.seller,
+    }),
+    ...ShoppingSaleTransformer.select(),
   });
-  return json.transform(record);
+  return ShoppingSaleTransformer.transform(record);
 };
 ```
 
-Read what that does. The identity row, its first snapshot, and the pointer to that snapshot are one atomic write, so no window exists where a sale has no history. The id is assigned by the application. A referenced entity is resolved first and connected by id, so a bad reference fails before anything is written. The response comes from the same `select` the DTO is built from, not from a narrower read.
+Read what that does. The collector assembles the identity row, its first snapshot, and the pointer to that snapshot as one nested create, so the write is atomic and no window exists where a sale has no history. The response is read back through the same selection the DTO is built from, not from a narrower read.
+
+**Never assemble a creation payload inline here.** The collector is the one place that knows the assembly, and a second copy diverges the moment either side gains a field.
 
 An update creates a **new snapshot** and repoints the materialized pointer, rather than mutating the row:
 
@@ -248,31 +190,31 @@ An update creates a **new snapshot** and repoints the materialized pointer, rath
 export const update = async (props: {
   seller: IShoppingSeller.IInvert;
   id: string;
-  input: IShoppingSale.IUpdate;
+  body: IShoppingSale.IUpdate;
 }): Promise<IShoppingSale> => {
-  await ownership(props);
-  const snapshot = await ShoppingGlobal.prisma.shopping_sale_snapshots.create({
-    data: {
-      ...(await ShoppingSaleSnapshotProvider.collect({
-        channel: props.seller.customer.channel,
-        input: props.input,
-      })),
-      sale: { connect: { id: props.id } },
-    },
-  });
-  await ShoppingGlobal.prisma.mv_shopping_sale_last_snapshots.update({
-    where: { shopping_sale_id: props.id },
-    data: { snapshot: { connect: { id: snapshot.id } } },
+  await ownership({ seller: props.seller, id: props.id });
+  await ShoppingGlobal.prisma.$transaction(async (tx) => {
+    const snapshot = await tx.shopping_sale_snapshots.create({
+      data: await ShoppingSaleSnapshotCollector.collect({
+        body: props.body,
+        sale: { id: props.id },
+      }),
+    });
+    await tx.mv_shopping_sale_last_snapshots.update({
+      where: { shopping_sale_id: props.id },
+      data: { snapshot: { connect: { id: snapshot.id } } },
+    });
   });
   return at({ actor: props.seller, id: props.id });
 };
 ```
 
-Three rules are visible here.
+Four rules are visible here.
 
 - **The ownership guard runs first**, before anything is read or written.
-- **The materialized pointer is repointed in the same operation that created the row it points at.** A pointer repaired later is wrong in between, and nothing observes that window.
-- **The response is re-read through `at`**, not assembled from the narrow write. A response built from the write does not contain the fields the DTO promises.
+- **The snapshot and the pointer move inside one transaction.** Between the two writes the pointer names the previous revision, and a failure between them leaves it there permanently. A pointer repaired later is wrong in between and nothing observes that window.
+- **The payload comes from the snapshot's collector**, not from an inline object assembled here.
+- **The response is re-read through `at`**, not assembled from the narrow write. A response built from the write does not carry the fields the DTO promises.
 
 A field the requirements say is mutated in place, such as a state timestamp, is an ordinary update and does not create a snapshot. Decide from the requirement, not from convenience.
 
@@ -320,6 +262,17 @@ The most frequent defect is writing a table name where a relation property name 
 | an upsert complaining about `data` | the shape is where, create, update |
 
 Two that hide well. Narrowing with `!== undefined` does not eliminate `null`, so use `!= null` when a nullable input feeds a non-null column. And a filter object that is built but never passed is a silent no-op that changes nothing and fails nothing.
+
+## The Datasource Is SQLite
+
+The datasource is SQLite so that anyone can clone this repository and run it with nothing installed and nothing configured. That is worth more here than any capability a server database would add, so do not reach for one.
+
+It also means the generated client offers less than a server datasource would, and the gaps surface either as a compile error or as a filter that silently matches nothing.
+
+- **There is no case-insensitive filter mode.** A search that must ignore case normalizes the value on the way in and compares against a stored normalized column, rather than asking the query to fold case.
+- **Prefer a comparison the datasource can index.** A prefix match is a range; a contains match is a scan, and on a listing that scan runs for every page.
+
+When a requirement genuinely cannot be satisfied on this datasource, report it. Adding an external dependency the benchmark cannot assume is not the repair.
 
 ## Verification
 
