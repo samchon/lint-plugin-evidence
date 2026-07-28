@@ -21,7 +21,3 @@ TypeScript targets are `{@link}` references resolved through imports in the test
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}
-
-## Mutation Ownership
-
-Do not invent an evidence-only mutation schedule. The shared Phase Two method performs exactly one mutation per global round in both arms and proves byte-for-byte restoration.

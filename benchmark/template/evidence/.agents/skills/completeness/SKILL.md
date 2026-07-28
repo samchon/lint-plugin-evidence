@@ -1,6 +1,6 @@
 ---
 name: completeness
-description: Defines the evidence arm's Phase One structural coverage method, claim-specific tag usage, residual manual checks, ledger, and first-done boundary. Use before any implementation, whenever an evidence diagnostic appears, and before the first terminal completion report; use phase-two.md only after the runner activates Phase Two.
+description: Defines the evidence arm's Phase One structural coverage method, claim-specific tag usage, residual manual checks, ledger, and first-done boundary. Use before any implementation, whenever an evidence diagnostic appears, and before the first terminal completion report.
 ---
 
 # Completeness
@@ -9,7 +9,7 @@ description: Defines the evidence arm's Phase One structural coverage method, cl
 
 Every configured H2/H3 requirement section and every configured referenced artifact must receive a claim-specific acknowledgement. The graph makes missing structural acknowledgement a lint error. It does not prove that a citation is true, that an unconfigured edge is complete, or that the selected denominator is the whole product.
 
-The evidence arm uses the graph for configured coverage and a manual ledger for integrity and residual edges. This is its Phase One mechanism. The benchmark's repeated post-completion campaign is separate and shared with the plain arm.
+The evidence arm uses the graph for configured coverage and a manual ledger for integrity and residual edges. This is its Phase One mechanism.
 
 ## Requirement Identity
 
@@ -61,7 +61,7 @@ Within one named claim/reference obligation, each target scope is acknowledged e
 
 Phase One may report terminal completion only when the graph is green, no residual or integrity finding remains, all invalidated reviews were repeated at the current digest, and every required command passed with output read. That report is the first-done boundary.
 
-Do not pre-run the benchmark's two clean rounds. [phase-two.md](phase-two.md) starts only after the runner records first done and sends the separate activation turn.
+At the first terminal completion report, stop and wait for the benchmark runner's separate post-completion user turn. That external turn supplies the arm-neutral campaign; do not infer or pre-run it.
 
 ## Frozen Inputs
 

@@ -1,6 +1,6 @@
 ---
 name: completeness
-description: Defines the plain arm's Phase One manual completeness method, its obligation inventory, state ledger, and first-done boundary. Use before any implementation, after a change invalidates an upstream mapping, and before the first terminal completion report; use phase-two.md only after the runner activates Phase Two.
+description: Defines the plain arm's Phase One manual completeness method, its obligation inventory, state ledger, and first-done boundary. Use before any implementation, after a change invalidates an upstream mapping, and before the first terminal completion report.
 ---
 
 # Completeness
@@ -9,7 +9,7 @@ description: Defines the plain arm's Phase One manual completeness method, its o
 
 Every H2 and H3 requirement section under `docs/analysis/` must be realized, and every authored artifact must have a requirement or a recorded architectural reason to exist. A green compiler checks the code that exists; it cannot report the code nobody thought to write.
 
-The plain arm therefore maintains an explicit manual obligation ledger. This is the arm's Phase One mechanism, not a substitute evidence plugin and not the benchmark's shared Phase Two campaign.
+The plain arm therefore maintains an explicit manual obligation ledger. This is the arm's Phase One mechanism, not a substitute evidence plugin.
 
 ## Requirement Identity
 
@@ -46,7 +46,7 @@ For each left-side unit, name every right-side artifact that realizes it or reco
 
 Phase One may report terminal completion only when that full pass has no unresolved finding, every invalidation has been rechecked at the current digest, and all required commands passed with their output read. This is the first-done boundary the runner measures.
 
-Do not run two clean campaign rounds before first done. The benchmark's identical two-clean-round method belongs to [phase-two.md](phase-two.md) and starts only after the runner sends the separate Phase Two activation turn.
+At the first terminal completion report, stop and wait for the benchmark runner's separate post-completion user turn. That external turn supplies the arm-neutral campaign; do not infer or pre-run it.
 
 ## Frozen Inputs
 

@@ -11,7 +11,7 @@ wiki/completeness/
   requirements.md
   mappings.md
   findings.md
-  rounds.md
+  state.md
 ```
 
 These are benchmark output. The frozen method under `.agents/skills/**` is never edited during a run.
@@ -23,7 +23,7 @@ These are benchmark output. The frozen method under `.agents/skills/**` is never
 | Requirement identity | Source lines | Actor or concept | Circumstance | Required behavior | Observable result | Named values |
 | --- | --- | --- | --- | --- | --- | --- |
 
-The identity is `<workspace-relative-path>#<canonical-anchor>`. Re-enumerate the source files and compare the sorted identity list with this table before first done and in every Phase Two round. Counts alone are insufficient because one missing and one invented row cancel each other.
+The identity is `<workspace-relative-path>#<canonical-anchor>`. Re-enumerate the source files and compare the sorted identity list with this table after a requirements change and before first done. Counts alone are insufficient because one missing and one invented row cancel each other.
 
 ## Mappings
 
@@ -37,16 +37,14 @@ Write a finding to `findings.md` before repairing it. Preserve its lens, source,
 
 When a source changes, immediately mark every dependent mapping stale in `mappings.md`; do not carry a green verdict from the old meaning. After repair, recheck the entire affected downstream population and bind the new verdict to the new digest.
 
-## Round State
+## Completion State
 
-`rounds.md` records Phase One's final exhaustive pass and every shared Phase Two global round:
+`state.md` records Phase One's final exhaustive pass:
 
-| Phase | Round | Digest | Included paths | Excluded paths | Lens coverage | Raw | Duplicate | Rejected | Confirmed | Repaired | Mutation | Commands | Verdict |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Boundary | Digest | Included paths | Excluded paths | Mapping coverage | Raw | Duplicate | Rejected | Confirmed | Repaired | Commands | Verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 
-A round row is written even when interrupted, invalid, or non-clean. Never infer missing data as zero. Use `not-recorded`, `not-run`, or the exact blocker.
-
-The digest algorithm and two-clean-round rule are owned by [phase-two.md](phase-two.md). The same authored-population digest is also recorded at Phase One first done so the runner can distinguish work done before and after that boundary.
+The first-done row is written even when interrupted or invalid. Never infer missing data as zero. Use `not-recorded`, `not-run`, or the exact blocker. Record exact path inventories so the state identity can be recomputed.
 
 ## No Memory-Only State
 

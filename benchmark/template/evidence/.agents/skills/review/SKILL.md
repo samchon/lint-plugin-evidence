@@ -1,6 +1,6 @@
 ---
 name: review
-description: Defines integrity review for evidence claims: comparing every tag or exclusion with its host and source, reviewing broad scopes and residual edges, and invalidating verdicts after change. Use during the Phase One final pass and within each runner-activated Phase Two global round.
+description: Defines Phase One integrity review for evidence claims: comparing every tag or exclusion with its host and source, reviewing broad scopes and residual edges, and invalidating verdicts after change. Use during implementation and the Phase One final pass.
 ---
 
 # Review
@@ -37,8 +37,6 @@ A model, controller, provider, and test may all truthfully mention one behaviora
 
 Read the test's setup, invoked operation, assertion, and negative path. Confirm it can fail for the named behavior rather than merely for any error. Type-checking a DTO proves shape; calling an endpoint proves reachability; neither proves the semantic rule.
 
-The benchmark's destructive check frequency is not chosen here. [phase-two.md](../completeness/phase-two.md) requires exactly one mutation check per global Phase Two round in both arms, with byte-for-byte restoration. Do not add evidence-only mutation passes during Phase One.
-
 ## Review Residual Edges
 
 The graph has no provider claim and no SDK-operation-to-screen claim. Review the manual residual mappings directly:
@@ -57,6 +55,4 @@ Record the finding before repair, mark dependent verdicts stale, repair at the o
 
 ## Phase Boundaries
 
-Phase One performs one exhaustive integrity and residual pass at the current digest before the first terminal completion report. It does not run the shared two-clean-round campaign early.
-
-Only the benchmark runner's separate activation turn starts Phase Two. During that phase, follow the identical global-round and stopping rules in [phase-two.md](../completeness/phase-two.md), without editing frozen method or lint configuration files.
+Phase One performs one exhaustive integrity and residual pass at the current digest before the first terminal completion report. Stop at that report and wait for the benchmark runner's separate post-completion user turn. Do not edit frozen method or lint configuration files.

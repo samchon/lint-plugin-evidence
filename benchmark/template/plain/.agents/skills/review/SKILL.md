@@ -1,6 +1,6 @@
 ---
 name: review
-description: Defines integrity review for plain-arm mappings: comparing every ledger claim with its artifact and source, reviewing non-applicability decisions, and invalidating verdicts after change. Use during the Phase One final pass and within each runner-activated Phase Two global round.
+description: Defines Phase One integrity review for plain-arm mappings: comparing every ledger claim with its artifact and source, reviewing non-applicability decisions, and invalidating verdicts after change. Use during implementation and the Phase One final pass.
 ---
 
 # Review
@@ -35,8 +35,6 @@ A model, controller, provider, and test may all map to one behavioral requiremen
 
 Read the test's setup, invoked operation, assertion, and negative path. Confirm it can fail for the named rule rather than merely for any error. Type-checking a DTO proves shape; calling an endpoint proves reachability; neither proves semantic behavior.
 
-The benchmark's destructive check frequency is not chosen here. [phase-two.md](../completeness/phase-two.md) requires exactly one mutation check per global Phase Two round in both arms, with byte-for-byte restoration. Do not add plain-only mutation passes during Phase One.
-
 ## Reverse Ownership
 
 Review the backward populations as seriously as requirement coverage:
@@ -57,6 +55,4 @@ Record the finding before repair, mark dependent rows stale, fix the owning laye
 
 ## Phase Boundaries
 
-Phase One performs one exhaustive truth pass over all current mappings before the first terminal completion report. It does not run the shared two-clean-round campaign early.
-
-Only the benchmark runner's separate activation turn starts Phase Two. During that phase, follow the identical global-round and stopping rules in [phase-two.md](../completeness/phase-two.md), without editing frozen method or lint configuration files.
+Phase One performs one exhaustive truth pass over all current mappings before the first terminal completion report. Stop at that report and wait for the benchmark runner's separate post-completion user turn. Do not edit frozen method or lint configuration files.
