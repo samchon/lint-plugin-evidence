@@ -266,6 +266,41 @@ func runDocumentedRule(
 	return reporter.messages
 }
 
+// scanProjectMarkdown scans one document at the default population base.
+//
+// Every case predating `root` addressed a document by its project-relative
+// path, which is exactly what the default base still produces — so the helper
+// keeps those cases asserting the behavior they were written for rather than
+// silently becoming cases about a rooted population.
+func scanProjectMarkdown(
+	path string,
+	content string,
+) (*artifactInventory, []string) {
+	return scanMarkdownInventory(
+		resolvePopulationBase("", "").addressOf(path),
+		content,
+	)
+}
+
+// anchoredGraph resolves a hand-built configuration the way Check does.
+//
+// A population reaches `materializeClaimStates` already anchored on the base its
+// globs resolve against, so a literal that skipped this step would describe a
+// configuration no consumer can produce — and would then match nothing, which
+// reads exactly like a glob that selects nothing.
+func anchoredGraph(root string, config graphConfig) graphConfig {
+	resolveGraphBases(root, &config)
+	return config
+}
+
+// prismaHostedInventories indexes one inventory map by the file each entry
+// holds, the way the loader hands it to the declaration scan.
+func prismaHostedInventories(
+	inventories map[string]*artifactInventory,
+) map[string][]*artifactInventory {
+	return prismaInventoriesByDisplay(inventories)
+}
+
 func assertSilent(t *testing.T, messages []string) {
 	t.Helper()
 	if len(messages) != 0 {

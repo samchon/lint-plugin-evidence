@@ -35,6 +35,10 @@ func (graphRule) Check(ctx *rule.ProjectContext) {
 		ctx.Report("Evidence graph project root '" + root + "' is not a readable directory. Fix the ttsc project identity before evaluating evidence globs.")
 		return
 	}
+	// Every population is anchored before anything is read, so a loader, a
+	// diagnostic, and the corpus the editor receives all speak of one resolved
+	// base rather than each re-deriving it from the author's spelling.
+	resolveGraphBases(root, &config)
 
 	markdown, markdownProblems := loadMarkdownInventories(root, config)
 	prisma, prismaProblems := loadPrismaInventories(root, config)
@@ -104,12 +108,12 @@ func materializeClaimStates(
 	problems := []string{}
 	for _, claim := range config.Claims {
 		inventories := inventoriesOf(claim.Type, markdown, prisma, swagger, typescript)
-		paths := matchingInventoryPaths(inventories, claim.Files)
+		paths := matchingInventoryPaths(inventories, claim.Base, claim.Files)
 		state := claimState{Spec: claim, Paths: paths}
 		if len(paths) == 0 {
 			problems = append(
 				problems,
-				claimLabel(claim)+" matched no "+string(claim.Type)+" files for "+describePatterns(claim.Files)+". Fix the project-relative globs; '*' stays within one segment, '**' crosses segments, and a bare directory is not recursive.",
+				claimLabel(claim)+" matched no "+string(claim.Type)+" files for "+describePopulation(claim.Base, claim.Files)+". Fix the globs or the root they resolve against; '*' stays within one segment, '**' crosses segments, and a bare directory is not recursive.",
 			)
 		}
 		for _, path := range paths {
@@ -164,7 +168,7 @@ func materializeClaimStates(
 				} else {
 					problems = append(
 						problems,
-						claimLabel(claim)+" "+referenceLabel(reference)+" matched no "+string(reference.Type)+" files for "+describePatterns(reference.Files)+". Fix the reference globs; this obligation cannot materialize evidence units without files.",
+						claimLabel(claim)+" "+referenceLabel(reference)+" matched no "+string(reference.Type)+" files for "+describePopulation(reference.Base, reference.Files)+". Fix the reference globs or the root they resolve against; this obligation cannot materialize evidence units without files.",
 					)
 				}
 			}
@@ -750,7 +754,7 @@ func matchingReferencePaths(
 	reference referenceSpec,
 ) []string {
 	if reference.Type != artifactSwagger {
-		return matchingInventoryPaths(inventories, reference.Files)
+		return matchingInventoryPaths(inventories, reference.Base, reference.Files)
 	}
 	if inventories[reference.Source] == nil {
 		return nil
@@ -758,15 +762,25 @@ func matchingReferencePaths(
 	return []string{reference.Source}
 }
 
+// matchingInventoryPaths selects the files one population owns.
+//
+// Matching runs against the base-relative path rather than against the key,
+// which is what keeps a pattern written as `requirements/**/*.md` meaning the
+// same thing whether its root is the project or a directory two levels above
+// it. An address composed for another base is skipped outright, so a file
+// loaded for one root is never offered to a population that cannot address it.
 func matchingInventoryPaths(
 	inventories map[string]*artifactInventory,
+	base populationBase,
 	globs globSet,
 ) []string {
 	paths := []string{}
-	for path := range inventories {
-		if globs.matches(path) {
-			paths = append(paths, path)
+	for key := range inventories {
+		relative, owned := base.relativeOf(key)
+		if !owned || !globs.matches(relative) {
+			continue
 		}
+		paths = append(paths, key)
 	}
 	sort.Strings(paths)
 	return paths

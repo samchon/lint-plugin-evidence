@@ -19,7 +19,7 @@ import (
  *  3. Assert file/H1-H4 identities and reject H5 as an eligible host.
  */
 func TestMarkdownMaterializesFileAndHeadingKinds(t *testing.T) {
-	inventory, problems := scanMarkdownInventory("docs/spec.md", `<!-- @evidence docs/source.md File host. -->
+	inventory, problems := scanProjectMarkdown("docs/spec.md", `<!-- @evidence docs/source.md File host. -->
 # Product Overview
 <!-- @evidence docs/source.md#one H1 host. -->
 ## Create Order {#create}
@@ -179,7 +179,7 @@ func TestMarkdownProblemsRespectSourceFilesAndSymbols(t *testing.T) {
  *  3. Assert only the real heading materializes.
  */
 func TestMarkdownIgnoresHeadingsInsideCodeAndComments(t *testing.T) {
-	inventory, problems := scanMarkdownInventory("docs/spec.md", `# Product
+	inventory, problems := scanProjectMarkdown("docs/spec.md", `# Product
 `+"```md"+`
 ## Fenced
 `+"```ts"+`

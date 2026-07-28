@@ -14,16 +14,25 @@ export interface IEvidenceGraphSwaggerReference {
   /**
    * Exact Swagger or OpenAPI document location.
    *
-   * A location is either a project-relative file path or an `http:`/`https:`
-   * URL. Local paths are resolved below the active `ttsc` project root and may
-   * name JSON or YAML documents. URLs are fetched while the project rule runs,
-   * so an unavailable remote document fails the build instead of silently
-   * removing its operations from the evidence graph.
+   * A location is either a local file path or an `http:`/`https:` URL. A local
+   * path is resolved against the active `ttsc` project root and may name a JSON
+   * or YAML document anywhere on the filesystem: inside the project
+   * (`api/openapi.yaml`), above it (`../contracts/swagger.json`), or absolute
+   * (`/srv/contracts/swagger.json`, `C:/contracts/swagger.json`). An OpenAPI
+   * document is routinely generated somewhere with no relationship to the
+   * project that consumes it, and the local form is the one an author can pin
+   * and diff. A drive-relative Windows path such as `C:openapi.json` is
+   * refused, because it resolves against whatever directory that drive
+   * currently sits on rather than against a stable base.
    *
-   * This value is an exact location, not a glob. The document is normalized
-   * through `@typia/utils` to `OpenApi.IDocument` before its operations are
-   * indexed. Use a claim's `reference` array when it owes separate coverage to
-   * more than one Swagger document.
+   * URLs are fetched while the project rule runs, so an unavailable remote
+   * document fails the build instead of silently removing its operations from
+   * the evidence graph.
+   *
+   * This value is an exact location, not a glob and not a directory. The
+   * document is normalized through `@typia/utils` to `OpenApi.IDocument` before
+   * its operations are indexed. Use a claim's `reference` array when it owes
+   * separate coverage to more than one Swagger document.
    *
    * Operation targets use the whitespace-free `<METHOD>:<path>` form, such as
    * `POST:/members` or `GET:/members/{id}`.

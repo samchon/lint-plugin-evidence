@@ -12,88 +12,127 @@ import (
 var markdownCommentPattern = regexp.MustCompile(`(?s)<!--(.*?)-->`)
 var explicitAnchorPattern = regexp.MustCompile(`\s*\{#([A-Za-z0-9][A-Za-z0-9._:-]*)\}\s*$`)
 
+// loadMarkdownInventories reads every configured Markdown population, once per
+// distinct base.
+//
+// One walk per base rather than one walk for the project, because a population
+// that declares a root sits outside the tree the project walk covers — and a
+// walk that started high enough to cover both would descend through everything
+// between them. Two populations sharing a base share one walk, so the cost
+// tracks the roots an author declared rather than the populations they wrote.
 func loadMarkdownInventories(
 	root string,
 	config graphConfig,
 ) (map[string]*artifactInventory, []string) {
 	inventories := map[string]*artifactInventory{}
 	problems := []string{}
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+	for _, base := range configuredBases(config, artifactMarkdown) {
+		problems = append(
+			problems,
+			loadMarkdownBase(base, config, inventories)...,
+		)
+	}
+	return inventories, problems
+}
+
+func loadMarkdownBase(
+	base populationBase,
+	config graphConfig,
+	inventories map[string]*artifactInventory,
+) []string {
+	problems := []string{}
+	if problem := unreadableBaseProblem(base, artifactMarkdown); problem != "" {
+		return []string{problem}
+	}
+	err := filepath.WalkDir(base.Absolute, func(current string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			relative, ok := relativeProjectPath(root, path)
+			relative, ok := relativeProjectPath(base.Absolute, current)
 			relevant := ok &&
-				(matchesConfiguredMarkdownFile(config, relative) ||
-					couldContainConfiguredMarkdown(config, relative))
+				(matchesConfiguredMarkdownFile(config, base, relative) ||
+					couldContainConfiguredMarkdown(config, base, relative))
 			if !relevant {
 				if entry != nil && entry.IsDir() {
 					return filepath.SkipDir
 				}
 				return nil
 			}
-			problems = append(problems, "Evidence graph could not inspect '"+path+"': "+walkErr.Error()+". Fix filesystem access so configured Markdown sources can be indexed.")
+			problems = append(problems, "Evidence graph could not inspect '"+current+"': "+walkErr.Error()+". Fix filesystem access so configured Markdown sources can be indexed.")
 			if entry != nil && entry.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
 		}
 		if entry.IsDir() {
-			if path != root {
-				relative, ok := relativeProjectPath(root, path)
-				if !ok || !couldContainConfiguredMarkdown(config, relative) {
+			if current != base.Absolute {
+				relative, ok := relativeProjectPath(base.Absolute, current)
+				if !ok || !couldContainConfiguredMarkdown(config, base, relative) {
 					return filepath.SkipDir
 				}
 			}
 			return nil
 		}
-		relative, ok := relativeProjectPath(root, path)
+		relative, ok := relativeProjectPath(base.Absolute, current)
 		if !ok {
 			return nil
 		}
-		if !matchesConfiguredMarkdownFile(config, relative) {
+		if !matchesConfiguredMarkdownFile(config, base, relative) {
 			return nil
 		}
-		content, readErr := os.ReadFile(path)
+		address := base.addressOf(relative)
+		content, readErr := os.ReadFile(current)
 		if readErr != nil {
-			inventories[relative] = &artifactInventory{
-				Path: relative,
+			inventories[address.Key] = &artifactInventory{
+				Path: address.Display,
 				Type: artifactMarkdown,
 			}
-			problems = append(problems, "Evidence graph could not read Markdown file '"+relative+"': "+readErr.Error()+". Fix filesystem access or exclude the file from configured globs.")
+			problems = append(problems, "Evidence graph could not read Markdown file '"+address.Display+"': "+readErr.Error()+". Fix filesystem access or exclude the file from configured globs.")
 			return nil
 		}
-		inventory, _ := scanMarkdownInventory(relative, string(content))
-		inventories[relative] = inventory
+		inventory, _ := scanMarkdownInventory(address, string(content))
+		inventories[address.Key] = inventory
 		for _, inventoryProblem := range inventory.Problems {
-			if selectedByMarkdownReference(config, relative, inventoryProblem.Symbol) {
+			if selectedByMarkdownReference(config, base, relative, inventoryProblem.Symbol) {
 				problems = append(problems, inventoryProblem.Message)
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		problems = append(problems, "Evidence graph could not walk project root '"+root+"': "+err.Error()+".")
+		problems = append(problems, "Evidence graph could not walk Markdown root '"+populationRootLabel(base)+"': "+err.Error()+".")
 	}
-	return inventories, problems
+	return problems
 }
 
-func scanMarkdownInventory(path string, content string) (*artifactInventory, []string) {
-	inventory := &artifactInventory{Path: path, Type: artifactMarkdown}
+func scanMarkdownInventory(
+	address artifactAddress,
+	content string,
+) (*artifactInventory, []string) {
+	// The target is the path inside the population's base, while the location is
+	// the path a reader opens. They are the same string for a project-rooted
+	// population and deliberately differ for a rooted one: a citation that keeps
+	// working when the document set is adopted by a sibling package cannot carry
+	// that package's distance from the documents.
+	path := address.Relative
+	inventory := &artifactInventory{
+		Path: address.Display,
+		Type: artifactMarkdown,
+	}
 	problems := []string{}
 	targetablePath := !containsWhitespace(path)
 	fileUnitID := ""
 	if targetablePath {
-		fileUnitID = "markdown:" + path + ":file"
+		fileUnitID = "markdown:" + address.Key + ":file"
 		inventory.Units = append(inventory.Units, &evidenceUnit{
 			ID:       fileUnitID,
 			Target:   path,
 			Type:     artifactMarkdown,
 			Symbol:   "file",
-			Path:     path,
+			Path:     address.Display,
 			Line:     1,
 			Readable: "Markdown file",
 		})
 	} else {
-		problem := "Markdown file '" + path + "' cannot form an evidence target because its project-relative path contains whitespace. Rename the file so '@evidence <target> <reason>' can represent its path as one target token."
+		problem := "Markdown file '" + address.Display + "' cannot form an evidence target because its path contains whitespace. Rename the file so '@evidence <target> <reason>' can represent its path as one target token."
 		problems = append(problems, problem)
 		inventory.Problems = append(inventory.Problems, inventoryProblem{
 			Symbol:  "*",
@@ -159,7 +198,7 @@ func scanMarkdownInventory(path string, content string) (*artifactInventory, []s
 				if anchor == "" {
 					problems = append(
 						problems,
-						"Markdown evidence unit at "+path+":"+decimal(index+1)+" has no resolvable anchor. Add a non-empty heading title or an explicit '{#anchor}' suffix.",
+						"Markdown evidence unit at "+address.Display+":"+decimal(index+1)+" has no resolvable anchor. Add a non-empty heading title or an explicit '{#anchor}' suffix.",
 					)
 					inventory.Problems = append(inventory.Problems, inventoryProblem{
 						Symbol:  currentHost,
@@ -174,12 +213,12 @@ func scanMarkdownInventory(path string, content string) (*artifactInventory, []s
 						}
 					}
 					unit := &evidenceUnit{
-						ID:       "markdown:" + path + ":" + currentHost + ":" + decimal(index+1),
+						ID:       "markdown:" + address.Key + ":" + currentHost + ":" + decimal(index+1),
 						ParentID: parentID,
 						Target:   path + "#" + anchor,
 						Type:     artifactMarkdown,
 						Symbol:   currentHost,
-						Path:     path,
+						Path:     address.Display,
 						Line:     index + 1,
 						Readable: "Markdown " + strings.ToUpper(currentHost) + " '" + title + "'",
 					}
@@ -205,13 +244,13 @@ func scanMarkdownInventory(path string, content string) (*artifactInventory, []s
 		for _, parsed := range parseDeclarations(comment) {
 			sequence++
 			inventory.Declarations = append(inventory.Declarations, &evidenceDeclaration{
-				ID:       "markdown:" + path + ":" + decimal(line+parsed.LineOffset) + ":" + decimal(sequence),
+				ID:       "markdown:" + address.Key + ":" + decimal(line+parsed.LineOffset) + ":" + decimal(sequence),
 				Type:     artifactMarkdown,
 				Tag:      parsed.Tag,
 				Target:   parsed.Target,
 				Reason:   parsed.Reason,
 				Hosts:    symbolSet{hostAtLine[line-1]: true},
-				Path:     path,
+				Path:     address.Display,
 				Line:     line + parsed.LineOffset,
 				Sequence: sequence,
 			})
@@ -220,13 +259,28 @@ func scanMarkdownInventory(path string, content string) (*artifactInventory, []s
 	return inventory, problems
 }
 
-func matchesConfiguredMarkdownFile(config graphConfig, path string) bool {
+// matchesConfiguredMarkdownFile reports whether a population rooted at this base
+// selects the file.
+//
+// The base is compared before the globs, because a walk covers one base at a
+// time and another base's patterns say nothing about a path inside this one.
+// Without that comparison a project-rooted `docs/**` would sweep in the
+// `docs` directory of every declared root.
+func matchesConfiguredMarkdownFile(
+	config graphConfig,
+	base populationBase,
+	path string,
+) bool {
 	for _, claim := range config.Claims {
-		if claim.Type == artifactMarkdown && claim.Files.matches(path) {
+		if claim.Type == artifactMarkdown &&
+			claim.Base.Absolute == base.Absolute &&
+			claim.Files.matches(path) {
 			return true
 		}
 		for _, reference := range claim.References {
-			if reference.Type == artifactMarkdown && reference.Files.matches(path) {
+			if reference.Type == artifactMarkdown &&
+				reference.Base.Absolute == base.Absolute &&
+				reference.Files.matches(path) {
 				return true
 			}
 		}
@@ -234,14 +288,20 @@ func matchesConfiguredMarkdownFile(config graphConfig, path string) bool {
 	return false
 }
 
-func couldContainConfiguredMarkdown(config graphConfig, directory string) bool {
+func couldContainConfiguredMarkdown(
+	config graphConfig,
+	base populationBase,
+	directory string,
+) bool {
 	for _, claim := range config.Claims {
 		if claim.Type == artifactMarkdown &&
+			claim.Base.Absolute == base.Absolute &&
 			claim.Files.couldMatchDescendant(directory) {
 			return true
 		}
 		for _, reference := range claim.References {
 			if reference.Type == artifactMarkdown &&
+				reference.Base.Absolute == base.Absolute &&
 				reference.Files.couldMatchDescendant(directory) {
 				return true
 			}
@@ -252,12 +312,14 @@ func couldContainConfiguredMarkdown(config graphConfig, directory string) bool {
 
 func selectedByMarkdownReference(
 	config graphConfig,
+	base populationBase,
 	path string,
 	symbol string,
 ) bool {
 	for _, claim := range config.Claims {
 		for _, reference := range claim.References {
 			if reference.Type == artifactMarkdown &&
+				reference.Base.Absolute == base.Absolute &&
 				reference.Files.matches(path) &&
 				(symbol == "*" || reference.Symbols.contains(symbol)) {
 				return true

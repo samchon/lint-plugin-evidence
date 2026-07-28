@@ -46,9 +46,29 @@ export interface IEvidenceGraphPrismaClaim {
   name?: string;
 
   /**
-   * Project-relative glob patterns for the Prisma schema files that must cite
-   * the referenced evidence. Every matching regular file is parsed as part of
-   * one schema regardless of extension.
+   * Directory this claim's {@link files} patterns resolve against.
+   *
+   * Omit this property to resolve against the active `ttsc` project root, which
+   * is where every population resolved before this property existed.
+   *
+   * The value names one directory, never a glob. It may sit inside the project
+   * (`prisma`), above it (`../../prisma`), or on an absolute path
+   * (`/srv/schema`, `C:/schema`). A drive-relative Windows path such as
+   * `C:prisma` is refused, because it resolves against whatever directory that
+   * drive currently sits on rather than against a stable base.
+   *
+   * A rooted claim reads its declaration hosts from outside the project, so a
+   * schema shared by two services can carry citations both of them owe.
+   * Diagnostics name the resolved base, and the resolved patterns are published
+   * to the `ttsc` host as watched inputs.
+   */
+  root?: string;
+
+  /**
+   * Glob patterns for the Prisma schema files that must cite the referenced
+   * evidence, resolved against {@link root} or against the project root when
+   * none is declared. Every matching regular file is parsed as part of one
+   * schema regardless of extension.
    *
    * These are globs, not regular expressions. `*` matches within one path
    * segment, `**` crosses any number of path segments, and `?` matches one

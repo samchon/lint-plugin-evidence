@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 )
@@ -120,7 +119,7 @@ func copyPrismaOutcome(outcome prismaSetOutcome) prismaSetOutcome {
 func prismaContentDigest(root string, sources []string) string {
 	composite := sha256.New()
 	for _, source := range sources {
-		content, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(source)))
+		content, err := os.ReadFile(resolveProjectPath(root, source))
 		if err != nil {
 			return ""
 		}
@@ -176,6 +175,7 @@ func prismaUnitsFromOutcome(
 	if len(sources) != 0 {
 		fallback = sources[0]
 	}
+	indexed := prismaInventoriesByDisplay(inventories)
 	hosts := map[string]*evidenceUnit{}
 	for _, model := range outcome.Models {
 		for _, unit := range prismaModelUnits(model) {
@@ -191,7 +191,7 @@ func prismaUnitsFromOutcome(
 			unit.Path = location.Path
 			unit.Line = location.Line
 			hosts[key] = unit
-			if inventory := inventories[unit.Path]; inventory != nil {
+			for _, inventory := range indexed[unit.Path] {
 				inventory.Units = append(inventory.Units, unit)
 			}
 		}
@@ -199,7 +199,7 @@ func prismaUnitsFromOutcome(
 	for _, inventory := range inventories {
 		sortUnits(inventory.Units)
 	}
-	return prismaDeclarationsFromComments(comments, hosts, inventories)
+	return prismaDeclarationsFromComments(comments, hosts, indexed)
 }
 
 // joinPrismaIdentity renders a unit's identity the way the locator keys one.

@@ -275,7 +275,7 @@ func TestHintsRankSwaggerOperationsLast(t *testing.T) {
 		},
 	}
 	units := selectedCompletionUnits(
-		config,
+		anchoredGraph("", config),
 		markdown,
 		map[string]*artifactInventory{},
 		swagger,

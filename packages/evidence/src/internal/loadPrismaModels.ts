@@ -165,18 +165,11 @@ const readSet = async (root: string, sources: string[]): Promise<IReadSet> => {
   // instead would agree only where the round trip happens to be exact.
   const composite: ReturnType<typeof createHash> = createHash("sha256");
   for (const source of sources) {
-    if (path.isAbsolute(source))
-      throw new Error("Prisma schema paths must be project-relative");
-
+    // A schema file may sit above the project or on an absolute path, because a
+    // population resolves against the root its configuration declares rather
+    // than against the project. The caller sends the paths its own walk
+    // produced, so this side only resolves them the same way.
     const location: string = path.resolve(root, source);
-    const relative: string = path.relative(root, location);
-    if (
-      relative === ".." ||
-      relative.startsWith(`..${path.sep}`) ||
-      path.isAbsolute(relative)
-    )
-      throw new Error("Prisma schema paths must stay below the project root");
-
     const stat: Awaited<ReturnType<typeof fs.stat>> = await fs.stat(location);
     if (!stat.isFile())
       throw new Error(`the Prisma schema source '${source}' is not a file`);

@@ -179,7 +179,7 @@ func TestMarkdownDeclarationPreservesMultilineTagLocation(t *testing.T) {
  *  3. Assert the artifact-specific identities remain distinct.
  */
 func TestDeclarationIdentitySeparatesArtifactVariants(t *testing.T) {
-	markdown, problems := scanMarkdownInventory(
+	markdown, problems := scanProjectMarkdown(
 		"src/mixed.ts",
 		"<!-- @evidence Shared Markdown reason. -->\n",
 	)
