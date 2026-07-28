@@ -268,8 +268,10 @@
             "windowResults",
             "passedAtAuthorization",
             "policyId",
+            "policyPath",
             "policySha256",
             "capturedAtUtc",
+            "attestationAlgorithmId",
             "attestationSha256",
             "privateCheckpointPersistence",
             "exactTelemetryPromoted",
@@ -307,14 +309,20 @@
               "const": true
             },
             "policyId": {
-              "const": "chatgpt-native-first-hit-reserve-v1"
+              "const": "chatgpt-native-first-hit-v1"
+            },
+            "policyPath": {
+              "const": "benchmark/protocol/quota-policy.json"
             },
             "policySha256": {
-              "$ref": "#/$defs/sha256"
+              "const": "5dae599895578b207c7b46628b7cfc2ee17dce1b4973288199047b0111607763"
             },
             "capturedAtUtc": {
               "type": "string",
               "format": "date-time"
+            },
+            "attestationAlgorithmId": {
+              "const": "sha256-rfc8785-sanitized-quota-attestation-v1"
             },
             "attestationSha256": {
               "$ref": "#/$defs/sha256"

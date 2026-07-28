@@ -29,6 +29,7 @@
         "materializerManifestSchemaVersion",
         "treeAlgorithm",
         "subjectFreezeManifestSha256",
+        "quotaPolicySha256",
         "protocolRevisionSha256",
         "acceptanceCatalogSha256",
         "acceptanceCatalogCount",
@@ -86,6 +87,9 @@
         },
         "subjectFreezeManifestSha256": {
           "const": "409aa670f85c94cac653a4041a55a611e0a94873f2152f94947cbe4cefe0ac24"
+        },
+        "quotaPolicySha256": {
+          "const": "5dae599895578b207c7b46628b7cfc2ee17dce1b4973288199047b0111607763"
         },
         "protocolRevisionSha256": {
           "$ref": "#/$defs/sha256"
