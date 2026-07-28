@@ -130,6 +130,8 @@ In Codex `0.145.0`, `resume` never resumes model generation. It verifies an aban
 
 The current tracked revision does not yet expose the complete production facade named by this section. Until it is integrated, merged, pinned, and proven by the vertical fixtures, these commands are a fail-closed interface contract rather than paid-run authorization.
 
+Immediately before spawning the first paid child, `start` must perform a fresh native-quota recheck and the pinned environment, control-home, and public-safety scans, then bind their admitted results to the immutable operation record. These pre-spawn checks are still WIP launch blockers. There is no operator command or manual inspection that substitutes for their production implementation and vertical fixtures.
+
 ## Prepare and launch one four-cell block
 
 The first paid wave is Todo and Reddit, both arms, one replicate at a time. Before launch, publish the preregistered P50/P90 time and provider-token vectors, the selected-wave safety limits, monetary status, quota attestation class, merged source SHA, and plan digest in the campaign ledger. Announcing them after observation does not satisfy preregistration.
@@ -160,14 +162,15 @@ Do not substitute a direct `codex exec`, interactive Codex session, or hand-writ
 
 Every plan states:
 
-- P50 and P90 wall-clock by cell and block;
-- P50 and P90 non-cached input, cache read, cache write, output, and provider-total tokens;
-- P50 and P90 provider credits and USD only when an applicable official conversion exists, otherwise the literal value `unavailable`;
+- P50 and P90 wall-clock and provider-total-token priors for the `t_done` and `t_dry` milestones, bound to each selected subject and arm;
+- provider credits and USD only when an applicable official conversion exists, otherwise the literal value `unavailable`;
 - an observed-response provider-total-token threshold and hard-wall duration identical for both arms of the same subject and replicate, plus one aggregate observed-token threshold and hard-wall duration for the complete concurrency block;
 - the exact reviewed selected-wave safety-pin and cost-prior identities;
 - a sanitized live quota attestation class, digest, policy identity, and UTC without account identifiers, balances, raw percentages, reset windows, or credentials.
 
-Account and rate-limit endpoints are account-wide and may expose identifiers or balances. A dedicated zero-model launch preflight may inspect account source and quota only long enough to prove `authenticationMode=chatgpt`, reject API-key billing, and obtain a directly comparable provider-total-token guard when one exists. It immediately discards the raw response and never preserves identifiers, balances, credentials, exact utilization, reset windows, or payloads. Credit-based or otherwise incomparable quota is `unavailable`, never converted by guess. The tracked reviewed pins express the operator's loss tolerance; a command-line document cannot replace them. The effective safety limit is the minimum of that selected-wave pin and any applicable live token guard, and only the sanitized attestation fields admitted by `quota-policy.json` are retained.
+The plan does not invent P50/P90 splits for non-cached input, cache read, cache write, reasoning output, or ordinary output. Exact category vectors are measured from admitted raw provider usage and retained in usage and report artifacts. A source prior may expose an additional category only when its own frozen schema, units, and provenance explicitly provide it; the coordinator cannot derive one from provider-total tokens.
+
+Account and rate-limit endpoints are account-wide and may expose identifiers or balances. A dedicated zero-model launch preflight may inspect account source and native quota only long enough to prove `authenticationMode=chatgpt`, reject API-key billing, and evaluate the frozen first-hit policy. It immediately discards the raw response and never preserves identifiers, balances, credentials, exact utilization, reset windows, or payloads. Native window percentages, reset times, balances, and credits are never converted into provider-total-token allowance. The tracked subject and block token thresholds remain independent observed-usage guards; a native quota first hit is a separate OR stop condition. A command-line document cannot replace either guard, and only the sanitized attestation fields admitted by `quota-policy.json` are retained.
 
 Preparation verifies the exact `protocol/price-sheet.json` digest and the tracked experimental app-server schema snapshot at the pinned path, including its file count, byte count, and tree hash. It fails while `price-sheet.json.launchGate.blocked` is true, a token semantic is unavailable, the exact schema tree differs, or effective thread tier and speed mode differ from the sheet. The frozen price mapping currently leaves provider credits and USD unavailable because the ChatGPT cache-write credit rate and credit-to-USD conversion are not directly sourced. That monetary absence does not block a token/time/quality run, but it forbids provider-credit totals, USD totals, and every cost-effectiveness claim. Operators cannot infer a missing rate or bypass an execution-critical gate with a CLI flag; a future monetary result requires a formal protocol checkpoint.
 
@@ -257,7 +260,7 @@ Use abort only for a named integrity, safety, cost, or operator reason.
 pnpm --dir benchmark run benchmark -- abort --run <run-id> --reason "<specific reason>"
 ```
 
-Abort writes a final checkpoint, stops the controller and complete descendant process tree, verifies liveness has ended, records `interrupted` with subtype `user_abort`, inventories the live workspace, preserves a reproducible project snapshot, reconciles exact usage, and seals the run. It does not delete or relabel the row.
+Abort writes a final checkpoint, stops the controller and complete descendant process tree, verifies liveness has ended, records `interrupted` with subtype `operator_abort`, inventories the live workspace, preserves a reproducible project snapshot, reconciles exact usage, and seals the run. It does not delete or relabel the row.
 
 When an unmerged tree, digest mismatch, broken shared path, weakened gate, incorrect prompt, or invalid measurement is discovered, abort every affected live cell. Record the cause and cost, correct the whole consequence surface, merge and validate the fix, and begin a new protocol revision. Never repair an experimental input in place.
 
@@ -308,10 +311,12 @@ Before committing a promoted result, verify that `latest.json` points to the int
 Frozen requirements, prompts, protocol, templates, and results are excluded from formatting. Validate syntax without rewriting them:
 
 ```powershell
-Get-ChildItem benchmark/protocol -Recurse -Filter *.json |
-  ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw | ConvertFrom-Json | Out-Null }
+pnpm --dir benchmark check
+pnpm --dir benchmark test:unit
 git diff --check
 pnpm exec prettier --check benchmark/README.md
 ```
+
+The shared protocol validator uses fatal UTF-8 decoding, rejects duplicate JSON members, compiles the complete tracked schema inventory, resolves admitted local references, and checks the semantic fixtures. A `ConvertFrom-Json` loop is not a safety gate because it accepts last-write-wins duplicate members and can normalize invalid input before the canonical byte validator sees it.
 
 Do not run Prettier over `benchmark/prompts/` or `benchmark/protocol/`. A post-run whitespace-only change is still an experimental input change.
