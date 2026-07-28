@@ -16,7 +16,9 @@ Three things, and each is invisible afterwards unless you write it down.
 
 **What the build cannot check.** A citation whose reason you verified against the code, a cross-cutting rule you walked to every place it applies, a test you proved would fail by removing the behavior. Each of those is work the report cannot distinguish from work not done.
 
-Keep these in the project's working notes, under version control, so a later reader can see how the green build was earned.
+**Keep these in `wiki/` at the repository root**, under version control, so a later reader can see how the green build was earned. The frontend keeps its own notes the same way, in `packages/frontend/wiki/`, and neither is built or shipped.
+
+Name the files for what they hold. This ledger is short by design, because the build already keeps the long part, and that is exactly why the little it holds has to be findable.
 
 ## Configuration Changes Are Ledger Events
 

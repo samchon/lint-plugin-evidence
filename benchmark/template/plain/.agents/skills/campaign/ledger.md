@@ -8,7 +8,9 @@ None of this survives in your head. A campaign runs an unbounded number of round
 
 There is no issue tracker here and no external system to file against. The ledger is a file in the repository, and it is the only thing that makes an unbounded loop terminate honestly rather than terminate when you get tired.
 
-Keep it under a working-notes directory the repository ignores for build purposes but keeps under version control, so a later reader can see how completeness was established.
+**It lives in `wiki/` at the repository root**, under version control, so a later reader can see how completeness was established. The frontend keeps its own notes the same way, in `packages/frontend/wiki/`, and neither is built or shipped.
+
+Name the files for what they hold rather than for the round that wrote them: the requirement inventory, the per-campaign state, and the findings. A ledger scattered across files named by date cannot answer "what is the current state of the API campaign", which is the only question it exists to answer.
 
 ## What It Holds
 
