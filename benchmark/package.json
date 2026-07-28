@@ -7,7 +7,7 @@
   "scripts": {
     "check": "pnpm run check:source && tsc --noEmit -p tsconfig.json",
     "check:source": "node --experimental-transform-types src/executable/check-source-contract.ts",
-    "test": "pnpm run test:unit && pnpm run test:package",
+    "test": "pnpm run test:unit && pnpm run test:quality && pnpm run test:package",
     "test:baseline": "node --experimental-transform-types src/executable/self-test.ts --baseline",
     "test:quality": "node --experimental-transform-types src/executable/quality-self-test.ts",
     "test:unit": "node --experimental-transform-types src/executable/self-test.ts",
@@ -19,7 +19,6 @@
     "ajv": "8.17.1",
     "ajv-formats": "3.0.1",
     "axe-core": "4.12.1",
-    "json-dup-key-validator": "1.0.3",
     "tar": "7.5.22",
     "typescript": "catalog:typescript",
     "typescript-api": "npm:typescript@5.9.3"

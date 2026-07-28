@@ -14,11 +14,11 @@
   },
   "adapter": {
     "module": "quality/adapters/public-endpoint-v1/index.ts",
-    "sha256": "08c26c9b70f244295fc859104cea6643a06b84a4d6023c02207a8d12a1bc26f0",
+    "sha256": "f41afd6ae7c913dd8c93b9239fb5d37bcb9de7f77524ca26ac617860e5dc1655",
     "closure": {
       "root": "quality/adapters/public-endpoint-v1",
       "files": 1,
-      "treeSha256": "27d8f8d42d57439d9d06e66265cd2b24b60d75280f13ce2ef52f6e5f4ee57ca4"
+      "treeSha256": "b54193bf95ecdc156b39b051933a4bf3dfc026d5019c57cc7646566ecdb9ed45"
     },
     "exportName": "adapter"
   },

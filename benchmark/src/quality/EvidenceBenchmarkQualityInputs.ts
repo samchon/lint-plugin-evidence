@@ -1,10 +1,15 @@
 import { EvidenceBenchmarkHash } from "../EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkProtocolValidator } from "../EvidenceBenchmarkProtocolValidator.ts";
 import type { IEvidenceBenchmarkQualityGate } from "../structures/IEvidenceBenchmarkQualityGate.ts";
 import { EvidenceBenchmarkQualityInput } from "./EvidenceBenchmarkQualityInput.ts";
-import { EvidenceBenchmarkStrictJson } from "./EvidenceBenchmarkStrictJson.ts";
+import path from "node:path";
 
 /** Canonical serializer and fail-closed reader for protocol quality inputs. */
 export namespace EvidenceBenchmarkQualityInputs {
+  const protocolRoot: string = path.resolve(
+    import.meta.dirname,
+    "../../protocol",
+  );
   /** Creates one producer reference from the exact bytes the envelope pins. */
   export function producer(input: {
     producer: string;
@@ -27,6 +32,12 @@ export namespace EvidenceBenchmarkQualityInputs {
     input: IEvidenceBenchmarkQualityGate.IQualityInputs,
   ): Buffer {
     validate(input);
+    EvidenceBenchmarkProtocolValidator.validateValue(
+      protocolRoot,
+      "schema/quality-inputs.schema.json",
+      input,
+      "quality inputs",
+    );
     return Buffer.from(`${JSON.stringify(input, null, 2)}\n`, "utf8");
   }
 
@@ -34,10 +45,13 @@ export namespace EvidenceBenchmarkQualityInputs {
   export function parse(
     bytes: Uint8Array,
   ): IEvidenceBenchmarkQualityGate.IQualityInputs {
-    const input: unknown = EvidenceBenchmarkStrictJson.parse(
-      bytes,
-      "quality inputs",
-    );
+    const input: unknown =
+      EvidenceBenchmarkProtocolValidator.validateBytes<unknown>(
+        protocolRoot,
+        "schema/quality-inputs.schema.json",
+        bytes,
+        "quality inputs",
+      );
     validate(input);
     const canonical: Buffer = serialize(input);
     if (!canonical.equals(Buffer.from(bytes)))
@@ -45,7 +59,7 @@ export namespace EvidenceBenchmarkQualityInputs {
     return input;
   }
 
-  /** Validates the exact schema consumed before generation-core sealing. */
+  /** Validates the postprocess envelope that binds actual producer results. */
   export function validate(
     value: unknown,
   ): asserts value is IEvidenceBenchmarkQualityGate.IQualityInputs {

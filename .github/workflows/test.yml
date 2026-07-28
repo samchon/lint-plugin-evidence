@@ -36,8 +36,11 @@ jobs:
       - name: Check Benchmark Harness
         run: pnpm --filter @samchon/evidence-benchmark check
 
+      - name: Install Benchmark Chromium
+        run: pnpm --filter @samchon/evidence-benchmark exec playwright install chromium
+
       - name: Test Benchmark Harness
-        run: pnpm --filter @samchon/evidence-benchmark test:unit
+        run: pnpm --filter @samchon/evidence-benchmark test
 
       - name: Run Tests
         run: pnpm test

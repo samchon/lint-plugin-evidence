@@ -1,0 +1,308 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/runtime-process-provenance.schema.json",
+  "title": "Runner-owned runtime process provenance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "instanceId",
+    "leaseId",
+    "runId",
+    "subject",
+    "arm",
+    "milestone",
+    "runManifestSha256",
+    "workspaceSourceTreeSha256",
+    "database",
+    "origins",
+    "requestProxy",
+    "backendSocket",
+    "localAuditControlSha256",
+    "packageManager",
+    "toolchain",
+    "toolchainManifestSha256",
+    "environmentPolicy",
+    "environmentPolicySha256",
+    "portAllocationAttempts",
+    "retiredPortCollisionProcesses",
+    "processes"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "instanceId": { "type": "string", "minLength": 1 },
+    "leaseId": { "type": "string", "format": "uuid" },
+    "runId": { "type": "string", "minLength": 1 },
+    "subject": { "enum": ["todo", "reddit", "shopping", "erp"] },
+    "arm": { "enum": ["evidence", "plain"] },
+    "milestone": { "enum": ["t_done", "t_dry"] },
+    "runManifestSha256": { "$ref": "#/$defs/sha256" },
+    "workspaceSourceTreeSha256": { "$ref": "#/$defs/sha256" },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "cloneProvenanceSha256",
+        "cloneContentSha256"
+      ],
+      "properties": {
+        "source": { "$ref": "#/$defs/relativePath" },
+        "cloneProvenanceSha256": { "$ref": "#/$defs/sha256" },
+        "cloneContentSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "origins": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["api", "backend", "browser"],
+      "properties": {
+        "api": { "$ref": "#/$defs/loopbackOrigin" },
+        "backend": { "$ref": "#/$defs/loopbackOrigin" },
+        "browser": { "$ref": "#/$defs/loopbackOrigin" }
+      }
+    },
+    "requestProxy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sessionId", "nonce"],
+      "properties": {
+        "sessionId": { "type": "string", "format": "uuid" },
+        "nonce": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "backendSocket": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["port", "ownerPid", "rootPid", "ancestry"],
+      "properties": {
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "ownerPid": { "type": "integer", "minimum": 1 },
+        "rootPid": { "type": "integer", "minimum": 1 },
+        "ancestry": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "localAuditControlSha256": { "$ref": "#/$defs/sha256" },
+    "packageManager": {
+      "type": "string",
+      "pattern": "^pnpm@[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "toolchain": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": { "$ref": "#/$defs/toolchain" }
+    },
+    "toolchainManifestSha256": { "$ref": "#/$defs/sha256" },
+    "environmentPolicy": { "$ref": "#/$defs/environmentPolicy" },
+    "environmentPolicySha256": { "$ref": "#/$defs/sha256" },
+    "portAllocationAttempts": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4
+    },
+    "retiredPortCollisionProcesses": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/retiredProcess" }
+    },
+    "processes": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "$ref": "#/$defs/process" }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "relativePath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+    },
+    "loopbackOrigin": {
+      "type": "string",
+      "pattern": "^http://127\\.0\\.0\\.1:[1-9][0-9]{0,4}$"
+    },
+    "retiredProcess": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "pid",
+        "stdoutSha256",
+        "stderrSha256"
+      ],
+      "properties": {
+        "role": { "enum": ["api", "frontend"] },
+        "pid": { "type": "integer", "minimum": 1 },
+        "stdoutSha256": { "$ref": "#/$defs/sha256" },
+        "stderrSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "process": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "command",
+        "arguments",
+        "cwd",
+        "pid",
+        "environment",
+        "stdout",
+        "stderr"
+      ],
+      "properties": {
+        "role": { "enum": ["api", "frontend"] },
+        "command": { "type": "string", "minLength": 1 },
+        "arguments": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "cwd": { "const": "." },
+        "pid": { "type": "integer", "minimum": 1 },
+        "environment": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/environment" }
+        },
+        "stdout": { "$ref": "#/$defs/relativePath" },
+        "stderr": { "$ref": "#/$defs/relativePath" }
+      }
+    },
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "basename", "sha256", "version"],
+      "properties": {
+        "role": {
+          "enum": ["node", "corepack_launcher", "corepack_entrypoint"]
+        },
+        "basename": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^/\\\\]+$"
+        },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "classification"],
+      "properties": {
+        "name": {
+          "enum": [
+            "API_PORT",
+            "APPDATA",
+            "CI",
+            "COMSPEC",
+            "GOCACHE",
+            "GOTMPDIR",
+            "HOME",
+            "LOCALAPPDATA",
+            "NO_COLOR",
+            "npm_config_store_dir",
+            "PATH",
+            "PATHEXT",
+            "SHELL",
+            "SystemRoot",
+            "TEMP",
+            "TMP",
+            "TMPDIR",
+            "TTSC_CACHE_DIR",
+            "TTSC_GO_CACHE_DIR",
+            "USERPROFILE",
+            "VITE_API_HOST",
+            "VITE_API_SIMULATE"
+          ]
+        },
+        "classification": {
+          "enum": ["inherited_private", "injected_public"]
+        },
+        "value": { "type": "string" }
+      }
+    },
+    "environmentPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policyId",
+        "inheritedKeys",
+        "privateInherited",
+        "injected",
+        "rejectedSecretNamePattern"
+      ],
+      "properties": {
+        "policyId": {
+          "const": "benchmark-runtime-environment-allowlist-v1"
+        },
+        "inheritedKeys": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "APPDATA",
+              "COMSPEC",
+              "GOCACHE",
+              "GOTMPDIR",
+              "HOME",
+              "LOCALAPPDATA",
+              "npm_config_store_dir",
+              "PATH",
+              "PATHEXT",
+              "SHELL",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "TMPDIR",
+              "TTSC_CACHE_DIR",
+              "TTSC_GO_CACHE_DIR",
+              "USERPROFILE"
+            ]
+          }
+        },
+        "privateInherited": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["count", "confinementVerified"],
+          "properties": {
+            "count": { "type": "integer", "minimum": 0 },
+            "confinementVerified": { "const": true }
+          }
+        },
+        "injected": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "API_PORT",
+            "CI",
+            "NO_COLOR",
+            "VITE_API_HOST",
+            "VITE_API_SIMULATE"
+          ],
+          "properties": {
+            "API_PORT": { "pattern": "^[1-9][0-9]{0,4}$" },
+            "CI": { "const": "1" },
+            "NO_COLOR": { "const": "1" },
+            "VITE_API_HOST": { "$ref": "#/$defs/loopbackOrigin" },
+            "VITE_API_SIMULATE": { "const": "false" }
+          }
+        },
+        "rejectedSecretNamePattern": {
+          "const": "(?:^|_)(?:API_KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)(?:_|$)"
+        }
+      }
+    }
+  }
+}

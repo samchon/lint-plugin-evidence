@@ -255,6 +255,15 @@ export namespace IEvidenceBenchmarkQualityGate {
       rulesetSha256: string;
       violations: number;
     };
+    /** Browser-observed requests that reached the leased API origin. */
+    integration: {
+      /** Exact request-ledger artifact. */
+      artifact: string;
+      /** Digest of the exact ledger bytes. */
+      sha256: string;
+      /** Number of public API responses observed during the route case. */
+      requests: number;
+    };
     /** Narrow-reflow and text-zoom probes retained beside the main capture. */
     probes: {
       /** Stable probe identity. */
@@ -288,6 +297,54 @@ export namespace IEvidenceBenchmarkQualityGate {
     artifactSha256: string;
   }
 
+  /** One immutable artifact promoted below the harness-owned output root. */
+  export interface IArtifactReference {
+    /** Confined POSIX path below the output root. */
+    path: string;
+    /** Exact retained byte length. */
+    byteLength: number;
+    /** Digest of the exact retained bytes. */
+    sha256: string;
+  }
+
+  /** One promoted owned-process stream with its public runner role. */
+  export interface IProcessLogReference extends IArtifactReference {
+    /** Stable attempt, process role, and stream basename. */
+    role: string;
+  }
+
+  /** Public, independently re-readable runtime evidence. */
+  export interface IRuntimeEvidence {
+    /** Runtime lease whose artifacts were promoted. */
+    instanceId: string;
+    /** Opaque lease identity shared by every promoted member. */
+    leaseId: string;
+    /** Outer benchmark run identity. */
+    runId: string;
+    /** Subject bound by the runtime bundle. */
+    subject: Subject;
+    /** Comparison arm bound by the runtime bundle. */
+    arm: "evidence" | "plain";
+    /** Measured snapshot milestone. */
+    milestone: "t_done" | "t_dry";
+    /** Exact outer run-manifest bytes. */
+    runManifestSha256: string;
+    /** Exact generated source snapshot. */
+    workspaceSourceTreeSha256: string;
+    /** Evidence inventory that binds every promoted member. */
+    inventory: IArtifactReference;
+    /** Fresh database-copy provenance. */
+    databaseProvenance: IArtifactReference;
+    /** Redacted process, environment, and toolchain provenance. */
+    processProvenance: IArtifactReference;
+    /** Completed cleanup and database-restoration seal. */
+    cleanupSeal: IArtifactReference;
+    /** Runner-side requests that reached the generated API. */
+    serverRequestLedger: IArtifactReference;
+    /** Exact stdout and stderr logs for every owned process attempt. */
+    logs: IProcessLogReference[];
+  }
+
   /** Complete response produced by a harness-owned adapter. */
   export interface IAdapterResult {
     /** Adapter result contract version. */
@@ -304,12 +361,18 @@ export namespace IEvidenceBenchmarkQualityGate {
     runtime: {
       /** Unique runtime lease identity. */
       instanceId: string;
+      /** Opaque lease identity shared by every runtime artifact. */
+      leaseId: string;
       /** Exact fresh database-clone identity. */
       databaseCloneSha256: string;
       /** Exact API/frontend process and command provenance. */
       processProvenanceSha256: string;
       /** Exact cleanup completion seal. */
       cleanupSealSha256: string;
+      /** Exact runner-side HTTP request ledger. */
+      serverRequestLedgerSha256: string;
+      /** Runner-promoted evidence, null until the production facade seals it. */
+      evidence: IRuntimeEvidence | null;
     } | null;
     /** Exact HTTP case results. */
     hidden: IHiddenObservation[];
@@ -329,6 +392,8 @@ export namespace IEvidenceBenchmarkQualityGate {
     output: string;
     /** Authored workspace identity before adapter execution. */
     workspaceSourceTreeSha256: string;
+    /** Runner-owned fatal UTF-8 and duplicate-member JSON parser. */
+    parseJson(bytes: Uint8Array, label: string): unknown;
     /** Optional runner lease; mandatory for the production public adapter. */
     runtime?: IRuntimeLease;
   }
@@ -337,20 +402,39 @@ export namespace IEvidenceBenchmarkQualityGate {
   export interface IRuntimeLease {
     /** Unique per-milestone attempt identity. */
     instanceId: string;
+    /** Opaque lease identity shared by every runtime artifact. */
+    leaseId: string;
     /** Outer run identity bound by the lease. */
     runId: string;
+    /** Subject bound by the lease. */
+    subject: Subject;
+    /** Benchmark comparison arm bound by the lease. */
+    arm: "evidence" | "plain";
     /** Milestone bound by the lease. */
     milestone: "t_done" | "t_dry";
     /** Exact API origin started by the runner. */
     apiOrigin: string;
     /** Exact frontend origin started by the runner. */
     browserOrigin: string;
+    /** Per-lease nonce injected by the runner-owned API proxy. */
+    requestNonce: string;
     /** Exact fresh database-clone identity. */
     databaseCloneSha256: string;
     /** Exact API/frontend command, source, PID, and environment provenance. */
     processProvenanceSha256: string;
     /** Exact canonical process-provenance artifact bytes. */
     processProvenanceBytes: Uint8Array;
+    /** Local-only exact absolute-vector evidence, excluded from public grading. */
+    privateControlEvidence: {
+      /** Absolute retained harness-private path. */
+      path: string;
+      /** Absolute recovery-registry path retained by the run owner. */
+      registryPath: string;
+      /** Exact retained byte length. */
+      byteLength: number;
+      /** Exact retained byte digest. */
+      sha256: string;
+    };
     /** Fails unless the clone and processes are fresh and runner-owned. */
     assertFresh(): Promise<void>;
     /** Stops processes, removes the clone, and returns its cleanup seal. */
@@ -359,7 +443,17 @@ export namespace IEvidenceBenchmarkQualityGate {
       cleanupSealBytes: Uint8Array;
       /** Digest of cleanupSealBytes. */
       cleanupSealSha256: string;
+      /** Exact canonical runner-side request-ledger bytes. */
+      serverRequestLedgerBytes: Uint8Array;
+      /** Digest of serverRequestLedgerBytes. */
+      serverRequestLedgerSha256: string;
     }>;
+    /**
+     * Atomically promotes public runtime bytes into the harness output CAS.
+     *
+     * The private control artifact retains host paths outside this result.
+     */
+    promoteEvidence(output: string): Promise<IRuntimeEvidence>;
   }
 
   /** Runtime shape of the named export in a pinned adapter module. */
@@ -386,6 +480,8 @@ export namespace IEvidenceBenchmarkQualityGate {
     adapterSha256: string | null;
     /** Validated adapter result, absent on failure or blockage. */
     result: IAdapterResult | null;
+    /** Runtime evidence retained even when an adapter reports failure. */
+    runtimeEvidence: IRuntimeEvidence | null;
   }
 
   /** Exact producer record embedded in protocol quality inputs. */

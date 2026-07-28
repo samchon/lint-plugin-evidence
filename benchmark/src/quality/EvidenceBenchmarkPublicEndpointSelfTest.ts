@@ -5,6 +5,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { EvidenceBenchmarkHash } from "../EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkProtocolValidator } from "../EvidenceBenchmarkProtocolValidator.ts";
 import { EvidenceBenchmarkArtifactInventory } from "./EvidenceBenchmarkArtifactInventory.ts";
 import { EvidenceBenchmarkQualityInput } from "./EvidenceBenchmarkQualityInput.ts";
 
@@ -86,8 +87,14 @@ export namespace EvidenceBenchmarkPublicEndpointSelfTest {
       nextAccount: 1,
       nextSession: 1,
       nextTodo: 1,
+      noBrowserApi: false,
     };
     const server = http.createServer((request, response) => {
+      response.setHeader("x-evidence-runtime-nonce", "f".repeat(64));
+      response.setHeader(
+        "access-control-expose-headers",
+        "x-evidence-runtime-nonce",
+      );
       void dispatch(state, request, response).catch((error: unknown) => {
         response.writeHead(500, { "content-type": "application/json" });
         response.end(`${JSON.stringify({ error: String(error) })}\n`);
@@ -122,6 +129,12 @@ export namespace EvidenceBenchmarkPublicEndpointSelfTest {
           }>;
         };
       };
+      const executeTodo = imported.adapter.execute.bind(imported.adapter);
+      imported.adapter.execute = (value) =>
+        executeTodo({
+          ...value,
+          parseJson: EvidenceBenchmarkProtocolValidator.parseBytes,
+        });
       const qualityInput = EvidenceBenchmarkQualityInput.create({
         runId: "todo-plain-public-endpoint-self-test",
         runManifestBytes: Buffer.from('{"run":"public-adapter-valid"}\n'),
@@ -243,6 +256,40 @@ export namespace EvidenceBenchmarkPublicEndpointSelfTest {
       assert.ok(
         dry.browser.every((observation) => observation.status === "passed"),
       );
+      state.noBrowserApi = true;
+      const simulated = await imported.adapter.execute({
+        manifest: {
+          suiteId: "todo-public-endpoint-simulated-browser",
+          subject: "todo",
+          cases,
+        },
+        input: dryInput.provenance,
+        workspace: input.workspace,
+        output: path.join(
+          path.dirname(input.workspace),
+          "public-adapter-simulated-browser",
+        ),
+        workspaceSourceTreeSha256:
+          EvidenceBenchmarkArtifactInventory.treeSha256(
+            EvidenceBenchmarkArtifactInventory.authoredFiles(input.workspace),
+          ),
+        runtime: fixtureRuntime({
+          id: "todo-simulated-browser-fixture-3",
+          input: dryInput.provenance,
+          origin,
+          database: "2",
+          process: "todo-simulated-browser",
+          cleanup: "todo-simulated-browser",
+          onFresh: () => resetState(state),
+          onCleanup: () => undefined,
+        }),
+      });
+      assert.ok(
+        simulated.browser.every(
+          (observation) => observation.status === "failed",
+        ),
+      );
+      state.noBrowserApi = false;
       const openapiPath = path.join(
         input.workspace,
         "packages/api/swagger.json",
@@ -309,6 +356,11 @@ export namespace EvidenceBenchmarkPublicEndpointSelfTest {
       nextComment: 1,
     };
     const server = http.createServer((request, response) => {
+      response.setHeader("x-evidence-runtime-nonce", "f".repeat(64));
+      response.setHeader(
+        "access-control-expose-headers",
+        "x-evidence-runtime-nonce",
+      );
       void dispatchReddit(state, request, response).catch((error: unknown) => {
         response.writeHead(500, { "content-type": "application/json" });
         response.end(`${JSON.stringify({ error: String(error) })}\n`);
@@ -344,6 +396,12 @@ export namespace EvidenceBenchmarkPublicEndpointSelfTest {
           }>;
         };
       };
+      const executeReddit = imported.adapter.execute.bind(imported.adapter);
+      imported.adapter.execute = (value) =>
+        executeReddit({
+          ...value,
+          parseJson: EvidenceBenchmarkProtocolValidator.parseBytes,
+        });
       const cases = redditCases();
       const doneInput = EvidenceBenchmarkQualityInput.create({
         runId: "reddit-plain-public-endpoint-self-test",
@@ -504,22 +562,41 @@ export namespace EvidenceBenchmarkPublicEndpointSelfTest {
     );
     return {
       instanceId: input.id,
+      leaseId: "00000000-0000-4000-8000-000000000001",
       runId: input.input.runId,
+      subject: input.id.startsWith("reddit") ? "reddit" : "todo",
+      arm: "plain",
       milestone: input.input.milestone,
       apiOrigin: input.origin,
       browserOrigin: input.origin,
+      requestNonce: "f".repeat(64),
       databaseCloneSha256: input.database.repeat(64),
       processProvenanceBytes,
       processProvenanceSha256: EvidenceBenchmarkHash.bytes(
         processProvenanceBytes,
       ),
+      privateControlEvidence: {
+        path: "fixture-private-control",
+        registryPath: "fixture-private-registry",
+        byteLength: 1,
+        sha256: "e".repeat(64),
+      },
       assertFresh: async () => input.onFresh(),
       cleanup: async () => {
         input.onCleanup();
         return {
           cleanupSealBytes,
           cleanupSealSha256: EvidenceBenchmarkHash.bytes(cleanupSealBytes),
+          serverRequestLedgerBytes: Buffer.from(
+            "fixture-server-request-ledger\n",
+          ),
+          serverRequestLedgerSha256: EvidenceBenchmarkHash.bytes(
+            "fixture-server-request-ledger\n",
+          ),
         };
+      },
+      promoteEvidence: async () => {
+        throw new Error("Fixture runtime evidence promotion is unsupported.");
       },
     };
   }
@@ -1438,6 +1515,7 @@ export namespace EvidenceBenchmarkPublicEndpointSelfTest {
             ]
           : ['<a href="/create">Create post</a>']),
         "</main>",
+        "<script>void fetch('/api/feeds/popular?page=1');</script>",
         "</body>",
         "</html>",
       ].join(""),
@@ -1452,6 +1530,7 @@ export namespace EvidenceBenchmarkPublicEndpointSelfTest {
       nextAccount: number;
       nextSession: number;
       nextTodo: number;
+      noBrowserApi: boolean;
     },
     request: http.IncomingMessage,
     response: http.ServerResponse,
@@ -1544,6 +1623,9 @@ export namespace EvidenceBenchmarkPublicEndpointSelfTest {
           "</ul>",
           '<button type="button">Create todo</button>',
           "</main>",
+          ...(state.noBrowserApi
+            ? []
+            : ["<script>void fetch('/api/profile');</script>"]),
           "</body>",
           "</html>",
         ].join(""),

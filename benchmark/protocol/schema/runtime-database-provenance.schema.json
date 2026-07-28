@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/runtime-database-provenance.schema.json",
+  "title": "Fresh runtime database clone provenance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "instanceId",
+    "leaseId",
+    "runId",
+    "subject",
+    "arm",
+    "milestone",
+    "source",
+    "sourceSha256",
+    "clone",
+    "cloneContentSha256"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "instanceId": { "type": "string", "minLength": 1 },
+    "leaseId": { "type": "string", "format": "uuid" },
+    "runId": { "type": "string", "minLength": 1 },
+    "subject": { "enum": ["todo", "reddit", "shopping", "erp"] },
+    "arm": { "enum": ["evidence", "plain"] },
+    "milestone": { "enum": ["t_done", "t_dry"] },
+    "source": { "$ref": "#/$defs/relativePath" },
+    "sourceSha256": { "$ref": "#/$defs/sha256" },
+    "clone": { "const": "database/db.sqlite" },
+    "cloneContentSha256": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "relativePath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

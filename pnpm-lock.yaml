@@ -80,9 +80,6 @@ importers:
       axe-core:
         specifier: 4.12.1
         version: 4.12.1
-      json-dup-key-validator:
-        specifier: 1.0.3
-        version: 1.0.3
       tar:
         specifier: 7.5.22
         version: 7.5.22
@@ -432,9 +429,6 @@ packages:
     resolution: {integrity: sha512-s7iGf5GaVMxEG0ENN9x+xTr7GFZCb1ZP/1uATUpCEK2X78nDB3RwbtFCo9pGAf9ru+VwoQ464DkaLEeRM08wJA==}
     engines: {node: '>=4'}
 
-  backslash@0.2.2:
-    resolution: {integrity: sha512-PKRYPE2LLTtNUYz1dszquxKSBs6XyLyJRHgFpY5rlq7y3DscDx239k5Gm+zenoY47OU4CApan1o0k2R8ptZC1Q==}
-
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
 
@@ -568,8 +562,6 @@ packages:
 
   json-schema-traverse@1.0.0:
     resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
-  json-dup-key-validator@1.0.3:
-    resolution: {integrity: sha512-JvJcV01JSiO7LRz7DY1Fpzn4wX2rJ3dfNTiAfnlvLNdhhnm0Pgdvhi2SGpENrZn7eSg26Ps3TPhOcuD/a4STXQ==}
 
   jsonc-parser@3.3.1:
     resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
@@ -997,8 +989,6 @@ snapshots:
 
   axe-core@4.12.1: {}
 
-  backslash@0.2.2: {}
-
   balanced-match@1.0.2: {}
 
   balanced-match@4.0.4: {}
@@ -1110,9 +1100,6 @@ snapshots:
   jsesc@3.1.0: {}
 
   json-schema-traverse@1.0.0: {}
-  json-dup-key-validator@1.0.3:
-    dependencies:
-      backslash: 0.2.2
 
   jsonc-parser@3.3.1: {}
 

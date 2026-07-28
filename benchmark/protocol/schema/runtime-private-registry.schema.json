@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/runtime-private-registry.schema.json",
+  "title": "Harness-private runtime recovery registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "state",
+    "instanceId",
+    "leaseId",
+    "runId",
+    "subject",
+    "arm",
+    "milestone",
+    "control"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "state": { "enum": ["acquiring", "retained"] },
+    "instanceId": { "type": "string", "minLength": 1 },
+    "leaseId": { "type": "string", "format": "uuid" },
+    "runId": { "type": "string", "minLength": 1 },
+    "subject": { "enum": ["todo", "reddit", "shopping", "erp"] },
+    "arm": { "enum": ["evidence", "plain"] },
+    "milestone": { "enum": ["t_done", "t_dry"] },
+    "control": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "byteLength", "sha256"],
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "byteLength": { "type": "integer", "minimum": 1 },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

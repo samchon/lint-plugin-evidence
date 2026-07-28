@@ -6,7 +6,6 @@ import crypto from "node:crypto";
 
 import axe from "axe-core";
 
-const JSON_VALIDATOR = createRequire(import.meta.url)("json-dup-key-validator");
 const DENIED_SEGMENTS = new Set([
   "benchmark",
   "debug",
@@ -390,7 +389,15 @@ const FIELD_ALIASES = {
 export const adapter = {
   schemaVersion: 1,
   async execute(input) {
-    const contract = readContract(input.workspace, input.manifest.subject);
+    if (typeof input.parseJson !== "function")
+      throw new Error(
+        "Runner did not provide the shared protocol JSON parser.",
+      );
+    const contract = readContract(
+      input.workspace,
+      input.manifest.subject,
+      input.parseJson,
+    );
     const runtime = validateRuntime(input);
     contract.apiOrigin = runtime.apiOrigin;
     contract.browserOrigin = runtime.browserOrigin;
@@ -431,7 +438,12 @@ export const adapter = {
       cleanup = await runtime.cleanup();
       exactKeys(
         cleanup,
-        ["cleanupSealBytes", "cleanupSealSha256"],
+        [
+          "cleanupSealBytes",
+          "cleanupSealSha256",
+          "serverRequestLedgerBytes",
+          "serverRequestLedgerSha256",
+        ],
         "runtime cleanup result",
       );
       bytesSha(
@@ -440,6 +452,11 @@ export const adapter = {
         "runtime cleanup seal",
       );
       sha256(cleanup.cleanupSealSha256, "runtime cleanup seal");
+      bytesSha(
+        cleanup.serverRequestLedgerBytes,
+        cleanup.serverRequestLedgerSha256,
+        "runtime server request ledger",
+      );
     }
     return {
       schemaVersion: 1,
@@ -449,9 +466,12 @@ export const adapter = {
       workspaceSourceTreeSha256: input.workspaceSourceTreeSha256,
       runtime: {
         instanceId: runtime.instanceId,
+        leaseId: runtime.leaseId,
         databaseCloneSha256: runtime.databaseCloneSha256,
         processProvenanceSha256: runtime.processProvenanceSha256,
         cleanupSealSha256: cleanup.cleanupSealSha256,
+        serverRequestLedgerSha256: cleanup.serverRequestLedgerSha256,
+        evidence: null,
       },
       hidden,
       browser,
@@ -465,26 +485,35 @@ function validateRuntime(input) {
     runtime,
     [
       "instanceId",
+      "leaseId",
       "runId",
+      "subject",
+      "arm",
       "milestone",
       "apiOrigin",
       "browserOrigin",
+      "requestNonce",
       "databaseCloneSha256",
       "processProvenanceBytes",
       "processProvenanceSha256",
+      "privateControlEvidence",
       "assertFresh",
       "cleanup",
+      "promoteEvidence",
     ],
     "runner runtime lease",
   );
   token(runtime.instanceId, "runner runtime instance");
+  uuid(runtime.leaseId, "runner runtime lease");
   if (
     runtime.runId !== input.input.runId ||
+    runtime.subject !== input.manifest.subject ||
     runtime.milestone !== input.input.milestone
   )
     throw new Error("Runner runtime lease does not bind run and milestone.");
   loopbackOrigin(runtime.apiOrigin, "runner API origin");
   loopbackOrigin(runtime.browserOrigin, "runner browser origin");
+  sha256(runtime.requestNonce, "runner request nonce");
   sha256(runtime.databaseCloneSha256, "runner database clone");
   bytesSha(
     runtime.processProvenanceBytes,
@@ -507,11 +536,11 @@ function bytesSha(value, expected, label) {
     throw new Error(`${label} bytes do not match their digest.`);
 }
 
-function readContract(workspace, expectedSubject) {
+function readContract(workspace, expectedSubject, parseJson) {
   if (!(expectedSubject in OPERATIONS))
     throw new Error(`Unsupported hidden subject ${expectedSubject}.`);
-  const openapiPath = discoverOpenApi(workspace);
-  const document = strictJson(
+  const openapiPath = discoverOpenApi(workspace, parseJson);
+  const document = parseJson(
     fs.readFileSync(openapiPath),
     "generated OpenAPI document",
   );
@@ -570,15 +599,16 @@ function readContract(workspace, expectedSubject) {
     session: discoverSession(document, frontendPackageRoot),
     operations,
     routes: discoverRoutes(expectedSubject, frontendPackageRoot),
+    parseJson,
   };
 }
 
-function discoverOpenApi(workspace) {
+function discoverOpenApi(workspace, parseJson) {
   const candidates = discoverFiles(workspace, (relative) =>
     /(?:^|\/)(?:swagger|openapi)\.json$/iu.test(relative),
   ).filter((location) => {
     try {
-      const document = strictJson(
+      const document = parseJson(
         fs.readFileSync(location),
         "OpenAPI candidate",
       );
@@ -1487,6 +1517,32 @@ async function browserScenarios(input, contract, state) {
             test.routeState,
           );
           const page = await context.newPage();
+          const apiTraffic = [];
+          const apiTrafficTasks = [];
+          page.on("response", (response) => {
+            const url = new URL(response.url());
+            if (
+              url.origin === contract.apiOrigin &&
+              response.request().resourceType() !== "document"
+            )
+              apiTrafficTasks.push(
+                (async () => {
+                  const nonce = await response.headerValue(
+                    "x-evidence-runtime-nonce",
+                  );
+                  if (nonce !== input.runtime.requestNonce)
+                    throw new Error(
+                      "Browser API response did not bind the runner request nonce.",
+                    );
+                  apiTraffic.push({
+                    method: response.request().method(),
+                    path: `${url.pathname}${url.search}`,
+                    status: response.status(),
+                    nonce,
+                  });
+                })(),
+              );
+          });
           const route = contract.routes[test.routeState];
           const requestedUrl = new URL(route.path, contract.browserOrigin).href;
           await page.goto(requestedUrl, { waitUntil: "domcontentloaded" });
@@ -1552,6 +1608,7 @@ async function browserScenarios(input, contract, state) {
           fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
           await page.screenshot({ path: screenshotPath, fullPage: false });
           const accessibilityRelative = `${prefix}.axe.json`;
+          await Promise.all(apiTrafficTasks);
           const accessibilityBytes = Buffer.from(
             `${JSON.stringify(
               {
@@ -1569,6 +1626,18 @@ async function browserScenarios(input, contract, state) {
             accessibilityRelative,
             accessibilityBytes,
           );
+          const integrationRelative = `${prefix}.api.json`;
+          const integrationBytes = Buffer.from(
+            `${JSON.stringify(
+              {
+                apiOrigin: contract.apiOrigin,
+                requests: apiTraffic,
+              },
+              null,
+              2,
+            )}\n`,
+          );
+          writeArtifact(input.output, integrationRelative, integrationBytes);
           const screenshotBytes = fs.readFileSync(screenshotPath);
           const probes = [];
           if (viewport === "mobile") {
@@ -1686,6 +1755,10 @@ async function browserScenarios(input, contract, state) {
             finalUrl: page.url(),
             status:
               accessibility.violations.length === 0 &&
+              apiTraffic.length !== 0 &&
+              apiTraffic.every(
+                (entry) => entry.status >= 200 && entry.status < 500,
+              ) &&
               dialogFocusReturned &&
               probes.every((probe) => probe.passed)
                 ? "passed"
@@ -1705,6 +1778,11 @@ async function browserScenarios(input, contract, state) {
               engineVersion: axe.version,
               rulesetSha256: digest(axe.source),
               violations: accessibility.violations.length,
+            },
+            integration: {
+              artifact: integrationRelative,
+              sha256: digest(integrationBytes),
+              requests: apiTraffic.length,
             },
             probes,
           });
@@ -1826,11 +1904,10 @@ async function call(contract, operationId, semanticInput, session) {
     redirect: "error",
   });
   const bodyBytes = Buffer.from(await response.arrayBuffer());
-  const text = strictUtf8(bodyBytes, `operation ${operationId} response`);
   let json = null;
-  if (text.length !== 0) {
+  if (bodyBytes.length !== 0) {
     try {
-      json = JSON_VALIDATOR.parse(text, false);
+      json = contract.parseJson(bodyBytes, `operation ${operationId} response`);
     } catch {
       throw new Error(`Operation ${operationId} returned non-JSON content.`);
     }
@@ -2092,6 +2169,16 @@ function token(value, label) {
     throw new Error(`${label} is not a safe public token.`);
 }
 
+function uuid(value, label) {
+  if (
+    typeof value !== "string" ||
+    !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u.test(
+      value,
+    )
+  )
+    throw new Error(`${label} is not a UUID.`);
+}
+
 function exactKeys(value, keys, label) {
   record(value, label);
   const actual = Object.keys(value).sort();
@@ -2108,34 +2195,6 @@ function record(value, label) {
 
 function digest(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
-}
-
-function strictJson(bytes, label) {
-  try {
-    return JSON_VALIDATOR.parse(strictUtf8(bytes, label), false);
-  } catch (error) {
-    throw new Error(
-      `${label} is not strict JSON: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-  }
-}
-
-function strictUtf8(bytes, label) {
-  const input = Buffer.from(bytes);
-  if (
-    input.length >= 3 &&
-    input[0] === 0xef &&
-    input[1] === 0xbb &&
-    input[2] === 0xbf
-  )
-    throw new Error(`${label} must not contain a UTF-8 BOM.`);
-  try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(input);
-  } catch {
-    throw new Error(`${label} is not valid UTF-8.`);
-  }
 }
 
 function sha256(value, label) {

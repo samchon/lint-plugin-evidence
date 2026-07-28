@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/runtime-evidence-inventory.schema.json",
+  "title": "Promoted public runtime evidence inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "instanceId",
+    "leaseId",
+    "runId",
+    "subject",
+    "arm",
+    "milestone",
+    "runManifestSha256",
+    "workspaceSourceTreeSha256",
+    "artifacts"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "instanceId": { "type": "string", "minLength": 1 },
+    "leaseId": { "type": "string", "format": "uuid" },
+    "runId": { "type": "string", "minLength": 1 },
+    "subject": { "enum": ["todo", "reddit", "shopping", "erp"] },
+    "arm": { "enum": ["evidence", "plain"] },
+    "milestone": { "enum": ["t_done", "t_dry"] },
+    "runManifestSha256": { "$ref": "#/$defs/sha256" },
+    "workspaceSourceTreeSha256": { "$ref": "#/$defs/sha256" },
+    "artifacts": {
+      "type": "array",
+      "minItems": 4,
+      "items": { "$ref": "#/$defs/artifact" }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "role",
+        "path",
+        "byteLength",
+        "sha256"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "database_provenance",
+            "process_provenance",
+            "cleanup_seal",
+            "process_log",
+            "server_request_ledger"
+          ]
+        },
+        "role": {
+          "type": ["string", "null"],
+          "pattern": "^attempt-[1-4]-(?:api|frontend)\\.(?:stdout|stderr)\\.log$"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^runtime/cas/sha256/[a-f0-9]{64}\\.bin$"
+        },
+        "byteLength": { "type": "integer", "minimum": 0 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

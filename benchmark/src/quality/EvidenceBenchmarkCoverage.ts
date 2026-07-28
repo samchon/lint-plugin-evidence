@@ -2,10 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { EvidenceBenchmarkHash } from "../EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkProtocolValidator } from "../EvidenceBenchmarkProtocolValidator.ts";
 import type { IEvidenceBenchmarkQualityGate } from "../structures/IEvidenceBenchmarkQualityGate.ts";
 import { EvidenceBenchmarkArtifactInventory } from "./EvidenceBenchmarkArtifactInventory.ts";
 import { EvidenceBenchmarkQualityInput } from "./EvidenceBenchmarkQualityInput.ts";
-import { EvidenceBenchmarkStrictJson } from "./EvidenceBenchmarkStrictJson.ts";
 
 /** Ingests conventional coverage without collapsing independent dimensions. */
 export namespace EvidenceBenchmarkCoverage {
@@ -30,8 +30,8 @@ export namespace EvidenceBenchmarkCoverage {
   ): IEvidenceBenchmarkQualityGate.ICoverage {
     EvidenceBenchmarkQualityInput.validate(input);
     const absoluteArtifact: string = path.resolve(artifact);
-    const value: unknown = EvidenceBenchmarkStrictJson.file(
-      absoluteArtifact,
+    const value: unknown = EvidenceBenchmarkProtocolValidator.parseBytes(
+      fs.readFileSync(absoluteArtifact),
       "Istanbul coverage",
     );
     if (typeof value !== "object" || value === null || Array.isArray(value))

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { EvidenceBenchmarkHash } from "../EvidenceBenchmarkHash.ts";
+import type { IEvidenceBenchmarkQualityGate } from "../structures/IEvidenceBenchmarkQualityGate.ts";
 import { EvidenceBenchmarkArtifactInventory } from "../quality/EvidenceBenchmarkArtifactInventory.ts";
 import { EvidenceBenchmarkCoverage } from "../quality/EvidenceBenchmarkCoverage.ts";
 import { EvidenceBenchmarkHiddenAcceptance } from "../quality/EvidenceBenchmarkHiddenAcceptance.ts";
@@ -22,6 +23,7 @@ export namespace EvidenceBenchmarkQualitySelfTest {
 
   /** Runs valid, invalid, restoration, and production-absence fixtures. */
   export async function main(): Promise<void> {
+    let primaryFailure: unknown;
     try {
       verifyFrozenTodoAndReddit();
       const workspace: string = createWorkspace();
@@ -40,14 +42,29 @@ export namespace EvidenceBenchmarkQualitySelfTest {
         workspace,
       });
       console.log("Benchmark deterministic quality self-test passed.");
+    } catch (error) {
+      primaryFailure = error;
     } finally {
-      fs.rmSync(temporary, { recursive: true, force: true });
+      if (primaryFailure === undefined)
+        fs.rmSync(temporary, {
+          recursive: true,
+          force: true,
+          maxRetries: 50,
+          retryDelay: 100,
+        });
+      else
+        console.error(
+          `Quality self-test retained diagnostics at ${temporary}.`,
+        );
     }
+    if (primaryFailure !== undefined) throw primaryFailure;
   }
 
   async function testRuntimeLease(): Promise<void> {
     const workspace: string = path.join(temporary, "runtime-workspace");
     const runtimeRoot: string = path.join(temporary, "runtime-artifacts");
+    const publicOutput: string = path.join(temporary, "runtime-public");
+    fs.mkdirSync(publicOutput);
     fs.mkdirSync(path.join(workspace, "packages/backend/prisma"), {
       recursive: true,
     });
@@ -103,11 +120,15 @@ export namespace EvidenceBenchmarkQualitySelfTest {
       Buffer.from("fresh-runtime-database\n", "utf8"),
     );
     const leases = [];
+    const promotedEvidence: IEvidenceBenchmarkQualityGate.IRuntimeEvidence[] =
+      [];
     for (const milestone of ["t_done", "t_dry"] as const) {
       const lease = await EvidenceBenchmarkRuntimeLease.acquire({
         workspace,
         runtimeRoot,
         runId: "runtime-lease-self-test",
+        subject: "todo",
+        arm: "plain",
         milestone,
         runManifestSha256: "a".repeat(64),
         workspaceSourceTreeSha256: "b".repeat(64),
@@ -120,6 +141,17 @@ export namespace EvidenceBenchmarkQualitySelfTest {
       assert.notEqual(lease.apiOrigin, lease.browserOrigin);
       assert.equal((await fetch(lease.apiOrigin)).status, 200);
       assert.equal((await fetch(lease.browserOrigin)).status, 200);
+      const processRecord = JSON.parse(
+        Buffer.from(lease.processProvenanceBytes).toString("utf8"),
+      ) as { origins: { backend: string } };
+      assert.throws(
+        () =>
+          EvidenceBenchmarkRuntimeLease.validateBackendSocketOwnership(
+            Number(new URL(processRecord.origins.backend).port),
+            4,
+          ),
+        /not owned by child tree/u,
+      );
       assert.equal(
         EvidenceBenchmarkHash.bytes(lease.processProvenanceBytes),
         lease.processProvenanceSha256,
@@ -128,12 +160,105 @@ export namespace EvidenceBenchmarkQualitySelfTest {
         Buffer.from(lease.processProvenanceBytes).toString("utf8"),
         /OPENAI_API_KEY|must-not-reach-child/u,
       );
+      assert.doesNotMatch(
+        Buffer.from(lease.processProvenanceBytes).toString("utf8"),
+        /valueSha256/u,
+      );
+      for (const key of ["USERPROFILE", "HOME", "PATH"])
+        if (process.env[key] !== undefined)
+          assert.equal(
+            Buffer.from(lease.processProvenanceBytes)
+              .toString("utf8")
+              .includes(process.env[key]),
+            false,
+          );
+      assert.doesNotMatch(
+        Buffer.from(lease.processProvenanceBytes).toString("utf8"),
+        new RegExp(
+          path
+            .dirname(process.execPath)
+            .replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&"),
+          "u",
+        ),
+      );
+      if (milestone === "t_done")
+        fs.writeFileSync(
+          path.join(workspace, "packages/backend/prisma/db.sqlite-wal"),
+          Buffer.from("owned-wal-sidecar\n", "utf8"),
+        );
       const cleanup = await lease.cleanup();
       assert.equal(
         EvidenceBenchmarkHash.bytes(cleanup.cleanupSealBytes),
         cleanup.cleanupSealSha256,
       );
       assert.deepEqual(await lease.cleanup(), cleanup);
+      assert.match(
+        Buffer.from(cleanup.cleanupSealBytes).toString("utf8"),
+        /"forced": true/u,
+      );
+      const evidence = await lease.promoteEvidence(publicOutput);
+      promotedEvidence.push(evidence);
+      EvidenceBenchmarkRuntimeLease.validatePromotedEvidence(
+        publicOutput,
+        evidence,
+      );
+      assert.deepEqual(await lease.promoteEvidence(publicOutput), evidence);
+      const privateControl: string = path.join(
+        runtimeRoot,
+        lease.instanceId,
+        "process-control-provenance.json",
+      );
+      assert.equal(fs.existsSync(privateControl), true);
+      assert.match(fs.readFileSync(privateControl, "utf8"), /"realpath":/u);
+      EvidenceBenchmarkRuntimeLease.validatePrivateControlEvidence(
+        lease.privateControlEvidence,
+        evidence,
+        publicOutput,
+      );
+      if (milestone === "t_done") {
+        testPublicProcessMutation(lease.processProvenanceBytes);
+        const controlBytes: Buffer = fs.readFileSync(
+          lease.privateControlEvidence.path,
+        );
+        fs.rmSync(lease.privateControlEvidence.path, { force: false });
+        assert.throws(
+          () =>
+            EvidenceBenchmarkRuntimeLease.validatePrivateControlEvidence(
+              lease.privateControlEvidence,
+              evidence,
+              publicOutput,
+            ),
+          /absent or unsafe/u,
+        );
+        assert.throws(
+          () =>
+            EvidenceBenchmarkHiddenAcceptance.requirePrivateRuntimeAudit({
+              status: "failed",
+              evidence: lease.privateControlEvidence,
+              reason: "fixture control evidence is absent",
+            }),
+          /retention failed/u,
+        );
+        EvidenceBenchmarkRuntimeLease.validatePromotedEvidence(
+          publicOutput,
+          evidence,
+        );
+        fs.writeFileSync(lease.privateControlEvidence.path, controlBytes, {
+          flag: "wx",
+        });
+      }
+      if (milestone === "t_done") {
+        assert.match(
+          Buffer.from(cleanup.cleanupSealBytes).toString("utf8"),
+          /"journalMode": "wal"/u,
+        );
+        assert.equal(
+          fs.existsSync(
+            path.join(workspace, "packages/backend/prisma/db.sqlite-wal"),
+          ),
+          false,
+        );
+      }
       await assert.rejects(lease.assertFresh, /already cleaned/u);
     }
     const done = leases[0];
@@ -143,6 +268,49 @@ export namespace EvidenceBenchmarkQualitySelfTest {
     assert.notEqual(done.instanceId, dry.instanceId);
     assert.notEqual(done.databaseCloneSha256, dry.databaseCloneSha256);
     assert.notEqual(done.processProvenanceSha256, dry.processProvenanceSha256);
+    const firstEvidence = promotedEvidence[0];
+    const secondEvidence = promotedEvidence[1];
+    if (firstEvidence === undefined || secondEvidence === undefined)
+      throw new Error("Runtime self-test did not retain promoted evidence.");
+    testCoherentRuntimeForgeries(publicOutput, firstEvidence, secondEvidence);
+    const runtimeInput: IEvidenceBenchmarkQualityGate.IInputProvenance = {
+      runId: firstEvidence.runId,
+      runManifestSha256: firstEvidence.runManifestSha256,
+      milestone: firstEvidence.milestone,
+      snapshotRawTree: {
+        algorithmId: "sha256-posix-path-nul-bytes-v1",
+        sha256: firstEvidence.workspaceSourceTreeSha256,
+      },
+      subjectRequirementsRawTree: {
+        algorithmId: "sha256-posix-path-nul-bytes-v1",
+        sha256: "0".repeat(64),
+      },
+    };
+    EvidenceBenchmarkHiddenAcceptance.validateProductionRuntimeBinding(
+      firstEvidence,
+      runtimeInput,
+      firstEvidence.subject,
+      firstEvidence.arm,
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkHiddenAcceptance.validateProductionRuntimeBinding(
+          firstEvidence,
+          runtimeInput,
+          firstEvidence.subject,
+          firstEvidence.arm === "plain" ? "evidence" : "plain",
+        ),
+      /another quality input/u,
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkRuntimeLease.validatePrivateControlEvidence(
+          done.privateControlEvidence,
+          secondEvidence,
+          publicOutput,
+        ),
+      /does not bind|another private audit/u,
+    );
     const clonedDatabases: string[] = [];
     for (const instance of fs.readdirSync(runtimeRoot))
       if (
@@ -162,6 +330,8 @@ export namespace EvidenceBenchmarkQualitySelfTest {
           workspace: cellWorkspace,
           runtimeRoot,
           runId: `runtime-four-cell-${index}`,
+          subject: index % 2 === 0 ? "todo" : "reddit",
+          arm: index < 2 ? "evidence" : "plain",
           milestone: "t_done",
           runManifestSha256: "c".repeat(64),
           workspaceSourceTreeSha256: "d".repeat(64),
@@ -181,8 +351,474 @@ export namespace EvidenceBenchmarkQualitySelfTest {
       concurrent.map(async (lease) => {
         await lease.assertFresh();
         await lease.cleanup();
+        await lease.promoteEvidence(publicOutput);
       }),
     );
+    await testRuntimeEvidenceFailures(workspace, runtimeRoot, publicOutput);
+    await testProductionRuntimeSuccess(workspace, runtimeRoot);
+    await testPreAdapterProductionFailure(workspace, runtimeRoot);
+    await testAcquireFailureRetention(workspace, runtimeRoot);
+  }
+
+  async function testProductionRuntimeSuccess(
+    workspace: string,
+    runtimeRoot: string,
+  ): Promise<void> {
+    const fixtureRoot: string = path.join(
+      temporary,
+      "production-runtime-fixture",
+    );
+    const adapterRoot: string = path.join(
+      fixtureRoot,
+      "quality",
+      "adapters",
+      "runtime",
+    );
+    const adapterPath: string = path.join(adapterRoot, "index.ts");
+    write(
+      adapterPath,
+      `
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+const digest = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
+export const adapter = {
+  schemaVersion: 1,
+  async execute(input) {
+    const runtime = input.runtime;
+    await runtime.assertFresh();
+    let cleanup;
+    let hidden;
+    try {
+      const started = process.hrtime.bigint().toString();
+      const response = await fetch(runtime.apiOrigin);
+      const body = await response.text();
+      const bytes = Buffer.from(JSON.stringify({ passed: response.status === 200 && body.length > 0 }, null, 2) + "\\n");
+      const relative = "http/runtime.json";
+      fs.mkdirSync(path.join(input.output, "http"), { recursive: true });
+      fs.writeFileSync(path.join(input.output, relative), bytes, { flag: "wx" });
+      hidden = {
+        caseId: "FIXTURE-RUNTIME-HTTP",
+        status: response.status === 200 && body.length > 0 ? "passed" : "failed",
+        startedMonotonicNs: started,
+        completedMonotonicNs: process.hrtime.bigint().toString(),
+        artifact: relative,
+        artifactSha256: digest(bytes),
+      };
+    } finally {
+      cleanup = await runtime.cleanup();
+    }
+    return {
+      schemaVersion: 1,
+      input: input.input,
+      suiteId: input.manifest.suiteId,
+      subject: input.manifest.subject,
+      workspaceSourceTreeSha256: input.workspaceSourceTreeSha256,
+      runtime: {
+        instanceId: runtime.instanceId,
+        leaseId: runtime.leaseId,
+        databaseCloneSha256: runtime.databaseCloneSha256,
+        processProvenanceSha256: runtime.processProvenanceSha256,
+        cleanupSealSha256: cleanup.cleanupSealSha256,
+        serverRequestLedgerSha256: cleanup.serverRequestLedgerSha256,
+        evidence: null,
+      },
+      hidden: [hidden],
+      browser: [],
+    };
+  },
+};
+`.trimStart(),
+    );
+    const requirements: string = path.join(fixtureRoot, "requirements");
+    write(
+      path.join(requirements, "acceptance-criteria.jsonl"),
+      '{"id":"REQ.FIX"}\n',
+    );
+    const manifestPath: string = path.join(
+      fixtureRoot,
+      "quality",
+      "hidden",
+      "todo.manifest.json",
+    );
+    const requirementsFiles: Map<string, Uint8Array> =
+      EvidenceBenchmarkHash.directory(requirements);
+    const adapterFiles: Map<string, Uint8Array> =
+      EvidenceBenchmarkHash.directory(adapterRoot);
+    write(
+      manifestPath,
+      `${JSON.stringify(
+        {
+          schemaVersion: 2,
+          materializerManifestSchemaVersion: 2,
+          suiteId: "runtime-production-fixture-v1",
+          freezeId: "runtime-production-fixture-freeze",
+          subject: "todo",
+          subjectRequirementsRawTree: {
+            algorithmId: "sha256-posix-path-nul-bytes-v1",
+            sha256: EvidenceBenchmarkHash.tree(requirementsFiles),
+          },
+          acceptanceCatalog: {
+            sha256: EvidenceBenchmarkHash.file(
+              path.join(requirements, "acceptance-criteria.jsonl"),
+            ),
+            count: 1,
+          },
+          adapter: {
+            module: "quality/adapters/runtime/index.ts",
+            sha256: EvidenceBenchmarkHash.file(adapterPath),
+            closure: {
+              root: "quality/adapters/runtime",
+              files: adapterFiles.size,
+              treeSha256: EvidenceBenchmarkHash.tree(adapterFiles),
+            },
+            exportName: "adapter",
+          },
+          cases: [
+            {
+              id: "FIXTURE-RUNTIME-HTTP",
+              criterionIds: ["REQ.FIX"],
+              kind: "http",
+              routeState: null,
+              viewports: [],
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    const bound: EvidenceBenchmarkQualityInput.IBound = qualityInput(
+      workspace,
+      requirements,
+    );
+    const output: string = path.join(temporary, "production-runtime-output");
+    const production = await EvidenceBenchmarkHiddenAcceptance.runProduction({
+      benchmarkRoot: fixtureRoot,
+      manifestPath,
+      requirements,
+      workspace,
+      output,
+      runtimeRoot,
+      subject: "todo",
+      arm: "plain",
+      qualityInput: bound,
+      readinessTimeoutMs: 30_000,
+    });
+    assert.equal(production.outcome.status, "passed");
+    assert.equal(production.privateRuntimeAudit.status, "retained");
+    assert.notEqual(production.outcome.runtimeEvidence, null);
+    assert.deepEqual(
+      production.outcome.runtimeEvidence,
+      production.outcome.result?.runtime?.evidence,
+    );
+  }
+
+  async function testAcquireFailureRetention(
+    workspace: string,
+    runtimeRoot: string,
+  ): Promise<void> {
+    const failing: string = path.join(
+      temporary,
+      "runtime-workspace-acquire-failure",
+    );
+    fs.cpSync(workspace, failing, { recursive: true });
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(failing, "package.json"), "utf8"),
+    ) as { scripts: Record<string, string> };
+    packageJson.scripts.start = 'node -e "process.exit(23)"';
+    write(
+      path.join(failing, "package.json"),
+      `${JSON.stringify(packageJson, null, 2)}\n`,
+    );
+    await assert.rejects(
+      EvidenceBenchmarkRuntimeLease.acquire({
+        workspace: failing,
+        runtimeRoot,
+        runId: "runtime-acquire-failure",
+        subject: "todo",
+        arm: "plain",
+        milestone: "t_done",
+        runManifestSha256: "1".repeat(64),
+        workspaceSourceTreeSha256: "2".repeat(64),
+        readinessTimeoutMs: 5_000,
+        terminationGraceMs: 100,
+      }),
+      (error: unknown) => {
+        assert.equal(error instanceof AggregateError, true);
+        const aggregate = error as AggregateError;
+        assert.equal(aggregate.name, "EvidenceBenchmarkRuntimeAcquireError");
+        assert.match(aggregate.message, /retained instance:/u);
+        assert.match(aggregate.message, /private recovery registry:/u);
+        assert.ok(aggregate.errors.length >= 1);
+        return true;
+      },
+    );
+  }
+
+  async function testPreAdapterProductionFailure(
+    workspace: string,
+    runtimeRoot: string,
+  ): Promise<void> {
+    const manifestPath: string = path.join(
+      temporary,
+      "invalid-production-manifest.json",
+    );
+    write(manifestPath, '{"schemaVersion":2,"schemaVersion":2}\n');
+    const output: string = path.join(temporary, "pre-adapter-failure-output");
+    const requirements: string = path.join(benchmarkRoot, "requirements/todo");
+    const bound: EvidenceBenchmarkQualityInput.IBound = qualityInput(
+      workspace,
+      requirements,
+    );
+    await assert.rejects(
+      EvidenceBenchmarkHiddenAcceptance.runProduction({
+        benchmarkRoot,
+        manifestPath,
+        requirements,
+        workspace,
+        output,
+        runtimeRoot,
+        subject: "todo",
+        arm: "plain",
+        qualityInput: bound,
+        readinessTimeoutMs: 30_000,
+      }),
+      (error: unknown) => {
+        assert.equal(error instanceof AggregateError, true);
+        const aggregate = error as AggregateError;
+        assert.match(aggregate.message, /runtime evidence inventory:/u);
+        assert.match(aggregate.message, /private recovery registry:/u);
+        assert.match(String(aggregate.errors[0]), /strict JSON|duplicate/u);
+        return true;
+      },
+    );
+    assert.equal(
+      fs.existsSync(path.join(output, "runtime", "cas", "sha256")),
+      true,
+    );
+    assert.ok(
+      fs
+        .readdirSync(path.join(runtimeRoot, "private-registry"))
+        .some((file) => file.endsWith(".json")),
+    );
+  }
+
+  function testPublicProcessMutation(bytes: Uint8Array): void {
+    const toolchain = JSON.parse(Buffer.from(bytes).toString("utf8")) as {
+      toolchain: { sha256: string }[];
+      environmentPolicy: { policyId: string };
+    };
+    const first = toolchain.toolchain[0];
+    if (first === undefined)
+      throw new Error("Runtime toolchain fixture is empty.");
+    first.sha256 = "0".repeat(64);
+    assert.throws(
+      () =>
+        EvidenceBenchmarkRuntimeLease.validatePublicProcessProvenance(
+          Buffer.from(`${JSON.stringify(toolchain, null, 2)}\n`, "utf8"),
+        ),
+      /toolchain manifest digest drifted/u,
+    );
+    const environment = JSON.parse(Buffer.from(bytes).toString("utf8")) as {
+      environmentPolicy: { policyId: string };
+    };
+    environment.environmentPolicy.policyId =
+      "benchmark-runtime-environment-allowlist-v2";
+    assert.throws(
+      () =>
+        EvidenceBenchmarkRuntimeLease.validatePublicProcessProvenance(
+          Buffer.from(`${JSON.stringify(environment, null, 2)}\n`, "utf8"),
+        ),
+      /must be equal to constant|environment policy digest drifted/u,
+    );
+  }
+
+  function testCoherentRuntimeForgeries(
+    output: string,
+    first: IEvidenceBenchmarkQualityGate.IRuntimeEvidence,
+    second: IEvidenceBenchmarkQualityGate.IRuntimeEvidence,
+  ): void {
+    const splice = {
+      ...first,
+      processProvenance: second.processProvenance,
+    };
+    splice.inventory = writeRuntimeInventory(output, splice);
+    assert.throws(
+      () =>
+        EvidenceBenchmarkRuntimeLease.validatePromotedEvidence(output, splice),
+      /splice different leases/u,
+    );
+
+    const invalidBytes: Buffer = Buffer.from('{"schemaVersion":1}\n', "utf8");
+    const invalidSha256: string = EvidenceBenchmarkHash.bytes(invalidBytes);
+    const invalidPath: string = path.join(
+      output,
+      "runtime",
+      "cas",
+      "sha256",
+      `${invalidSha256}.bin`,
+    );
+    fs.writeFileSync(invalidPath, invalidBytes, { flag: "wx" });
+    const invalid = {
+      ...first,
+      databaseProvenance: {
+        path: `runtime/cas/sha256/${invalidSha256}.bin`,
+        byteLength: invalidBytes.byteLength,
+        sha256: invalidSha256,
+      },
+    };
+    invalid.inventory = writeRuntimeInventory(output, invalid);
+    assert.throws(
+      () =>
+        EvidenceBenchmarkRuntimeLease.validatePromotedEvidence(output, invalid),
+      /must have required property/u,
+    );
+  }
+
+  function writeRuntimeInventory(
+    output: string,
+    evidence: IEvidenceBenchmarkQualityGate.IRuntimeEvidence,
+  ): IEvidenceBenchmarkQualityGate.IArtifactReference {
+    const artifacts = [
+      {
+        kind: "database_provenance",
+        role: null,
+        ...evidence.databaseProvenance,
+      },
+      {
+        kind: "process_provenance",
+        role: null,
+        ...evidence.processProvenance,
+      },
+      { kind: "cleanup_seal", role: null, ...evidence.cleanupSeal },
+      {
+        kind: "server_request_ledger",
+        role: null,
+        ...evidence.serverRequestLedger,
+      },
+      ...evidence.logs.map(({ role, ...reference }) => ({
+        kind: "process_log",
+        role,
+        ...reference,
+      })),
+    ];
+    const bytes: Buffer = Buffer.from(
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          instanceId: evidence.instanceId,
+          leaseId: evidence.leaseId,
+          runId: evidence.runId,
+          subject: evidence.subject,
+          arm: evidence.arm,
+          milestone: evidence.milestone,
+          runManifestSha256: evidence.runManifestSha256,
+          workspaceSourceTreeSha256: evidence.workspaceSourceTreeSha256,
+          artifacts,
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+    const sha256: string = EvidenceBenchmarkHash.bytes(bytes);
+    const location: string = path.join(
+      output,
+      "runtime",
+      "cas",
+      "sha256",
+      `${sha256}.bin`,
+    );
+    if (!fs.existsSync(location))
+      fs.writeFileSync(location, bytes, { flag: "wx" });
+    return {
+      path: `runtime/cas/sha256/${sha256}.bin`,
+      byteLength: bytes.byteLength,
+      sha256,
+    };
+  }
+
+  async function testRuntimeEvidenceFailures(
+    workspace: string,
+    runtimeRoot: string,
+    publicOutput: string,
+  ): Promise<void> {
+    const acquire = () =>
+      EvidenceBenchmarkRuntimeLease.acquire({
+        workspace,
+        runtimeRoot,
+        runId: "runtime-negative",
+        subject: "todo",
+        arm: "plain",
+        milestone: "t_done",
+        runManifestSha256: "e".repeat(64),
+        workspaceSourceTreeSha256: "f".repeat(64),
+        readinessTimeoutMs: 30_000,
+        terminationGraceMs: 100,
+      });
+    const missing = await acquire();
+    await missing.cleanup();
+    const missingRoot: string = path.join(runtimeRoot, missing.instanceId);
+    const missingLog: string | undefined = fs
+      .readdirSync(missingRoot)
+      .find((file) => file.endsWith(".stdout.log"));
+    if (missingLog === undefined)
+      throw new Error("Runtime negative fixture did not create a log.");
+    fs.rmSync(path.join(missingRoot, missingLog), { force: false });
+    await assert.rejects(
+      missing.promoteEvidence(publicOutput),
+      /source is absent/u,
+    );
+
+    const lease = await acquire();
+    await lease.cleanup();
+    const evidence = await lease.promoteEvidence(publicOutput);
+    assert.throws(
+      () =>
+        EvidenceBenchmarkRuntimeLease.validatePromotedEvidence(publicOutput, {
+          ...evidence,
+          inventory: { ...evidence.inventory, path: "../foreign.json" },
+        }),
+      /foreign or unconfined/u,
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkRuntimeLease.validatePromotedEvidence(publicOutput, {
+          ...evidence,
+          databaseProvenance: {
+            ...evidence.cleanupSeal,
+          },
+        }),
+      /failed protocol validation|inventory does not bind/u,
+    );
+    const inventoryLocation: string = path.join(
+      publicOutput,
+      ...evidence.inventory.path.split("/"),
+    );
+    const inventoryBytes: Buffer = fs.readFileSync(inventoryLocation);
+    fs.rmSync(inventoryLocation, { force: false });
+    assert.throws(
+      () =>
+        EvidenceBenchmarkRuntimeLease.validatePromotedEvidence(
+          publicOutput,
+          evidence,
+        ),
+      /artifact is absent/u,
+    );
+    fs.writeFileSync(inventoryLocation, inventoryBytes, { flag: "wx" });
+    fs.writeFileSync(inventoryLocation, Buffer.from("substitution\n"), {
+      flag: "w",
+    });
+    assert.throws(
+      () =>
+        EvidenceBenchmarkRuntimeLease.validatePromotedEvidence(
+          publicOutput,
+          evidence,
+        ),
+      /artifact drifted/u,
+    );
+    fs.writeFileSync(inventoryLocation, inventoryBytes, { flag: "w" });
   }
 
   function testQualityInputs(
@@ -262,7 +898,7 @@ export namespace EvidenceBenchmarkQualitySelfTest {
         EvidenceBenchmarkQualityInputs.parse(
           Buffer.from([0x7b, 0x22, 0x78, 0x22, 0x3a, 0xff, 0x7d]),
         ),
-      /valid UTF-8/u,
+      /not UTF-8/u,
     );
   }
 
@@ -953,8 +1589,14 @@ export const adapter = {
           engineVersion: "4.10.0",
           rulesetSha256: "${"a".repeat(64)}",
           violations: [],
-        }) + "\\n");
+        }, null, 2) + "\\n");
         write(path.join(input.output, axeRelative), axe);
+        const apiRelative = "browser/" + test.id + "-" + viewport + ".api.json";
+        const api = Buffer.from(JSON.stringify({
+          apiOrigin: "http://127.0.0.1:37001",
+          requests: [{ method: "GET", path: "/api/profile", status: 200, nonce: "${"f".repeat(64)}" }],
+        }, null, 2) + "\\n");
+        write(path.join(input.output, apiRelative), api);
         const probes = [];
         if (viewport === "mobile") {
           for (const probe of [
@@ -996,6 +1638,11 @@ export const adapter = {
             engineVersion: "4.10.0",
             rulesetSha256: "${"a".repeat(64)}",
             violations: 0,
+          },
+          integration: {
+            artifact: apiRelative,
+            sha256: digest(api),
+            requests: 1,
           },
           probes,
         });

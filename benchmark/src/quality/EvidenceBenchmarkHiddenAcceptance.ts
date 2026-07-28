@@ -3,14 +3,26 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { EvidenceBenchmarkHash } from "../EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkProtocolValidator } from "../EvidenceBenchmarkProtocolValidator.ts";
 import type { IEvidenceBenchmarkQualityGate } from "../structures/IEvidenceBenchmarkQualityGate.ts";
 import { EvidenceBenchmarkArtifactInventory } from "./EvidenceBenchmarkArtifactInventory.ts";
 import { EvidenceBenchmarkQualityInput } from "./EvidenceBenchmarkQualityInput.ts";
 import { EvidenceBenchmarkRuntimeLease } from "./EvidenceBenchmarkRuntimeLease.ts";
-import { EvidenceBenchmarkStrictJson } from "./EvidenceBenchmarkStrictJson.ts";
 
 /** Runs frozen hidden adapters and rejects incomplete provenance. */
 export namespace EvidenceBenchmarkHiddenAcceptance {
+  /** Public grade result plus local-only lossless runtime audit recovery. */
+  export interface IProductionResult {
+    /** Public benchmark outcome safe for the result package. */
+    outcome: IEvidenceBenchmarkQualityGate.IHiddenOutcome;
+    /** Harness-private absolute-vector recovery reference. */
+    privateRuntimeAudit: {
+      status: "retained" | "failed";
+      evidence: IEvidenceBenchmarkQualityGate.IRuntimeLease["privateControlEvidence"];
+      reason: string | null;
+    };
+  }
+
   const VIEWPORTS: Readonly<
     Record<
       IEvidenceBenchmarkQualityGate.Viewport,
@@ -26,8 +38,8 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
   export function manifest(
     location: string,
   ): IEvidenceBenchmarkQualityGate.IManifest {
-    const input: unknown = EvidenceBenchmarkStrictJson.file(
-      location,
+    const input: unknown = EvidenceBenchmarkProtocolValidator.parseBytes(
+      fs.readFileSync(location),
       "hidden manifest",
     );
     const value: Record<string, unknown> = record(input, "hidden manifest");
@@ -177,7 +189,7 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
       throw new Error(
         `${manifest.subject} acceptance catalog digest has drifted.`,
       );
-    const rows: unknown[] = EvidenceBenchmarkStrictJson.lines(
+    const rows: unknown[] = parseJsonLines(
       fs.readFileSync(catalogPath),
       `${manifest.subject} acceptance catalog`,
     );
@@ -213,16 +225,21 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
     workspace: string;
     output: string;
     runtimeRoot: string;
+    subject: IEvidenceBenchmarkQualityGate.Subject;
+    arm: "evidence" | "plain";
     qualityInput: EvidenceBenchmarkQualityInput.IBound;
     environment?: NodeJS.ProcessEnv;
     databaseSource?: string;
     readinessTimeoutMs?: number;
-  }): Promise<IEvidenceBenchmarkQualityGate.IHiddenOutcome> {
+  }): Promise<IProductionResult> {
+    prepareProductionOutput(input.workspace, input.output);
     const runtime: IEvidenceBenchmarkQualityGate.IRuntimeLease =
       await EvidenceBenchmarkRuntimeLease.acquire({
         workspace: input.workspace,
         runtimeRoot: input.runtimeRoot,
         runId: input.qualityInput.provenance.runId,
+        subject: input.subject,
+        arm: input.arm,
         milestone: input.qualityInput.provenance.milestone,
         runManifestSha256: input.qualityInput.provenance.runManifestSha256,
         workspaceSourceTreeSha256:
@@ -237,8 +254,13 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
           ? {}
           : { readinessTimeoutMs: input.readinessTimeoutMs }),
       });
+    let outcome: IEvidenceBenchmarkQualityGate.IHiddenOutcome | undefined;
+    let runtimeEvidence:
+      IEvidenceBenchmarkQualityGate.IRuntimeEvidence | undefined;
+    let primaryFailure: unknown;
+    const sealFailures: unknown[] = [];
     try {
-      return await run({
+      outcome = await run({
         benchmarkRoot: input.benchmarkRoot,
         manifestPath: input.manifestPath,
         requirements: input.requirements,
@@ -246,10 +268,82 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
         output: input.output,
         qualityInput: input.qualityInput,
         runtime,
+        outputPrecreated: true,
       });
-    } finally {
-      await runtime.cleanup();
+    } catch (error) {
+      primaryFailure = error;
     }
+    try {
+      await runtime.cleanup();
+    } catch (error) {
+      sealFailures.push(error);
+    }
+    try {
+      runtimeEvidence = await runtime.promoteEvidence(input.output);
+    } catch (error) {
+      sealFailures.push(error);
+    }
+    if (primaryFailure !== undefined || sealFailures.length !== 0) {
+      const inventory =
+        runtimeEvidence === undefined
+          ? "unavailable"
+          : runtimeEvidence.inventory.path;
+      throw new AggregateError(
+        [primaryFailure, ...sealFailures].filter(
+          (error) => error !== undefined,
+        ),
+        `Production hidden run failed; runtime evidence inventory: ${inventory}; private recovery registry: ${runtime.privateControlEvidence.registryPath}.`,
+      );
+    }
+    if (outcome === undefined || runtimeEvidence === undefined)
+      throw new Error("Production hidden outcome was not sealed.");
+    outcome.runtimeEvidence = runtimeEvidence;
+    if (outcome.result !== null) {
+      if (outcome.result.runtime === null)
+        throw new Error(
+          "Production hidden adapter omitted runtime provenance.",
+        );
+      outcome.result.runtime.evidence = runtimeEvidence;
+      validateRuntimeResult(outcome.result.runtime, input.output, true, {
+        input: input.qualityInput.provenance,
+        subject: input.subject,
+        arm: input.arm,
+      });
+      validateBrowserServerChain(input.output, outcome.result, runtimeEvidence);
+    }
+    let privateAuditReason: string | null = null;
+    try {
+      EvidenceBenchmarkRuntimeLease.validatePrivateControlEvidence(
+        runtime.privateControlEvidence,
+        runtimeEvidence,
+        input.output,
+      );
+    } catch (error) {
+      privateAuditReason =
+        error instanceof Error ? error.message : String(error);
+    }
+    const production: IProductionResult = {
+      outcome,
+      privateRuntimeAudit: {
+        status: privateAuditReason === null ? "retained" : "failed",
+        evidence: runtime.privateControlEvidence,
+        reason: privateAuditReason,
+      },
+    };
+    requirePrivateRuntimeAudit(production.privateRuntimeAudit);
+    return production;
+  }
+
+  /** Makes local lossless-audit retention a fail-closed production gate. */
+  export function requirePrivateRuntimeAudit(
+    audit: IProductionResult["privateRuntimeAudit"],
+  ): void {
+    if (audit.status !== "retained" || audit.reason !== null)
+      throw new Error(
+        `Production private runtime audit retention failed: ${
+          audit.reason ?? "unknown retention failure"
+        }.`,
+      );
   }
 
   /**
@@ -266,6 +360,7 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
     output: string;
     qualityInput: EvidenceBenchmarkQualityInput.IBound;
     runtime?: IEvidenceBenchmarkQualityGate.IRuntimeLease;
+    outputPrecreated?: boolean;
   }): Promise<IEvidenceBenchmarkQualityGate.IHiddenOutcome> {
     EvidenceBenchmarkQualityInput.validate(input.qualityInput);
     const suite: IEvidenceBenchmarkQualityGate.IManifest = manifest(
@@ -304,6 +399,7 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
         manifestSha256,
         adapterSha256: null,
         result: null,
+        runtimeEvidence: null,
       };
     const modulePath: string = adapterPath(
       input.benchmarkRoot,
@@ -314,9 +410,15 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
       throw new Error(
         `Hidden adapter digest drifted: ${suite.adapter.module}.`,
       );
-    assertSeparateRoots(input.workspace, input.output);
-    fs.mkdirSync(path.dirname(path.resolve(input.output)), { recursive: true });
-    fs.mkdirSync(input.output);
+    if (input.outputPrecreated === true)
+      validatePrecreatedOutput(input.workspace, input.output);
+    else {
+      assertSeparateRoots(input.workspace, input.output);
+      fs.mkdirSync(path.dirname(path.resolve(input.output)), {
+        recursive: true,
+      });
+      fs.mkdirSync(input.output);
+    }
     let result: IEvidenceBenchmarkQualityGate.IAdapterResult;
     try {
       const imported: Record<string, unknown> = (await import(
@@ -338,6 +440,7 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
         workspace: path.resolve(input.workspace),
         output: path.resolve(input.output),
         workspaceSourceTreeSha256,
+        parseJson: EvidenceBenchmarkProtocolValidator.parseBytes,
         runtime: input.runtime,
       });
       validateResult(
@@ -378,6 +481,7 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
         manifestSha256,
         adapterSha256: suite.adapter.sha256,
         result: null,
+        runtimeEvidence: null,
       };
     }
     const failed: boolean = [...result.hidden, ...result.browser].some(
@@ -391,6 +495,7 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
       manifestSha256,
       adapterSha256: suite.adapter.sha256,
       result,
+      runtimeEvidence: null,
     };
   }
 
@@ -426,7 +531,7 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
       !Array.isArray(result.browser)
     )
       throw new Error("Hidden adapter result does not bind its frozen inputs.");
-    validateRuntimeResult(result.runtime);
+    validateRuntimeResult(result.runtime, output, false);
     const expectedHttp: Set<string> = new Set(
       suite.cases.filter((test) => test.kind === "http").map((test) => test.id),
     );
@@ -482,6 +587,7 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
           "completedMonotonicNs",
           "screenshot",
           "accessibility",
+          "integration",
           "probes",
         ],
         `hidden browser result ${observation.caseId}`,
@@ -502,6 +608,11 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
           "violations",
         ],
         `hidden browser accessibility ${observation.caseId}`,
+      );
+      exactKeys(
+        observation.integration as unknown as Record<string, unknown>,
+        ["artifact", "sha256", "requests"],
+        `hidden browser integration ${observation.caseId}`,
       );
       const test: IEvidenceBenchmarkQualityGate.IHiddenCase | undefined =
         suite.cases.find(
@@ -565,10 +676,15 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
         true,
       );
       const accessibilityRecord: Record<string, unknown> = record(
-        EvidenceBenchmarkStrictJson.file(
-          accessibility,
+        EvidenceBenchmarkProtocolValidator.parseBytes(
+          fs.readFileSync(accessibility),
           `${key} accessibility artifact`,
         ),
+        `${key} accessibility artifact`,
+      );
+      assertCanonicalJson(
+        fs.readFileSync(accessibility),
+        accessibilityRecord,
         `${key} accessibility artifact`,
       );
       exactKeys(
@@ -587,6 +703,31 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
           observation.accessibility.violations
       )
         throw new Error(`Accessibility artifact does not match result ${key}.`);
+      const integration: string = validateArtifact(
+        output,
+        observation.integration.artifact,
+        observation.integration.sha256,
+      );
+      const integrationRecord =
+        EvidenceBenchmarkProtocolValidator.validateBytes<{
+          apiOrigin: string;
+          requests: unknown[];
+        }>(
+          path.resolve(import.meta.dirname, "../../protocol"),
+          "schema/browser-api-ledger.schema.json",
+          fs.readFileSync(integration),
+          `${key} browser API ledger`,
+        );
+      assertCanonicalJson(
+        fs.readFileSync(integration),
+        integrationRecord,
+        `${key} browser API ledger`,
+      );
+      if (
+        observation.integration.requests < 1 ||
+        integrationRecord.requests.length !== observation.integration.requests
+      )
+        throw new Error(`Browser API ledger does not match result ${key}.`);
       const expectedProbes: Set<string> =
         observation.viewport === "mobile"
           ? new Set(["reflow_320", "text_zoom_200"])
@@ -814,7 +955,56 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
     );
   }
 
+  function parseJsonLines(bytes: Uint8Array, label: string): unknown[] {
+    let content: string;
+    try {
+      content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch (error) {
+      throw new SyntaxError(
+        `${label} is not UTF-8: ${
+          error instanceof Error ? error.message : String(error)
+        }.`,
+      );
+    }
+    return content
+      .split("\n")
+      .filter((line) => line.length !== 0)
+      .map((line, index) =>
+        EvidenceBenchmarkProtocolValidator.parse(
+          line,
+          `${label} line ${index + 1}`,
+        ),
+      );
+  }
+
   function assertSeparateRoots(workspace: string, output: string): void {
+    assertNonoverlappingRoots(workspace, output);
+    if (fs.existsSync(path.resolve(output)))
+      throw new Error("Hidden adapter output root must be new.");
+  }
+
+  function prepareProductionOutput(workspace: string, output: string): void {
+    assertSeparateRoots(workspace, output);
+    const root: string = path.resolve(output);
+    fs.mkdirSync(path.dirname(root), { recursive: true });
+    fs.mkdirSync(root);
+  }
+
+  function validatePrecreatedOutput(workspace: string, output: string): void {
+    assertNonoverlappingRoots(workspace, output);
+    const root: string = path.resolve(output);
+    if (
+      !fs.existsSync(root) ||
+      fs.lstatSync(root).isSymbolicLink() ||
+      !fs.statSync(root).isDirectory() ||
+      fs.readdirSync(root).length !== 0
+    )
+      throw new Error(
+        "Precreated hidden adapter output must be an empty regular directory.",
+      );
+  }
+
+  function assertNonoverlappingRoots(workspace: string, output: string): void {
     const left: string = path.resolve(workspace);
     const right: string = path.resolve(output);
     const relation: string = path.relative(left, right);
@@ -831,8 +1021,6 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
       throw new Error(
         "Hidden adapter workspace and output roots must not overlap.",
       );
-    if (fs.existsSync(right))
-      throw new Error("Hidden adapter output root must be new.");
   }
 
   function validateStatus(input: string, label: string): void {
@@ -842,22 +1030,140 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
 
   function validateRuntimeResult(
     value: IEvidenceBenchmarkQualityGate.IAdapterResult["runtime"],
+    output: string,
+    requireEvidence: boolean,
+    expected?: {
+      input: IEvidenceBenchmarkQualityGate.IInputProvenance;
+      subject: IEvidenceBenchmarkQualityGate.Subject;
+      arm: "evidence" | "plain";
+    },
   ): void {
     if (value === null) return;
     exactKeys(
       value as unknown as Record<string, unknown>,
       [
         "instanceId",
+        "leaseId",
         "databaseCloneSha256",
         "processProvenanceSha256",
         "cleanupSealSha256",
+        "serverRequestLedgerSha256",
+        "evidence",
       ],
       "hidden runtime result",
     );
     string(value.instanceId, "hidden runtime instance");
+    string(value.leaseId, "hidden runtime lease");
     digest(value.databaseCloneSha256, "hidden runtime database clone");
     digest(value.processProvenanceSha256, "hidden runtime process provenance");
     digest(value.cleanupSealSha256, "hidden runtime cleanup seal");
+    digest(
+      value.serverRequestLedgerSha256,
+      "hidden runtime server request ledger",
+    );
+    if (value.evidence === null) {
+      if (requireEvidence)
+        throw new Error("Production runtime evidence was not promoted.");
+      return;
+    }
+    EvidenceBenchmarkRuntimeLease.validatePromotedEvidence(
+      output,
+      value.evidence,
+    );
+    if (expected !== undefined)
+      validateProductionRuntimeBinding(
+        value.evidence,
+        expected.input,
+        expected.subject,
+        expected.arm,
+      );
+    if (
+      value.evidence.instanceId !== value.instanceId ||
+      value.evidence.leaseId !== value.leaseId ||
+      value.evidence.databaseProvenance.sha256 !== value.databaseCloneSha256 ||
+      value.evidence.processProvenance.sha256 !==
+        value.processProvenanceSha256 ||
+      value.evidence.cleanupSeal.sha256 !== value.cleanupSealSha256 ||
+      value.evidence.serverRequestLedger.sha256 !==
+        value.serverRequestLedgerSha256
+    )
+      throw new Error(
+        "Promoted runtime evidence does not bind runtime digests.",
+      );
+  }
+
+  /** Rejects a coherent runtime bundle copied from another benchmark cell. */
+  export function validateProductionRuntimeBinding(
+    evidence: IEvidenceBenchmarkQualityGate.IRuntimeEvidence,
+    input: IEvidenceBenchmarkQualityGate.IInputProvenance,
+    subject: IEvidenceBenchmarkQualityGate.Subject,
+    arm: "evidence" | "plain",
+  ): void {
+    if (
+      evidence.runId !== input.runId ||
+      evidence.subject !== subject ||
+      evidence.arm !== arm ||
+      evidence.milestone !== input.milestone ||
+      evidence.runManifestSha256 !== input.runManifestSha256 ||
+      evidence.workspaceSourceTreeSha256 !== input.snapshotRawTree.sha256
+    )
+      throw new Error("Promoted runtime bundle names another quality input.");
+  }
+
+  function validateBrowserServerChain(
+    output: string,
+    result: IEvidenceBenchmarkQualityGate.IAdapterResult,
+    evidence: IEvidenceBenchmarkQualityGate.IRuntimeEvidence,
+  ): void {
+    const server = EvidenceBenchmarkProtocolValidator.validateBytes<{
+      nonce: string;
+      requests: { method: string; path: string; status: number }[];
+    }>(
+      path.resolve(import.meta.dirname, "../../protocol"),
+      "schema/runtime-server-request-ledger.schema.json",
+      fs.readFileSync(
+        validateArtifact(
+          output,
+          evidence.serverRequestLedger.path,
+          evidence.serverRequestLedger.sha256,
+        ),
+      ),
+      "production server request ledger",
+    );
+    for (const observation of result.browser) {
+      const browser = EvidenceBenchmarkProtocolValidator.validateBytes<{
+        requests: {
+          method: string;
+          path: string;
+          status: number;
+          nonce: string;
+        }[];
+      }>(
+        path.resolve(import.meta.dirname, "../../protocol"),
+        "schema/browser-api-ledger.schema.json",
+        fs.readFileSync(
+          validateArtifact(
+            output,
+            observation.integration.artifact,
+            observation.integration.sha256,
+          ),
+        ),
+        `${observation.caseId} browser API ledger`,
+      );
+      for (const request of browser.requests)
+        if (
+          request.nonce !== server.nonce ||
+          !server.requests.some(
+            (candidate) =>
+              candidate.method === request.method &&
+              candidate.path === request.path &&
+              candidate.status === request.status,
+          )
+        )
+          throw new Error(
+            `Browser request ${request.method} ${request.path} lacks a runner-side server witness.`,
+          );
+    }
   }
 
   function exactSet(
@@ -870,6 +1176,19 @@ export namespace EvidenceBenchmarkHiddenAcceptance {
       [...expected].some((entry) => !observed.has(entry))
     )
       throw new Error(`${label} do not form the exact frozen set.`);
+  }
+
+  function assertCanonicalJson(
+    bytes: Uint8Array,
+    value: unknown,
+    label: string,
+  ): void {
+    const canonical: Buffer = Buffer.from(
+      `${JSON.stringify(value, null, 2)}\n`,
+      "utf8",
+    );
+    if (!canonical.equals(Buffer.from(bytes)))
+      throw new Error(`${label} bytes are not canonical.`);
   }
 
   function exactKeys(

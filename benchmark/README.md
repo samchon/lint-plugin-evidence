@@ -57,6 +57,8 @@ Preparation performs no model call.
 
 Do not run an arm-specific evidence lint or native compile as a pre-`t0` baseline. Its first execution and every resulting diagnostic belong to the measured product-method cost after `t0`. Any unexpected overlay collision, missing requirement file, acceptance-inventory mismatch, absolute local dependency, changed lockfile, failed neutral-template revision gate, failed tarball consumer smoke, or failed per-cell install stops preparation.
 
+Production quality runtimes prove that the generated API listener belongs to the spawned process tree before accepting readiness, then prove that the complete process tree and backend socket are gone before sealing cleanup. This ownership proof supports Windows through `Get-NetTCPConnection` and CIM, Linux through procfs, and macOS through `lsof` and `ps`; other hosts fail closed. Public runtime evidence contains only normalized toolchain identities, safe injected environment values, private-variable names and classifications, request nonces, server and browser request ledgers, and content-addressed artifacts. Exact host paths and inherited environment values remain in the run-owned private recovery registry, whose loss is a production-gate failure but whose contents are never promoted into public results.
+
 ## Required CLI contract
 
 Packaging must expose the following commands before the first paid run. They are the operator contract for the materializer and runner; if any command is absent, launch remains blocked.

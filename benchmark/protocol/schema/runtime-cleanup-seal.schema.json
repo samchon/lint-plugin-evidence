@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/runtime-cleanup-seal.schema.json",
+  "title": "Runner-owned runtime cleanup seal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "instanceId",
+    "leaseId",
+    "runId",
+    "subject",
+    "arm",
+    "milestone",
+    "serverRequestLedgerSha256",
+    "databaseRemoved",
+    "databaseRestore",
+    "processes",
+    "logs"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "instanceId": { "type": "string", "minLength": 1 },
+    "leaseId": { "type": "string", "format": "uuid" },
+    "runId": { "type": "string", "minLength": 1 },
+    "subject": { "enum": ["todo", "reddit", "shopping", "erp"] },
+    "arm": { "enum": ["evidence", "plain"] },
+    "milestone": { "enum": ["t_done", "t_dry"] },
+    "serverRequestLedgerSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "databaseRemoved": { "const": true },
+    "databaseRestore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "restoredSha256",
+        "journalMode",
+        "removedSidecars"
+      ],
+      "properties": {
+        "restoredSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "journalMode": {
+          "enum": ["none-observed", "delete", "wal"]
+        },
+        "removedSidecars": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "sha256"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "pattern": "^db\\.sqlite-(?:wal|shm|journal)$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "processes": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "role",
+          "pid",
+          "exitCode",
+          "signalCode",
+          "termination"
+        ],
+        "properties": {
+          "role": { "enum": ["api", "frontend"] },
+          "pid": { "type": "integer", "minimum": 1 },
+          "exitCode": {
+            "type": ["integer", "null"]
+          },
+          "signalCode": {
+            "type": ["string", "null"]
+          },
+          "termination": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "method",
+              "forced",
+              "commandStatus",
+              "stderrSha256"
+            ],
+            "properties": {
+              "method": {
+                "enum": [
+                  "already_closed",
+                  "taskkill",
+                  "process_group_signal"
+                ]
+              },
+              "forced": { "type": "boolean" },
+              "commandStatus": { "type": ["integer", "null"] },
+              "stderrSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "logs": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^attempt-[1-4]-(?:api|frontend)\\.(?:stdout|stderr)\\.log$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    }
+  }
+}
