@@ -293,6 +293,6 @@ Randomize a resource's own data. **Path parameters and foreign keys come from pr
 
 ## Running
 
-Run the backend test command from the workspace root and read the output. A suite that passes because it asserts nothing passes exactly as loudly as one that works.
+Run the backend test command from the workspace root and read the output. The runner boots the application itself against the SQLite file, runs every exported test function, and closes it, so nothing needs to be started beforehand. A suite that passes because it asserts nothing passes exactly as loudly as one that works.
 
 If you are unsure a test proves its requirement, remove the behavior and confirm the test fails, then restore it.

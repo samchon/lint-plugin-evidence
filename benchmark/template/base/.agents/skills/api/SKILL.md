@@ -14,6 +14,7 @@ packages/api/
   src/functional/     generated client accessors, one per operation
   src/structures/     the DTO contracts
   src/diagnosers/     logic the frontend and the backend must agree on
+  src/typings/        authored helper types: DeepPartial and its kin
   swagger.json        generated OpenAPI document
 ```
 
@@ -27,6 +28,7 @@ Nestia's configuration lives in `packages/backend/nestia.config.ts` and its outp
 | `swagger.json` | generated from the controllers | never |
 | `src/structures/**` | the DTO declarations | change here, then regenerate |
 | `src/diagnosers/**` | authored | change here |
+| `src/typings/**` | authored helper types | change here |
 
 An edit to a generated path survives until the next generation and then disappears without a message. The disappearance looks like someone else's bug, and the change that caused it was committed long before.
 
