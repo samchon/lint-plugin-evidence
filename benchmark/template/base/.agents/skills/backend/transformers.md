@@ -8,7 +8,7 @@ One namespace per DTO, three members in this order.
 
 ```ts
 export namespace ShoppingSaleTransformer {
-  export type Payload = PrismaModels.shopping_salesGetPayload<
+  export type Payload = Prisma.shopping_salesGetPayload<
     ReturnType<typeof select>
   >;
 
@@ -20,7 +20,7 @@ export namespace ShoppingSaleTransformer {
         created_at: true,
         category: ShoppingCategoryTransformer.select(),
       },
-    } satisfies PrismaModels.shopping_salesFindManyArgs;
+    } satisfies Prisma.shopping_salesFindManyArgs;
   }
 
   export async function transform(input: Payload): Promise<IShoppingSale> {

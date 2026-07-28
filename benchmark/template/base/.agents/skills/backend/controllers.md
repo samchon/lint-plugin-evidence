@@ -187,6 +187,12 @@ A table with no entry is either an endpoint nobody designed or an unrecorded dec
 
 Coverage is by exact method and path. A trash listing does not cover the ordinary listing, an item endpoint does not cover its collection, and a mention in a description covers nothing.
 
+**Each primary table owes six separate decisions**, and one route never answers two of them: the collection listing, the creation, the item detail, the update, the deletion, and each named state transition. Deciding "this table has CRUD" answers none of them, because the question is which of the six this product actually needs.
+
+**Presence in the schema is not a reason for a route.** A table exists to hold state; an endpoint exists because a requirement says someone does something. Do not generate the six surfaces for a table nobody reaches, do not force a named workflow into one of them, and do not skip a named workflow because the table already has the ordinary five.
+
+**One schema is served under one path family.** When the same table is reachable at two roots, callers and the ledger disagree about which one is the resource, and every later coverage question has two answers.
+
 **A child table with its own row identity and its own user-visible fields needs its own coverage.** Option and value rows, image and file rows, attachments, requester link rows, and snapshot component rows all qualify. A parent's detail response may embed those values, and embedding covers nothing: the row is still separately real, and either something reaches it or the ledger says why nothing does.
 
 **A nested route belongs to the most specific table it touches**, not to the parent its URL happens to nest under. A product snapshot route belongs to the snapshot table; an order item's captured variant belongs to the order-item variant snapshot table. Compound nouns in the path name the depth, so read the deepest one.

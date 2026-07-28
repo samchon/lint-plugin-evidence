@@ -2,7 +2,7 @@
 
 Read [SKILL.md](SKILL.md) first. This document owns identity, sessions, and every check that decides whether a caller may do something.
 
-`docs/analysis/01-actors-and-auth.md` is the specification for all of it. Read that document before designing any of the storage below.
+The requirement documents under `docs/analysis/` are the specification for all of it: which actors exist, what each may do, and which flows persist anything. Find the sections that state those and read them before designing any of the storage below.
 
 ## Authentication Is Not Authorization
 
@@ -97,11 +97,11 @@ Scoped roles need endpoints of their own. Without operations that grant them, no
 Derive the owner from the resource's own owner column, never from caller-supplied input. Select that column directly rather than nesting the relation for it.
 
 ```ts
-const record = await MyGlobal.prisma.sales.findFirstOrThrow({
+const record = await MyGlobal.prisma.shopping_sales.findFirstOrThrow({
   where: { id: props.id },
-  select: { id: true, seller_id: true },
+  select: { id: true, shopping_seller_id: true },
 });
-if (record.seller_id !== props.seller.id)
+if (record.shopping_seller_id !== props.seller.id)
   throw ErrorProvider.forbidden("Only the owning seller may edit this sale.");
 ```
 
@@ -110,12 +110,20 @@ The narrow `select` is deliberate. This read exists to answer one question, and 
 When per-resource permission is a role held through a relationship table, **the resource owner holds that permission inherently**:
 
 ```ts
+const record = await MyGlobal.prisma.shopping_sections.findFirstOrThrow({
+  where: { id: props.id },
+  select: { id: true, shopping_seller_id: true },
+});
 const permitted: boolean =
-  record.owner_id === caller.id ||
-  (await MyGlobal.prisma.memberships.count({
-    where: { resource_id: record.id, actor_id: caller.id },
+  record.shopping_seller_id === props.seller.id ||
+  (await MyGlobal.prisma.shopping_section_moderators.count({
+    where: {
+      shopping_section_id: record.id,
+      shopping_seller_id: props.seller.id,
+    },
   })) !== 0;
-if (!permitted) throw ErrorProvider.forbidden("Not a moderator of this resource.");
+if (!permitted)
+  throw ErrorProvider.forbidden("Not a moderator of this section.");
 ```
 
 Checking only the join table gives the legitimate owner a wrongful `403`. No happy-path test finds it, because the tests that exercise the resource are usually written as the owner, and the owner is exactly who it breaks for.
@@ -255,6 +263,6 @@ Never accept caller identity from the request body or the path when it should co
 
 A credential column never appears in a response. A plaintext password appears only in a credential-input body, where it maps to the stored hash as a transformation.
 
-Load the account with the hash column and guard the nullable result before verifying. A missing account is a `404`; a wrong current password is a `403`. Use the project's hashing helper rather than inventing one.
+Load the account with the hash column and guard the nullable result before verifying. A missing account is a `404`; a wrong current password is a `403`. Verify through `PasswordUtil`, the one helper that knows the storage form, rather than calling a hashing library directly.
 
 Do not treat merely sensitive data as a credential. Whether it is exposed is an authorization decision, and hard-excluding it hides an ordinary field the requirements may need visible.

@@ -30,7 +30,7 @@ export namespace ShoppingSaleCollector {
             ),
           }
         : undefined,
-    } satisfies PrismaModels.shopping_salesCreateInput;
+    } satisfies Prisma.shopping_salesCreateInput;
   }
 }
 ```
@@ -89,7 +89,7 @@ Never pretend the body carries a field it does not. If a required column has no 
 **Plaintext credentials.** Derive them inside the assembly:
 
 ```ts
-password_hash: await BcryptUtil.hash(props.body.password),
+password_hash: await PasswordUtil.hash(props.body.password),
 ```
 
 Do not accept a pre-hashed value as a parameter. The collector is the only place that knows the storage form, and moving that knowledge outward is how two call sites end up hashing differently.

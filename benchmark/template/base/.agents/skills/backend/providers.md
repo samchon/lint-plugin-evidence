@@ -30,8 +30,8 @@ export const index = async (props: {
   const limit: number = props.input.limit ?? 100;
 
   const [records, rows] = await Promise.all([
-    ShoppingGlobal.prisma.shopping_sales.count({ where }),
-    ShoppingGlobal.prisma.shopping_sales.findMany({
+    MyGlobal.prisma.shopping_sales.count({ where }),
+    MyGlobal.prisma.shopping_sales.findMany({
       where,
       orderBy: orderBy({ sort: props.input.sort }),
       skip: (current - 1) * limit,
@@ -65,7 +65,7 @@ export const at = async (props: {
   actor: SellerPayload | CustomerPayload;
   id: string;
 }): Promise<IShoppingSale> => {
-  const record = await ShoppingGlobal.prisma.shopping_sales.findFirstOrThrow({
+  const record = await MyGlobal.prisma.shopping_sales.findFirstOrThrow({
     where: { id: props.id, AND: visibility({ actor: props.actor, strict: false }) },
     ...ShoppingSaleTransformer.select(),
   });
@@ -171,7 +171,7 @@ export const create = async (props: {
   seller: SellerPayload;
   body: IShoppingSale.ICreate;
 }): Promise<IShoppingSale> => {
-  const record = await ShoppingGlobal.prisma.shopping_sales.create({
+  const record = await MyGlobal.prisma.shopping_sales.create({
     data: await ShoppingSaleCollector.collect({
       body: props.body,
       seller: props.seller,
@@ -195,7 +195,7 @@ export const update = async (props: {
   body: IShoppingSale.IUpdate;
 }): Promise<IShoppingSale> => {
   await ownership({ seller: props.seller, id: props.id });
-  await ShoppingGlobal.prisma.$transaction(async (tx) => {
+  await MyGlobal.prisma.$transaction(async (tx) => {
     const snapshot = await tx.shopping_sale_snapshots.create({
       data: await ShoppingSaleSnapshotCollector.collect({
         body: props.body,
