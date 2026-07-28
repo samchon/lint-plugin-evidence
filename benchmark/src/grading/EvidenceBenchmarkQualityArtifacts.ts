@@ -1011,17 +1011,22 @@ export namespace EvidenceBenchmarkQualityArtifacts {
       runId: string;
       parentCoreSealSha256: string;
       postprocessSealSha256: string;
-      publicSafetyScanSha256: string;
+      publicSafetyReportFileSha256: string;
       publicSafetyScanSchemaSha256: string;
       publicSafetyScannerSha256: string;
       publicSafetyRulesSha256: string;
       publicSafetyFileSetSha256: string;
       postprocessContentRawTreeSha256: string;
+      publicCandidateRawTreeSha256: string;
     },
   ): void {
     const promotion = record(input, "result promotion");
     const core = record(promotion.coreSeal, "promotion core");
     const postprocess = record(promotion.postprocess, "promotion postprocess");
+    const publicCandidate = record(
+      promotion.publicCandidate,
+      "promotion public candidate",
+    );
     const retained = record(promotion.retainedRun, "promoted retained run");
     const latest = record(promotion.latestPointer, "promoted latest pointer");
     const demo = record(promotion.demoWorkspace, "promoted demo workspace");
@@ -1034,6 +1039,10 @@ export namespace EvidenceBenchmarkQualityArtifacts {
       retained.postprocessContentRawTree,
       "retained postprocess content raw tree",
     );
+    const publicCandidateRawTree = rawTree(
+      publicCandidate.rawTree,
+      "promotion public candidate raw tree",
+    );
     const { manifestSha256, ...unsigned } = promotion;
     const prefix = `benchmark/result/${text(
       promotion.subject,
@@ -1044,24 +1053,24 @@ export namespace EvidenceBenchmarkQualityArtifacts {
       core.coreSealSha256 !== expected.parentCoreSealSha256 ||
       postprocess.parentCoreSealSha256 !== expected.parentCoreSealSha256 ||
       postprocess.postprocessSealSha256 !== expected.postprocessSealSha256 ||
-      postprocess.publicSafetyScanSha256 !== expected.publicSafetyScanSha256 ||
-      postprocess.publicSafetyScanSchemaSha256 !==
+      publicCandidate.publicSafetyReportFileSha256 !==
+        expected.publicSafetyReportFileSha256 ||
+      publicCandidate.publicSafetyScanSchemaSha256 !==
         expected.publicSafetyScanSchemaSha256 ||
-      postprocess.publicSafetyScannerSha256 !==
+      publicCandidate.publicSafetyScannerSha256 !==
         expected.publicSafetyScannerSha256 ||
-      postprocess.publicSafetyRulesSha256 !==
+      publicCandidate.publicSafetyRulesSha256 !==
         expected.publicSafetyRulesSha256 ||
-      postprocess.publicSafetyFileSetSha256 !==
+      publicCandidate.publicSafetyFileSetSha256 !==
         expected.publicSafetyFileSetSha256 ||
+      publicCandidateRawTree.sha256 !== expected.publicCandidateRawTreeSha256 ||
       postprocessContentRawTree.sha256 !==
         expected.postprocessContentRawTreeSha256 ||
       retainedPostprocessContentRawTree.sha256 !==
         expected.postprocessContentRawTreeSha256 ||
-      postprocess.publicSafetyHighConfidenceFindings !== 0 ||
-      !["not_required", "cleared"].includes(
-        postprocess.publicSafetyManualReviewStatus as string,
-      ) ||
-      postprocess.publicPromotionAllowed !== true ||
+      publicCandidate.findingCount !== 0 ||
+      publicCandidate.privateCandidatesRecorded !== false ||
+      publicCandidate.immutableVerified !== true ||
       retained.path !== `${prefix}/runs/${expected.runId}` ||
       retained.workspacePath !== `${prefix}/runs/${expected.runId}/workspace` ||
       latest.path !== `${prefix}/latest.json` ||

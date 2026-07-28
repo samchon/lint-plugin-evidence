@@ -13,6 +13,7 @@
     "sourceManifestSha256",
     "coreSeal",
     "postprocess",
+    "publicCandidate",
     "retainedRun",
     "latestPointer",
     "demoWorkspace",
@@ -107,14 +108,6 @@
         "humanAuditQueueSha256",
         "humanValidationStatus",
         "humanValidatedCompositeClaim",
-        "publicSafetyScanSha256",
-        "publicSafetyScanSchemaSha256",
-        "publicSafetyScannerSha256",
-        "publicSafetyRulesSha256",
-        "publicSafetyFileSetSha256",
-        "publicSafetyHighConfidenceFindings",
-        "publicSafetyManualReviewStatus",
-        "publicPromotionAllowed",
         "finalReportSha256",
         "reportSchemaSha256",
         "postprocessContentRawTree",
@@ -237,33 +230,6 @@
         "humanValidatedCompositeClaim": {
           "const": false
         },
-        "publicSafetyScanSha256": {
-          "$ref": "#/$defs/sha256"
-        },
-        "publicSafetyScanSchemaSha256": {
-          "$ref": "#/$defs/sha256"
-        },
-        "publicSafetyScannerSha256": {
-          "$ref": "#/$defs/sha256"
-        },
-        "publicSafetyRulesSha256": {
-          "$ref": "#/$defs/sha256"
-        },
-        "publicSafetyFileSetSha256": {
-          "$ref": "#/$defs/sha256"
-        },
-        "publicSafetyHighConfidenceFindings": {
-          "const": 0
-        },
-        "publicSafetyManualReviewStatus": {
-          "enum": [
-            "not_required",
-            "cleared"
-          ]
-        },
-        "publicPromotionAllowed": {
-          "const": true
-        },
         "finalReportSha256": {
           "$ref": "#/$defs/sha256"
         },
@@ -284,6 +250,54 @@
         }
       }
     },
+    "publicCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rawTree",
+        "publicSafetyReportPath",
+        "publicSafetyReportFileSha256",
+        "publicSafetyScanSchemaSha256",
+        "publicSafetyScannerSha256",
+        "publicSafetyRulesSha256",
+        "publicSafetyFileSetSha256",
+        "findingCount",
+        "privateCandidatesRecorded",
+        "immutableVerified"
+      ],
+      "properties": {
+        "rawTree": {
+          "$ref": "#/$defs/rawTree"
+        },
+        "publicSafetyReportPath": {
+          "const": "public-safety-scan.json"
+        },
+        "publicSafetyReportFileSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "publicSafetyScanSchemaSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "publicSafetyScannerSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "publicSafetyRulesSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "publicSafetyFileSetSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "findingCount": {
+          "const": 0
+        },
+        "privateCandidatesRecorded": {
+          "const": false
+        },
+        "immutableVerified": {
+          "const": true
+        }
+      }
+    },
     "retainedRun": {
       "type": "object",
       "additionalProperties": false,
@@ -291,7 +305,6 @@
         "path",
         "coreTreeSha256",
         "postprocessContentRawTree",
-        "finalRecordTreeSha256",
         "workspacePath",
         "retainedTreeSha256"
       ],
@@ -305,9 +318,6 @@
         },
         "postprocessContentRawTree": {
           "$ref": "#/$defs/rawTree"
-        },
-        "finalRecordTreeSha256": {
-          "$ref": "#/$defs/sha256"
         },
         "workspacePath": {
           "type": "string",

@@ -1266,14 +1266,6 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
         humanAuditQueueSha256: EvidenceBenchmarkHash.bytes(queueText),
         humanValidationStatus: "pending",
         humanValidatedCompositeClaim: false,
-        publicSafetyScanSha256: safetyEmission.sha256,
-        publicSafetyScanSchemaSha256: safetySchemaSha256,
-        publicSafetyScannerSha256: safetyScan.scanner.implementationSha256,
-        publicSafetyRulesSha256: safetyScan.scanner.rulesSha256,
-        publicSafetyFileSetSha256: safetyScan.scannedFileSetSha256,
-        publicSafetyHighConfidenceFindings: 0,
-        publicSafetyManualReviewStatus: "not_required",
-        publicPromotionAllowed: true,
         finalReportSha256: digest("final-report"),
         reportSchemaSha256: digest("report-schema"),
         postprocessContentRawTree: postprocessSeal.postprocessContent.rawTree,
@@ -1281,11 +1273,22 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
         appendOnlyVerified: true,
         freshProcessVerified: true,
       },
+      publicCandidate: {
+        rawTree: safetyScan.scannedRunRecordRawTree,
+        publicSafetyReportPath: "public-safety-scan.json",
+        publicSafetyReportFileSha256: safetyEmission.sha256,
+        publicSafetyScanSchemaSha256: safetySchemaSha256,
+        publicSafetyScannerSha256: safetyScan.scanner.implementationSha256,
+        publicSafetyRulesSha256: safetyScan.scanner.rulesSha256,
+        publicSafetyFileSetSha256: safetyScan.scannedFileSetSha256,
+        findingCount: 0,
+        privateCandidatesRecorded: false,
+        immutableVerified: true,
+      },
       retainedRun: {
         path: `benchmark/result/todo/evidence/runs/${runId}`,
         coreTreeSha256: digest("core-tree"),
         postprocessContentRawTree: postprocessSeal.postprocessContent.rawTree,
-        finalRecordTreeSha256: digest("final-record-tree"),
         workspacePath: `benchmark/result/todo/evidence/runs/${runId}/workspace`,
         retainedTreeSha256: digest("retained-tree"),
       },
@@ -1333,17 +1336,57 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
       runId,
       parentCoreSealSha256: parentCore,
       postprocessSealSha256: postprocessEmission.sha256,
-      publicSafetyScanSha256: safetyEmission.sha256,
+      publicSafetyReportFileSha256: safetyEmission.sha256,
       publicSafetyScanSchemaSha256: safetySchemaSha256,
       publicSafetyScannerSha256: safetyScan.scanner.implementationSha256,
       publicSafetyRulesSha256: safetyScan.scanner.rulesSha256,
       publicSafetyFileSetSha256: safetyScan.scannedFileSetSha256,
       postprocessContentRawTreeSha256:
         postprocessSeal.postprocessContent.rawTree.sha256,
+      publicCandidateRawTreeSha256:
+        safetyScan.scannedRunRecordRawTree.sha256,
     };
     EvidenceBenchmarkQualityArtifacts.validateResultPromotion(
       promotion,
       promotionExpected,
+    );
+    const staleSafetyUnsigned = {
+      ...unsignedPromotion,
+      publicCandidate: {
+        ...unsignedPromotion.publicCandidate,
+        publicSafetyReportFileSha256: digest("stale-public-safety-report"),
+      },
+    };
+    expectInvalid(
+      () =>
+        EvidenceBenchmarkQualityArtifacts.validateResultPromotion(
+          {
+            ...staleSafetyUnsigned,
+            manifestSha256: EvidenceBenchmarkHash.object(staleSafetyUnsigned),
+          },
+          promotionExpected,
+        ),
+      "publication edges",
+    );
+    const mutatedCandidateUnsigned = {
+      ...unsignedPromotion,
+      publicCandidate: {
+        ...unsignedPromotion.publicCandidate,
+        rawTree: rawTree("mutated-public-candidate"),
+      },
+    };
+    expectInvalid(
+      () =>
+        EvidenceBenchmarkQualityArtifacts.validateResultPromotion(
+          {
+            ...mutatedCandidateUnsigned,
+            manifestSha256: EvidenceBenchmarkHash.object(
+              mutatedCandidateUnsigned,
+            ),
+          },
+          promotionExpected,
+        ),
+      "publication edges",
     );
     roundTrip(
       protocolRoot,
@@ -1359,13 +1402,28 @@ export namespace EvidenceBenchmarkQualityArtifactsTest {
           "result-promotion.schema.json",
           {
             ...promotion,
-            postprocess: {
-              ...promotion.postprocess,
-              publicPromotionAllowed: false,
+            publicCandidate: {
+              ...promotion.publicCandidate,
+              findingCount: 1,
             },
           },
         ),
       "const",
+    );
+    expectInvalid(
+      () =>
+        EvidenceBenchmarkQualityArtifacts.emit(
+          protocolRoot,
+          "result-promotion.schema.json",
+          {
+            ...promotion,
+            retainedRun: {
+              ...promotion.retainedRun,
+              finalRecordTreeSha256: digest("self-inclusive-final-record"),
+            },
+          },
+        ),
+      "additional properties",
     );
     expectInvalid(
       () =>
