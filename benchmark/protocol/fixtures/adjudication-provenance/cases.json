@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "schema": "benchmark/protocol/schema/adjudication-record.schema.json",
+  "semanticInvalidCases": [
+    "adjudicator-reuses-grader-a-thread",
+    "adjudicator-reuses-grader-b-assignment",
+    "adjudicator-reuses-grader-response",
+    "declared-sealed-inputs-do-not-match-recomputed-three-input-digest",
+    "comparison-queue-does-not-close-exact-two-grades",
+    "model-or-codex-version-mismatch"
+  ],
+  "promotionInvalidCases": [
+    "duplicate-t-done-and-missing-t-dry",
+    "grade-set-core-seal-does-not-match-parent",
+    "pending-human-validation-with-composite-claim"
+  ]
+}
