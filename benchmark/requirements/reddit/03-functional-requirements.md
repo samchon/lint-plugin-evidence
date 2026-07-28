@@ -8,15 +8,21 @@ Only the owning account may edit a profile. Viewing uses the unique username and
 
 ### REQ-FUNC-PROFILE-001 Edit the Current User's Profile
 
-An authenticated user may change their own display name, bio, and avatar. One request may supply one, several, or all three fields; omitted fields retain their current values. Bio may be cleared and an existing avatar may be removed.
+An authenticated user may change their own display name, bio, and avatar by supplying the profile edit revision they observed. One request may supply one, several, or all three fields; omitted fields retain their current values. Bio may be cleared and an existing avatar may be removed.
 
-Valid changes become public immediately. A profile edit cannot change username, email, password, karma, or authored-content lists. Editing another user's profile, a blank display name, or an invalid avatar is refused under REQ-RULE-PROFILE and REQ-RULE-MEDIA.
+Valid material changes become public immediately and advance the revision once. Repeating the current values with the current revision is a no-change success that advances nothing. Concurrent material edits presenting one revision permit at most one success; later requests are refused as stale rather than overwriting the winner.
+
+A profile edit cannot change username, email, password, karma, or authored-content lists. Editing another user's profile, supplying a stale revision, a blank or oversized display name, an oversized bio, or an invalid avatar is refused under REQ-RULE-PROFILE and REQ-RULE-MEDIA.
+
+The editable profile state returned after registration, viewing one's own profile, and each edit outcome includes the current opaque revision. Its representation conveys no edit count or time.
 
 ### REQ-FUNC-PROFILE-002 View a User's Public Profile
 
 Any logged-in or logged-out visitor may open an available profile by unique username, including their own. The result shows display name, bio, avatar, total karma, every available authored post, and every available authored comment.
 
 The post and comment lists are paginated independently so each can cover all available authorship. Email, credentials, sessions, subscriptions, bans, votes cast, reports, and moderation history are excluded. An unknown or permanently deleted username produces a not-found result.
+
+Posts and comments each order original creation time newest first and then their opaque identifier descending for an exact time tie. The two lists have independent snapshots and continuations.
 
 ## REQ-FUNC-COMMUNITY Community Operations
 
@@ -40,6 +46,12 @@ Any visitor may search the public catalog by community name. Matching follows RE
 
 Results are paginated in normalized-name order and show name, description, icon, status, and subscriber count. A valid query with no matches yields an empty page. An empty query is equivalent to browsing all communities.
 
+### REQ-FUNC-COMMUNITY-004 Archive an Owned Community
+
+The current owner may permanently archive their active community after receiving an explicit warning that participation and moderation cannot be restored. A moderator who is not the owner cannot archive it.
+
+Success preserves public community information, available content, and every current subscription, ends all owner and moderator assignments, and applies REQ-DOM-COMMUNITY-LIFE-005. An unknown or already archived community, stale owner authority, or caller from another community is refused without changing roles, subscriptions, content, or status.
+
 ## REQ-FUNC-SUBSCRIPTION Subscription Operations
 
 An authenticated user controls their own relationship to an active community. Subscription adds subscriber-count, home-feed, and posting-membership effects; unsubscription removes them without deleting past participation or scoped authority. The user can inspect all current subscriptions in one private paginated list.
@@ -58,9 +70,11 @@ An absent subscription is a no-change success. A residual subscriber may unsubsc
 
 ### REQ-FUNC-SUBSCRIPTION-003 List the Current User's Subscriptions
 
-An authenticated user may traverse every active subscription belonging to their own account. Results are paginated in normalized community-name order.
+An authenticated user may traverse every current subscription belonging to their own account, including residual subscriptions to archived communities. Results are paginated in normalized community-name order.
 
 Each item shows community name, description, icon, active or archived status, and subscriber count. Archived communities remain listed until the user unsubscribes. Another user's list is unavailable, and an account with no subscriptions receives an empty page.
+
+A traversal snapshots the subscription identities and ordering at its first page. Later subscribe, unsubscribe, or archive effects appear in a fresh traversal; they do not duplicate, insert, or reorder surviving snapshot entries in an existing traversal. Deleting the viewing account invalidates its private continuation.
 
 ## REQ-FUNC-POST Post Operations
 
@@ -68,7 +82,7 @@ Post creation requires an active subscription and no community ban. Full post vi
 
 ### REQ-FUNC-POST-001 Create a Post
 
-An authenticated user may publish in an active community when they have an active subscription and no active ban there. The user supplies a valid required title and exactly one text, link, or image payload under REQ-RULE-POST.
+An authenticated user may publish in an active community when they have an active subscription and no active ban there. The user supplies a valid required title and exactly one text, link, or image-and-alternative-text payload under REQ-RULE-POST.
 
 Success creates the post with the user as author, the selected community, and the current creation time. Vote score and comment count start at zero; creation does not cast an automatic author vote. The post becomes available in direct view, its community feed, eligible popular ordering, the author's profile, subscribed users' home feeds, and ranking results.
 
@@ -76,15 +90,17 @@ An invalid title, type, payload, link, image, community state, membership, or ba
 
 ### REQ-FUNC-POST-002 View a Single Post
 
-Any logged-in or logged-out visitor may inspect an available post. The result shows title, full text, full URL, or full image payload, author username, community name, vote score, comment count, and original creation time.
+Any logged-in or logged-out visitor may inspect an available post by its opaque post identifier. The result shows that same identifier, title, full text, full URL, or full image payload and alternative text, author username, community name, vote score, comment count, original creation time, and the current edit revision needed for a later author edit.
 
 Non-subscribers and banned users receive the same public content. An unknown or deleted post produces a not-found result.
 
 ### REQ-FUNC-POST-003 Edit an Authored Post
 
-An authenticated author may change the title, the current type's payload, or both on an active post; an omitted editable value remains unchanged. The post keeps its author, community, type, creation time, votes, comments, and reports.
+An authenticated author may change the title, the current type's payload, or both on an active post by supplying the edit revision they observed; an omitted editable value remains unchanged. The post keeps its opaque identifier, author, community, type, creation time, votes, comments, and reports.
 
-A banned or unsubscribed author may still correct an existing post. A non-author, including a moderator acting only through moderation authority, cannot edit it. The action also refuses a deleted post, archived community, invalid value, or attempted author, community, or type change.
+A banned or unsubscribed author may still correct an existing post. A non-author, including a moderator acting only through moderation authority, cannot edit it. The action also refuses a deleted post, archived community, invalid value, stale edit revision, or attempted author, community, or type change.
+
+A successful material edit advances the revision once. Repeating the current title and payload with the current revision is a no-change success that advances nothing. If concurrent requests present one revision, at most one material edit succeeds and each later request is refused as stale rather than overwriting the winner.
 
 ### REQ-FUNC-POST-004 Delete an Authored Post
 
@@ -96,7 +112,7 @@ Deletion applies REQ-DOM-POST-LIFE-002 and cannot be undone. Targeting another u
 
 A current community owner or moderator may permanently delete any active post in that community, regardless of author, score, age, or report state. A moderator cannot act on a post in another community.
 
-Deletion applies REQ-DOM-POST-LIFE-002. Private moderation history identifies the acting moderator and time without retaining removed content. The author's account, other posts, subscription, and roles remain unchanged. Missing authority or unavailable content is refused.
+Deletion applies REQ-DOM-POST-LIFE-002 and appends one moderator-post-deletion event to unified moderation history. The event identifies the acting moderator and time without retaining removed content, author identity, or the deleted post identifier. The author's account, other posts, subscription, and roles remain unchanged. Missing authority or unavailable content is refused.
 
 ## REQ-FUNC-FEED Post Feed Journeys
 
@@ -107,6 +123,8 @@ Home, popular, and community feeds differ in audience and post scope but share s
 A logged-in user may browse available posts only from communities they currently subscribe to. A popular post from an unsubscribed community is excluded.
 
 Posts from an archived community remain eligible while the user has a residual active subscription. Sorting, Top range, and shared pagination apply. No matching posts yields an empty page. Logged-out visitors are refused.
+
+The first page snapshots the exact subscription identities that define Home for that traversal. A later subscribe or unsubscribe changes only a fresh Home traversal; an existing continuation keeps its captured community scope. Content deletion may still remove an item under the shared deletion rule.
 
 ### REQ-FUNC-FEED-002 View the Public Popular Feed
 
@@ -168,19 +186,19 @@ Authenticated users may comment on any available post and reply at any depth wit
 
 An authenticated user who is not banned may add nonblank text directly to any available post in an active community. Subscription is not required.
 
-Success creates a top-level comment with the user as author, no parent, current creation time, and score zero. It casts no automatic author vote, appears in the thread and author's profile, and increments comment count. A logged-out caller, banned user, blank text, unavailable post, or archived community is refused without creating a comment.
+Success creates a top-level comment with the user as author, no parent, current creation time, and score zero. It casts no automatic author vote, appears in the thread and author's profile, and increments comment count. A logged-out caller, banned user, blank or oversized text, unavailable post, or archived community is refused without creating a comment.
 
 ### REQ-FUNC-COMMENT-002 Reply to a Comment
 
 An authenticated user who is not banned may add a nonblank reply beneath any available comment in an active community, without subscribing. The parent must belong to the same post.
 
-The reply may occur at any depth and begins with score zero and no automatic author vote. It appears beneath the parent and in the author's profile and increments comment count. An unavailable or deleted-marker parent cannot receive a new reply; invalid actor, ban, text, archive, or cross-post conditions are refused.
+The reply may occur at any depth and begins with score zero and no automatic author vote. It appears beneath the parent and in the author's profile and increments comment count. An unavailable or deleted-marker parent cannot receive a new reply; invalid actor, ban, blank or oversized text, archive, or cross-post conditions are refused.
 
 ### REQ-FUNC-COMMENT-003 View a Nested Comment Thread
 
-Any logged-in or logged-out visitor, including a non-subscriber or banned user, may view the public thread for an available post. Each comment shows author and text, or a neutral deleted marker, plus score, relative age, and nested descendants.
+Any logged-in or logged-out visitor, including a non-subscriber or banned user, may view the public thread for an available post. Each available comment shows opaque comment identifier, author, text, score, relative age, current edit revision, and nested-descendant controls. A neutral deleted marker instead shows only the projection allowed by REQ-DOM-COMMENT-LIFE-003.
 
-Top-level comments follow shared pagination. Every returned branch preserves all descendant levels, and each sibling set follows the selected comment sort. An unknown or deleted post is not found; a post with no comments returns an empty page.
+Top-level comments follow shared pagination. Each returned branch provides bounded, independently continuable child pages at every depth. Repeated continuation can reach every available descendant without a depth limit, total-descendant cutoff, or silent truncation, and each sibling set follows the selected comment sort. An unknown or deleted post is not found; a post with no comments returns an empty page.
 
 ### REQ-FUNC-COMMENT-004 Sort Comments on a Post
 
@@ -190,21 +208,23 @@ Changing sort restarts at the first page and invalidates the prior continuation.
 
 ### REQ-FUNC-COMMENT-005 Edit an Authored Comment
 
-An authenticated author may replace their available comment's text with valid nonblank text. The post, parent, author, creation time, votes, replies, and reports remain attached.
+An authenticated author may replace their available comment's text with valid nonblank text by supplying the edit revision they observed. The opaque comment identifier, post, parent, author, creation time, votes, replies, and reports remain attached.
 
-A banned or unsubscribed author may still correct an existing comment in an active community. A non-author, including a moderator acting only through moderation authority, cannot edit it. Deleted comments, archived communities, and blank text are refused.
+A banned or unsubscribed author may still correct an existing comment in an active community. A non-author, including a moderator acting only through moderation authority, cannot edit it. Deleted comments, archived communities, blank or oversized text, and stale edit revisions are refused.
+
+A successful material edit advances the revision once. Repeating the current text with the current revision is a no-change success that advances nothing. If concurrent requests present one revision, at most one material edit succeeds and each later request is refused as stale rather than overwriting the winner.
 
 ### REQ-FUNC-COMMENT-006 Delete an Authored Comment
 
 An authenticated author may permanently remove their available comment content, including after unsubscribing or being banned in an active community. No moderator approval or reason is required.
 
-Deletion follows REQ-DOM-COMMENT-LIFE-002, including a neutral marker when another user's replies remain. Targeting another user's comment or an archived community is refused; an unknown or already deleted comment is not found. Archived content can still be removed transitively by account deletion.
+Deletion follows REQ-DOM-COMMENT-LIFE-002, including a neutral marker whenever any available descendant remains and recursive pruning when none remains. Targeting another user's comment or an archived community is refused; an unknown or already deleted comment is not found. Archived content can still be removed transitively by account deletion.
 
 ### REQ-FUNC-COMMENT-007 Delete a Community Comment as Moderator
 
 A current community owner or moderator may remove any available comment in that community, regardless of author, nesting depth, score, age, or report state. Moderation authority does not cross community boundaries or apply to archived communities.
 
-Deletion follows REQ-DOM-COMMENT-LIFE-002. Private history records the acting moderator and time without retaining removed text. The author's account, other comments, subscription, and roles remain unchanged. Missing authority or unavailable content is refused.
+Deletion follows REQ-DOM-COMMENT-LIFE-002 for every descendant state and appends one unified moderation-history event. The event records the acting moderator and time without retaining removed text, author identity, or the deleted comment identifier. The author's account, other comments, subscription, and roles remain unchanged. Missing authority or unavailable content is refused.
 
 ## REQ-FUNC-ROLE Moderator Assignment Operations
 
@@ -214,19 +234,19 @@ Moderator assignments belong to one active community. Owner and moderator appoin
 
 A current owner may select one active platform user and appoint them moderator in the owner's active community. Moderator capabilities begin immediately and the target's subscription remains unchanged.
 
-Selecting an existing moderator is a no-change success. A non-owner, deleted target, unknown community, or archived community is refused under REQ-AUTH-ROLE-002.
+Selecting an existing moderator is a no-change success. A new assignment appends one unified moderation-history event; the no-change result appends none. A non-owner, deleted target, unknown community, or archived community is refused under REQ-AUTH-ROLE-002.
 
 ### REQ-FUNC-ROLE-002 Add a Moderator as Community Moderator
 
 A user whose moderator assignment is current may appoint one active platform user as another moderator in that same active community. The target gains moderator capabilities immediately without a subscription change.
 
-Selecting an existing moderator is a no-change success. Authority from another community, a deleted target, an unknown community, or an archived community is refused under REQ-AUTH-ROLE-003.
+Selecting an existing moderator is a no-change success. A new assignment appends one unified moderation-history event; the no-change result appends none. Authority from another community, a deleted target, an unknown community, or an archived community is refused under REQ-AUTH-ROLE-003.
 
 ### REQ-FUNC-ROLE-003 Remove a Moderator as Community Owner
 
 The current owner may revoke another user's moderator assignment in the owned active community. The former moderator immediately loses scoped moderation capabilities, while subscription, account, authored content, and authority elsewhere remain unchanged.
 
-The owner role cannot be targeted. A non-moderator target produces the no-assignment outcome in REQ-AUTH-ROLE-004. A non-owner caller, protected owner target, unavailable target, unknown community, or archived community is refused.
+The successful removal appends one unified moderation-history event. The owner role cannot be targeted. A non-moderator target produces the no-assignment outcome in REQ-AUTH-ROLE-004 and appends no event. A non-owner caller, protected owner target, unavailable target, unknown community, or archived community is refused.
 
 ## REQ-FUNC-BAN Community Ban Operations
 
@@ -236,19 +256,19 @@ Current owners and moderators manage participation bans only in their own active
 
 A current owner or moderator may ban an eligible active user in their active community. The target may be a subscriber, non-subscriber, moderator, or the acting moderator, but cannot be the current owner.
 
-Success immediately blocks new posts and comments by that user in the community. Viewing, existing content, votes, reports, subscription, and roles remain unchanged. An existing active ban is a no-change success. An owner target, deleted or unknown user, unknown or archived community, or caller without current scoped authority is refused.
+Success immediately blocks new posts and comments by that user in the community and appends one ban-activation event to unified moderation history. Viewing, existing content, votes, reports, subscription, and roles remain unchanged. An existing active ban is a no-change success and appends no event. An owner target, deleted or unknown user, unknown or archived community, or caller without current scoped authority is refused.
 
 ### REQ-FUNC-BAN-002 Unban a User From a Community
 
 A current owner or moderator may end an active ban in their community. Ordinary commenting becomes available again and post creation becomes available when the user has an active subscription.
 
-Subscription and roles remain as they were, and independently deleted content is not restored. An absent ban produces a no-change result identifying that no active ban existed. Unknown users or communities, archives, and callers without current scoped authority are refused.
+Subscription and roles remain as they were, and independently deleted content is not restored. Success appends one ban-end event to unified moderation history. An absent ban produces a no-change result identifying that no active ban existed and appends no event. Unknown users or communities, archives, and callers without current scoped authority are refused.
 
 ### REQ-FUNC-BAN-003 View a Community's Banned Users
 
 A current owner or moderator may traverse the active banned-user list for their community. Results are paginated from most recently activated ban to oldest.
 
-Each item shows the banned user's username, activation time, and acting moderator's username. Ended bans and bans from other communities are excluded. No active bans yields an empty page. Public users, moderators of another community, unknown or archived communities, and callers without current authority are refused.
+Each item shows the banned user's username, activation time, and the acting moderator's username while that account remains available or a deleted-user marker afterwards. Ended bans and bans from other communities are excluded. No active bans yields an empty page. Public users, moderators of another community, unknown or archived communities, and callers without current authority are refused.
 
 ## REQ-FUNC-REPORT Content Reporting and Resolution
 
@@ -264,7 +284,7 @@ Success creates one unresolved report and leaves the target available pending a 
 
 A current owner or moderator may traverse every unresolved report in their active community. The queue is paginated from newest submission to oldest.
 
-Each item identifies post or comment target kind and shows the reported content, reporter username, reason, and submission time. Resolved reports and other communities' reports are excluded. No unresolved work yields an empty page. Public users, outside moderators, unknown or archived communities, and callers without current authority are refused.
+Each item shows the opaque report identifier, post or comment target kind, reported content, reporter username, reason, and submission time. Exact submission-time ties use opaque report identifier descending. Resolved reports and other communities' reports are excluded. No unresolved work yields an empty page. Public users, outside moderators, unknown or archived communities, and callers without current authority are refused.
 
 ### REQ-FUNC-REPORT-003 Approve a Report
 
@@ -277,3 +297,19 @@ Approval deletes the reported post or comment and applies its dependent deletion
 A current owner or moderator may dismiss a still-unresolved report in their active community after inspecting its target, reporter, and reason. The target must still be available when the decision begins.
 
 Dismissal keeps the target and other unresolved reports on it unchanged, removes only the decided report from the active queue, and records the dismissed history outcome. Missing authority, another or archived community, or a report that is no longer unresolved is refused.
+
+## REQ-FUNC-MODERATION-HISTORY Community Moderation History Query
+
+Unified history gives current community moderators one private, paginated audit journey over completed moderation and governance outcomes. It is not a public activity feed and never becomes an alternate route to deleted content or identity.
+
+### REQ-FUNC-MODERATION-HISTORY-001 View Unified Community Moderation History
+
+A current owner or moderator may traverse the unified moderation history of their exact active community. Results contain every event kind in REQ-DOM-MODERATION-HISTORY-001 and are ordered by occurrence time newest first, then opaque event identifier descending.
+
+Each item uses the actor, subject, report, and target projection permitted by REQ-DOM-MODERATION-HISTORY. Public users, moderators of another community, former moderators, unknown communities, and archived communities are refused. Losing the scoped role invalidates the continuation before another page is disclosed.
+
+### REQ-FUNC-MODERATION-HISTORY-002 Navigate a Stable History Snapshot
+
+History uses the shared page-size boundary and snapshots the ordered event identities at the first page. Events appended later appear only in a fresh traversal; de-identification or target deletion may reduce fields on a retained snapshot event but never reveals a former value.
+
+The continuation binds current viewer, community, list kind, page size, and snapshot. An unknown, stale, mismatched, or role-ineligible continuation follows the shared recovery rule only when the caller still has permission; otherwise it is refused without returning a reset page or any history item.

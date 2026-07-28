@@ -8,7 +8,7 @@ Every account owns one public profile. Its display name, biography, and avatar d
 
 ### REQ-DOM-PROFILE-001 Define Public Profile Attributes
 
-A public profile presents the account's username together with three editable attributes:
+A public profile has an opaque edit revision used only for equality checks and presents the account's username together with three editable attributes:
 
 - **Display name:** public presentation text that may differ from, but never replaces, the unique username.
 - **Bio:** public free-form text that may be empty.
@@ -24,7 +24,7 @@ It also lists every currently available post and comment attributed to the user 
 
 ### REQ-DOM-PROFILE-003 Establish Initial Profile Values
 
-Successful registration creates a profile whose display name equals the selected username, whose bio is empty, and whose avatar is absent.
+Successful registration creates a profile at its initial edit revision whose display name equals the selected username, whose bio is empty, and whose avatar is absent.
 
 The display name and username make the new profile understandable even without an avatar. The user may later change all three profile fields without changing the username.
 
@@ -60,7 +60,7 @@ Subscribing and unsubscribing adjust the displayed total. Owner or moderator sta
 
 Every post belongs directly to one community, and every comment belongs to that same community through its post. A content report belongs to the community of its target.
 
-Bans, owner assignments, and moderator assignments apply to one community only. Public community viewing never exposes report reasons, reporter identities, ban history, or resolved moderation history.
+Bans, owner assignments, and moderator assignments apply to one community only. Public community viewing never exposes report reasons, reporter identities, active-ban details, or unified moderation history.
 
 ## REQ-DOM-SUBSCRIPTION Subscription Lifecycle
 
@@ -94,11 +94,15 @@ When the current owner's account is deleted, ownership transfers automatically i
 
 Moderator tenure begins with the current moderator assignment; subscriber tenure begins with the current subscription. An exact tenure tie is broken by deterministic user-identifier order. The successor must be active, cannot be the deleting owner, and retains any moderator or subscriber relationship already held.
 
+The completed transfer appends one system-actor ownership-succession event to unified moderation history. A failed account deletion or transfer attempt appends none.
+
 ### REQ-DOM-COMMUNITY-LIFE-003 Archive an Ownerless Community
 
 If owner deletion leaves no other active moderator or subscriber, the community changes permanently from active to archived after the deleting owner's posts and comments are removed.
 
 The name, description, icon, and content authored by other users remain publicly viewable. No user receives owner or moderator authority, and the subscriber count reflects removal of the deleted owner's subscription.
+
+The completed transition appends one system-actor automatic-ownerless-archive event to unified moderation history. It cannot append separate role-removal events for the same transition.
 
 ### REQ-DOM-COMMUNITY-LIFE-004 Enforce Archived Community Read-Only State
 
@@ -106,13 +110,19 @@ An archived community remains in public community browse and name-search results
 
 The platform refuses new subscriptions, posts, comments, votes, reports, bans, unbans, and role changes. Any residual subscriber may still unsubscribe to remove the archived community from their home feed; that is the only state-changing exception.
 
+### REQ-DOM-COMMUNITY-LIFE-005 Archive an Active Community by Owner Decision
+
+The current owner may deliberately and permanently archive an active community. The transition preserves the public community, available posts, comment trees, and every current subscription, while ending the owner and moderator assignments that can act only in an active community.
+
+The preserved subscriptions become residual subscriptions: they keep the archived community in each subscriber's Home scope and continue to count until that subscriber unsubscribes. The archive accepts no new subscriber, cannot return to active state, and records one owner-initiated archive event in unified moderation history without creating a replacement owner.
+
 ## REQ-DOM-POST Post Model
 
 A post belongs permanently to one author and one community and preserves its original creation time. Its required title accompanies exactly one text, link, or image payload. Vote score and comment count summarize active participation. Direct and feed views present the same post identity at different levels of detail.
 
 ### REQ-DOM-POST-001 Define Post Identity and Relationships
 
-Every post has a required title, one author, one community, and an original creation time. Direct views and feed cards show the title, the author's public username, and the community's unique name.
+Every post has an immutable opaque post identifier, a required title, one author, one community, an original creation time, and an opaque edit revision used only for equality checks. The identifier is unique across posts and reveals no author, community, creation time, rank, or sequence. Direct views and feed cards show the title, the author's public username, and the community's unique name.
 
 Editing never changes author, community, or original creation time. Those relationships continue to identify the same post throughout its active lifetime.
 
@@ -124,7 +134,7 @@ Each post has exactly one of these types:
 | --- | --- |
 | Text | Text content |
 | Link | URL |
-| Image | Uploaded image |
+| Image | Uploaded image and required alternative text |
 
 A post never contains several type-specific payloads at once.
 
@@ -136,7 +146,7 @@ The comment count includes every currently available top-level comment and reply
 
 ### REQ-DOM-POST-004 Define Full and Feed Post Presentation
 
-A direct view shows the post's title, full text, URL, or image payload, author, community, vote score, comment count, and original creation time.
+A direct view shows the post's title, full text, URL, or image payload and alternative text, author, community, vote score, comment count, and original creation time.
 
 Every feed card shows title, author username, community name, vote score, comment count, and relative time since creation. Its type-specific preview is:
 
@@ -150,9 +160,9 @@ A post begins active when creation succeeds. Editing changes reader-facing mater
 
 ### REQ-DOM-POST-LIFE-001 Preserve Post Identity During Editing
 
-A successful author edit may change only the title and the payload belonging to the current post type. The author, community, type, original creation time, votes, comments, and reports remain associated with the same post.
+A successful material author edit may change only the title and the payload belonging to the current post type. It advances the post's edit revision exactly once. The opaque post identifier, author, community, type, original creation time, votes, comments, and reports remain associated with the same post.
 
-Profiles, feeds, direct links, and moderation queues continue to identify that post and immediately present its revised title or payload. Existing score and comment count remain attached.
+Profiles, feeds, direct links, and moderation queues continue to identify that post and immediately present its revised title or payload. Existing score and comment count remain attached. A request that supplies the current revision but makes no material change leaves the revision and every timestamp unchanged.
 
 ### REQ-DOM-POST-LIFE-002 Delete a Post and Dependent Participation
 
@@ -160,7 +170,7 @@ Deletion may result from the author's command, a community moderator's command, 
 
 Every comment and reply on the post is removed, together with votes and pending reports on the post or those comments. Karma contributions from every removed vote are reversed for the affected post and comment authors.
 
-Resolved moderation history may keep a de-identified record that the action occurred, but it does not expose the removed post or comment content.
+Unified moderation history may keep the de-identified moderation outcome that caused deletion, but it does not expose the removed post or comment content, author identity, or content identifier.
 
 ## REQ-DOM-COMMENT Comment Model
 
@@ -168,7 +178,7 @@ A comment belongs to one author and one post and displays its text, current vote
 
 ### REQ-DOM-COMMENT-001 Define Comment Identity and Display
 
-An available comment shows the author's public username, comment text, current vote score, and relative time since its original creation. The score follows the same active-upvotes-minus-active-downvotes formula as a post.
+Every comment has an immutable opaque comment identifier and an opaque edit revision used only for equality checks. The identifier is unique across comments and reveals no author, post, parent, creation time, depth, or sequence. An available comment shows the author's public username, comment text, current vote score, and relative time since its original creation. The score follows the same active-upvotes-minus-active-downvotes formula as a post.
 
 The post relationship and original creation time remain fixed through edits. Nested replies are relationships beneath the comment, not part of its text.
 
@@ -180,19 +190,27 @@ Replies may receive replies recursively with no maximum depth. A thread can trav
 
 ## REQ-DOM-COMMENT-LIFE Comment Lifecycle
 
-A comment begins active after successful creation. Editing changes its text while retaining authorship and thread placement. Deletion removes the author's content and participation, but a neutral placeholder preserves replies written by other users when necessary.
+A comment begins active after successful creation. Editing changes its text while retaining authorship and thread placement. Deletion removes the author's content and participation, but a neutral placeholder preserves any available descendants when necessary.
 
 ### REQ-DOM-COMMENT-LIFE-001 Preserve Comment Identity During Editing
 
-A successful author edit replaces the comment text. Author, post, parent, original creation time, vote score, nested replies, and report relationships remain attached to the same comment.
+A successful material author edit replaces the comment text and advances the edit revision exactly once. The opaque comment identifier, author, post, parent, original creation time, vote score, nested replies, and report relationships remain attached to the same comment.
 
-The revised text appears immediately in the thread and the author's profile. The comment remains under the same parent and keeps its position according to the selected sibling sort.
+The revised text appears immediately in the thread and the author's profile. The comment remains under the same parent and keeps its position according to the selected sibling sort. A request that supplies the current revision but repeats the current text makes no material change and leaves the revision and every timestamp unchanged.
 
 ### REQ-DOM-COMMENT-LIFE-002 Delete Comment Content and Preserve Replies
 
 Deletion may result from the author, a community moderator, an approved report, account deletion, or deletion of the parent post. The comment's text, profile attribution, votes, and pending reports are removed. Its former vote contributions no longer affect score or author karma, and it no longer contributes to the post's comment count.
 
-When replies written by other users remain, a neutral deleted marker preserves their position and nesting without exposing the removed text or deleted author identity. When no replies remain, the node disappears. Deleting the parent post removes the entire comment subtree rather than placeholders.
+When any available descendant remains, regardless of its author or depth, a neutral deleted marker preserves the exact parent position and the path to every surviving descendant. When no available descendant remains, the node disappears. Deleting another comment may therefore prune a chain of now-unneeded markers from the bottom upward. Deleting the parent post removes the entire comment subtree rather than placeholders.
+
+Account deletion applies the same rule after removing all comments by that account: a deleted node remains as a marker only while it connects a comment by another active account that survives the deletion. Author deletion, moderator deletion, report approval, and account deletion never promote a surviving reply to a different parent.
+
+### REQ-DOM-COMMENT-LIFE-003 Project a Neutral Deleted Marker
+
+A deleted marker is a thread projection, not available comment content. It exposes only the deleted state, its stable place beneath the parent, and the controls needed to traverse surviving child branches.
+
+The marker exposes no former author, text, score, viewer vote, report state, edit revision, creation time, edit time, or deletion cause. It is absent from profiles and comment counts and cannot be voted on, reported, replied to, edited, or selected as a new reply parent.
 
 ## REQ-DOM-VOTE Vote Model
 
@@ -286,7 +304,7 @@ A content report records one available post or comment, the reporting user, and 
 
 ### REQ-DOM-REPORT-001 Define Report Target, Reporter, and Reason
 
-Every report targets exactly one available post or one available comment. It identifies the authenticated user who submitted it and preserves that user's nonblank textual reason.
+Every report has an immutable opaque report identifier and targets exactly one available post or one available comment. The report identifier is unique across reports, remains private to authorized moderation views, and reveals no reporter, target, community, submission time, or queue position. The report identifies the authenticated user who submitted it and preserves that user's nonblank textual reason.
 
 The report belongs to the target post's community; a comment report derives the same community through the comment's post.
 
@@ -304,7 +322,7 @@ After the prior report is resolved, the same user may report a still-available t
 
 ## REQ-DOM-REPORT-LIFE Content Report Lifecycle
 
-A valid report enters unresolved state. Approval deletes its target; dismissal retains the target. Both decisions remove pending work. Resolved outcomes remain only in private community moderation history and never reappear in the active report list.
+A valid report enters unresolved state. Approval deletes its target; dismissal retains the target. Both decisions remove pending work. Resolved outcomes remain only in unified community moderation history and never reappear in the active report list.
 
 ### REQ-DOM-REPORT-LIFE-001 Enter Unresolved Report State
 
@@ -316,19 +334,47 @@ If the target is deleted by another action, the unresolved report leaves the que
 
 When a current owner or moderator approves an unresolved report in their community, the reported post or comment is deleted under its owning lifecycle. Every other unresolved report on the same target also leaves active queues.
 
-Private moderation history records an approved outcome, the acting moderator, and decision time. It does not retain the removed content. A removed report cannot later be approved or dismissed.
+Unified moderation history records one approved outcome, the acting moderator, and decision time. The deletion effect does not add a second direct-content-deletion event. History does not retain the removed content. A removed report cannot later be approved or dismissed.
 
 ### REQ-DOM-REPORT-LIFE-003 Dismiss a Report and Retain Its Target
 
 When a current owner or moderator dismisses an unresolved report, that report leaves the active queue and the reported post or comment remains available. Other unresolved reports on the same target are unchanged.
 
-Private moderation history records a dismissed outcome, the acting moderator, and decision time. The dismissed report cannot return to unresolved state or receive another decision.
+Unified moderation history records one dismissed outcome, the acting moderator, and decision time. The dismissed report cannot return to unresolved state or receive another decision.
 
 ### REQ-DOM-REPORT-LIFE-004 Retain Resolved Moderation History
 
-Current owners and moderators may inspect private resolved history for their community. A record shows approved or dismissed outcome, reporter, reason, acting moderator, decision time, and a target description only when the target still exists.
+An approved or dismissed report appends one event to the community's unified moderation history. The event carries the report outcome and report-specific fields defined by REQ-DOM-MODERATION-HISTORY while the active queue remains limited to unresolved reports.
 
-Resolved reports never appear as unresolved work. Removed target content is not retained. If a reporter or moderator account is later deleted, the record remains without identifying that account. Public users and moderators of other communities cannot inspect this history.
+Resolved reports never appear as unresolved work. Removed target content is not retained, and report-history access and later account deletion follow the unified history's permission and de-identification rules.
+
+## REQ-DOM-MODERATION-HISTORY Unified Community Moderation History
+
+Each community has one append-only private history of moderation and governance outcomes rather than separate report, ban, role, and content-deletion archives. The history provides one chronologically stable audit surface without retaining deleted content or permanently identifying deleted accounts.
+
+### REQ-DOM-MODERATION-HISTORY-001 Define Moderation History Event Identity and Kinds
+
+Every history event has an immutable opaque event identifier, one community, one action kind, and one occurrence time. The identifier is unique across history events and reveals no actor, subject, target, community, time, or sequence.
+
+The action kinds are moderator assignment, moderator removal, moderator post deletion, moderator comment deletion, report approval, report dismissal, ban activation, ban end, ownership succession, owner-initiated archive, and automatic ownerless archive. One completed outcome appends exactly one event of its kind; a refusal or no-change result appends none.
+
+### REQ-DOM-MODERATION-HISTORY-002 Project Actors, Subjects, and Targets
+
+Every user-initiated event identifies its acting user while that account remains available. Role, ban, and ownership events also identify their affected user while that account remains available. Automatic ownership succession or automatic ownerless archival uses a system actor rather than attributing the action to a user who did not perform it.
+
+A report event includes the opaque report identifier, outcome, reporter, reason, target kind, and the target's opaque identifier and current public description only while the target remains available. A direct moderation deletion includes the target kind but retains no removed title, text, media, author, or target identifier after deletion.
+
+### REQ-DOM-MODERATION-HISTORY-003 De-identify History After Account or Content Deletion
+
+When an actor, affected user, or reporter account is deleted, every retained event replaces that account reference with one non-identifying deleted-user marker. The event exposes no former username, email, opaque account identifier, profile attribute, or authored content.
+
+When referenced content is deleted, the event retains only the action kind, target kind, outcome, and occurrence time needed to understand the moderation outcome. Removed content, its author, and its opaque content identifier are not retained or reconstructable from the history projection.
+
+### REQ-DOM-MODERATION-HISTORY-004 Separate Current State From Historical Events
+
+The unified history never grants authority and never reactivates a role, ban, report, subscription, or content target. Current moderators, active bans, unresolved reports, and available content remain governed by their current-state models.
+
+Ending a ban or moderator assignment removes it from the corresponding current list but keeps its append-only history events. Repeated reads of history do not change current state or create new events.
 
 ## REQ-DOM-BAN Community Ban Lifecycle
 
@@ -346,8 +392,8 @@ Unbanning ends the active restriction. The user may comment again and, when subs
 
 Unbanning does not subscribe the user or change owner or moderator roles. Existing content and votes remain. Attempting to unban a user with no active ban makes no state change and reports that no active ban existed.
 
-### REQ-DOM-BAN-003 Retain Resolved Ban History
+### REQ-DOM-BAN-003 Record Ban Transitions in Unified History
 
-Current owners and moderators can inspect private history showing the formerly banned user, banning moderator, activation time, unbanning moderator, and end time.
+Ban activation and ban end each append one event to the community's unified moderation history. The events identify the affected user and acting moderator while those accounts remain available and follow the history's de-identification rule after account deletion.
 
-Only active bans appear in the current banned-user list, and ended history never blocks participation. Deleted user or moderator accounts are de-identified. Public users and moderators of other communities cannot inspect the history.
+Only active bans appear in the current banned-user list, and ended history never blocks participation. History access is not a second active-ban list and follows the unified query's community-scoped permissions.
