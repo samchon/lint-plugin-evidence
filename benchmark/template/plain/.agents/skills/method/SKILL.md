@@ -7,7 +7,7 @@ description: Defines how to work the requirement set to completion and how to es
 
 ## The Goal
 
-Every requirement stated in `docs/` must be realized in this repository, and none may be missed.
+Every requirement stated in `docs/analysis/` must be realized in this repository, and none may be missed.
 
 This is the whole standard. Not most requirements, not the ones that were easy to see, and not the ones a reasonable reader would consider the important ones. A requirement that is omitted is a defect of the same severity as one that is implemented incorrectly, and it is harder to find, because nothing about the repository points at the place where it should have been.
 
@@ -19,7 +19,7 @@ Nothing in this repository can tell you that a requirement is missing. The compi
 
 ## Traverse Exhaustively
 
-Read every document under `docs/` in full before you finish, not only the ones that seemed relevant to the task at hand. Then traverse the specification along every axis it offers, because a requirement missed on one axis is often visible on another.
+Read every document under `docs/analysis/` in full before you finish, not only the ones that seemed relevant to the task at hand. Then traverse the specification along every axis it offers, because a requirement missed on one axis is often visible on another.
 
 - **By document section.** Walk every heading of every document in order. For each one, name the artifact that realizes it. A section you cannot map to an artifact is either unimplemented or implemented somewhere you have not checked, and the difference matters.
 - **By data model.** Walk every table and every column. Name the requirement it serves and the endpoint that reads or writes it. A column nothing writes is a requirement half-built.

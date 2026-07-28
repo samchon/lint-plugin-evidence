@@ -7,7 +7,7 @@ description: Defines how to work the requirement set to completion and how the b
 
 ## The Goal
 
-Every requirement stated in `docs/` must be realized in this repository, and none may be missed.
+Every requirement stated in `docs/analysis/` must be realized in this repository, and none may be missed.
 
 This is the whole standard. Not most requirements, not the ones that were easy to see, and not the ones a reasonable reader would consider the important ones. A requirement that is omitted is a defect of the same severity as one that is implemented incorrectly, and it is harder to find, because nothing about the repository points at the place where it should have been.
 
@@ -15,7 +15,7 @@ Working code is necessary and not sufficient. A build that compiles, a suite tha
 
 ## The Mechanism
 
-The build checks completeness for you. Every requirement section under `docs/` is an obligation, and the lint stage fails until some artifact in this repository acknowledges it by name. So a missed requirement is a compile error rather than something you must notice, and the discipline below is about making that check say something true.
+The build checks completeness for you. Every requirement section under `docs/analysis/` is an obligation, and the lint stage fails until some artifact in this repository acknowledges it by name. So a missed requirement is a compile error rather than something you must notice, and the discipline below is about making that check say something true.
 
 ## Cite What You Implement
 
@@ -23,7 +23,7 @@ An artifact that realizes a requirement carries an `@evidence` tag naming the re
 
 ```ts
 /**
- * @evidence docs/discount.md#coupon-stacking Enforces the combination limit
+ * @evidence docs/analysis/04-business-rules.md#coupon-stacking Enforces the combination limit
  * defined by this rule.
  */
 export function applyCouponStacking() {}
@@ -41,7 +41,7 @@ When a claim genuinely does not apply to a requirement, record that decision wit
 
 ```ts
 /**
- * @evidenceExclude docs/discount.md#coupon-stacking This module renders
+ * @evidenceExclude docs/analysis/04-business-rules.md#coupon-stacking This module renders
  * totals and never combines coupons.
  */
 ```
