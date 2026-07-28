@@ -230,6 +230,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   "build": "rimraf dist && pnpm run check && vite build",
   "preview": "vite preview",
   "check": "ttsc -p tsconfig.json --noEmit",
+  "format": "ttsc format -p tsconfig.json",
   "test:e2e": "node scripts/run-playwright.mjs e2e",
   "ui:review": "node scripts/run-playwright.mjs ui-review",
   "readme:screens": "node scripts/run-playwright.mjs readme",

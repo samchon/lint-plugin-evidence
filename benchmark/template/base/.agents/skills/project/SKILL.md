@@ -104,8 +104,11 @@ pnpm install
 pnpm build
 pnpm lint
 pnpm test
+pnpm format
 ```
 
 Run them from the workspace root. `pnpm lint` is the same compiler without emitting, so it reports exactly what `pnpm build` would and finishes sooner.
+
+**`pnpm format` applies the formatting; it is not a check you can fail.** `ttsc format` rewrites the files, and formatting is deliberately not a lint severity, so a difference in spacing never competes with a real diagnostic in the same output. Run it before you finish a piece of work rather than hand-aligning anything, and never argue with what it produces.
 
 Run the narrowest command that proves your change first, then a broader one when shared behavior changed. Read the output; a command whose result you did not read is not verification.
