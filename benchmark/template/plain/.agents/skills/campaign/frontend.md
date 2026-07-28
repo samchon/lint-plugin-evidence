@@ -25,15 +25,16 @@ Then walk backward from every data call to the operation it uses. A call assembl
 Once the folders take shape the frontend grows internal obligations, and they need the same treatment as the outer edges.
 
 ```
-requirement   ->  screen
-screen        ->  component
-screen        ->  SDK operation
-adapter       ->  SDK contract
+requirement     ->  screen      (the screen that delivers it)
+component       ->  screen      (the screen that renders it)
+SDK operation   ->  screen      (the screen that consumes it)
 ```
+
+Read each with the same sentence as every other edge: the artifact on the right owes an account of every unit on the left. So the denominators here are the requirements, the components, and the operations, and the screen is what has to account for all three.
 
 - **Every component traces to a screen that uses it.** A component nothing renders is dead code that still costs review attention.
 - **Every screen traces to the operations it consumes**, and every field it renders traces to a property those responses actually carry. A field rendered from a property the contract does not have will compile and fail at runtime.
-- **Every place the contract is wrapped traces to the contract.** Whatever layer holds the SDK types, it owes an account of the operations it covers, and a wrapper that exposes a shape the contract cannot produce is a finding.
+- **Every data call goes through a generated accessor.** There is no wrapper layer to campaign over, because the architecture rules one out: a hand-written layer between the screen and the SDK is the thing that survives a contract change it should have broken.
 
 This subgraph does not exist until the frontend has a structure, which is why it is easy to skip. Add its edges to the graph in `SKILL.md` as soon as the structure appears, and campaign over them like the rest.
 

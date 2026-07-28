@@ -19,8 +19,9 @@ Write the citation's reason as what the user can now do, not what the screen dis
 The frontend is not one node. Once its folders take shape it grows obligations of its own:
 
 ```
-requirement   ->  screen
-screen        ->  SDK operation
+requirement     ->  screen      (the screen that delivers it)
+component       ->  screen      (the screen that renders it)
+SDK operation   ->  screen      (the screen that consumes it)
 ```
 
 Configure them when the structure appears. **An edge nobody configured produces no diagnostic, and its silence is indistinguishable from coverage.** This is the layer where that happens, because the structure does not exist at the moment the configuration is first written.

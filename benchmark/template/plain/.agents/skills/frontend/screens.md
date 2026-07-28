@@ -18,15 +18,11 @@ That plan is what makes a missing screen visible while there is still time to bu
 
 ## The Internal Graph Needs Campaigning Too
 
-As soon as the structure exists, these obligations exist with it:
+As soon as the structure exists, the frontend's own obligations exist with it, and [the frontend edge](../campaign/frontend.md) holds the current set. Add to it there when the structure grows, so one place answers what the subgraph is.
 
-```
-requirement   ->  screen
-screen        ->  component
-screen        ->  SDK operation
-```
+Two of those edges are worth naming here because they fail quietly. **A component nothing renders is dead code** that still costs review attention. **A field rendered from a property the contract does not carry** compiles and fails at runtime, because nothing between the response type and the rendered element checks that the property exists.
 
-A component nothing renders is dead code. A field rendered from a property the contract does not carry compiles and fails at runtime. Walk both directions on each edge, and add them to the graph in the campaign skill when the structure appears.
+Walk both directions on each edge. Forward finds the screen nobody built; backward finds the component nobody uses.
 
 ## After Any Contract Change
 

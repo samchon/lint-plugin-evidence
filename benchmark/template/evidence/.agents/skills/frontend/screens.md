@@ -29,8 +29,9 @@ So write the citation's reason as what the user can now do, not what the screen 
 Once the structure exists, these obligations exist with it, and the ones that are not configured are not checked:
 
 ```
-requirement   ->  screen
-screen        ->  SDK operation
+requirement     ->  screen      (the screen that delivers it)
+component       ->  screen      (the screen that renders it)
+SDK operation   ->  screen      (the screen that consumes it)
 ```
 
 Add them to the configuration when the structure appears. An edge nobody configured produces no diagnostic, and its absence looks exactly like coverage.

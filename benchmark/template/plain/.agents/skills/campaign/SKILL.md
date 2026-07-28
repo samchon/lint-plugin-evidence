@@ -51,7 +51,7 @@ Read each edge as a sentence with a denominator. "Every requirement section is a
 
 **These edges are the known minimum, not the complete set.** More exist, and finding them is part of the work. Whenever you notice that one artifact silently depends on another, you have found an edge, and it needs a campaign like the rest.
 
-The frontend is not a leaf. Once its folders take shape it grows its own internal graph: screens owe their requirements, components owe the screens that use them, every data call owes the SDK operation it consumes, and every adapter owes the contract it wraps. Treat it as a subgraph, not a single node.
+The frontend is not a leaf. Once its folders take shape it grows its own internal graph, with the same reading as every edge above: a screen accounts for the requirements it delivers, for the components it renders, and for the operations it consumes. [Its edge](frontend.md) holds the current set. Treat it as a subgraph, not a single node.
 
 **Keep this graph current.** It is a live description of the repository's dependency structure, not a diagram drawn once. When the frontend takes a concrete shape, when a new artifact kind appears, or when any convention document grows a rule that makes one artifact depend on another, add the edge here in the same change. A graph that lags behind the real structure leaves exactly that difference unchecked, and nothing else in this repository will notice.
 
