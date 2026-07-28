@@ -41,7 +41,7 @@ API             ->  tests
 
 Granularity is part of the configuration. A DTO **type** is a claim over requirements and models; a DTO **property** is a separate claim over columns alone, and it does not answer to a requirement. Configuring only the type level leaves every property unchecked, and the silence reads exactly like coverage.
 
-The configured graph is what the build checks. Keep it current: when the frontend takes a concrete shape or a new artifact kind appears, the obligation belongs in the configuration. **An edge that is not configured is not checked**, and nothing will tell you it is missing.
+The configured graph is what the build checks, and it is declared per package: `packages/api`, `packages/backend`, and `packages/frontend` each carry a `lint.config.ts` whose claims bind that package's own artifacts. Keep it current: when the frontend takes a concrete shape or a new artifact kind appears, the obligation belongs in the configuration. **An edge that is not configured is not checked**, and nothing will tell you it is missing.
 
 ## The Tag, Exactly
 
