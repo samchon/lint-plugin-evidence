@@ -156,4 +156,4 @@ The build will never ask you to do this.
 
 It cannot tell you that an artifact nobody thought to write is missing. The build does that, and the two are complements: the graph establishes the inventory, this skill establishes its truth.
 
-It also cannot find a defect nobody reads for. Type-correct is not correct and cited is not correct, and the defects that survive both are catalogued in [the pitfalls topic](../backend/pitfalls.md). Each of them carries a valid citation and satisfies every check, so the only thing that finds one is a reader holding the code against the claim.
+It also cannot find a defect nobody reads for. Type-correct is not correct and cited is not correct, and the defects that survive both are catalogued in [the provider topic](../backend/providers.md). Each of them carries a valid citation and satisfies every check, so the only thing that finds one is a reader holding the code against the claim.

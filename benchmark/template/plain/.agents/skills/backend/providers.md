@@ -16,8 +16,8 @@ The test campaign re-opens, because what the tests must prove has moved.
 
 When a fix here reveals that the contract or the schema was wrong, fix it there and accept that everything below that layer re-opens with it. Patching the provider to compensate for a wrong contract hides the defect from every layer after it, and the cost of the correction grows with each layer built on top.
 
-## Record The Pitfalls Walk In The Ledger
+## Record The Defects Below When You Check Them
 
-The defects catalogue in [pitfalls.md](pitfalls.md) is invisible to every automatic check and to a reader skimming for correctness, so checking it leaves no trace unless you write one. An entry saying you walked it is the difference between a gap that was examined and one nobody looked at.
+The defects catalogue at the end of this document is invisible to every automatic check and to a reader skimming for correctness, so checking it leaves no trace unless you write one. An entry saying you walked it is the difference between a gap that was examined and one nobody looked at.
 
 This is also the layer where a ledger entry is easiest to write and hardest to keep true, because a provider realizes a behavior rather than a shape, and behavior drifts without changing anything a checker inspects. The [review skill](../review/SKILL.md) reads each of these entries against the code that is there now.
