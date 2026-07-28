@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "executable": "benchmark/src/activity/EvidenceBenchmarkActivitySelfTest.ts",
+  "cases": [
+    {
+      "id": "valid-complete",
+      "valid": true,
+      "invariant": "exact core-bound observations plus two independent raters and a fresh adjudicator reconcile"
+    },
+    {
+      "id": "invalid-event-chain-after-outer-rehash",
+      "valid": false,
+      "invariant": "every event hash is recomputed from RFC 8785 bytes and the terminal hash equals the core"
+    },
+    {
+      "id": "invalid-usage-arithmetic",
+      "valid": false,
+      "invariant": "provider total equals inclusive input plus output and subsets remain bounded"
+    },
+    {
+      "id": "invalid-duplicate-response",
+      "valid": false,
+      "invariant": "one globally unique observation exists for every exact usage response"
+    },
+    {
+      "id": "invalid-rater-assignment-reuse",
+      "valid": false,
+      "invariant": "the runner assignment seals the exact observation, response catalog, event window, codebook, and turn class"
+    },
+    {
+      "id": "invalid-provider-output-spliced-onto-assignment",
+      "valid": false,
+      "invariant": "the exact app-server response event and execution record bind the provider output digest"
+    },
+    {
+      "id": "invalid-process-identity-bytes",
+      "valid": false,
+      "invariant": "the retained process identity exact bytes bind ChatGPT auth, OpenAI provider, model, effort, standard tier, Codex version, assignment, role, session, and thread"
+    },
+    {
+      "id": "invalid-rater-session-reuse",
+      "valid": false,
+      "invariant": "the two raters use distinct logical identities, threads, sessions, and turn classes"
+    },
+    {
+      "id": "invalid-probability-sum",
+      "valid": false,
+      "invariant": "every primary probability vector contains the frozen code set and sums to 10000"
+    },
+    {
+      "id": "valid-right-censored-source",
+      "valid": true,
+      "invariant": "incomplete source capture is retained as right-censored and never reconstructed"
+    }
+  ]
+}

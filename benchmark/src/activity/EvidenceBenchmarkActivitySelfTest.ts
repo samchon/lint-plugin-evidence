@@ -2,23 +2,33 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { EvidenceBenchmarkActivityCanonical } from "./EvidenceBenchmarkActivityCanonical.ts";
 import { EvidenceBenchmarkActivityCodebook } from "./EvidenceBenchmarkActivityCodebook.ts";
 import { EvidenceBenchmarkActivityJudgments } from "./EvidenceBenchmarkActivityJudgments.ts";
+import { EvidenceBenchmarkActivityJcs } from "./EvidenceBenchmarkActivityJcs.ts";
 import { EvidenceBenchmarkActivityObservations } from "./EvidenceBenchmarkActivityObservations.ts";
 import { EvidenceBenchmarkActivityReducer } from "./EvidenceBenchmarkActivityReducer.ts";
 import { EvidenceBenchmarkActivityRegistry } from "./EvidenceBenchmarkActivityRegistry.ts";
+import { EvidenceBenchmarkActivityStrictJson } from "./EvidenceBenchmarkActivityStrictJson.ts";
 import type { IEvidenceBenchmarkActivity } from "./IEvidenceBenchmarkActivity.ts";
 
 /** Runs paid-call-free fixtures for the complete activity attribution contract. */
 export namespace EvidenceBenchmarkActivitySelfTest {
+  const EXECUTION_EVIDENCE: WeakMap<
+    | IEvidenceBenchmarkActivity.IRaterArtifact
+    | IEvidenceBenchmarkActivity.IAdjudicatorArtifact,
+    IEvidenceBenchmarkActivity.IModelExecutionEvidence
+  > = new WeakMap();
+
   /** Executes integrity, judgment, uncertainty, and interval fixtures. */
   export function main(): void {
     const temporary: string = fs.mkdtempSync(
       path.join(os.tmpdir(), "evidence-activity-attribution-"),
     );
     try {
+      testCanonicalPins();
       testRegistryAdmission(temporary);
       const protocolRoot: string = writeProtocol(
         path.join(temporary, "fixture-protocol"),
@@ -30,6 +40,74 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     } finally {
       fs.rmSync(temporary, { recursive: true, force: true });
     }
+  }
+
+  function testCanonicalPins(): void {
+    const benchmarkRoot: string = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      "../..",
+    );
+    const pins = EvidenceBenchmarkActivityStrictJson.parse(
+      fs.readFileSync(path.join(benchmarkRoot, "protocol/pins.json")),
+      "canonical benchmark pins",
+    ) as {
+      activityAttribution: {
+        codebookCanonicalObjectSha256: string;
+        codebookSourceBytes: number;
+        codebookSourcePath: string;
+        codebookSourceSha256: string;
+        assignmentSchema: PinnedFile;
+        processIdentitySchema: PinnedFile;
+        executionSchema: PinnedFile;
+        ledgerSchema: PinnedFile;
+        observationSchema: PinnedFile;
+        reportSchema: PinnedFile;
+        coreSealSchema: PinnedFile;
+        usageReportSchema: PinnedFile;
+      };
+    };
+    const activity = pins.activityAttribution;
+    assert.equal(
+      activity.codebookCanonicalObjectSha256,
+      EvidenceBenchmarkActivityCodebook.SHA256,
+    );
+    pinnedFile(benchmarkRoot, {
+      path: activity.codebookSourcePath,
+      bytes: activity.codebookSourceBytes,
+      sha256: activity.codebookSourceSha256,
+    });
+    for (const artifact of [
+      activity.assignmentSchema,
+      activity.processIdentitySchema,
+      activity.executionSchema,
+      activity.ledgerSchema,
+      activity.observationSchema,
+      activity.reportSchema,
+      activity.coreSealSchema,
+      activity.usageReportSchema,
+    ])
+      pinnedFile(benchmarkRoot, artifact);
+  }
+
+  interface PinnedFile {
+    path: string;
+    bytes: number;
+    sha256: string;
+  }
+
+  function pinnedFile(benchmarkRoot: string, artifact: PinnedFile): void {
+    const repositoryRoot: string = path.resolve(benchmarkRoot, "..");
+    const bytes: Buffer = fs.readFileSync(
+      path.join(repositoryRoot, ...artifact.path.split("/")),
+    );
+    assert.equal(bytes.byteLength, artifact.bytes, artifact.path);
+    assert.equal(
+      EvidenceBenchmarkActivityCanonical.sha256(bytes),
+      artifact.sha256,
+      artifact.path,
+    );
+    if (artifact.path.endsWith(".json"))
+      EvidenceBenchmarkActivityStrictJson.parse(bytes, artifact.path);
   }
 
   /**
@@ -96,11 +174,11 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     const disconnectedCore: Buffer = Buffer.from(
       `${JSON.stringify({
         schemaVersion: 1,
-        complete: true,
         runId: fixture.input.binding.runId,
         manifestSha256: fixture.input.binding.runManifestSha256,
-        usageSha256: digest("other-ledger"),
-        finalEventSha256: fixture.input.binding.eventChainTerminalSha256,
+        usageReportSha256: digest("other-ledger"),
+        eventChainHeadSha256: fixture.input.binding.eventChainTerminalSha256,
+        activityLedgerSha256: fixture.input.binding.sourceActivityLedgerSha256,
       })}\n`,
       "utf8",
     );
@@ -117,6 +195,55 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         }),
       /does not bind/,
     );
+    const eventLines: Record<string, unknown>[] = Buffer.from(
+      fixture.input.sourceEventLedgerBytes,
+    )
+      .toString("utf8")
+      .trimEnd()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    eventLines[0]!.payload = { altered: true };
+    const alteredEventBytes: Buffer = Buffer.from(
+      `${eventLines.map((event) => JSON.stringify(event)).join("\n")}\n`,
+      "utf8",
+    );
+    const alteredActivity = JSON.parse(
+      Buffer.from(fixture.input.sourceActivityLedgerBytes).toString("utf8"),
+    ) as Record<string, unknown>;
+    alteredActivity.eventLedgerSha256 =
+      EvidenceBenchmarkActivityCanonical.sha256(alteredEventBytes);
+    const alteredActivityBytes: Buffer = Buffer.from(
+      `${JSON.stringify(alteredActivity)}\n`,
+      "utf8",
+    );
+    const alteredCore = JSON.parse(
+      Buffer.from(fixture.input.parentCoreSealBytes).toString("utf8"),
+    ) as Record<string, unknown>;
+    alteredCore.activityLedgerSha256 =
+      EvidenceBenchmarkActivityCanonical.sha256(alteredActivityBytes);
+    const alteredCoreBytes: Buffer = Buffer.from(
+      `${JSON.stringify(alteredCore)}\n`,
+      "utf8",
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkActivityObservations.create({
+          ...fixture.input,
+          binding: {
+            ...fixture.input.binding,
+            sourceEventLedgerSha256:
+              EvidenceBenchmarkActivityCanonical.sha256(alteredEventBytes),
+            sourceActivityLedgerSha256:
+              EvidenceBenchmarkActivityCanonical.sha256(alteredActivityBytes),
+            parentCoreSealSha256:
+              EvidenceBenchmarkActivityCanonical.sha256(alteredCoreBytes),
+          },
+          parentCoreSealBytes: alteredCoreBytes,
+          sourceEventLedgerBytes: alteredEventBytes,
+          sourceActivityLedgerBytes: alteredActivityBytes,
+        }),
+      /event ledger chain differs/,
+    );
     assert.throws(
       () =>
         EvidenceBenchmarkActivityObservations.create({
@@ -128,11 +255,22 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     const invalidUsage = structuredClone(fixture.input.responses);
     invalidUsage[0]!.usage!.totalTokens += 1;
     const ledgerBytes: Buffer = usageLedger(invalidUsage);
+    const invalidActivity = JSON.parse(
+      Buffer.from(fixture.input.sourceActivityLedgerBytes).toString("utf8"),
+    ) as Record<string, unknown>;
+    invalidActivity.usageReportSha256 =
+      EvidenceBenchmarkActivityCanonical.sha256(ledgerBytes);
+    const invalidActivityBytes: Buffer = Buffer.from(
+      `${JSON.stringify(invalidActivity)}\n`,
+      "utf8",
+    );
     const invalidCore = JSON.parse(
       Buffer.from(fixture.input.parentCoreSealBytes).toString("utf8"),
     ) as Record<string, unknown>;
-    invalidCore.usageSha256 =
+    invalidCore.usageReportSha256 =
       EvidenceBenchmarkActivityCanonical.sha256(ledgerBytes);
+    invalidCore.activityLedgerSha256 =
+      EvidenceBenchmarkActivityCanonical.sha256(invalidActivityBytes);
     const invalidCoreBytes: Buffer = Buffer.from(
       `${JSON.stringify(invalidCore)}\n`,
       "utf8",
@@ -145,11 +283,14 @@ export namespace EvidenceBenchmarkActivitySelfTest {
             ...fixture.input.binding,
             sourceUsageLedgerSha256:
               EvidenceBenchmarkActivityCanonical.sha256(ledgerBytes),
+            sourceActivityLedgerSha256:
+              EvidenceBenchmarkActivityCanonical.sha256(invalidActivityBytes),
             parentCoreSealSha256:
               EvidenceBenchmarkActivityCanonical.sha256(invalidCoreBytes),
           },
           parentCoreSealBytes: invalidCoreBytes,
           sourceUsageLedgerBytes: ledgerBytes,
+          sourceActivityLedgerBytes: invalidActivityBytes,
           responses: invalidUsage,
         }),
       /Provider total/,
@@ -162,11 +303,22 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       `${JSON.stringify(censoredLedger)}\n`,
       "utf8",
     );
+    const censoredActivity = JSON.parse(
+      Buffer.from(fixture.input.sourceActivityLedgerBytes).toString("utf8"),
+    ) as Record<string, unknown>;
+    censoredActivity.usageReportSha256 =
+      EvidenceBenchmarkActivityCanonical.sha256(censoredLedgerBytes);
+    const censoredActivityBytes: Buffer = Buffer.from(
+      `${JSON.stringify(censoredActivity)}\n`,
+      "utf8",
+    );
     const censoredCore = JSON.parse(
       Buffer.from(fixture.input.parentCoreSealBytes).toString("utf8"),
     ) as Record<string, unknown>;
-    censoredCore.usageSha256 =
+    censoredCore.usageReportSha256 =
       EvidenceBenchmarkActivityCanonical.sha256(censoredLedgerBytes);
+    censoredCore.activityLedgerSha256 =
+      EvidenceBenchmarkActivityCanonical.sha256(censoredActivityBytes);
     const censoredCoreBytes: Buffer = Buffer.from(
       `${JSON.stringify(censoredCore)}\n`,
       "utf8",
@@ -178,13 +330,48 @@ export namespace EvidenceBenchmarkActivitySelfTest {
           ...fixture.input.binding,
           sourceUsageLedgerSha256:
             EvidenceBenchmarkActivityCanonical.sha256(censoredLedgerBytes),
+          sourceActivityLedgerSha256: EvidenceBenchmarkActivityCanonical.sha256(
+            censoredActivityBytes,
+          ),
           parentCoreSealSha256:
             EvidenceBenchmarkActivityCanonical.sha256(censoredCoreBytes),
         },
         parentCoreSealBytes: censoredCoreBytes,
         sourceUsageLedgerBytes: censoredLedgerBytes,
+        sourceActivityLedgerBytes: censoredActivityBytes,
       });
     assert.equal(censored.sourceExactUsageComplete, false);
+    const censoredRatings: IEvidenceBenchmarkActivity.IProviderRating[] =
+      censored.responses.map((response) =>
+        rating(
+          response.responseId,
+          { implementation: 10_000 },
+          "shared",
+          ["shared_product_work"],
+          0.9,
+          `Observed ${citation(censored, response.responseId)}.`,
+        ),
+      );
+    const censoredRaterA: IEvidenceBenchmarkActivity.IRaterArtifact = rater(
+      censored,
+      "a",
+      structuredClone(censoredRatings),
+    );
+    const censoredRaterB: IEvidenceBenchmarkActivity.IRaterArtifact = rater(
+      censored,
+      "b",
+      structuredClone(censoredRatings),
+    );
+    const censoredReport: IEvidenceBenchmarkActivity.IReport =
+      EvidenceBenchmarkActivityReducer.reduce({
+        observations: censored,
+        raters: [censoredRaterA, censoredRaterB],
+        raterEvidence: [
+          executionEvidence(censoredRaterA),
+          executionEvidence(censoredRaterB),
+        ],
+      });
+    assert.equal(censoredReport.exactMeasurementStatus, "right_censored");
   }
 
   /**
@@ -210,7 +397,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
           "direct_method_burden",
           ["direct_method_campaign"],
           0.9,
-          "Method reading dominates [[event:event-a]].",
+          `Method reading dominates ${citation(fixture.observations, "response-a")}.`,
         ),
         rating(
           "response-b",
@@ -218,7 +405,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
           "shared",
           ["shared_product_work"],
           0.8,
-          "Implementation dominates [[event:event-b]].",
+          `Implementation dominates ${citation(fixture.observations, "response-b")}.`,
         ),
       ],
     );
@@ -232,7 +419,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
           "direct_method_burden",
           ["direct_method_campaign"],
           0.85,
-          "Method reading dominates [[event:event-a]].",
+          `Method reading dominates ${citation(fixture.observations, "response-a")}.`,
         ),
         rating(
           "response-b",
@@ -240,17 +427,19 @@ export namespace EvidenceBenchmarkActivitySelfTest {
           "shared",
           ["shared_product_work"],
           0.65,
-          "Implementation is mixed with feedback [[event:event-b]].",
+          `Implementation is mixed with feedback ${citation(fixture.observations, "response-b")}.`,
         ),
       ],
     );
     const left = EvidenceBenchmarkActivityJudgments.admitRater(
       fixture.observations,
       raterA,
+      executionEvidence(raterA),
     );
     const right = EvidenceBenchmarkActivityJudgments.admitRater(
       fixture.observations,
       raterB,
+      executionEvidence(raterB),
     );
     const queue = EvidenceBenchmarkActivityJudgments.queue(
       fixture.observations,
@@ -267,7 +456,9 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       EvidenceBenchmarkActivityReducer.reduce({
         observations: fixture.observations,
         raters: [raterA, raterB],
+        raterEvidence: [executionEvidence(raterA), executionEvidence(raterB)],
         adjudicator,
+        adjudicatorEvidence: executionEvidence(adjudicator),
       });
     assert.equal(report.exactTokenReconciled, true);
     assert.equal(report.exclusiveWallReconciled, true);
@@ -345,7 +536,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
           "direct_method_burden",
           ["direct_method_campaign"],
           0.9,
-          "Direct evidence [[event:event-a]].",
+          `Direct evidence ${citation(fixture.observations, "response-a")}.`,
         ),
         rating(
           "response-b",
@@ -353,37 +544,97 @@ export namespace EvidenceBenchmarkActivitySelfTest {
           "shared",
           ["shared_product_work"],
           0.9,
-          "Direct evidence [[event:event-b]].",
+          `Direct evidence ${citation(fixture.observations, "response-b")}.`,
         ),
       ],
     );
-    const invalid = structuredClone(valid);
-    invalid.providerOutput.ratings[0]!.probabilityBasisPoints = {
-      ...invalid.providerOutput.ratings[0]!.probabilityBasisPoints,
+    const invalidRatings = structuredClone(valid.providerOutput.ratings);
+    invalidRatings[0]!.probabilityBasisPoints = {
+      ...invalidRatings[0]!.probabilityBasisPoints,
       method_reading: 9_999,
     };
-    rehashRater(invalid);
+    const invalid: IEvidenceBenchmarkActivity.IRaterArtifact = rater(
+      fixture.observations,
+      "a",
+      invalidRatings,
+    );
     assert.throws(
       () =>
         EvidenceBenchmarkActivityJudgments.admitRater(
           fixture.observations,
           invalid,
+          executionEvidence(invalid),
         ),
       /sum to 10,000/,
     );
-    const duplicateSession: IEvidenceBenchmarkActivity.IRaterArtifact =
+    const forgedOutput: IEvidenceBenchmarkActivity.IRaterArtifact =
       structuredClone(valid);
-    duplicateSession.turnClass = "activity-rater-b";
-    duplicateSession.raterId = "rater-b";
-    duplicateSession.threadId = "thread-b";
-    rehashRater(duplicateSession);
+    forgedOutput.providerOutput.ratings[0]!.rationale = `Forged ${citation(fixture.observations, "response-a")}.`;
+    rehashRater(forgedOutput);
+    assert.throws(
+      () =>
+        EvidenceBenchmarkActivityJudgments.admitRater(
+          fixture.observations,
+          forgedOutput,
+          executionEvidence(valid),
+        ),
+      /execution differs from its runner assignment/,
+    );
+    const wrongIdentityEvidence: IEvidenceBenchmarkActivity.IModelExecutionEvidence =
+      structuredClone(executionEvidence(valid));
+    const wrongIdentity = JSON.parse(
+      Buffer.from(wrongIdentityEvidence.processIdentityArtifactBytes).toString(
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    wrongIdentity.authenticationClass = "api-key";
+    wrongIdentityEvidence.processIdentityArtifactBytes = Buffer.from(
+      `${JSON.stringify(wrongIdentity)}\n`,
+      "utf8",
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkActivityJudgments.admitRater(
+          fixture.observations,
+          valid,
+          wrongIdentityEvidence,
+        ),
+      /process identity artifact exact bytes differ/,
+    );
+    const reusedAssignment: IEvidenceBenchmarkActivity.IRaterArtifact =
+      structuredClone(valid);
+    reusedAssignment.assignment.observationSha256 = digest(
+      "another-observation",
+    );
+    const { assignmentSha256: _assignmentIgnored, ...reusedAssignmentBody } =
+      reusedAssignment.assignment;
+    reusedAssignment.assignment.assignmentSha256 =
+      EvidenceBenchmarkActivityCanonical.object(reusedAssignmentBody);
+    rehashRater(reusedAssignment);
+    assert.throws(
+      () =>
+        EvidenceBenchmarkActivityJudgments.admitRater(
+          fixture.observations,
+          reusedAssignment,
+          executionEvidence(valid),
+        ),
+      /not sealed to observations/,
+    );
+    const duplicateSession: IEvidenceBenchmarkActivity.IRaterArtifact = rater(
+      fixture.observations,
+      "b",
+      structuredClone(valid.providerOutput.ratings),
+      valid.assignment.sessionId,
+    );
     const admittedA = EvidenceBenchmarkActivityJudgments.admitRater(
       fixture.observations,
       valid,
+      executionEvidence(valid),
     );
     const admittedB = EvidenceBenchmarkActivityJudgments.admitRater(
       fixture.observations,
       duplicateSession,
+      executionEvidence(duplicateSession),
     );
     assert.throws(
       () =>
@@ -398,6 +649,16 @@ export namespace EvidenceBenchmarkActivitySelfTest {
   }
 
   function fixtureObservations(protocolRoot: string): Fixture {
+    const sourceEventLedger: EventFixture = eventLedger([
+      "event-a",
+      "event-b",
+      "item-a-started",
+      "item-a-completed",
+      "item-b-started",
+      "item-b-completed",
+      "item-c-started",
+      "item-c-completed",
+    ]);
     const responses: IEvidenceBenchmarkActivity.IResponseUsage[] = [
       {
         responseId: "response-a",
@@ -406,7 +667,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         phase: "phase1",
         receivedAtUtc: "2026-07-29T00:00:00.000Z",
         receivedMonotonicNs: "500",
-        rawEventId: "event-a",
+        rawEventId: sourceEventLedger.ids.get("event-a")!,
         usage: {
           inputTokens: 100,
           cachedInputTokens: 20,
@@ -423,7 +684,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         phase: "phase1",
         receivedAtUtc: "2026-07-29T00:00:00.001Z",
         receivedMonotonicNs: "900",
-        rawEventId: "event-b",
+        rawEventId: sourceEventLedger.ids.get("event-b")!,
         usage: {
           inputTokens: 80,
           cachedInputTokens: 0,
@@ -462,23 +723,44 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       },
       runner: {
         providerOutputRegistrySha256: registry.registrySha256,
+        activityProcessIdentitySchemaSha256: digest("process-identity-schema"),
+        activityExecutionSchemaSha256: digest("execution-schema"),
       },
     };
     const runManifestBytes: Buffer = Buffer.from(
       `${JSON.stringify(runManifest)}\n`,
       "utf8",
     );
+    const observedItems: IEvidenceBenchmarkActivity.IItemObservation[] = [
+      item("item-a", "response-a", "100", "500", 600, sourceEventLedger.ids),
+      item("item-b", "response-a", "300", "700", 500, sourceEventLedger.ids),
+      item("item-c", "response-b", "400", "900", 500, sourceEventLedger.ids),
+    ];
+    const observedWall: IEvidenceBenchmarkActivity.IWallInterval = {
+      startedMonotonicNs: "0",
+      completedMonotonicNs: "1000",
+    };
+    const sourceActivityLedgerBytes: Buffer = activityLedger(
+      sourceEventLedger.bytes,
+      sourceEventLedger.head,
+      sourceUsageLedgerBytes,
+      observedWall,
+      observedItems,
+      responses.length,
+    );
     const coreSealBytes: Buffer = Buffer.from(
       `${JSON.stringify({
         schemaVersion: 1,
-        complete: true,
         runId: "todo-plain-r1",
         manifestSha256:
           EvidenceBenchmarkActivityCanonical.sha256(runManifestBytes),
-        usageSha256: EvidenceBenchmarkActivityCanonical.sha256(
+        usageReportSha256: EvidenceBenchmarkActivityCanonical.sha256(
           sourceUsageLedgerBytes,
         ),
-        finalEventSha256: digest("events"),
+        eventChainHeadSha256: sourceEventLedger.head,
+        activityLedgerSha256: EvidenceBenchmarkActivityCanonical.sha256(
+          sourceActivityLedgerBytes,
+        ),
       })}\n`,
       "utf8",
     );
@@ -510,7 +792,13 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       sourceUsageLedgerSha256: EvidenceBenchmarkActivityCanonical.sha256(
         sourceUsageLedgerBytes,
       ),
-      eventChainTerminalSha256: digest("events"),
+      sourceEventLedgerSha256: EvidenceBenchmarkActivityCanonical.sha256(
+        sourceEventLedger.bytes,
+      ),
+      sourceActivityLedgerSha256: EvidenceBenchmarkActivityCanonical.sha256(
+        sourceActivityLedgerBytes,
+      ),
+      eventChainTerminalSha256: sourceEventLedger.head,
       providerOutputRegistrySha256: registry.registrySha256,
       activityRatingProviderSchemaSha256:
         registry.activityRatingProviderSchemaSha256,
@@ -518,6 +806,8 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       adjudicationProviderSchemaSha256:
         registry.adjudicationProviderSchemaSha256,
       adjudicationLocalSchemaSha256: registry.adjudicationLocalSchemaSha256,
+      activityProcessIdentitySchemaSha256: digest("process-identity-schema"),
+      activityExecutionSchemaSha256: digest("execution-schema"),
     };
     const input: EvidenceBenchmarkActivityObservations.IInput = {
       protocolRoot,
@@ -526,16 +816,11 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       runManifestBytes,
       materializationManifestBytes,
       sourceUsageLedgerBytes,
-      wall: {
-        startedMonotonicNs: "0",
-        completedMonotonicNs: "1000",
-      },
+      sourceEventLedgerBytes: sourceEventLedger.bytes,
+      sourceActivityLedgerBytes,
+      wall: observedWall,
       responses,
-      items: [
-        item("item-a", "response-a", "100", "500", 600),
-        item("item-b", "response-a", "300", "700", 500),
-        item("item-c", "response-b", "400", "900", 500),
-      ],
+      items: observedItems,
     };
     return {
       input,
@@ -549,6 +834,7 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     start: string,
     end: string,
     sourceDurationMs: number,
+    eventIds: ReadonlyMap<string, string>,
   ): IEvidenceBenchmarkActivity.IItemObservation {
     return {
       observationId: `observation-${itemId}`,
@@ -565,7 +851,10 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       sourceDurationMs,
       linkedResponseId: responseId,
       linkage: "ordered_epoch",
-      rawEventIds: [`${itemId}-started`, `${itemId}-completed`],
+      rawEventIds: [
+        eventIds.get(`${itemId}-started`)!,
+        eventIds.get(`${itemId}-completed`)!,
+      ],
     };
   }
 
@@ -597,8 +886,18 @@ export namespace EvidenceBenchmarkActivitySelfTest {
   function rater(
     observations: IEvidenceBenchmarkActivity.IObservations,
     side: "a" | "b",
-    ratings: IEvidenceBenchmarkActivity.IProviderRating[],
+    ratings: readonly IEvidenceBenchmarkActivity.IProviderRating[],
+    sessionOverride?: string,
   ): IEvidenceBenchmarkActivity.IRaterArtifact {
+    const assignmentId: string = `activity-rater-${side}-assignment`;
+    const threadId: string = `rating-thread-${side}`;
+    const sessionId: string = sessionOverride ?? `rating-session-${side}`;
+    const process: ProcessFixture = processIdentity(
+      assignmentId,
+      `activity-rater-${side}`,
+      sessionId,
+      threadId,
+    );
     const providerOutput: IEvidenceBenchmarkActivity.IProviderRatingBlock = {
       schemaVersion: 1,
       role: "activity_rater",
@@ -608,26 +907,62 @@ export namespace EvidenceBenchmarkActivitySelfTest {
       ratings,
       status: "completed",
     };
-    const body = {
+    const assignmentBody = {
       schemaVersion: 1 as const,
+      issuer: "runner" as const,
+      assignmentId,
       binding: observations.binding,
+      observationSha256: observations.observationSha256,
+      codebookSha256: observations.binding.codebookSha256,
       raterId: `rater-${side}`,
-      threadId: `rating-thread-${side}`,
-      sessionId: `rating-session-${side}`,
-      model: "gpt-5.6-terra",
-      effort: "high",
+      threadId,
+      sessionId,
+      model: "gpt-5.6-terra" as const,
+      effort: "high" as const,
       turnClass: `activity-rater-${side}` as const,
+      responseIds: observations.responses.map((row) => row.responseId),
+      allowedEvidenceEventIds: observations.eventIds,
       otherRaterOutputVisible: false as const,
       aggregateArmResultsVisible: false as const,
-      allowedEvidenceEventIds: ["event-a", "event-b"],
-      providerOutput,
-      providerOutputSha256:
-        EvidenceBenchmarkActivityCanonical.object(providerOutput),
+      processProvenanceSha256: process.sha256,
+      issuedAtUtc: "2026-07-29T01:00:00.000Z",
+      sealedInputsSha256: EvidenceBenchmarkActivityCanonical.object({
+        binding: observations.binding,
+        observationSha256: observations.observationSha256,
+        codebookSha256: observations.binding.codebookSha256,
+        responseIds: observations.responses.map((row) => row.responseId),
+        allowedEvidenceEventIds: observations.eventIds,
+        turnClass: `activity-rater-${side}`,
+      }),
     };
-    return {
+    const assignment: IEvidenceBenchmarkActivity.IRaterAssignment = {
+      ...assignmentBody,
+      assignmentSha256:
+        EvidenceBenchmarkActivityCanonical.object(assignmentBody),
+    };
+    const providerOutputSha256: string =
+      EvidenceBenchmarkActivityCanonical.object(providerOutput);
+    const executionFixture: ExecutionFixture = modelExecution(
+      observations.binding,
+      assignment,
+      providerOutputSha256,
+      process,
+      side === "a" ? 1_000 : 2_000,
+    );
+    const body = {
+      schemaVersion: 1 as const,
+      assignment,
+      assignmentSha256: assignment.assignmentSha256,
+      providerOutput,
+      providerOutputSha256,
+      execution: executionFixture.execution,
+    };
+    const artifact: IEvidenceBenchmarkActivity.IRaterArtifact = {
       ...body,
       artifactSha256: EvidenceBenchmarkActivityCanonical.object(body),
     };
+    EXECUTION_EVIDENCE.set(artifact, executionFixture.evidence);
+    return artifact;
   }
 
   function adjudicatorArtifact(
@@ -636,6 +971,15 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     right: IEvidenceBenchmarkActivity.IRaterArtifact,
     queue: readonly IEvidenceBenchmarkActivity.IAdjudicationQueueEntry[],
   ): IEvidenceBenchmarkActivity.IAdjudicatorArtifact {
+    const assignmentId: string = "activity-adjudicator-assignment";
+    const threadId: string = "adjudication-thread-c";
+    const sessionId: string = "adjudication-session-c";
+    const process: ProcessFixture = processIdentity(
+      assignmentId,
+      "activity-adjudicator",
+      sessionId,
+      threadId,
+    );
     const queueSha256: string =
       EvidenceBenchmarkActivityCanonical.object(queue);
     const raterArtifactSha256 = [
@@ -664,37 +1008,319 @@ export namespace EvidenceBenchmarkActivitySelfTest {
         itemId: entry.responseId,
         decision: index === 0 ? "rater_a" : "rater_b",
         confidence: 0.9,
-        rationale: `Fresh decision [[event:${index === 0 ? "event-a" : "event-b"}]].`,
+        rationale: `Fresh decision ${citation(observations, entry.responseId)}.`,
       })),
       status: "completed",
     };
+    const assignmentBody = {
+      schemaVersion: 1 as const,
+      issuer: "runner" as const,
+      assignmentId,
+      binding: observations.binding,
+      observationSha256: observations.observationSha256,
+      adjudicatorId: "adjudicator-c",
+      threadId,
+      sessionId,
+      model: "gpt-5.6-terra" as const,
+      effort: "high" as const,
+      raterArtifactSha256,
+      queueSha256,
+      allowedEvidenceEventIds: observations.eventIds,
+      processProvenanceSha256: process.sha256,
+      issuedAtUtc: "2026-07-29T01:01:00.000Z",
+      sealedInputsSha256,
+    };
+    const assignment: IEvidenceBenchmarkActivity.IAdjudicatorAssignment = {
+      ...assignmentBody,
+      assignmentSha256:
+        EvidenceBenchmarkActivityCanonical.object(assignmentBody),
+    };
+    const providerOutputSha256: string =
+      EvidenceBenchmarkActivityCanonical.object(providerOutput);
+    const executionFixture: ExecutionFixture = modelExecution(
+      observations.binding,
+      assignment,
+      providerOutputSha256,
+      process,
+      3_000,
+    );
     const body = {
       schemaVersion: 1 as const,
-      binding: observations.binding,
-      adjudicatorId: "adjudicator-c",
-      threadId: "adjudication-thread-c",
-      sessionId: "adjudication-session-c",
-      model: "gpt-5.6-terra",
-      effort: "high",
-      raterArtifactSha256,
+      assignment,
+      assignmentSha256: assignment.assignmentSha256,
       providerOutput,
-      providerOutputSha256:
-        EvidenceBenchmarkActivityCanonical.object(providerOutput),
+      providerOutputSha256,
+      execution: executionFixture.execution,
     };
-    return {
+    const artifact: IEvidenceBenchmarkActivity.IAdjudicatorArtifact = {
       ...body,
       artifactSha256: EvidenceBenchmarkActivityCanonical.object(body),
     };
+    EXECUTION_EVIDENCE.set(artifact, executionFixture.evidence);
+    return artifact;
   }
 
   function rehashRater(
     artifact: IEvidenceBenchmarkActivity.IRaterArtifact,
   ): void {
+    artifact.assignmentSha256 = artifact.assignment.assignmentSha256;
     artifact.providerOutputSha256 = EvidenceBenchmarkActivityCanonical.object(
       artifact.providerOutput,
     );
     const { artifactSha256: _ignored, ...body } = artifact;
     artifact.artifactSha256 = EvidenceBenchmarkActivityCanonical.object(body);
+  }
+
+  function rehashAssignment(
+    observations: IEvidenceBenchmarkActivity.IObservations,
+    assignment: IEvidenceBenchmarkActivity.IRaterAssignment,
+  ): void {
+    assignment.sealedInputsSha256 = EvidenceBenchmarkActivityCanonical.object({
+      binding: observations.binding,
+      observationSha256: observations.observationSha256,
+      codebookSha256: observations.binding.codebookSha256,
+      responseIds: observations.responses.map((row) => row.responseId),
+      allowedEvidenceEventIds: assignment.allowedEvidenceEventIds,
+      turnClass: assignment.turnClass,
+    });
+    const { assignmentSha256: _ignored, ...body } = assignment;
+    assignment.assignmentSha256 =
+      EvidenceBenchmarkActivityCanonical.object(body);
+  }
+
+  interface ProcessFixture {
+    bytes: Buffer;
+    sha256: string;
+  }
+
+  interface ExecutionFixture {
+    execution: IEvidenceBenchmarkActivity.IModelExecutionProvenance;
+    evidence: IEvidenceBenchmarkActivity.IModelExecutionEvidence;
+  }
+
+  function processIdentity(
+    assignmentId: string,
+    agentRole: "activity-rater-a" | "activity-rater-b" | "activity-adjudicator",
+    sessionId: string,
+    threadId: string,
+  ): ProcessFixture {
+    const body = {
+      schemaVersion: 1 as const,
+      provider: "openai" as const,
+      authenticationClass: "chatgpt" as const,
+      codexCliVersion: "0.145.0" as const,
+      codexExecutableSha256:
+        "83751f15cb6a0a7b97df67752c001e3fe1c20e18ffbfec3ff63567296205eb6c",
+      model: "gpt-5.6-terra" as const,
+      effort: "high" as const,
+      requestedServiceTierMode: "omitted" as const,
+      requestedServiceTier: null,
+      effectiveServiceTier: null,
+      assignmentId,
+      agentRole,
+      sessionId,
+      threadId,
+    };
+    const identity: IEvidenceBenchmarkActivity.IProcessIdentityArtifact = {
+      ...body,
+      identitySha256: EvidenceBenchmarkActivityCanonical.object(body),
+    };
+    const bytes: Buffer = Buffer.from(`${JSON.stringify(identity)}\n`, "utf8");
+    return {
+      bytes,
+      sha256: EvidenceBenchmarkActivityCanonical.sha256(bytes),
+    };
+  }
+
+  function modelExecution(
+    binding: IEvidenceBenchmarkActivity.IBinding,
+    assignment:
+      | IEvidenceBenchmarkActivity.IRaterAssignment
+      | IEvidenceBenchmarkActivity.IAdjudicatorAssignment,
+    providerOutputSha256: string,
+    process: ProcessFixture,
+    baseMonotonicNs: number,
+  ): ExecutionFixture {
+    const agentRole:
+      "activity-rater-a" | "activity-rater-b" | "activity-adjudicator" =
+      "turnClass" in assignment ? assignment.turnClass : "activity-adjudicator";
+    const turnId: string = `${agentRole}-turn`;
+    const responseId: string = `${agentRole}-response`;
+    const responseUsage = {
+      inputTokens: 10,
+      cachedInputTokens: 2,
+      cacheWriteInputTokens: 1,
+      outputTokens: 5,
+      reasoningOutputTokens: 2,
+      totalTokens: 15,
+    };
+    const rawResponseEnvelopeBytes: Buffer = Buffer.from(
+      `${JSON.stringify({
+        method: "rawResponse/completed",
+        params: {
+          responseId,
+          threadId: assignment.threadId,
+          turnId,
+          usage: responseUsage,
+          providerOutputSha256,
+        },
+      })}\n`,
+      "utf8",
+    );
+    const rawResponseEnvelopeSha256: string =
+      EvidenceBenchmarkActivityCanonical.sha256(rawResponseEnvelopeBytes);
+    const eventBodies: Record<string, unknown>[] = [
+      {
+        runId: binding.runId,
+        seq: 1,
+        utc: "2026-07-29T01:00:00.000Z",
+        monotonicNs: String(baseMonotonicNs),
+        phase: "reconciliation",
+        actor: "runner",
+        type: "activity_assignment_issued",
+        payload: {
+          assignmentSha256: assignment.assignmentSha256,
+          sessionId: assignment.sessionId,
+          threadId: assignment.threadId,
+        },
+        rawRef: null,
+        previousEventSha256: "0".repeat(64),
+      },
+      {
+        runId: binding.runId,
+        seq: 2,
+        utc: "2026-07-29T01:00:00.001Z",
+        monotonicNs: String(baseMonotonicNs + 100),
+        phase: "reconciliation",
+        actor: "app-server",
+        type: "activity_turn_started",
+        payload: {
+          assignmentSha256: assignment.assignmentSha256,
+          threadId: assignment.threadId,
+          turnId,
+        },
+        rawRef: null,
+        previousEventSha256: "",
+      },
+      {
+        runId: binding.runId,
+        seq: 3,
+        utc: "2026-07-29T01:00:00.002Z",
+        monotonicNs: String(baseMonotonicNs + 200),
+        phase: "reconciliation",
+        actor: "app-server",
+        type: "activity_raw_response_completed",
+        payload: {
+          providerOutputSha256,
+          responseId,
+          threadId: assignment.threadId,
+          turnId,
+        },
+        rawRef: {
+          direction: "server",
+          path: "logs/server.raw.jsonl",
+          byteOffset: 0,
+          byteLength: rawResponseEnvelopeBytes.byteLength,
+          sha256: rawResponseEnvelopeSha256,
+        },
+        previousEventSha256: "",
+      },
+    ];
+    const events: Record<string, unknown>[] = [];
+    let previous: string = "0".repeat(64);
+    for (const body of eventBodies) {
+      body.previousEventSha256 = previous;
+      const eventSha256: string =
+        EvidenceBenchmarkActivityJcs.eventSha256(body);
+      events.push({ ...body, eventSha256 });
+      previous = eventSha256;
+    }
+    const eventLedgerBytes: Buffer = Buffer.from(
+      `${events.map((event) => JSON.stringify(event)).join("\n")}\n`,
+      "utf8",
+    );
+    const rawEventId: string = events[2]!.eventSha256 as string;
+    const responseReceivedMonotonicNs: string = String(baseMonotonicNs + 200);
+    const responseReceivedAtUtc = "2026-07-29T01:00:00.002Z";
+    const usageLedgerBytes: Buffer = Buffer.from(
+      `${JSON.stringify({
+        exactUsageComplete: true,
+        responses: [
+          {
+            responseId,
+            threadId: assignment.threadId,
+            turnId,
+            phase: "grading",
+            receivedAtUtc: responseReceivedAtUtc,
+            receivedMonotonicNs: responseReceivedMonotonicNs,
+            rawEventId,
+            usage: responseUsage,
+          },
+        ],
+      })}\n`,
+      "utf8",
+    );
+    const body = {
+      schemaVersion: 1 as const,
+      issuer: "runner" as const,
+      executionSchemaPath:
+        "benchmark/protocol/schema/activity-execution.schema.json" as const,
+      executionSchemaSha256: binding.activityExecutionSchemaSha256,
+      assignmentSha256: assignment.assignmentSha256,
+      agentRole,
+      threadId: assignment.threadId,
+      sessionId: assignment.sessionId,
+      turnId,
+      responseId,
+      rawEventId,
+      assignmentEventId: events[0]!.eventSha256 as string,
+      turnStartedEventId: events[1]!.eventSha256 as string,
+      assignmentMonotonicNs: String(baseMonotonicNs),
+      turnStartedMonotonicNs: String(baseMonotonicNs + 100),
+      responseReceivedMonotonicNs,
+      responseReceivedAtUtc,
+      responseUsage,
+      providerOutputSha256,
+      rawResponseEnvelopeBytes: rawResponseEnvelopeBytes.byteLength,
+      rawResponseEnvelopePath: "logs/server.raw.jsonl" as const,
+      rawResponseEnvelopeByteOffset: 0,
+      rawResponseEnvelopeSha256,
+      processIdentitySchemaPath:
+        "benchmark/protocol/schema/activity-process-identity.schema.json" as const,
+      processIdentitySchemaSha256: binding.activityProcessIdentitySchemaSha256,
+      processIdentityArtifactPath: `benchmark/result/todo/plain/provenance/${agentRole}.identity.json`,
+      processIdentityArtifactBytes: process.bytes.byteLength,
+      processIdentityArtifactSha256: process.sha256,
+      eventLedgerSha256:
+        EvidenceBenchmarkActivityCanonical.sha256(eventLedgerBytes),
+      eventChainHeadSha256: previous,
+      usageLedgerSha256:
+        EvidenceBenchmarkActivityCanonical.sha256(usageLedgerBytes),
+    };
+    return {
+      execution: {
+        ...body,
+        executionSha256: EvidenceBenchmarkActivityCanonical.object(body),
+      },
+      evidence: {
+        eventLedgerBytes,
+        usageLedgerBytes,
+        processIdentityArtifactBytes: process.bytes,
+        rawResponseEnvelopeBytes,
+      },
+    };
+  }
+
+  function executionEvidence(
+    artifact:
+      | IEvidenceBenchmarkActivity.IRaterArtifact
+      | IEvidenceBenchmarkActivity.IAdjudicatorArtifact,
+  ): IEvidenceBenchmarkActivity.IModelExecutionEvidence {
+    const result:
+      IEvidenceBenchmarkActivity.IModelExecutionEvidence | undefined =
+      EXECUTION_EVIDENCE.get(artifact);
+    assert.ok(result);
+    return result;
   }
 
   function usageLedger(
@@ -707,6 +1333,10 @@ export namespace EvidenceBenchmarkActivitySelfTest {
           responseId: row.responseId,
           threadId: row.threadId,
           turnId: row.turnId,
+          phase: row.phase,
+          receivedAtUtc: row.receivedAtUtc,
+          receivedMonotonicNs: row.receivedMonotonicNs,
+          rawEventId: row.rawEventId,
           usage: row.usage,
         })),
       })}\n`,
@@ -714,8 +1344,89 @@ export namespace EvidenceBenchmarkActivitySelfTest {
     );
   }
 
+  interface EventFixture {
+    bytes: Buffer;
+    head: string;
+    ids: ReadonlyMap<string, string>;
+  }
+
+  function eventLedger(eventIds: readonly string[]): EventFixture {
+    let previous: string = "0".repeat(64);
+    const ids: Map<string, string> = new Map();
+    const events: Record<string, unknown>[] = eventIds.map(
+      (eventId, index): Record<string, unknown> => {
+        const body: Record<string, unknown> = {
+          runId: "todo-plain-r1",
+          seq: index + 1,
+          utc: `2026-07-29T00:00:00.${String(index).padStart(3, "0")}Z`,
+          monotonicNs: String(100 + index),
+          phase: "agent",
+          actor: "app-server",
+          type: "raw_event_observed",
+          payload: { eventId },
+          rawRef: null,
+          previousEventSha256: previous,
+        };
+        const eventSha256: string =
+          EvidenceBenchmarkActivityJcs.eventSha256(body);
+        ids.set(eventId, eventSha256);
+        previous = eventSha256;
+        return { ...body, eventSha256 };
+      },
+    );
+    return {
+      bytes: Buffer.from(
+        `${events.map((event) => JSON.stringify(event)).join("\n")}\n`,
+        "utf8",
+      ),
+      head: previous,
+      ids,
+    };
+  }
+
+  function activityLedger(
+    eventBytes: Uint8Array,
+    eventHead: string,
+    usageBytes: Uint8Array,
+    wall: IEvidenceBenchmarkActivity.IWallInterval,
+    items: readonly IEvidenceBenchmarkActivity.IItemObservation[],
+    responseCount: number,
+  ): Buffer {
+    return Buffer.from(
+      `${JSON.stringify({
+        schemaVersion: 1,
+        runId: "todo-plain-r1",
+        eventLedgerSha256:
+          EvidenceBenchmarkActivityCanonical.sha256(eventBytes),
+        eventChainHeadSha256: eventHead,
+        usageReportSha256:
+          EvidenceBenchmarkActivityCanonical.sha256(usageBytes),
+        eventCaptureComplete: true,
+        eventChainClosed: true,
+        activityCaptureComplete: true,
+        activityLedgerClosed: true,
+        expectedResponseCount: responseCount,
+        expectedItemObservationCount: items.length,
+        wall,
+        items,
+      })}\n`,
+      "utf8",
+    );
+  }
+
   function digest(label: string): string {
     return EvidenceBenchmarkActivityCanonical.sha256(label);
+  }
+
+  function citation(
+    observations: IEvidenceBenchmarkActivity.IObservations,
+    responseId: string,
+  ): string {
+    const response = observations.responses.find(
+      (row) => row.responseId === responseId,
+    );
+    assert.ok(response);
+    return `[[event:${response.rawEventId}]]`;
   }
 
   function writeBytes(location: string, content: string): Buffer {

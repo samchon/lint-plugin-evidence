@@ -50,7 +50,7 @@ export namespace EvidenceBenchmarkActivityCodebook {
       lowConfidenceBelow: 0.7,
       lowPeakProbabilityBelowBasisPoints: 7_000,
       highInfluenceProviderTokenShareBasisPoints: 100,
-      evidenceMarkerPattern: "[[event:<event-id>]]",
+      evidenceMarkerPattern: "[[event:<event-sha256>]]",
     },
     rules: [
       "phase is determined before semantic purpose",

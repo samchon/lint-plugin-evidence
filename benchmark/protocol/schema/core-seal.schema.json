@@ -13,6 +13,7 @@
     "coreTreeSha256",
     "eventChainHeadSha256",
     "usageReportSha256",
+    "activityLedgerSha256",
     "costReportSha256",
     "tDoneSnapshotManifestSha256",
     "tDrySnapshotManifestSha256",
@@ -48,6 +49,9 @@
       "$ref": "#/$defs/sha256"
     },
     "usageReportSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "activityLedgerSha256": {
       "$ref": "#/$defs/sha256"
     },
     "costReportSha256": {

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/activity-process-identity.schema.json",
+  "title": "Exact activity model process identity",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "provider",
+    "authenticationClass",
+    "codexCliVersion",
+    "codexExecutableSha256",
+    "model",
+    "effort",
+    "requestedServiceTierMode",
+    "requestedServiceTier",
+    "effectiveServiceTier",
+    "assignmentId",
+    "agentRole",
+    "sessionId",
+    "threadId",
+    "identitySha256"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "provider": {
+      "const": "openai"
+    },
+    "authenticationClass": {
+      "const": "chatgpt"
+    },
+    "codexCliVersion": {
+      "const": "0.145.0"
+    },
+    "codexExecutableSha256": {
+      "const": "83751f15cb6a0a7b97df67752c001e3fe1c20e18ffbfec3ff63567296205eb6c"
+    },
+    "model": {
+      "const": "gpt-5.6-terra"
+    },
+    "effort": {
+      "const": "high"
+    },
+    "requestedServiceTierMode": {
+      "const": "omitted"
+    },
+    "requestedServiceTier": {
+      "const": null
+    },
+    "effectiveServiceTier": {
+      "const": null
+    },
+    "assignmentId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agentRole": {
+      "enum": [
+        "activity-rater-a",
+        "activity-rater-b",
+        "activity-adjudicator"
+      ]
+    },
+    "sessionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "threadId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "identitySha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

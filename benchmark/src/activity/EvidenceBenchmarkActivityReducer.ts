@@ -20,8 +20,17 @@ export namespace EvidenceBenchmarkActivityReducer {
       IEvidenceBenchmarkActivity.IRaterArtifact,
     ];
 
+    /** Exact runner evidence for both rater executions. */
+    raterEvidence: readonly [
+      IEvidenceBenchmarkActivity.IModelExecutionEvidence,
+      IEvidenceBenchmarkActivity.IModelExecutionEvidence,
+    ];
+
     /** Optional fresh adjudicator artifact for the deterministic queue. */
     adjudicator?: IEvidenceBenchmarkActivity.IAdjudicatorArtifact;
+
+    /** Exact runner evidence for the optional adjudicator execution. */
+    adjudicatorEvidence?: IEvidenceBenchmarkActivity.IModelExecutionEvidence;
   }
 
   interface IResolution {
@@ -51,11 +60,13 @@ export namespace EvidenceBenchmarkActivityReducer {
       EvidenceBenchmarkActivityJudgments.admitRater(
         input.observations,
         input.raters[0],
+        input.raterEvidence[0],
       );
     const right: Judgments.IAdmittedRater =
       EvidenceBenchmarkActivityJudgments.admitRater(
         input.observations,
         input.raters[1],
+        input.raterEvidence[1],
       );
     EvidenceBenchmarkActivityJudgments.independent(left, right);
     const queue: IEvidenceBenchmarkActivity.IAdjudicationQueueEntry[] =
@@ -66,12 +77,19 @@ export namespace EvidenceBenchmarkActivityReducer {
     > =
       input.adjudicator === undefined
         ? new Map()
-        : EvidenceBenchmarkActivityJudgments.admitAdjudicator(
-            input.observations,
-            [left, right],
-            queue,
-            input.adjudicator,
-          );
+        : input.adjudicatorEvidence === undefined
+          ? (() => {
+              throw new Error(
+                "Activity adjudicator lacks exact execution evidence.",
+              );
+            })()
+          : EvidenceBenchmarkActivityJudgments.admitAdjudicator(
+              input.observations,
+              [left, right],
+              queue,
+              input.adjudicator,
+              input.adjudicatorEvidence,
+            );
     const queued: Set<string> = new Set(queue.map((entry) => entry.responseId));
     const resolutions: Map<string, IResolution> = new Map();
     for (const response of input.observations.responses)
@@ -103,7 +121,12 @@ export namespace EvidenceBenchmarkActivityReducer {
     const burdenPoint: Map<IEvidenceBenchmarkActivity.CausalRole, Numerator> =
       roleNumeratorTable();
     const unresolvedResponseIds: string[] = [];
-    let hasNullUsage: boolean = !input.observations.sourceExactUsageComplete;
+    let hasNullUsage: boolean =
+      !input.observations.sourceExactUsageComplete ||
+      !input.observations.sourceEventCaptureComplete ||
+      !input.observations.sourceEventChainClosed ||
+      !input.observations.sourceActivityCaptureComplete ||
+      !input.observations.sourceActivityLedgerClosed;
     for (const response of input.observations.responses) {
       const resolution: IResolution = requiredResolution(
         resolutions,

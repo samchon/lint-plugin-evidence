@@ -216,6 +216,15 @@
         "findingLocalValidationSha256",
         "verificationProviderSchemaSha256",
         "verificationLocalValidationSha256",
+        "coreSealSchemaSha256",
+        "usageReportSchemaSha256",
+        "activityCodebookSha256",
+        "activityAssignmentSchemaSha256",
+        "activityProcessIdentitySchemaSha256",
+        "activityExecutionSchemaSha256",
+        "activityLedgerSchemaSha256",
+        "activityObservationSchemaSha256",
+        "activityReportSchemaSha256",
         "promptSha256",
         "goalSha256",
         "completionChallengeSha256",
@@ -298,6 +307,33 @@
         },
         "verificationLocalValidationSha256": {
           "const": "a5bd8cbb160963f4e4f205620f2d34378f73e782cdb4005666c9d33224741ee6"
+        },
+        "coreSealSchemaSha256": {
+          "const": "ba2c4c975149c1b2aa46d834a977049b4b690ef703680d12a19f63aa6364dd32"
+        },
+        "usageReportSchemaSha256": {
+          "const": "bcb33bc49584e07ccb3efe4f3f29413b09bca5096d7f985f067d085125f72886"
+        },
+        "activityCodebookSha256": {
+          "const": "281741dfbe30931f17910c88a0998a5a49effd0ca11546431fefe18b647e9517"
+        },
+        "activityAssignmentSchemaSha256": {
+          "const": "4631758e48d986903a0f129c07ceb718ff303529963995b157f90f3e5e0b0053"
+        },
+        "activityProcessIdentitySchemaSha256": {
+          "const": "3ad10f6b8edff7773ff9b056c7cb0380e9bfb90b51c843125059af82758b31b8"
+        },
+        "activityExecutionSchemaSha256": {
+          "const": "7201a9ec92f0c4f73dc8d14b0d91c9779491dab1895ca2fca693d43c847baf80"
+        },
+        "activityLedgerSchemaSha256": {
+          "const": "f7622bd0100b3768e77c4571863c971a60a5462b161b35973c72358575d5693a"
+        },
+        "activityObservationSchemaSha256": {
+          "const": "9946d6e44e89e0fa19cf341d2bfdb7e91d29f7657c229414e95a0b4938254cc4"
+        },
+        "activityReportSchemaSha256": {
+          "const": "cd437325b8592d3c244ea3496ec78f907a7d00d109684461c18f8088a5266ae7"
         },
         "promptSha256": {
           "const": "d538f0697e4f7d9eb5903b292c70a0fc6f034801f8c8554ca9c181a3a143bfa1"

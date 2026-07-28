@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/activity-execution.schema.json",
+  "title": "Runner-owned exact activity model execution provenance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "issuer",
+    "executionSchemaPath",
+    "executionSchemaSha256",
+    "assignmentSha256",
+    "agentRole",
+    "threadId",
+    "sessionId",
+    "turnId",
+    "responseId",
+    "rawEventId",
+    "assignmentEventId",
+    "turnStartedEventId",
+    "assignmentMonotonicNs",
+    "turnStartedMonotonicNs",
+    "responseReceivedMonotonicNs",
+    "responseReceivedAtUtc",
+    "responseUsage",
+    "providerOutputSha256",
+    "rawResponseEnvelopeBytes",
+    "rawResponseEnvelopePath",
+    "rawResponseEnvelopeByteOffset",
+    "rawResponseEnvelopeSha256",
+    "processIdentitySchemaPath",
+    "processIdentitySchemaSha256",
+    "processIdentityArtifactPath",
+    "processIdentityArtifactBytes",
+    "processIdentityArtifactSha256",
+    "eventLedgerSha256",
+    "eventChainHeadSha256",
+    "usageLedgerSha256",
+    "executionSha256"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "issuer": {
+      "const": "runner"
+    },
+    "executionSchemaPath": {
+      "const": "benchmark/protocol/schema/activity-execution.schema.json"
+    },
+    "executionSchemaSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "assignmentSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "agentRole": {
+      "enum": [
+        "activity-rater-a",
+        "activity-rater-b",
+        "activity-adjudicator"
+      ]
+    },
+    "threadId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sessionId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "turnId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "responseId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rawEventId": {
+      "$ref": "#/$defs/sha256"
+    },
+    "assignmentEventId": {
+      "$ref": "#/$defs/sha256"
+    },
+    "turnStartedEventId": {
+      "$ref": "#/$defs/sha256"
+    },
+    "assignmentMonotonicNs": {
+      "$ref": "#/$defs/nanoseconds"
+    },
+    "turnStartedMonotonicNs": {
+      "$ref": "#/$defs/nanoseconds"
+    },
+    "responseReceivedMonotonicNs": {
+      "$ref": "#/$defs/nanoseconds"
+    },
+    "responseReceivedAtUtc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "responseUsage": {
+      "$ref": "#/$defs/tokens"
+    },
+    "providerOutputSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "rawResponseEnvelopeBytes": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "rawResponseEnvelopePath": {
+      "const": "logs/server.raw.jsonl"
+    },
+    "rawResponseEnvelopeByteOffset": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "rawResponseEnvelopeSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "processIdentitySchemaPath": {
+      "const": "benchmark/protocol/schema/activity-process-identity.schema.json"
+    },
+    "processIdentitySchemaSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "processIdentityArtifactPath": {
+      "type": "string",
+      "pattern": "^[^\\\\/][^\\\\]*$"
+    },
+    "processIdentityArtifactBytes": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "processIdentityArtifactSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "eventLedgerSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "eventChainHeadSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "usageLedgerSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "executionSha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "nanoseconds": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)$"
+    },
+    "tokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inputTokens",
+        "cachedInputTokens",
+        "cacheWriteInputTokens",
+        "outputTokens",
+        "reasoningOutputTokens",
+        "totalTokens"
+      ],
+      "properties": {
+        "inputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cachedInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cacheWriteInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reasoningOutputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "totalTokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

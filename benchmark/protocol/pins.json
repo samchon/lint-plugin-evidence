@@ -256,6 +256,57 @@
       }
     ]
   },
+  "activityAttribution": {
+    "codebookSourcePath": "benchmark/src/activity/EvidenceBenchmarkActivityCodebook.ts",
+    "codebookSourceBytes": 2709,
+    "codebookSourceSha256": "1db8621a1f71ce45cf555f1cc8e610f9646ba16ce21fc16d9f8e91c0d8f58a91",
+    "codebookCanonicalObjectSha256": "281741dfbe30931f17910c88a0998a5a49effd0ca11546431fefe18b647e9517",
+    "assignmentSchema": {
+      "path": "benchmark/protocol/schema/activity-assignment.schema.json",
+      "bytes": 6404,
+      "sha256": "4631758e48d986903a0f129c07ceb718ff303529963995b157f90f3e5e0b0053"
+    },
+    "processIdentitySchema": {
+      "path": "benchmark/protocol/schema/activity-process-identity.schema.json",
+      "bytes": 1782,
+      "sha256": "3ad10f6b8edff7773ff9b056c7cb0380e9bfb90b51c843125059af82758b31b8"
+    },
+    "executionSchema": {
+      "path": "benchmark/protocol/schema/activity-execution.schema.json",
+      "bytes": 4691,
+      "sha256": "7201a9ec92f0c4f73dc8d14b0d91c9779491dab1895ca2fca693d43c847baf80"
+    },
+    "ledgerSchema": {
+      "path": "benchmark/protocol/schema/activity-ledger.schema.json",
+      "bytes": 4610,
+      "sha256": "f7622bd0100b3768e77c4571863c971a60a5462b161b35973c72358575d5693a"
+    },
+    "observationSchema": {
+      "path": "benchmark/protocol/schema/activity-observation.schema.json",
+      "bytes": 7581,
+      "sha256": "9946d6e44e89e0fa19cf341d2bfdb7e91d29f7657c229414e95a0b4938254cc4"
+    },
+    "reportSchema": {
+      "path": "benchmark/protocol/schema/activity-report.schema.json",
+      "bytes": 11052,
+      "sha256": "cd437325b8592d3c244ea3496ec78f907a7d00d109684461c18f8088a5266ae7"
+    },
+    "coreSealSchema": {
+      "path": "benchmark/protocol/schema/core-seal.schema.json",
+      "bytes": 1934,
+      "sha256": "ba2c4c975149c1b2aa46d834a977049b4b690ef703680d12a19f63aa6364dd32"
+    },
+    "usageReportSchema": {
+      "path": "benchmark/protocol/schema/usage-report.schema.json",
+      "bytes": 5593,
+      "sha256": "bcb33bc49584e07ccb3efe4f3f29413b09bca5096d7f985f067d085125f72886"
+    },
+    "semanticFixturePath": "benchmark/protocol/fixtures/activity-attribution/cases.json",
+    "exactByteDigestAlgorithm": "sha256(exact-bytes)",
+    "eventChainAlgorithm": "sha256-rfc8785-event-without-eventSha256-v1",
+    "canonicalObjectDigestAlgorithm": "sha256(utf8-bytewise-key-order-json-lf)",
+    "semanticQuantitiesAreEstimates": true
+  },
   "subjectFreeze": {
     "path": "benchmark/protocol/subject-freeze-manifest.json",
     "bytes": 2737,

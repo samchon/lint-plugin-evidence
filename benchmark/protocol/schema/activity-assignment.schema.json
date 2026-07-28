@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/activity-assignment.schema.json",
+  "title": "Runner-issued activity rating or adjudication assignment",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/rater"
+    },
+    {
+      "$ref": "#/$defs/adjudicator"
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "commonProperties": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "issuer": {
+          "const": "runner"
+        },
+        "assignmentId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "binding": {
+          "$ref": "activity-observation.schema.json#/$defs/binding"
+        },
+        "observationSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "model": {
+          "const": "gpt-5.6-terra"
+        },
+        "effort": {
+          "const": "high"
+        },
+        "threadId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "allowedEvidenceEventIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/sha256"
+          }
+        },
+        "processProvenanceSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "issuedAtUtc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sealedInputsSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "assignmentSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "rater": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "issuer",
+        "assignmentId",
+        "binding",
+        "observationSha256",
+        "codebookSha256",
+        "raterId",
+        "threadId",
+        "sessionId",
+        "model",
+        "effort",
+        "turnClass",
+        "responseIds",
+        "allowedEvidenceEventIds",
+        "otherRaterOutputVisible",
+        "aggregateArmResultsVisible",
+        "processProvenanceSha256",
+        "issuedAtUtc",
+        "sealedInputsSha256",
+        "assignmentSha256"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "issuer": {
+          "const": "runner"
+        },
+        "assignmentId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "binding": {
+          "$ref": "activity-observation.schema.json#/$defs/binding"
+        },
+        "observationSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "codebookSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "raterId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "threadId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "const": "gpt-5.6-terra"
+        },
+        "effort": {
+          "const": "high"
+        },
+        "turnClass": {
+          "enum": [
+            "activity-rater-a",
+            "activity-rater-b"
+          ]
+        },
+        "responseIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "allowedEvidenceEventIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/sha256"
+          }
+        },
+        "otherRaterOutputVisible": {
+          "const": false
+        },
+        "aggregateArmResultsVisible": {
+          "const": false
+        },
+        "processProvenanceSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "issuedAtUtc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sealedInputsSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "assignmentSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "adjudicator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "issuer",
+        "assignmentId",
+        "binding",
+        "observationSha256",
+        "adjudicatorId",
+        "threadId",
+        "sessionId",
+        "model",
+        "effort",
+        "raterArtifactSha256",
+        "queueSha256",
+        "allowedEvidenceEventIds",
+        "processProvenanceSha256",
+        "issuedAtUtc",
+        "sealedInputsSha256",
+        "assignmentSha256"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "issuer": {
+          "const": "runner"
+        },
+        "assignmentId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "binding": {
+          "$ref": "activity-observation.schema.json#/$defs/binding"
+        },
+        "observationSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "adjudicatorId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "threadId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "const": "gpt-5.6-terra"
+        },
+        "effort": {
+          "const": "high"
+        },
+        "raterArtifactSha256": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/sha256"
+          }
+        },
+        "queueSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "allowedEvidenceEventIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/sha256"
+          }
+        },
+        "processProvenanceSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "issuedAtUtc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sealedInputsSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "assignmentSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    }
+  }
+}

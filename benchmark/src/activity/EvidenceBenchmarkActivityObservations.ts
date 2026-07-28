@@ -1,5 +1,6 @@
 import { EvidenceBenchmarkActivityCanonical } from "./EvidenceBenchmarkActivityCanonical.ts";
 import { EvidenceBenchmarkActivityCodebook } from "./EvidenceBenchmarkActivityCodebook.ts";
+import { EvidenceBenchmarkActivityJcs } from "./EvidenceBenchmarkActivityJcs.ts";
 import { EvidenceBenchmarkActivityRegistry } from "./EvidenceBenchmarkActivityRegistry.ts";
 import { EvidenceBenchmarkActivityStrictJson } from "./EvidenceBenchmarkActivityStrictJson.ts";
 import type { IEvidenceBenchmarkActivity } from "./IEvidenceBenchmarkActivity.ts";
@@ -25,6 +26,12 @@ export namespace EvidenceBenchmarkActivityObservations {
 
     /** Exact retained source usage-ledger bytes. */
     sourceUsageLedgerBytes: Uint8Array;
+
+    /** Exact retained append-only semantic event-ledger bytes. */
+    sourceEventLedgerBytes: Uint8Array;
+
+    /** Exact retained runner-owned activity lifecycle-ledger bytes. */
+    sourceActivityLedgerBytes: Uint8Array;
 
     /** Complete cell wall in monotonic nanoseconds. */
     wall: IEvidenceBenchmarkActivity.IWallInterval;
@@ -69,17 +76,43 @@ export namespace EvidenceBenchmarkActivityObservations {
       input.binding.sourceUsageLedgerSha256,
       "source usage ledger",
     );
+    exactDigest(
+      input.sourceEventLedgerBytes,
+      input.binding.sourceEventLedgerSha256,
+      "source event ledger",
+    );
+    exactDigest(
+      input.sourceActivityLedgerBytes,
+      input.binding.sourceActivityLedgerSha256,
+      "source activity ledger",
+    );
     retainedChain(input);
     wall(input.wall);
     const ledger: ISourceLedger = sourceLedger(input.sourceUsageLedgerBytes);
-    responses(input.responses, ledger.responses);
-    items(input.items, input.responses, input.wall);
+    const eventLedger: IEventLedger = events(
+      input.sourceEventLedgerBytes,
+      input.binding,
+    );
+    const activityLedger: IActivityLedger = activity(
+      input.sourceActivityLedgerBytes,
+      input.binding,
+      input.wall,
+      input.items,
+      input.responses.length,
+    );
+    responses(input.responses, ledger.responses, eventLedger.eventIds);
+    items(input.items, input.responses, input.wall, eventLedger.eventIds);
     const body = {
       schemaVersion: 1 as const,
       binding: input.binding,
       wall: input.wall,
       responses: input.responses,
       sourceExactUsageComplete: ledger.exactUsageComplete,
+      sourceEventCaptureComplete: activityLedger.eventCaptureComplete,
+      sourceEventChainClosed: activityLedger.eventChainClosed,
+      eventIds: [...eventLedger.eventIds],
+      sourceActivityCaptureComplete: activityLedger.activityCaptureComplete,
+      sourceActivityLedgerClosed: activityLedger.activityLedgerClosed,
       items: input.items,
     };
     return {
@@ -153,6 +186,17 @@ export namespace EvidenceBenchmarkActivityObservations {
     responses: readonly unknown[];
   }
 
+  interface IEventLedger {
+    eventIds: ReadonlySet<string>;
+  }
+
+  interface IActivityLedger {
+    eventCaptureComplete: boolean;
+    eventChainClosed: boolean;
+    activityCaptureComplete: boolean;
+    activityLedgerClosed: boolean;
+  }
+
   function sourceLedger(bytes: Uint8Array): ISourceLedger {
     const root: unknown = EvidenceBenchmarkActivityStrictJson.parse(
       bytes,
@@ -181,14 +225,14 @@ export namespace EvidenceBenchmarkActivityObservations {
     );
     if (
       core.schemaVersion !== 1 ||
-      core.complete !== true ||
       core.runId !== input.binding.runId ||
       core.manifestSha256 !== input.binding.runManifestSha256 ||
-      core.usageSha256 !== input.binding.sourceUsageLedgerSha256 ||
-      core.finalEventSha256 !== input.binding.eventChainTerminalSha256
+      core.usageReportSha256 !== input.binding.sourceUsageLedgerSha256 ||
+      core.eventChainHeadSha256 !== input.binding.eventChainTerminalSha256 ||
+      core.activityLedgerSha256 !== input.binding.sourceActivityLedgerSha256
     )
       throw new Error(
-        "Parent core seal does not bind this run manifest, usage ledger, and event chain.",
+        "Parent core seal does not bind this run manifest, usage ledger, event chain, and activity ledger.",
       );
     const run: Record<string, unknown> = jsonObject(
       input.runManifestBytes,
@@ -213,7 +257,11 @@ export namespace EvidenceBenchmarkActivityObservations {
       experiment.protocolRevisionSha256 !==
         input.binding.protocolRevisionSha256 ||
       runner.providerOutputRegistrySha256 !==
-        input.binding.providerOutputRegistrySha256
+        input.binding.providerOutputRegistrySha256 ||
+      runner.activityProcessIdentitySchemaSha256 !==
+        input.binding.activityProcessIdentitySchemaSha256 ||
+      runner.activityExecutionSchemaSha256 !==
+        input.binding.activityExecutionSchemaSha256
     )
       throw new Error(
         "Run manifest does not bind this run, block, protocol, registry, and materialization input.",
@@ -266,6 +314,7 @@ export namespace EvidenceBenchmarkActivityObservations {
   function responses(
     observations: readonly IEvidenceBenchmarkActivity.IResponseUsage[],
     ledger: readonly unknown[],
+    eventIds: ReadonlySet<string>,
   ): void {
     if (observations.length !== ledger.length)
       throw new Error(
@@ -294,11 +343,13 @@ export namespace EvidenceBenchmarkActivityObservations {
         );
       if (
         row.threadId !== counterpart.threadId ||
-        row.turnId !== counterpart.turnId
+        row.turnId !== counterpart.turnId ||
+        row.phase !== counterpart.phase ||
+        row.receivedAtUtc !== counterpart.receivedAtUtc ||
+        row.receivedMonotonicNs !== counterpart.receivedMonotonicNs ||
+        row.rawEventId !== counterpart.rawEventId
       )
-        throw new Error(
-          `Source response ${responseId} thread or turn identity differs.`,
-        );
+        throw new Error(`Source response ${responseId} provenance differs.`);
       if (counterpart.usage === null) {
         if (row.usage !== null)
           throw new Error(
@@ -326,6 +377,10 @@ export namespace EvidenceBenchmarkActivityObservations {
             );
       }
       text(counterpart.rawEventId, `${responseId}.rawEventId`);
+      if (!eventIds.has(counterpart.rawEventId))
+        throw new Error(
+          `Source response ${responseId} raw event is outside the retained chain.`,
+        );
       nanoseconds(
         counterpart.receivedMonotonicNs,
         `${responseId}.receivedMonotonicNs`,
@@ -355,6 +410,7 @@ export namespace EvidenceBenchmarkActivityObservations {
     observations: readonly IEvidenceBenchmarkActivity.IItemObservation[],
     responses: readonly IEvidenceBenchmarkActivity.IResponseUsage[],
     interval: IEvidenceBenchmarkActivity.IWallInterval,
+    eventIds: ReadonlySet<string>,
   ): void {
     const responseIds: Set<string> = new Set(
       responses.map((response) => response.responseId),
@@ -435,7 +491,105 @@ export namespace EvidenceBenchmarkActivityObservations {
       item.rawEventIds.forEach((eventId) =>
         text(eventId, `${item.observationId}.rawEventIds`),
       );
+      if (item.rawEventIds.some((eventId) => !eventIds.has(eventId)))
+        throw new Error(
+          `${item.observationId} cites an event outside the retained chain.`,
+        );
     }
+  }
+
+  function events(
+    bytes: Uint8Array,
+    binding: IEvidenceBenchmarkActivity.IBinding,
+  ): IEventLedger {
+    const content: string = new TextDecoder("utf-8", { fatal: true }).decode(
+      bytes,
+    );
+    if (!content.endsWith("\n"))
+      throw new Error("Source event ledger must end with LF.");
+    const lines: string[] = content.slice(0, -1).split("\n");
+    if (lines.length === 0 || lines.some((line) => line.length === 0))
+      throw new Error("Source event ledger must contain nonempty JSONL rows.");
+    const eventIds: Set<string> = new Set();
+    let previous: string = "0".repeat(64);
+    for (const [index, line] of lines.entries()) {
+      const event: Record<string, unknown> = record(
+        EvidenceBenchmarkActivityStrictJson.parse(
+          Buffer.from(line, "utf8"),
+          `source event ledger line ${index + 1}`,
+        ),
+        `source event ledger line ${index + 1}`,
+      );
+      const eventSha256: string = sha256(
+        event.eventSha256,
+        `source event ledger line ${index + 1}.eventSha256`,
+      );
+      if (
+        event.runId !== binding.runId ||
+        event.seq !== index + 1 ||
+        event.previousEventSha256 !== previous ||
+        EvidenceBenchmarkActivityJcs.eventSha256(event) !== eventSha256
+      )
+        throw new Error(
+          `Source event ledger chain differs at line ${index + 1}.`,
+        );
+      if (eventIds.has(eventSha256))
+        throw new Error(`Source event ledger repeats ${eventSha256}.`);
+      eventIds.add(eventSha256);
+      previous = eventSha256;
+    }
+    if (previous !== binding.eventChainTerminalSha256)
+      throw new Error("Source event ledger terminal hash differs.");
+    return { eventIds };
+  }
+
+  function activity(
+    bytes: Uint8Array,
+    binding: IEvidenceBenchmarkActivity.IBinding,
+    interval: IEvidenceBenchmarkActivity.IWallInterval,
+    observations: readonly IEvidenceBenchmarkActivity.IItemObservation[],
+    responseCount: number,
+  ): IActivityLedger {
+    const source: Record<string, unknown> = jsonObject(
+      bytes,
+      "source activity ledger",
+    );
+    if (
+      source.schemaVersion !== 1 ||
+      source.runId !== binding.runId ||
+      source.eventLedgerSha256 !== binding.sourceEventLedgerSha256 ||
+      source.eventChainHeadSha256 !== binding.eventChainTerminalSha256 ||
+      source.usageReportSha256 !== binding.sourceUsageLedgerSha256
+    )
+      throw new Error(
+        "Source activity ledger is not bound to the retained run.",
+      );
+    for (const field of [
+      "eventCaptureComplete",
+      "eventChainClosed",
+      "activityCaptureComplete",
+      "activityLedgerClosed",
+    ] as const)
+      if (typeof source[field] !== "boolean")
+        throw new Error(`Source activity ledger ${field} must be boolean.`);
+    if (
+      source.expectedResponseCount !== responseCount ||
+      source.expectedItemObservationCount !== observations.length
+    )
+      throw new Error("Source activity ledger expected counts differ.");
+    if (
+      EvidenceBenchmarkActivityCanonical.stringify(source.wall) !==
+        EvidenceBenchmarkActivityCanonical.stringify(interval) ||
+      EvidenceBenchmarkActivityCanonical.stringify(source.items) !==
+        EvidenceBenchmarkActivityCanonical.stringify(observations)
+    )
+      throw new Error("Source activity ledger wall or items differ.");
+    return {
+      eventCaptureComplete: source.eventCaptureComplete as boolean,
+      eventChainClosed: source.eventChainClosed as boolean,
+      activityCaptureComplete: source.activityCaptureComplete as boolean,
+      activityLedgerClosed: source.activityLedgerClosed as boolean,
+    };
   }
 
   function wall(input: IEvidenceBenchmarkActivity.IWallInterval): void {
@@ -479,6 +633,12 @@ export namespace EvidenceBenchmarkActivityObservations {
   function text(input: unknown, label: string): string {
     if (typeof input !== "string" || input.length === 0)
       throw new Error(`${label} must be a non-empty string.`);
+    return input;
+  }
+
+  function sha256(input: unknown, label: string): string {
+    if (typeof input !== "string" || !/^[a-f0-9]{64}$/.test(input))
+      throw new Error(`${label} must be a lowercase SHA-256.`);
     return input;
   }
 

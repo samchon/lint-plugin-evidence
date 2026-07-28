@@ -155,6 +155,12 @@ export namespace IEvidenceBenchmarkActivity {
     /** Exact-byte identity of the source usage ledger. */
     sourceUsageLedgerSha256: string;
 
+    /** Exact-byte identity of the append-only semantic event ledger. */
+    sourceEventLedgerSha256: string;
+
+    /** Exact-byte identity of the runner-owned activity lifecycle ledger. */
+    sourceActivityLedgerSha256: string;
+
     /** Terminal identity of the append-only semantic event chain. */
     eventChainTerminalSha256: string;
 
@@ -172,6 +178,12 @@ export namespace IEvidenceBenchmarkActivity {
 
     /** Local fresh adjudication schema identity. */
     adjudicationLocalSchemaSha256: string;
+
+    /** Local runner process-identity schema identity. */
+    activityProcessIdentitySchemaSha256: string;
+
+    /** Local model-execution provenance schema identity. */
+    activityExecutionSchemaSha256: string;
   }
 
   /** Link quality between an item lifecycle and an upstream response. */
@@ -248,11 +260,89 @@ export namespace IEvidenceBenchmarkActivity {
     /** Source-ledger completeness flag retained without reconstruction. */
     sourceExactUsageComplete: boolean;
 
+    /** Runner assertion that every semantic event was durably captured. */
+    sourceEventCaptureComplete: boolean;
+
+    /** Runner assertion that the event chain was closed before sealing. */
+    sourceEventChainClosed: boolean;
+
+    /** Catalog-order identities of every verified event-chain member. */
+    eventIds: readonly string[];
+
+    /** Runner assertion that every activity lifecycle was durably captured. */
+    sourceActivityCaptureComplete: boolean;
+
+    /** Runner assertion that the activity ledger was closed before sealing. */
+    sourceActivityLedgerClosed: boolean;
+
     /** Exact and censored item lifecycle observations. */
     items: readonly IItemObservation[];
 
     /** Canonical identity of this observation artifact without this field. */
     observationSha256: string;
+  }
+
+  /** Runner-issued sealed input assignment for one independent rater. */
+  export interface IRaterAssignment {
+    /** Assignment schema revision. */
+    schemaVersion: 1;
+
+    /** Fixed owner of the assignment record. */
+    issuer: "runner";
+
+    /** Globally unique assignment identity. */
+    assignmentId: string;
+
+    /** Immutable activity binding. */
+    binding: IBinding;
+
+    /** Exact observation artifact supplied to the rater. */
+    observationSha256: string;
+
+    /** Frozen codebook supplied to the rater. */
+    codebookSha256: string;
+
+    /** Stable logical rater identity. */
+    raterId: string;
+
+    /** Dedicated Codex thread identity. */
+    threadId: string;
+
+    /** Dedicated controller session identity. */
+    sessionId: string;
+
+    /** Effective model identity. */
+    model: "gpt-5.6-terra";
+
+    /** Effective reasoning effort. */
+    effort: "high";
+
+    /** Registry-admitted isolated turn class. */
+    turnClass: "activity-rater-a" | "activity-rater-b";
+
+    /** Exact catalog-order response population. */
+    responseIds: readonly string[];
+
+    /** Complete event-ID allowlist in the sealed evidence window. */
+    allowedEvidenceEventIds: readonly string[];
+
+    /** Proof that the other rater output was withheld. */
+    otherRaterOutputVisible: false;
+
+    /** Proof that arm aggregate results were withheld. */
+    aggregateArmResultsVisible: false;
+
+    /** Runner process provenance for the issued turn. */
+    processProvenanceSha256: string;
+
+    /** UTC assignment creation time retained by the runner. */
+    issuedAtUtc: string;
+
+    /** Digest of every semantic input presented to the rater. */
+    sealedInputsSha256: string;
+
+    /** Canonical assignment identity without this field. */
+    assignmentSha256: string;
   }
 
   /** Fixed probability map. Every code must occur and sum to 10,000. */
@@ -310,35 +400,11 @@ export namespace IEvidenceBenchmarkActivity {
     /** Rater wrapper schema revision. */
     schemaVersion: 1;
 
-    /** Immutable activity binding. */
-    binding: IBinding;
+    /** Runner-issued record that seals identity, isolation, and all inputs. */
+    assignment: IRaterAssignment;
 
-    /** Stable logical rater identity. */
-    raterId: string;
-
-    /** Dedicated Codex thread identity. */
-    threadId: string;
-
-    /** Dedicated controller session identity. */
-    sessionId: string;
-
-    /** Effective model identity. */
-    model: string;
-
-    /** Effective reasoning effort. */
-    effort: string;
-
-    /** Registry-admitted isolated turn class. */
-    turnClass: "activity-rater-a" | "activity-rater-b";
-
-    /** Proof that the other rater output was withheld. */
-    otherRaterOutputVisible: false;
-
-    /** Proof that arm aggregate results were withheld. */
-    aggregateArmResultsVisible: false;
-
-    /** Complete event-ID allowlist in the sealed evidence window. */
-    allowedEvidenceEventIds: readonly string[];
+    /** Exact runner-issued assignment identity. */
+    assignmentSha256: string;
 
     /** Restricted provider-facing rating output. */
     providerOutput: IProviderRatingBlock;
@@ -346,8 +412,65 @@ export namespace IEvidenceBenchmarkActivity {
     /** Canonical provider-output identity. */
     providerOutputSha256: string;
 
+    /** Exact runner execution that produced the provider output. */
+    execution: IModelExecutionProvenance;
+
     /** Canonical wrapper identity without this field. */
     artifactSha256: string;
+  }
+
+  /** Runner-issued sealed input assignment for the fresh adjudicator. */
+  export interface IAdjudicatorAssignment {
+    /** Assignment schema revision. */
+    schemaVersion: 1;
+
+    /** Fixed owner of the assignment record. */
+    issuer: "runner";
+
+    /** Globally unique assignment identity. */
+    assignmentId: string;
+
+    /** Immutable activity binding. */
+    binding: IBinding;
+
+    /** Exact observation artifact supplied to adjudication. */
+    observationSha256: string;
+
+    /** Stable adjudicator identity distinct from both raters. */
+    adjudicatorId: string;
+
+    /** Fresh Codex thread identity. */
+    threadId: string;
+
+    /** Fresh controller session identity. */
+    sessionId: string;
+
+    /** Effective model identity. */
+    model: "gpt-5.6-terra";
+
+    /** Effective reasoning effort. */
+    effort: "high";
+
+    /** Ordered identities of both sealed rater artifacts. */
+    raterArtifactSha256: readonly [string, string];
+
+    /** Canonical deterministic queue identity. */
+    queueSha256: string;
+
+    /** Complete event-ID allowlist in the sealed evidence window. */
+    allowedEvidenceEventIds: readonly string[];
+
+    /** Runner process provenance for the issued turn. */
+    processProvenanceSha256: string;
+
+    /** UTC assignment creation time retained by the runner. */
+    issuedAtUtc: string;
+
+    /** Digest of observations, raters, queue, codebook, and parent core. */
+    sealedInputsSha256: string;
+
+    /** Canonical assignment identity without this field. */
+    assignmentSha256: string;
   }
 
   /** Generic fresh-adjudicator decision admitted by local activity rules. */
@@ -406,26 +529,11 @@ export namespace IEvidenceBenchmarkActivity {
     /** Adjudicator wrapper schema revision. */
     schemaVersion: 1;
 
-    /** Immutable activity binding. */
-    binding: IBinding;
+    /** Runner-issued record that seals fresh identity and all inputs. */
+    assignment: IAdjudicatorAssignment;
 
-    /** Stable adjudicator identity distinct from both raters. */
-    adjudicatorId: string;
-
-    /** Fresh Codex thread identity. */
-    threadId: string;
-
-    /** Fresh controller session identity. */
-    sessionId: string;
-
-    /** Effective model identity. */
-    model: string;
-
-    /** Effective reasoning effort. */
-    effort: string;
-
-    /** Ordered identities of both sealed rater artifacts. */
-    raterArtifactSha256: readonly [string, string];
+    /** Exact runner-issued assignment identity. */
+    assignmentSha256: string;
 
     /** Restricted provider-facing adjudication output. */
     providerOutput: IProviderAdjudication;
@@ -433,8 +541,173 @@ export namespace IEvidenceBenchmarkActivity {
     /** Canonical provider-output identity. */
     providerOutputSha256: string;
 
+    /** Exact runner execution that produced the provider output. */
+    execution: IModelExecutionProvenance;
+
     /** Canonical wrapper identity without this field. */
     artifactSha256: string;
+  }
+
+  /** Exact process identity serialized under the pinned local schema. */
+  export interface IProcessIdentityArtifact {
+    /** Identity schema revision. */
+    schemaVersion: 1;
+
+    /** Fixed model provider. */
+    provider: "openai";
+
+    /** Fixed ChatGPT authorization class. */
+    authenticationClass: "chatgpt";
+
+    /** Frozen Codex CLI release. */
+    codexCliVersion: "0.145.0";
+
+    /** Frozen Codex executable identity. */
+    codexExecutableSha256: string;
+
+    /** Effective model identity. */
+    model: "gpt-5.6-terra";
+
+    /** Effective reasoning effort. */
+    effort: "high";
+
+    /** Proof that no service tier was sent on the wire. */
+    requestedServiceTierMode: "omitted";
+
+    /** Literal omitted wire value retained locally. */
+    requestedServiceTier: null;
+
+    /** Required standard-tier thread-start response value. */
+    effectiveServiceTier: null;
+
+    /** Runner assignment identity executed by this process. */
+    assignmentId: string;
+
+    /** Logical activity role of this process. */
+    agentRole: "activity-rater-a" | "activity-rater-b" | "activity-adjudicator";
+
+    /** Controller session identity. */
+    sessionId: string;
+
+    /** App-server thread identity. */
+    threadId: string;
+
+    /** Canonical identity without this field. */
+    identitySha256: string;
+  }
+
+  /** Exact runner-owned model execution linked to retained raw events. */
+  export interface IModelExecutionProvenance {
+    /** Execution schema revision. */
+    schemaVersion: 1;
+
+    /** Fixed provenance owner. */
+    issuer: "runner";
+
+    /** Pinned local execution schema path. */
+    executionSchemaPath: "benchmark/protocol/schema/activity-execution.schema.json";
+
+    /** Pinned local execution schema digest. */
+    executionSchemaSha256: string;
+
+    /** Runner assignment executed by this turn. */
+    assignmentSha256: string;
+
+    /** Activity role executed by this turn. */
+    agentRole: "activity-rater-a" | "activity-rater-b" | "activity-adjudicator";
+
+    /** App-server thread identity. */
+    threadId: string;
+
+    /** Controller session identity. */
+    sessionId: string;
+
+    /** App-server turn identity. */
+    turnId: string;
+
+    /** Unique upstream response identity. */
+    responseId: string;
+
+    /** Raw response-completed event hash. */
+    rawEventId: string;
+
+    /** Assignment-issued runner event hash. */
+    assignmentEventId: string;
+
+    /** Turn-started runner event hash. */
+    turnStartedEventId: string;
+
+    /** Assignment creation time in monotonic nanoseconds. */
+    assignmentMonotonicNs: string;
+
+    /** Turn-start receipt time in monotonic nanoseconds. */
+    turnStartedMonotonicNs: string;
+
+    /** Response receipt time in monotonic nanoseconds. */
+    responseReceivedMonotonicNs: string;
+
+    /** Response receipt UTC retained from the runner. */
+    responseReceivedAtUtc: string;
+
+    /** Exact non-null provider counters for this rating request. */
+    responseUsage: Omit<ITokenVector, "normalizedNonCachedInputTokens">;
+
+    /** Exact provider output produced by this response. */
+    providerOutputSha256: string;
+
+    /** Exact retained raw app-server envelope byte length. */
+    rawResponseEnvelopeBytes: number;
+
+    /** Retained raw app-server envelope ledger path. */
+    rawResponseEnvelopePath: "logs/server.raw.jsonl";
+
+    /** Byte offset of the retained envelope in the raw ledger. */
+    rawResponseEnvelopeByteOffset: number;
+
+    /** Exact retained raw app-server envelope digest. */
+    rawResponseEnvelopeSha256: string;
+
+    /** Pinned local identity schema path. */
+    processIdentitySchemaPath: "benchmark/protocol/schema/activity-process-identity.schema.json";
+
+    /** Pinned local identity schema digest. */
+    processIdentitySchemaSha256: string;
+
+    /** Portable retained process-identity artifact path. */
+    processIdentityArtifactPath: string;
+
+    /** Exact retained process-identity artifact byte length. */
+    processIdentityArtifactBytes: number;
+
+    /** Exact retained process-identity artifact digest. */
+    processIdentityArtifactSha256: string;
+
+    /** Exact retained evaluation event-ledger digest. */
+    eventLedgerSha256: string;
+
+    /** Terminal evaluation event-chain identity. */
+    eventChainHeadSha256: string;
+
+    /** Exact retained evaluation usage-ledger digest. */
+    usageLedgerSha256: string;
+
+    /** Canonical execution identity without this field. */
+    executionSha256: string;
+  }
+
+  /** Exact retained bytes needed to admit one model execution. */
+  export interface IModelExecutionEvidence {
+    /** Exact evaluation event-ledger JSONL bytes. */
+    eventLedgerBytes: Uint8Array;
+
+    /** Exact evaluation usage-ledger JSON bytes. */
+    usageLedgerBytes: Uint8Array;
+
+    /** Exact process-identity artifact JSON bytes. */
+    processIdentityArtifactBytes: Uint8Array;
+
+    /** Exact raw app-server response-completed envelope bytes. */
+    rawResponseEnvelopeBytes: Uint8Array;
   }
 
   /** One queued unit and every deterministic reason it needs fresh review. */

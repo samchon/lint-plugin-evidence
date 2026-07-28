@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/activity-ledger.schema.json",
+  "title": "Runner-owned exact activity lifecycle ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "runId",
+    "eventLedgerSha256",
+    "eventChainHeadSha256",
+    "usageReportSha256",
+    "eventCaptureComplete",
+    "eventChainClosed",
+    "activityCaptureComplete",
+    "activityLedgerClosed",
+    "expectedResponseCount",
+    "expectedItemObservationCount",
+    "wall",
+    "items"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "runId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "eventLedgerSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "eventChainHeadSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "usageReportSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "eventCaptureComplete": {
+      "type": "boolean"
+    },
+    "eventChainClosed": {
+      "type": "boolean"
+    },
+    "activityCaptureComplete": {
+      "type": "boolean"
+    },
+    "activityLedgerClosed": {
+      "type": "boolean"
+    },
+    "expectedResponseCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "expectedItemObservationCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "wall": {
+      "$ref": "#/$defs/wall"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/item"
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "nanoseconds": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)$"
+    },
+    "nullableNanoseconds": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/nanoseconds"
+        }
+      ]
+    },
+    "nullableMilliseconds": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "integer",
+          "minimum": 0
+        }
+      ]
+    },
+    "wall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "startedMonotonicNs",
+        "completedMonotonicNs"
+      ],
+      "properties": {
+        "startedMonotonicNs": {
+          "$ref": "#/$defs/nanoseconds"
+        },
+        "completedMonotonicNs": {
+          "$ref": "#/$defs/nanoseconds"
+        }
+      }
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observationId",
+        "threadId",
+        "turnId",
+        "itemId",
+        "itemType",
+        "phase",
+        "startedAtSourceMs",
+        "completedAtSourceMs",
+        "startedReceiptMonotonicNs",
+        "completedReceiptMonotonicNs",
+        "sourceDurationMs",
+        "linkedResponseId",
+        "linkage",
+        "rawEventIds"
+      ],
+      "properties": {
+        "observationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "threadId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "turnId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "itemId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "itemType": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase": {
+          "$ref": "#/$defs/phase"
+        },
+        "startedAtSourceMs": {
+          "$ref": "#/$defs/nullableMilliseconds"
+        },
+        "completedAtSourceMs": {
+          "$ref": "#/$defs/nullableMilliseconds"
+        },
+        "startedReceiptMonotonicNs": {
+          "$ref": "#/$defs/nullableNanoseconds"
+        },
+        "completedReceiptMonotonicNs": {
+          "$ref": "#/$defs/nullableNanoseconds"
+        },
+        "sourceDurationMs": {
+          "$ref": "#/$defs/nullableMilliseconds"
+        },
+        "linkedResponseId": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1
+            }
+          ]
+        },
+        "linkage": {
+          "enum": [
+            "ordered_epoch",
+            "ambiguous",
+            "unlinked"
+          ]
+        },
+        "rawEventIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/sha256"
+          }
+        }
+      }
+    },
+    "phase": {
+      "enum": [
+        "setup",
+        "phase1",
+        "completion_challenge",
+        "phase2_discovery",
+        "phase2_fix",
+        "grading",
+        "terminal"
+      ]
+    }
+  }
+}

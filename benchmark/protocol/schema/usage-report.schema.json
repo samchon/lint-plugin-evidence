@@ -77,6 +77,9 @@
         "responseId",
         "threadId",
         "turnId",
+        "phase",
+        "receivedMonotonicNs",
+        "rawEventId",
         "usage",
         "receivedAtUtc"
       ],
@@ -93,8 +96,33 @@
           "type": "string",
           "minLength": 1
         },
+        "phase": {
+          "enum": [
+            "setup",
+            "phase1",
+            "completion_challenge",
+            "phase2_discovery",
+            "phase2_fix",
+            "grading",
+            "terminal"
+          ]
+        },
+        "receivedMonotonicNs": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "rawEventId": {
+          "$ref": "#/$defs/sha256"
+        },
         "usage": {
-          "$ref": "#/$defs/tokens"
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/tokens"
+            }
+          ]
         },
         "receivedAtUtc": {
           "type": "string",

@@ -1,0 +1,311 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/activity-observation.schema.json",
+  "title": "Exact runner-bound activity observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "binding",
+    "wall",
+    "responses",
+    "sourceExactUsageComplete",
+    "sourceEventCaptureComplete",
+    "sourceEventChainClosed",
+    "eventIds",
+    "sourceActivityCaptureComplete",
+    "sourceActivityLedgerClosed",
+    "items",
+    "observationSha256"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "binding": {
+      "$ref": "#/$defs/binding"
+    },
+    "wall": {
+      "$ref": "activity-ledger.schema.json#/$defs/wall"
+    },
+    "responses": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/response"
+      }
+    },
+    "sourceExactUsageComplete": {
+      "type": "boolean"
+    },
+    "sourceEventCaptureComplete": {
+      "type": "boolean"
+    },
+    "sourceEventChainClosed": {
+      "type": "boolean"
+    },
+    "eventIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/sha256"
+      }
+    },
+    "sourceActivityCaptureComplete": {
+      "type": "boolean"
+    },
+    "sourceActivityLedgerClosed": {
+      "type": "boolean"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "activity-ledger.schema.json#/$defs/item"
+      }
+    },
+    "observationSha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "exactByteDigestAlgorithm",
+        "canonicalObjectDigestAlgorithm",
+        "frozenInputTreeAlgorithm",
+        "runId",
+        "blockId",
+        "subject",
+        "arm",
+        "replicate",
+        "milestone",
+        "baseTreeSha256",
+        "armTreeSha256",
+        "requirementsTreeSha256",
+        "workspaceTreeSha256",
+        "materializationInputSha256",
+        "materializationManifestSha256",
+        "runManifestSha256",
+        "parentCoreSealSha256",
+        "protocolRevisionSha256",
+        "codebookSha256",
+        "sourceUsageLedgerSha256",
+        "sourceEventLedgerSha256",
+        "sourceActivityLedgerSha256",
+        "eventChainTerminalSha256",
+        "providerOutputRegistrySha256",
+        "activityRatingProviderSchemaSha256",
+        "activityRatingLocalSchemaSha256",
+        "adjudicationProviderSchemaSha256",
+        "adjudicationLocalSchemaSha256",
+        "activityProcessIdentitySchemaSha256",
+        "activityExecutionSchemaSha256"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "exactByteDigestAlgorithm": {
+          "const": "sha256(exact-bytes)"
+        },
+        "canonicalObjectDigestAlgorithm": {
+          "const": "sha256(utf8-bytewise-key-order-json-lf)"
+        },
+        "frozenInputTreeAlgorithm": {
+          "const": "sha256-posix-path-nul-bytes-v1"
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "blockId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject": {
+          "enum": [
+            "todo",
+            "reddit",
+            "shopping",
+            "erp"
+          ]
+        },
+        "arm": {
+          "enum": [
+            "plain",
+            "evidence"
+          ]
+        },
+        "replicate": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "milestone": {
+          "enum": [
+            "t_done",
+            "t_dry"
+          ]
+        },
+        "baseTreeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "armTreeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "requirementsTreeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "workspaceTreeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "materializationInputSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "materializationManifestSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "runManifestSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "parentCoreSealSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "protocolRevisionSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "codebookSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sourceUsageLedgerSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sourceEventLedgerSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sourceActivityLedgerSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "eventChainTerminalSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "providerOutputRegistrySha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "activityRatingProviderSchemaSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "activityRatingLocalSchemaSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "adjudicationProviderSchemaSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "adjudicationLocalSchemaSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "activityProcessIdentitySchemaSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "activityExecutionSchemaSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "responseId",
+        "threadId",
+        "turnId",
+        "phase",
+        "receivedAtUtc",
+        "receivedMonotonicNs",
+        "rawEventId",
+        "usage"
+      ],
+      "properties": {
+        "responseId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "threadId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "turnId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase": {
+          "$ref": "activity-ledger.schema.json#/$defs/phase"
+        },
+        "receivedAtUtc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "receivedMonotonicNs": {
+          "$ref": "activity-ledger.schema.json#/$defs/nanoseconds"
+        },
+        "rawEventId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "usage": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/tokens"
+            }
+          ]
+        }
+      }
+    },
+    "tokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inputTokens",
+        "cachedInputTokens",
+        "cacheWriteInputTokens",
+        "outputTokens",
+        "reasoningOutputTokens",
+        "totalTokens"
+      ],
+      "properties": {
+        "inputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cachedInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cacheWriteInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reasoningOutputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "totalTokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

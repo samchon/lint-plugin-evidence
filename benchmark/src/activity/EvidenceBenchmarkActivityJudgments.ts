@@ -1,5 +1,6 @@
 import { EvidenceBenchmarkActivityCanonical } from "./EvidenceBenchmarkActivityCanonical.ts";
 import { EvidenceBenchmarkActivityCodebook } from "./EvidenceBenchmarkActivityCodebook.ts";
+import { EvidenceBenchmarkActivityExecutions } from "./EvidenceBenchmarkActivityExecutions.ts";
 import { EvidenceBenchmarkActivityObservations } from "./EvidenceBenchmarkActivityObservations.ts";
 import type { IEvidenceBenchmarkActivity } from "./IEvidenceBenchmarkActivity.ts";
 
@@ -30,10 +31,15 @@ export namespace EvidenceBenchmarkActivityJudgments {
   export function admitRater(
     observations: IEvidenceBenchmarkActivity.IObservations,
     artifact: IEvidenceBenchmarkActivity.IRaterArtifact,
+    evidence: IEvidenceBenchmarkActivity.IModelExecutionEvidence,
   ): IAdmittedRater {
-    sameBinding(observations.binding, artifact.binding);
+    const assignment: IEvidenceBenchmarkActivity.IRaterAssignment =
+      artifact.assignment;
+    sameBinding(observations.binding, assignment.binding);
     if (
       artifact.schemaVersion !== 1 ||
+      assignment.schemaVersion !== 1 ||
+      assignment.issuer !== "runner" ||
       artifact.providerOutput.schemaVersion !== 1 ||
       artifact.providerOutput.role !== "activity_rater"
     )
@@ -47,28 +53,50 @@ export namespace EvidenceBenchmarkActivityJudgments {
       );
     if (
       artifact.providerOutput.status !== "completed" ||
-      artifact.raterId.length === 0 ||
-      artifact.threadId.length === 0 ||
-      artifact.sessionId.length === 0 ||
-      artifact.model !== "gpt-5.6-terra" ||
-      artifact.effort !== "high"
+      assignment.raterId.length === 0 ||
+      assignment.threadId.length === 0 ||
+      assignment.sessionId.length === 0 ||
+      assignment.model !== "gpt-5.6-terra" ||
+      assignment.effort !== "high" ||
+      !/^[a-f0-9]{64}$/.test(assignment.processProvenanceSha256) ||
+      !Number.isFinite(Date.parse(assignment.issuedAtUtc))
     )
       throw new Error("Activity rater must complete with full provenance.");
     if (
-      artifact.otherRaterOutputVisible !== false ||
-      artifact.aggregateArmResultsVisible !== false
+      assignment.otherRaterOutputVisible !== false ||
+      assignment.aggregateArmResultsVisible !== false
     )
       throw new Error("Activity rater isolation was not preserved.");
     const expectedTurn: string =
-      artifact.turnClass === "activity-rater-a"
+      assignment.turnClass === "activity-rater-a"
         ? "activity-rater-a"
         : "activity-rater-b";
-    if (artifact.turnClass !== expectedTurn)
+    if (assignment.turnClass !== expectedTurn)
       throw new Error("Activity rater turn class is invalid.");
+    assignmentHashes(observations, assignment, artifact.assignmentSha256);
     exactSelfHashes(artifact);
+    EvidenceBenchmarkActivityExecutions.admit(
+      observations.binding,
+      artifact.execution,
+      evidence,
+      {
+        assignmentId: assignment.assignmentId,
+        assignmentSha256: assignment.assignmentSha256,
+        agentRole: assignment.turnClass,
+        sessionId: assignment.sessionId,
+        threadId: assignment.threadId,
+        providerOutputSha256: artifact.providerOutputSha256,
+        processProvenanceSha256: assignment.processProvenanceSha256,
+      },
+    );
     const allowed: Set<string> = uniqueNonempty(
-      artifact.allowedEvidenceEventIds,
+      assignment.allowedEvidenceEventIds,
       "allowedEvidenceEventIds",
+    );
+    exactSet(
+      assignment.allowedEvidenceEventIds,
+      new Set(observations.eventIds),
+      "assignment evidence event IDs",
     );
     const responseIds: Set<string> = new Set(
       observations.responses.map((response) => response.responseId),
@@ -78,6 +106,7 @@ export namespace EvidenceBenchmarkActivityJudgments {
       responseIds,
       "provider response IDs",
     );
+    exactSet(assignment.responseIds, responseIds, "assignment response IDs");
     const result: Map<string, IRating> = new Map();
     for (const rating of artifact.providerOutput.ratings) {
       if (!responseIds.has(rating.responseId))
@@ -127,14 +156,22 @@ export namespace EvidenceBenchmarkActivityJudgments {
     left: IAdmittedRater,
     right: IAdmittedRater,
   ): void {
-    if (left.artifact.turnClass === right.artifact.turnClass)
+    if (
+      left.artifact.assignment.turnClass === right.artifact.assignment.turnClass
+    )
       throw new Error("Independent raters must use different turn classes.");
     for (const field of ["raterId", "threadId", "sessionId"] as const)
-      if (left.artifact[field] === right.artifact[field])
+      if (left.artifact.assignment[field] === right.artifact.assignment[field])
         throw new Error(`Independent raters share ${field}.`);
+    EvidenceBenchmarkActivityExecutions.independent([
+      left.artifact.execution,
+      right.artifact.execution,
+    ]);
     if (
-      [...left.artifact.allowedEvidenceEventIds].sort().join("\0") !==
-      [...right.artifact.allowedEvidenceEventIds].sort().join("\0")
+      [...left.artifact.assignment.allowedEvidenceEventIds]
+        .sort()
+        .join("\0") !==
+      [...right.artifact.assignment.allowedEvidenceEventIds].sort().join("\0")
     )
       throw new Error(
         "Independent raters received different evidence windows.",
@@ -197,40 +234,47 @@ export namespace EvidenceBenchmarkActivityJudgments {
     raters: readonly [IAdmittedRater, IAdmittedRater],
     entries: readonly IEvidenceBenchmarkActivity.IAdjudicationQueueEntry[],
     artifact: IEvidenceBenchmarkActivity.IAdjudicatorArtifact,
+    evidence: IEvidenceBenchmarkActivity.IModelExecutionEvidence,
   ): ReadonlyMap<
     string,
     IEvidenceBenchmarkActivity.IProviderAdjudicationDecision
   > {
-    sameBinding(observations.binding, artifact.binding);
+    const assignment: IEvidenceBenchmarkActivity.IAdjudicatorAssignment =
+      artifact.assignment;
+    sameBinding(observations.binding, assignment.binding);
     independent(raters[0], raters[1]);
     for (const identity of [
-      artifact.adjudicatorId,
-      artifact.threadId,
-      artifact.sessionId,
+      assignment.adjudicatorId,
+      assignment.threadId,
+      assignment.sessionId,
     ])
       if (
         identity.length === 0 ||
-        identity === raters[0].artifact.raterId ||
-        identity === raters[1].artifact.raterId ||
-        identity === raters[0].artifact.threadId ||
-        identity === raters[1].artifact.threadId ||
-        identity === raters[0].artifact.sessionId ||
-        identity === raters[1].artifact.sessionId
+        identity === raters[0].artifact.assignment.raterId ||
+        identity === raters[1].artifact.assignment.raterId ||
+        identity === raters[0].artifact.assignment.threadId ||
+        identity === raters[1].artifact.assignment.threadId ||
+        identity === raters[0].artifact.assignment.sessionId ||
+        identity === raters[1].artifact.assignment.sessionId
       )
         throw new Error("Activity adjudicator is not fresh.");
     if (
-      artifact.raterArtifactSha256[0] !== raters[0].artifact.artifactSha256 ||
-      artifact.raterArtifactSha256[1] !== raters[1].artifact.artifactSha256
+      assignment.raterArtifactSha256[0] !== raters[0].artifact.artifactSha256 ||
+      assignment.raterArtifactSha256[1] !== raters[1].artifact.artifactSha256
     )
       throw new Error("Adjudicator does not bind both exact rater artifacts.");
     if (
+      assignment.schemaVersion !== 1 ||
+      assignment.issuer !== "runner" ||
+      !/^[a-f0-9]{64}$/.test(assignment.processProvenanceSha256) ||
+      !Number.isFinite(Date.parse(assignment.issuedAtUtc)) ||
       artifact.providerOutput.schemaVersion !== 1 ||
       artifact.providerOutput.role !== "llm_adjudicator" ||
       artifact.providerOutput.population !== "activity" ||
       artifact.providerOutput.subject !== observations.binding.subject ||
       artifact.providerOutput.phase !== observations.binding.milestone ||
-      artifact.model !== "gpt-5.6-terra" ||
-      artifact.effort !== "high" ||
+      assignment.model !== "gpt-5.6-terra" ||
+      assignment.effort !== "high" ||
       artifact.providerOutput.status !== "completed"
     )
       throw new Error("Activity adjudicator output did not complete.");
@@ -239,19 +283,41 @@ export namespace EvidenceBenchmarkActivityJudgments {
     const sealedInputsSha256: string =
       EvidenceBenchmarkActivityCanonical.object({
         observationSha256: observations.observationSha256,
-        raterArtifactSha256: artifact.raterArtifactSha256,
+        raterArtifactSha256: assignment.raterArtifactSha256,
         queueSha256,
         codebookSha256: observations.binding.codebookSha256,
         parentCoreSealSha256: observations.binding.parentCoreSealSha256,
       });
     if (
       artifact.providerOutput.queueSha256 !== queueSha256 ||
-      artifact.providerOutput.sealedInputsSha256 !== sealedInputsSha256
+      artifact.providerOutput.sealedInputsSha256 !== sealedInputsSha256 ||
+      assignment.observationSha256 !== observations.observationSha256 ||
+      assignment.queueSha256 !== queueSha256 ||
+      assignment.sealedInputsSha256 !== sealedInputsSha256
     )
       throw new Error(
         "Adjudicator input digests differ from the sealed queue.",
       );
     exactAdjudicatorHashes(artifact);
+    EvidenceBenchmarkActivityExecutions.admit(
+      observations.binding,
+      artifact.execution,
+      evidence,
+      {
+        assignmentId: assignment.assignmentId,
+        assignmentSha256: assignment.assignmentSha256,
+        agentRole: "activity-adjudicator",
+        sessionId: assignment.sessionId,
+        threadId: assignment.threadId,
+        providerOutputSha256: artifact.providerOutputSha256,
+        processProvenanceSha256: assignment.processProvenanceSha256,
+      },
+    );
+    EvidenceBenchmarkActivityExecutions.independent([
+      raters[0].artifact.execution,
+      raters[1].artifact.execution,
+      artifact.execution,
+    ]);
     const expected: Set<string> = new Set(
       entries.map((entry) => entry.responseId),
     );
@@ -260,9 +326,14 @@ export namespace EvidenceBenchmarkActivityJudgments {
       IEvidenceBenchmarkActivity.IProviderAdjudicationDecision
     > = new Map();
     const allowed: Set<string> = new Set([
-      ...raters[0].artifact.allowedEvidenceEventIds,
-      ...raters[1].artifact.allowedEvidenceEventIds,
+      ...raters[0].artifact.assignment.allowedEvidenceEventIds,
+      ...raters[1].artifact.assignment.allowedEvidenceEventIds,
     ]);
+    exactSet(
+      assignment.allowedEvidenceEventIds,
+      allowed,
+      "adjudicator evidence event IDs",
+    );
     for (const decision of artifact.providerOutput.decisions) {
       if (!expected.has(decision.itemId) || result.has(decision.itemId))
         throw new Error(
@@ -392,6 +463,8 @@ export namespace EvidenceBenchmarkActivityJudgments {
   function exactSelfHashes(
     artifact: IEvidenceBenchmarkActivity.IRaterArtifact,
   ): void {
+    if (artifact.assignmentSha256 !== artifact.assignment.assignmentSha256)
+      throw new Error("Activity rater assignment identity differs.");
     if (
       artifact.providerOutputSha256 !==
       EvidenceBenchmarkActivityCanonical.object(artifact.providerOutput)
@@ -408,6 +481,14 @@ export namespace EvidenceBenchmarkActivityJudgments {
   function exactAdjudicatorHashes(
     artifact: IEvidenceBenchmarkActivity.IAdjudicatorArtifact,
   ): void {
+    const { assignmentSha256: _assignmentIgnored, ...assignmentBody } =
+      artifact.assignment;
+    if (
+      artifact.assignmentSha256 !== artifact.assignment.assignmentSha256 ||
+      artifact.assignment.assignmentSha256 !==
+        EvidenceBenchmarkActivityCanonical.object(assignmentBody)
+    )
+      throw new Error("Activity adjudicator assignment digest differs.");
     if (
       artifact.providerOutputSha256 !==
       EvidenceBenchmarkActivityCanonical.object(artifact.providerOutput)
@@ -419,6 +500,35 @@ export namespace EvidenceBenchmarkActivityJudgments {
       EvidenceBenchmarkActivityCanonical.object(body)
     )
       throw new Error("Activity adjudicator artifact digest differs.");
+  }
+
+  function assignmentHashes(
+    observations: IEvidenceBenchmarkActivity.IObservations,
+    assignment: IEvidenceBenchmarkActivity.IRaterAssignment,
+    artifactAssignmentSha256: string,
+  ): void {
+    const { assignmentSha256: _ignored, ...body } = assignment;
+    const assignmentSha256: string =
+      EvidenceBenchmarkActivityCanonical.object(body);
+    const sealedInputsSha256: string =
+      EvidenceBenchmarkActivityCanonical.object({
+        binding: observations.binding,
+        observationSha256: observations.observationSha256,
+        codebookSha256: observations.binding.codebookSha256,
+        responseIds: observations.responses.map((row) => row.responseId),
+        allowedEvidenceEventIds: assignment.allowedEvidenceEventIds,
+        turnClass: assignment.turnClass,
+      });
+    if (
+      assignment.assignmentSha256 !== assignmentSha256 ||
+      artifactAssignmentSha256 !== assignmentSha256 ||
+      assignment.observationSha256 !== observations.observationSha256 ||
+      assignment.codebookSha256 !== observations.binding.codebookSha256 ||
+      assignment.sealedInputsSha256 !== sealedInputsSha256
+    )
+      throw new Error(
+        "Activity rater assignment is not sealed to observations.",
+      );
   }
 
   function exactSet(

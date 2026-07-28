@@ -1,0 +1,466 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/samchon/lint-plugin-evidence/benchmark/protocol/schema/activity-report.schema.json",
+  "title": "Derived semantic activity attribution report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "binding",
+    "observationSha256",
+    "raterArtifactSha256",
+    "adjudicationArtifactSha256",
+    "exactMeasurementStatus",
+    "semanticAttributionStatus",
+    "semanticQuantitiesAreEstimates",
+    "exactTotal",
+    "tokenAllocations",
+    "timeAllocations",
+    "pairwiseOverlap",
+    "burdenAllocations",
+    "raterAgreement",
+    "adjudicationQueue",
+    "unresolvedResponseIds",
+    "censoredObservationIds",
+    "wallTimeNs",
+    "coveredUnionWallNs",
+    "residualWallNs",
+    "exactTokenReconciled",
+    "exclusiveWallReconciled",
+    "reportSha256"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "binding": {
+      "$ref": "activity-observation.schema.json#/$defs/binding"
+    },
+    "observationSha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "raterArtifactSha256": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/sha256"
+      }
+    },
+    "adjudicationArtifactSha256": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/sha256"
+        }
+      ]
+    },
+    "exactMeasurementStatus": {
+      "enum": [
+        "complete",
+        "right_censored"
+      ]
+    },
+    "semanticAttributionStatus": {
+      "enum": [
+        "complete",
+        "incomplete"
+      ]
+    },
+    "semanticQuantitiesAreEstimates": {
+      "const": true
+    },
+    "exactTotal": {
+      "$ref": "#/$defs/tokens"
+    },
+    "tokenAllocations": {
+      "type": "array",
+      "minItems": 11,
+      "maxItems": 11,
+      "items": {
+        "$ref": "#/$defs/tokenAllocation"
+      }
+    },
+    "timeAllocations": {
+      "type": "array",
+      "minItems": 11,
+      "maxItems": 11,
+      "items": {
+        "$ref": "#/$defs/timeAllocation"
+      }
+    },
+    "pairwiseOverlap": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/overlap"
+      }
+    },
+    "burdenAllocations": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/burden"
+      }
+    },
+    "raterAgreement": {
+      "$ref": "#/$defs/agreement"
+    },
+    "adjudicationQueue": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/queue"
+      }
+    },
+    "unresolvedResponseIds": {
+      "$ref": "#/$defs/uniqueStrings"
+    },
+    "censoredObservationIds": {
+      "$ref": "#/$defs/uniqueStrings"
+    },
+    "wallTimeNs": {
+      "$ref": "#/$defs/integerString"
+    },
+    "coveredUnionWallNs": {
+      "$ref": "#/$defs/integerString"
+    },
+    "residualWallNs": {
+      "$ref": "#/$defs/integerString"
+    },
+    "exactTokenReconciled": {
+      "const": true
+    },
+    "exclusiveWallReconciled": {
+      "const": true
+    },
+    "reportSha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "integerString": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)$"
+    },
+    "uniqueStrings": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "primary": {
+      "enum": [
+        "requirements_reading",
+        "method_reading",
+        "planning_inventory",
+        "implementation",
+        "deterministic_feedback",
+        "ordinary_remediation",
+        "completion_audit",
+        "phase2_discovery",
+        "phase2_fix",
+        "grading",
+        "residual_unclassified"
+      ]
+    },
+    "role": {
+      "enum": [
+        "shared",
+        "direct_method_burden",
+        "induced_method_burden",
+        "quality_producing_fix",
+        "residual"
+      ]
+    },
+    "tokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inputTokens",
+        "cachedInputTokens",
+        "cacheWriteInputTokens",
+        "normalizedNonCachedInputTokens",
+        "outputTokens",
+        "reasoningOutputTokens",
+        "totalTokens"
+      ],
+      "properties": {
+        "inputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cachedInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cacheWriteInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "normalizedNonCachedInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reasoningOutputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "totalTokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "weighted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "denominator",
+        "inputTokensNumerator",
+        "cachedInputTokensNumerator",
+        "cacheWriteInputTokensNumerator",
+        "normalizedNonCachedInputTokensNumerator",
+        "outputTokensNumerator",
+        "reasoningOutputTokensNumerator",
+        "totalTokensNumerator"
+      ],
+      "properties": {
+        "denominator": {
+          "const": 10000
+        },
+        "inputTokensNumerator": {
+          "$ref": "#/$defs/integerString"
+        },
+        "cachedInputTokensNumerator": {
+          "$ref": "#/$defs/integerString"
+        },
+        "cacheWriteInputTokensNumerator": {
+          "$ref": "#/$defs/integerString"
+        },
+        "normalizedNonCachedInputTokensNumerator": {
+          "$ref": "#/$defs/integerString"
+        },
+        "outputTokensNumerator": {
+          "$ref": "#/$defs/integerString"
+        },
+        "reasoningOutputTokensNumerator": {
+          "$ref": "#/$defs/integerString"
+        },
+        "totalTokensNumerator": {
+          "$ref": "#/$defs/integerString"
+        }
+      }
+    },
+    "tokenAllocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "primary",
+        "wholeResponseExact",
+        "estimatedPoint",
+        "estimatedLower",
+        "estimatedUpper"
+      ],
+      "properties": {
+        "primary": {
+          "$ref": "#/$defs/primary"
+        },
+        "wholeResponseExact": {
+          "$ref": "#/$defs/tokens"
+        },
+        "estimatedPoint": {
+          "$ref": "#/$defs/weighted"
+        },
+        "estimatedLower": {
+          "$ref": "#/$defs/weighted"
+        },
+        "estimatedUpper": {
+          "$ref": "#/$defs/weighted"
+        }
+      }
+    },
+    "timeAllocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "primary",
+        "categoryUnionWallNs",
+        "sourceActivityTimeMs",
+        "exclusiveEquivalentWallNs",
+        "estimatedPointActivityNsNumerator",
+        "estimatedLowerActivityNsNumerator",
+        "estimatedUpperActivityNsNumerator",
+        "estimatedDenominator"
+      ],
+      "properties": {
+        "primary": {
+          "$ref": "#/$defs/primary"
+        },
+        "categoryUnionWallNs": {
+          "$ref": "#/$defs/integerString"
+        },
+        "sourceActivityTimeMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "exclusiveEquivalentWallNs": {
+          "$ref": "#/$defs/integerString"
+        },
+        "estimatedPointActivityNsNumerator": {
+          "$ref": "#/$defs/integerString"
+        },
+        "estimatedLowerActivityNsNumerator": {
+          "$ref": "#/$defs/integerString"
+        },
+        "estimatedUpperActivityNsNumerator": {
+          "$ref": "#/$defs/integerString"
+        },
+        "estimatedDenominator": {
+          "const": 10000
+        }
+      }
+    },
+    "overlap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "left",
+        "right",
+        "overlapWallNs"
+      ],
+      "properties": {
+        "left": {
+          "$ref": "#/$defs/primary"
+        },
+        "right": {
+          "$ref": "#/$defs/primary"
+        },
+        "overlapWallNs": {
+          "$ref": "#/$defs/integerString"
+        }
+      }
+    },
+    "burden": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "causalRole",
+        "exactWholeResponseTokens",
+        "estimatedPointTokens",
+        "estimatedPointActivityNsNumerator",
+        "estimatedDenominator"
+      ],
+      "properties": {
+        "causalRole": {
+          "$ref": "#/$defs/role"
+        },
+        "exactWholeResponseTokens": {
+          "$ref": "#/$defs/tokens"
+        },
+        "estimatedPointTokens": {
+          "$ref": "#/$defs/weighted"
+        },
+        "estimatedPointActivityNsNumerator": {
+          "$ref": "#/$defs/integerString"
+        },
+        "estimatedDenominator": {
+          "const": 10000
+        }
+      }
+    },
+    "agreement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "responseCount",
+        "primaryObservedAgreement",
+        "primaryCohenKappa",
+        "causalRoleAgreement",
+        "meanSecondaryMechanismJaccard",
+        "meanProbabilityJensenShannonBits"
+      ],
+      "properties": {
+        "responseCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "primaryObservedAgreement": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "primaryCohenKappa": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "number",
+              "minimum": -1,
+              "maximum": 1
+            }
+          ]
+        },
+        "causalRoleAgreement": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "meanSecondaryMechanismJaccard": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "meanProbabilityJensenShannonBits": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "queue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "responseId",
+        "reasons"
+      ],
+      "properties": {
+        "responseId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reasons": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "primary_disagreement",
+              "causal_role_disagreement",
+              "mechanism_disagreement",
+              "low_confidence",
+              "low_peak_probability",
+              "residual_probability",
+              "missing_evidence_reference",
+              "high_token_influence"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
