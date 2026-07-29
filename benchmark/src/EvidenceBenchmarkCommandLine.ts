@@ -7,6 +7,8 @@ import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkPublication } from "./EvidenceBenchmarkPublication.ts";
+import { EvidenceBenchmarkRepair } from "./EvidenceBenchmarkRepair.ts";
 import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
 import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
@@ -71,7 +73,36 @@ export namespace EvidenceBenchmarkCommandLine {
     arguments_: string[],
   ): Promise<void> {
     if (arguments_[0] === "resume") {
-      await resumeCell(repository, arguments_.slice(1));
+      await resumeCell(
+        repository,
+        arguments_.slice(1).filter((value) => value !== "--"),
+      );
+      return;
+    }
+    if (arguments_[0] === "repair") {
+      console.log(
+        JSON.stringify(
+          await EvidenceBenchmarkRepair.apply(
+            repository,
+            EvidenceBenchmarkRepair.parse(arguments_.slice(1)),
+          ),
+          null,
+          2,
+        ),
+      );
+      return;
+    }
+    if (arguments_[0] === "publish") {
+      console.log(
+        JSON.stringify(
+          await EvidenceBenchmarkPublication.publish(
+            repository,
+            EvidenceBenchmarkPublication.parse(arguments_.slice(1)),
+          ),
+          null,
+          2,
+        ),
+      );
       return;
     }
     const options: IOptions = parseOptions(arguments_);
@@ -109,7 +140,7 @@ export namespace EvidenceBenchmarkCommandLine {
     }
     if (arguments_[0] !== "start")
       throw new Error(
-        "Usage: benchmark <plan|start> [--port-base <number>] <todo|reddit|shopping|erp>... | benchmark resume <project> <arm> <run-id>",
+        "Usage: benchmark <plan|start> [--port-base <number>] <project>... | benchmark resume <project> <arm> <run-id> | benchmark repair --patch <file> <run-id> <project>... | benchmark publish --owner <login> --public <project> <arm> <run-id>",
       );
     const sourceCommit: string = (
       await EvidenceBenchmarkProcess.run("git", ["rev-parse", "HEAD"], {
@@ -188,8 +219,12 @@ export namespace EvidenceBenchmarkCommandLine {
       );
     if (state.project !== project || state.arm !== arm)
       throw new Error(`Run ${runId} does not belong to ${project}/${arm}.`);
-    if (state.status === "completed")
-      throw new Error(`Run ${runId} is already complete.`);
+    if (state.status !== "interrupted")
+      throw new Error(
+        state.status === "completed"
+          ? `Run ${runId} is already complete.`
+          : `Run ${runId} is still running; refusing a parallel resume controller.`,
+      );
 
     const workspace: string = path.join(root, "workspace");
     const logs: string = path.join(root, "logs");
@@ -601,7 +636,6 @@ export namespace EvidenceBenchmarkCommandLine {
     const target: string = path.join(root, "run.json");
     const temporary: string = `${target}.${process.pid}.tmp`;
     fs.writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`, "utf8");
-    fs.rmSync(target, { force: true });
     fs.renameSync(temporary, target);
   }
 
