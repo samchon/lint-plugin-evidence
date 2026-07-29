@@ -2660,6 +2660,9 @@ export namespace EvidenceBenchmarkSelfTest {
       materialization.manifest,
       `${JSON.stringify({
         schemaVersion: 6,
+        variables: {
+          frontendPackageName: "benchmark-setup-self-test",
+        },
         caches: {
           home: materialization.environment.HOME,
           corepack: materialization.environment.COREPACK_HOME,
@@ -2701,6 +2704,39 @@ export namespace EvidenceBenchmarkSelfTest {
     assert.ok(Object.keys(setup.installedLaunchersSha256).length >= 1);
     assert.ok(fs.existsSync(path.join(workspace, "pnpm-lock.yaml")));
     assert.ok(fs.existsSync(path.join(root, "setup.json")));
+    const materializationSource: string = fs.readFileSync(
+      materialization.manifest,
+      "utf8",
+    );
+    const materializationFixture = JSON.parse(materializationSource) as {
+      variables?: { frontendPackageName?: string };
+      caches: { corepack: string };
+    };
+    delete materializationFixture.variables;
+    fs.writeFileSync(
+      materialization.manifest,
+      `${JSON.stringify(materializationFixture)}\n`,
+      "utf8",
+    );
+    await expectFailure(
+      () => reproduce(),
+      "rendered frontend package identity",
+    );
+    fs.writeFileSync(materialization.manifest, materializationSource, "utf8");
+    materializationFixture.variables = {
+      frontendPackageName: "benchmark-setup-self-test",
+    };
+    materializationFixture.caches.corepack = path.join(root, "outside");
+    fs.writeFileSync(
+      materialization.manifest,
+      `${JSON.stringify(materializationFixture)}\n`,
+      "utf8",
+    );
+    await expectFailure(
+      () => reproduce(),
+      "canonical Corepack cache authority",
+    );
+    fs.writeFileSync(materialization.manifest, materializationSource, "utf8");
     EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain");
     const hiddenCachePayload: string = path.join(
       workspace,

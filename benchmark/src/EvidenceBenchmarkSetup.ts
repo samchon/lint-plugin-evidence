@@ -327,15 +327,28 @@ export namespace EvidenceBenchmarkSetup {
     runPnpm: ReproductionRunner = sandboxedPnpm,
     admit: ReproductionAdmission = admitReproduction,
   ): Promise<string> {
-    const manifest = JSON.parse(
+    const parsed: unknown = JSON.parse(
       fs.readFileSync(path.join(root, "materialization.json"), "utf8"),
-    ) as IEvidenceBenchmarkMaterialization.IManifest;
-    const frontendPackageName: string | undefined =
-      manifest.variables.frontendPackageName;
-    if (manifest.schemaVersion !== 6)
+    );
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed) ||
+      !("schemaVersion" in parsed) ||
+      parsed.schemaVersion !== 6
+    )
       throw new Error(
         "Benchmark dependency reproduction requires a current materialization manifest.",
       );
+    const record = parsed as Record<string, unknown>;
+    const variables: unknown = record.variables;
+    const frontendPackageName: unknown =
+      typeof variables === "object" &&
+      variables !== null &&
+      !Array.isArray(variables) &&
+      "frontendPackageName" in variables
+        ? variables.frontendPackageName
+        : undefined;
     if (
       typeof frontendPackageName !== "string" ||
       frontendPackageName.length === 0
@@ -343,6 +356,22 @@ export namespace EvidenceBenchmarkSetup {
       throw new Error(
         "Benchmark dependency reproduction requires the rendered frontend package identity.",
       );
+    const caches: unknown = record.caches;
+    const corepack: unknown =
+      typeof caches === "object" &&
+      caches !== null &&
+      !Array.isArray(caches) &&
+      "corepack" in caches
+        ? caches.corepack
+        : undefined;
+    if (
+      typeof corepack !== "string" ||
+      path.resolve(corepack) !== path.resolve(root, "cache", "corepack")
+    )
+      throw new Error(
+        "Benchmark dependency reproduction requires its canonical Corepack cache authority.",
+      );
+    const manifest = parsed as IEvidenceBenchmarkMaterialization.IManifest;
     admit(workspace, root, manifest);
     const cache: string = path.join(root, "cache");
     const temporary: string = fs.mkdtempSync(
@@ -373,7 +402,7 @@ export namespace EvidenceBenchmarkSetup {
           ),
           XDG_CACHE_HOME: path.join(temporary, "cache", "home", ".cache"),
           XDG_CONFIG_HOME: path.join(temporary, "cache", "home", ".config"),
-          COREPACK_HOME: manifest.caches.corepack,
+          COREPACK_HOME: corepack,
           CODEX_HOME: path.join(temporary, "cache", "codex-home"),
           npm_config_store_dir: path.join(workspaceCache, "pnpm-store"),
           npm_config_userconfig: EvidenceBenchmarkMaterializer.npmConfig(root),
@@ -417,7 +446,7 @@ export namespace EvidenceBenchmarkSetup {
       const authority: EvidenceBenchmarkSandbox.IAuthority = {
         workspace: shadow,
         toolchain: path.join(root, "cache", "toolchain-bin"),
-        corepack: manifest.caches.corepack,
+        corepack,
         npmConfig: EvidenceBenchmarkMaterializer.npmConfig(root),
         gitConfig: EvidenceBenchmarkMaterializer.gitConfig(root),
       };
@@ -1368,9 +1397,14 @@ export namespace EvidenceBenchmarkSetup {
       }
     }
     const real: string = fs.realpathSync(manifest);
-    const installed: string = fs.realpathSync(
-      path.join(workspace, "node_modules"),
-    );
+    const installed: string = path.resolve(workspace, "node_modules");
+    const installedStat: fs.Stats | undefined = fs.lstatSync(installed, {
+      throwIfNoEntry: false,
+    });
+    if (!installedStat?.isDirectory() || installedStat.isSymbolicLink())
+      throw new Error(
+        `Benchmark dependency root is not a real directory: ${installed}.`,
+      );
     const relative: string = path.relative(installed, real);
     if (
       relative === "" ||
