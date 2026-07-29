@@ -395,6 +395,7 @@ export namespace EvidenceBenchmarkPublication {
             sourceCommit: state.sourceCommit,
             instructionsTreeSha256: state.instructionsTreeSha256,
             requirementsTreeSha256: manifest.requirementsTreeSha256,
+            completedWorkspaceTreeSha256: state.completedWorkspaceTreeSha256,
           },
           null,
           2,

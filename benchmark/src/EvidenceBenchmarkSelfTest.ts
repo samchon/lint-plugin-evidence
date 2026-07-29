@@ -397,10 +397,16 @@ export namespace EvidenceBenchmarkSelfTest {
           false,
           "consolidated publication must remove nested workflows",
         );
+        const published = JSON.parse(
+          fs.readFileSync(path.join(leaf, "benchmark.json"), "utf8"),
+        ) as {
+          status?: unknown;
+          completedWorkspaceTreeSha256?: unknown;
+        };
+        assert.equal(published.status, "accepted");
         assert.equal(
-          JSON.parse(fs.readFileSync(path.join(leaf, "benchmark.json"), "utf8"))
-            .status,
-          "accepted",
+          published.completedWorkspaceTreeSha256,
+          EvidenceBenchmarkPublication.workspaceSha256(workspace),
         );
       }
       if (
