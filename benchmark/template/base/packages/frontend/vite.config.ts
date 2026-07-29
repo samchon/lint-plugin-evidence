@@ -14,6 +14,7 @@ if (Number.isInteger(port) === false || port < 1 || port > 65_535)
   throw new Error("VITE_DEV_PORT must be an integer from 1 to 65535.");
 
 export default defineConfig({
+  cacheDir: path.resolve(__dirname, "../../.benchmark-cache/vite"),
   plugins: [tailwindcss(), react(), ttsc()],
   resolve: {
     alias: {

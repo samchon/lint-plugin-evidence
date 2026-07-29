@@ -14,6 +14,156 @@ import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBe
 /** Atomically materializes one benchmark workspace and immutable input ledger. */
 export namespace EvidenceBenchmarkMaterializer {
   /**
+   * Returns the minimal host environment needed by portable child processes.
+   *
+   * Benchmark children do not inherit arbitrary compiler, package-manager,
+   * runtime, loader, or repository configuration from the operator shell.
+   */
+  export function hostEnvironment(): NodeJS.ProcessEnv {
+    const exact: ReadonlyMap<string, string> = new Map(
+      [
+        "ALL_PROXY",
+        "APPDATA",
+        "CI",
+        "CODEX_API_KEY",
+        "COLORTERM",
+        "COMSPEC",
+        "GITHUB_ACTIONS",
+        "HOME",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "LANG",
+        "LOCALAPPDATA",
+        "NO_PROXY",
+        "NODE_EXTRA_CA_CERTS",
+        "NUMBER_OF_PROCESSORS",
+        "OPENAI_API_KEY",
+        "OS",
+        "PATHEXT",
+        "PROGRAMDATA",
+        "ProgramFiles",
+        "ProgramFiles(x86)",
+        "ProgramW6432",
+        "RUNNER_ARCH",
+        "RUNNER_OS",
+        "SHELL",
+        "SSL_CERT_DIR",
+        "SSL_CERT_FILE",
+        "SystemRoot",
+        "TERM",
+        "TZ",
+        "USER",
+        "USERDOMAIN",
+        "USERNAME",
+        "USERPROFILE",
+        "WINDIR",
+      ].map((key) => [key.toLowerCase(), key] as const),
+    );
+    const output: NodeJS.ProcessEnv = {};
+    for (const [key, value] of Object.entries(process.env)) {
+      const normalized: string = key.toLowerCase();
+      const canonical: string | undefined = exact.get(normalized);
+      if (canonical !== undefined) output[canonical] = value;
+      else if (normalized.startsWith("lc_")) output[key] = value;
+    }
+    output.PATH = process.env.PATH ?? process.env.Path ?? "";
+    return output;
+  }
+
+  /**
+   * Removes model credentials and credential-bearing proxy variables before
+   * executing workspace-authored lifecycle or gate code.
+   */
+  export function untrustedEnvironment(
+    source: NodeJS.ProcessEnv,
+  ): NodeJS.ProcessEnv {
+    const forbidden: ReadonlySet<string> = new Set(
+      [
+        "ALL_PROXY",
+        "CODEX_API_KEY",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NODE_EXTRA_CA_CERTS",
+        "NO_PROXY",
+        "OPENAI_API_KEY",
+        "SSL_CERT_DIR",
+        "SSL_CERT_FILE",
+      ].map((key) => key.toLowerCase()),
+    );
+    return Object.fromEntries(
+      Object.entries(source).filter(
+        ([key]) => forbidden.has(key.toLowerCase()) === false,
+      ),
+    );
+  }
+
+  /** Returns the empty cell-owned npm config after verifying its exact bytes. */
+  export function npmConfig(root: string): string {
+    return emptyConfiguration(root, "npmrc", "package-manager");
+  }
+
+  /** Returns the empty cell-owned Git config after verifying its exact bytes. */
+  export function gitConfig(root: string): string {
+    return emptyConfiguration(root, "gitconfig", "Git");
+  }
+
+  function emptyConfiguration(
+    root: string,
+    name: string,
+    label: string,
+  ): string {
+    const location: string = path.join(root, "inputs", name);
+    const stat: fs.Stats | undefined = fs.lstatSync(location, {
+      throwIfNoEntry: false,
+    });
+    if (
+      !stat?.isFile() ||
+      stat.isSymbolicLink() ||
+      fs.readFileSync(location).byteLength !== 0
+    )
+      throw new Error(
+        `Benchmark cell does not retain its empty ${label} config.`,
+      );
+    return location;
+  }
+
+  /** Rejects any drift in the measured workspace's frozen requirement copy. */
+  export function assertRequirementsRestored(
+    workspace: string,
+    root: string,
+  ): void {
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(root, "materialization.json"), "utf8"),
+    ) as Omit<IEvidenceBenchmarkMaterialization.IManifest, "schemaVersion"> & {
+      schemaVersion: unknown;
+    };
+    const analysis: string = path.join(workspace, "docs", "analysis");
+    const stat: fs.Stats | undefined = fs.lstatSync(analysis, {
+      throwIfNoEntry: false,
+    });
+    if (
+      manifest.schemaVersion !== 6 ||
+      !stat?.isDirectory() ||
+      stat.isSymbolicLink()
+    )
+      throw new Error(
+        "Benchmark workspace does not retain its frozen requirement directory.",
+      );
+    const files: ReadonlyMap<string, Uint8Array> =
+      EvidenceBenchmarkHash.directory(analysis);
+    if (
+      EvidenceBenchmarkHash.tree(files) !== manifest.requirementsTreeSha256 ||
+      EvidenceBenchmarkHash.object(EvidenceBenchmarkHash.entries(files)) !==
+        EvidenceBenchmarkHash.object(manifest.requirementFiles)
+    )
+      throw new Error(
+        "Benchmark workspace requirement copy was not restored to its frozen input.",
+      );
+  }
+
+  /**
    * Builds one cell below a sibling staging directory and publishes it once.
    *
    * Requirements enter the workspace and an out-of-workspace immutable copy in
@@ -96,15 +246,25 @@ export namespace EvidenceBenchmarkMaterializer {
         EvidenceBenchmarkHash.tree(workspaceFiles);
       const requirementsTreeSha256: string =
         EvidenceBenchmarkHash.tree(requirementFiles);
+      const cacheRoot: string = path.join(
+        output,
+        "workspace",
+        ".benchmark-cache",
+      );
       const caches = {
-        pnpm: path.join(output, "cache", "pnpm-store"),
-        ttsc: path.join(output, "cache", "ttsc"),
-        go: path.join(output, "cache", "go-build"),
-        playwright: path.join(output, "cache", "playwright"),
+        home: path.join(output, "cache", "home"),
+        corepack: path.join(output, "cache", "corepack"),
+        pnpm: path.join(cacheRoot, "pnpm-store"),
+        ttsc: path.join(cacheRoot, "ttsc"),
+        go: path.join(cacheRoot, "go-build"),
+        goModules: path.join(cacheRoot, "go-modules"),
+        goPath: path.join(cacheRoot, "go-path"),
+        playwright: path.join(cacheRoot, "playwright"),
+        temp: path.join(cacheRoot, "tmp"),
         toolchain: path.join(output, "cache", "toolchain-bin"),
       };
       const manifestRecord: IEvidenceBenchmarkMaterialization.IManifest = {
-        schemaVersion: 5,
+        schemaVersion: 6,
         treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
         project,
         arm: request.arm,
@@ -149,14 +309,38 @@ export namespace EvidenceBenchmarkMaterializer {
         caches,
       };
       const environment: NodeJS.ProcessEnv = {
-        ...process.env,
-        npm_config_store_dir: caches.pnpm,
+        ...hostEnvironment(),
+        HOME: caches.home,
+        USERPROFILE: caches.home,
+        APPDATA: path.join(caches.home, "appdata", "roaming"),
+        LOCALAPPDATA: path.join(caches.home, "appdata", "local"),
+        XDG_CACHE_HOME: path.join(caches.home, ".cache"),
+        XDG_CONFIG_HOME: path.join(caches.home, ".config"),
+        COREPACK_HOME: caches.corepack,
         TTSC_CACHE_DIR: caches.ttsc,
         TTSC_GO_CACHE_DIR: caches.go,
         GOCACHE: caches.go,
-        GOTMPDIR: path.join(output, "cache", "go-tmp"),
+        GOENV: "off",
+        GOMODCACHE: caches.goModules,
+        GOPATH: caches.goPath,
+        GOTMPDIR: path.join(caches.temp, "go"),
         PLAYWRIGHT_BROWSERS_PATH: caches.playwright,
+        TMPDIR: caches.temp,
+        TEMP: caches.temp,
+        TMP: caches.temp,
       };
+      for (const key of Object.keys(environment))
+        if (key.toLowerCase().startsWith("npm_config_"))
+          delete environment[key];
+      environment.npm_config_store_dir = caches.pnpm;
+      environment.npm_config_userconfig = path.join(output, "inputs", "npmrc");
+      environment.npm_config_globalconfig = path.join(
+        output,
+        "inputs",
+        "npmrc",
+      );
+      environment.GIT_CONFIG_NOSYSTEM = "1";
+      environment.GIT_CONFIG_GLOBAL = path.join(output, "inputs", "gitconfig");
       // Nestia owns this flag only inside its private config-loader child.
       // An inherited value would disable Evidence rules in ordinary Programs.
       delete environment.NESTIA_SDK_TRANSFORM;
@@ -165,6 +349,14 @@ export namespace EvidenceBenchmarkMaterializer {
 
       writeTree(path.join(stage, "workspace"), workspaceFiles);
       writeTree(path.join(stage, "inputs", "requirements"), requirementFiles);
+      fs.writeFileSync(path.join(stage, "inputs", "npmrc"), "", {
+        encoding: "utf8",
+        flag: "wx",
+      });
+      fs.writeFileSync(path.join(stage, "inputs", "gitconfig"), "", {
+        encoding: "utf8",
+        flag: "wx",
+      });
       manifestRecord.elapsedMs =
         Number(process.hrtime.bigint() - started) / 1_000_000;
       fs.writeFileSync(

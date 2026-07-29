@@ -154,8 +154,8 @@ export namespace BenchmarkHealthScaffold {
     assert.equal(execution.stack, null);
     assert.equal(
       execution.value,
-      1,
-      "the health e2e result must report its one exact assertion",
+      3,
+      "the health e2e result must report its three raw and typed assertions",
     );
   };
 

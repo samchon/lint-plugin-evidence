@@ -17,6 +17,17 @@ class DiscoveryProofProvider {
 }
 
 const main = async (): Promise<void> => {
+  if (process.env.DISCOVERY_DUPLICATE === "1") {
+    await assert.rejects(
+      () => MyModule.mount(),
+      (error: unknown) =>
+        error instanceof Error &&
+        error.message.includes(
+          "A NestJS controller was discovered more than once",
+        ),
+    );
+    return;
+  }
   const input = MyModule.input();
   const expectedSourceRoot: string = path.resolve(
     process.cwd(),

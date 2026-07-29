@@ -50,7 +50,51 @@ export namespace EvidenceBenchmarkLintBaseline {
     { path: "packages/api/package.json", lintConfig: PATHS[0] },
     { path: "packages/backend/package.json", lintConfig: PATHS[1] },
     { path: "packages/frontend/package.json", lintConfig: PATHS[2] },
+    { path: "config/package.json", lintConfig: PATHS[3] },
     { path: "package.json", lintConfig: PATHS[3] },
+  ] as const;
+
+  /** Shared policy and fixed runner files that complete the command boundary. */
+  export const INFRASTRUCTURE = [
+    { path: "AGENTS.md", lintConfig: PATHS[3] },
+    { path: "CLAUDE.md", lintConfig: PATHS[3] },
+    {
+      path: "packages/api/scripts/ensure-nestia-exports.cjs",
+      lintConfig: PATHS[0],
+    },
+    { path: "packages/backend/nestia.config.ts", lintConfig: PATHS[1] },
+    { path: "packages/backend/prisma.config.ts", lintConfig: PATHS[1] },
+    { path: "packages/backend/src/MyModule.ts", lintConfig: PATHS[1] },
+    {
+      path: "packages/backend/test/helpers/TestAutomation.ts",
+      lintConfig: PATHS[1],
+    },
+    {
+      path: "packages/backend/test/features/api/health/test_api_health.ts",
+      lintConfig: PATHS[1],
+    },
+    { path: "packages/backend/test/index.ts", lintConfig: PATHS[1] },
+    { path: "config/lint.config.frontend.ts", lintConfig: PATHS[2] },
+    { path: "packages/frontend/playwright.config.ts", lintConfig: PATHS[2] },
+    {
+      path: "packages/frontend/scripts/run-playwright.mjs",
+      lintConfig: PATHS[2],
+    },
+    { path: "packages/frontend/vite.config.ts", lintConfig: PATHS[2] },
+    { path: "config/lint.config.ts", lintConfig: PATHS[3] },
+    { path: "config/tsconfig.json", lintConfig: PATHS[3] },
+    { path: "pnpm-workspace.yaml", lintConfig: PATHS[3] },
+  ] as const;
+
+  /** Higher-precedence policy entrypoints absent from the frozen template. */
+  export const FORBIDDEN_POLICY_PATHS = [
+    "AGENTS.override.md",
+    "CLAUDE.local.md",
+    ".codex",
+    ".claude",
+    ".npmrc",
+    ".pnpmfile.cjs",
+    "pnpmfile.cjs",
   ] as const;
 
   /** API, canonical backend, and source-program projection final identities. */
@@ -79,6 +123,22 @@ export namespace EvidenceBenchmarkLintBaseline {
       lintConfig: entry.lintConfig,
       baseline: readScripts(files, entry.path),
     }));
+    const instructionPaths: readonly string[] = [...files.keys()]
+      .filter((relative) => relative.startsWith(".agents/"))
+      .sort((left, right) => left.localeCompare(right, "en"));
+    const infrastructure: readonly {
+      lintConfig: string;
+      baseline: IEvidenceBenchmarkMaterialization.IInfrastructureFileBaseline;
+    }[] = [
+      ...INFRASTRUCTURE.map((entry) => ({
+        lintConfig: entry.lintConfig,
+        baseline: readInfrastructure(files, entry.path),
+      })),
+      ...instructionPaths.map((relative) => ({
+        lintConfig: PATHS[3],
+        baseline: readInfrastructure(files, relative),
+      })),
+    ];
     return PATHS.map((relative) => {
       const content: Uint8Array | undefined = files.get(relative);
       if (content === undefined)
@@ -98,6 +158,9 @@ export namespace EvidenceBenchmarkLintBaseline {
         scripts: scripts
           .filter((entry) => entry.lintConfig === relative)
           .map((entry) => entry.baseline),
+        infrastructure: infrastructure
+          .filter((entry) => entry.lintConfig === relative)
+          .map((entry) => entry.baseline),
       };
     });
   }
@@ -107,26 +170,76 @@ export namespace EvidenceBenchmarkLintBaseline {
     workspace: string,
     arm: IEvidenceBenchmarkMaterialization.Arm,
   ): IEvidenceBenchmarkMaterialization.ILintConfigBaseline[] {
-    return capture(
-      new Map(
-        [
-          ...PATHS,
-          ...PROGRAMS.map((program) => program.path),
-          ...SCRIPTS.map((entry) => entry.path),
-        ].map((relative) => {
-          const location: string = path.join(workspace, ...relative.split("/"));
-          const stat: fs.Stats | undefined = fs.lstatSync(location, {
-            throwIfNoEntry: false,
-          });
-          if (!stat?.isFile() || stat.isSymbolicLink())
-            throw new Error(
-              `Benchmark lint configuration is not a regular file: ${relative}.`,
-            );
-          return [relative, fs.readFileSync(location)] as const;
-        }),
-      ),
-      arm,
+    assertNoPolicyOverrides(workspace);
+    const files: Map<string, Uint8Array> = new Map(
+      [
+        ...PATHS,
+        ...PROGRAMS.map((program) => program.path),
+        ...SCRIPTS.map((entry) => entry.path),
+        ...INFRASTRUCTURE.map((entry) => entry.path),
+      ].map((relative) => {
+        const location: string = path.join(workspace, ...relative.split("/"));
+        const stat: fs.Stats | undefined = fs.lstatSync(location, {
+          throwIfNoEntry: false,
+        });
+        if (!stat?.isFile() || stat.isSymbolicLink())
+          throw new Error(
+            `Benchmark lint configuration is not a regular file: ${relative}.`,
+          );
+        return [relative, fs.readFileSync(location)] as const;
+      }),
     );
+    const instructions: string = path.join(workspace, ".agents");
+    const instructionStat: fs.Stats | undefined = fs.lstatSync(instructions, {
+      throwIfNoEntry: false,
+    });
+    if (!instructionStat?.isDirectory() || instructionStat.isSymbolicLink())
+      throw new Error(
+        "Benchmark agent instruction root is not a real directory.",
+      );
+    for (const [relative, content] of EvidenceBenchmarkHash.directory(
+      instructions,
+    ))
+      files.set(path.posix.join(".agents", relative), content);
+    return capture(files, arm);
+  }
+
+  function assertNoPolicyOverrides(workspace: string): void {
+    const forbidden: ReadonlySet<string> = new Set(
+      FORBIDDEN_POLICY_PATHS.map((relative) => relative.toLowerCase()),
+    );
+    const visit = (directory: string): void => {
+      for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+        if (
+          [".benchmark-cache", ".git", "node_modules"].includes(
+            entry.name.toLowerCase(),
+          )
+        )
+          continue;
+        const location: string = path.join(directory, entry.name);
+        const relative: string = path
+          .relative(workspace, location)
+          .split(path.sep)
+          .join("/");
+        const lower: string = entry.name.toLowerCase();
+        const allowedRuntimeEnvironment: boolean =
+          relative === "packages/backend/.env" ||
+          relative === "packages/frontend/.env";
+        if (
+          forbidden.has(lower) ||
+          ((lower === ".env" || lower.startsWith(".env.")) &&
+            lower !== ".env.example" &&
+            !allowedRuntimeEnvironment) ||
+          ((lower === "agents.md" || lower === "claude.md") &&
+            path.dirname(relative) !== ".")
+        )
+          throw new Error(
+            `Benchmark workspace contains a forbidden policy override: ${relative}.`,
+          );
+        if (entry.isDirectory()) visit(location);
+      }
+    };
+    visit(workspace);
   }
 
   /**
@@ -203,18 +316,39 @@ export namespace EvidenceBenchmarkLintBaseline {
         JSON.stringify(
           after.scripts.map((entry) => ({
             path: entry.path,
+            name: entry.name,
             sha256: entry.sha256,
           })),
         ) !==
         JSON.stringify(
           before.scripts.map((entry) => ({
             path: entry.path,
+            name: entry.name,
             sha256: entry.sha256,
           })),
         )
       )
         throw new Error(
           `Benchmark package command surface was not restored for ${relative}.`,
+        );
+      for (const expectedScripts of before.scripts) {
+        const actualScripts = after.scripts.find(
+          (entry) => entry.path === expectedScripts.path,
+        );
+        if (
+          actualScripts === undefined ||
+          dependenciesRestored(expectedScripts, actualScripts) === false
+        )
+          throw new Error(
+            `Benchmark pinned dependency surface was not restored for ${expectedScripts.path}.`,
+          );
+      }
+      if (
+        JSON.stringify(after.infrastructure) !==
+        JSON.stringify(before.infrastructure)
+      )
+        throw new Error(
+          `Benchmark shared execution infrastructure was not restored for ${relative}.`,
         );
     }
     return digest(baselines, selected);
@@ -252,12 +386,26 @@ export namespace EvidenceBenchmarkLintBaseline {
         throw new Error(
           `Benchmark lint Program routing was not restored for ${before.path}.`,
         );
+      for (const expectedScripts of before.scripts) {
+        const actualScripts = after.scripts.find(
+          (entry) => entry.path === expectedScripts.path,
+        );
+        if (
+          actualScripts === undefined ||
+          actualScripts.name !== expectedScripts.name ||
+          actualScripts.sha256 !== expectedScripts.sha256 ||
+          dependenciesRestored(expectedScripts, actualScripts) === false
+        )
+          throw new Error(
+            `Benchmark package command surface was not restored for ${expectedScripts.path}.`,
+          );
+      }
       if (
-        EvidenceBenchmarkHash.object(after.scripts) !==
-        EvidenceBenchmarkHash.object(before.scripts)
+        EvidenceBenchmarkHash.object(after.infrastructure) !==
+        EvidenceBenchmarkHash.object(before.infrastructure)
       )
         throw new Error(
-          `Benchmark package command surface was not restored for ${before.path}.`,
+          `Benchmark shared execution infrastructure was not restored for ${before.path}.`,
         );
     }
     const expectedMain = baselines.find((entry) => entry.path === PATHS[3]);
@@ -283,6 +431,7 @@ export namespace EvidenceBenchmarkLintBaseline {
         path: entry.path,
         programs: entry.programs,
         scripts: entry.scripts,
+        infrastructure: entry.infrastructure,
         ...(entry.path === PATHS[3]
           ? {
               sha256: entry.sha256,
@@ -365,11 +514,39 @@ export namespace EvidenceBenchmarkLintBaseline {
           JSON.stringify(expectedScripts.map((scripts) => scripts.path)) ||
         entry.scripts.some(
           (scripts) =>
-            scripts.sha256 !== EvidenceBenchmarkHash.object(scripts.scripts),
+            scripts.sha256 !==
+              EvidenceBenchmarkHash.object({
+                name: scripts.name,
+                scripts: scripts.scripts,
+              }) ||
+            Object.values(scripts.dependencies).some(
+              (specifier) => typeof specifier !== "string",
+            ) ||
+            !/^[0-9a-f]{64}$/.test(scripts.resolutionSha256),
         )
       )
         throw new Error(
           `Benchmark package command seal is corrupt: ${entry.path}.`,
+        );
+      const expectedInfrastructure = INFRASTRUCTURE.filter(
+        (file) => file.lintConfig === entry.path,
+      );
+      const staticInfrastructure = entry.infrastructure.filter(
+        (file) => !file.path.startsWith(".agents/"),
+      );
+      const instructionInfrastructure = entry.infrastructure.filter((file) =>
+        file.path.startsWith(".agents/"),
+      );
+      if (
+        JSON.stringify(staticInfrastructure.map((file) => file.path)) !==
+          JSON.stringify(expectedInfrastructure.map((file) => file.path)) ||
+        (entry.path === PATHS[3]
+          ? instructionInfrastructure.length === 0
+          : instructionInfrastructure.length !== 0) ||
+        entry.infrastructure.some((file) => !/^[0-9a-f]{64}$/.test(file.sha256))
+      )
+        throw new Error(
+          `Benchmark shared infrastructure seal is corrupt: ${entry.path}.`,
         );
     }
   }
@@ -422,13 +599,24 @@ export namespace EvidenceBenchmarkLintBaseline {
         `Benchmark package command source is missing: ${relative}.`,
       );
     const parsed: unknown = JSON.parse(Buffer.from(content).toString("utf8"));
+    const name: unknown =
+      typeof parsed === "object" &&
+      parsed !== null &&
+      !Array.isArray(parsed) &&
+      "name" in parsed
+        ? parsed.name
+        : undefined;
+    if (typeof name !== "string" || name.length === 0)
+      throw new Error(
+        `Benchmark package name must be a non-empty string: ${relative}.`,
+      );
     const value: unknown =
       typeof parsed === "object" &&
       parsed !== null &&
       !Array.isArray(parsed) &&
       "scripts" in parsed
         ? parsed.scripts
-        : undefined;
+        : {};
     if (
       typeof value !== "object" ||
       value === null ||
@@ -443,10 +631,94 @@ export namespace EvidenceBenchmarkLintBaseline {
         left.localeCompare(right, "en"),
       ),
     );
+    const dependencies: Record<string, string> = {};
+    const installedSections: Map<string, string> = new Map();
+    for (const section of [
+      "dependencies",
+      "devDependencies",
+      "optionalDependencies",
+      "peerDependencies",
+    ] as const) {
+      const entries: unknown =
+        typeof parsed === "object" &&
+        parsed !== null &&
+        !Array.isArray(parsed) &&
+        section in parsed
+          ? parsed[section]
+          : undefined;
+      if (entries === undefined) continue;
+      if (
+        typeof entries !== "object" ||
+        entries === null ||
+        Array.isArray(entries) ||
+        Object.values(entries).some(
+          (specifier) => typeof specifier !== "string",
+        )
+      )
+        throw new Error(
+          `Benchmark package ${section} must be a string-valued object: ${relative}.`,
+        );
+      for (const [dependency, specifier] of Object.entries(
+        entries as Record<string, string>,
+      )) {
+        const installed: string | undefined = installedSections.get(dependency);
+        if (
+          section !== "peerDependencies" &&
+          installed !== undefined &&
+          installed !== "peerDependencies"
+        )
+          throw new Error(
+            `Benchmark package dependency has conflicting installed sections: ${relative}#${dependency}.`,
+          );
+        if (section !== "peerDependencies")
+          installedSections.set(dependency, section);
+        else installedSections.set(dependency, installed ?? section);
+        dependencies[`${section}.${dependency}`] = specifier;
+      }
+    }
+    const manifest = parsed as Record<string, unknown>;
+    const resolutionSha256: string = EvidenceBenchmarkHash.object({
+      packageManager: manifest.packageManager,
+      engines: manifest.engines,
+      pnpm: manifest.pnpm,
+      overrides: manifest.overrides,
+      resolutions: manifest.resolutions,
+    });
     return {
       path: relative,
-      sha256: EvidenceBenchmarkHash.object(scripts),
+      name,
+      sha256: EvidenceBenchmarkHash.object({ name, scripts }),
       scripts,
+      dependencies: Object.fromEntries(
+        Object.entries(dependencies).sort(([left], [right]) =>
+          left.localeCompare(right, "en"),
+        ),
+      ),
+      resolutionSha256,
+    };
+  }
+
+  function dependenciesRestored(
+    expected: IEvidenceBenchmarkMaterialization.ILintScriptsBaseline,
+    actual: IEvidenceBenchmarkMaterialization.ILintScriptsBaseline,
+  ): boolean {
+    for (const [dependency, specifier] of Object.entries(expected.dependencies))
+      if (actual.dependencies[dependency] !== specifier) return false;
+    return actual.resolutionSha256 === expected.resolutionSha256;
+  }
+
+  function readInfrastructure(
+    files: ReadonlyMap<string, Uint8Array>,
+    relative: string,
+  ): IEvidenceBenchmarkMaterialization.IInfrastructureFileBaseline {
+    const content: Uint8Array | undefined = files.get(relative);
+    if (content === undefined)
+      throw new Error(
+        `Benchmark shared infrastructure source is missing: ${relative}.`,
+      );
+    return {
+      path: relative,
+      sha256: EvidenceBenchmarkHash.bytes(content),
     };
   }
 
@@ -482,6 +754,7 @@ export namespace EvidenceBenchmarkLintBaseline {
     if (
       declarations.length !== 1 ||
       declarations[0]!.constant === false ||
+      rules === undefined ||
       rule === undefined
     )
       throw new Error(

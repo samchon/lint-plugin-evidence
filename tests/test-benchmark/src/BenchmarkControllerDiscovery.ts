@@ -9,6 +9,8 @@ export namespace BenchmarkControllerDiscovery {
   const FIXTURES: Readonly<Record<string, string>> = {
     "NestedDiscoveryController.ts":
       "packages/backend/src/controllers/nested/NestedDiscoveryController.ts",
+    "DuplicateDiscoveryController.ts":
+      "packages/backend/src/controllers/nested/DuplicateDiscoveryController.ts",
     "ControllerHelpers.ts":
       "packages/backend/src/controllers/nested/ControllerHelpers.ts",
     "discovery-proof.ts": "packages/backend/src/executable/discovery-proof.ts",
@@ -103,6 +105,29 @@ export namespace BenchmarkControllerDiscovery {
         cwd: backend,
         env: environment,
         label: "compiled controller discovery proof",
+      },
+    );
+    await EvidenceBenchmarkProcess.pnpm(
+      ["exec", "ttsx", "src/executable/discovery-proof.ts"],
+      {
+        cwd: backend,
+        env: {
+          ...environment,
+          DISCOVERY_DUPLICATE: "1",
+        },
+        label: "source duplicate controller rejection proof",
+      },
+    );
+    await EvidenceBenchmarkProcess.run(
+      process.execPath,
+      ["lib/executable/discovery-proof.js"],
+      {
+        cwd: backend,
+        env: {
+          ...environment,
+          DISCOVERY_DUPLICATE: "1",
+        },
+        label: "compiled duplicate controller rejection proof",
       },
     );
   };

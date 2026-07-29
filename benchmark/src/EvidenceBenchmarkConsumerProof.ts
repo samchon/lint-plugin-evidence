@@ -106,6 +106,54 @@ export namespace EvidenceBenchmarkConsumerProof {
       env: cell.environment,
       label: "packaged Evidence template active-graph lint",
     });
+    await verifyHealthRuntime(workspace, cell.environment);
+  };
+
+  /** Proves the typed health e2e is discovered in source and compiled modes. */
+  const verifyHealthRuntime = async (
+    workspace: string,
+    environment: NodeJS.ProcessEnv,
+  ): Promise<void> => {
+    const backend: string = path.join(workspace, "packages", "backend");
+    for (const result of [
+      await EvidenceBenchmarkProcess.pnpm(["run", "test"], {
+        cwd: backend,
+        env: environment,
+        label: "packaged Evidence source health e2e",
+      }),
+      await EvidenceBenchmarkProcess.run(
+        process.execPath,
+        ["bin/test/index.js"],
+        {
+          cwd: backend,
+          env: environment,
+          label: "packaged Evidence compiled health e2e",
+        },
+      ),
+    ]) {
+      const match: RegExpMatchArray | null = result.stdout.match(
+        /TEST_AUTOMATION_REPORT=(\{[^\r\n]+\})/,
+      );
+      assert.ok(match, "the Evidence health runner did not publish its report");
+      const report = JSON.parse(match[1]!) as {
+        executions: Array<{
+          name: string;
+          value?: unknown;
+          error: string | null;
+          stack: string | null;
+        }>;
+      };
+      const execution = report.executions.find(
+        (candidate) => candidate.name === "test_api_health",
+      );
+      assert.ok(
+        execution,
+        "the Evidence health runner did not discover test_api_health",
+      );
+      assert.equal(execution.error, null);
+      assert.equal(execution.stack, null);
+      assert.equal(execution.value, 3);
+    }
   };
 
   const generatePrisma = (
@@ -325,10 +373,10 @@ export namespace EvidenceBenchmarkConsumerProof {
         'import type { FixturePage } from "../../src/components/fixture/fixture-page";',
         "",
         "/**",
-        " * Navigates to the generated application and observes its marker.",
+        " * Navigates to the generated application through its public route.",
         " *",
         ` * @evidence ${REQUIREMENT}`,
-        " *           Verifies the public root renders the acceptance marker.",
+        " *           Traverses the public root route that renders the marker.",
         " * @evidence {@link FixturePage}",
         " *           Traverses the screen through the application entry route.",
         " */",
@@ -337,13 +385,13 @@ export namespace EvidenceBenchmarkConsumerProof {
         '  if (response === null) throw new Error("Navigation returned no response.");',
         "  if (response.ok() === false)",
         "    throw new Error(`Navigation failed with status ${response.status()}.`);",
-        "  await expect(",
-        '    page.getByText("Central exclusion acceptance fixture"),',
-        "  ).toBeVisible();",
         "}",
         "",
         'test("the production scaffold loads", async ({ page }) => {',
         "  await journey_scaffold_loads(page);",
+        "  await expect(",
+        '    page.getByText("Central exclusion acceptance fixture"),',
+        "  ).toBeVisible();",
         '  await expect(page.getByRole("heading", { level: 1 })).toContainText(',
         `    ${JSON.stringify(variables.name)},`,
         "  );",

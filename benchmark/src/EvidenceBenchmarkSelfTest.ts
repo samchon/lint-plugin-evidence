@@ -18,6 +18,7 @@ import { EvidenceBenchmarkProject } from "./EvidenceBenchmarkProject.ts";
 import { EvidenceBenchmarkPublication } from "./EvidenceBenchmarkPublication.ts";
 import { EvidenceBenchmarkRepair } from "./EvidenceBenchmarkRepair.ts";
 import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
+import { EvidenceBenchmarkSandbox } from "./EvidenceBenchmarkSandbox.ts";
 import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
 import { EvidenceBenchmarkTurnLedger } from "./EvidenceBenchmarkTurnLedger.ts";
@@ -154,11 +155,52 @@ export namespace EvidenceBenchmarkSelfTest {
     EvidenceBenchmarkRuntime.apply(environment, firstAssignment);
     assert.deepEqual(environment, {
       API_PORT: "46000",
+      JWT_ACCESS_TTL_SECONDS: "3600",
+      JWT_REFRESH_TTL_SECONDS: "2592000",
+      JWT_SECRET_KEY: "benchmark-runtime-secret-at-least-32-characters",
       PLAYWRIGHT_TEST_PORT: "46003",
       SWAGGER_PORT: "46001",
       VITE_API_HOST: "http://127.0.0.1:46000",
+      VITE_API_SIMULATE: "false",
       VITE_DEV_PORT: "46002",
     });
+    assert.deepEqual(
+      EvidenceBenchmarkMaterializer.untrustedEnvironment({
+        PATH: "safe",
+        OPENAI_API_KEY: "secret",
+        codex_api_key: "secret",
+        HTTPS_PROXY: "https://credential@example.com",
+        NODE_EXTRA_CA_CERTS: "/host/private-ca.pem",
+        no_proxy: "localhost",
+        SSL_CERT_DIR: "/host/certs",
+      }),
+      { PATH: "safe" },
+      "workspace-authored commands must not inherit model or proxy credentials",
+    );
+    const sandboxArguments: string[] = EvidenceBenchmarkSandbox.argumentsFor(
+      {
+        workspace: "C:/cell/workspace",
+        toolchain: "C:/cell/cache/toolchain-bin",
+        corepack: "C:/cell/cache/corepack",
+        npmConfig: "C:/cell/inputs/npmrc",
+        gitConfig: "C:/cell/inputs/gitconfig",
+      },
+      process.execPath,
+      ["probe.js"],
+    );
+    assert.equal(sandboxArguments[0], "sandbox");
+    assert.deepEqual(sandboxArguments.slice(1, 4), [
+      "--permission-profile",
+      "benchmark-cell",
+      "--include-managed-config",
+    ]);
+    assert.equal(
+      ["windows", "linux", "macos"].some((adapter) =>
+        sandboxArguments.includes(adapter),
+      ),
+      false,
+      "Codex sandbox has no platform-adapter positional argument",
+    );
     const secondWave = Array.from({ length: 4 }, (_value, slot) =>
       EvidenceBenchmarkRuntime.assign(slot, 51_000),
     );
@@ -187,6 +229,7 @@ export namespace EvidenceBenchmarkSelfTest {
         recursive: true,
       });
       EvidenceBenchmarkRuntime.persist(persisted, secondWave[0]!);
+      EvidenceBenchmarkRuntime.assertRestored(persisted, secondWave[0]!);
       assert.match(
         fs.readFileSync(
           path.join(persisted, "packages", "backend", ".env"),
@@ -201,6 +244,83 @@ export namespace EvidenceBenchmarkSelfTest {
         ),
         /^PLAYWRIGHT_TEST_PORT=51003$/m,
       );
+      const frontendEnvironment: string = path.join(
+        persisted,
+        "packages",
+        "frontend",
+        ".env",
+      );
+      const frontendEnvironmentSource: string = fs.readFileSync(
+        frontendEnvironment,
+        "utf8",
+      );
+      fs.appendFileSync(
+        frontendEnvironment,
+        "export VITE_API_SIMULATE=true\n",
+        "utf8",
+      );
+      assert.throws(
+        () =>
+          EvidenceBenchmarkRuntime.assertRestored(persisted, secondWave[0]!),
+        /duplicates VITE_API_SIMULATE/,
+      );
+      fs.writeFileSync(frontendEnvironment, frontendEnvironmentSource, "utf8");
+      fs.appendFileSync(
+        frontendEnvironment,
+        "NODE_OPTIONS=--import ./bypass.mjs\n",
+        "utf8",
+      );
+      assert.throws(
+        () =>
+          EvidenceBenchmarkRuntime.assertRestored(persisted, secondWave[0]!),
+        /may not control execution through NODE_OPTIONS/,
+      );
+      fs.writeFileSync(frontendEnvironment, frontendEnvironmentSource, "utf8");
+      fs.appendFileSync(
+        frontendEnvironment,
+        "NODE_OPTIONS: --import ./bypass.mjs\n",
+        "utf8",
+      );
+      assert.throws(
+        () =>
+          EvidenceBenchmarkRuntime.assertRestored(persisted, secondWave[0]!),
+        /may not control execution through NODE_OPTIONS/,
+      );
+      fs.writeFileSync(frontendEnvironment, frontendEnvironmentSource, "utf8");
+      fs.appendFileSync(
+        frontendEnvironment,
+        "COREPACK_ENABLE_PROJECT_SPEC=0\n",
+        "utf8",
+      );
+      assert.throws(
+        () =>
+          EvidenceBenchmarkRuntime.assertRestored(persisted, secondWave[0]!),
+        /may not control execution through COREPACK_ENABLE_PROJECT_SPEC/,
+      );
+      fs.writeFileSync(frontendEnvironment, frontendEnvironmentSource, "utf8");
+      fs.appendFileSync(
+        frontendEnvironment,
+        "vite_api_simulate=true\n",
+        "utf8",
+      );
+      assert.throws(
+        () =>
+          EvidenceBenchmarkRuntime.assertRestored(persisted, secondWave[0]!),
+        /duplicates VITE_API_SIMULATE/,
+      );
+      fs.writeFileSync(
+        frontendEnvironment,
+        [
+          `VITE_API_HOST=${secondWave[0]!.apiHost}`,
+          "VITE_API_SIMULATE=false",
+          `VITE_DEV_PORT=${secondWave[0]!.viteDevelopmentPort}`,
+          `PLAYWRIGHT_TEST_PORT=${secondWave[0]!.playwrightPort}`,
+          "VITE_APPLICATION_ADDITION=allowed",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      EvidenceBenchmarkRuntime.assertRestored(persisted, secondWave[0]!);
     } finally {
       fs.rmSync(persisted, { recursive: true, force: true });
     }
@@ -255,7 +375,14 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     const workspacePackage = {
       private: true,
+      name: "fixture-root",
       scripts: { test: "fixture root test" },
+      devDependencies: {
+        "@samchon/lint-plugin-evidence": "fixture",
+        "@ttsc/lint": "fixture",
+        ttsc: "fixture",
+        typescript: "fixture",
+      },
     };
     write(
       path.join(workspace, "package.json"),
@@ -267,11 +394,90 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     write(
       path.join(workspace, "packages", "api", "package.json"),
-      '{"scripts":{"build":"fixture api build"}}\n',
+      '{"name":"fixture-api","scripts":{"build":"fixture api build"}}\n',
     );
     write(
       path.join(workspace, "packages", "backend", "package.json"),
-      '{"scripts":{"build":"fixture backend build"}}\n',
+      '{"name":"fixture-backend","scripts":{"build":"fixture backend build"}}\n',
+    );
+    write(
+      path.join(workspace, "config", "package.json"),
+      '{"name":"fixture-config"}\n',
+    );
+    write(
+      path.join(workspace, ".agents", "skills", "fixture", "SKILL.md"),
+      "# Fixture skill\n",
+    );
+    const runtime: EvidenceBenchmarkRuntime.IAssignment =
+      EvidenceBenchmarkRuntime.assign(0, 52_000);
+    EvidenceBenchmarkRuntime.persist(workspace, runtime);
+    const installedPackagesSha256: Record<string, string> = {};
+    for (const name of [
+      "@ttsc/lint",
+      "ttsc",
+      "typescript",
+      "@samchon/lint-plugin-evidence",
+    ]) {
+      const packageRoot: string = path.join(
+        workspace,
+        "node_modules",
+        ...name.split("/"),
+      );
+      write(
+        path.join(packageRoot, "package.json"),
+        `${JSON.stringify({ name, version: "fixture" })}\n`,
+      );
+      installedPackagesSha256[`${name}@fixture:${name}`] =
+        EvidenceBenchmarkHash.tree(
+          EvidenceBenchmarkHash.directory(packageRoot),
+        );
+    }
+    const fixtureLauncher: string = path.join(
+      workspace,
+      "node_modules",
+      ".bin",
+      "ttsc",
+    );
+    write(fixtureLauncher, "fixture ttsc launcher\n");
+    const installedLaunchersSha256 = {
+      "root/ttsc": EvidenceBenchmarkHash.file(fixtureLauncher),
+    };
+    const runRoot: string = path.dirname(workspace);
+    write(path.join(runRoot, "cache", "corepack", "fixture"), "corepack\n");
+    write(
+      path.join(runRoot, "setup.json"),
+      `${JSON.stringify({
+        nodeVersion: process.version,
+        nodePlatform: process.platform,
+        nodeArchitecture: process.arch,
+        nodeExecutableSha256: EvidenceBenchmarkHash.file(process.execPath),
+        corepackExecutableSha256: EvidenceBenchmarkHash.file(
+          EvidenceBenchmarkProcess.corepackEntrypoint(),
+        ),
+        corepackHomeSha256: EvidenceBenchmarkHash.tree(
+          EvidenceBenchmarkHash.directory(
+            path.join(runRoot, "cache", "corepack"),
+          ),
+        ),
+        installedSeedPackages: [
+          "@samchon/lint-plugin-evidence",
+          "@ttsc/lint",
+          "ttsc",
+          "typescript",
+        ],
+        installedPackagesSha256,
+        installedPackageResolutions: [
+          "@samchon/lint-plugin-evidence",
+          "@ttsc/lint",
+          "ttsc",
+          "typescript",
+        ].map((dependency) => ({
+          from: "workspace:root",
+          dependency,
+          to: `${dependency}@fixture:${dependency}`,
+        })),
+        installedLaunchersSha256,
+      })}\n`,
     );
     for (const [
       index,
@@ -345,6 +551,14 @@ export namespace EvidenceBenchmarkSelfTest {
           2,
         )}\n`,
       );
+    for (const [
+      index,
+      infrastructure,
+    ] of EvidenceBenchmarkLintBaseline.INFRASTRUCTURE.entries())
+      write(
+        path.join(workspace, ...infrastructure.path.split("/")),
+        `fixture infrastructure ${index}\n`,
+      );
     const lintBaselines: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[] =
       EvidenceBenchmarkLintBaseline.captureDirectory(workspace, "evidence");
     const lintRestorationSha256: string =
@@ -365,7 +579,6 @@ export namespace EvidenceBenchmarkSelfTest {
     const archiveSha256: string = EvidenceBenchmarkHash.bytes(
       Buffer.from("package archive"),
     );
-    const runRoot: string = path.dirname(workspace);
     for (const relative of [
       "skills-contract.md",
       "backend/start.md",
@@ -385,6 +598,44 @@ export namespace EvidenceBenchmarkSelfTest {
       path.join(runRoot, "inputs", "requirements", "requirements.md"),
       "# Requirements\n",
     );
+    write(path.join(runRoot, "inputs", "npmrc"), "");
+    write(path.join(runRoot, "inputs", "gitconfig"), "");
+    write(
+      path.join(workspace, "pnpm-lock.yaml"),
+      [
+        "lockfileVersion: '9.0'",
+        "",
+        "importers:",
+        "",
+        "  .:",
+        "    devDependencies:",
+        "      '@samchon/lint-plugin-evidence':",
+        "        specifier: fixture",
+        "        version: fixture",
+        "      '@ttsc/lint':",
+        "        specifier: fixture",
+        "        version: fixture",
+        "      ttsc:",
+        "        specifier: fixture",
+        "        version: fixture",
+        "      typescript:",
+        "        specifier: fixture",
+        "        version: fixture",
+        "",
+        "  config: {}",
+        "",
+        "  packages/api: {}",
+        "",
+        "  packages/backend: {}",
+        "",
+        "  packages/frontend: {}",
+        "",
+      ].join("\n"),
+    );
+    write(
+      path.join(workspace, "docs", "analysis", "requirements.md"),
+      "# Requirements\n",
+    );
     const instructionsTreeSha256: string = EvidenceBenchmarkHash.tree(
       EvidenceBenchmarkHash.directory(
         path.join(runRoot, "inputs", "instructions"),
@@ -395,28 +646,106 @@ export namespace EvidenceBenchmarkSelfTest {
         path.join(runRoot, "inputs", "requirements"),
       ),
     );
+    const requirementFiles: readonly IEvidenceBenchmarkMaterialization.ITreeEntry[] =
+      EvidenceBenchmarkHash.entries(
+        EvidenceBenchmarkHash.directory(
+          path.join(runRoot, "inputs", "requirements"),
+        ),
+      );
     const materializationPath: string = path.join(
       runRoot,
       "materialization.json",
     );
+    const variables = {
+      name: "fixture-root",
+      apiPackageName: "fixture-api",
+      backendPackageName: "fixture-backend",
+      frontendPackageName: "@evidence-benchmark/todo-evidence-frontend",
+    };
+    const baseTreeSha256: string = EvidenceBenchmarkHash.bytes("fixture base");
+    const armTreeSha256: string = EvidenceBenchmarkHash.bytes("fixture arm");
+    const workspaceTreeSha256: string =
+      EvidenceBenchmarkHash.bytes("fixture workspace");
     const materialization = {
-      schemaVersion: 5,
+      schemaVersion: 6,
+      treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
       project: "todo",
       arm: "evidence",
+      variables,
+      baseTreeSha256,
+      armTreeSha256,
       requirementsTreeSha256,
+      workspaceTreeSha256,
+      requirementFiles,
       lintBaselines,
       artifact: {
         sourceCommit: "0123456789abcdef0123456789abcdef01234567",
         sha256: archiveSha256,
         relativeArchive: ".benchmark-deps/evidence.tgz",
       },
+      inputSha256: EvidenceBenchmarkHash.object({
+        treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
+        project: "todo",
+        arm: "evidence",
+        variables,
+        base: baseTreeSha256,
+        overlay: armTreeSha256,
+        requirements: requirementsTreeSha256,
+        product: archiveSha256,
+        workspace: workspaceTreeSha256,
+        lintBaselines,
+      }),
     };
     write(materializationPath, `${JSON.stringify(materialization)}\n`);
     const runStatePath: string = path.join(runRoot, "run.json");
+    const turnNames = [
+      "skills-contract",
+      "backend-start",
+      "backend-review",
+      "backend-final",
+      "frontend-start",
+      "frontend-review",
+      "frontend-final",
+      "overall-review",
+      "overall-final",
+    ] as const;
+    const installationProof: string = EvidenceBenchmarkHash.bytes(
+      "fixture installation",
+    );
+    const threadId: string = "fixture-thread";
+    write(
+      path.join(runRoot, "logs", "skills-contract.stdout.jsonl"),
+      `${JSON.stringify({ type: "turn.failed" })}\n{"truncated":`,
+    );
+    write(
+      path.join(runRoot, "logs", "skills-contract.stderr.log"),
+      "fixture capacity failure\n",
+    );
+    for (const name of turnNames) {
+      const stem: string =
+        name === "skills-contract" ? `${name}.attempt-2` : name;
+      write(
+        path.join(runRoot, "logs", `${stem}.stdout.jsonl`),
+        [
+          JSON.stringify({ type: "thread.started", thread_id: threadId }),
+          JSON.stringify({
+            type: "turn.completed",
+            usage: {
+              input_tokens: 1,
+              cached_input_tokens: 0,
+              output_tokens: 1,
+              reasoning_output_tokens: 0,
+            },
+          }),
+          "",
+        ].join("\n"),
+      );
+      write(path.join(runRoot, "logs", `${stem}.stderr.log`), "");
+    }
     write(
       runStatePath,
       `${JSON.stringify({
-        schemaVersion: 6,
+        schemaVersion: 8,
         workflow: "backend-first-gated-v2",
         instructionsTreeSha256,
         project: "todo",
@@ -425,38 +754,131 @@ export namespace EvidenceBenchmarkSelfTest {
         model: "gpt-5.6-terra",
         effort: "high",
         cliVersion: "codex-cli 0.145.0",
+        elapsedMs: 11,
+        controllerPid: 1,
+        threadId,
         status: "completed",
         sourceCommit: "0123456789abcdef0123456789abcdef01234567",
         lintBaselines,
+        runtime,
         completedWorkspaceTreeSha256:
           EvidenceBenchmarkPublication.workspaceSha256(workspace),
         turns: [
-          "skills-contract",
-          "backend-start",
-          "backend-review",
-          "backend-final",
-          "frontend-start",
-          "frontend-review",
-          "frontend-final",
-          "overall-review",
-          "overall-final",
-        ].map((name) => ({
-          name,
-          status: 0,
-          invocation: ["codex", "exec"],
-          accepted: true,
-          lintRestorationSha256:
-            name === "backend-final"
-              ? backendLintRestorationSha256
-              : name === "frontend-final" || name === "overall-final"
-                ? lintRestorationSha256
-                : infrastructureLintRestorationSha256,
-        })),
+          {
+            name: "skills-contract",
+            elapsedMs: 2,
+            status: 1,
+            stdout: "logs/skills-contract.stdout.jsonl",
+            stderr: "logs/skills-contract.stderr.log",
+            invocation: [
+              "codex",
+              ...EvidenceBenchmarkTurnLedger.invocationArguments({
+                workspace,
+                model: "gpt-5.6-terra",
+                effort: "high",
+              }),
+            ],
+            accepted: false,
+          },
+          ...turnNames.map((name, index) => {
+            const stem: string =
+              name === "skills-contract" ? `${name}.attempt-2` : name;
+            return {
+              name,
+              elapsedMs: 1,
+              status: 0,
+              stdout: path.posix.join("logs", `${stem}.stdout.jsonl`),
+              stderr: path.posix.join("logs", `${stem}.stderr.log`),
+              invocation: [
+                "codex",
+                ...EvidenceBenchmarkTurnLedger.invocationArguments({
+                  workspace,
+                  threadId: index === 0 ? undefined : threadId,
+                  model: "gpt-5.6-terra",
+                  effort: "high",
+                }),
+              ],
+              accepted: true,
+              threadId,
+              installationReproductionSha256: installationProof,
+              lintRestorationSha256:
+                name === "skills-contract"
+                  ? infrastructureLintRestorationSha256
+                  : name.startsWith("backend-")
+                    ? backendLintRestorationSha256
+                    : lintRestorationSha256,
+            };
+          }),
+        ],
       })}\n`,
     );
     write(
       path.join(runRoot, "benchmark-report.json"),
-      `${JSON.stringify({ schemaVersion: 1, quality: { score: 100 } })}\n`,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        status: "accepted",
+        project: "todo",
+        arm: "evidence",
+        runId,
+        measurement: {
+          totalElapsedMs: 11,
+          agentElapsedMs: 11,
+          nonAgentElapsedMs: 0,
+          attempts: {
+            total: 10,
+            accepted: 9,
+            rejected: 1,
+          },
+          tokens: {
+            input_tokens: 9,
+            cached_input_tokens: 0,
+            output_tokens: 9,
+            reasoning_output_tokens: 0,
+          },
+          pricingUsdPerMillion: {
+            input: 1,
+            cachedInput: 0.1,
+            output: 2,
+          },
+          apiEquivalentCostUsd: 27 / 1_000_000,
+        },
+        gates: {
+          build: "passed",
+          lint: "passed",
+          database: "passed",
+          backendTests: "passed",
+          frontendTests: "passed",
+          runtime: "passed",
+        },
+        coverage: {
+          requirements: { total: 0, covered: 0 },
+          tests: { total: 0, covered: 0 },
+        },
+        implementation: {
+          tables: 0,
+          apiOperations: 0,
+          dtoTypes: 0,
+          dtoProperties: 0,
+          testFunctions: 0,
+        },
+        completion: {
+          firstClaimTurn: "overall-final",
+          honest: true,
+        },
+        quality: {
+          score: 100,
+          summary: "Fixture passed the complete publication audit.",
+          residualDefects: [],
+        },
+        frozenInputs: {
+          sourceCommit: materialization.artifact.sourceCommit,
+          instructionsTreeSha256,
+          requirementsTreeSha256,
+          completedWorkspaceTreeSha256:
+            EvidenceBenchmarkPublication.workspaceSha256(workspace),
+        },
+        interventions: [],
+      })}\n`,
     );
     const checkout: string = path.join(temporary, "publication-results");
     write(path.join(checkout, "README.md"), "# Benchmark results\n");
@@ -569,20 +991,189 @@ export namespace EvidenceBenchmarkSelfTest {
         );
       return processResult(0);
     };
-    const result: EvidenceBenchmarkPublication.IResult =
-      await EvidenceBenchmarkPublication.publish(repository, request, runner);
+    const reproduce: EvidenceBenchmarkPublication.Reproducer = async (
+      _workspace,
+      _runRoot,
+      verifyGates,
+    ) => {
+      assert.equal(
+        verifyGates,
+        true,
+        "publication must rerun the clean overall terminal gates",
+      );
+      return installationProof;
+    };
+    const publish = (
+      candidate: EvidenceBenchmarkPublication.Runner,
+    ): Promise<EvidenceBenchmarkPublication.IResult> =>
+      EvidenceBenchmarkPublication.publish(
+        repository,
+        request,
+        candidate,
+        reproduce,
+        () => "codex-cli 0.145.0",
+      );
+    const result: EvidenceBenchmarkPublication.IResult = await publish(runner);
     assert.equal(result.repository, "fixture-owner/evidence-benchmark-results");
     assert.ok(calls.includes("git push origin master"));
+
+    const reportPath: string = path.join(runRoot, "benchmark-report.json");
+    const reportFixture = JSON.parse(fs.readFileSync(reportPath, "utf8")) as {
+      measurement: { attempts: { total: number } };
+    };
+    reportFixture.measurement.attempts.total--;
+    write(reportPath, `${JSON.stringify(reportFixture)}\n`);
+    await expectFailure(() => publish(runner), "attempt total");
+    reportFixture.measurement.attempts.total++;
+    write(reportPath, `${JSON.stringify(reportFixture)}\n`);
+
+    const forgedState = JSON.parse(fs.readFileSync(runStatePath, "utf8")) as {
+      cliVersion: string;
+      turns: Array<{
+        name: string;
+        invocation: string[];
+        installationReproductionSha256: string;
+      }>;
+    };
+    forgedState.cliVersion = "forged-cli";
+    write(runStatePath, `${JSON.stringify(forgedState)}\n`);
+    await expectFailure(
+      () => publish(runner),
+      "requires the completed todo/evidence run",
+    );
+    forgedState.cliVersion = "codex-cli 0.145.0";
+    write(runStatePath, `${JSON.stringify(forgedState)}\n`);
+    const forgedFinal = forgedState.turns.find(
+      (turn) => turn.name === "overall-final",
+    )!;
+    forgedFinal.installationReproductionSha256 = "f".repeat(64);
+    write(runStatePath, `${JSON.stringify(forgedState)}\n`);
+    await expectFailure(
+      () => publish(runner),
+      "installation no longer matches the clean overall-final proof",
+    );
+    forgedFinal.installationReproductionSha256 = installationProof;
+    const forgedBackend = forgedState.turns.find(
+      (turn) => turn.name === "backend-start",
+    )!;
+    const modelIndex: number =
+      forgedBackend.invocation.indexOf("gpt-5.6-terra");
+    assert.ok(modelIndex >= 0);
+    forgedBackend.invocation[modelIndex] = "forged-model";
+    write(runStatePath, `${JSON.stringify(forgedState)}\n`);
+    await expectFailure(
+      () => publish(runner),
+      "does not retain the exact model, effort, permission, and thread invocation",
+    );
+    forgedBackend.invocation[modelIndex] = "gpt-5.6-terra";
+    write(runStatePath, `${JSON.stringify(forgedState)}\n`);
+    const terminalLog: string = path.join(
+      runRoot,
+      "logs",
+      "overall-final.stdout.jsonl",
+    );
+    const terminalLogSource: string = fs.readFileSync(terminalLog, "utf8");
+    write(
+      terminalLog,
+      terminalLogSource.replace(',"reasoning_output_tokens":0', ""),
+    );
+    await expectFailure(
+      () => publish(runner),
+      "has no terminal model-usage proof",
+    );
+    fs.writeFileSync(terminalLog, terminalLogSource, "utf8");
+    write(
+      terminalLog,
+      `${JSON.stringify({ type: "thread.started", thread_id: threadId })}\n`,
+    );
+    await expectFailure(
+      () => publish(runner),
+      "has no terminal model-usage proof",
+    );
+    fs.writeFileSync(terminalLog, terminalLogSource, "utf8");
+    const orphanLog: string = path.join(runRoot, "logs", "orphan.stderr.log");
+    write(orphanLog, "unledgered attempt\n");
+    await expectFailure(
+      () => publish(runner),
+      "log inventory does not exactly match",
+    );
+    fs.rmSync(orphanLog);
+
+    const workspaceRequirement: string = path.join(
+      workspace,
+      "docs",
+      "analysis",
+      "requirements.md",
+    );
+    fs.appendFileSync(workspaceRequirement, "\nweakened\n", "utf8");
+    await expectFailure(
+      () =>
+        publish(async () => {
+          throw new Error("mutated requirements reached the process runner");
+        }),
+      "workspace requirement copy was not restored",
+    );
+    fs.writeFileSync(workspaceRequirement, "# Requirements\n", "utf8");
+
+    const frontendRuntime: string = path.join(
+      workspace,
+      "packages",
+      "frontend",
+      ".env",
+    );
+    const frontendRuntimeSource: string = fs.readFileSync(
+      frontendRuntime,
+      "utf8",
+    );
+    fs.writeFileSync(
+      frontendRuntime,
+      frontendRuntimeSource.replace(
+        "VITE_API_SIMULATE=false",
+        "VITE_API_SIMULATE=true",
+      ),
+      "utf8",
+    );
+    await expectFailure(
+      () =>
+        publish(async () => {
+          throw new Error("mutated runtime reached the process runner");
+        }),
+      "runtime environment was not restored",
+    );
+    fs.writeFileSync(frontendRuntime, frontendRuntimeSource, "utf8");
 
     write(path.join(workspace, "benchmark.json"), '{"forged":true}\n');
     await expectFailure(
       () =>
-        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+        publish(async () => {
           throw new Error("reserved workspace path reached the process runner");
         }),
       "owns reserved publication path: benchmark.json",
     );
     fs.rmSync(path.join(workspace, "benchmark.json"));
+
+    const installedProduct: string = path.join(
+      workspace,
+      "node_modules",
+      "@samchon",
+      "lint-plugin-evidence",
+      "package.json",
+    );
+    const installedProductSource: string = fs.readFileSync(
+      installedProduct,
+      "utf8",
+    );
+    fs.writeFileSync(installedProduct, `${installedProductSource}\n`, "utf8");
+    await expectFailure(
+      () =>
+        publish(async () => {
+          throw new Error(
+            "mutated installed product reached the process runner",
+          );
+        }),
+      "installed compiler, command launcher, or measured-product payload was not restored",
+    );
+    fs.writeFileSync(installedProduct, installedProductSource, "utf8");
 
     const runState = JSON.parse(fs.readFileSync(runStatePath, "utf8")) as {
       turns: Array<{
@@ -597,14 +1188,12 @@ export namespace EvidenceBenchmarkSelfTest {
     write(runStatePath, `${JSON.stringify(runState)}\n`);
     await expectFailure(
       () =>
-        EvidenceBenchmarkPublication.publish(repository, request, async () => {
-          throw new Error(
-            "missing infrastructure proof reached the process runner",
-          );
+        publish(async () => {
+          throw new Error("missing backend proof reached the process runner");
         }),
-      "infrastructure immutability proof",
+      "backend-start lint restoration proof",
     );
-    backendStart.lintRestorationSha256 = infrastructureLintRestorationSha256;
+    backendStart.lintRestorationSha256 = backendLintRestorationSha256;
     const backendFinal = runState.turns.find(
       (turn) => turn.name === "backend-final",
     )!;
@@ -612,7 +1201,7 @@ export namespace EvidenceBenchmarkSelfTest {
     write(runStatePath, `${JSON.stringify(runState)}\n`);
     await expectFailure(
       () =>
-        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+        publish(async () => {
           throw new Error("missing backend proof reached the process runner");
         }),
       "backend-final lint restoration proof",
@@ -625,7 +1214,7 @@ export namespace EvidenceBenchmarkSelfTest {
     write(runStatePath, `${JSON.stringify(runState)}\n`);
     await expectFailure(
       () =>
-        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+        publish(async () => {
           throw new Error("wrong frontend proof reached the process runner");
         }),
       "frontend-final lint restoration proof",
@@ -639,7 +1228,7 @@ export namespace EvidenceBenchmarkSelfTest {
     write(runStatePath, `${JSON.stringify(runState)}\n`);
     await expectFailure(
       () =>
-        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+        publish(async () => {
           throw new Error("missing overall proof reached the process runner");
         }),
       "overall-final lint restoration proof",
@@ -662,7 +1251,7 @@ export namespace EvidenceBenchmarkSelfTest {
     write(runStatePath, `${JSON.stringify(runState)}\n`);
     await expectFailure(
       () =>
-        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+        publish(async () => {
           throw new Error("swapped turn order reached the process runner");
         }),
       "canonical instruction prefix",
@@ -675,7 +1264,7 @@ export namespace EvidenceBenchmarkSelfTest {
     write(materializationPath, `${JSON.stringify(materialization)}\n`);
     await expectFailure(
       () =>
-        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+        publish(async () => {
           throw new Error("unsafe archive path reached the process runner");
         }),
       "unsafe product archive path",
@@ -689,7 +1278,7 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     await expectFailure(
       () =>
-        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+        publish(async () => {
           throw new Error("mutated workspace reached the process runner");
         }),
       "workspace failed identity verification",
@@ -701,15 +1290,12 @@ export namespace EvidenceBenchmarkSelfTest {
 
     await expectFailure(
       () =>
-        EvidenceBenchmarkPublication.publish(
-          repository,
-          request,
-          async (command, arguments_) =>
-            command === "gh" &&
-            arguments_[0] === "api" &&
-            arguments_[1] === "user"
-              ? processResult(0, "different-owner\n")
-              : processResult(0),
+        publish(async (command, arguments_) =>
+          command === "gh" &&
+          arguments_[0] === "api" &&
+          arguments_[1] === "user"
+            ? processResult(0, "different-owner\n")
+            : processResult(0),
         ),
       "authenticated GitHub login is different-owner",
     );
@@ -717,73 +1303,68 @@ export namespace EvidenceBenchmarkSelfTest {
     let rolledBack: boolean = false;
     await expectFailure(
       () =>
-        EvidenceBenchmarkPublication.publish(
-          repository,
-          request,
-          async (command, arguments_) => {
-            if (
-              command === "gh" &&
-              arguments_[0] === "api" &&
-              arguments_[1] === "user"
-            )
-              return processResult(0, "fixture-owner\n");
-            if (
-              command === "gh" &&
-              arguments_[0] === "api" &&
-              arguments_[1] === "repos/fixture-owner/evidence-benchmark-results"
-            )
-              return processResult(0, "public\n");
-            if (
-              command === "git" &&
-              arguments_.join(" ") === "rev-parse --show-toplevel"
-            )
-              return processResult(0, `${checkout}\n`);
-            if (
-              command === "git" &&
-              arguments_.join(" ") === "status --porcelain"
-            )
-              return processResult(0);
-            if (
-              command === "git" &&
-              arguments_.join(" ") === "branch --show-current"
-            )
-              return processResult(0, "master\n");
-            if (
-              command === "git" &&
-              arguments_.join(" ") === "remote get-url origin"
-            )
-              return processResult(
-                0,
-                "https://github.com/fixture-owner/evidence-benchmark-results.git\n",
-              );
-            if (
-              command === "git" &&
-              arguments_[0] === "diff" &&
-              arguments_.includes("--quiet")
-            )
-              return processResult(1);
-            if (
-              command === "gh" &&
-              arguments_[0] === "repo" &&
-              arguments_[1] === "view"
-            )
-              return processResult(
-                0,
-                "https://github.com/fixture-owner/evidence-benchmark-results\n",
-              );
-            if (
-              command === "git" &&
-              arguments_[0] === "rev-parse" &&
-              (arguments_[1] === "HEAD" || arguments_[1] === "origin/master")
-            )
-              return processResult(0, `${"a".repeat(40)}\n`);
-            if (command === "git" && arguments_[0] === "push")
-              throw new Error("simulated publication push failure");
-            if (command === "git" && arguments_[0] === "reset")
-              rolledBack = true;
+        publish(async (command, arguments_) => {
+          if (
+            command === "gh" &&
+            arguments_[0] === "api" &&
+            arguments_[1] === "user"
+          )
+            return processResult(0, "fixture-owner\n");
+          if (
+            command === "gh" &&
+            arguments_[0] === "api" &&
+            arguments_[1] === "repos/fixture-owner/evidence-benchmark-results"
+          )
+            return processResult(0, "public\n");
+          if (
+            command === "git" &&
+            arguments_.join(" ") === "rev-parse --show-toplevel"
+          )
+            return processResult(0, `${checkout}\n`);
+          if (
+            command === "git" &&
+            arguments_.join(" ") === "status --porcelain"
+          )
             return processResult(0);
-          },
-        ),
+          if (
+            command === "git" &&
+            arguments_.join(" ") === "branch --show-current"
+          )
+            return processResult(0, "master\n");
+          if (
+            command === "git" &&
+            arguments_.join(" ") === "remote get-url origin"
+          )
+            return processResult(
+              0,
+              "https://github.com/fixture-owner/evidence-benchmark-results.git\n",
+            );
+          if (
+            command === "git" &&
+            arguments_[0] === "diff" &&
+            arguments_.includes("--quiet")
+          )
+            return processResult(1);
+          if (
+            command === "gh" &&
+            arguments_[0] === "repo" &&
+            arguments_[1] === "view"
+          )
+            return processResult(
+              0,
+              "https://github.com/fixture-owner/evidence-benchmark-results\n",
+            );
+          if (
+            command === "git" &&
+            arguments_[0] === "rev-parse" &&
+            (arguments_[1] === "HEAD" || arguments_[1] === "origin/master")
+          )
+            return processResult(0, `${"a".repeat(40)}\n`);
+          if (command === "git" && arguments_[0] === "push")
+            throw new Error("simulated publication push failure");
+          if (command === "git" && arguments_[0] === "reset") rolledBack = true;
+          return processResult(0);
+        }),
       "simulated publication push failure",
     );
     assert.equal(
@@ -925,6 +1506,38 @@ export namespace EvidenceBenchmarkSelfTest {
           EvidenceBenchmarkRepair.parse([
             "--patch",
             "benchmark/.work/repairs/dependency.patch",
+            runId,
+            "todo",
+          ]),
+        ),
+      "forbidden target",
+    );
+    const cachePatch: string = path.join(
+      repository,
+      "benchmark",
+      ".work",
+      "repairs",
+      "cache.patch",
+    );
+    write(
+      cachePatch,
+      [
+        "diff --git a/.BENCHMARK-CACHE/pnpm-store/bypass b/.BENCHMARK-CACHE/pnpm-store/bypass",
+        "new file mode 100644",
+        "--- /dev/null",
+        "+++ b/.BENCHMARK-CACHE/pnpm-store/bypass",
+        "@@ -0,0 +1 @@",
+        "+forbidden",
+        "",
+      ].join("\n"),
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkRepair.apply(
+          repository,
+          EvidenceBenchmarkRepair.parse([
+            "--patch",
+            "benchmark/.work/repairs/cache.patch",
             runId,
             "todo",
           ]),
@@ -1347,6 +1960,26 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     assert.match(
       commandLine,
+      /processAlive\(state\.controllerPid\)[\s\S]+stopOrphanedModels\(state\.turns, workspace\)[\s\S]+state\.status === "running"[\s\S]+state\.controllerPid = process\.pid/,
+      "a dead controller must be taken over only after its owned model processes are handled",
+    );
+    assert.match(
+      commandLine,
+      /const turn: ITurn = \{[\s\S]+accepted: false[\s\S]+props\.retain\(turn\)[\s\S]+const child = spawn[\s\S]+setInterval\(retain, 1_000\)/,
+      "the active attempt ledger must be retained before spawn and refreshed while the model runs",
+    );
+    assert.match(
+      commandLine,
+      /fs\.fsyncSync\(descriptor\)[\s\S]+fs\.renameSync\(temporary, target\)/,
+      "run state updates must fsync a replacement before atomic rename",
+    );
+    assert.doesNotMatch(
+      commandLine,
+      /fs\.rmSync\(target,[\s\S]{0,80}fs\.renameSync\(temporary, target\)/,
+      "run state updates must not delete the canonical file before rename",
+    );
+    assert.match(
+      commandLine,
       /props\.arm === "plain"[\s\S]+EvidenceBenchmarkLintBaseline\.assertRestored\([\s\S]+props\.baselines/,
       "every Plain turn must preserve its frozen lint policies and Program routing",
     );
@@ -1354,6 +1987,93 @@ export namespace EvidenceBenchmarkSelfTest {
       commandLine,
       /function resumeEnvironment[\s\S]+delete environment\.NESTIA_SDK_TRANSFORM/,
       "resume must clear Nestia's loader-only rule bypass",
+    );
+    assert.match(
+      commandLine,
+      /EvidenceBenchmarkTurnLedger\.invocationArguments\([\s\S]+model: MODEL[\s\S]+effort: EFFORT/,
+      "measured Codex must receive a clean networked workspace-only permission profile",
+    );
+    const turnLedgerSource: string = fs.readFileSync(
+      path.join(
+        repository,
+        "benchmark",
+        "src",
+        "EvidenceBenchmarkTurnLedger.ts",
+      ),
+      "utf8",
+    );
+    const sandboxSource: string = fs.readFileSync(
+      path.join(repository, "benchmark", "src", "EvidenceBenchmarkSandbox.ts"),
+      "utf8",
+    );
+    assert.match(
+      `${turnLedgerSource}\n${sandboxSource}`,
+      /"--ignore-user-config"[\s\S]+"--ignore-rules"[\s\S]+"--strict-config"[\s\S]+default_permissions="benchmark-cell"[\s\S]+permissions\.benchmark-cell\.extends=":workspace"[\s\S]+filesystem\.":root"="deny"[\s\S]+filesystem\.":minimal"="read"[\s\S]+filesystem\.":slash_tmp"="deny"[\s\S]+network\.enabled=true[\s\S]+network\.domains\."\*"="allow"[\s\S]+network\.domains\."127\.0\.0\.1"="allow"[\s\S]+network\.domains\."localhost"="allow"/,
+      "the retained invocation contract must freeze the permission profile and clean host-policy flags",
+    );
+    assert.match(
+      sandboxSource,
+      /permissionRead\(authority\.toolchain\)[\s\S]+permissionRead\(authority\.corepack\)[\s\S]+permissionRead\(authority\.npmConfig\)[\s\S]+permissionRead\(authority\.gitConfig\)[\s\S]+permissionRead\(process\.execPath\)[\s\S]+corepackEntrypoint/,
+      "the permission profile may read only the retained execution inputs required by workspace commands",
+    );
+    assert.match(
+      commandLine,
+      /verifyPermissionProfile\([\s\S]+assertNoLegacyManagedSandbox\(\)[\s\S]+EvidenceBenchmarkSandbox\.argumentsFor\([\s\S]+modelSentinel[\s\S]+runtime\.apiPort/,
+      "the exact Codex permission adapter must pass a filesystem and loopback preflight before measurement",
+    );
+    assert.match(
+      commandLine,
+      /await verifyPermissionProfile\(\{[\s\S]+await EvidenceBenchmarkSetup\.assertReproducible\([\s\S]+const logs:[\s\S]+await runTurn\(\{/,
+      "the production sandbox and fresh registry reconstruction must pass before the first measured turn",
+    );
+    assert.match(
+      sandboxSource,
+      /["']sandbox["'][\s\S]+["']--permission-profile["'][\s\S]+["']benchmark-cell["']/,
+      "untrusted commands must use the named Codex permission profile",
+    );
+    assert.match(
+      commandLine,
+      /shell_environment_policy\.exclude=\["OPENAI_API_KEY","CODEX_API_KEY","ALL_PROXY","HTTP_PROXY","HTTPS_PROXY","NO_PROXY","NODE_EXTRA_CA_CERTS","SSL_CERT_DIR","SSL_CERT_FILE"\]/,
+      "model tools must not inherit Codex authentication or upstream proxy credentials",
+    );
+    assert.doesNotMatch(
+      commandLine,
+      /--dangerously-bypass-approvals-and-sandbox/,
+      "the measured agent must not receive write authority over retained input and controller state",
+    );
+    assert.match(
+      commandLine,
+      /function prepareModelHome[\s\S]+auth\.json[\s\S]+function assertModelHome[\s\S]+AGENTS\.md[\s\S]+AGENTS\.override\.md[\s\S]+config\.toml/,
+      "the measured Codex must receive authentication through a clean retained home denied to model tools",
+    );
+    assert.match(
+      `${commandLine}\n${sandboxSource}`,
+      /OPENAI_API_KEY, process\.env\.CODEX_API_KEY[\s\S]+findExecutableOnPath\("codex\.exe"\)/,
+      "Codex automation-key and Windows standalone installations must remain launchable",
+    );
+    assert.match(
+      commandLine,
+      /assertStateBaselines\(root, state\);[\s\S]+EvidenceBenchmarkSetup\.assertRestored\(workspace, root, arm\);[\s\S]+assertInfrastructureRestored/,
+      "resume admission must reject immutable execution-boundary drift before every model turn",
+    );
+    assert.match(
+      commandLine,
+      /EvidenceBenchmarkSetup\.assertReproducible\([\s\S]+entry\.name === "overall-final"/,
+      "every accepted turn must prove a clean install and overall final must rerun publishable gates",
+    );
+    const setupSource: string = fs.readFileSync(
+      path.join(repository, "benchmark", "src", "EvidenceBenchmarkSetup.ts"),
+      "utf8",
+    );
+    assert.match(
+      setupSource,
+      /admit\(workspace, root, manifest\)[\s\S]+workspaceCache[\s\S]+untrustedEnvironment\([\s\S]+npm_config_store_dir: path\.join\(workspaceCache, "pnpm-store"\)[\s\S]+runPnpm\([\s\S]+\["install", "--frozen-lockfile", "--force"\][\s\S]+sandboxedPnpm/,
+      "clean reproduction must use a fresh credential-free sandboxed registry install",
+    );
+    assert.match(
+      setupSource,
+      /function admitReproduction\([\s\S]+resetMutableCaches\(workspace\)[\s\S]+assertRequirementsRestored\([\s\S]+assertRestored\([\s\S]+assertInfrastructureRestored\(/,
+      "reproduction must reset hidden caches and validate frozen commands before execution",
     );
     const publicationSource: string = fs.readFileSync(
       path.join(
@@ -1368,6 +2088,21 @@ export namespace EvidenceBenchmarkSelfTest {
       publicationSource,
       /EvidenceBenchmarkTurnLedger\.assertAcceptedOrder\(state\.turns, true\)/,
       "publication must use the shared complete-turn validator",
+    );
+    assert.match(
+      publicationSource,
+      /EvidenceBenchmarkTurnLedger\.assertRetainedEvidence\([\s\S]+await reproduce\([\s\S]+workspace,[\s\S]+runRoot,[\s\S]+true/,
+      "publication must verify retained model execution and rerun terminal clean gates",
+    );
+    assert.match(
+      publicationSource,
+      /state\.cliVersion !== readCliVersion\(\)[\s\S]+assertReport\(\{/,
+      "publication must bind the current CLI and operator report to retained evidence",
+    );
+    assert.match(
+      turnLedgerSource,
+      /props\.turns\.forEach[\s\S]+cached_input_tokens[\s\S]+reasoning_output_tokens[\s\S]+log inventory does not exactly match/,
+      "publication must retain every attempt, all native token categories, and the exact log inventory",
     );
     assert.match(
       publicationSource,
@@ -1449,8 +2184,8 @@ export namespace EvidenceBenchmarkSelfTest {
         );
       assert.match(
         Buffer.from(composition.files.get("AGENTS.md")!).toString("utf8"),
-        /The measurement boundary is frozen\.[^\n]+package scripts,[^\n]+compiler `tsconfig` files,[^\n]+lint-plugin routing/,
-        `integrated ${arm} instructions must disclose the frozen command and Program boundary`,
+        /The measurement boundary is frozen\.[^\n]+package names or scripts,[^\n]+dependency specifiers,[^\n]+resolution controls,[^\n]+workspace routing,[^\n]+fixed gate runners/,
+        `integrated ${arm} instructions must disclose the frozen execution boundary`,
       );
       const workflow: string = Buffer.from(
         composition.files.get(".github/workflows/ci.yml")!,
@@ -1867,13 +2602,20 @@ export namespace EvidenceBenchmarkSelfTest {
             "@ttsc/lint": "0.22.0",
             ttsc: "0.22.0",
             typescript: "7.0.2",
+            "typescript-api": "npm:typescript@5.9.3",
+          },
+          peerDependencies: {
+            "@ttsc/lint": "0.22.0",
           },
         },
         null,
         2,
       )}\n`,
     );
-    write(path.join(workspace, "pnpm-workspace.yaml"), 'packages:\n  - "."\n');
+    write(
+      path.join(workspace, "pnpm-workspace.yaml"),
+      'packages:\n  - "."\n\nmodulesCacheMaxAge: 0\n',
+    );
     const materialization: IEvidenceBenchmarkMaterialization = {
       root,
       workspace,
@@ -1882,23 +2624,318 @@ export namespace EvidenceBenchmarkSelfTest {
       workspaceTreeSha256: EvidenceBenchmarkHash.bytes("setup fixture"),
       lintBaselines: [],
       environment: {
-        ...process.env,
+        ...EvidenceBenchmarkMaterializer.hostEnvironment(),
+        HOME: path.join(cache, "home"),
+        USERPROFILE: path.join(cache, "home"),
+        COREPACK_HOME: path.join(cache, "corepack"),
         npm_config_store_dir: path.join(cache, "pnpm-store"),
+        npm_config_userconfig: path.join(root, "inputs", "npmrc"),
+        npm_config_globalconfig: path.join(root, "inputs", "npmrc"),
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_CONFIG_GLOBAL: path.join(root, "inputs", "gitconfig"),
         TTSC_CACHE_DIR: path.join(cache, "ttsc"),
         TTSC_GO_CACHE_DIR: path.join(cache, "go-build"),
         GOCACHE: path.join(cache, "go-build"),
+        GOENV: "off",
+        GOMODCACHE: path.join(cache, "go-modules"),
+        GOPATH: path.join(cache, "go-path"),
         GOTMPDIR: path.join(cache, "go-tmp"),
         PLAYWRIGHT_BROWSERS_PATH: path.join(cache, "playwright"),
+        TMPDIR: path.join(cache, "tmp"),
+        TEMP: path.join(cache, "tmp"),
+        TMP: path.join(cache, "tmp"),
       },
     };
+    write(path.join(root, "inputs", "npmrc"), "");
+    write(path.join(root, "inputs", "gitconfig"), "");
+    write(
+      materialization.manifest,
+      `${JSON.stringify({
+        schemaVersion: 6,
+        caches: {
+          home: materialization.environment.HOME,
+          corepack: materialization.environment.COREPACK_HOME,
+          pnpm: materialization.environment.npm_config_store_dir,
+          ttsc: materialization.environment.TTSC_CACHE_DIR,
+          go: materialization.environment.GOCACHE,
+          goModules: materialization.environment.GOMODCACHE,
+          goPath: materialization.environment.GOPATH,
+          playwright: materialization.environment.PLAYWRIGHT_BROWSERS_PATH,
+          temp: materialization.environment.TMPDIR,
+          toolchain: path.join(cache, "toolchain-bin"),
+        },
+      })}\n`,
+    );
     const setup = await EvidenceBenchmarkSetup.prepare({
       materialization,
       arm: "plain",
     });
+    const reproduce = (verifyGates: boolean = false): Promise<string> =>
+      EvidenceBenchmarkSetup.assertReproducible(
+        workspace,
+        root,
+        verifyGates,
+        (arguments_, options) =>
+          EvidenceBenchmarkProcess.pnpm(arguments_, options),
+        (candidate) => EvidenceBenchmarkSetup.resetMutableCaches(candidate),
+      );
     assert.ok(setup.elapsedMs >= setup.lockElapsedMs + setup.installElapsedMs);
     assert.equal(setup.pnpmVersion, EvidenceBenchmarkProcess.PNPM_VERSION);
+    assert.equal(setup.nodeVersion, process.version);
+    assert.equal(setup.nodePlatform, process.platform);
+    assert.equal(setup.nodeArchitecture, process.arch);
+    assert.equal(
+      setup.nodeExecutableSha256,
+      EvidenceBenchmarkHash.file(process.execPath),
+    );
+    assert.ok(Object.keys(setup.installedPackagesSha256).length >= 3);
+    assert.ok(setup.installedPackageResolutions.length >= 3);
+    assert.ok(Object.keys(setup.installedLaunchersSha256).length >= 1);
     assert.ok(fs.existsSync(path.join(workspace, "pnpm-lock.yaml")));
     assert.ok(fs.existsSync(path.join(root, "setup.json")));
+    EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain");
+    const hiddenCachePayload: string = path.join(
+      workspace,
+      ".benchmark-cache",
+      "pnpm-store",
+      "agent-payload",
+    );
+    write(hiddenCachePayload, "forbidden\n");
+    assert.match(await reproduce(), /^[0-9a-f]{64}$/);
+    assert.equal(
+      fs.existsSync(hiddenCachePayload),
+      false,
+      "reproduction admission must discard every model-writable cache payload",
+    );
+    const installedAlias: string = path.join(
+      workspace,
+      "node_modules",
+      "typescript-api",
+      "package.json",
+    );
+    const installedAliasSource: string = fs.readFileSync(
+      installedAlias,
+      "utf8",
+    );
+    fs.appendFileSync(installedAlias, "\n", "utf8");
+    EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain");
+    await expectFailure(
+      () => reproduce(),
+      "do not match a clean frozen registry install",
+    );
+    fs.writeFileSync(installedAlias, installedAliasSource, "utf8");
+    assert.match(await reproduce(), /^[0-9a-f]{64}$/);
+    const installedCompiler: string = path.join(
+      workspace,
+      "node_modules",
+      "typescript",
+      "package.json",
+    );
+    const installedCompilerSource: string = fs.readFileSync(
+      installedCompiler,
+      "utf8",
+    );
+    fs.appendFileSync(installedCompiler, "\n", "utf8");
+    await expectFailure(
+      () => EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain"),
+      "installed compiler, command launcher, or measured-product payload was not restored",
+    );
+    fs.writeFileSync(installedCompiler, installedCompilerSource, "utf8");
+    const ttscLauncher: string = path.join(
+      workspace,
+      "node_modules",
+      ".bin",
+      process.platform === "win32" ? "ttsc.cmd" : "ttsc",
+    );
+    const ttscLauncherSource: Buffer = fs.readFileSync(ttscLauncher);
+    fs.appendFileSync(ttscLauncher, "\n", "utf8");
+    await expectFailure(
+      () => EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain"),
+      "installed compiler, command launcher, or measured-product payload was not restored",
+    );
+    fs.writeFileSync(ttscLauncher, ttscLauncherSource);
+    EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain");
+    const shadowRoot: string = path.join(
+      workspace,
+      "packages",
+      "frontend",
+      "tests",
+      "node_modules",
+    );
+    fs.mkdirSync(shadowRoot, { recursive: true });
+    await expectFailure(
+      () => EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain"),
+      "shadow dependency root",
+    );
+    fs.rmSync(path.join(workspace, "packages"), {
+      recursive: true,
+      force: true,
+    });
+    EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain");
+    write(
+      path.join(
+        workspace,
+        "node_modules",
+        "agent-added-package",
+        "package.json",
+      ),
+      '{"name":"agent-added-package","version":"1.0.0"}\n',
+    );
+    await expectFailure(
+      () => EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain"),
+      "undeclared direct package",
+    );
+    fs.rmSync(path.join(workspace, "node_modules", "agent-added-package"), {
+      recursive: true,
+      force: true,
+    });
+    EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain");
+    write(
+      path.join(workspace, "node_modules", ".agent-payload", "index.js"),
+      "module.exports = 'forbidden';\n",
+    );
+    await expectFailure(
+      () => EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain"),
+      "unowned hidden payload",
+    );
+    fs.rmSync(path.join(workspace, "node_modules", ".agent-payload"), {
+      recursive: true,
+      force: true,
+    });
+    write(
+      path.join(workspace, "src", "cache-import.ts"),
+      'export const payload = ".benchmark-cache/payload.js";\n',
+    );
+    await expectFailure(
+      () => EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain"),
+      "references excluded cache authority",
+    );
+    fs.rmSync(path.join(workspace, "src"), {
+      recursive: true,
+      force: true,
+    });
+    EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain");
+    const viteConfig: string = path.join(
+      workspace,
+      "packages",
+      "frontend",
+      "vite.config.ts",
+    );
+    write(
+      viteConfig,
+      [
+        'import path from "node:path";',
+        "export const config = {",
+        '  cacheDir: path.resolve(__dirname, "../../.benchmark-cache/vite"),',
+        'export const payload = "../../.benchmark-cache/agent-payload";',
+        "};",
+        "",
+      ].join("\n"),
+    );
+    await expectFailure(
+      () => EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain"),
+      "references excluded cache authority",
+    );
+    fs.rmSync(path.join(workspace, "packages"), {
+      recursive: true,
+      force: true,
+    });
+    EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain");
+    const manifestPath: string = path.join(workspace, "package.json");
+    const manifestSource: string = fs.readFileSync(manifestPath, "utf8");
+    const manifest = JSON.parse(manifestSource) as {
+      devDependencies: Record<string, string>;
+    };
+    manifest.devDependencies["agent-declared-package"] = "1.0.0";
+    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    const lockPath: string = path.join(workspace, "pnpm-lock.yaml");
+    const lockSource: string = fs.readFileSync(lockPath, "utf8");
+    const dependencySection: string = "    devDependencies:\n";
+    assert.ok(lockSource.includes(dependencySection));
+    fs.writeFileSync(
+      lockPath,
+      lockSource.replace(
+        dependencySection,
+        [
+          dependencySection.trimEnd(),
+          "      agent-declared-package:",
+          "        specifier: 1.0.0",
+          "        version: 1.0.0",
+          "",
+        ].join("\n"),
+      ),
+      "utf8",
+    );
+    write(
+      path.join(
+        workspace,
+        "node_modules",
+        "agent-declared-package",
+        "package.json",
+      ),
+      '{"name":"agent-declared-package","version":"1.0.0"}\n',
+    );
+    await expectFailure(
+      () => EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain"),
+      "installed dependency is not linked by pnpm",
+    );
+    fs.rmSync(path.join(workspace, "node_modules", "agent-declared-package"), {
+      recursive: true,
+      force: true,
+    });
+    fs.writeFileSync(manifestPath, manifestSource, "utf8");
+    fs.writeFileSync(lockPath, lockSource, "utf8");
+    const driftedLock: string = lockSource.replace(
+      /(^ {6}typescript:\r?\n {8}specifier: [^\r\n]+\r?\n {8}version: )[^\r\n]+/m,
+      (_match, prefix: string) => `${prefix}0.0.0`,
+    );
+    assert.notEqual(driftedLock, lockSource);
+    fs.writeFileSync(lockPath, driftedLock, "utf8");
+    await expectFailure(
+      () => EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain"),
+      "installed dependency drifted from its frozen lock target",
+    );
+    fs.writeFileSync(lockPath, lockSource, "utf8");
+    EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain");
+    const orphanPayload: string = path.join(
+      workspace,
+      "node_modules",
+      ".pnpm",
+      "orphan@1.0.0",
+      "node_modules",
+      "orphan",
+    );
+    write(
+      path.join(orphanPayload, "package.json"),
+      '{"name":"orphan","version":"1.0.0"}\n',
+    );
+    await expectFailure(
+      () => EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain"),
+      "orphan installed package payload",
+    );
+    fs.rmSync(path.join(workspace, "node_modules", ".pnpm", "orphan@1.0.0"), {
+      recursive: true,
+      force: true,
+    });
+    EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain");
+    const hoistedRoot: string = path.join(
+      workspace,
+      "node_modules",
+      ".pnpm",
+      "node_modules",
+    );
+    const injectedHoist: string = path.join(hoistedRoot, "agent-hoisted");
+    fs.symlinkSync(
+      fs.realpathSync(path.join(workspace, "node_modules", "typescript")),
+      injectedHoist,
+      process.platform === "win32" ? "junction" : "dir",
+    );
+    await expectFailure(
+      () => reproduce(),
+      "do not match a clean frozen registry install",
+    );
+    fs.rmSync(injectedHoist);
+    EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain");
     const nested = await EvidenceBenchmarkProcess.pnpm(
       ["run", "nested-version"],
       {
@@ -1913,6 +2950,7 @@ export namespace EvidenceBenchmarkSelfTest {
         .some((line) => line.trim() === EvidenceBenchmarkProcess.PNPM_VERSION),
       "nested package scripts must resolve the benchmark-pinned pnpm",
     );
+    EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain");
   }
 
   /**
@@ -2268,6 +3306,143 @@ export namespace EvidenceBenchmarkSelfTest {
       "package command surface was not restored",
     );
     fs.writeFileSync(backendPackage, backendPackageSource, "utf8");
+    const backendIdentity = JSON.parse(backendPackageSource) as {
+      name: string;
+      devDependencies: Record<string, string>;
+    };
+    backendIdentity.name = "benchmark-filter-bypass";
+    fs.writeFileSync(
+      backendPackage,
+      `${JSON.stringify(backendIdentity, null, 2)}\n`,
+      "utf8",
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkLintBaseline.assertInfrastructureRestored(
+          evidenceTwo.workspace,
+          "evidence",
+          evidenceTwo.lintBaselines,
+        ),
+      "package command surface was not restored",
+    );
+    backendIdentity.name = JSON.parse(backendPackageSource).name as string;
+    backendIdentity.devDependencies.ttsc = "0.0.0-bypass";
+    fs.writeFileSync(
+      backendPackage,
+      `${JSON.stringify(backendIdentity, null, 2)}\n`,
+      "utf8",
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkLintBaseline.assertInfrastructureRestored(
+          evidenceTwo.workspace,
+          "evidence",
+          evidenceTwo.lintBaselines,
+        ),
+      "package command surface was not restored",
+    );
+    backendIdentity.devDependencies.ttsc = (
+      JSON.parse(backendPackageSource) as {
+        devDependencies: Record<string, string>;
+      }
+    ).devDependencies.ttsc!;
+    (
+      backendIdentity as typeof backendIdentity & {
+        pnpm: { overrides: Record<string, string> };
+      }
+    ).pnpm = { overrides: { ttsc: "0.0.0-bypass" } };
+    fs.writeFileSync(
+      backendPackage,
+      `${JSON.stringify(backendIdentity, null, 2)}\n`,
+      "utf8",
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkLintBaseline.assertInfrastructureRestored(
+          evidenceTwo.workspace,
+          "evidence",
+          evidenceTwo.lintBaselines,
+        ),
+      "package command surface was not restored",
+    );
+    fs.writeFileSync(backendPackage, backendPackageSource, "utf8");
+    const fixedRunner: string = path.join(
+      evidenceTwo.workspace,
+      "packages",
+      "frontend",
+      "scripts",
+      "run-playwright.mjs",
+    );
+    const fixedRunnerSource: string = fs.readFileSync(fixedRunner, "utf8");
+    fs.appendFileSync(fixedRunner, "\nprocess.exit(0);\n", "utf8");
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkLintBaseline.assertInfrastructureRestored(
+          evidenceTwo.workspace,
+          "evidence",
+          evidenceTwo.lintBaselines,
+        ),
+      "shared execution infrastructure was not restored",
+    );
+    fs.writeFileSync(fixedRunner, fixedRunnerSource, "utf8");
+    const healthProof: string = path.join(
+      evidenceTwo.workspace,
+      "packages",
+      "backend",
+      "test",
+      "features",
+      "api",
+      "health",
+      "test_api_health.ts",
+    );
+    const healthProofSource: string = fs.readFileSync(healthProof, "utf8");
+    fs.writeFileSync(
+      healthProof,
+      healthProofSource.replace("return 3;", "return 3 as never;"),
+      "utf8",
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkLintBaseline.assertInfrastructureRestored(
+          evidenceTwo.workspace,
+          "evidence",
+          evidenceTwo.lintBaselines,
+        ),
+      "shared execution infrastructure was not restored",
+    );
+    fs.writeFileSync(healthProof, healthProofSource, "utf8");
+    const policyOverride: string = path.join(
+      evidenceTwo.workspace,
+      "AGENTS.override.md",
+    );
+    fs.writeFileSync(policyOverride, "# Weakened policy\n", "utf8");
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkLintBaseline.assertInfrastructureRestored(
+          evidenceTwo.workspace,
+          "evidence",
+          evidenceTwo.lintBaselines,
+        ),
+      "forbidden policy override",
+    );
+    fs.rmSync(policyOverride);
+    const environmentOverride: string = path.join(
+      evidenceTwo.workspace,
+      "packages",
+      "frontend",
+      ".env.local",
+    );
+    fs.writeFileSync(environmentOverride, "VITE_API_SIMULATE=true\n", "utf8");
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkLintBaseline.assertInfrastructureRestored(
+          evidenceTwo.workspace,
+          "evidence",
+          evidenceTwo.lintBaselines,
+        ),
+      "forbidden policy override",
+    );
+    fs.rmSync(environmentOverride);
     const backendLint: string = path.join(
       evidenceTwo.workspace,
       "packages",
@@ -2411,13 +3586,73 @@ export namespace EvidenceBenchmarkSelfTest {
     const manifest = JSON.parse(
       fs.readFileSync(props.cell.manifest, "utf8"),
     ) as IEvidenceBenchmarkMaterialization.IManifest;
-    assert.equal(manifest.schemaVersion, 5);
+    assert.equal(manifest.schemaVersion, 6);
     assert.ok(manifest.elapsedMs >= 0);
     assert.equal("materializedAt" in manifest, false);
     assert.equal(
       props.cell.environment.PLAYWRIGHT_BROWSERS_PATH,
       manifest.caches.playwright,
     );
+    assert.equal(
+      props.cell.environment.npm_config_userconfig,
+      EvidenceBenchmarkMaterializer.npmConfig(props.cell.root),
+    );
+    assert.equal(
+      props.cell.environment.npm_config_globalconfig,
+      EvidenceBenchmarkMaterializer.npmConfig(props.cell.root),
+    );
+    assert.equal(
+      props.cell.environment.GIT_CONFIG_GLOBAL,
+      EvidenceBenchmarkMaterializer.gitConfig(props.cell.root),
+    );
+    assert.equal(props.cell.environment.GIT_CONFIG_NOSYSTEM, "1");
+    assert.equal(props.cell.environment.GOENV, "off");
+    assert.equal(props.cell.environment.GOMODCACHE, manifest.caches.goModules);
+    assert.equal(props.cell.environment.GOPATH, manifest.caches.goPath);
+    assert.equal(
+      props.cell.environment.COREPACK_HOME,
+      manifest.caches.corepack,
+    );
+    for (const forbidden of [
+      "NODE_OPTIONS",
+      "NODE_PATH",
+      "NESTIA_SDK_TRANSFORM",
+      "API_PORT",
+      "JWT_SECRET_KEY",
+      "VITE_API_HOST",
+    ])
+      assert.equal(
+        props.cell.environment[forbidden],
+        undefined,
+        `${forbidden} must not leak from the operator environment`,
+      );
+    for (const cache of [
+      manifest.caches.pnpm,
+      manifest.caches.ttsc,
+      manifest.caches.go,
+      manifest.caches.goModules,
+      manifest.caches.goPath,
+      manifest.caches.playwright,
+      manifest.caches.temp,
+    ])
+      assert.equal(
+        path.relative(props.cell.workspace, cache).startsWith(".."),
+        false,
+        "mutable benchmark caches must remain inside the sandboxed workspace",
+      );
+    assert.equal(
+      path
+        .relative(props.cell.workspace, manifest.caches.toolchain)
+        .startsWith(".."),
+      true,
+      "the pinned toolchain launcher must remain outside agent write authority",
+    );
+    for (const cache of [manifest.caches.home, manifest.caches.corepack])
+      assert.equal(
+        path.relative(props.cell.workspace, cache).startsWith(".."),
+        true,
+        "operator-home and Corepack state must remain outside agent write authority",
+      );
     assert.equal(manifest.artifact.sha256, props.artifact.sha256);
     assert.deepEqual(manifest.corpus, {
       documents: corpus.documents,

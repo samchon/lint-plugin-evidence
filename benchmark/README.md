@@ -52,7 +52,7 @@ pnpm --filter @samchon/evidence-benchmark test:package
 pnpm --filter test-benchmark test:build
 ```
 
-The consumer-shaped template proof composes both overlays and confirms that their shared health assets are byte-identical. The package smoke installs the locally packed product, passes a complete synthetic graph, materializes the pristine Evidence arm, runs Nestia, and proves its intentionally unfinished workspace stops only on active graph diagnostics. The plain proof copies the complete Todo requirements into an isolated workspace, generates a lockfile, performs a frozen install, and verifies the committed `/health` SDK against a fresh Nestia generation. It adds a nested controller without module wiring, runs `nestia sdk`, `nestia swagger`, and `nestia all` independently, builds the full scaffold, and verifies source plus compiled runtime discovery and health e2e execution. Negative probes prove route or return drift changes the generated SDK and a wrong runtime marker fails the typed assertion. `.github/workflows/benchmark.yml` runs these gates on Ubuntu and Windows for relevant pull-request changes.
+The consumer-shaped template proof composes both overlays and confirms that their shared health assets are byte-identical. The package smoke installs the locally packed product, passes a complete synthetic graph, materializes the pristine Evidence arm, runs Nestia, and proves its intentionally unfinished workspace stops only on active graph diagnostics. The plain proof copies the complete Todo requirements into an isolated workspace, generates a lockfile, performs a frozen install, and verifies the committed `/health` SDK against a fresh Nestia generation. It adds a nested controller without module wiring, runs `nestia sdk`, `nestia swagger`, and `nestia all` independently, builds the full scaffold, and verifies source plus compiled runtime discovery. Both arms execute the health e2e in source and compiled modes and require raw HTTP plus typed SDK calls to return `OK`. Negative probes prove route or return drift changes the generated SDK, a wrong runtime marker fails the typed assertion, and duplicate controller discovery is rejected. `.github/workflows/benchmark.yml` runs these gates on Ubuntu and Windows for relevant pull-request changes.
 
 The evidence overlay additionally installs the locally packed product during benchmark materialization. Plain records the same package identity without receiving the package.
 
@@ -75,9 +75,9 @@ Use `--port-base` to move the complete disjoint port allocation when the default
 pnpm --filter @samchon/evidence-benchmark start -- --port-base 50000 todo reddit
 ```
 
-`start` packs and verifies the product once, materializes and installs every selected evidence/plain cell, then starts them concurrently. It freezes the instruction bytes before the first turn and updates `run.json` after each attempt. Both arms seal their package lint policies, all compiler-Program routes, and package command surfaces into the manifest and retained run state. Evidence also seals the literal claim inventory of all three canonical package lint configurations plus the immutable backend source-Program projection.
+`start` packs and verifies the product once, materializes and installs every selected evidence/plain cell, then starts them concurrently. It freezes the instruction bytes before the first turn and updates `run.json` after each attempt. Both arms seal the workspace requirement copy, agent instructions, package identities and commands, existing dependency and resolution controls, shared lint and compiler policy, fixed gate runners, workspace routing, all compiler-Program routes, the initially resolved installed dependency graph, dependency topology, command launchers, and the exact Node and Corepack runtimes into retained state. Newly added application dependencies do not expand that frozen setup graph, but every accepted turn reconstructs the current lockfile through a fresh registry-backed pnpm store inside the deny-by-default sandbox and requires its complete package payload, direct-link, hoisted-link, and launcher ledger to match the measured installation. Overall final additionally runs build, lint, database preparation, backend tests, a fresh Chromium installation, and frontend tests from that cache-free sandboxed copy. The frozen pnpm workspace disables orphan retention. Evidence also seals the literal claim inventory of all three canonical package lint configurations plus the immutable backend source-Program projection.
 
-The runner assigns each subject and arm distinct API, Swagger, Vite development, and Playwright ports. It checks every selected port before packaging or model use, exports the assignments to agent child processes, persists them in package-local `.env` files, and records them in `run.json`. Pnpm, ttsc, Go, and Playwright caches are cell-local.
+The runner assigns each subject and arm distinct API, Swagger, Vite development, and Playwright ports. It checks every selected port before packaging or model use, exports the assignments to agent child processes, persists their fixed values in package-local `.env` files, and records them in `run.json`. Pnpm, ttsc, Go build/module/workspace, Playwright, and operating-system temporary caches are cell-local below the writable workspace and excluded from results; publishable files may not refer back to that excluded authority. Every model attempt is followed by an unconditional cache reset before controller admission, so measured gates cannot consume hidden state left there. Corepack, the exact pnpm launcher, frozen inputs, controller state, a clean child home, and a separate Codex home seeded only with authentication remain outside model write authority. A deny-by-default permission profile gives model tools only the workspace, minimal runtime files, the read-only pnpm/Corepack launcher payload, and fixed Git/npm configurations; it denies the authentication home and excludes raw API keys and upstream proxy credentials from tool environments. Before measurement, the installed Codex sandbox command proves workspace write, retained-input read-only access, controller and authentication denial, and loopback access without a model call.
 
 ## Observe and resume
 
@@ -135,7 +135,7 @@ A repair applied after measured work is an operator intervention, even when both
 
 ## Accept a result
 
-`status: completed` is provisional. Before accepting a cell, verify all nine prescribed turns, build, lint, database preparation, backend tests, frontend tests, runtime behavior, requirement coverage, test coverage, enabled evidence claims, residual placeholders, and semantic quality. Evidence backend final seals the restored API and canonical backend lint configurations together with the backend source-Program projection; frontend final and overall final each seal those files plus the frontend configuration. A rejected final turn interrupts the cell, and resume revalidates the same phase restoration before accepting further work. Failed capacity attempts remain in cumulative cost and time; setup and repair overhead remain separate.
+`status: completed` is provisional. Before accepting a cell, verify all nine prescribed turns, build, lint, database preparation, backend tests, frontend tests, runtime behavior, requirement coverage, test coverage, enabled evidence claims, residual placeholders, and semantic quality. Plain seals the complete execution and lint boundary after every accepted turn. Evidence seals shared infrastructure after the skills contract, the API and both backend Programs after every backend turn, and all Programs after every frontend or overall turn. Resume rechecks installed packages, launchers, and immutable infrastructure before another model call, including when the first attempt failed. A rejected final turn interrupts the cell. Failed capacity attempts remain in cumulative cost and time; setup and repair overhead remain separate.
 
 Do not record absolute start or completion timestamps. Preserve total elapsed duration, native token categories, standard API-equivalent cost, commands and gates, first completion claims, implementation scale, coverage, quality findings, frozen-input identities, raw streams, and the final workspace.
 
@@ -149,11 +149,75 @@ Completed and operator-accepted applications belong in one independently maintai
 
 Write the completed human-and-agent audit to `benchmark/result/<project>/<arm>/runs/<run-id>/benchmark-report.json`, then name both the public GitHub repository and its clean, up-to-date local checkout explicitly:
 
+The report schema is strict. Identity and frozen-input hashes must match the run. `totalElapsedMs`, `agentElapsedMs`, `nonAgentElapsedMs`, accepted and rejected attempt counts, all four native token categories, and API-equivalent cost must equal the retained attempt ledger; cost is recomputed by subtracting cached input from total input and applying the report's per-million uncached-input, cached-input, and output prices. Record every terminal gate as `passed`, requirement and test coverage as covered/total pairs, implementation scale, the first completion claim and its honesty, a 0–100 quality score with summary and residual defects, and the sorted SHA-256 of every retained intervention.
+
+```json
+{
+  "schemaVersion": 1,
+  "status": "accepted",
+  "project": "<project>",
+  "arm": "<evidence|plain>",
+  "runId": "<run-id>",
+  "measurement": {
+    "totalElapsedMs": 0,
+    "agentElapsedMs": 0,
+    "nonAgentElapsedMs": 0,
+    "attempts": { "total": 0, "accepted": 0, "rejected": 0 },
+    "tokens": {
+      "input_tokens": 0,
+      "cached_input_tokens": 0,
+      "output_tokens": 0,
+      "reasoning_output_tokens": 0
+    },
+    "pricingUsdPerMillion": {
+      "input": 0,
+      "cachedInput": 0,
+      "output": 0
+    },
+    "apiEquivalentCostUsd": 0
+  },
+  "gates": {
+    "build": "passed",
+    "lint": "passed",
+    "database": "passed",
+    "backendTests": "passed",
+    "frontendTests": "passed",
+    "runtime": "passed"
+  },
+  "coverage": {
+    "requirements": { "total": 0, "covered": 0 },
+    "tests": { "total": 0, "covered": 0 }
+  },
+  "implementation": {
+    "tables": 0,
+    "apiOperations": 0,
+    "dtoTypes": 0,
+    "dtoProperties": 0,
+    "testFunctions": 0
+  },
+  "completion": { "firstClaimTurn": null, "honest": false },
+  "quality": {
+    "score": 0,
+    "summary": "<audit summary>",
+    "residualDefects": []
+  },
+  "frozenInputs": {
+    "sourceCommit": "<sha-1>",
+    "instructionsTreeSha256": "<sha-256>",
+    "requirementsTreeSha256": "<sha-256>",
+    "completedWorkspaceTreeSha256": "<sha-256>"
+  },
+  "interventions": []
+}
+```
+
+Replace the zeros with measured values; standard input and output prices must be positive.
+
 ```bash
 pnpm --filter @samchon/evidence-benchmark publish:result -- --repository <owner/name> --checkout <local-path> --public todo evidence <run-id>
 ```
 
-There is no default owner, repository, or checkout. The command requires the authenticated `gh` login to equal the named repository owner; proves the repository is public; proves the checkout has the matching GitHub origin, a clean `main` or `master` branch, and no remote drift; revalidates the backend, frontend, and overall lint-restoration proofs plus the current final bytes; verifies the run, frozen inputs, completed-workspace digest, report, and evidence archive; then replaces only that agent/model/project/arm leaf in one commit. It excludes private environment files, dependencies, nested Git state, and nested workflows. A pre-push failure restores the prior leaf; a successful push is verified against the remote branch.
+There is no default owner, repository, or checkout. The command requires the authenticated `gh` login to equal the named repository owner; proves the repository is public; proves the checkout has the matching GitHub origin, a clean `main` or `master` branch, and no remote drift; revalidates the retained JSONL terminal events, thread identity, exact model invocation, lint-restoration proofs, fresh registry reconstruction, cache-free sandboxed final gates, and current final bytes; verifies the run, frozen inputs, completed-workspace digest, report, and evidence archive; then replaces only that agent/model/project/arm leaf in one commit. It excludes private environment files, dependencies, nested Git state, and nested workflows. A pre-push failure restores the prior leaf; a successful push is verified against the remote branch.
 
 Evidence results retain `.benchmark-deps/*.tgz` because their frozen lockfile installs the exact locally packed product measured by the run. Raw logs and controller state remain in this repository.
 

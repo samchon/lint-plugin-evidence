@@ -1,0 +1,166 @@
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+
+import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+
+/** Runs model-authored commands inside the same deny-by-default sandbox. */
+export namespace EvidenceBenchmarkSandbox {
+  /** Filesystem authorities needed by one isolated workspace. */
+  export interface IAuthority {
+    /** Only writable source tree. */
+    workspace: string;
+
+    /** Retained exact-version package-manager launcher directory. */
+    toolchain: string;
+
+    /** Retained Corepack payload directory. */
+    corepack: string;
+
+    /** Empty retained npm configuration. */
+    npmConfig: string;
+
+    /** Empty retained Git configuration. */
+    gitConfig: string;
+  }
+
+  /** Resolved Codex launcher and any Node entrypoint prefix. */
+  export interface IExecutable {
+    /** Direct executable. */
+    command: string;
+
+    /** Arguments before the Codex subcommand. */
+    prefix: string[];
+  }
+
+  /** Exact permission-profile arguments shared by model and gate launches. */
+  export function permissionProfileArguments(authority: IAuthority): string[] {
+    const permissionRead = (location: string): string =>
+      `permissions.benchmark-cell.filesystem.${JSON.stringify(path.resolve(location))}="read"`;
+    return [
+      "--config",
+      'default_permissions="benchmark-cell"',
+      "--config",
+      'permissions.benchmark-cell.extends=":workspace"',
+      "--config",
+      'permissions.benchmark-cell.filesystem.":root"="deny"',
+      "--config",
+      'permissions.benchmark-cell.filesystem.":minimal"="read"',
+      "--config",
+      'permissions.benchmark-cell.filesystem.":slash_tmp"="deny"',
+      "--config",
+      permissionRead(authority.toolchain),
+      "--config",
+      permissionRead(authority.corepack),
+      "--config",
+      permissionRead(authority.npmConfig),
+      "--config",
+      permissionRead(authority.gitConfig),
+      "--config",
+      permissionRead(process.execPath),
+      "--config",
+      permissionRead(EvidenceBenchmarkProcess.corepackEntrypoint()),
+      "--config",
+      "permissions.benchmark-cell.network.enabled=true",
+      "--config",
+      'permissions.benchmark-cell.network.domains."*"="allow"',
+      "--config",
+      'permissions.benchmark-cell.network.domains."127.0.0.1"="allow"',
+      "--config",
+      'permissions.benchmark-cell.network.domains."localhost"="allow"',
+    ];
+  }
+
+  /** Builds an exact sandbox wrapper around one untrusted command. */
+  export function argumentsFor(
+    authority: IAuthority,
+    command: string,
+    arguments_: readonly string[],
+  ): string[] {
+    return [
+      "sandbox",
+      "--permission-profile",
+      "benchmark-cell",
+      "--include-managed-config",
+      "--cd",
+      authority.workspace,
+      ...permissionProfileArguments(authority),
+      "--",
+      command,
+      ...arguments_,
+    ];
+  }
+
+  /** Runs one untrusted command with only the declared authority. */
+  export function run(
+    authority: IAuthority,
+    command: string,
+    arguments_: readonly string[],
+    options: EvidenceBenchmarkProcess.IOptions,
+  ): Promise<EvidenceBenchmarkProcess.IResult> {
+    const executable: IExecutable = resolveExecutable();
+    return EvidenceBenchmarkProcess.run(
+      executable.command,
+      [...executable.prefix, ...argumentsFor(authority, command, arguments_)],
+      options,
+    );
+  }
+
+  /** Resolves the installed native Codex launcher or its npm entrypoint. */
+  export function resolveExecutable(): IExecutable {
+    if (process.platform !== "win32") return { command: "codex", prefix: [] };
+    const executable: string | undefined = findExecutableOnPath("codex.exe");
+    if (executable !== undefined) return { command: executable, prefix: [] };
+    const appData: string | undefined = process.env.APPDATA;
+    if (appData === undefined)
+      throw new Error("Codex launch on Windows requires APPDATA.");
+    const entrypoint: string = path.join(
+      appData,
+      "npm",
+      "node_modules",
+      "@openai",
+      "codex",
+      "bin",
+      "codex.js",
+    );
+    if (!fs.existsSync(entrypoint))
+      throw new Error(`Codex CLI entrypoint was not found: ${entrypoint}.`);
+    return { command: process.execPath, prefix: [entrypoint] };
+  }
+
+  /** Returns the installed Codex CLI version used by this campaign. */
+  export function version(): string {
+    const executable: IExecutable = resolveExecutable();
+    const result = spawnSync(
+      executable.command,
+      [...executable.prefix, "--version"],
+      {
+        encoding: "utf8",
+        shell: false,
+        windowsHide: true,
+      },
+    );
+    if (result.status !== 0)
+      throw new Error(
+        `Unable to read Codex CLI version: ${(result.stderr ?? "").trim()}`,
+      );
+    const version: string = (result.stdout ?? "").trim();
+    if (version.length === 0)
+      throw new Error("Codex CLI returned an empty version.");
+    return version;
+  }
+
+  function findExecutableOnPath(name: string): string | undefined {
+    const search: string = process.env.PATH ?? process.env.Path ?? "";
+    for (const directory of search.split(path.delimiter)) {
+      const root: string = directory.replace(/^"(.*)"$/, "$1");
+      if (root.length === 0) continue;
+      const candidate: string = path.join(root, name);
+      const stat: fs.Stats | undefined = fs.lstatSync(candidate, {
+        throwIfNoEntry: false,
+      });
+      if (stat?.isFile()) return fs.realpathSync(candidate);
+    }
+    return undefined;
+  }
+}
