@@ -38,6 +38,12 @@ export namespace BenchmarkControllerDiscovery {
   ): Promise<void> => {
     const backend: string = path.join(workspace, "packages", "backend");
     const api: string = path.join(workspace, "packages", "api");
+    const publicEntry: Buffer = fs.readFileSync(
+      path.join(api, "src", "index.ts"),
+    );
+    const publicSource: string = publicEntry.toString("utf8");
+    assert.match(publicSource, /export \* from "\.\/structures";/);
+    assert.match(publicSource, /export \* from "\.\/typings";/);
     await EvidenceBenchmarkProcess.pnpm(["run", "build:prisma"], {
       cwd: backend,
       env: environment,
@@ -62,6 +68,11 @@ export namespace BenchmarkControllerDiscovery {
         label: `controller discovery nestia ${command}`,
       });
       assertGenerated(api, command);
+      assert.deepEqual(
+        fs.readFileSync(path.join(api, "src", "index.ts")),
+        publicEntry,
+        `raw Nestia ${command} must preserve the authored public facade`,
+      );
     }
 
     await EvidenceBenchmarkProcess.pnpm(["run", "build"], {
