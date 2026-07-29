@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
@@ -12,6 +13,9 @@ import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBe
 export namespace EvidenceBenchmarkPublication {
   const ARMS = ["evidence", "plain"] as const;
   const PROJECTS = ["todo", "reddit", "shopping", "erp"] as const;
+  const TRUSTED_WORKFLOW: string = fileURLToPath(
+    new URL("../template/base/.github/workflows/ci.yml", import.meta.url),
+  );
 
   /** Explicit publication request parsed from the benchmark command line. */
   export interface IRequest {
@@ -275,7 +279,7 @@ export namespace EvidenceBenchmarkPublication {
         recursive: true,
         filter: shouldPublish,
       });
-      writeTrustedWorkflow(sourceRoot, stage);
+      writeTrustedWorkflow(stage);
       await run("git", ["init", "-b", "main"], {
         cwd: stage,
         label: "publication repository initialization",
@@ -415,7 +419,7 @@ export namespace EvidenceBenchmarkPublication {
     visit(root);
   }
 
-  function writeTrustedWorkflow(sourceRoot: string, stage: string): void {
+  function writeTrustedWorkflow(stage: string): void {
     const frontendPackagePath: string = path.join(
       stage,
       "packages",
@@ -434,18 +438,7 @@ export namespace EvidenceBenchmarkPublication {
       throw new Error(
         "Publication requires a safe scoped frontend package name for CI.",
       );
-    const source: string = fs.readFileSync(
-      path.join(
-        sourceRoot,
-        "benchmark",
-        "template",
-        "base",
-        ".github",
-        "workflows",
-        "ci.yml",
-      ),
-      "utf8",
-    );
+    const source: string = fs.readFileSync(TRUSTED_WORKFLOW, "utf8");
     const rendered: string = source.replaceAll(
       "{{frontendPackageName}}",
       frontendPackage.name,
