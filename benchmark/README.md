@@ -116,7 +116,7 @@ Arm-specific method instructions stay inside the corresponding template overlay.
 
 Each turn explicitly enables Goal mode and treats its complete instruction as that stage's bounded objective and completion criteria. At wave launch, the runner reads every instruction once, copies the exact bytes into each cell's `inputs/instructions/`, and records their aggregate hash in `run.json`. Later source edits cannot change an active or resumed cell's remaining turns.
 
-`benchmark/prompts/` retains the four-turn baseline protocol used by earlier frozen revisions. The current runner does not read it.
+`benchmark/prompts/` retains the three user utterances for the legacy single-goal baseline. The current backend-first runner does not read them.
 
 ## Apply a common template repair
 
