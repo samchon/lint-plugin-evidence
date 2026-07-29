@@ -16,7 +16,7 @@ The build reports a selected section no claim acknowledges. It does not report a
 
 For every H2/H3 section, extract actor or concept, circumstance, required behavior, observable result, named values, negative cases, and cross-references. Read through the next heading of equal or higher level.
 
-Prefer leaf H3 targets. An H2 target is valid only when the host or exclusion genuinely owns every selected H3 descendant and the integrity review records that descendant audit. The graph's hierarchical coverage is a capability, not permission to compress unrelated obligations.
+Prefer leaf H3 targets. An H2 target is valid only when ownership evidence is true for every selected H3 descendant or one exclusion decision truthfully omits all of them, and the integrity review records that descendant audit. The graph's hierarchical coverage is a capability, not permission to compress unrelated obligations.
 
 When a citation reason only repeats the heading, do not write it. Re-read until the reason names the exact responsibility implemented by the host.
 

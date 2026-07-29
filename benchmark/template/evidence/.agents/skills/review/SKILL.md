@@ -26,20 +26,20 @@ The graph establishes that every configured target received `@evidence` from a s
 For every `@evidence` and `@evidenceExclude` acknowledgement in the active claims, read three artifacts:
 
 1. the exact target and reason;
-2. the selected declaration hosting the tag and the code that declaration represents;
+2. for `@evidence`, the selected ownership declaration and the code it represents; for `@evidenceExclude`, the eligible carrier and the actual owner or observable alternative named by its reason;
 3. the requirement, Prisma unit, SDK operation, DTO type, or screen named by the target.
 
-Confirm that the host belongs to the claim, the target belongs to that claim's configured reference, and the reason states a specific responsibility or omission that the current code can falsify. A checklist may index this work; it is not proof by itself.
+Confirm that ownership evidence uses a selected claim host or an exclusion uses an eligible carrier in a matching claim file, the target belongs to that claim's configured reference, and the reason states a specific responsibility or omission that the current code can falsify. A checklist may index this work; it is not proof by itself.
 
 ## Broad Scopes And Exclusions
 
-For a leaf target, inspect that unit. For an H2, Prisma model, TypeScript type, or namespace target, enumerate the selected descendants discharged by the acknowledgement and confirm the same reason is true for all of them. Use a narrower target when one host does not own the entire selected subtree.
+For a leaf target, inspect that unit. For an H2, Prisma model, TypeScript type, or namespace target, enumerate the selected descendants discharged by the acknowledgement. Ownership evidence must be true of the entire subtree; an exclusion's omission reason and veto condition must be true of the entire subtree. Use a narrower target when either decision fails for one descendant.
 
 Review an exclusion with the same triple. The reason names the actual owner or observable alternative and a condition that would veto the omission. "Not applicable," "future work," "internal," and "not implemented" are conclusions, not reasons.
 
 Exclusions are claim-local. Keep evidence and exclusion scopes disjoint within each claim-reference obligation. An acknowledgement in one claim never discharges another claim.
 
-Providers are not selected hosts. Reject evidence tags under `src/providers/**`; when a provider is the actual owner named by an exclusion, the tag remains on a declaration selected by that claim.
+Providers are not selected hosts or eligible carriers. Reject evidence tags under `src/providers/**`; when a provider is the actual owner named by an exclusion, keep the tag on an eligible exclusion carrier in a matching claim file.
 
 ## Behavioral Evidence
 
