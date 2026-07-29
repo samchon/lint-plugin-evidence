@@ -1,0 +1,53 @@
+name: benchmark-template
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/benchmark.yml"
+      - "benchmark/package.json"
+      - "benchmark/template/**"
+      - "benchmark/requirements/todo/**"
+      - "benchmark/src/**"
+      - "config/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "tests/test-benchmark/**"
+  workflow_dispatch:
+
+concurrency:
+  group: benchmark-template-${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  template:
+    name: Todo plain template
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.6.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: pnpm
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.x
+
+      - name: Install repository dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check benchmark template test
+        run: pnpm --filter test-benchmark check
+
+      - name: Compose both arms
+        run: pnpm --filter test-benchmark start
+
+      - name: Install and build Todo plain template
+        run: pnpm --filter test-benchmark test:build

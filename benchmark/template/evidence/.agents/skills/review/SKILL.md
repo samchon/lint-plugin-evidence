@@ -1,6 +1,6 @@
 ---
 name: review
-description: Defines Phase One integrity review for evidence claims: comparing every tag or exclusion with its host and source, reviewing broad scopes and residual edges, and invalidating verdicts after change. Use during implementation and the Phase One final pass.
+description: Defines integrity review for evidence claims: comparing every tag or exclusion with its host and source, reviewing broad scopes and residual edges, and invalidating verdicts after change. Use during implementation and the final review.
 ---
 
 # Review
@@ -8,8 +8,6 @@ description: Defines Phase One integrity review for evidence claims: comparing e
 ## Coverage Is Not Integrity
 
 The graph establishes that every configured target received `@evidence` or `@evidenceExclude` from a selected host. It does not evaluate the reason or the implementation. A tag written after doing the work and a tag copied merely to clear a diagnostic are structurally identical.
-
-[The completeness skill](../completeness/SKILL.md) owns configured claims, residual edges, Phase boundaries, and the ledger. This skill owns whether each recorded claim is true.
 
 ## Review The Triple
 
@@ -19,7 +17,7 @@ For every acknowledgement, read three artifacts:
 2. the selected declaration hosting it and the code that declaration represents;
 3. the requirement, Prisma unit, SDK operation, DTO type, or screen named by the target.
 
-The ledger indexes this work; it is never evidence that it passed. A reason must state the specific responsibility the host fulfills and be falsifiable by the code.
+A checklist may index this work; it is never evidence that the review passed. A reason must state the specific responsibility the host fulfills and be falsifiable by the code.
 
 The host can be wrong, the named source can be wrong, or one misreading can have propagated through both. `docs/analysis/**` is immutable specification; schema, contract, implementation, tests, and screens are authored outputs and may themselves require repair.
 
@@ -33,9 +31,13 @@ An unowned artifact is invented behavior even when all forward targets are ackno
 
 For a leaf target, inspect that exact unit. For an ancestor H2, Prisma model, TypeScript type, or namespace target, enumerate every selected descendant the tag discharges and verify that the one host or decision owns all of them. A broad tag that is true for only one descendant is an omission disguised as coverage.
 
-Review every exclusion with the same triple. Confirm that the named claim truly does not own the target, identify the actual owner or observable alternative, and test the veto condition against the requirement. “Not applicable,” “future work,” and “internal” are conclusions, not reasons.
+Review every exclusion with the same triple. Confirm that the tag sits on a declaration selected by the named claim, the target belongs to one of that claim's configured references, the claim truly does not own it, the reason identifies the actual owner or observable alternative, and the stated veto condition still holds. “Not applicable,” “future work,” “internal,” and “not implemented” are conclusions, not reasons.
 
 Exclusions are claim-local. An exclusion accepted for `frontend-screens` says nothing about `backend-tests`, and an API-package exclusion cannot discharge a backend-package obligation.
+
+Hierarchy and disjointness are part of the verdict. Enumerate every selected descendant discharged by an H2, Prisma model, TypeScript type, or namespace exclusion, and reject a broad exclusion if any descendant belongs to the claim. Reject overlapping evidence and exclusion scopes within one claim-reference obligation; exclusion does not override evidence.
+
+Providers are residual implementation, not claim hosts. Reject every evidence tag placed under `src/providers/**`; when a provider is the actual owner named by an exclusion, the tag remains on a selected model, operation, DTO, test, screen, or journey host.
 
 ## Review Behavioral Claims
 
@@ -59,6 +61,8 @@ A claim is about a particular meaning at a particular digest. Changing a require
 
 Record the finding before repair, mark dependent verdicts stale, repair at the owning layer, regenerate outputs, rerun validation, and review the complete affected population. Never preserve a prior verdict because its tag text still parses.
 
-## Phase Boundaries
+Keep graph-integrity, reverse-owner, exclusion, and residual-edge verdicts in `.wiki/review.md`.
+For every row record the exact target or source identity, claiming artifact and member, falsifiable reason, current source digest, and `pending`, `accepted`, or `stale` verdict.
+Record findings before repair and retain stale rows until their replacements pass the next complete review.
 
-Phase One performs one exhaustive integrity and residual pass at the current digest before the first terminal completion report. Stop at that report and wait for the benchmark runner's separate post-completion user turn. Do not edit frozen method or lint configuration files.
+Review every current graph claim and residual edge before every completion report. Do not edit frozen instructions or lint configuration files.

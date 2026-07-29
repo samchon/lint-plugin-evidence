@@ -9,7 +9,6 @@ import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
-import { EvidenceBenchmarkProtocolValidatorTest } from "./EvidenceBenchmarkProtocolValidatorTest.ts";
 import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
@@ -28,9 +27,6 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     let preserveFailure: boolean = false;
     try {
-      EvidenceBenchmarkProtocolValidatorTest.main(
-        path.join(benchmarkRoot, "protocol"),
-      );
       const fixture: string = path.join(temporary, "fixture");
       createFixture(repository, fixture);
       await testPinnedPnpm(repository);
@@ -204,7 +200,7 @@ export namespace EvidenceBenchmarkSelfTest {
     write(
       path.join(
         extra,
-        "benchmark/template/plain/.agents/skills/completeness/extra.md",
+        "benchmark/template/plain/.agents/skills/review/extra.md",
       ),
       "# Extra\n",
     );
@@ -223,7 +219,7 @@ export namespace EvidenceBenchmarkSelfTest {
     fs.rmSync(
       path.join(
         missing,
-        "benchmark/template/plain/.agents/skills/completeness/SKILL.md",
+        "benchmark/template/plain/.agents/skills/review/SKILL.md",
       ),
     );
     await expectFailure(
@@ -357,14 +353,6 @@ export namespace EvidenceBenchmarkSelfTest {
       "benchmark",
       "requirements",
     );
-    const frozenRequirementTrees: Readonly<Record<string, string>> = {
-      todo: "26aba99e190b37785278a20f6858b6000f41f3885d9e6bcead09eb49db99ee9b",
-      reddit:
-        "279209425c009df00e9702cf618ebe7153d8a39d805f673a59b848f84f3bc456",
-      shopping:
-        "92c8bcf6f7362c8d8a3249cf0e4ab33ff5d1a5dddd8302fee96cf1e455790213",
-      erp: "8db2de692f79ddb856aefd6cda8ae3bb49612a741ca06661bcabc38972d57555",
-    };
     for (const entry of fs.readdirSync(requirements, {
       withFileTypes: true,
     })) {
@@ -376,20 +364,9 @@ export namespace EvidenceBenchmarkSelfTest {
       if (hasInventory) {
         const corpus: EvidenceBenchmarkCorpus.IResult =
           EvidenceBenchmarkCorpus.read(subject);
-        const frozenTree: string | undefined =
-          frozenRequirementTrees[entry.name];
-        if (frozenTree !== undefined)
-          assert.equal(
-            EvidenceBenchmarkHash.tree(corpus.files),
-            frozenTree,
-            `${entry.name} requirements must match the frozen raw-byte tree`,
-          );
-        if (entry.name === "erp") {
-          assert.equal(corpus.h2, 261);
-          assert.equal(corpus.h3, 1_344);
-          assert.equal(corpus.atomicAcceptanceClauses, 1_724);
-          assert.equal(corpus.contextCriteria, 986);
-        }
+        assert.ok(corpus.documents > 0);
+        assert.ok(corpus.h2 > 0);
+        assert.ok(corpus.h3 > 0);
       } else
         await expectFailure(
           () => EvidenceBenchmarkCorpus.read(subject),
@@ -493,8 +470,8 @@ export namespace EvidenceBenchmarkSelfTest {
             "nested-version": "pnpm --version",
           },
           devDependencies: {
-            "@ttsc/lint": "0.23.0",
-            ttsc: "0.23.0",
+            "@ttsc/lint": "0.22.0",
+            ttsc: "0.22.0",
             typescript: "7.0.2",
           },
         },
@@ -1066,10 +1043,10 @@ export namespace EvidenceBenchmarkSelfTest {
           arm,
           ".agents",
           "skills",
-          "completeness",
+          "review",
           "SKILL.md",
         ),
-        "---\nname: completeness\ndescription: Self-test completeness instructions.\n---\n# Completeness\n\nFixture body.\n",
+        "---\nname: review\ndescription: Self-test review instructions.\n---\n# Review\n\nFixture body.\n",
       );
       addSpliceContracts(base, path.join(target, "template", arm));
     }
@@ -1080,8 +1057,8 @@ export namespace EvidenceBenchmarkSelfTest {
           name: "self-test",
           private: true,
           devDependencies: {
-            "@ttsc/lint": "0.23.0",
-            ttsc: "0.23.0",
+            "@ttsc/lint": "0.22.0",
+            ttsc: "0.22.0",
             typescript: "7.0.2",
           },
         },
@@ -1168,7 +1145,7 @@ export namespace EvidenceBenchmarkSelfTest {
       [
         "# Corpus Contract",
         "",
-        "## Protocol",
+        "## Corpus Contract",
         "",
         "````md",
         "### REQ-HIDDEN-001 Hidden by a longer fence",

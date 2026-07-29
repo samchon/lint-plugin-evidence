@@ -9,6 +9,13 @@ catalogs:
     '@prisma/prisma-schema-wasm':
       specifier: 7.10.0-2.d0368e25c88e68caa4d283b5f2d88d1b76ed9356
       version: 7.10.0-2.d0368e25c88e68caa4d283b5f2d88d1b76ed9356
+  samchon:
+    '@typia/interface':
+      specifier: ^13.2.0
+      version: 13.2.0
+    '@typia/utils':
+      specifier: ^13.2.0
+      version: 13.2.0
   typescript:
     '@ttsc/lint':
       specifier: ^0.22.0
@@ -19,13 +26,6 @@ catalogs:
     typescript:
       specifier: ^7.0.2
       version: 7.0.2
-  typia:
-    '@typia/interface':
-      specifier: ^13.2.0
-      version: 13.2.0
-    '@typia/utils':
-      specifier: ^13.2.0
-      version: 13.2.0
   utils:
     '@types/node':
       specifier: ^25.3.0
@@ -68,12 +68,6 @@ importers:
       '@types/node':
         specifier: catalog:utils
         version: 25.9.5
-      ajv:
-        specifier: 8.17.1
-        version: 8.17.1
-      ajv-formats:
-        specifier: 3.0.1
-        version: 3.0.1(ajv@8.17.1)
       tar:
         specifier: 7.5.22
         version: 7.5.22
@@ -96,10 +90,10 @@ importers:
         specifier: catalog:prisma
         version: 7.10.0-2.d0368e25c88e68caa4d283b5f2d88d1b76ed9356
       '@typia/interface':
-        specifier: catalog:typia
+        specifier: catalog:samchon
         version: 13.2.0
       '@typia/utils':
-        specifier: catalog:typia
+        specifier: catalog:samchon
         version: 13.2.0
       yaml:
         specifier: catalog:utils
@@ -117,6 +111,18 @@ importers:
       ttsc:
         specifier: catalog:typescript
         version: 0.22.0
+      typescript:
+        specifier: catalog:typescript
+        version: 7.0.2
+
+  tests/test-benchmark:
+    devDependencies:
+      '@samchon/evidence-benchmark':
+        specifier: workspace:*
+        version: link:../../benchmark
+      '@types/node':
+        specifier: catalog:utils
+        version: 25.9.5
       typescript:
         specifier: catalog:typescript
         version: 7.0.2
@@ -396,17 +402,6 @@ packages:
   '@typia/utils@13.2.0':
     resolution: {integrity: sha512-Hi/04+FY5tf9sHQihl0XWsb9QoISiHTbu6/gucUta9iT0/yakofMajRaCSwomRg43ekNNve7L9Hvb/6u5JDkuQ==}
 
-  ajv-formats@3.0.1:
-    resolution: {integrity: sha512-8iUql50EUR+uUcdRQ3HDqa6EVyo3docL8g5WJ3FNcWmu62IbkGUue/pEyLBW8VGKKucTPgqeks4fIU1DA4yowQ==}
-    peerDependencies:
-      ajv: ^8.0.0
-    peerDependenciesMeta:
-      ajv:
-        optional: true
-
-  ajv@8.17.1:
-    resolution: {integrity: sha512-B/gBuNg5SiMTrPkC+A2+cW0RszwxYmn6VYxB/inlBStS5nx6xHIt/ehKRhIMhqusl7a8LjQoZnjCs5vhwxOQ1g==}
-
   ansis@4.3.1:
     resolution: {integrity: sha512-BJ8/l4R5LRE7hW9WdSuGYrLSHi2ynxeFpDFbH0K/CgNeY/tyhk+vO6TYxXC5r5CpUhNVX310xzPsN/H9lCdfOA==}
     engines: {node: '>=14'}
@@ -502,12 +497,6 @@ packages:
   exsolve@1.1.0:
     resolution: {integrity: sha512-D+42+T12DdIlJM3uepa55qGiL3sYdLBOxIl2ifQCzCHz4c7eiolaHsi3BIqEr7JxBzxv2pYZQX9kw16ziMcEmw==}
 
-  fast-deep-equal@3.1.3:
-    resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
-
-  fast-uri@3.1.4:
-    resolution: {integrity: sha512-8JnbkQ4juDyvYs4mgFGQqg4yCYtFDtUtmp2QIQq11ZZe5CFQ5wcqm1rqDgAh/QdMySuBnPzMUiJUNZG5N/AiQw==}
-
   fdir@6.5.0:
     resolution: {integrity: sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==}
     engines: {node: '>=12.0.0'}
@@ -539,9 +528,6 @@ packages:
     resolution: {integrity: sha512-/sM3dO2FOzXjKQhJuo0Q173wf2KOo8t4I8vHy6lF9poUp7bKT0/NHE8fPX23PwfhnykfqnC2xRxOnVw5XuGIaA==}
     engines: {node: '>=6'}
     hasBin: true
-
-  json-schema-traverse@1.0.0:
-    resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
 
   jsonc-parser@3.3.1:
     resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
@@ -693,10 +679,6 @@ packages:
   readdirp@5.0.0:
     resolution: {integrity: sha512-9u/XQ1pvrQtYyMpZe7DXKv2p5CNvyVwzUB6uhLAnQwHMSgKMBR62lc7AHljaeteeHXn11XTAaLLUVZYVZyuRBQ==}
     engines: {node: '>= 20.19.0'}
-
-  require-from-string@2.0.2:
-    resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
-    engines: {node: '>=0.10.0'}
 
   rimraf@6.1.3:
     resolution: {integrity: sha512-LKg+Cr2ZF61fkcaK1UdkH2yEBBKnYjTyWzTJT6KNPcSPaiT7HSdhtMXQuN5wkTX0Xu72KQ1l8S42rlmexS2hSA==}
@@ -938,17 +920,6 @@ snapshots:
     dependencies:
       '@typia/interface': 13.2.0
 
-  ajv-formats@3.0.1(ajv@8.17.1):
-    optionalDependencies:
-      ajv: 8.17.1
-
-  ajv@8.17.1:
-    dependencies:
-      fast-deep-equal: 3.1.3
-      fast-uri: 3.1.4
-      json-schema-traverse: 1.0.0
-      require-from-string: 2.0.2
-
   ansis@4.3.1: {}
 
   args-tokenizer@0.3.0: {}
@@ -1036,10 +1007,6 @@ snapshots:
 
   exsolve@1.1.0: {}
 
-  fast-deep-equal@3.1.3: {}
-
-  fast-uri@3.1.4: {}
-
   fdir@6.5.0(picomatch@4.0.5):
     optionalDependencies:
       picomatch: 4.0.5
@@ -1059,8 +1026,6 @@ snapshots:
   js-tokens@4.0.0: {}
 
   jsesc@3.1.0: {}
-
-  json-schema-traverse@1.0.0: {}
 
   jsonc-parser@3.3.1: {}
 
@@ -1286,8 +1251,6 @@ snapshots:
       destr: 2.0.5
 
   readdirp@5.0.0: {}
-
-  require-from-string@2.0.2: {}
 
   rimraf@6.1.3:
     dependencies:

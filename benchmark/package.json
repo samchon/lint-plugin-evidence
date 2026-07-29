@@ -4,7 +4,15 @@
   "version": "0.0.0",
   "description": "Deterministic materialization and package preparation for the evidence benchmark.",
   "type": "module",
+  "exports": {
+    "./corpus": "./src/EvidenceBenchmarkCorpus.ts",
+    "./materialization": "./src/structures/IEvidenceBenchmarkMaterialization.ts",
+    "./process": "./src/EvidenceBenchmarkProcess.ts",
+    "./template": "./src/EvidenceBenchmarkTemplate.ts"
+  },
   "scripts": {
+    "start": "node --experimental-transform-types src/executable/benchmark.ts start",
+    "plan": "node --experimental-transform-types src/executable/benchmark.ts plan",
     "check": "pnpm run check:source && tsc --noEmit -p tsconfig.json",
     "check:source": "node --experimental-transform-types src/executable/check-source-contract.ts",
     "test": "pnpm run test:unit && pnpm run test:package",
@@ -14,8 +22,6 @@
   },
   "devDependencies": {
     "@types/node": "catalog:utils",
-    "ajv": "8.17.1",
-    "ajv-formats": "3.0.1",
     "tar": "7.5.22",
     "typescript": "catalog:typescript",
     "typescript-api": "npm:typescript@5.9.3"

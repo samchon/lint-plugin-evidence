@@ -8,37 +8,33 @@ This document owns the data transfer objects: where they live, what they are nam
 
 ```
 packages/api/src/structures/
-  common/
-    IPage.ts
-    IDiagnosis.ts
-    IEntity.ts
-  shopping/
-    sale/
-      IShoppingSale.ts
-      IShoppingSaleSnapshot.ts
+  IShoppingSale.ts
+  IShoppingSaleSnapshot.ts
+  index.ts
+packages/api/src/typings/
+  IDiagnosis.ts
+  IEntity.ts
+  IPage.ts
+  index.ts
 ```
 
 The backend imports its own request and response types from that package, which reads backwards until you see why: **the contract belongs to the SDK, and the server is one implementation of it.** A type declared inside the backend is a type consumers cannot import, so the first client to need it copies it, and the copy is what drifts.
 
-Mirror the route and domain structure in the folder layout, one file per root type, named for the type it declares.
+Keep `structures` flat, with one file per root DTO named for the interface it declares. The interface and namespace inside that file carry the domain hierarchy; the filesystem does not repeat it.
+
+`IEntity`, `IPage`, and `IDiagnosis` live in `src/typings` because they are shared transport primitives rather than DTOs derived from a database model or requirement operation. Import them from the API package entry exactly like DTOs, but do not move them into `structures` or redeclare them beside a domain DTO.
 
 ## Everything Is Exported From The Index
 
 A type that is not reachable from the package entry does not exist for a consumer.
 
 ```ts
-// packages/api/src/structures/shopping/sale/index.ts
+// packages/api/src/structures/index.ts
 export * from "./IShoppingSale";
 export * from "./IShoppingSaleSnapshot";
 ```
 
-```ts
-// packages/api/src/structures/index.ts
-export * from "./common";
-export * from "./shopping";
-```
-
-Add the export in the same edit that adds the file: a type present in the tree and absent from an index compiles here, fails to import there, and the failure surfaces in the frontend rather than where it was caused.
+Add the direct export to `structures/index.ts` in the same edit that adds the file. Every DTO in `structures` must appear there; nested barrels and directory exports are forbidden because the DTO directory is flat. A type present in the tree and absent from the index compiles here, fails to import there, and the failure surfaces in the frontend rather than where it was caused.
 
 ## Contract Direction
 

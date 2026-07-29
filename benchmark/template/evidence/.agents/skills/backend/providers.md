@@ -1,8 +1,8 @@
 # Providers
 
-Providers carry no evidence tags. No configured claim selects them, so graph green says nothing about whether a contract promise, behavioral requirement, or schema invariant is implemented here.
+Providers carry neither `@evidence` nor `@evidenceExclude`. No configured claim selects `src/providers/**`, so a provider is not a declaration host and a tag there cannot satisfy `schema-models`, `api-operations`, `dto-types`, `dto-properties`, or `backend-tests`.
 
-Read [the logic completeness check](../completeness/logic.md) before provider work. Maintain the manual residual mappings from operation effects, requirement rules, and schema invariants into every provider path, then walk each branch and database access back to an owner.
+Maintain the manual residual mappings from operation effects, requirement rules, and schema invariants into every provider path, then walk each branch and database access back to an owner. When a whole configured claim intentionally omits a target implemented by a provider, put the exclusion on a selected host of that claim and name the provider as the actual owner; never move the tag into the provider.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}

@@ -2,7 +2,7 @@
 
 Every user-visible requirement needs a reachable screen and every screen needs requirement and SDK-operation owners. A type-correct frontend can still omit the entire user journey.
 
-Read [the frontend completeness check](../completeness/frontend.md) before screen work. Record the route, user action, visible result, required states, consumed SDK operations, and browser journey for each page, then walk every route/page/hook/form back to those owners.
+Map every user-visible requirement forward to its reachable route, action, visible result, consumed SDK operation, and browser journey. Include loading, empty, error, retry, invalidation, permission, refusal, and responsive states. Then reverse-walk every route, page, hook, form, and action to a requirement and public operation owner.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}
@@ -11,4 +11,4 @@ Read [the frontend completeness check](../completeness/frontend.md) before scree
 
 Controllers own public operations; generated accessors transport them. Map product-facing accessors to consuming screens/journeys or reviewed requirement-backed omissions. Never edit generated accessors, redeclare DTOs, or add an ad hoc fetch path.
 
-After a contract or screen change, invalidate affected frontend and browser-journey mappings at the current digest. Record project-specific structure in the project ledger, never by editing the frozen method.
+After a contract or screen change, recheck every affected screen and browser journey against the changed source. Record project-specific screen ownership in the existing screen plan, never by editing the frozen method.

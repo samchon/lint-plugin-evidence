@@ -38,6 +38,11 @@ export namespace EvidenceBenchmarkTemplate {
     "packages/api/package.json",
     "packages/api/scripts/ensure-nestia-exports.cjs",
     "packages/api/src/index.ts",
+    "packages/api/src/structures/index.ts",
+    "packages/api/src/typings/IDiagnosis.ts",
+    "packages/api/src/typings/IEntity.ts",
+    "packages/api/src/typings/IPage.ts",
+    "packages/api/src/typings/index.ts",
     "packages/api/tsconfig.json",
     "packages/backend/lint.config.ts",
     "packages/backend/package.json",
@@ -45,6 +50,7 @@ export namespace EvidenceBenchmarkTemplate {
     "packages/backend/prisma/schema/main.prisma",
     "packages/backend/src/MyBackend.ts",
     "packages/backend/src/MyModule.ts",
+    "packages/backend/src/controllers/HealController.ts",
     "packages/backend/src/executable/server.ts",
     "packages/backend/src/executable/swagger.ts",
     "packages/backend/test/index.ts",
@@ -69,14 +75,14 @@ export namespace EvidenceBenchmarkTemplate {
     Record<IEvidenceBenchmarkMaterialization.Arm, readonly string[]>
   > = {
     evidence: [
-      ".agents/skills/completeness/SKILL.md",
+      ".agents/skills/review/SKILL.md",
       "AGENTS.md",
       "packages/api/lint.config.ts",
       "packages/backend/lint.config.ts",
       "packages/frontend/lint.config.ts",
     ],
     plain: [
-      ".agents/skills/completeness/SKILL.md",
+      ".agents/skills/review/SKILL.md",
       "AGENTS.md",
       "packages/api/lint.config.ts",
       "packages/backend/lint.config.ts",
@@ -106,7 +112,7 @@ export namespace EvidenceBenchmarkTemplate {
   }
 
   /**
-   * Renders the neutral scaffold while auditing both arm overlay protocols.
+   * Renders the neutral scaffold while auditing both arm overlay contracts.
    *
    * The template-revision gate uses this before either benchmark mechanism is
    * present, so a broken shared scaffold cannot be mistaken for an arm effect.
@@ -131,7 +137,7 @@ export namespace EvidenceBenchmarkTemplate {
     };
     validateRequiredPaths("base", base, BASE_REQUIRED_PATHS);
     validatePortablePaths("base", base);
-    validateOverlayProtocol(base, overlays);
+    validateOverlayContract(base, overlays);
     const rendered: Map<string, Uint8Array> = new Map();
     for (const [relative, content] of base)
       rendered.set(
@@ -151,7 +157,7 @@ export namespace EvidenceBenchmarkTemplate {
    *
    * An existing path is accepted only through the explicit Markdown body-splice
    * marker or the evidence lint-config replacement set. This makes an added
-   * collision a reviewed protocol change rather than last-writer-wins
+   * collision a reviewed contract change rather than last-writer-wins
    * behavior.
    */
   export function compose(props: {
@@ -178,7 +184,7 @@ export namespace EvidenceBenchmarkTemplate {
     const arm: Map<string, Uint8Array> = overlays[props.arm];
     validateRequiredPaths("base", base, BASE_REQUIRED_PATHS);
     validatePortablePaths("base", base);
-    validateOverlayProtocol(base, overlays);
+    validateOverlayContract(base, overlays);
 
     const composed: Map<string, Uint8Array> = new Map(base);
     for (const [relative, overlayBytes] of sortedEntries(arm)) {
@@ -239,7 +245,7 @@ export namespace EvidenceBenchmarkTemplate {
     validateMarkdown(files);
   }
 
-  function validateOverlayProtocol(
+  function validateOverlayContract(
     base: ReadonlyMap<string, Uint8Array>,
     overlays: Readonly<
       Record<

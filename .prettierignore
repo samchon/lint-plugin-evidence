@@ -1,8 +1,7 @@
-# Benchmark specifications, prompts, protocol, and generated-project templates
+# Benchmark specifications, prompts, and generated-project templates
 # are experimental inputs. Formatting any of them after the first run silently
 # changes the workload and invalidates every affected comparison cell.
 benchmark/requirements/
 benchmark/prompts/
-benchmark/protocol/
 benchmark/template/
 benchmark/result/

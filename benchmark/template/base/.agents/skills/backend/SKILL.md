@@ -81,7 +81,7 @@ After any substantial piece of work, ask what `null` means for each field, which
 
 ## Backend Layer Gate
 
-Passing this gate means the backend layer is internally validated at the current repository state. It is not a project-completion claim; frontend delivery and the active arm's completeness method remain separate obligations.
+Passing this gate means the backend layer is internally validated at the current repository state. It is not a project-completion claim; frontend delivery remains a separate obligation.
 
 The build passes, the lint stage passes, the tests pass, and you read their output.
 

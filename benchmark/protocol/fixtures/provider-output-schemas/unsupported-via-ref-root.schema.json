@@ -1,5 +1,0 @@
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "unsupported-via-ref-root.schema.json",
-  "$ref": "unsupported-via-ref-child.schema.json"
-}

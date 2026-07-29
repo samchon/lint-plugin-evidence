@@ -12,9 +12,9 @@ description: Explains what packages/api is, which parts are generated and which 
 ```
 packages/api/
   src/functional/     generated client accessors, one per operation
-  src/structures/     the DTO contracts
+  src/structures/     flat requirement-derived DTO contracts
   src/diagnosers/     logic the frontend and the backend must agree on
-  src/typings/        authored helper types: DeepPartial and its kin
+  src/typings/        authored transport primitives: IEntity, IPage, IDiagnosis
   swagger.json        generated OpenAPI document
 ```
 
@@ -26,9 +26,9 @@ Nestia's configuration lives in `packages/backend/nestia.config.ts` and its outp
 | --- | --- | --- |
 | `src/functional/**` | generated from the controllers | never |
 | `swagger.json` | generated from the controllers | never |
-| `src/structures/**` | the DTO declarations | change here, then regenerate |
+| `src/structures/*.ts` | flat requirement-derived DTO declarations | change here, export from `structures/index.ts`, then regenerate |
 | `src/diagnosers/**` | authored | change here |
-| `src/typings/**` | authored helper types | change here |
+| `src/typings/**` | authored transport primitives that are not requirement or database DTOs | change here |
 
 An edit to a generated path survives until the next generation and then disappears without a message. The disappearance looks like someone else's bug, and the change that caused it was committed long before.
 
@@ -112,7 +112,7 @@ export namespace UniqueDiagnoser {
 }
 ```
 
-`IDiagnosis` is the return shape, declared in `src/structures/common` and used by the server's error responses too. One vocabulary for a client-side check and a server-side rejection means a screen renders either without branching, and its `accessor` path is what lands a field error on its field.
+`IDiagnosis` is the return shape, declared in `src/typings/IDiagnosis.ts` and used by the server's error responses too. It is a shared transport primitive rather than a requirement-derived DTO. One vocabulary for a client-side check and a server-side rejection means a screen renders either without branching, and its `accessor` path is what lands a field error on its field.
 
 Writing the rule twice guarantees the two drift, and the drift surfaces as a form that accepts what the server then rejects.
 
@@ -149,7 +149,7 @@ Take accessor names from the generated exports, never from a path or a verb. If 
 
 Import every request and response type from here. A locally redeclared DTO is the second copy that drifts.
 
-A multi-item response always arrives in the page wrapper, which is declared in `src/structures/common/IPage.ts` and shared by every listing. Read it there.
+A multi-item response always arrives in the page wrapper, which is declared in `src/typings/IPage.ts` and shared by every listing. Read it there.
 
 The generated JSDoc carries the operation's purpose, its authorization rule, and what its response means. Read it rather than guessing from the name.
 

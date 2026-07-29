@@ -130,6 +130,6 @@ Keep traces and screenshots from failing runs while you diagnose them. They are 
 
 ## Frontend Verification Gate
 
-The application starts. Every requirement-backed user journey works when a person performs it. The interface is coherent at every required width. The simulation program passes and the live program has been run against a real backend. Deliberate omissions are recorded with reasons. `wiki/verification.md` reflects what was actually run, including what could not be. This closes the frontend layer only; the active completeness skill owns project completion.
+The application starts. Every requirement-backed user journey works when a person performs it. The interface is coherent at every required width. The simulation program passes and the live program has been run against a real backend. Deliberate omissions are recorded with reasons. `wiki/verification.md` reflects what was actually run, including what could not be.
 
 Passing a type check, a production build, or a seeded smoke test proves that the application mounts. It does not prove the product exists.

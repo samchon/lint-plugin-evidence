@@ -77,9 +77,9 @@ const graph: IEvidenceGraphConfig = {
         },
       ],
     },
-    // Providers are deliberately outside the mechanical graph. The identical
-    // Phase One/Two residual lens in both arms checks operations, requirements,
-    // and schema invariants against provider implementation.
+    // Providers are deliberately outside the mechanical graph. Both arms
+    // review operations, requirements, and schema invariants against provider
+    // implementation.
   ],
 };
 
@@ -98,5 +98,6 @@ export default {
     // keeps citation addresses stable.
     "evidence/documented": "error",
     "evidence/singular": "error",
+    "evidence/todo": "error",
   },
 } satisfies ITtscLintConfig;

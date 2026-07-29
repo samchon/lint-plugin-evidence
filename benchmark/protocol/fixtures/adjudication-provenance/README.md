@@ -1,3 +1,0 @@
-# Adjudication provenance fixtures
-
-The production semantic validator requires a fresh adjudicator assignment, thread, process provenance, and response set distinct from both graders. It recomputes `sealedInputsSha256` from the exact raw grade A, grade B, and comparison-queue bytes by updating SHA-256 with ASCII label, NUL, exact bytes, and NUL for labels `grade-a`, `grade-b`, and `comparison-queue` in that order. It rejects any declared/recomputed mismatch, reused identity, missing queue closure, model/version mismatch, duplicate response ID, or `freshIdentityVerified` value other than true. Schema validation alone is insufficient.

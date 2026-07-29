@@ -1,21 +1,6 @@
+import type { IPage } from "{{apiPackageName}}";
+
 export namespace PaginationUtil {
-  export interface IRequest {
-    page?: number | null;
-    limit?: number | null;
-  }
-
-  export interface IPagination {
-    current: number;
-    limit: number;
-    records: number;
-    pages: number;
-  }
-
-  export interface IPaged<T extends object> {
-    pagination: IPagination;
-    data: T[];
-  }
-
   export interface IProps<
     Where extends object,
     OrderBy extends object,
@@ -49,7 +34,7 @@ export namespace PaginationUtil {
       props: IProps<Where, OrderBy, Payload, Raw, Output>,
     ) =>
     (spec: { where: Where; orderBy: OrderBy[] }) =>
-    async (input: IRequest): Promise<IPaged<Output>> => {
+    async (input: IPage.IRequest): Promise<IPage<Output>> => {
       const limit = input.limit ?? 100;
       const current = input.page ?? 1;
       const records = await props.schema.count({ where: spec.where });

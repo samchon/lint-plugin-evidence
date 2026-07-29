@@ -1,0 +1,346 @@
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+
+import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
+import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
+import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
+import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
+import type { IEvidenceBenchmarkPackageArtifact } from "./structures/IEvidenceBenchmarkPackageArtifact.ts";
+
+/** Prepares and launches retained Codex benchmark waves from one clean revision. */
+export namespace EvidenceBenchmarkCommandLine {
+  const MODEL = "gpt-5.6-luna";
+  const ARMS = ["evidence", "plain"] as const;
+
+  interface ITurn {
+    name: "instruction" | "goal" | "review";
+    elapsedMs: number;
+    status: number | null;
+    stdout: string;
+    stderr: string;
+  }
+
+  interface IState {
+    schemaVersion: 1;
+    project: IEvidenceBenchmarkMaterialization.Project;
+    arm: IEvidenceBenchmarkMaterialization.Arm;
+    model: typeof MODEL;
+    sourceCommit: string;
+    startedAt: string;
+    completedAt?: string;
+    status: "running" | "completed" | "failed";
+    threadId?: string;
+    turns: ITurn[];
+    error?: string;
+  }
+
+  /**
+   * Validates arguments or launches every requested subject and arm
+   * concurrently.
+   */
+  export async function main(
+    repository: string,
+    arguments_: string[],
+  ): Promise<void> {
+    const projects: IEvidenceBenchmarkMaterialization.Project[] =
+      parseProjects(arguments_);
+    if (arguments_[0] === "plan") {
+      console.log(
+        JSON.stringify({ model: MODEL, projects, arms: ARMS }, null, 2),
+      );
+      return;
+    }
+    if (arguments_[0] !== "start")
+      throw new Error(
+        "Usage: benchmark <plan|start> <todo|reddit|shopping|erp>...",
+      );
+    const sourceCommit: string = (
+      await EvidenceBenchmarkProcess.run("git", ["rev-parse", "HEAD"], {
+        cwd: repository,
+        label: "benchmark source revision",
+      })
+    ).stdout.trim();
+    const status: string = (
+      await EvidenceBenchmarkProcess.run(
+        "git",
+        ["status", "--porcelain=v1", "--untracked-files=all"],
+        { cwd: repository, label: "benchmark source cleanliness" },
+      )
+    ).stdout.trim();
+    if (status.length !== 0)
+      throw new Error(
+        `Benchmark start requires a clean merged source tree:\n${status}`,
+      );
+    const runId: string = `${timestamp()}-${sourceCommit.slice(0, 12)}`;
+    const artifact: IEvidenceBenchmarkPackageArtifact =
+      await EvidenceBenchmarkPackage.prepare({
+        repository,
+        expectedCommit: sourceCommit,
+        output: path.join(repository, "benchmark", ".work", runId, "artifact"),
+      });
+    const results = await Promise.allSettled(
+      projects.flatMap((project) =>
+        ARMS.map((arm) =>
+          runCell({ repository, sourceCommit, runId, project, arm, artifact }),
+        ),
+      ),
+    );
+    const failures: unknown[] = results.flatMap((result) =>
+      result.status === "rejected" ? [result.reason] : [],
+    );
+    if (failures.length !== 0)
+      throw new AggregateError(
+        failures,
+        `${failures.length} benchmark cells failed.`,
+      );
+  }
+
+  async function runCell(props: {
+    repository: string;
+    sourceCommit: string;
+    runId: string;
+    project: IEvidenceBenchmarkMaterialization.Project;
+    arm: IEvidenceBenchmarkMaterialization.Arm;
+    artifact: IEvidenceBenchmarkPackageArtifact;
+  }): Promise<void> {
+    const root: string = path.join(
+      props.repository,
+      "benchmark",
+      "result",
+      props.project,
+      props.arm,
+      "runs",
+      props.runId,
+    );
+    const materialization = await EvidenceBenchmarkMaterializer.materialize({
+      repository: props.repository,
+      output: root,
+      project: props.project,
+      arm: props.arm,
+      variables: variables(props.project, props.arm),
+      artifact: props.artifact,
+    });
+    await EvidenceBenchmarkSetup.prepare({
+      materialization,
+      arm: props.arm,
+    });
+    const logs: string = path.join(root, "logs");
+    fs.mkdirSync(logs, { recursive: false });
+    const state: IState = {
+      schemaVersion: 1,
+      project: props.project,
+      arm: props.arm,
+      model: MODEL,
+      sourceCommit: props.sourceCommit,
+      startedAt: new Date().toISOString(),
+      status: "running",
+      turns: [],
+    };
+    writeState(root, state);
+    try {
+      for (const name of ["instruction", "goal", "review"] as const) {
+        const prompt: string = fs.readFileSync(
+          path.join(props.repository, "benchmark", "prompts", `${name}.md`),
+          "utf8",
+        );
+        const turn: ITurn & { threadId?: string } = await runTurn({
+          workspace: materialization.workspace,
+          environment: materialization.environment,
+          logs,
+          name,
+          prompt,
+          threadId: state.threadId,
+        });
+        state.threadId ??= turn.threadId;
+        state.turns.push(turn);
+        writeState(root, state);
+        if (turn.status !== 0)
+          throw new Error(
+            `${name} turn exited with status ${String(turn.status)}.`,
+          );
+      }
+      state.status = "completed";
+      state.completedAt = new Date().toISOString();
+      promoteWorkspace(
+        props.repository,
+        props.project,
+        props.arm,
+        materialization.workspace,
+      );
+    } catch (error) {
+      state.status = "failed";
+      state.completedAt = new Date().toISOString();
+      state.error =
+        error instanceof Error ? (error.stack ?? error.message) : String(error);
+      throw error;
+    } finally {
+      writeState(root, state);
+    }
+  }
+
+  async function runTurn(props: {
+    workspace: string;
+    environment: NodeJS.ProcessEnv;
+    logs: string;
+    name: ITurn["name"];
+    prompt: string;
+    threadId?: string;
+  }): Promise<ITurn & { threadId?: string }> {
+    const stdoutPath: string = path.join(
+      props.logs,
+      `${props.name}.stdout.jsonl`,
+    );
+    const stderrPath: string = path.join(
+      props.logs,
+      `${props.name}.stderr.log`,
+    );
+    const stdout = fs.createWriteStream(stdoutPath, { flags: "wx" });
+    const stderr = fs.createWriteStream(stderrPath, { flags: "wx" });
+    const common: string[] = [
+      "--json",
+      "--model",
+      MODEL,
+      "--dangerously-bypass-approvals-and-sandbox",
+      "--skip-git-repo-check",
+    ];
+    const args: string[] =
+      props.threadId === undefined
+        ? ["exec", ...common, "--cd", props.workspace, "-"]
+        : ["exec", "resume", ...common, props.threadId, "-"];
+    const started: bigint = process.hrtime.bigint();
+    const executable: { command: string; prefix: string[] } = codexExecutable();
+    const child = spawn(executable.command, [...executable.prefix, ...args], {
+      cwd: props.workspace,
+      env: props.environment,
+      shell: false,
+      windowsHide: true,
+      stdio: "pipe",
+    });
+    let threadId: string | undefined;
+    let remainder: string = "";
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout.write(chunk);
+      remainder += chunk.toString("utf8");
+      const lines: string[] = remainder.split(/\r?\n/);
+      remainder = lines.pop() ?? "";
+      for (const line of lines)
+        try {
+          const event: unknown = JSON.parse(line);
+          if (
+            typeof event === "object" &&
+            event !== null &&
+            "thread_id" in event &&
+            typeof event.thread_id === "string"
+          )
+            threadId = event.thread_id;
+        } catch {}
+    });
+    child.stderr.pipe(stderr);
+    child.stdin.end(props.prompt, "utf8");
+    const status: number | null = await new Promise((resolve, reject) => {
+      child.once("error", reject);
+      child.once("close", resolve);
+    });
+    await Promise.all([
+      new Promise<void>((resolve) => stdout.end(resolve)),
+      new Promise<void>((resolve) => stderr.end(resolve)),
+    ]);
+    return {
+      name: props.name,
+      elapsedMs: Number(process.hrtime.bigint() - started) / 1_000_000,
+      status,
+      stdout: path.posix.join("logs", path.basename(stdoutPath)),
+      stderr: path.posix.join("logs", path.basename(stderrPath)),
+      threadId,
+    };
+  }
+
+  function parseProjects(
+    arguments_: string[],
+  ): IEvidenceBenchmarkMaterialization.Project[] {
+    const values: string[] = arguments_.slice(1);
+    if (values.length === 0)
+      throw new Error("At least one benchmark project is required.");
+    const allowed = new Set(["todo", "reddit", "shopping", "erp"]);
+    for (const value of values)
+      if (!allowed.has(value))
+        throw new Error(`Unknown benchmark project: ${value}.`);
+    return [...new Set(values)] as IEvidenceBenchmarkMaterialization.Project[];
+  }
+
+  function variables(
+    project: IEvidenceBenchmarkMaterialization.Project,
+    arm: IEvidenceBenchmarkMaterialization.Arm,
+  ): IEvidenceBenchmarkMaterialization.IVariables {
+    const stem: string = `${project}-${arm}`;
+    return {
+      name: `evidence-benchmark-${stem}`,
+      apiPackageName: `@evidence-benchmark/${stem}-api`,
+      backendPackageName: `@evidence-benchmark/${stem}-backend`,
+      frontendPackageName: `@evidence-benchmark/${stem}-frontend`,
+    };
+  }
+
+  function writeState(root: string, state: IState): void {
+    const target: string = path.join(root, "run.json");
+    const temporary: string = `${target}.${process.pid}.tmp`;
+    fs.writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+    fs.rmSync(target, { force: true });
+    fs.renameSync(temporary, target);
+  }
+
+  function promoteWorkspace(
+    repository: string,
+    project: IEvidenceBenchmarkMaterialization.Project,
+    arm: IEvidenceBenchmarkMaterialization.Arm,
+    workspace: string,
+  ): void {
+    const parent: string = path.join(
+      repository,
+      "benchmark",
+      "result",
+      project,
+      arm,
+    );
+    const target: string = path.join(parent, "workspace");
+    const temporary: string = path.join(
+      parent,
+      `.workspace.${process.pid}.tmp`,
+    );
+    fs.rmSync(temporary, { recursive: true, force: true });
+    fs.cpSync(workspace, temporary, {
+      recursive: true,
+      filter: (source) => path.basename(source) !== "node_modules",
+    });
+    fs.rmSync(target, { recursive: true, force: true });
+    fs.renameSync(temporary, target);
+  }
+
+  function timestamp(): string {
+    return new Date()
+      .toISOString()
+      .replaceAll(/[-:]/g, "")
+      .replace(/\.\d{3}Z$/, "Z");
+  }
+
+  function codexExecutable(): { command: string; prefix: string[] } {
+    if (process.platform !== "win32") return { command: "codex", prefix: [] };
+    const appData: string | undefined = process.env.APPDATA;
+    if (appData === undefined)
+      throw new Error("Codex launch on Windows requires APPDATA.");
+    const entrypoint: string = path.join(
+      appData,
+      "npm",
+      "node_modules",
+      "@openai",
+      "codex",
+      "bin",
+      "codex.js",
+    );
+    if (!fs.existsSync(entrypoint))
+      throw new Error(`Codex CLI entrypoint was not found: ${entrypoint}.`);
+    return { command: process.execPath, prefix: [entrypoint] };
+  }
+}

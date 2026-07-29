@@ -101,8 +101,8 @@ So finishing a section means finishing it: the five parts extracted, every cell 
 
 ## Trace In Both Directions
 
-Completeness is not established by walking the code and finding a requirement for each piece. That direction finds nothing missing, because code that does not exist has nothing to walk.
+A code-first walk cannot establish requirement coverage. It finds nothing missing, because code that does not exist has nothing to walk.
 
 Walk from the documents to the artifacts as the primary direction: every section, in order, to the model, endpoint, provider, screen, and test that realize it. Then walk back from the artifacts to the documents to catch behavior nothing asked for.
 
-This repository has a skill that owns how far to carry that traversal and how to know when it is finished, and a review skill that owns whether what you found there is actually true. AGENTS.md names both.
+The active arm's review skill owns how far to carry that traversal, how to verify each mapping, and when the review may stop.

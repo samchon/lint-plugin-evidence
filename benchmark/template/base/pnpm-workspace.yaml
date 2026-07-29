@@ -11,20 +11,25 @@ onlyBuiltDependencies:
   - prisma
 
 catalogs:
-  typescript:
-    ttsc: &ttsc 0.23.0
-    "@ttsc/lint": *ttsc
-    "@ttsc/unplugin": *ttsc
-    typescript: 7.0.2
-    typia: 13.2.0
-    rimraf: 6.1.3
-
-  backend:
-    "@nestia/core": &nestia 12.1.0
+  samchon:
+    nestia: &nestia ^12.1.0
+    "@nestia/core": *nestia
     "@nestia/e2e": *nestia
     "@nestia/fetcher": *nestia
     "@nestia/sdk": *nestia
-    nestia: *nestia
+    typia: &typia ^13.2.0
+
+  typescript:
+    typescript: ^7.0.2
+    ttsc: &ttsc ^0.22.0
+    "@ttsc/lint": *ttsc
+    "@ttsc/unplugin": *ttsc
+
+  utils:
+    "@types/node": ^25.3.0
+    rimraf: ^6.1.2
+
+  backend:
     "@nestjs/common": &nestjs 11.1.3
     "@nestjs/core": *nestjs
     "@nestjs/platform-express": *nestjs

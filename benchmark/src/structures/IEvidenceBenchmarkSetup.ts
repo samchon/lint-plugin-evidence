@@ -18,12 +18,12 @@ export interface IEvidenceBenchmarkSetup {
   pnpmVersion: string;
 
   /** Exact ttsc package installed at the generated workspace root. */
-  ttscVersion: "0.23.0";
+  ttscVersion: "0.22.0";
 
   /** Exact lint host package installed at the generated workspace root. */
-  lintVersion: "0.23.0";
+  lintVersion: "0.22.0";
 
-  /** Exact TypeScript-Go package installed for the frozen benchmark protocol. */
+  /** Exact TypeScript-Go package installed in the benchmark workspace. */
   typescriptVersion: "7.0.2";
 }
 

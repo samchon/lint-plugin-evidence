@@ -16,25 +16,25 @@
     "ui:review": "node scripts/run-playwright.mjs ui-review"
   },
   "dependencies": {
-    "@nestia/fetcher": "catalog:backend",
+    "@nestia/fetcher": "catalog:samchon",
     "@tanstack/react-query": "catalog:frontend",
     "{{apiPackageName}}": "workspace:*",
     "react": "catalog:frontend",
     "react-dom": "catalog:frontend",
     "react-router-dom": "catalog:frontend",
     "sonner": "catalog:frontend",
-    "typia": "catalog:typescript"
+    "typia": "catalog:samchon"
   },
   "devDependencies": {
     "@playwright/test": "catalog:frontend",
     "@tailwindcss/vite": "catalog:frontend",
     "@ttsc/lint": "catalog:typescript",
     "@ttsc/unplugin": "catalog:typescript",
-    "@types/node": "catalog:backend",
+    "@types/node": "catalog:utils",
     "@types/react": "catalog:frontend",
     "@types/react-dom": "catalog:frontend",
     "@vitejs/plugin-react": "catalog:frontend",
-    "rimraf": "catalog:typescript",
+    "rimraf": "catalog:utils",
     "tailwindcss": "catalog:frontend",
     "ttsc": "catalog:typescript",
     "typescript": "catalog:typescript",

@@ -59,7 +59,7 @@ export namespace IEvidenceBenchmarkPackageArtifact {
     /** Absolute root of the evidence repository to build and pack. */
     repository: string;
 
-    /** Commit the caller's validated launch gate approved for measurement. */
+    /** Validated source commit approved for benchmark measurement. */
     expectedCommit: string;
 
     /** New run-owned directory that will atomically receive the artifact. */

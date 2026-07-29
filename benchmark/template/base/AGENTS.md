@@ -10,7 +10,7 @@ Follow the literal request; it is the contract, not a hint at what the user "rea
 - **Fidelity binds the goal, not the effort.** Within that goal, act with full initiative: do the substeps it needs, verify your work, surface what you notice. Literal scope is no excuse for passive execution.
 - **Choose the principled course.** Decide from evidence, correctness, and the durable consequence. Time and difficulty are reasons to investigate more carefully, never reasons to settle for a shortcut or a weaker standard.
 - **The documents are the specification.** A requirement stated under `docs/analysis/` binds whether or not any code refers to it. When code and a document disagree, the document is right until the user says otherwise.
-- **Never claim what you have not verified.** A build or test claim means the command ran and you read its output. Those commands are layer gates, not proof that every requirement is realized; the active completeness skill owns the project-completion boundary.
+- **Never claim what you have not verified.** A build or test claim means the command ran and you read its output. Those commands are layer gates, not proof that every requirement is realized.
 
 ## Skills
 

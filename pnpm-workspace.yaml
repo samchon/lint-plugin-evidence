@@ -10,8 +10,14 @@ catalogs:
     # prefers a copy resolvable from the consumer's own project and falls back
     # to this one, so the pin decides the default parser, not the only one.
     "@prisma/prisma-schema-wasm": 7.10.0-2.d0368e25c88e68caa4d283b5f2d88d1b76ed9356
-  typia:
-    "@typia/interface": &typia ^13.2.0
+  samchon:
+    nestia: &nestia ^12.1.0
+    "@nestia/core": *nestia
+    "@nestia/e2e": *nestia
+    "@nestia/fetcher": *nestia
+    "@nestia/sdk": *nestia
+    typia: &typia ^13.2.0
+    "@typia/interface": *typia
     "@typia/utils": *typia
   typescript:
     typescript: ^7.0.2

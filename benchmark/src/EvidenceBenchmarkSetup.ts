@@ -77,12 +77,12 @@ export namespace EvidenceBenchmarkSetup {
       requireFromWorkspace.resolve("typescript/package.json"),
     );
     if (
-      ttscVersion !== "0.23.0" ||
-      lintVersion !== "0.23.0" ||
+      ttscVersion !== "0.22.0" ||
+      lintVersion !== "0.22.0" ||
       typescriptVersion !== "7.0.2"
     )
       throw new Error(
-        `Benchmark toolchain must resolve ttsc/@ttsc/lint/typescript 0.23.0/0.23.0/7.0.2, received ${ttscVersion}/${lintVersion}/${typescriptVersion}.`,
+        `Benchmark toolchain must resolve ttsc/@ttsc/lint/typescript 0.22.0/0.22.0/7.0.2, received ${ttscVersion}/${lintVersion}/${typescriptVersion}.`,
       );
 
     const packageName = "@samchon/lint-plugin-evidence";
@@ -103,8 +103,8 @@ export namespace EvidenceBenchmarkSetup {
       installElapsedMs: install.elapsedMs,
       lockSha256: afterInstall,
       pnpmVersion: EvidenceBenchmarkProcess.PNPM_VERSION,
-      ttscVersion: "0.23.0",
-      lintVersion: "0.23.0",
+      ttscVersion: "0.22.0",
+      lintVersion: "0.22.0",
       typescriptVersion: "7.0.2",
     };
     fs.writeFileSync(

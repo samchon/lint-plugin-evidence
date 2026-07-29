@@ -2,7 +2,9 @@
 
 Every required public capability needs an authored controller operation, and every operation needs requirement and schema owners. Generated accessors mirror this contract; they do not establish that it is complete.
 
-Read [the API completeness check](../completeness/api.md) before declaring stubs. Record actor, method, path, authorization, parameters, response, failures, and exposed models in the manual ledger, then walk every authored operation back to those owners.
+Map every required public capability to an exact authored operation. Record actor, method, path, authorization, parameters, response, state effects, failures, and exposed models, then reverse-walk every authored operation to those owners.
+
+Verify success and refusal surfaces separately. An operation that exists but omits an actor restriction, required failure, boundary, or state transition is incomplete.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}

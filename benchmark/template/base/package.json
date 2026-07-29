@@ -22,8 +22,8 @@
   },
   "devDependencies": {
     "@ttsc/lint": "catalog:typescript",
-    "@types/node": "catalog:backend",
-    "rimraf": "catalog:typescript",
+    "@types/node": "catalog:utils",
+    "rimraf": "catalog:utils",
     "ttsc": "catalog:typescript",
     "typescript": "catalog:typescript"
   }

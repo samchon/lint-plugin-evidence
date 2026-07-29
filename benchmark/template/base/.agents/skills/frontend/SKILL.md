@@ -84,4 +84,4 @@ Never invent a feature the SDK does not support. If a requirement needs behavior
 
 The frontend is not finished when it compiles, and a green build says nothing about whether a control does anything.
 
-This layer passes when the application starts, every requirement-backed user journey works when performed, the interface is coherent at every required width, deliberate omissions are recorded, and the verification document reflects what was actually run against a real backend. This is a frontend gate, not permission to report the whole project complete; the active arm's completeness method owns that boundary.
+This layer passes when the application starts, every requirement-backed user journey works when performed, the interface is coherent at every required width, deliberate omissions are recorded, and the verification document reflects what was actually run against a real backend.

@@ -7,7 +7,7 @@ import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 
 /** Reads and validates one complete benchmark requirement corpus. */
 export namespace EvidenceBenchmarkCorpus {
-  const DUAL_PROTOCOL_DOCUMENTS: ReadonlySet<string> = new Set([
+  const DUPLICATE_ZERO_DOCUMENTS: ReadonlySet<string> = new Set([
     "00-corpus-contract.md",
     "00-toc.md",
   ]);
@@ -75,8 +75,8 @@ export namespace EvidenceBenchmarkCorpus {
       ? readCorpusManifest(files)
       : undefined;
     const markdown: IMarkdownInventory = readMarkdown(parserFiles, {
-      manifestOwnedProtocol:
-        manifest === undefined ? undefined : DUAL_PROTOCOL_DOCUMENTS,
+      duplicateZeroDocuments:
+        manifest === undefined ? undefined : DUPLICATE_ZERO_DOCUMENTS,
     });
     if (hasJsonLines) {
       const clauses: number = validateJsonLines(parserFiles, markdown);
@@ -130,7 +130,7 @@ export namespace EvidenceBenchmarkCorpus {
   }
 
   interface IMarkdownPolicy {
-    manifestOwnedProtocol: ReadonlySet<string> | undefined;
+    duplicateZeroDocuments: ReadonlySet<string> | undefined;
   }
 
   function result(
@@ -192,8 +192,8 @@ export namespace EvidenceBenchmarkCorpus {
         previous !== undefined &&
         !(
           number === "00" &&
-          policy.manifestOwnedProtocol?.has(previous) === true &&
-          policy.manifestOwnedProtocol.has(relative)
+          policy.duplicateZeroDocuments?.has(previous) === true &&
+          policy.duplicateZeroDocuments.has(relative)
         )
       )
         throw new Error(

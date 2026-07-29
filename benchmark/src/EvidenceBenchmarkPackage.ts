@@ -214,7 +214,7 @@ export namespace EvidenceBenchmarkPackage {
       throw new Error(
         "Packed evidence exports must expose ./lib/index.d.ts and ./lib/index.js.",
       );
-    assertResolvedDependencyProtocols(manifest);
+    assertResolvedDependencySpecifiers(manifest);
     assertNativePayload(props.packageSource, files);
     return {
       name: PACKAGE_NAME,
@@ -255,7 +255,7 @@ export namespace EvidenceBenchmarkPackage {
       );
   }
 
-  function assertResolvedDependencyProtocols(
+  function assertResolvedDependencySpecifiers(
     manifest: Record<string, unknown>,
   ): void {
     for (const section of [
@@ -436,8 +436,8 @@ export namespace EvidenceBenchmarkPackage {
           packageManager: "pnpm@10.10.0",
           devDependencies: {
             [PACKAGE_NAME]: "file:./evidence.tgz",
-            "@ttsc/lint": "0.23.0",
-            ttsc: "0.23.0",
+            "@ttsc/lint": "0.22.0",
+            ttsc: "0.22.0",
             typescript: "7.0.2",
           },
         },

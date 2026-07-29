@@ -18,13 +18,13 @@
     "lint": "ttsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@nestia/fetcher": "catalog:backend",
-    "typia": "catalog:typescript"
+    "@nestia/fetcher": "catalog:samchon",
+    "typia": "catalog:samchon"
   },
   "devDependencies": {
     "@ttsc/lint": "catalog:typescript",
-    "@types/node": "catalog:backend",
-    "rimraf": "catalog:typescript",
+    "@types/node": "catalog:utils",
+    "rimraf": "catalog:utils",
     "ttsc": "catalog:typescript",
     "typescript": "catalog:typescript"
   }

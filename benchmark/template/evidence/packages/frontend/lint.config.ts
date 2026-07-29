@@ -79,5 +79,6 @@ export default {
     // Package-wide: every exported function, type, and property carries a
     // JSDoc block, which the stub-first order supplies from birth.
     "evidence/documented": "error",
+    "evidence/todo": "error",
   },
 } satisfies ITtscLintConfig;

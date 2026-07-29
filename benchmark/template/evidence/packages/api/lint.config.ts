@@ -69,5 +69,6 @@ export default {
     // keeps citation addresses stable.
     "evidence/documented": "error",
     "evidence/singular": "error",
+    "evidence/todo": "error",
   },
 } satisfies ITtscLintConfig;

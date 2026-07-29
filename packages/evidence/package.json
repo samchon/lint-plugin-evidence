@@ -62,8 +62,8 @@
   },
   "dependencies": {
     "@prisma/prisma-schema-wasm": "catalog:prisma",
-    "@typia/interface": "catalog:typia",
-    "@typia/utils": "catalog:typia",
+    "@typia/interface": "catalog:samchon",
+    "@typia/utils": "catalog:samchon",
     "yaml": "catalog:utils"
   }
 }

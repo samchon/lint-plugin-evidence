@@ -1,6 +1,0 @@
-{
-  "id": "REQ-AUTH-PROVISION-001.AC-01",
-  "requirement": "REQ-AUTH-PROVISION",
-  "source": "01-actors-and-auth.md",
-  "criterion": "An acceptance identifier cannot enter the context population."
-}

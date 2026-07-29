@@ -2,7 +2,7 @@
 
 At type granularity, every authored root DTO maps to requirement sections and relevant models. At property granularity, every property maps to exact source columns or a documented derivation, and every caller-visible column reaches an appropriate public variant.
 
-Read [the API completeness check](../completeness/api.md) before writing DTOs. Record both forward and reverse populations; a compiled property with no source is still a phantom.
+Map required public shapes forward to exact DTO types and properties, then reverse-walk every authored DTO type and property to its requirement, source column, or documented derivation. Include request, summary, detail, create, update, and page variants wherever the public operations require them; a compiled property with no source is still a phantom.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}

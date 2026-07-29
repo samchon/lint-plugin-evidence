@@ -1,7 +1,0 @@
-# Current-freeze Standard null-tier addendum — prediction, not measurement
-
-This append-only addendum, formally submitted at https://github.com/samchon/lint-plugin-evidence/pull/105#pullrequestreview-4801340185, corrects one transport-level statement in the Standard-tier prior. Zero-cost Codex `0.145.0` `model/list` evidence shows that `gpt-5.6-terra` has `defaultServiceTier = null`; its only additional tier is `priority`, named Fast and described as 1.5× speed with increased usage. The final Standard experiment therefore omits `serviceTier` from `thread/start` and every turn and requires `ThreadStartResponse.serviceTier = null`. It does not send the string `default`.
-
-No paid generation result, transcript, grade, gate outcome, token observation, or quality observation informed this addendum. The prior `current-freeze-standard-tier.md` remains immutable history. Its frozen input sizes, Standard wall-time quantiles, provider-token priors, quality priors, coverage priors, censoring priors, campaign priors, and Standard credit rates remain unchanged. Only the wire representation changes from a stated `default` sentinel to omission and effective null.
-
-Fast/`priority` remains forbidden. A non-null service tier, a `model/rerouted` notification, effective model mismatch, or later settings change fails closed. Raw response-completion events still carry usage without per-response model or tier identity. Official pricing and cache-semantics source snapshots remain unresolved, so this correction is not paid-launch authorization.
