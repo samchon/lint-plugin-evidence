@@ -42,7 +42,7 @@ Resume an interrupted cell with its exact subject, arm, and run ID:
 pnpm --filter @samchon/evidence-benchmark resume -- todo evidence <run-id>
 ```
 
-Resume reuses the retained workspace, nested Git history, frozen instructions, runtime assignment, Codex thread, logs, elapsed time, and token ledger. It skips only turns that already have one successful attempt and starts at the first incomplete turn.
+Resume reuses the retained workspace, nested Git history, frozen instructions, runtime assignment, Codex thread, logs, elapsed time, and token ledger. It skips only the accepted canonical prefix. A final turn is retained only while its current lint-restoration seal still matches; otherwise that turn and every accepted successor are invalidated, and execution restarts from that boundary.
 
 A launched command is not proof of recovery. Verify all three:
 
