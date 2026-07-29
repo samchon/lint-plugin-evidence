@@ -49,17 +49,18 @@ pnpm --filter @samchon/evidence-benchmark plan -- todo reddit
 pnpm --filter @samchon/evidence-benchmark start -- todo reddit
 ```
 
-`start` packs and verifies the product once, materializes and installs all selected evidence/plain cells, then starts them concurrently with Codex `gpt-5.6-luna`. Each cell streams raw JSONL and stderr into its retained run directory, writes `run.json` after every turn, and preserves failures and quota interruptions. It sends `instruction.md`, `goal.md`, and `review.md` in order on the same Codex thread.
+`start` packs and verifies the product once, materializes and installs all selected evidence/plain cells, then starts them concurrently with Codex `gpt-5.6-luna`. Each cell streams raw JSONL and stderr into its retained run directory, writes `run.json` after every turn, and preserves failures and quota interruptions. It sends `instruction.md`, `goal.md`, `review.md`, and the arm-specific `verification.md` in order on the same Codex thread.
 
 The runner assigns each subject and arm distinct API, Swagger, Vite development, and Playwright ports. It checks every selected port before packaging or model use, exports the assignments to all agent child processes, and records them in `run.json`.
 
 ## Prompt sequence
 
-| Step                       | Evidence         | Plain            |
-| -------------------------- | ---------------- | ---------------- |
-| Initial user turn          | `instruction.md` | `instruction.md` |
-| Goal activation            | `goal.md`        | `goal.md`        |
-| First completion follow-up | `review.md`      | `review.md`      |
+| Step | Evidence | Plain |
+| --- | --- | --- |
+| Initial user turn | `instruction.md` | `instruction.md` |
+| Goal activation | `goal.md` | `goal.md` |
+| First completion follow-up | `review.md` | `review.md` |
+| Final verification | `evidence/verification.md` | `plain/verification.md` |
 
 Arm-specific method instructions stay inside the corresponding template overlay.
 

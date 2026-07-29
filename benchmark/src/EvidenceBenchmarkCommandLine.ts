@@ -16,7 +16,7 @@ export namespace EvidenceBenchmarkCommandLine {
   const ARMS = ["evidence", "plain"] as const;
 
   interface ITurn {
-    name: "instruction" | "goal" | "review";
+    name: "instruction" | "goal" | "review" | "verification";
     elapsedMs: number;
     status: number | null;
     stdout: string;
@@ -155,16 +155,28 @@ export namespace EvidenceBenchmarkCommandLine {
     };
     writeState(root, state);
     try {
-      for (const name of ["instruction", "goal", "review"] as const) {
+      const prompts: ReadonlyArray<{
+        name: ITurn["name"];
+        relative: string;
+      }> = [
+        { name: "instruction", relative: "instruction.md" },
+        { name: "goal", relative: "goal.md" },
+        { name: "review", relative: "review.md" },
+        {
+          name: "verification",
+          relative: path.join(props.arm, "verification.md"),
+        },
+      ];
+      for (const entry of prompts) {
         const prompt: string = fs.readFileSync(
-          path.join(props.repository, "benchmark", "prompts", `${name}.md`),
+          path.join(props.repository, "benchmark", "prompts", entry.relative),
           "utf8",
         );
         const turn: ITurn & { threadId?: string } = await runTurn({
           workspace: materialization.workspace,
           environment: materialization.environment,
           logs,
-          name,
+          name: entry.name,
           prompt,
           threadId: state.threadId,
         });
@@ -173,7 +185,7 @@ export namespace EvidenceBenchmarkCommandLine {
         writeState(root, state);
         if (turn.status !== 0)
           throw new Error(
-            `${name} turn exited with status ${String(turn.status)}.`,
+            `${entry.name} turn exited with status ${String(turn.status)}.`,
           );
       }
       state.status = "completed";

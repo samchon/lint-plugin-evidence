@@ -386,6 +386,22 @@ export namespace EvidenceBenchmarkSelfTest {
   }
 
   async function testRepositoryInputs(repository: string): Promise<void> {
+    const prompts: string = path.join(repository, "benchmark", "prompts");
+    assert.deepEqual(
+      fs
+        .readdirSync(prompts, { withFileTypes: true })
+        .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+        .map((entry) => entry.name)
+        .sort(),
+      ["goal.md", "instruction.md", "review.md"],
+      "only common user turns may be top-level prompt documents",
+    );
+    for (const arm of ["evidence", "plain"])
+      assert.ok(
+        fs.existsSync(path.join(prompts, arm, "verification.md")),
+        `${arm} final verification prompt is missing`,
+      );
+
     const template: string = path.join(repository, "benchmark", "template");
     for (const arm of ["evidence", "plain"] as const) {
       const composition: EvidenceBenchmarkTemplate.IComposition =
