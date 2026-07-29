@@ -190,6 +190,7 @@ export namespace EvidenceBenchmarkPublication {
       cliVersion?: unknown;
       elapsedMs?: unknown;
       controllerPid?: unknown;
+      pairedSetupSha256?: unknown;
       status?: unknown;
       sourceCommit?: unknown;
       instructionsTreeSha256?: unknown;
@@ -214,7 +215,7 @@ export namespace EvidenceBenchmarkPublication {
       }>;
     };
     if (
-      state.schemaVersion !== 9 ||
+      state.schemaVersion !== 10 ||
       state.workflow !== "backend-first-gated-v2" ||
       state.project !== request.project ||
       state.arm !== request.arm ||
@@ -222,6 +223,8 @@ export namespace EvidenceBenchmarkPublication {
       state.model !== "gpt-5.6-terra" ||
       state.effort !== "high" ||
       state.cliVersion !== readCliVersion() ||
+      typeof state.pairedSetupSha256 !== "string" ||
+      !/^[0-9a-f]{64}$/.test(state.pairedSetupSha256) ||
       typeof state.elapsedMs !== "number" ||
       !Number.isFinite(state.elapsedMs) ||
       state.elapsedMs < 0 ||
@@ -243,6 +246,7 @@ export namespace EvidenceBenchmarkPublication {
         `Publication requires the completed ${request.project}/${request.arm} run ${request.runId}.`,
       );
     EvidenceBenchmarkRuntime.assertAssignment(state.runtime);
+    EvidenceBenchmarkSetup.assertPairedProof(runRoot, state.pairedSetupSha256);
     EvidenceBenchmarkTurnLedger.assertAcceptedOrder(state.turns, true);
     const skillsContract = state.turns.find(
       (turn) => turn.name === "skills-contract" && turn.accepted === true,
@@ -294,19 +298,7 @@ export namespace EvidenceBenchmarkPublication {
       manifest.artifact.sourceCommit !== state.sourceCommit ||
       !request.runId.startsWith(`${state.sourceCommit.slice(0, 12)}-`) ||
       manifest.inputSha256 !==
-        EvidenceBenchmarkHash.object({
-          treeAlgorithm: manifest.treeAlgorithm,
-          project: manifest.project,
-          arm: manifest.arm,
-          variables: manifest.variables,
-          base: manifest.baseTreeSha256,
-          overlay: manifest.armTreeSha256,
-          requirements: manifest.requirementsTreeSha256,
-          product: manifest.artifact.sha256,
-          workspace: manifest.workspaceTreeSha256,
-          lintBaselines: manifest.lintBaselines,
-          caches: manifest.caches,
-        }) ||
+        EvidenceBenchmarkMaterializer.inputSha256(manifest) ||
       EvidenceBenchmarkHash.object(manifest.lintBaselines) !==
         EvidenceBenchmarkHash.object(state.lintBaselines) ||
       EvidenceBenchmarkHash.tree(
@@ -319,6 +311,7 @@ export namespace EvidenceBenchmarkPublication {
         "Publication materialization provenance failed verification.",
       );
     EvidenceBenchmarkMaterializer.assertCacheLayout(runRoot, manifest.caches);
+    EvidenceBenchmarkMaterializer.assertDependencyLock(runRoot);
     const workspace: string = path.join(runRoot, "workspace");
     const workspaceStat: fs.Stats | undefined = fs.lstatSync(workspace, {
       throwIfNoEntry: false,

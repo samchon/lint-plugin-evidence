@@ -608,38 +608,37 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     write(path.join(runRoot, "inputs", "npmrc"), "");
     write(path.join(runRoot, "inputs", "gitconfig"), "");
-    write(
-      path.join(workspace, "pnpm-lock.yaml"),
-      [
-        "lockfileVersion: '9.0'",
-        "",
-        "importers:",
-        "",
-        "  .:",
-        "    devDependencies:",
-        "      '@samchon/lint-plugin-evidence':",
-        "        specifier: fixture",
-        "        version: fixture",
-        "      '@ttsc/lint':",
-        "        specifier: fixture",
-        "        version: fixture",
-        "      ttsc:",
-        "        specifier: fixture",
-        "        version: fixture",
-        "      typescript:",
-        "        specifier: fixture",
-        "        version: fixture",
-        "",
-        "  config: {}",
-        "",
-        "  packages/api: {}",
-        "",
-        "  packages/backend: {}",
-        "",
-        "  packages/frontend: {}",
-        "",
-      ].join("\n"),
-    );
+    const lockContent: string = [
+      "lockfileVersion: '9.0'",
+      "",
+      "importers:",
+      "",
+      "  .:",
+      "    devDependencies:",
+      "      '@samchon/lint-plugin-evidence':",
+      "        specifier: fixture",
+      "        version: fixture",
+      "      '@ttsc/lint':",
+      "        specifier: fixture",
+      "        version: fixture",
+      "      ttsc:",
+      "        specifier: fixture",
+      "        version: fixture",
+      "      typescript:",
+      "        specifier: fixture",
+      "        version: fixture",
+      "",
+      "  config: {}",
+      "",
+      "  packages/api: {}",
+      "",
+      "  packages/backend: {}",
+      "",
+      "  packages/frontend: {}",
+      "",
+    ].join("\n");
+    write(path.join(workspace, "pnpm-lock.yaml"), lockContent);
+    write(path.join(runRoot, "inputs", "pnpm-lock.yaml"), lockContent);
     write(
       path.join(workspace, "docs", "analysis", "requirements.md"),
       "# Requirements\n",
@@ -674,6 +673,9 @@ export namespace EvidenceBenchmarkSelfTest {
     const armTreeSha256: string = EvidenceBenchmarkHash.bytes("fixture arm");
     const workspaceTreeSha256: string =
       EvidenceBenchmarkHash.bytes("fixture workspace");
+    const dependencyLockSha256: string = EvidenceBenchmarkHash.file(
+      path.join(runRoot, "inputs", "pnpm-lock.yaml"),
+    );
     const caches = {
       home: path.join(runRoot, "cache", "home"),
       corepack: path.join(runRoot, "cache", "corepack"),
@@ -696,6 +698,7 @@ export namespace EvidenceBenchmarkSelfTest {
       armTreeSha256,
       requirementsTreeSha256,
       workspaceTreeSha256,
+      dependencyLockSha256,
       requirementFiles,
       lintBaselines,
       caches,
@@ -716,9 +719,28 @@ export namespace EvidenceBenchmarkSelfTest {
         workspace: workspaceTreeSha256,
         lintBaselines,
         caches,
+        dependencyLock: dependencyLockSha256,
       }),
     };
     write(materializationPath, `${JSON.stringify(materialization)}\n`);
+    const pairedSetupProof = {
+      schemaVersion: 1,
+      evidenceInputSha256: materialization.inputSha256,
+      plainInputSha256: EvidenceBenchmarkHash.bytes("plain paired input"),
+      evidenceLockSha256: dependencyLockSha256,
+      plainLockSha256: EvidenceBenchmarkHash.bytes("plain paired lock"),
+      sharedPackagesSha256: EvidenceBenchmarkHash.bytes("shared packages"),
+      sharedResolutionsSha256:
+        EvidenceBenchmarkHash.bytes("shared resolutions"),
+      sharedImportersSha256: EvidenceBenchmarkHash.bytes("shared importers"),
+      toolchainSha256: EvidenceBenchmarkHash.bytes("paired toolchain"),
+    };
+    const pairedSetupSha256: string =
+      EvidenceBenchmarkHash.object(pairedSetupProof);
+    write(
+      path.join(runRoot, "inputs", "paired-setup.json"),
+      `${JSON.stringify(pairedSetupProof)}\n`,
+    );
     const runStatePath: string = path.join(runRoot, "run.json");
     const turnNames = [
       "skills-contract",
@@ -767,7 +789,7 @@ export namespace EvidenceBenchmarkSelfTest {
     write(
       runStatePath,
       `${JSON.stringify({
-        schemaVersion: 9,
+        schemaVersion: 10,
         workflow: "backend-first-gated-v2",
         instructionsTreeSha256,
         project: "todo",
@@ -778,6 +800,7 @@ export namespace EvidenceBenchmarkSelfTest {
         cliVersion: "codex-cli 0.145.0",
         elapsedMs: 11,
         controllerPid: 1,
+        pairedSetupSha256,
         initialWorkspaceTreeSha256:
           EvidenceBenchmarkPublication.workspaceSha256(workspace),
         threadId,
@@ -2732,16 +2755,39 @@ export namespace EvidenceBenchmarkSelfTest {
     };
     write(path.join(root, "inputs", "npmrc"), "");
     write(path.join(root, "inputs", "gitconfig"), "");
-    write(
-      materialization.manifest,
-      `${JSON.stringify({
-        schemaVersion: 7,
-        variables: {
-          frontendPackageName: "benchmark-setup-self-test",
-        },
-        caches,
-      })}\n`,
-    );
+    const setupManifest: IEvidenceBenchmarkMaterialization.IManifest = {
+      schemaVersion: 7,
+      treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
+      project: "todo",
+      arm: "plain",
+      elapsedMs: 0,
+      variables: {
+        name: "benchmark-setup-self-test",
+        apiPackageName: "benchmark-setup-self-test-api",
+        backendPackageName: "benchmark-setup-self-test-backend",
+        frontendPackageName: "benchmark-setup-self-test",
+      },
+      baseTreeSha256: EvidenceBenchmarkHash.bytes("setup base"),
+      armTreeSha256: EvidenceBenchmarkHash.bytes("setup arm"),
+      requirementsTreeSha256: EvidenceBenchmarkHash.bytes("setup requirements"),
+      workspaceTreeSha256: materialization.workspaceTreeSha256,
+      inputSha256: "",
+      workspaceFiles: [],
+      requirementFiles: [],
+      lintBaselines: [],
+      corpus: { documents: 1, h2: 1, h3: 1 },
+      artifact: {
+        name: "@samchon/lint-plugin-evidence",
+        version: "0.0.0",
+        sha256: EvidenceBenchmarkHash.bytes("setup artifact"),
+        payloadSha256: EvidenceBenchmarkHash.bytes("setup payload"),
+        sourceCommit: "0123456789abcdef0123456789abcdef01234567",
+      },
+      caches,
+    };
+    setupManifest.inputSha256 =
+      EvidenceBenchmarkMaterializer.inputSha256(setupManifest);
+    write(materialization.manifest, `${JSON.stringify(setupManifest)}\n`);
     const directPnpm: EvidenceBenchmarkSetup.ReproductionRunner = (
       arguments_,
       options,
@@ -2757,6 +2803,7 @@ export namespace EvidenceBenchmarkSelfTest {
       },
       directPnpm,
     );
+    EvidenceBenchmarkMaterializer.finalizeDependencyLock(root);
     const reproduce = (verifyGates: boolean = false): Promise<string> =>
       EvidenceBenchmarkSetup.assertReproducible(
         workspace,
@@ -2808,10 +2855,7 @@ export namespace EvidenceBenchmarkSelfTest {
       `${JSON.stringify(materializationFixture)}\n`,
       "utf8",
     );
-    await expectFailure(
-      () => reproduce(),
-      "canonical Corepack cache authority",
-    );
+    await expectFailure(() => reproduce(), "cache authority drifted: corepack");
     fs.writeFileSync(materialization.manifest, materializationSource, "utf8");
     EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain");
     const hiddenCachePayload: string = path.join(
@@ -2997,7 +3041,7 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     await expectFailure(
       () => EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain"),
-      "installed dependency is not linked by pnpm",
+      "dependency lock was not restored",
     );
     fs.rmSync(path.join(workspace, "node_modules", "agent-declared-package"), {
       recursive: true,
@@ -3013,7 +3057,7 @@ export namespace EvidenceBenchmarkSelfTest {
     fs.writeFileSync(lockPath, driftedLock, "utf8");
     await expectFailure(
       () => EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain"),
-      "installed dependency drifted from its frozen lock target",
+      "dependency lock was not restored",
     );
     fs.writeFileSync(lockPath, lockSource, "utf8");
     EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain");
@@ -3071,6 +3115,76 @@ export namespace EvidenceBenchmarkSelfTest {
       "nested package scripts must resolve the benchmark-pinned pnpm",
     );
     EvidenceBenchmarkSetup.assertRestored(workspace, root, "plain");
+    const evidenceRoot: string = path.join(temporary, "paired-evidence-cell");
+    const evidenceWorkspace: string = path.join(evidenceRoot, "workspace");
+    const plainManifest = JSON.parse(
+      fs.readFileSync(materialization.manifest, "utf8"),
+    ) as IEvidenceBenchmarkMaterialization.IManifest;
+    const evidenceManifest: IEvidenceBenchmarkMaterialization.IManifest = {
+      ...plainManifest,
+      arm: "evidence",
+      caches: EvidenceBenchmarkMaterializer.cacheLayout(evidenceRoot),
+      inputSha256: "",
+    };
+    evidenceManifest.inputSha256 =
+      EvidenceBenchmarkMaterializer.inputSha256(evidenceManifest);
+    write(
+      path.join(evidenceRoot, "materialization.json"),
+      `${JSON.stringify(evidenceManifest)}\n`,
+    );
+    write(
+      path.join(evidenceWorkspace, "pnpm-lock.yaml"),
+      fs.readFileSync(lockPath, "utf8"),
+    );
+    write(
+      path.join(evidenceRoot, "inputs", "pnpm-lock.yaml"),
+      fs.readFileSync(lockPath, "utf8"),
+    );
+    const productIdentity = "@samchon/lint-plugin-evidence@0.0.0:.pnpm/product";
+    const evidenceSetup = {
+      ...setup,
+      installedSeedPackages: [
+        ...setup.installedSeedPackages,
+        "@samchon/lint-plugin-evidence",
+      ].sort(),
+      installedPackagesSha256: {
+        ...setup.installedPackagesSha256,
+        [productIdentity]: EvidenceBenchmarkHash.bytes("product package"),
+        "unowned@1.0.0:.pnpm/unowned":
+          EvidenceBenchmarkHash.bytes("unowned package"),
+      },
+      installedPackageResolutions: [
+        ...setup.installedPackageResolutions,
+        {
+          from: "workspace:root",
+          dependency: "@samchon/lint-plugin-evidence",
+          to: productIdentity,
+        },
+      ].sort((left, right) =>
+        `${left.from}\0${left.dependency}\0${left.to}`.localeCompare(
+          `${right.from}\0${right.dependency}\0${right.to}`,
+          "en",
+        ),
+      ),
+    };
+    const evidenceSetupPath: string = path.join(evidenceRoot, "setup.json");
+    write(evidenceSetupPath, `${JSON.stringify(evidenceSetup)}\n`);
+    await expectFailure(
+      () => EvidenceBenchmarkSetup.assertPaired(evidenceRoot, root),
+      "outside the measured product closure",
+    );
+    delete evidenceSetup.installedPackagesSha256["unowned@1.0.0:.pnpm/unowned"];
+    fs.writeFileSync(
+      evidenceSetupPath,
+      `${JSON.stringify(evidenceSetup)}\n`,
+      "utf8",
+    );
+    const pairedIdentity: string = EvidenceBenchmarkSetup.assertPaired(
+      evidenceRoot,
+      root,
+    );
+    EvidenceBenchmarkSetup.assertPairedProof(evidenceRoot, pairedIdentity);
+    EvidenceBenchmarkSetup.assertPairedProof(root, pairedIdentity);
   }
 
   /**
@@ -3969,6 +4083,7 @@ export namespace EvidenceBenchmarkSelfTest {
       },
       directPnpm,
     );
+    EvidenceBenchmarkMaterializer.finalizeDependencyLock(cell.root);
     await EvidenceBenchmarkConsumerProof.verifyPrismaIsolation(cell);
     await EvidenceBenchmarkProcess.pnpm(["exec", "nestia", "all"], {
       cwd: path.join(cell.workspace, "packages", "backend"),

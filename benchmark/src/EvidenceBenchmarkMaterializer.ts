@@ -69,6 +69,80 @@ export namespace EvidenceBenchmarkMaterializer {
     }
   }
 
+  /** Recomputes the aggregate materialization identity from retained fields. */
+  export function inputSha256(
+    manifest: IEvidenceBenchmarkMaterialization.IManifest,
+  ): string {
+    return EvidenceBenchmarkHash.object({
+      treeAlgorithm: manifest.treeAlgorithm,
+      project: manifest.project,
+      arm: manifest.arm,
+      variables: manifest.variables,
+      base: manifest.baseTreeSha256,
+      overlay: manifest.armTreeSha256,
+      requirements: manifest.requirementsTreeSha256,
+      product: manifest.artifact.sha256,
+      workspace: manifest.workspaceTreeSha256,
+      lintBaselines: manifest.lintBaselines,
+      caches: manifest.caches,
+      dependencyLock: manifest.dependencyLockSha256 ?? null,
+    });
+  }
+
+  /**
+   * Freezes the generated dependency lock exactly once before the paired setup
+   * barrier can release either measured model.
+   */
+  export function finalizeDependencyLock(root: string): string {
+    const manifestPath: string = path.join(root, "materialization.json");
+    const manifest = JSON.parse(
+      fs.readFileSync(manifestPath, "utf8"),
+    ) as IEvidenceBenchmarkMaterialization.IManifest;
+    assertCacheLayout(root, manifest.caches);
+    if (
+      manifest.schemaVersion !== 7 ||
+      manifest.dependencyLockSha256 !== undefined ||
+      manifest.inputSha256 !== inputSha256(manifest)
+    )
+      throw new Error(
+        "Benchmark dependency lock cannot finalize a drifted materialization.",
+      );
+    const source: string = path.join(root, "workspace", "pnpm-lock.yaml");
+    const sourceStat: fs.Stats | undefined = fs.lstatSync(source, {
+      throwIfNoEntry: false,
+    });
+    if (!sourceStat?.isFile() || sourceStat.isSymbolicLink())
+      throw new Error("Benchmark dependency lock is not a real file.");
+    const target: string = path.join(root, "inputs", "pnpm-lock.yaml");
+    fs.copyFileSync(source, target, fs.constants.COPYFILE_EXCL);
+    const identity: string = EvidenceBenchmarkHash.file(target);
+    if (EvidenceBenchmarkHash.file(source) !== identity)
+      throw new Error("Benchmark dependency lock drifted while being frozen.");
+    manifest.dependencyLockSha256 = identity;
+    manifest.inputSha256 = inputSha256(manifest);
+    writeJsonAtomically(manifestPath, manifest);
+    return identity;
+  }
+
+  /** Requires the current workspace lock to equal its frozen input copy. */
+  export function assertDependencyLock(root: string): string {
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(root, "materialization.json"), "utf8"),
+    ) as IEvidenceBenchmarkMaterialization.IManifest;
+    const frozen: string = path.join(root, "inputs", "pnpm-lock.yaml");
+    const workspace: string = path.join(root, "workspace", "pnpm-lock.yaml");
+    if (
+      manifest.schemaVersion !== 7 ||
+      typeof manifest.dependencyLockSha256 !== "string" ||
+      !/^[0-9a-f]{64}$/.test(manifest.dependencyLockSha256) ||
+      manifest.inputSha256 !== inputSha256(manifest) ||
+      EvidenceBenchmarkHash.file(frozen) !== manifest.dependencyLockSha256 ||
+      EvidenceBenchmarkHash.file(workspace) !== manifest.dependencyLockSha256
+    )
+      throw new Error("Benchmark dependency lock was not restored.");
+    return manifest.dependencyLockSha256;
+  }
+
   /**
    * Returns the minimal host environment needed by portable child processes.
    *
@@ -320,19 +394,7 @@ export namespace EvidenceBenchmarkMaterializer {
         armTreeSha256: composition.armTreeSha256,
         requirementsTreeSha256,
         workspaceTreeSha256,
-        inputSha256: EvidenceBenchmarkHash.object({
-          treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
-          project,
-          arm: request.arm,
-          variables: request.variables,
-          base: composition.baseTreeSha256,
-          overlay: composition.armTreeSha256,
-          requirements: requirementsTreeSha256,
-          product: request.artifact.sha256,
-          workspace: workspaceTreeSha256,
-          lintBaselines,
-          caches,
-        }),
+        inputSha256: "",
         workspaceFiles: EvidenceBenchmarkHash.entries(workspaceFiles),
         requirementFiles: EvidenceBenchmarkHash.entries(requirementFiles),
         lintBaselines,
@@ -351,6 +413,7 @@ export namespace EvidenceBenchmarkMaterializer {
         },
         caches,
       };
+      manifestRecord.inputSha256 = inputSha256(manifestRecord);
       const environment: NodeJS.ProcessEnv = {
         ...hostEnvironment(),
         HOME: caches.home,
@@ -507,6 +570,22 @@ export namespace EvidenceBenchmarkMaterializer {
         `Refusing to clean a benchmark staging path outside its parent: ${stage}.`,
       );
     fs.rmSync(resolvedStage, { recursive: true, force: true });
+  }
+
+  function writeJsonAtomically(location: string, value: unknown): void {
+    const temporary: string = `${location}.${process.pid}.${crypto.randomUUID()}.tmp`;
+    const descriptor: number = fs.openSync(temporary, "wx");
+    try {
+      fs.writeFileSync(
+        descriptor,
+        `${JSON.stringify(value, null, 2)}\n`,
+        "utf8",
+      );
+      fs.fsyncSync(descriptor);
+    } finally {
+      fs.closeSync(descriptor);
+    }
+    fs.renameSync(temporary, location);
   }
 
   function isObject(input: unknown): input is Record<string, unknown> {

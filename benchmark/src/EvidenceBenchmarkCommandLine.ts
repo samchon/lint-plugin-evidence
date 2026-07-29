@@ -58,7 +58,7 @@ export namespace EvidenceBenchmarkCommandLine {
   }
 
   interface IState {
-    schemaVersion: 9;
+    schemaVersion: 10;
     workflow: typeof WORKFLOW;
     instructionsTreeSha256: string;
     project: IEvidenceBenchmarkMaterialization.Project;
@@ -73,6 +73,7 @@ export namespace EvidenceBenchmarkCommandLine {
     elapsedMs: number;
     status: "running" | "interrupted" | "completed";
     controllerPid: number;
+    pairedSetupSha256: string;
     initialWorkspaceTreeSha256: string;
     completedWorkspaceTreeSha256?: string;
     threadId?: string;
@@ -82,6 +83,16 @@ export namespace EvidenceBenchmarkCommandLine {
   interface IOptions {
     projects: IEvidenceBenchmarkMaterialization.Project[];
     portBase: number;
+  }
+
+  interface IPairedSetup {
+    arm: IEvidenceBenchmarkMaterialization.Arm;
+    root: string;
+  }
+
+  interface ISetupBarrier {
+    arrive(setup: IPairedSetup): Promise<string>;
+    reject(error: unknown): void;
   }
 
   /**
@@ -204,9 +215,22 @@ export namespace EvidenceBenchmarkCommandLine {
         expectedCommit: sourceCommit,
         output: path.join(repository, "benchmark", ".work", runId, "artifact"),
       });
+    const barriers: ReadonlyMap<
+      IEvidenceBenchmarkMaterialization.Project,
+      ISetupBarrier
+    > = new Map(
+      options.projects.map((project) => [project, createSetupBarrier()]),
+    );
     const results = await Promise.allSettled(
       cells.map((cell) =>
-        runCell({ repository, sourceCommit, runId, artifact, ...cell }),
+        runCell({
+          repository,
+          sourceCommit,
+          runId,
+          artifact,
+          barrier: barriers.get(cell.project)!,
+          ...cell,
+        }),
       ),
     );
     const failures: unknown[] = results.flatMap((result) =>
@@ -249,7 +273,7 @@ export namespace EvidenceBenchmarkCommandLine {
       throw new Error(`Resumable state was not found: ${statePath}.`);
     const state: IState = JSON.parse(fs.readFileSync(statePath, "utf8"));
     if (
-      state.schemaVersion !== 9 ||
+      state.schemaVersion !== 10 ||
       state.workflow !== WORKFLOW ||
       state.engine !== ENGINE ||
       state.model !== MODEL ||
@@ -257,6 +281,8 @@ export namespace EvidenceBenchmarkCommandLine {
       state.cliVersion !== EvidenceBenchmarkSandbox.version() ||
       !Number.isSafeInteger(state.controllerPid) ||
       state.controllerPid <= 0 ||
+      typeof state.pairedSetupSha256 !== "string" ||
+      !/^[0-9a-f]{64}$/.test(state.pairedSetupSha256) ||
       typeof state.initialWorkspaceTreeSha256 !== "string" ||
       !/^[0-9a-f]{64}$/.test(state.initialWorkspaceTreeSha256) ||
       !Array.isArray(state.lintBaselines) ||
@@ -320,6 +346,7 @@ export namespace EvidenceBenchmarkCommandLine {
     state.controllerPid = process.pid;
     writeState(root, state);
     assertStateBaselines(root, state);
+    EvidenceBenchmarkSetup.assertPairedProof(root, state.pairedSetupSha256);
     EvidenceBenchmarkMaterializer.assertRequirementsRestored(workspace, root);
     EvidenceBenchmarkRuntime.assertRestored(workspace, state.runtime);
     EvidenceBenchmarkSetup.assertRestored(workspace, root, arm);
@@ -490,6 +517,7 @@ export namespace EvidenceBenchmarkCommandLine {
     runtime: EvidenceBenchmarkRuntime.IAssignment;
     instructions: IInstructionSet;
     artifact: IEvidenceBenchmarkPackageArtifact;
+    barrier: ISetupBarrier;
   }): Promise<void> {
     const started: bigint = process.hrtime.bigint();
     const resultsRoot: string = path.resolve(
@@ -517,6 +545,7 @@ export namespace EvidenceBenchmarkCommandLine {
       "benchmark cell root",
     );
     let state: IState | undefined;
+    let pairedSetupSha256: string | undefined;
     let phase: string = "setup";
     try {
       const materialization = await EvidenceBenchmarkMaterializer.materialize({
@@ -551,6 +580,7 @@ export namespace EvidenceBenchmarkCommandLine {
         materialization,
         arm: props.arm,
       });
+      EvidenceBenchmarkMaterializer.finalizeDependencyLock(root);
       await initializeWorkspace(
         materialization.workspace,
         materialization.environment,
@@ -559,10 +589,14 @@ export namespace EvidenceBenchmarkCommandLine {
         materialization.workspace,
         root,
       );
+      pairedSetupSha256 = await props.barrier.arrive({
+        arm: props.arm,
+        root,
+      });
       const logs: string = path.join(root, "logs");
       fs.mkdirSync(logs, { recursive: false });
       state = {
-        schemaVersion: 9,
+        schemaVersion: 10,
         workflow: WORKFLOW,
         instructionsTreeSha256: freezeInstructions(root, props.instructions),
         project: props.project,
@@ -577,6 +611,7 @@ export namespace EvidenceBenchmarkCommandLine {
         elapsedMs: elapsed(started),
         status: "running",
         controllerPid: process.pid,
+        pairedSetupSha256,
         initialWorkspaceTreeSha256:
           EvidenceBenchmarkPublication.workspaceSha256(
             materialization.workspace,
@@ -643,6 +678,7 @@ export namespace EvidenceBenchmarkCommandLine {
       state.status = "completed";
       writeState(root, state);
     } catch (error) {
+      props.barrier.reject(error);
       const elapsedMs: number = elapsed(started);
       if (state === undefined) {
         recordFailure({
@@ -675,6 +711,48 @@ export namespace EvidenceBenchmarkCommandLine {
       }
       throw error;
     }
+  }
+
+  function createSetupBarrier(): ISetupBarrier {
+    const cells: Map<IEvidenceBenchmarkMaterialization.Arm, IPairedSetup> =
+      new Map();
+    let settle: ((identity: string) => void) | undefined;
+    let fail: ((error: unknown) => void) | undefined;
+    let settled: boolean = false;
+    const promise: Promise<string> = new Promise((resolve, reject) => {
+      settle = resolve;
+      fail = reject;
+    });
+    void promise.catch(() => undefined);
+    return {
+      async arrive(setup): Promise<string> {
+        if (cells.has(setup.arm))
+          throw new Error(`Duplicate paired setup arrival: ${setup.arm}.`);
+        cells.set(setup.arm, setup);
+        if (cells.size === 2 && !settled)
+          try {
+            const evidence: IPairedSetup | undefined = cells.get("evidence");
+            const plain: IPairedSetup | undefined = cells.get("plain");
+            if (evidence === undefined || plain === undefined)
+              throw new Error("Paired setup barrier has no complete arm pair.");
+            const identity: string = EvidenceBenchmarkSetup.assertPaired(
+              evidence.root,
+              plain.root,
+            );
+            settled = true;
+            settle!(identity);
+          } catch (error) {
+            settled = true;
+            fail!(error);
+          }
+        return promise;
+      },
+      reject(error): void {
+        if (settled) return;
+        settled = true;
+        fail!(error);
+      },
+    };
   }
 
   async function runTurn(props: {
@@ -1194,19 +1272,7 @@ export namespace EvidenceBenchmarkCommandLine {
       manifest.artifact.sourceCommit !== state.sourceCommit ||
       !path.basename(root).startsWith(`${state.sourceCommit.slice(0, 12)}-`) ||
       manifest.inputSha256 !==
-        EvidenceBenchmarkHash.object({
-          treeAlgorithm: manifest.treeAlgorithm,
-          project: manifest.project,
-          arm: manifest.arm,
-          variables: manifest.variables,
-          base: manifest.baseTreeSha256,
-          overlay: manifest.armTreeSha256,
-          requirements: manifest.requirementsTreeSha256,
-          product: manifest.artifact.sha256,
-          workspace: manifest.workspaceTreeSha256,
-          lintBaselines: manifest.lintBaselines,
-          caches: manifest.caches,
-        }) ||
+        EvidenceBenchmarkMaterializer.inputSha256(manifest) ||
       EvidenceBenchmarkHash.object(manifest.lintBaselines) !==
         EvidenceBenchmarkHash.object(state.lintBaselines)
     )
@@ -1214,6 +1280,7 @@ export namespace EvidenceBenchmarkCommandLine {
         `Run ${path.basename(root)} does not retain its materialized lint baselines.`,
       );
     EvidenceBenchmarkMaterializer.assertCacheLayout(root, manifest.caches);
+    EvidenceBenchmarkMaterializer.assertDependencyLock(root);
   }
 
   function writeState(root: string, state: IState): void {

@@ -199,6 +199,9 @@ export namespace IEvidenceBenchmarkMaterialization {
     /** SHA-256 identity of the final generated workspace. */
     workspaceTreeSha256: string;
 
+    /** Frozen pnpm lock identity finalized before either paired model starts. */
+    dependencyLockSha256?: string;
+
     /** Aggregate identity binding all trees, variables, arm, and product. */
     inputSha256: string;
 

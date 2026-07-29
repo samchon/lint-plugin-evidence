@@ -12,6 +12,8 @@ import type { IEvidenceBenchmarkSetup } from "./structures/IEvidenceBenchmarkSet
 
 /** Freezes and installs one cell's dependency graph with cell-local caches. */
 export namespace EvidenceBenchmarkSetup {
+  const PRODUCT = "@samchon/lint-plugin-evidence";
+
   /** Sandboxed pnpm boundary replaceable only by deterministic self-tests. */
   export type ReproductionRunner = (
     arguments_: readonly string[],
@@ -222,6 +224,167 @@ export namespace EvidenceBenchmarkSetup {
     return result;
   }
 
+  /**
+   * Requires paired arms to share every dependency outside the measured
+   * product's own reachable closure, then retains the common proof in both
+   * cells.
+   */
+  export function assertPaired(
+    evidenceRoot: string,
+    plainRoot: string,
+  ): string {
+    const evidence = readPairedCell(evidenceRoot, "evidence");
+    const plain = readPairedCell(plainRoot, "plain");
+    const plainPackages: Readonly<Record<string, string>> =
+      plain.setup.installedPackagesSha256;
+    const evidencePackages: Readonly<Record<string, string>> =
+      evidence.setup.installedPackagesSha256;
+    for (const [identity, sha256] of Object.entries(plainPackages))
+      if (evidencePackages[identity] !== sha256)
+        throw new Error(
+          `Paired benchmark dependency payload drifted: ${identity}.`,
+        );
+    const extra: Set<string> = new Set(
+      Object.keys(evidencePackages).filter(
+        (identity) => !(identity in plainPackages),
+      ),
+    );
+    const productRoots: string[] = evidence.setup.installedPackageResolutions
+      .filter((edge) => edge.dependency === PRODUCT)
+      .map((edge) => edge.to);
+    if (
+      productRoots.length === 0 ||
+      productRoots.some((identity) => !identity.startsWith(`${PRODUCT}@`))
+    )
+      throw new Error(
+        "Paired benchmark setup did not isolate the measured product root.",
+      );
+    const productClosure: Set<string> = new Set(productRoots);
+    for (;;) {
+      const size: number = productClosure.size;
+      for (const edge of evidence.setup.installedPackageResolutions)
+        if (productClosure.has(edge.from)) productClosure.add(edge.to);
+      if (productClosure.size === size) break;
+    }
+    if ([...extra].some((identity) => !productClosure.has(identity)))
+      throw new Error(
+        "Evidence installed a dependency outside the measured product closure.",
+      );
+    for (const edge of evidence.setup.installedPackageResolutions)
+      if (
+        extra.has(edge.to) &&
+        !extra.has(edge.from) &&
+        edge.dependency !== PRODUCT
+      )
+        throw new Error(
+          `Evidence introduced an unowned dependency edge: ${edge.from} -> ${edge.to}.`,
+        );
+    const sharedEvidenceEdges =
+      evidence.setup.installedPackageResolutions.filter(
+        (edge) =>
+          !extra.has(edge.from) &&
+          !extra.has(edge.to) &&
+          edge.dependency !== PRODUCT,
+      );
+    if (
+      EvidenceBenchmarkHash.object(sharedEvidenceEdges) !==
+      EvidenceBenchmarkHash.object(plain.setup.installedPackageResolutions)
+    )
+      throw new Error("Paired benchmark dependency resolutions drifted.");
+    const evidenceSeeds = evidence.setup.installedSeedPackages.filter(
+      (name) => name !== PRODUCT,
+    );
+    if (
+      EvidenceBenchmarkHash.object(evidenceSeeds) !==
+        EvidenceBenchmarkHash.object(plain.setup.installedSeedPackages) ||
+      EvidenceBenchmarkHash.object(evidence.setup.installedLaunchersSha256) !==
+        EvidenceBenchmarkHash.object(plain.setup.installedLaunchersSha256)
+    )
+      throw new Error("Paired benchmark toolchain surface drifted.");
+    const evidenceImporters = [...readLockImporters(evidence.lock).entries()]
+      .filter(([key]) => !key.endsWith(`\0${PRODUCT}`))
+      .sort(([left], [right]) => left.localeCompare(right, "en"));
+    const plainImporters = [...readLockImporters(plain.lock).entries()].sort(
+      ([left], [right]) => left.localeCompare(right, "en"),
+    );
+    if (
+      EvidenceBenchmarkHash.object(evidenceImporters) !==
+      EvidenceBenchmarkHash.object(plainImporters)
+    )
+      throw new Error("Paired benchmark lockfile importers drifted.");
+    const platform = (setup: IEvidenceBenchmarkSetup): unknown => ({
+      pnpmVersion: setup.pnpmVersion,
+      ttscVersion: setup.ttscVersion,
+      lintVersion: setup.lintVersion,
+      typescriptVersion: setup.typescriptVersion,
+      nodeVersion: setup.nodeVersion,
+      nodePlatform: setup.nodePlatform,
+      nodeArchitecture: setup.nodeArchitecture,
+      nodeExecutableSha256: setup.nodeExecutableSha256,
+      corepackExecutableSha256: setup.corepackExecutableSha256,
+      corepackHomeSha256: setup.corepackHomeSha256,
+    });
+    if (
+      EvidenceBenchmarkHash.object(platform(evidence.setup)) !==
+      EvidenceBenchmarkHash.object(platform(plain.setup))
+    )
+      throw new Error("Paired benchmark execution toolchains drifted.");
+    const proof = {
+      schemaVersion: 1,
+      evidenceInputSha256: evidence.manifest.inputSha256,
+      plainInputSha256: plain.manifest.inputSha256,
+      evidenceLockSha256: evidence.manifest.dependencyLockSha256,
+      plainLockSha256: plain.manifest.dependencyLockSha256,
+      sharedPackagesSha256: EvidenceBenchmarkHash.object(plainPackages),
+      sharedResolutionsSha256: EvidenceBenchmarkHash.object(
+        plain.setup.installedPackageResolutions,
+      ),
+      sharedImportersSha256: EvidenceBenchmarkHash.object(plainImporters),
+      toolchainSha256: EvidenceBenchmarkHash.object(platform(plain.setup)),
+    };
+    const identity: string = EvidenceBenchmarkHash.object(proof);
+    for (const root of [evidenceRoot, plainRoot])
+      fs.writeFileSync(
+        path.join(root, "inputs", "paired-setup.json"),
+        `${JSON.stringify(proof, null, 2)}\n`,
+        { encoding: "utf8", flag: "wx" },
+      );
+    return identity;
+  }
+
+  /** Validates the retained paired-arm proof for resume or publication. */
+  export function assertPairedProof(root: string, expected: string): void {
+    const location: string = path.join(root, "inputs", "paired-setup.json");
+    const stat: fs.Stats | undefined = fs.lstatSync(location, {
+      throwIfNoEntry: false,
+    });
+    if (!stat?.isFile() || stat.isSymbolicLink())
+      throw new Error("Benchmark paired setup proof was not retained.");
+    const parsed: unknown = JSON.parse(fs.readFileSync(location, "utf8"));
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed) ||
+      !("schemaVersion" in parsed) ||
+      parsed.schemaVersion !== 1 ||
+      EvidenceBenchmarkHash.object(parsed) !== expected
+    )
+      throw new Error("Benchmark paired setup proof drifted.");
+    const proof = parsed as Record<string, unknown>;
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(root, "materialization.json"), "utf8"),
+    ) as IEvidenceBenchmarkMaterialization.IManifest;
+    const inputKey =
+      manifest.arm === "evidence" ? "evidenceInputSha256" : "plainInputSha256";
+    const lockKey =
+      manifest.arm === "evidence" ? "evidenceLockSha256" : "plainLockSha256";
+    if (
+      proof[inputKey] !== manifest.inputSha256 ||
+      proof[lockKey] !== manifest.dependencyLockSha256
+    )
+      throw new Error("Benchmark paired setup proof names another cell.");
+  }
+
   /** Rejects hidden mutation of the installed compiler and measured product. */
   export function assertRestored(
     workspace: string,
@@ -232,6 +395,8 @@ export namespace EvidenceBenchmarkSetup {
       fs.readFileSync(path.join(root, "setup.json"), "utf8"),
     ) as Partial<IEvidenceBenchmarkSetup>;
     if (
+      setup.lockSha256 !==
+        EvidenceBenchmarkMaterializer.assertDependencyLock(root) ||
       setup.installedPackagesSha256 === undefined ||
       typeof setup.installedPackagesSha256 !== "object" ||
       setup.installedPackagesSha256 === null ||
@@ -433,6 +598,7 @@ export namespace EvidenceBenchmarkSetup {
         "Benchmark dependency reproduction requires its canonical Corepack cache authority.",
       );
     const manifest = parsed as IEvidenceBenchmarkMaterialization.IManifest;
+    EvidenceBenchmarkMaterializer.assertDependencyLock(root);
     admit(workspace, root, manifest);
     const cache: string = path.join(root, "cache");
     const temporary: string = fs.mkdtempSync(
@@ -695,7 +861,7 @@ export namespace EvidenceBenchmarkSetup {
       workspacePackageRoots(workspace).map(([, root]) =>
         createRequire(path.join(root, "package.json")),
       );
-    const product: string = "@samchon/lint-plugin-evidence";
+    const product: string = PRODUCT;
     const productManifests: string[] = resolvers.flatMap((resolver) => {
       const manifest: string | undefined = resolvePackageManifest(
         workspace,
@@ -1803,6 +1969,31 @@ export namespace EvidenceBenchmarkSetup {
       left.dependency.localeCompare(right.dependency, "en") ||
       left.to.localeCompare(right.to, "en")
     );
+  }
+
+  function readPairedCell(
+    root: string,
+    arm: IEvidenceBenchmarkMaterialization.Arm,
+  ): {
+    manifest: IEvidenceBenchmarkMaterialization.IManifest;
+    setup: IEvidenceBenchmarkSetup;
+    lock: string;
+  } {
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(root, "materialization.json"), "utf8"),
+    ) as IEvidenceBenchmarkMaterialization.IManifest;
+    const setup = JSON.parse(
+      fs.readFileSync(path.join(root, "setup.json"), "utf8"),
+    ) as IEvidenceBenchmarkSetup;
+    const lock: string = path.join(root, "inputs", "pnpm-lock.yaml");
+    if (
+      manifest.arm !== arm ||
+      manifest.dependencyLockSha256 !== setup.lockSha256 ||
+      EvidenceBenchmarkMaterializer.assertDependencyLock(root) !==
+        setup.lockSha256
+    )
+      throw new Error(`Benchmark ${arm} setup is not frozen for pairing.`);
+    return { manifest, setup, lock };
   }
 
   function captureInstalledLaunchers(
