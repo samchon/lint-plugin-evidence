@@ -6,7 +6,7 @@ The skills-contract turn remains binding. Re-read `AGENTS.md` and the applicable
 
 Finish the frontend phase under the active Evidence Graph.
 
-1. Inspect all three package `lint.config.ts` files. Restore all seven original claim objects and confirm their original populations and `error` severities.
+1. Inspect all three canonical package `lint.config.ts` files. Restore all seven original claim objects and confirm their original populations and `error` severities. Confirm the sealed backend main projection is unchanged.
 2. If this phase changed API or backend sources, re-pass the complete backend Evidence Graph gate first.
 3. From `packages/frontend`, run `pnpm build`, `pnpm test:e2e`, and `pnpm ui:review`.
 4. Run the required journeys against the live backend and inspect the browser output.

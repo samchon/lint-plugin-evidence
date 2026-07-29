@@ -45,6 +45,8 @@ The complete graph is declared in three package-local files. Open the file that 
 | `packages/api/lint.config.ts` | `dto-types`, `dto-properties` |
 | `packages/frontend/lint.config.ts` | `frontend-screens`, `frontend-journeys` |
 
+`packages/backend/lint.config.main.ts` is an immutable projection for the source-only `tsconfig.json` Program. It repeats only `schema-models` and `api-operations`, the claims whose hosts can exist under `src`. Do not edit or defer that projection. The backend test and lint Programs explicitly load the canonical `packages/backend/lint.config.ts`, which remains the sole owner of all three backend claims and every temporary deferral.
+
 The template starts with all seven claims active and every evidence rule at its final severity. Keep claims for the layer under active development enabled. Claims for a later layer that has not started may be deferred as described below; they are not evidence of unfinished work in the current layer.
 
 ## Temporary Claim Deferral
@@ -138,7 +140,7 @@ Comment every line of the existing object and remove only those line-comment mar
 
 ## Phase Gates
 
-At the Backend Phase gate, restore and validate the five claims in `packages/backend/lint.config.ts` and `packages/api/lint.config.ts`.
+At the Backend Phase gate, restore and validate the five claims in `packages/backend/lint.config.ts` and `packages/api/lint.config.ts`. Confirm that `packages/backend/lint.config.main.ts` is unchanged and still contains exactly the `schema-models` and `api-operations` projection used by `build:main`.
 
 1. From `packages/backend`, run `pnpm build:prisma` and `pnpm prepare`.
 2. From `packages/api`, run `pnpm lint` and `pnpm build`.
@@ -149,14 +151,14 @@ At the Backend Phase gate, restore and validate the five claims in `packages/bac
 
 Do not use the backend package's aggregate `pnpm build` or the workspace-root build during this phase.
 
-At the Frontend Phase gate, open all three `lint.config.ts` files and confirm that all seven original claim objects are active with their original populations and `error` severities. Validate the two frontend claims in `packages/frontend/lint.config.ts`. If frontend work changed API or backend sources, revalidate the affected configurations and re-pass the Backend Phase first.
+At the Frontend Phase gate, open all three canonical `lint.config.ts` files and confirm that all seven original claim objects are active with their original populations and `error` severities. Confirm that the immutable backend main projection is unchanged. Validate the two frontend claims in `packages/frontend/lint.config.ts`. If frontend work changed API or backend sources, revalidate the affected configurations and re-pass the Backend Phase first.
 
 At the Overall Phase gate:
 
-1. Open all three `lint.config.ts` files and restore every temporarily commented claim.
+1. Open all three canonical `lint.config.ts` files and restore every temporarily commented claim; confirm the immutable backend main projection is unchanged.
 2. Confirm the active claim names are exactly the seven names in the configuration table.
 3. Confirm every configured evidence rule retains its original `error` severity and every claim retains its original population.
-4. Verify restoration from the actual three configuration files, then run the complete workspace lint, build, and test gates with no staged configuration override. An agent's prose report is not restoration evidence.
+4. Verify restoration from the three canonical configuration files and the immutable backend main projection, then run the complete workspace lint, build, and test gates with no staged configuration override. An agent's prose report is not restoration evidence.
 5. Read and execute [Review](../review/SKILL.md) against the fully active graph.
 
 A green phase subset is not whole-project completion. Any claim missing from its active phase, narrowed population, disabled rule, remaining phase-owned `@todo`, or unreviewed phase edge blocks that phase report.

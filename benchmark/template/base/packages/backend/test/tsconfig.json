@@ -4,7 +4,13 @@
     "rootDir": "..",
     "outDir": "../bin",
     "noUnusedLocals": false,
-    "noUnusedParameters": false
+    "noUnusedParameters": false,
+    "plugins": [
+      {
+        "transform": "@ttsc/lint",
+        "configFile": "../lint.config.ts"
+      }
+    ]
   },
   "include": [".", "../src"]
 }

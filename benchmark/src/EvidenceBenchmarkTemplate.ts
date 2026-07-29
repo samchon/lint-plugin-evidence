@@ -18,6 +18,7 @@ export namespace EvidenceBenchmarkTemplate {
   ] as const;
   const FULL_REPLACEMENT_COLLISIONS: ReadonlySet<string> = new Set([
     "packages/api/lint.config.ts",
+    "packages/backend/lint.config.main.ts",
     "packages/backend/lint.config.ts",
     "packages/frontend/lint.config.ts",
   ]);
@@ -55,6 +56,7 @@ export namespace EvidenceBenchmarkTemplate {
     "packages/api/src/typings/IPage.ts",
     "packages/api/src/typings/index.ts",
     "packages/api/tsconfig.json",
+    "packages/backend/lint.config.main.ts",
     "packages/backend/lint.config.ts",
     "packages/backend/nestia.config.ts",
     "packages/backend/package.json",
@@ -95,6 +97,7 @@ export namespace EvidenceBenchmarkTemplate {
       ".agents/skills/review/SKILL.md",
       "AGENTS.md",
       "packages/api/lint.config.ts",
+      "packages/backend/lint.config.main.ts",
       "packages/backend/lint.config.ts",
       "packages/frontend/lint.config.ts",
     ],

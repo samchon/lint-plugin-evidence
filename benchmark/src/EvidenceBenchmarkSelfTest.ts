@@ -265,7 +265,8 @@ export namespace EvidenceBenchmarkSelfTest {
       write(
         path.join(workspace, ...relative.split("/")),
         [
-          ...(relative === EvidenceBenchmarkLintBaseline.PATHS[1]
+          ...(relative === EvidenceBenchmarkLintBaseline.PATHS[1] ||
+          relative === EvidenceBenchmarkLintBaseline.PATHS[3]
             ? [
                 "declare const process: { env: Record<string, string | undefined> };",
                 'const isNestiaConfigLoader = process.env.NESTIA_SDK_TRANSFORM === "1";',
@@ -277,7 +278,8 @@ export namespace EvidenceBenchmarkSelfTest {
           "  ],",
           "};",
           `export default { rules: { "evidence/graph": ${
-            relative === EvidenceBenchmarkLintBaseline.PATHS[1]
+            relative === EvidenceBenchmarkLintBaseline.PATHS[1] ||
+            relative === EvidenceBenchmarkLintBaseline.PATHS[3]
               ? 'isNestiaConfigLoader ? "off" : ["error", graph]'
               : '["error", graph]'
           } } };`,
@@ -1296,7 +1298,7 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     assert.match(
       frontendEvidenceFinal,
-      /Inspect all three package `lint\.config\.ts` files\.[\s\S]+Restore all seven original claim objects[\s\S]+original populations and `error` severities/,
+      /Inspect all three canonical package `lint\.config\.ts` files\.[\s\S]+Restore all seven original claim objects[\s\S]+original populations and `error` severities[\s\S]+sealed backend main projection is unchanged/,
       "frontend final must inspect the complete seven-claim configuration",
     );
     const overallEvidenceFinal: string = fs.readFileSync(
@@ -1421,6 +1423,54 @@ export namespace EvidenceBenchmarkSelfTest {
       7,
       "the materialized Evidence graph must own exactly seven claims",
     );
+    const mainRelative = "packages/backend/lint.config.main.ts";
+    const mainBytes: Uint8Array | undefined = files.get(mainRelative);
+    assert.ok(
+      mainBytes,
+      `materialized Evidence template is missing ${mainRelative}`,
+    );
+    const mainClaims = readClaimObjects(
+      mainRelative,
+      Buffer.from(mainBytes).toString("utf8"),
+    );
+    assert.deepEqual(
+      [...mainClaims.keys()],
+      ["schema-models", "api-operations"],
+      "the backend source Program must retain the exact two-claim projection",
+    );
+    for (const name of mainClaims.keys()) {
+      const canonical = claims
+        .get("packages/backend/lint.config.ts")
+        ?.get(name);
+      const projected = mainClaims.get(name);
+      assert.ok(
+        canonical !== undefined && projected !== undefined,
+        `backend main projection has no canonical ${name} claim`,
+      );
+      assert.equal(
+        normalizeClaimSource(projected.node.getText(projected.source)),
+        normalizeClaimSource(canonical.node.getText(canonical.source)),
+        `backend main projection drifted from canonical ${name}`,
+      );
+    }
+    for (const [relative, configFile] of [
+      ["packages/backend/tsconfig.json", "./lint.config.main.ts"],
+      ["packages/backend/tsconfig.lint.json", "./lint.config.ts"],
+      ["packages/backend/test/tsconfig.json", "../lint.config.ts"],
+    ] as const) {
+      const bytes: Uint8Array | undefined = files.get(relative);
+      assert.ok(bytes, `materialized Evidence template is missing ${relative}`);
+      const config = JSON.parse(Buffer.from(bytes).toString("utf8")) as {
+        compilerOptions?: {
+          plugins?: Array<{ transform?: unknown; configFile?: unknown }>;
+        };
+      };
+      assert.deepEqual(
+        config.compilerOptions?.plugins,
+        [{ transform: "@ttsc/lint", configFile }],
+        `${relative} must load the graph matching its exact Program`,
+      );
+    }
 
     const skillPath: string = ".agents/skills/evidence/SKILL.md";
     const skillBytes: Uint8Array | undefined = files.get(skillPath);
@@ -1467,9 +1517,9 @@ export namespace EvidenceBenchmarkSelfTest {
       "Diagnostic volume never permits deferring the claim for the layer under active development.",
       "Before `build:sdk`, the schema, DTO, and API-operation claims must all be active and healthy.",
       "Never edit a claim's internals, severity, rule entry, `files`, `symbol`, or `reference` population; never disable `evidence/graph` or add an environment bypass.",
-      "Open all three `lint.config.ts` files and restore every temporarily commented claim.",
+      "Open all three canonical `lint.config.ts` files and restore every temporarily commented claim; confirm the immutable backend main projection is unchanged.",
       "Confirm every configured evidence rule retains its original `error` severity and every claim retains its original population.",
-      "Verify restoration from the actual three configuration files, then run the complete workspace lint, build, and test gates with no staged configuration override.",
+      "Verify restoration from the three canonical configuration files and the immutable backend main projection, then run the complete workspace lint, build, and test gates with no staged configuration override.",
       "An agent's prose report is not restoration evidence.",
     ])
       assert.ok(
@@ -2170,6 +2220,13 @@ export namespace EvidenceBenchmarkSelfTest {
           claims:
             props.arm === "evidence"
               ? ["frontend-screens", "frontend-journeys"]
+              : null,
+        },
+        {
+          path: "packages/backend/lint.config.main.ts",
+          claims:
+            props.arm === "evidence"
+              ? ["schema-models", "api-operations"]
               : null,
         },
       ],

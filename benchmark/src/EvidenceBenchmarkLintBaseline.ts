@@ -13,10 +13,15 @@ export namespace EvidenceBenchmarkLintBaseline {
     "packages/api/lint.config.ts",
     "packages/backend/lint.config.ts",
     "packages/frontend/lint.config.ts",
+    "packages/backend/lint.config.main.ts",
   ] as const;
 
-  /** API and backend configurations restored at the backend final gate. */
-  export const BACKEND_PATHS: readonly string[] = [PATHS[0], PATHS[1]];
+  /** API, canonical backend, and source-program projection final identities. */
+  export const BACKEND_PATHS: readonly string[] = [
+    PATHS[0],
+    PATHS[1],
+    PATHS[3],
+  ];
 
   /** Captures exact bytes and literal graph semantics from an in-memory tree. */
   export function capture(
@@ -40,7 +45,7 @@ export namespace EvidenceBenchmarkLintBaseline {
     });
   }
 
-  /** Captures the three package lint configurations from one workspace. */
+  /** Captures the canonical and projected lint configurations from a workspace. */
   export function captureDirectory(
     workspace: string,
     arm: IEvidenceBenchmarkMaterialization.Arm,
@@ -139,7 +144,7 @@ export namespace EvidenceBenchmarkLintBaseline {
       JSON.stringify(PATHS)
     )
       throw new Error(
-        "Benchmark lint baselines do not contain the canonical package inventory.",
+        "Benchmark lint baselines do not contain the canonical package inventory and source-program projection.",
       );
     for (const entry of baselines) {
       if (entry.semanticSha256 !== EvidenceBenchmarkHash.object(entry.graph))
@@ -239,7 +244,7 @@ export namespace EvidenceBenchmarkLintBaseline {
       );
 
     const ruleExpression: ts.Expression = unwrap(rule.initializer);
-    if (relative === PATHS[1]) {
+    if (relative === PATHS[1] || relative === PATHS[3]) {
       if (
         loaderGuards.length !== 1 ||
         loaderGuards[0]!.constant === false ||

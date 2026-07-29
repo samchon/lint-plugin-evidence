@@ -75,7 +75,7 @@ Use `--port-base` to move the complete disjoint port allocation when the default
 pnpm --filter @samchon/evidence-benchmark start -- --port-base 50000 todo reddit
 ```
 
-`start` packs and verifies the product once, materializes and installs every selected evidence/plain cell, then starts them concurrently. It freezes the instruction bytes before the first turn and updates `run.json` after each attempt. Evidence materialization also seals the exact bytes and literal claim inventory of all three package lint configurations into both the manifest and retained run state.
+`start` packs and verifies the product once, materializes and installs every selected evidence/plain cell, then starts them concurrently. It freezes the instruction bytes before the first turn and updates `run.json` after each attempt. Evidence materialization also seals the exact bytes and literal claim inventory of all three canonical package lint configurations plus the immutable backend source-Program projection into both the manifest and retained run state.
 
 The runner assigns each subject and arm distinct API, Swagger, Vite development, and Playwright ports. It checks every selected port before packaging or model use, exports the assignments to agent child processes, persists them in package-local `.env` files, and records them in `run.json`. Pnpm, ttsc, Go, and Playwright caches are cell-local.
 
@@ -135,7 +135,7 @@ A repair applied after measured work is an operator intervention, even when both
 
 ## Accept a result
 
-`status: completed` is provisional. Before accepting a cell, verify all nine prescribed turns, build, lint, database preparation, backend tests, frontend tests, runtime behavior, requirement coverage, test coverage, enabled evidence claims, residual placeholders, and semantic quality. Evidence backend final seals the restored API and backend lint configurations; frontend final and overall final each seal all three. A rejected final turn interrupts the cell, and resume revalidates the same phase restoration before accepting further work. Failed capacity attempts remain in cumulative cost and time; setup and repair overhead remain separate.
+`status: completed` is provisional. Before accepting a cell, verify all nine prescribed turns, build, lint, database preparation, backend tests, frontend tests, runtime behavior, requirement coverage, test coverage, enabled evidence claims, residual placeholders, and semantic quality. Evidence backend final seals the restored API and canonical backend lint configurations together with the backend source-Program projection; frontend final and overall final each seal those files plus the frontend configuration. A rejected final turn interrupts the cell, and resume revalidates the same phase restoration before accepting further work. Failed capacity attempts remain in cumulative cost and time; setup and repair overhead remain separate.
 
 Do not record absolute start or completion timestamps. Preserve total elapsed duration, native token categories, standard API-equivalent cost, commands and gates, first completion claims, implementation scale, coverage, quality findings, frozen-input identities, raw streams, and the final workspace.
 
