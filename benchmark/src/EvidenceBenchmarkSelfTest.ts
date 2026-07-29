@@ -2145,11 +2145,23 @@ export namespace EvidenceBenchmarkSelfTest {
       env: cell.environment,
       label: "packaged Evidence template build",
     });
-    await EvidenceBenchmarkProcess.pnpm(["run", "lint"], {
-      cwd: cell.workspace,
-      env: cell.environment,
-      label: "packaged Evidence template lint",
-    });
+    const lint: EvidenceBenchmarkProcess.IResult =
+      await EvidenceBenchmarkProcess.pnpm(["run", "lint"], {
+        cwd: cell.workspace,
+        env: cell.environment,
+        label: "packaged Evidence template lint",
+        allowFailure: true,
+      });
+    assert.notEqual(
+      lint.status,
+      0,
+      "the pristine Evidence template must report its unimplemented graph",
+    );
+    assert.match(
+      `${lint.stdout}\n${lint.stderr}`,
+      /evidence\/graph/,
+      "the packaged Evidence lint failure must come from the active graph",
+    );
     assert.equal(
       fs.existsSync(
         path.join(cell.workspace, "packages", "api", "swagger.json"),

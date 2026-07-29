@@ -5,7 +5,7 @@
   "description": "Benchmark full-stack application for {{name}}",
   "packageManager": "pnpm@10.10.0",
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.15"
   },
   "scripts": {
     "build": "pnpm --filter {{backendPackageName}} build:prisma && pnpm --filter {{apiPackageName}} build && pnpm --filter {{backendPackageName}} build:main && pnpm --filter {{backendPackageName}} build:sdk && pnpm --filter {{backendPackageName}} build:test && pnpm --filter {{frontendPackageName}} build",
