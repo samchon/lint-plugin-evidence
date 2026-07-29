@@ -850,14 +850,27 @@ export namespace EvidenceBenchmarkCommandLine {
       parent,
       `.workspace.${process.pid}.tmp`,
     );
+    const backup: string = path.join(
+      parent,
+      `.workspace.${process.pid}.backup`,
+    );
     fs.rmSync(temporary, { recursive: true, force: true });
+    fs.rmSync(backup, { recursive: true, force: true });
     fs.cpSync(workspace, temporary, {
       recursive: true,
       filter: (source) =>
         ![".git", "node_modules"].includes(path.basename(source)),
     });
-    fs.rmSync(target, { recursive: true, force: true });
-    fs.renameSync(temporary, target);
+    if (fs.existsSync(target)) fs.renameSync(target, backup);
+    try {
+      fs.renameSync(temporary, target);
+      fs.rmSync(backup, { recursive: true, force: true });
+    } catch (error) {
+      fs.rmSync(target, { recursive: true, force: true });
+      if (fs.existsSync(backup)) fs.renameSync(backup, target);
+      fs.rmSync(temporary, { recursive: true, force: true });
+      throw error;
+    }
   }
 
   function elapsed(started: bigint): number {
