@@ -39,7 +39,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24.x
+          node-version: 22.12.0
           cache: pnpm
 
       - uses: actions/setup-go@v5
@@ -54,6 +54,9 @@ jobs:
 
       - name: Compose both arms
         run: pnpm --filter test-benchmark start
+
+      - name: Build and lint packaged Evidence template
+        run: pnpm --filter @samchon/evidence-benchmark test:package
 
       - name: Install and build Todo plain template
         run: pnpm --filter test-benchmark test:build

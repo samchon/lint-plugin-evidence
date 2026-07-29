@@ -36,10 +36,12 @@ const main = async (): Promise<void> => {
     module,
   );
   assert.ok(Array.isArray(controllers));
-  assert.deepEqual(controllers.map((controller) => controller.name).sort(), [
-    "HealthController",
-    "NestedDiscoveryController",
-  ]);
+  assert.deepEqual(
+    controllers
+      .map((controller) => controller.name)
+      .sort((left, right) => left.localeCompare(right)),
+    ["HealthController", "NestedDiscoveryController"],
+  );
   assert.equal(new Set(controllers).size, controllers.length);
 
   const application = await NestFactory.create(module, { logger: false });
@@ -114,6 +116,17 @@ const main = async (): Promise<void> => {
             ),
         );
       },
+      async () => {
+        assert.throws(
+          () => MyModule.input(),
+          (error: unknown) =>
+            namesRoot(
+              error,
+              "contains no NestJS controller source",
+              expectedSourceRoot,
+            ),
+        );
+      },
     );
 };
 
@@ -121,6 +134,7 @@ const withMissingAndEmptyDirectory = async (
   root: string,
   missing: () => Promise<void>,
   empty: () => Promise<void>,
+  helperOnly?: () => Promise<void>,
 ): Promise<void> => {
   const backup: string = `${root}.discovery-proof-backup`;
   assert.equal(fs.existsSync(backup), false);
@@ -129,6 +143,14 @@ const withMissingAndEmptyDirectory = async (
     await missing();
     fs.mkdirSync(root);
     await empty();
+    if (helperOnly !== undefined) {
+      fs.writeFileSync(
+        path.join(root, "ControllerHelpers.ts"),
+        "/** Helper-only source must not satisfy controller discovery. */\nexport const DISCOVERY_HELPER = true;\n",
+        "utf8",
+      );
+      await helperOnly();
+    }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     fs.renameSync(backup, root);
@@ -140,4 +162,7 @@ const namesRoot = (error: unknown, fragment: string, root: string): boolean =>
   error.message.includes(fragment) &&
   error.message.includes(root);
 
-await main();
+main().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});

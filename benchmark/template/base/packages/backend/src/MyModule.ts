@@ -24,6 +24,10 @@ export namespace MyModule {
       throw new Error(
         `Nestia controller source root contains no TypeScript source: ${root}.`,
       );
+    if (hasNestControllerSource(root) === false)
+      throw new Error(
+        `Nestia controller source root contains no NestJS controller source: ${root}.`,
+      );
     return {
       include: [root],
       exclude: [],
@@ -80,6 +84,21 @@ const hasTypeScriptSource = (root: string): boolean =>
     return (
       /\.(?:[cm]?ts)$/.test(lower) &&
       /\.(?:d\.[cm]?ts|d\.ts)$/.test(lower) === false
+    );
+  });
+
+const hasNestControllerSource = (root: string): boolean =>
+  fs.readdirSync(root, { withFileTypes: true }).some((entry) => {
+    const location: string = path.join(root, entry.name);
+    if (entry.isDirectory()) return hasNestControllerSource(location);
+    if (
+      entry.isFile() === false ||
+      /\.(?:[cm]?ts)$/i.test(entry.name) === false ||
+      /\.(?:d\.[cm]?ts|d\.ts)$/i.test(entry.name)
+    )
+      return false;
+    return /(?:^|\n)\s*@(Typed)?Controller\s*\(/.test(
+      fs.readFileSync(location, "utf8"),
     );
   });
 

@@ -2095,6 +2095,16 @@ export namespace EvidenceBenchmarkSelfTest {
       env: cell.environment,
       label: "Nestia evidence config-loader smoke",
     });
+    await EvidenceBenchmarkProcess.pnpm(["run", "build"], {
+      cwd: cell.workspace,
+      env: cell.environment,
+      label: "packaged Evidence template build",
+    });
+    await EvidenceBenchmarkProcess.pnpm(["run", "lint"], {
+      cwd: cell.workspace,
+      env: cell.environment,
+      label: "packaged Evidence template lint",
+    });
     assert.equal(
       fs.existsSync(
         path.join(cell.workspace, "packages", "api", "swagger.json"),

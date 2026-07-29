@@ -69,6 +69,11 @@ export namespace BenchmarkControllerDiscovery {
       env: environment,
       label: "benchmark template full build",
     });
+    await EvidenceBenchmarkProcess.pnpm(["run", "lint"], {
+      cwd: workspace,
+      env: environment,
+      label: "benchmark template full lint",
+    });
     await EvidenceBenchmarkProcess.pnpm(
       ["exec", "ttsx", "src/executable/discovery-proof.ts"],
       {
@@ -111,7 +116,12 @@ export namespace BenchmarkControllerDiscovery {
     assert.equal(fs.existsSync(swagger), expectsSwagger);
     if (expectsSdk) {
       const source: string = readTextTree(functional);
-      assert.match(source, /\/discovery\/nested/);
+      assert.deepEqual(
+        [...source.matchAll(/\bpath:\s*"([^"]+)"/g)]
+          .map((match) => match[1]!)
+          .sort((left, right) => left.localeCompare(right)),
+        ["/discovery/nested", "/health"],
+      );
       assert.doesNotMatch(
         source,
         /CONTROLLER_EVIDENCE_EXCLUDE|DISCOVERY_HELPER|DiscoveryHelper|discoveryHelper/,
