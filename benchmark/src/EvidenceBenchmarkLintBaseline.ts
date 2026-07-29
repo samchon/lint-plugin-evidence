@@ -333,7 +333,7 @@ export namespace EvidenceBenchmarkLintBaseline {
   ): ts.ObjectLiteralExpression | undefined {
     const assignments: ts.ExportAssignment[] = source.statements.filter(
       (statement): statement is ts.ExportAssignment =>
-        ts.isExportAssignment(statement) && statement.isExportEquals === false,
+        ts.isExportAssignment(statement) && statement.isExportEquals !== true,
     );
     if (assignments.length !== 1)
       throw new Error(

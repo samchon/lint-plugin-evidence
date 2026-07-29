@@ -136,7 +136,7 @@ const isNestControllerSource = (location: string): boolean => {
           exported.add((element.propertyName ?? element.name).text);
     if (
       ts.isExportAssignment(statement) &&
-      statement.isExportEquals === false &&
+      statement.isExportEquals !== true &&
       ts.isIdentifier(statement.expression)
     )
       exported.add(statement.expression.text);
