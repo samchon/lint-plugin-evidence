@@ -1145,8 +1145,8 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     assert.match(
       skillsContract,
-      /Do not start backend work in this turn\./,
-      "the skills-contract turn must finish before backend implementation",
+      /Do not start development work in this turn\./,
+      "the skills-contract turn must finish before development",
     );
     assert.match(
       skillsContract,

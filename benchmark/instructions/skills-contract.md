@@ -9,4 +9,4 @@ Before implementation, generation, project commands, or file edits:
 3. Follow every selected skill's read conditions and read each linked topic document that applies to the complete benchmark task in full.
 4. Resolve instructions by their declared hierarchy and the user's literal request. Follow them without deviation. Never silently omit, replace, weaken, or reinterpret a skill rule.
 
-Do not start backend work in this turn. Report the exact instruction files read, confirm that no implementation work has begun, and carry this contract into the next frozen turn.
+Do not start development work in this turn. Report the exact instruction files read, confirm that no implementation work has begun, and carry this contract into the next frozen turn.
