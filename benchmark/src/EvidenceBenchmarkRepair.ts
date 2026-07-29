@@ -122,7 +122,9 @@ export namespace EvidenceBenchmarkRepair {
         `Repair patch must contain between 1 and ${MAXIMUM_PATCH_BYTES} bytes.`,
       );
     const bytes: Buffer = fs.readFileSync(patch);
-    const content: string = bytes.toString("utf8");
+    const content: string = new TextDecoder("utf-8", { fatal: true }).decode(
+      bytes,
+    );
     validatePatch(content);
     const patchSha256: string = crypto
       .createHash("sha256")
@@ -328,6 +330,7 @@ export namespace EvidenceBenchmarkRepair {
           `Repair patch has a non-workspace target: ${newHeader}.`,
         );
       const target: string = newHeader.slice(2);
+      const segments: string[] = target.split("/");
       if (
         oldHeader !== "/dev/null" &&
         (!oldHeader.startsWith("a/") || oldHeader.slice(2) !== target)
@@ -340,15 +343,15 @@ export namespace EvidenceBenchmarkRepair {
         target !== normalized ||
         target.includes("\\") ||
         path.posix.isAbsolute(target) ||
-        target
-          .split("/")
-          .some((part) => part === "" || part === "." || part === "..") ||
-        target === ".git" ||
-        target.startsWith(".git/") ||
-        target === "node_modules" ||
-        target.startsWith("node_modules/") ||
-        target === ".benchmark-deps" ||
-        target.startsWith(".benchmark-deps/") ||
+        segments.some(
+          (part) =>
+            part === "" ||
+            part === "." ||
+            part === ".." ||
+            part === ".git" ||
+            part === "node_modules" ||
+            part === ".benchmark-deps",
+        ) ||
         target === "docs/analysis" ||
         target.startsWith("docs/analysis/")
       )

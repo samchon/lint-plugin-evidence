@@ -661,6 +661,39 @@ export namespace EvidenceBenchmarkSelfTest {
       "forbidden target",
     );
 
+    const dependencyPatch: string = path.join(
+      repository,
+      "benchmark",
+      ".work",
+      "repairs",
+      "dependency.patch",
+    );
+    write(
+      dependencyPatch,
+      [
+        "diff --git a/packages/backend/node_modules/example.txt b/packages/backend/node_modules/example.txt",
+        "new file mode 100644",
+        "--- /dev/null",
+        "+++ b/packages/backend/node_modules/example.txt",
+        "@@ -0,0 +1 @@",
+        "+forbidden",
+        "",
+      ].join("\n"),
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkRepair.apply(
+          repository,
+          EvidenceBenchmarkRepair.parse([
+            "--patch",
+            "benchmark/.work/repairs/dependency.patch",
+            runId,
+            "todo",
+          ]),
+        ),
+      "forbidden target",
+    );
+
     for (const arm of ["evidence", "plain"] as const)
       await createRepairCell(
         repository,
