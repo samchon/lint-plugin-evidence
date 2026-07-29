@@ -126,6 +126,10 @@ export namespace EvidenceBenchmarkCommandLine {
       materialization,
       arm: props.arm,
     });
+    await initializeWorkspace(
+      materialization.workspace,
+      materialization.environment,
+    );
     const logs: string = path.join(root, "logs");
     fs.mkdirSync(logs, { recursive: false });
     const state: IState = {
@@ -177,6 +181,10 @@ export namespace EvidenceBenchmarkCommandLine {
       throw error;
     } finally {
       writeState(root, state);
+      fs.rmSync(path.join(materialization.workspace, ".git"), {
+        recursive: true,
+        force: true,
+      });
     }
   }
 
@@ -312,7 +320,8 @@ export namespace EvidenceBenchmarkCommandLine {
     fs.rmSync(temporary, { recursive: true, force: true });
     fs.cpSync(workspace, temporary, {
       recursive: true,
-      filter: (source) => path.basename(source) !== "node_modules",
+      filter: (source) =>
+        ![".git", "node_modules"].includes(path.basename(source)),
     });
     fs.rmSync(target, { recursive: true, force: true });
     fs.renameSync(temporary, target);
@@ -342,5 +351,38 @@ export namespace EvidenceBenchmarkCommandLine {
     if (!fs.existsSync(entrypoint))
       throw new Error(`Codex CLI entrypoint was not found: ${entrypoint}.`);
     return { command: process.execPath, prefix: [entrypoint] };
+  }
+
+  async function initializeWorkspace(
+    workspace: string,
+    environment: NodeJS.ProcessEnv,
+  ): Promise<void> {
+    await EvidenceBenchmarkProcess.run("git", ["init", "-b", "benchmark"], {
+      cwd: workspace,
+      env: environment,
+      label: "benchmark workspace git initialization",
+    });
+    await EvidenceBenchmarkProcess.run("git", ["add", "-A"], {
+      cwd: workspace,
+      env: environment,
+      label: "benchmark workspace baseline stage",
+    });
+    await EvidenceBenchmarkProcess.run(
+      "git",
+      [
+        "-c",
+        "user.name=Evidence Benchmark",
+        "-c",
+        "user.email=evidence-benchmark@localhost",
+        "commit",
+        "-m",
+        "Freeze benchmark starting point",
+      ],
+      {
+        cwd: workspace,
+        env: environment,
+        label: "benchmark workspace baseline commit",
+      },
+    );
   }
 }
