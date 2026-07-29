@@ -13,7 +13,7 @@ declare const process: {
  *
  * The schema answers to the requirements, every controller operation answers to
  * the requirement it realizes and the model it exposes, and the e2e suite
- * answers to the requirements, the published accessors, and the contract
+ * answers to the requirements, the published operations, and the contract
  * shapes. Cross-package TypeScript populations are read from the installed API
  * package, because that is the artifact a test actually imports.
  */
