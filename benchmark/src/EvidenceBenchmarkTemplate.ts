@@ -25,6 +25,22 @@ export namespace EvidenceBenchmarkTemplate {
   const EVIDENCE_ONLY_PATHS: ReadonlySet<string> = new Set([
     ".agents/skills/evidence/SKILL.md",
   ]);
+  const SHARED_OVERLAY_PATHS: ReadonlySet<string> = new Set([
+    ".agents/skills/backend/controllers.md",
+    ".agents/skills/backend/database.md",
+    ".agents/skills/backend/dtos.md",
+    ".agents/skills/backend/providers.md",
+    ".agents/skills/backend/testing.md",
+    ".agents/skills/frontend/screens.md",
+    ".agents/skills/frontend/verification.md",
+    ".agents/skills/requirements/SKILL.md",
+    ".agents/skills/review/SKILL.md",
+    "AGENTS.md",
+    "packages/api/lint.config.ts",
+    "packages/backend/lint.config.main.ts",
+    "packages/backend/lint.config.ts",
+    "packages/frontend/lint.config.ts",
+  ]);
   const BASE_REQUIRED_PATHS: readonly string[] = [
     ".agents/skills/api/SKILL.md",
     ".agents/skills/backend/SKILL.md",
@@ -287,6 +303,11 @@ export namespace EvidenceBenchmarkTemplate {
         ),
       ),
       overlays.plain,
+    );
+    requireEqualPathSets(
+      "plain overlay and authorized treatment surface",
+      overlays.plain,
+      SHARED_OVERLAY_PATHS,
     );
     for (const relative of EVIDENCE_ONLY_PATHS) {
       if (!overlays.evidence.has(relative))

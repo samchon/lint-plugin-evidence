@@ -1654,7 +1654,27 @@ export namespace EvidenceBenchmarkSetup {
       const relative: string | undefined = containedRelation(root, target);
       if (relative !== undefined) return relative;
     }
-    return undefined;
+    let ancestor: string = target;
+    const targetStat: fs.Stats = fs.statSync(target);
+    if (!targetStat.isDirectory()) ancestor = path.dirname(ancestor);
+    for (;;) {
+      if (sameFile(installed, ancestor)) {
+        const relative: string | undefined = containedRelation(
+          ancestor,
+          target,
+        );
+        if (relative !== undefined) return relative;
+      }
+      const parent: string = path.dirname(ancestor);
+      if (parent === ancestor) return undefined;
+      ancestor = parent;
+    }
+  }
+
+  function sameFile(left: string, right: string): boolean {
+    const leftStat: fs.BigIntStats = fs.statSync(left, { bigint: true });
+    const rightStat: fs.BigIntStats = fs.statSync(right, { bigint: true });
+    return leftStat.dev === rightStat.dev && leftStat.ino === rightStat.ino;
   }
 
   function readPackage(manifest: string): Record<string, unknown> {

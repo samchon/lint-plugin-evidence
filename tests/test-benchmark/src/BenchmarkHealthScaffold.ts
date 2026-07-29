@@ -140,6 +140,30 @@ export namespace BenchmarkHealthScaffold {
         baseline,
         "changing the health return type must change the generated SDK",
       );
+
+      fs.writeFileSync(
+        controller,
+        replaceExactly(original, '@Get("health")', '@Get("readiness")'),
+      );
+      cleanSdk(api);
+      await generateSdk(backend, environment, "health route drift");
+      assert.notDeepEqual(
+        readFunctional(api),
+        baseline,
+        "changing the health route must change the generated SDK",
+      );
+      const routeFailure: EvidenceBenchmarkProcess.IResult =
+        await EvidenceBenchmarkProcess.pnpm(["run", "test"], {
+          cwd: backend,
+          env: environment,
+          label: "health route drift",
+          allowFailure: true,
+        });
+      assert.notEqual(
+        routeFailure.status,
+        0,
+        "moving the health route must fail its typed e2e test",
+      );
     } finally {
       fs.writeFileSync(controller, original);
       writeSdk(api, savedSdk);

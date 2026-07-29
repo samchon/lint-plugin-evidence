@@ -49,6 +49,9 @@ export namespace EvidenceBenchmarkTurnLedger {
 
     /** Direct model process identifier retained by the controller. */
     modelPid?: unknown;
+
+    /** Exact pre-development workspace identity retained by the read-only turn. */
+    workspaceRestorationSha256?: unknown;
   }
 
   /** Ledger totals bound into the operator-authored benchmark report. */
@@ -84,18 +87,27 @@ export namespace EvidenceBenchmarkTurnLedger {
 
     /** Frozen reasoning effort. */
     effort: string;
+
+    /** Whether this turn may mutate the measured workspace. */
+    writable?: boolean;
   }
 
   /** Exact permission-profile arguments shared by launch and verification. */
-  export function permissionProfileArguments(workspace: string): string[] {
+  export function permissionProfileArguments(
+    workspace: string,
+    access: "read" | "write" = "write",
+  ): string[] {
     const cellRoot: string = path.dirname(workspace);
-    return EvidenceBenchmarkSandbox.permissionProfileArguments({
-      workspace,
-      toolchain: path.join(cellRoot, "cache", "toolchain-bin"),
-      corepack: path.join(cellRoot, "cache", "corepack"),
-      npmConfig: path.join(cellRoot, "inputs", "npmrc"),
-      gitConfig: path.join(cellRoot, "inputs", "gitconfig"),
-    });
+    return EvidenceBenchmarkSandbox.permissionProfileArguments(
+      {
+        workspace,
+        toolchain: path.join(cellRoot, "cache", "toolchain-bin"),
+        corepack: path.join(cellRoot, "cache", "corepack"),
+        npmConfig: path.join(cellRoot, "inputs", "npmrc"),
+        gitConfig: path.join(cellRoot, "inputs", "gitconfig"),
+      },
+      access,
+    );
   }
 
   /** Builds the exact Codex arguments retained for one measured turn. */
@@ -111,7 +123,10 @@ export namespace EvidenceBenchmarkTurnLedger {
       "--ignore-user-config",
       "--ignore-rules",
       "--strict-config",
-      ...permissionProfileArguments(props.workspace),
+      ...permissionProfileArguments(
+        props.workspace,
+        props.writable === false ? "read" : "write",
+      ),
       "--config",
       'approval_policy="never"',
       "--skip-git-repo-check",
@@ -301,12 +316,14 @@ export namespace EvidenceBenchmarkTurnLedger {
         workspace: props.workspace,
         model: props.model,
         effort: props.effort,
+        writable: turn.name !== "skills-contract",
       });
       const resumed: string[] = invocationArguments({
         workspace: props.workspace,
         threadId: props.threadId,
         model: props.model,
         effort: props.effort,
+        writable: turn.name !== "skills-contract",
       });
       const actual: string[] = invocation.slice(execIndex);
       const allowed: readonly string[][] = threadEstablished

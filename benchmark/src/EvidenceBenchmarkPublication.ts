@@ -193,6 +193,7 @@ export namespace EvidenceBenchmarkPublication {
       status?: unknown;
       sourceCommit?: unknown;
       instructionsTreeSha256?: unknown;
+      initialWorkspaceTreeSha256?: unknown;
       completedWorkspaceTreeSha256?: unknown;
       threadId?: unknown;
       lintBaselines?: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[];
@@ -207,12 +208,13 @@ export namespace EvidenceBenchmarkPublication {
         accepted?: unknown;
         threadId?: unknown;
         modelPid?: unknown;
+        workspaceRestorationSha256?: unknown;
         lintRestorationSha256?: unknown;
         installationReproductionSha256?: unknown;
       }>;
     };
     if (
-      state.schemaVersion !== 8 ||
+      state.schemaVersion !== 9 ||
       state.workflow !== "backend-first-gated-v2" ||
       state.project !== request.project ||
       state.arm !== request.arm ||
@@ -229,6 +231,8 @@ export namespace EvidenceBenchmarkPublication {
       typeof state.sourceCommit !== "string" ||
       !/^[0-9a-f]{40}$/i.test(state.sourceCommit) ||
       typeof state.instructionsTreeSha256 !== "string" ||
+      typeof state.initialWorkspaceTreeSha256 !== "string" ||
+      !/^[0-9a-f]{64}$/.test(state.initialWorkspaceTreeSha256) ||
       typeof state.completedWorkspaceTreeSha256 !== "string" ||
       typeof state.threadId !== "string" ||
       state.threadId.length === 0 ||
@@ -240,6 +244,16 @@ export namespace EvidenceBenchmarkPublication {
       );
     EvidenceBenchmarkRuntime.assertAssignment(state.runtime);
     EvidenceBenchmarkTurnLedger.assertAcceptedOrder(state.turns, true);
+    const skillsContract = state.turns.find(
+      (turn) => turn.name === "skills-contract" && turn.accepted === true,
+    );
+    if (
+      skillsContract?.workspaceRestorationSha256 !==
+      state.initialWorkspaceTreeSha256
+    )
+      throw new Error(
+        "Publication requires a read-only skills-contract workspace proof.",
+      );
     const instructions: string = path.join(runRoot, "inputs", "instructions");
     const instructionFiles: Map<string, Uint8Array> =
       EvidenceBenchmarkHash.directory(instructions);

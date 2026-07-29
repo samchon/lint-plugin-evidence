@@ -752,7 +752,7 @@ export namespace EvidenceBenchmarkSelfTest {
     write(
       runStatePath,
       `${JSON.stringify({
-        schemaVersion: 8,
+        schemaVersion: 9,
         workflow: "backend-first-gated-v2",
         instructionsTreeSha256,
         project: "todo",
@@ -763,6 +763,8 @@ export namespace EvidenceBenchmarkSelfTest {
         cliVersion: "codex-cli 0.145.0",
         elapsedMs: 11,
         controllerPid: 1,
+        initialWorkspaceTreeSha256:
+          EvidenceBenchmarkPublication.workspaceSha256(workspace),
         threadId,
         status: "completed",
         sourceCommit: "0123456789abcdef0123456789abcdef01234567",
@@ -783,6 +785,7 @@ export namespace EvidenceBenchmarkSelfTest {
                 workspace,
                 model: "gpt-5.6-terra",
                 effort: "high",
+                writable: false,
               }),
             ],
             accepted: false,
@@ -803,10 +806,17 @@ export namespace EvidenceBenchmarkSelfTest {
                   threadId: index === 0 ? undefined : threadId,
                   model: "gpt-5.6-terra",
                   effort: "high",
+                  writable: name !== "skills-contract",
                 }),
               ],
               accepted: true,
               threadId,
+              ...(name === "skills-contract"
+                ? {
+                    workspaceRestorationSha256:
+                      EvidenceBenchmarkPublication.workspaceSha256(workspace),
+                  }
+                : {}),
               installationReproductionSha256: installationProof,
               lintRestorationSha256:
                 name === "skills-contract"
@@ -1758,6 +1768,32 @@ export namespace EvidenceBenchmarkSelfTest {
       "evidence and plain overlay path sets differ",
     );
 
+    const unauthorizedShared: string = path.join(
+      temporary,
+      "unauthorized-shared-overlay-path",
+    );
+    fs.cpSync(fixture, unauthorizedShared, { recursive: true });
+    for (const arm of ["evidence", "plain"])
+      write(
+        path.join(
+          unauthorizedShared,
+          "benchmark",
+          "template",
+          arm,
+          "packages/backend/src/providers/ArmSpecificProvider.ts",
+        ),
+        `export const ARM = ${JSON.stringify(arm)};\n`,
+      );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkTemplate.compose({
+          template: path.join(unauthorizedShared, "benchmark", "template"),
+          arm: "evidence",
+          variables,
+        }),
+      "plain overlay and authorized treatment surface path sets differ",
+    );
+
     const missing: string = path.join(temporary, "missing-overlay-path");
     fs.cpSync(fixture, missing, { recursive: true });
     fs.rmSync(
@@ -2014,10 +2050,30 @@ export namespace EvidenceBenchmarkSelfTest {
       path.join(repository, "benchmark", "src", "EvidenceBenchmarkSandbox.ts"),
       "utf8",
     );
+    const writableInvocation: string = JSON.stringify(
+      EvidenceBenchmarkTurnLedger.invocationArguments({
+        workspace: repository,
+        model: "fixture-model",
+        effort: "fixture-effort",
+      }),
+    );
+    const readOnlyInvocation: string = JSON.stringify(
+      EvidenceBenchmarkTurnLedger.invocationArguments({
+        workspace: repository,
+        model: "fixture-model",
+        effort: "fixture-effort",
+        writable: false,
+      }),
+    );
     assert.match(
-      `${turnLedgerSource}\n${sandboxSource}`,
-      /"--ignore-user-config"[\s\S]+"--ignore-rules"[\s\S]+"--strict-config"[\s\S]+default_permissions="benchmark-cell"[\s\S]+permissions\.benchmark-cell\.extends=":workspace"[\s\S]+filesystem\.":root"="deny"[\s\S]+filesystem\.":minimal"="read"[\s\S]+filesystem\.":slash_tmp"="deny"[\s\S]+network\.enabled=true[\s\S]+network\.domains\."\*"="allow"[\s\S]+network\.domains\."127\.0\.0\.1"="allow"[\s\S]+network\.domains\."localhost"="allow"/,
-      "the retained invocation contract must freeze the permission profile and clean host-policy flags",
+      writableInvocation,
+      /--ignore-user-config[\s\S]+--ignore-rules[\s\S]+--strict-config[\s\S]+default_permissions=\\"benchmark-cell\\"[\s\S]+permissions\.benchmark-cell\.extends=\\"\:workspace\\"[\s\S]+filesystem\.\\"\:root\\"=\\"deny\\"[\s\S]+filesystem\.\\"\:minimal\\"=\\"read\\"[\s\S]+filesystem\.\\"\:slash_tmp\\"=\\"deny\\"[\s\S]+network\.enabled=true[\s\S]+network\.domains\.\\"\*\\"=\\"allow\\"[\s\S]+network\.domains\.\\"127\.0\.0\.1\\"=\\"allow\\"[\s\S]+network\.domains\.\\"localhost\\"=\\"allow\\"/,
+      "the retained writable invocation must freeze its permission profile and clean host-policy flags",
+    );
+    assert.match(
+      readOnlyInvocation,
+      /default_permissions=\\"benchmark-readonly\\"[\s\S]+permissions\.benchmark-readonly\.extends=\\"\:minimal\\"[\s\S]+filesystem\..+=\\"read\\"/,
+      "the skills-contract invocation must make the measured workspace read-only",
     );
     assert.match(
       sandboxSource,
@@ -2040,7 +2096,7 @@ export namespace EvidenceBenchmarkSelfTest {
       "untrusted commands must use the named Codex permission profile",
     );
     assert.match(
-      commandLine,
+      turnLedgerSource,
       /shell_environment_policy\.exclude=\["OPENAI_API_KEY","CODEX_API_KEY","ALL_PROXY","HTTP_PROXY","HTTPS_PROXY","NO_PROXY","NODE_EXTRA_CA_CERTS","SSL_CERT_DIR","SSL_CERT_FILE"\]/,
       "model tools must not inherit Codex authentication or upstream proxy credentials",
     );
@@ -3109,9 +3165,15 @@ export namespace EvidenceBenchmarkSelfTest {
     repository: string,
     temporary: string,
   ): Promise<void> {
+    const freeFormCorpus: string = path.join(
+      repository,
+      "benchmark",
+      "requirements",
+      "free-form-subject",
+    );
     fs.cpSync(
       path.join(repository, "benchmark", "requirements", "todo"),
-      path.join(repository, "benchmark", "requirements", "free-form-subject"),
+      freeFormCorpus,
       { recursive: true },
     );
     const archive: string = path.join(temporary, "fake.tgz");
@@ -3169,6 +3231,7 @@ export namespace EvidenceBenchmarkSelfTest {
           });
         }
     } finally {
+      fs.rmSync(freeFormCorpus, { recursive: true, force: true });
       if (inheritedNestiaLoader === undefined)
         delete process.env.NESTIA_SDK_TRANSFORM;
       else process.env.NESTIA_SDK_TRANSFORM = inheritedNestiaLoader;

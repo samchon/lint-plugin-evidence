@@ -40,6 +40,7 @@ export namespace EvidenceBenchmarkCommandLine {
     accepted: boolean;
     threadId?: string;
     modelPid?: number;
+    workspaceRestorationSha256?: string;
     lintRestorationSha256?: string;
     installationReproductionSha256?: string;
   }
@@ -56,7 +57,7 @@ export namespace EvidenceBenchmarkCommandLine {
   }
 
   interface IState {
-    schemaVersion: 8;
+    schemaVersion: 9;
     workflow: typeof WORKFLOW;
     instructionsTreeSha256: string;
     project: IEvidenceBenchmarkMaterialization.Project;
@@ -71,6 +72,7 @@ export namespace EvidenceBenchmarkCommandLine {
     elapsedMs: number;
     status: "running" | "interrupted" | "completed";
     controllerPid: number;
+    initialWorkspaceTreeSha256: string;
     completedWorkspaceTreeSha256?: string;
     threadId?: string;
     turns: ITurn[];
@@ -244,7 +246,7 @@ export namespace EvidenceBenchmarkCommandLine {
       throw new Error(`Resumable state was not found: ${statePath}.`);
     const state: IState = JSON.parse(fs.readFileSync(statePath, "utf8"));
     if (
-      state.schemaVersion !== 8 ||
+      state.schemaVersion !== 9 ||
       state.workflow !== WORKFLOW ||
       state.engine !== ENGINE ||
       state.model !== MODEL ||
@@ -252,6 +254,8 @@ export namespace EvidenceBenchmarkCommandLine {
       state.cliVersion !== EvidenceBenchmarkSandbox.version() ||
       !Number.isSafeInteger(state.controllerPid) ||
       state.controllerPid <= 0 ||
+      typeof state.initialWorkspaceTreeSha256 !== "string" ||
+      !/^[0-9a-f]{64}$/.test(state.initialWorkspaceTreeSha256) ||
       !Array.isArray(state.lintBaselines) ||
       !Array.isArray(state.turns)
     )
@@ -371,7 +375,12 @@ export namespace EvidenceBenchmarkCommandLine {
           } catch {}
           if (
             restorationVerified &&
-            restoration === accepted.lintRestorationSha256
+            restoration === accepted.lintRestorationSha256 &&
+            (entry.name !== "skills-contract" ||
+              (accepted.workspaceRestorationSha256 ===
+                state.initialWorkspaceTreeSha256 &&
+                EvidenceBenchmarkPublication.workspaceSha256(workspace) ===
+                  state.initialWorkspaceTreeSha256))
           )
             continue;
           const index: number = instructions.findIndex(
@@ -386,6 +395,7 @@ export namespace EvidenceBenchmarkCommandLine {
             ) {
               turn.accepted = false;
               delete turn.lintRestorationSha256;
+              delete turn.workspaceRestorationSha256;
             }
           writeState(root, state);
         }
@@ -418,6 +428,11 @@ export namespace EvidenceBenchmarkCommandLine {
         if (state.threadId === undefined)
           throw new Error(
             `${entry.name} resume attempt succeeded without a resumable thread ID.`,
+          );
+        if (entry.name === "skills-contract")
+          turn.workspaceRestorationSha256 = assertSkillsContractRestored(
+            workspace,
+            state.initialWorkspaceTreeSha256,
           );
         turn.installationReproductionSha256 =
           await EvidenceBenchmarkSetup.assertReproducible(
@@ -536,7 +551,7 @@ export namespace EvidenceBenchmarkCommandLine {
       const logs: string = path.join(root, "logs");
       fs.mkdirSync(logs, { recursive: false });
       state = {
-        schemaVersion: 8,
+        schemaVersion: 9,
         workflow: WORKFLOW,
         instructionsTreeSha256: freezeInstructions(root, props.instructions),
         project: props.project,
@@ -551,6 +566,10 @@ export namespace EvidenceBenchmarkCommandLine {
         elapsedMs: elapsed(started),
         status: "running",
         controllerPid: process.pid,
+        initialWorkspaceTreeSha256:
+          EvidenceBenchmarkPublication.workspaceSha256(
+            materialization.workspace,
+          ),
         turns: [],
       };
       writeState(root, state);
@@ -578,6 +597,11 @@ export namespace EvidenceBenchmarkCommandLine {
         if (state.threadId === undefined)
           throw new Error(
             `${entry.name} turn succeeded without a resumable thread ID.`,
+          );
+        if (entry.name === "skills-contract")
+          turn.workspaceRestorationSha256 = assertSkillsContractRestored(
+            materialization.workspace,
+            state.initialWorkspaceTreeSha256,
           );
         turn.installationReproductionSha256 =
           await EvidenceBenchmarkSetup.assertReproducible(
@@ -659,6 +683,7 @@ export namespace EvidenceBenchmarkCommandLine {
       threadId: props.threadId,
       model: MODEL,
       effort: EFFORT,
+      writable: props.name !== "skills-contract",
     });
     const executable: EvidenceBenchmarkSandbox.IExecutable =
       EvidenceBenchmarkSandbox.resolveExecutable();
@@ -1082,6 +1107,19 @@ export namespace EvidenceBenchmarkCommandLine {
       backendPackageName: `@evidence-benchmark/${stem}-backend`,
       frontendPackageName: `@evidence-benchmark/${stem}-frontend`,
     };
+  }
+
+  function assertSkillsContractRestored(
+    workspace: string,
+    expected: string,
+  ): string {
+    const actual: string =
+      EvidenceBenchmarkPublication.workspaceSha256(workspace);
+    if (actual !== expected)
+      throw new Error(
+        `The read-only skills-contract turn changed the measured workspace: expected ${expected}, received ${actual}.`,
+      );
+    return actual;
   }
 
   async function verifyLintRestoration(props: {

@@ -34,20 +34,28 @@ export namespace EvidenceBenchmarkSandbox {
   }
 
   /** Exact permission-profile arguments shared by model and gate launches. */
-  export function permissionProfileArguments(authority: IAuthority): string[] {
+  export function permissionProfileArguments(
+    authority: IAuthority,
+    access: "read" | "write" = "write",
+  ): string[] {
+    const profile: string =
+      access === "write" ? "benchmark-cell" : "benchmark-readonly";
     const permissionRead = (location: string): string =>
-      `permissions.benchmark-cell.filesystem.${JSON.stringify(path.resolve(location))}="read"`;
+      `permissions.${profile}.filesystem.${JSON.stringify(path.resolve(location))}="read"`;
     return [
       "--config",
-      'default_permissions="benchmark-cell"',
+      `default_permissions="${profile}"`,
       "--config",
-      'permissions.benchmark-cell.extends=":workspace"',
+      `permissions.${profile}.extends="${access === "write" ? ":workspace" : ":minimal"}"`,
       "--config",
-      'permissions.benchmark-cell.filesystem.":root"="deny"',
+      `permissions.${profile}.filesystem.":root"="deny"`,
       "--config",
-      'permissions.benchmark-cell.filesystem.":minimal"="read"',
+      `permissions.${profile}.filesystem.":minimal"="read"`,
       "--config",
-      'permissions.benchmark-cell.filesystem.":slash_tmp"="deny"',
+      `permissions.${profile}.filesystem.":slash_tmp"="deny"`,
+      ...(access === "read"
+        ? ["--config", permissionRead(authority.workspace)]
+        : []),
       "--config",
       permissionRead(authority.toolchain),
       "--config",
@@ -61,13 +69,13 @@ export namespace EvidenceBenchmarkSandbox {
       "--config",
       permissionRead(EvidenceBenchmarkProcess.corepackEntrypoint()),
       "--config",
-      "permissions.benchmark-cell.network.enabled=true",
+      `permissions.${profile}.network.enabled=true`,
       "--config",
-      'permissions.benchmark-cell.network.domains."*"="allow"',
+      `permissions.${profile}.network.domains."*"="allow"`,
       "--config",
-      'permissions.benchmark-cell.network.domains."127.0.0.1"="allow"',
+      `permissions.${profile}.network.domains."127.0.0.1"="allow"`,
       "--config",
-      'permissions.benchmark-cell.network.domains."localhost"="allow"',
+      `permissions.${profile}.network.domains."localhost"="allow"`,
     ];
   }
 
