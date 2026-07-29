@@ -123,6 +123,8 @@ export namespace EvidenceBenchmarkTurnLedger {
       "--ignore-user-config",
       "--ignore-rules",
       "--strict-config",
+      "--config",
+      "hooks=[]",
       ...permissionProfileArguments(
         props.workspace,
         props.writable === false ? "read" : "write",

@@ -177,21 +177,22 @@ export namespace EvidenceBenchmarkSelfTest {
       { PATH: "safe" },
       "workspace-authored commands must not inherit model or proxy credentials",
     );
+    const sandboxAuthority = {
+      workspace: "C:/cell/workspace",
+      toolchain: "C:/cell/cache/toolchain-bin",
+      corepack: "C:/cell/cache/corepack",
+      npmConfig: "C:/cell/inputs/npmrc",
+      gitConfig: "C:/cell/inputs/gitconfig",
+    };
     const sandboxArguments: string[] = EvidenceBenchmarkSandbox.argumentsFor(
-      {
-        workspace: "C:/cell/workspace",
-        toolchain: "C:/cell/cache/toolchain-bin",
-        corepack: "C:/cell/cache/corepack",
-        npmConfig: "C:/cell/inputs/npmrc",
-        gitConfig: "C:/cell/inputs/gitconfig",
-      },
+      sandboxAuthority,
       process.execPath,
       ["probe.js"],
     );
     assert.equal(sandboxArguments[0], "sandbox");
     assert.deepEqual(sandboxArguments.slice(1, 4), [
       "--permission-profile",
-      "benchmark-cell",
+      EvidenceBenchmarkSandbox.permissionProfileName(sandboxAuthority),
       "--include-managed-config",
     ]);
     assert.equal(
@@ -673,8 +674,20 @@ export namespace EvidenceBenchmarkSelfTest {
     const armTreeSha256: string = EvidenceBenchmarkHash.bytes("fixture arm");
     const workspaceTreeSha256: string =
       EvidenceBenchmarkHash.bytes("fixture workspace");
+    const caches = {
+      home: path.join(runRoot, "cache", "home"),
+      corepack: path.join(runRoot, "cache", "corepack"),
+      pnpm: path.join(workspace, ".benchmark-cache", "pnpm-store"),
+      ttsc: path.join(workspace, ".benchmark-cache", "ttsc"),
+      go: path.join(workspace, ".benchmark-cache", "go-build"),
+      goModules: path.join(workspace, ".benchmark-cache", "go-modules"),
+      goPath: path.join(workspace, ".benchmark-cache", "go-path"),
+      playwright: path.join(workspace, ".benchmark-cache", "playwright"),
+      temp: path.join(workspace, ".benchmark-cache", "tmp"),
+      toolchain: path.join(runRoot, "cache", "toolchain-bin"),
+    };
     const materialization = {
-      schemaVersion: 6,
+      schemaVersion: 7,
       treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
       project: "todo",
       arm: "evidence",
@@ -685,6 +698,7 @@ export namespace EvidenceBenchmarkSelfTest {
       workspaceTreeSha256,
       requirementFiles,
       lintBaselines,
+      caches,
       artifact: {
         sourceCommit: "0123456789abcdef0123456789abcdef01234567",
         sha256: archiveSha256,
@@ -701,6 +715,7 @@ export namespace EvidenceBenchmarkSelfTest {
         product: archiveSha256,
         workspace: workspaceTreeSha256,
         lintBaselines,
+        caches,
       }),
     };
     write(materializationPath, `${JSON.stringify(materialization)}\n`);
@@ -2067,12 +2082,12 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     assert.match(
       writableInvocation,
-      /--ignore-user-config[\s\S]+--ignore-rules[\s\S]+--strict-config[\s\S]+default_permissions=\\"benchmark-cell\\"[\s\S]+permissions\.benchmark-cell\.extends=\\"\:workspace\\"[\s\S]+filesystem\.\\"\:root\\"=\\"deny\\"[\s\S]+filesystem\.\\"\:minimal\\"=\\"read\\"[\s\S]+filesystem\.\\"\:slash_tmp\\"=\\"deny\\"[\s\S]+network\.enabled=true[\s\S]+network\.domains\.\\"\*\\"=\\"allow\\"[\s\S]+network\.domains\.\\"127\.0\.0\.1\\"=\\"allow\\"[\s\S]+network\.domains\.\\"localhost\\"=\\"allow\\"/,
+      /--ignore-user-config[\s\S]+--ignore-rules[\s\S]+--strict-config[\s\S]+hooks=\[\][\s\S]+default_permissions=\\"benchmark-write-[0-9a-f]{24}\\"[\s\S]+permissions\.benchmark-write-[0-9a-f]{24}\.extends=\\"\:workspace\\"[\s\S]+filesystem\.\\"\:root\\"=\\"deny\\"[\s\S]+filesystem\.\\"\:minimal\\"=\\"read\\"[\s\S]+filesystem\.\\"\:slash_tmp\\"=\\"deny\\"[\s\S]+network\.enabled=true[\s\S]+network\.domains\.\\"\*\\"=\\"allow\\"[\s\S]+network\.domains\.\\"127\.0\.0\.1\\"=\\"allow\\"[\s\S]+network\.domains\.\\"localhost\\"=\\"allow\\"/,
       "the retained writable invocation must freeze its permission profile and clean host-policy flags",
     );
     assert.match(
       readOnlyInvocation,
-      /default_permissions=\\"benchmark-readonly\\"[\s\S]+permissions\.benchmark-readonly\.extends=\\"\:minimal\\"[\s\S]+filesystem\..+=\\"read\\"/,
+      /default_permissions=\\"benchmark-read-[0-9a-f]{24}\\"[\s\S]+permissions\.benchmark-read-[0-9a-f]{24}\.extends=\\"\:minimal\\"[\s\S]+filesystem\..+=\\"read\\"/,
       "the skills-contract invocation must make the measured workspace read-only",
     );
     assert.match(
@@ -2082,7 +2097,7 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     assert.match(
       commandLine,
-      /verifyPermissionProfile\([\s\S]+assertNoLegacyManagedSandbox\(\)[\s\S]+EvidenceBenchmarkSandbox\.argumentsFor\([\s\S]+modelSentinel[\s\S]+runtime\.apiPort/,
+      /verifyPermissionProfile\([\s\S]+assertNoAmbientManagedPolicy\(\)[\s\S]+EvidenceBenchmarkSandbox\.argumentsFor\([\s\S]+modelSentinel[\s\S]+runtime\.apiPort/,
       "the exact Codex permission adapter must pass a filesystem and loopback preflight before measurement",
     );
     assert.match(
@@ -2092,7 +2107,7 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     assert.match(
       sandboxSource,
-      /["']sandbox["'][\s\S]+["']--permission-profile["'][\s\S]+["']benchmark-cell["']/,
+      /permissionProfileName\(authority\)[\s\S]+["']sandbox["'][\s\S]+["']--permission-profile["'][\s\S]+profile/,
       "untrusted commands must use the named Codex permission profile",
     );
     assert.match(
@@ -2656,7 +2671,7 @@ export namespace EvidenceBenchmarkSelfTest {
   async function testPinnedSetup(temporary: string): Promise<void> {
     const root: string = path.join(temporary, "setup-cell");
     const workspace: string = path.join(root, "workspace");
-    const cache: string = path.join(root, "cache");
+    const caches = EvidenceBenchmarkMaterializer.cacheLayout(root);
     write(
       path.join(workspace, "package.json"),
       `${JSON.stringify(
@@ -2694,25 +2709,25 @@ export namespace EvidenceBenchmarkSelfTest {
       lintBaselines: [],
       environment: {
         ...EvidenceBenchmarkMaterializer.hostEnvironment(),
-        HOME: path.join(cache, "home"),
-        USERPROFILE: path.join(cache, "home"),
-        COREPACK_HOME: path.join(cache, "corepack"),
-        npm_config_store_dir: path.join(cache, "pnpm-store"),
+        HOME: caches.home,
+        USERPROFILE: caches.home,
+        COREPACK_HOME: caches.corepack,
+        npm_config_store_dir: caches.pnpm,
         npm_config_userconfig: path.join(root, "inputs", "npmrc"),
         npm_config_globalconfig: path.join(root, "inputs", "npmrc"),
         GIT_CONFIG_NOSYSTEM: "1",
         GIT_CONFIG_GLOBAL: path.join(root, "inputs", "gitconfig"),
-        TTSC_CACHE_DIR: path.join(cache, "ttsc"),
-        TTSC_GO_CACHE_DIR: path.join(cache, "go-build"),
-        GOCACHE: path.join(cache, "go-build"),
+        TTSC_CACHE_DIR: caches.ttsc,
+        TTSC_GO_CACHE_DIR: caches.go,
+        GOCACHE: caches.go,
         GOENV: "off",
-        GOMODCACHE: path.join(cache, "go-modules"),
-        GOPATH: path.join(cache, "go-path"),
-        GOTMPDIR: path.join(cache, "go-tmp"),
-        PLAYWRIGHT_BROWSERS_PATH: path.join(cache, "playwright"),
-        TMPDIR: path.join(cache, "tmp"),
-        TEMP: path.join(cache, "tmp"),
-        TMP: path.join(cache, "tmp"),
+        GOMODCACHE: caches.goModules,
+        GOPATH: caches.goPath,
+        GOTMPDIR: path.join(caches.temp, "go"),
+        PLAYWRIGHT_BROWSERS_PATH: caches.playwright,
+        TMPDIR: caches.temp,
+        TEMP: caches.temp,
+        TMP: caches.temp,
       },
     };
     write(path.join(root, "inputs", "npmrc"), "");
@@ -2720,28 +2735,28 @@ export namespace EvidenceBenchmarkSelfTest {
     write(
       materialization.manifest,
       `${JSON.stringify({
-        schemaVersion: 6,
+        schemaVersion: 7,
         variables: {
           frontendPackageName: "benchmark-setup-self-test",
         },
-        caches: {
-          home: materialization.environment.HOME,
-          corepack: materialization.environment.COREPACK_HOME,
-          pnpm: materialization.environment.npm_config_store_dir,
-          ttsc: materialization.environment.TTSC_CACHE_DIR,
-          go: materialization.environment.GOCACHE,
-          goModules: materialization.environment.GOMODCACHE,
-          goPath: materialization.environment.GOPATH,
-          playwright: materialization.environment.PLAYWRIGHT_BROWSERS_PATH,
-          temp: materialization.environment.TMPDIR,
-          toolchain: path.join(cache, "toolchain-bin"),
-        },
+        caches,
       })}\n`,
     );
-    const setup = await EvidenceBenchmarkSetup.prepare({
+    const directPnpm: EvidenceBenchmarkSetup.ReproductionRunner = (
+      arguments_,
+      options,
+    ) => EvidenceBenchmarkProcess.pnpm(arguments_, options);
+    await EvidenceBenchmarkSetup.bootstrapPackageManager(
       materialization,
-      arm: "plain",
-    });
+      directPnpm,
+    );
+    const setup = await EvidenceBenchmarkSetup.prepare(
+      {
+        materialization,
+        arm: "plain",
+      },
+      directPnpm,
+    );
     const reproduce = (verifyGates: boolean = false): Promise<string> =>
       EvidenceBenchmarkSetup.assertReproducible(
         workspace,
@@ -3698,7 +3713,7 @@ export namespace EvidenceBenchmarkSelfTest {
     const manifest = JSON.parse(
       fs.readFileSync(props.cell.manifest, "utf8"),
     ) as IEvidenceBenchmarkMaterialization.IManifest;
-    assert.equal(manifest.schemaVersion, 6);
+    assert.equal(manifest.schemaVersion, 7);
     assert.ok(manifest.elapsedMs >= 0);
     assert.equal("materializedAt" in manifest, false);
     assert.equal(

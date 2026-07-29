@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -33,15 +34,38 @@ export namespace EvidenceBenchmarkSandbox {
     prefix: string[];
   }
 
+  /** Derives a collision-resistant run-scoped name from frozen authorities. */
+  export function permissionProfileName(
+    authority: IAuthority,
+    access: "bootstrap" | "read" | "write" = "write",
+  ): string {
+    const identity: string = crypto
+      .createHash("sha256")
+      .update(
+        JSON.stringify({
+          access,
+          workspace: path.resolve(authority.workspace),
+          toolchain: path.resolve(authority.toolchain),
+          corepack: path.resolve(authority.corepack),
+          npmConfig: path.resolve(authority.npmConfig),
+          gitConfig: path.resolve(authority.gitConfig),
+        }),
+      )
+      .digest("hex")
+      .slice(0, 24);
+    return `benchmark-${access}-${identity}`;
+  }
+
   /** Exact permission-profile arguments shared by model and gate launches. */
   export function permissionProfileArguments(
     authority: IAuthority,
-    access: "read" | "write" = "write",
+    access: "bootstrap" | "read" | "write" = "write",
   ): string[] {
-    const profile: string =
-      access === "write" ? "benchmark-cell" : "benchmark-readonly";
+    const profile: string = permissionProfileName(authority, access);
     const permissionRead = (location: string): string =>
       `permissions.${profile}.filesystem.${JSON.stringify(path.resolve(location))}="read"`;
+    const permissionWrite = (location: string): string =>
+      `permissions.${profile}.filesystem.${JSON.stringify(path.resolve(location))}="write"`;
     return [
       "--config",
       `default_permissions="${profile}"`,
@@ -53,13 +77,15 @@ export namespace EvidenceBenchmarkSandbox {
       `permissions.${profile}.filesystem.":minimal"="read"`,
       "--config",
       `permissions.${profile}.filesystem.":slash_tmp"="deny"`,
-      ...(access === "read"
+      ...(access !== "write"
         ? ["--config", permissionRead(authority.workspace)]
         : []),
       "--config",
       permissionRead(authority.toolchain),
       "--config",
-      permissionRead(authority.corepack),
+      access === "bootstrap"
+        ? permissionWrite(authority.corepack)
+        : permissionRead(authority.corepack),
       "--config",
       permissionRead(authority.npmConfig),
       "--config",
@@ -84,15 +110,17 @@ export namespace EvidenceBenchmarkSandbox {
     authority: IAuthority,
     command: string,
     arguments_: readonly string[],
+    access: "bootstrap" | "write" = "write",
   ): string[] {
+    const profile: string = permissionProfileName(authority, access);
     return [
       "sandbox",
       "--permission-profile",
-      "benchmark-cell",
+      profile,
       "--include-managed-config",
       "--cd",
       authority.workspace,
-      ...permissionProfileArguments(authority),
+      ...permissionProfileArguments(authority, access),
       "--",
       command,
       ...arguments_,
@@ -105,11 +133,15 @@ export namespace EvidenceBenchmarkSandbox {
     command: string,
     arguments_: readonly string[],
     options: EvidenceBenchmarkProcess.IOptions,
+    access: "bootstrap" | "write" = "write",
   ): Promise<EvidenceBenchmarkProcess.IResult> {
     const executable: IExecutable = resolveExecutable();
     return EvidenceBenchmarkProcess.run(
       executable.command,
-      [...executable.prefix, ...argumentsFor(authority, command, arguments_)],
+      [
+        ...executable.prefix,
+        ...argumentsFor(authority, command, arguments_, access),
+      ],
       options,
     );
   }

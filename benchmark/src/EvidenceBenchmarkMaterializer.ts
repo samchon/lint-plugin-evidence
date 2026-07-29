@@ -6,6 +6,7 @@ import { EvidenceBenchmarkAtomic } from "./EvidenceBenchmarkAtomic.ts";
 import { EvidenceBenchmarkCorpus } from "./EvidenceBenchmarkCorpus.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
+import { EvidenceBenchmarkPath } from "./EvidenceBenchmarkPath.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 import { EvidenceBenchmarkProject } from "./EvidenceBenchmarkProject.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
@@ -13,6 +14,61 @@ import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBe
 
 /** Atomically materializes one benchmark workspace and immutable input ledger. */
 export namespace EvidenceBenchmarkMaterializer {
+  /** Returns the only cache authority layout admitted for one cell root. */
+  export function cacheLayout(
+    root: string,
+  ): IEvidenceBenchmarkMaterialization.IManifest["caches"] {
+    const output: string = path.resolve(root);
+    const workspaceCache: string = path.join(
+      output,
+      "workspace",
+      ".benchmark-cache",
+    );
+    return {
+      home: path.join(output, "cache", "home"),
+      corepack: path.join(output, "cache", "corepack"),
+      pnpm: path.join(workspaceCache, "pnpm-store"),
+      ttsc: path.join(workspaceCache, "ttsc"),
+      go: path.join(workspaceCache, "go-build"),
+      goModules: path.join(workspaceCache, "go-modules"),
+      goPath: path.join(workspaceCache, "go-path"),
+      playwright: path.join(workspaceCache, "playwright"),
+      temp: path.join(workspaceCache, "tmp"),
+      toolchain: path.join(output, "cache", "toolchain-bin"),
+    };
+  }
+
+  /** Rejects cache authority that drifted outside the canonical cell layout. */
+  export function assertCacheLayout(
+    root: string,
+    input: unknown,
+  ): asserts input is IEvidenceBenchmarkMaterialization.IManifest["caches"] {
+    if (typeof input !== "object" || input === null || Array.isArray(input))
+      throw new Error("Benchmark materialization has no cache authority map.");
+    const actual = input as Record<string, unknown>;
+    const expected = cacheLayout(root);
+    const expectedKeys: readonly string[] = Object.keys(expected).sort();
+    if (
+      JSON.stringify(Object.keys(actual).sort()) !==
+      JSON.stringify(expectedKeys)
+    )
+      throw new Error(
+        "Benchmark materialization cache authority inventory drifted.",
+      );
+    for (const key of expectedKeys) {
+      const value: unknown = actual[key];
+      const canonical: string = expected[key as keyof typeof expected];
+      if (
+        typeof value !== "string" ||
+        path.resolve(value) !== path.resolve(canonical)
+      )
+        throw new Error(
+          `Benchmark materialization cache authority drifted: ${key}.`,
+        );
+      EvidenceBenchmarkPath.assertInside(root, value, `benchmark cache ${key}`);
+    }
+  }
+
   /**
    * Returns the minimal host environment needed by portable child processes.
    *
@@ -144,7 +200,7 @@ export namespace EvidenceBenchmarkMaterializer {
       throwIfNoEntry: false,
     });
     if (
-      manifest.schemaVersion !== 6 ||
+      manifest.schemaVersion !== 7 ||
       !stat?.isDirectory() ||
       stat.isSymbolicLink()
     )
@@ -187,7 +243,9 @@ export namespace EvidenceBenchmarkMaterializer {
       throw new Error(
         `Benchmark materialization refuses to overwrite an existing cell: ${output}.`,
       );
+    EvidenceBenchmarkPath.assertSymlinkFree(parent, "materialization parent");
     fs.mkdirSync(parent, { recursive: true });
+    EvidenceBenchmarkPath.assertDirectory(parent, "materialization parent");
     const stage: string = path.join(
       parent,
       `.${path.basename(output)}.${process.pid}.${crypto.randomUUID()}.tmp`,
@@ -246,25 +304,9 @@ export namespace EvidenceBenchmarkMaterializer {
         EvidenceBenchmarkHash.tree(workspaceFiles);
       const requirementsTreeSha256: string =
         EvidenceBenchmarkHash.tree(requirementFiles);
-      const cacheRoot: string = path.join(
-        output,
-        "workspace",
-        ".benchmark-cache",
-      );
-      const caches = {
-        home: path.join(output, "cache", "home"),
-        corepack: path.join(output, "cache", "corepack"),
-        pnpm: path.join(cacheRoot, "pnpm-store"),
-        ttsc: path.join(cacheRoot, "ttsc"),
-        go: path.join(cacheRoot, "go-build"),
-        goModules: path.join(cacheRoot, "go-modules"),
-        goPath: path.join(cacheRoot, "go-path"),
-        playwright: path.join(cacheRoot, "playwright"),
-        temp: path.join(cacheRoot, "tmp"),
-        toolchain: path.join(output, "cache", "toolchain-bin"),
-      };
+      const caches = cacheLayout(output);
       const manifestRecord: IEvidenceBenchmarkMaterialization.IManifest = {
-        schemaVersion: 6,
+        schemaVersion: 7,
         treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
         project,
         arm: request.arm,
@@ -289,6 +331,7 @@ export namespace EvidenceBenchmarkMaterializer {
           product: request.artifact.sha256,
           workspace: workspaceTreeSha256,
           lintBaselines,
+          caches,
         }),
         workspaceFiles: EvidenceBenchmarkHash.entries(workspaceFiles),
         requirementFiles: EvidenceBenchmarkHash.entries(requirementFiles),
@@ -364,6 +407,7 @@ export namespace EvidenceBenchmarkMaterializer {
         `${JSON.stringify(manifestRecord, null, 2)}\n`,
         { encoding: "utf8", flag: "wx" },
       );
+      EvidenceBenchmarkPath.assertDirectory(parent, "materialization parent");
       await EvidenceBenchmarkAtomic.publish(stage, output);
       environment.PATH = (environment.PATH ?? "")
         .split(path.delimiter)

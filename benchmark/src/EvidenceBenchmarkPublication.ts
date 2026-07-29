@@ -288,7 +288,7 @@ export namespace EvidenceBenchmarkPublication {
       schemaVersion: unknown;
     };
     if (
-      manifest.schemaVersion !== 6 ||
+      manifest.schemaVersion !== 7 ||
       manifest.project !== request.project ||
       manifest.arm !== request.arm ||
       manifest.artifact.sourceCommit !== state.sourceCommit ||
@@ -305,6 +305,7 @@ export namespace EvidenceBenchmarkPublication {
           product: manifest.artifact.sha256,
           workspace: manifest.workspaceTreeSha256,
           lintBaselines: manifest.lintBaselines,
+          caches: manifest.caches,
         }) ||
       EvidenceBenchmarkHash.object(manifest.lintBaselines) !==
         EvidenceBenchmarkHash.object(state.lintBaselines) ||
@@ -317,6 +318,7 @@ export namespace EvidenceBenchmarkPublication {
       throw new Error(
         "Publication materialization provenance failed verification.",
       );
+    EvidenceBenchmarkMaterializer.assertCacheLayout(runRoot, manifest.caches);
     const workspace: string = path.join(runRoot, "workspace");
     const workspaceStat: fs.Stats | undefined = fs.lstatSync(workspace, {
       throwIfNoEntry: false,

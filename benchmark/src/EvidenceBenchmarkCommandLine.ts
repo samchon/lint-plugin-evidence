@@ -9,6 +9,7 @@ import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
+import { EvidenceBenchmarkPath } from "./EvidenceBenchmarkPath.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 import { EvidenceBenchmarkProject } from "./EvidenceBenchmarkProject.ts";
 import { EvidenceBenchmarkPublication } from "./EvidenceBenchmarkPublication.ts";
@@ -240,7 +241,9 @@ export namespace EvidenceBenchmarkCommandLine {
       "runs",
       runId!,
     );
-    assertInside(resultsRoot, root, "resume root");
+    EvidenceBenchmarkPath.assertInside(repository, resultsRoot, "result root");
+    EvidenceBenchmarkPath.assertInside(resultsRoot, root, "resume root");
+    EvidenceBenchmarkPath.assertDirectory(root, "resume root");
     const statePath: string = path.join(root, "run.json");
     if (!fs.existsSync(statePath))
       throw new Error(`Resumable state was not found: ${statePath}.`);
@@ -299,6 +302,8 @@ export namespace EvidenceBenchmarkCommandLine {
     const logs: string = path.join(root, "logs");
     if (!fs.existsSync(workspace) || !fs.existsSync(logs))
       throw new Error(`Run ${runId} has no resumable workspace and logs.`);
+    EvidenceBenchmarkPath.assertDirectory(workspace, "resume workspace");
+    EvidenceBenchmarkPath.assertDirectory(logs, "resume logs");
     if (
       state.controllerPid !== process.pid &&
       processAlive(state.controllerPid)
@@ -499,13 +504,18 @@ export namespace EvidenceBenchmarkCommandLine {
       "runs",
       props.runId,
     );
-    const relativeRoot: string = path.relative(resultsRoot, root);
-    if (
-      relativeRoot === "" ||
-      relativeRoot.startsWith(`..${path.sep}`) ||
-      path.isAbsolute(relativeRoot)
-    )
-      throw new Error(`Benchmark cell root escaped the result tree: ${root}.`);
+    EvidenceBenchmarkPath.assertInside(
+      props.repository,
+      resultsRoot,
+      "result root",
+    );
+    fs.mkdirSync(resultsRoot, { recursive: true });
+    EvidenceBenchmarkPath.assertDirectory(resultsRoot, "result root");
+    EvidenceBenchmarkPath.assertInside(
+      resultsRoot,
+      root,
+      "benchmark cell root",
+    );
     let state: IState | undefined;
     let phase: string = "setup";
     try {
@@ -529,6 +539,14 @@ export namespace EvidenceBenchmarkCommandLine {
         materialization.workspace,
         props.runtime,
       );
+      await EvidenceBenchmarkSetup.bootstrapPackageManager(materialization);
+      materialization.environment.CODEX_HOME = prepareModelHome(root);
+      await verifyPermissionProfile({
+        workspace: materialization.workspace,
+        root,
+        environment: materialization.environment,
+        runtime: props.runtime,
+      });
       await EvidenceBenchmarkSetup.prepare({
         materialization,
         arm: props.arm,
@@ -537,13 +555,6 @@ export namespace EvidenceBenchmarkCommandLine {
         materialization.workspace,
         materialization.environment,
       );
-      materialization.environment.CODEX_HOME = prepareModelHome(root);
-      await verifyPermissionProfile({
-        workspace: materialization.workspace,
-        root,
-        environment: materialization.environment,
-        runtime: props.runtime,
-      });
       await EvidenceBenchmarkSetup.assertReproducible(
         materialization.workspace,
         root,
@@ -792,7 +803,7 @@ export namespace EvidenceBenchmarkCommandLine {
     environment: NodeJS.ProcessEnv;
     runtime: EvidenceBenchmarkRuntime.IAssignment;
   }): Promise<void> {
-    assertNoLegacyManagedSandbox();
+    assertNoAmbientManagedPolicy();
     const scratch: string = path.join(
       props.workspace,
       ".benchmark-cache",
@@ -873,7 +884,7 @@ export namespace EvidenceBenchmarkCommandLine {
                 process.platform === "win32" ? "pnpm.cmd" : "pnpm",
               ),
               firstRegularFile(path.join(props.root, "cache", "corepack")),
-              path.join(props.root, "setup.json"),
+              path.join(props.root, "materialization.json"),
               modelSentinel,
               String(props.runtime.apiPort),
             ],
@@ -900,7 +911,7 @@ export namespace EvidenceBenchmarkCommandLine {
     }
   }
 
-  function assertNoLegacyManagedSandbox(): void {
+  function assertNoAmbientManagedPolicy(): void {
     const candidates: readonly string[] =
       process.platform === "win32"
         ? [path.join(os.homedir(), ".codex", "managed_config.toml")]
@@ -908,12 +919,10 @@ export namespace EvidenceBenchmarkCommandLine {
     for (const candidate of candidates)
       if (
         fs.existsSync(candidate) &&
-        /^\s*["']?sandbox_mode["']?\s*=/m.test(
-          fs.readFileSync(candidate, "utf8"),
-        )
+        hasTomlPolicy(fs.readFileSync(candidate, "utf8"))
       )
         throw new Error(
-          `Benchmark permission profiles cannot run with managed legacy sandbox_mode: ${candidate}.`,
+          `Benchmark permission profiles cannot run with ambient managed policy: ${candidate}.`,
         );
     if (process.platform !== "darwin") return;
     const managed = spawnSync(
@@ -923,12 +932,20 @@ export namespace EvidenceBenchmarkCommandLine {
     );
     if (
       managed.status === 0 &&
-      /^\s*["']?sandbox_mode["']?\s*=/m.test(
+      hasTomlPolicy(
         Buffer.from((managed.stdout ?? "").trim(), "base64").toString("utf8"),
       )
     )
       throw new Error(
-        "Benchmark permission profiles cannot run with managed macOS legacy sandbox_mode.",
+        "Benchmark permission profiles cannot run with ambient managed macOS policy.",
+      );
+  }
+
+  function hasTomlPolicy(content: string): boolean {
+    return content
+      .split(/\r?\n/)
+      .some(
+        (line) => line.trim().length !== 0 && !line.trimStart().startsWith("#"),
       );
   }
 
@@ -1173,7 +1190,7 @@ export namespace EvidenceBenchmarkCommandLine {
       schemaVersion: unknown;
     };
     if (
-      manifest.schemaVersion !== 6 ||
+      manifest.schemaVersion !== 7 ||
       manifest.artifact.sourceCommit !== state.sourceCommit ||
       !path.basename(root).startsWith(`${state.sourceCommit.slice(0, 12)}-`) ||
       manifest.inputSha256 !==
@@ -1188,6 +1205,7 @@ export namespace EvidenceBenchmarkCommandLine {
           product: manifest.artifact.sha256,
           workspace: manifest.workspaceTreeSha256,
           lintBaselines: manifest.lintBaselines,
+          caches: manifest.caches,
         }) ||
       EvidenceBenchmarkHash.object(manifest.lintBaselines) !==
         EvidenceBenchmarkHash.object(state.lintBaselines)
@@ -1195,6 +1213,7 @@ export namespace EvidenceBenchmarkCommandLine {
       throw new Error(
         `Run ${path.basename(root)} does not retain its materialized lint baselines.`,
       );
+    EvidenceBenchmarkMaterializer.assertCacheLayout(root, manifest.caches);
   }
 
   function writeState(root: string, state: IState): void {
@@ -1386,6 +1405,7 @@ export namespace EvidenceBenchmarkCommandLine {
     const manifest = JSON.parse(
       fs.readFileSync(path.join(root, "materialization.json"), "utf8"),
     ) as IEvidenceBenchmarkMaterialization.IManifest;
+    EvidenceBenchmarkMaterializer.assertCacheLayout(root, manifest.caches);
     const environment: NodeJS.ProcessEnv = {
       ...EvidenceBenchmarkMaterializer.hostEnvironment(),
       HOME: manifest.caches.home,

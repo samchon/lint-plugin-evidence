@@ -27,6 +27,41 @@ export namespace EvidenceBenchmarkSetup {
   ) => void;
 
   /**
+   * Downloads the pinned package-manager payload inside a one-purpose sandbox.
+   * Only the empty cell-owned Corepack cache receives additional write access.
+   */
+  export async function bootstrapPackageManager(
+    materialization: IEvidenceBenchmarkMaterialization,
+    runPnpm: ReproductionRunner = sandboxedBootstrapPnpm,
+  ): Promise<void> {
+    const environment: NodeJS.ProcessEnv =
+      EvidenceBenchmarkMaterializer.untrustedEnvironment(
+        materialization.environment,
+      );
+    const authority: EvidenceBenchmarkSandbox.IAuthority = {
+      workspace: materialization.workspace,
+      toolchain: path.join(materialization.root, "cache", "toolchain-bin"),
+      corepack: environment.COREPACK_HOME!,
+      npmConfig: EvidenceBenchmarkMaterializer.npmConfig(materialization.root),
+      gitConfig: EvidenceBenchmarkMaterializer.gitConfig(materialization.root),
+    };
+    fs.mkdirSync(authority.corepack, { recursive: true });
+    const result = await runPnpm(
+      ["--version"],
+      {
+        cwd: materialization.workspace,
+        env: environment,
+        label: "benchmark package manager bootstrap",
+      },
+      authority,
+    );
+    if (result.stdout.trim() !== EvidenceBenchmarkProcess.PNPM_VERSION)
+      throw new Error(
+        `Benchmark setup requires pnpm ${EvidenceBenchmarkProcess.PNPM_VERSION}, received ${result.stdout.trim()}.`,
+      );
+  }
+
+  /**
    * Creates the lockfile, performs a frozen install, and records setup timing.
    *
    * The native lint binary is deliberately not invoked here: its first source
@@ -35,6 +70,7 @@ export namespace EvidenceBenchmarkSetup {
    */
   export async function prepare(
     request: IEvidenceBenchmarkSetup.IRequest,
+    runPnpm: ReproductionRunner = sandboxedPnpm,
   ): Promise<IEvidenceBenchmarkSetup> {
     const started: bigint = process.hrtime.bigint();
     const workspace: string = request.materialization.workspace;
@@ -59,35 +95,56 @@ export namespace EvidenceBenchmarkSetup {
     fs.mkdirSync(environment.GOTMPDIR!, { recursive: true });
     fs.mkdirSync(environment.PLAYWRIGHT_BROWSERS_PATH!, { recursive: true });
     fs.mkdirSync(environment.TMPDIR!, { recursive: true });
+    const authority: EvidenceBenchmarkSandbox.IAuthority = {
+      workspace,
+      toolchain: path.join(
+        request.materialization.root,
+        "cache",
+        "toolchain-bin",
+      ),
+      corepack: environment.COREPACK_HOME!,
+      npmConfig: EvidenceBenchmarkMaterializer.npmConfig(
+        request.materialization.root,
+      ),
+      gitConfig: EvidenceBenchmarkMaterializer.gitConfig(
+        request.materialization.root,
+      ),
+    };
 
-    const pnpm = await EvidenceBenchmarkProcess.pnpm(["--version"], {
-      cwd: workspace,
-      env: environment,
-      label: "benchmark pnpm version",
-    });
+    const pnpm = await runPnpm(
+      ["--version"],
+      {
+        cwd: workspace,
+        env: environment,
+        label: "benchmark pnpm version",
+      },
+      authority,
+    );
     if (pnpm.stdout.trim() !== EvidenceBenchmarkProcess.PNPM_VERSION)
       throw new Error(
         `Benchmark setup requires pnpm ${EvidenceBenchmarkProcess.PNPM_VERSION}, received ${pnpm.stdout.trim()}.`,
       );
-    const lock = await EvidenceBenchmarkProcess.pnpm(
+    const lock = await runPnpm(
       ["install", "--lockfile-only", "--no-frozen-lockfile"],
       {
         cwd: workspace,
         env: environment,
         label: "benchmark dependency lock",
       },
+      authority,
     );
     const lockfile: string = path.join(workspace, "pnpm-lock.yaml");
     if (!fs.existsSync(lockfile))
       throw new Error("Benchmark setup did not produce pnpm-lock.yaml.");
     const beforeInstall: string = EvidenceBenchmarkHash.file(lockfile);
-    const install = await EvidenceBenchmarkProcess.pnpm(
+    const install = await runPnpm(
       ["install", "--frozen-lockfile"],
       {
         cwd: workspace,
         env: environment,
         label: "benchmark frozen dependency install",
       },
+      authority,
     );
     const afterInstall: string = EvidenceBenchmarkHash.file(lockfile);
     if (beforeInstall !== afterInstall)
@@ -338,7 +395,7 @@ export namespace EvidenceBenchmarkSetup {
       parsed === null ||
       Array.isArray(parsed) ||
       !("schemaVersion" in parsed) ||
-      parsed.schemaVersion !== 6
+      parsed.schemaVersion !== 7
     )
       throw new Error(
         "Benchmark dependency reproduction requires a current materialization manifest.",
@@ -360,6 +417,7 @@ export namespace EvidenceBenchmarkSetup {
         "Benchmark dependency reproduction requires the rendered frontend package identity.",
       );
     const caches: unknown = record.caches;
+    EvidenceBenchmarkMaterializer.assertCacheLayout(root, caches);
     const corepack: unknown =
       typeof caches === "object" &&
       caches !== null &&
@@ -523,6 +581,24 @@ export namespace EvidenceBenchmarkSetup {
         ...arguments_,
       ],
       options,
+    );
+  }
+
+  function sandboxedBootstrapPnpm(
+    arguments_: readonly string[],
+    options: EvidenceBenchmarkProcess.IOptions,
+    authority: EvidenceBenchmarkSandbox.IAuthority,
+  ): Promise<EvidenceBenchmarkProcess.IResult> {
+    return EvidenceBenchmarkSandbox.run(
+      authority,
+      process.execPath,
+      [
+        EvidenceBenchmarkProcess.corepackEntrypoint(),
+        `pnpm@${EvidenceBenchmarkProcess.PNPM_VERSION}`,
+        ...arguments_,
+      ],
+      options,
+      "bootstrap",
     );
   }
 
@@ -1107,9 +1183,7 @@ export namespace EvidenceBenchmarkSetup {
   }
 
   function normalizeWorkspacePath(input: string, workspace: string): string {
-    const workspaces: readonly string[] = [
-      ...new Set([path.resolve(workspace), fs.realpathSync(workspace)]),
-    ];
+    const workspaces: readonly string[] = workspaceAliases(workspace);
     const variants: [string, string][] = [
       ...workspaces.flatMap((root) =>
         pathSpellings(root).map(
@@ -1128,6 +1202,26 @@ export namespace EvidenceBenchmarkSetup {
     ))
       output = output.replaceAll(variant, replacement);
     return output;
+  }
+
+  function workspaceAliases(workspace: string): string[] {
+    const output: Set<string> = new Set([
+      path.resolve(workspace),
+      fs.realpathSync(workspace),
+    ]);
+    for (const relative of [
+      "package.json",
+      path.join("node_modules", ".pnpm"),
+    ]) {
+      const child: string = path.join(workspace, relative);
+      if (!fs.existsSync(child)) continue;
+      let candidate: string = fs.realpathSync.native(child);
+      for (const _segment of relative.split(path.sep)) {
+        candidate = path.dirname(candidate);
+      }
+      if (sameFile(workspace, candidate)) output.add(candidate);
+    }
+    return [...output];
   }
 
   function pathSpellings(location: string): string[] {
