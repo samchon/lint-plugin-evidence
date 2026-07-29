@@ -18,6 +18,7 @@ void TestAutomation.execute({
           name: execution.name,
           value: execution.value,
           error: execution.error?.message ?? null,
+          stack: execution.error?.stack ?? null,
         })),
       })}`,
     );

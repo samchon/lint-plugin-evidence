@@ -18,6 +18,7 @@ export namespace BenchmarkHealthScaffold {
     name: string;
     value?: unknown;
     error: string | null;
+    stack: string | null;
   }
 
   interface IReport {
@@ -122,6 +123,11 @@ export namespace BenchmarkHealthScaffold {
         execution.error ?? "",
         /BROKEN|OK|Expected values to be strictly equal/,
       );
+      assert.match(
+        execution.stack ?? "",
+        /test_api_health/,
+        "a failed dynamic execution must retain its feature-test stack",
+      );
 
       fs.writeFileSync(
         controller,
@@ -145,6 +151,7 @@ export namespace BenchmarkHealthScaffold {
   ): void => {
     const execution: IExecution = readHealthExecution(result);
     assert.equal(execution.error, null);
+    assert.equal(execution.stack, null);
     assert.equal(
       execution.value,
       1,
