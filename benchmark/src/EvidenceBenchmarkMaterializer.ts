@@ -94,6 +94,7 @@ export namespace EvidenceBenchmarkMaterializer {
         pnpm: path.join(output, "cache", "pnpm-store"),
         ttsc: path.join(output, "cache", "ttsc"),
         go: path.join(output, "cache", "go-build"),
+        playwright: path.join(output, "cache", "playwright"),
         toolchain: path.join(output, "cache", "toolchain-bin"),
       };
       const manifestRecord: IEvidenceBenchmarkMaterialization.IManifest = {
@@ -149,6 +150,7 @@ export namespace EvidenceBenchmarkMaterializer {
         TTSC_GO_CACHE_DIR: caches.go,
         GOCACHE: caches.go,
         GOTMPDIR: path.join(output, "cache", "go-tmp"),
+        PLAYWRIGHT_BROWSERS_PATH: caches.playwright,
       };
       const stageToolchain: string = path.join(stage, "cache", "toolchain-bin");
       EvidenceBenchmarkProcess.pinEnvironment(environment, stageToolchain);

@@ -29,6 +29,7 @@ export namespace EvidenceBenchmarkSetup {
     fs.mkdirSync(environment.TTSC_CACHE_DIR!, { recursive: true });
     fs.mkdirSync(environment.TTSC_GO_CACHE_DIR!, { recursive: true });
     fs.mkdirSync(environment.GOTMPDIR!, { recursive: true });
+    fs.mkdirSync(environment.PLAYWRIGHT_BROWSERS_PATH!, { recursive: true });
 
     const pnpm = await EvidenceBenchmarkProcess.pnpm(["--version"], {
       cwd: workspace,

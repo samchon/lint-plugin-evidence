@@ -171,6 +171,9 @@ export namespace IEvidenceBenchmarkMaterialization {
       /** Absolute Go object cache used only by this cell. */
       go: string;
 
+      /** Absolute Playwright browser cache used only by this cell. */
+      playwright: string;
+
       /** Directory containing the exact-version pnpm launcher for this cell. */
       toolchain: string;
     };

@@ -595,6 +595,7 @@ export namespace EvidenceBenchmarkSelfTest {
         TTSC_GO_CACHE_DIR: path.join(cache, "go-build"),
         GOCACHE: path.join(cache, "go-build"),
         GOTMPDIR: path.join(cache, "go-tmp"),
+        PLAYWRIGHT_BROWSERS_PATH: path.join(cache, "playwright"),
       },
     };
     const setup = await EvidenceBenchmarkSetup.prepare({
@@ -948,6 +949,10 @@ export namespace EvidenceBenchmarkSelfTest {
     assert.equal(manifest.schemaVersion, 3);
     assert.ok(manifest.elapsedMs >= 0);
     assert.equal("materializedAt" in manifest, false);
+    assert.equal(
+      props.cell.environment.PLAYWRIGHT_BROWSERS_PATH,
+      manifest.caches.playwright,
+    );
     assert.equal(manifest.artifact.sha256, props.artifact.sha256);
     assert.deepEqual(manifest.corpus, {
       documents: corpus.documents,
