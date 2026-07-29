@@ -557,7 +557,15 @@ export namespace EvidenceBenchmarkSelfTest {
     ] of EvidenceBenchmarkLintBaseline.INFRASTRUCTURE.entries())
       write(
         path.join(workspace, ...infrastructure.path.split("/")),
-        `fixture infrastructure ${index}\n`,
+        infrastructure.path === "packages/frontend/vite.config.ts"
+          ? [
+              'import path from "node:path";',
+              "export const config = {",
+              '  cacheDir: path.resolve(__dirname, "../../.benchmark-cache/vite"),',
+              "};",
+              "",
+            ].join("\n")
+          : `fixture infrastructure ${index}\n`,
       );
     const lintBaselines: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[] =
       EvidenceBenchmarkLintBaseline.captureDirectory(workspace, "evidence");
