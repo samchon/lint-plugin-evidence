@@ -18,6 +18,7 @@ import { EvidenceBenchmarkRepair } from "./EvidenceBenchmarkRepair.ts";
 import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
 import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
+import { EvidenceBenchmarkTurnLedger } from "./EvidenceBenchmarkTurnLedger.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 import type { IEvidenceBenchmarkPackageArtifact } from "./structures/IEvidenceBenchmarkPackageArtifact.ts";
 
@@ -486,6 +487,14 @@ export namespace EvidenceBenchmarkSelfTest {
       runState.turns[2],
       runState.turns[1],
     ];
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkTurnLedger.assertAcceptedOrder(
+          runState.turns as EvidenceBenchmarkTurnLedger.ITurn[],
+          true,
+        ),
+      "canonical instruction prefix",
+    );
     write(runStatePath, `${JSON.stringify(runState)}\n`);
     await expectFailure(
       () =>
@@ -1163,6 +1172,25 @@ export namespace EvidenceBenchmarkSelfTest {
       /const instructionSets:[\s\S]+readInstructionSets\(repository\)[\s\S]+instructions: instructionSets\[arm\]/,
       "one immutable instruction snapshot per arm must be shared by every selected cell",
     );
+    assert.match(
+      commandLine,
+      /EvidenceBenchmarkTurnLedger\.assertAcceptedOrder\(state\.turns\)/,
+      "resume admission must use the shared accepted-turn validator",
+    );
+    const publicationSource: string = fs.readFileSync(
+      path.join(
+        repository,
+        "benchmark",
+        "src",
+        "EvidenceBenchmarkPublication.ts",
+      ),
+      "utf8",
+    );
+    assert.match(
+      publicationSource,
+      /EvidenceBenchmarkTurnLedger\.assertAcceptedOrder\(state\.turns, true\)/,
+      "publication must use the shared complete-turn validator",
+    );
     for (const phase of ["backend", "frontend"])
       assert.deepEqual(
         fs.readdirSync(path.join(instructions, phase)).sort(),
@@ -1196,6 +1224,15 @@ export namespace EvidenceBenchmarkSelfTest {
       frontendEvidenceFinal,
       /Inspect all three package `lint\.config\.ts` files\.[\s\S]+Restore all seven original claim objects[\s\S]+original populations and `error` severities/,
       "frontend final must inspect the complete seven-claim configuration",
+    );
+    const overallEvidenceFinal: string = fs.readFileSync(
+      path.join(instructions, "overall", "evidence-final.md"),
+      "utf8",
+    );
+    assert.match(
+      overallEvidenceFinal,
+      /Inspect `packages\/api\/lint\.config\.ts`, `packages\/backend\/lint\.config\.ts`, and `packages\/frontend\/lint\.config\.ts`[\s\S]+all seven claims are active with their original populations and `error` severities[\s\S]+`pnpm build`, `pnpm lint`[\s\S]+`pnpm test`/,
+      "overall Evidence final must restore all configurations before the complete workspace gates",
     );
     for (const phase of ["backend", "frontend", "overall"])
       for (const file of fs.readdirSync(path.join(instructions, phase)))
@@ -1356,6 +1393,9 @@ export namespace EvidenceBenchmarkSelfTest {
       "Diagnostic volume never permits deferring the claim for the layer under active development.",
       "Before `build:sdk`, the schema, DTO, and API-operation claims must all be active and healthy.",
       "Never edit a claim's internals, severity, rule entry, `files`, `symbol`, or `reference` population; never disable `evidence/graph` or add an environment bypass.",
+      "Open all three `lint.config.ts` files and restore every temporarily commented claim.",
+      "Confirm every configured evidence rule retains its original `error` severity and every claim retains its original population.",
+      "Verify restoration from the actual three configuration files, then run the complete workspace lint, build, and test gates with no staged configuration override.",
       "An agent's prose report is not restoration evidence.",
     ])
       assert.ok(
@@ -1400,6 +1440,11 @@ export namespace EvidenceBenchmarkSelfTest {
       assert.ok(
         commented.every((line) => /^\s*\/\/(?: |$)/.test(line)),
         `${example.name} must comment every line of the whole claim object`,
+      );
+      assert.match(
+        commented.at(-1)!,
+        /^\s*\/\/ \},$/,
+        `${example.name} must retain the claim's following comma`,
       );
       const restored: string = commented
         .map((line) => line.replace(/^(\s*)\/\/ ?/, "$1"))

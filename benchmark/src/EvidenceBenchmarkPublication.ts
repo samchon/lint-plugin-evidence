@@ -4,6 +4,7 @@ import path from "node:path";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkTurnLedger } from "./EvidenceBenchmarkTurnLedger.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 
 /**
@@ -210,31 +211,7 @@ export namespace EvidenceBenchmarkPublication {
       throw new Error(
         `Publication requires the completed ${request.project}/${request.arm} run ${request.runId}.`,
       );
-    const expectedTurns: readonly string[] = [
-      "skills-contract",
-      "backend-start",
-      "backend-review",
-      "backend-final",
-      "frontend-start",
-      "frontend-review",
-      "frontend-final",
-      "overall-review",
-      "overall-final",
-    ];
-    const acceptedTurns = state.turns.filter((turn) => turn.accepted === true);
-    if (
-      JSON.stringify(acceptedTurns.map((turn) => turn.name)) !==
-        JSON.stringify(expectedTurns) ||
-      acceptedTurns.some(
-        (turn) =>
-          turn.status !== 0 ||
-          !Array.isArray(turn.invocation) ||
-          turn.invocation.some((value) => typeof value !== "string"),
-      )
-    )
-      throw new Error(
-        "Publication requires exactly one accepted successful attempt for every turn in canonical order.",
-      );
+    EvidenceBenchmarkTurnLedger.assertAcceptedOrder(state.turns, true);
     const instructions: string = path.join(runRoot, "inputs", "instructions");
     const instructionFiles: Map<string, Uint8Array> =
       EvidenceBenchmarkHash.directory(instructions);

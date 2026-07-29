@@ -12,6 +12,7 @@ import { EvidenceBenchmarkPublication } from "./EvidenceBenchmarkPublication.ts"
 import { EvidenceBenchmarkRepair } from "./EvidenceBenchmarkRepair.ts";
 import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
 import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
+import { EvidenceBenchmarkTurnLedger } from "./EvidenceBenchmarkTurnLedger.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 import type { IEvidenceBenchmarkPackageArtifact } from "./structures/IEvidenceBenchmarkPackageArtifact.ts";
 
@@ -23,16 +24,7 @@ export namespace EvidenceBenchmarkCommandLine {
   const WORKFLOW = "backend-first-gated-v2" as const;
   const ARMS = ["evidence", "plain"] as const;
 
-  type TurnName =
-    | "skills-contract"
-    | "backend-start"
-    | "backend-review"
-    | "backend-final"
-    | "frontend-start"
-    | "frontend-review"
-    | "frontend-final"
-    | "overall-review"
-    | "overall-final";
+  type TurnName = EvidenceBenchmarkTurnLedger.Name;
 
   interface ITurn {
     name: TurnName;
@@ -263,7 +255,7 @@ export namespace EvidenceBenchmarkCommandLine {
       throw new Error(`Run ${runId} has no resumable workspace and logs.`);
     assertStateBaselines(root, state);
     const instructions: IInstruction[] = readFrozenInstructions(root, arm);
-    assertAcceptedTurnOrder(state.turns, instructions);
+    EvidenceBenchmarkTurnLedger.assertAcceptedOrder(state.turns);
     const environment: NodeJS.ProcessEnv = resumeEnvironment(root);
     EvidenceBenchmarkRuntime.apply(environment, state.runtime);
     state.threadId ??= recoverThreadId(logs);
@@ -349,7 +341,7 @@ export namespace EvidenceBenchmarkCommandLine {
       state.elapsedMs = baseElapsedMs + elapsed(resumed);
       state.completedWorkspaceTreeSha256 =
         EvidenceBenchmarkPublication.workspaceSha256(workspace);
-      assertAcceptedTurnOrder(state.turns, instructions, true);
+      EvidenceBenchmarkTurnLedger.assertAcceptedOrder(state.turns, true);
       promoteWorkspace(repository, project, arm, workspace);
       state.status = "completed";
       writeState(root, state);
@@ -480,7 +472,7 @@ export namespace EvidenceBenchmarkCommandLine {
       state.elapsedMs = elapsed(started);
       state.completedWorkspaceTreeSha256 =
         EvidenceBenchmarkPublication.workspaceSha256(materialization.workspace);
-      assertAcceptedTurnOrder(state.turns, props.instructions.entries, true);
+      EvidenceBenchmarkTurnLedger.assertAcceptedOrder(state.turns, true);
       promoteWorkspace(
         props.repository,
         props.project,
@@ -770,39 +762,6 @@ export namespace EvidenceBenchmarkCommandLine {
       props.baselines,
       selected,
     );
-  }
-
-  function assertAcceptedTurnOrder(
-    turns: readonly ITurn[],
-    instructions: readonly IInstruction[],
-    complete: boolean = false,
-  ): void {
-    const accepted: readonly ITurn[] = turns.filter(
-      (turn) => turn.accepted === true,
-    );
-    if (
-      accepted.some(
-        (turn) =>
-          turn.status !== 0 ||
-          !Array.isArray(turn.invocation) ||
-          turn.invocation.some((value) => typeof value !== "string"),
-      )
-    )
-      throw new Error(
-        "Accepted benchmark turns must retain successful invocations.",
-      );
-    const actual: readonly TurnName[] = accepted.map((turn) => turn.name);
-    const expected: readonly TurnName[] = instructions
-      .slice(0, accepted.length)
-      .map((entry) => entry.name);
-    if (
-      accepted.length > instructions.length ||
-      JSON.stringify(actual) !== JSON.stringify(expected) ||
-      (complete && accepted.length !== instructions.length)
-    )
-      throw new Error(
-        "Accepted benchmark turns do not form the canonical instruction prefix.",
-      );
   }
 
   function assertStateBaselines(root: string, state: IState): void {
