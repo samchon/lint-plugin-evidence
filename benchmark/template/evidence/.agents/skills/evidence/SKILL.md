@@ -31,11 +31,22 @@ The complete graph is declared in three package-local files. Open the file that 
 | `packages/api/lint.config.ts` | `dto-types`, `dto-properties` |
 | `packages/frontend/lint.config.ts` | `frontend-screens`, `frontend-journeys` |
 
-The template starts with all seven claims active and every evidence rule at its final severity. Do not disable a claim merely because it may become noisy later.
+The template starts with all seven claims active and every evidence rule at its final severity. Keep claims for the layer under active development enabled. Claims for a later layer that has not started may be deferred as described below; they are not evidence of unfinished work in the current layer.
 
 ## Temporary Claim Deferral
 
-During active development, if excessive graph diagnostics bury the working context, use your judgment to comment out only the affected whole claim objects. Do not edit a deferred object or weaken the surrounding rules.
+During active development, prefer deferring a later-layer claim that has not started when its expected diagnostics would bury the current work. Comment out only the affected whole claim object. Do not edit the deferred object, disable `evidence/graph`, lower a severity, add an environment bypass, or narrow a population.
+
+Use the backend claims in dependency order:
+
+1. While designing the schema, keep `schema-models` active. You may defer the not-yet-started `api-operations`, `backend-tests`, `dto-types`, and `dto-properties` claims.
+2. When DTO work starts, restore `dto-types` and `dto-properties`. Build the authored API package until the DTO contract holds.
+3. When controller work starts, restore `api-operations`. Compile the backend source until every operation and DTO is settled.
+4. Only then run `build:sdk`.
+5. When feature-test work starts, restore `backend-tests`, write the tests against that SDK, and run `build:test`.
+6. Before the Backend Phase report, restore and validate all five backend-phase claims.
+
+Use the same rule in the frontend: `frontend-screens` and `frontend-journeys` may remain deferred only until work on their respective populations begins. Both must be restored before the Frontend Phase report.
 
 For example, this is a valid temporary deferral of `api-operations` in `packages/backend/lint.config.ts`:
 
@@ -63,11 +74,20 @@ claims: [
 ],
 ```
 
-Comment every line of the existing object. Remove only those line-comment markers to reactivate it. Apply the same whole-object operation to claims in the other two package configurations. Restore every deferred claim before the final review.
+Comment every line of the existing object. Remove only those line-comment markers to reactivate it. Apply the same whole-object operation to claims in the other two package configurations. The purpose is to postpone feedback for work that has not started, not to hide feedback for the layer currently being built.
 
 ## Phase Gates
 
-At the Backend Phase gate, restore and validate the five claims in `packages/backend/lint.config.ts` and `packages/api/lint.config.ts`. Run package-scoped API/backend gates; do not use the workspace-root build to compile the unfinished frontend.
+At the Backend Phase gate, restore and validate the five claims in `packages/backend/lint.config.ts` and `packages/api/lint.config.ts`.
+
+1. From `packages/backend`, run `pnpm build:prisma` and `pnpm prepare`.
+2. From `packages/api`, run `pnpm lint` and `pnpm build`.
+3. Return to `packages/backend` and run `pnpm build:main`.
+4. Confirm every operation and DTO is settled, then run `pnpm build:sdk`.
+5. Run `pnpm build:test`, `pnpm lint`, and `pnpm test`.
+6. Run the required live-server checks.
+
+Do not use the backend package's aggregate `pnpm build` or the workspace-root build during this phase.
 
 At the Frontend Phase gate, restore and validate the two claims in `packages/frontend/lint.config.ts`. If frontend work changed API or backend sources, restore and revalidate the affected configurations and re-pass the Backend Phase first.
 

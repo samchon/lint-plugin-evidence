@@ -1,6 +1,6 @@
 # Backend Start
 
-Use goal mode for this backend implementation stage. Resume the same unfinished stage goal after an interruption; otherwise create it now. Keep it bounded to making the complete API and backend ready for exhaustive review, and mark it complete only when every backend obligation and basic backend gate below is satisfied.
+Use goal mode for this backend implementation stage. Resume the same unfinished stage goal after an interruption; otherwise create it now. Keep it bounded to making the complete API and backend ready for the active arm's review, and mark it complete only when every backend obligation and basic backend gate below is satisfied.
 
 Build the complete API and backend required by every file under `docs/analysis/`.
 
@@ -9,13 +9,16 @@ Before editing, read `AGENTS.md` and every applicable Requirements, API, Backend
 Complete this phase in dependency order:
 
 1. read and inventory the entire requirement corpus;
-2. design the database schema and generate Prisma;
-3. author flat exported DTOs and controller contracts;
-4. generate the SDK from controller stubs;
-5. write requirement-derived backend tests;
-6. implement transformers, collectors, providers, and controllers;
-7. prepare the database, pass the API and backend gates, and exercise the running server.
+2. design the database schema, then run `pnpm build:prisma` and `pnpm prepare` from `packages/backend`;
+3. finish the flat exported DTOs, then run `pnpm build` from `packages/api`;
+4. finish every controller operation and contract, then run `pnpm build:main` from `packages/backend`;
+5. only after every operation and DTO is settled, run `pnpm build:sdk`;
+6. write requirement-derived backend tests;
+7. implement transformers and collectors, realize the providers and controllers, and remove every completed backend `@todo`;
+8. from `packages/backend`, rerun `pnpm build:main`, then run `pnpm build:test`, `pnpm lint`, `pnpm test`, and the live-server checks.
+
+In the Evidence arm, keep the claim for the layer under active development enabled. Prefer commenting out only the whole claim objects for later layers that have not started when their diagnostics would bury the current work. Restore each claim when its layer starts and restore all five backend-phase claims before the phase report.
 
 Do not implement or redesign `packages/frontend` during this phase. Read frontend-facing requirements as API constraints, but leave frontend realization for its later phase. Generated SDK output under `packages/api` is part of the backend contract and is allowed.
 
-Run backend-scoped commands from `packages/backend` or `packages/api`, never from the workspace root when the root command would compile the unfinished frontend. Work autonomously until the backend is ready for exhaustive review. Report the exact commands run and any unfinished backend obligation.
+Run these commands serially. Do not use the backend package's aggregate `pnpm build`, and never build from the workspace root while that command would compile the unfinished frontend. Work autonomously until the backend is ready for the active arm's review. Report the exact commands run and any unfinished backend obligation.

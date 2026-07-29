@@ -8,7 +8,7 @@
     "node": ">=22.12"
   },
   "scripts": {
-    "build": "pnpm --filter {{backendPackageName}} build:prisma && pnpm --filter {{backendPackageName}} build:sdk && pnpm --filter {{apiPackageName}} build && pnpm --filter {{backendPackageName}} build:main && pnpm --filter {{backendPackageName}} build:test && pnpm --filter {{frontendPackageName}} build",
+    "build": "pnpm --filter {{backendPackageName}} build:prisma && pnpm --filter {{apiPackageName}} build && pnpm --filter {{backendPackageName}} build:main && pnpm --filter {{backendPackageName}} build:sdk && pnpm --filter {{backendPackageName}} build:test && pnpm --filter {{frontendPackageName}} build",
     "build:frontend": "pnpm --filter {{frontendPackageName}} build",
     "build:prisma": "pnpm --filter {{backendPackageName}} build:prisma",
     "dev:frontend": "pnpm --filter {{frontendPackageName}} dev",

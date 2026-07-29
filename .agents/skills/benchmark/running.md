@@ -8,6 +8,13 @@ Observe every active cell at least once every 30 seconds throughout the run. At 
 
 The 30-second observation interval is an operational recovery requirement, not a pull-request reporting interval. Refresh the campaign pull-request body every 15 minutes, but handle an interruption, question, suspicious completion, stalled stream, failed gate, or newly discovered shared defect immediately.
 
+Use two separate agents when the campaign is large enough to justify delegation:
+
+- a liveness supervisor that checks every active cell at least once every 30 seconds and immediately resumes or escalates it; and
+- a read-only reporting subagent that refreshes the pull-request body every 15 minutes from retained state, usage, logs, and workspace inventories.
+
+The reporting subagent never edits a measured workspace, frozen input, campaign source, or result ledger. Stop both agents when the campaign ends.
+
 ## What The Raw Stream Means
 
 Codex writes one JSON event per line to `logs/*.stdout.jsonl`. These JSONL files are execution evidence, not requirement documents: they retain thread creation, tool and command activity, file changes, completion claims, token usage, and provider errors.
@@ -84,6 +91,24 @@ Keep the pull-request body small:
 `Progress` names the current retained instruction, estimated completion, and state. `Quality` is explicitly provisional until the final audit. `Cost` uses native token categories and the selected model's standard API-equivalent price. `Time` is cumulative elapsed duration without absolute timestamps.
 
 Record causes, recoveries, interventions, completed phases, scoring evidence, and clean self-review rounds as formal `COMMENT` pull-request reviews. Update the body immediately when a visible state is wrong; do not wait for the next 15-minute pass.
+
+For each cell, keep a compact phase breakdown for `backend/start`, `backend/review`, `backend/final`, `frontend/start`, `frontend/review`, `frontend/final`, `overall/review`, and `overall/final`. Each completed or active phase reports cumulative native token categories, API-equivalent cost, and elapsed duration.
+
+Below the status table, report implementation scale as counts rather than names. Count database tables, API operations, DTO types and properties, and test functions for each cell. Do not enumerate table or operation names in the pull-request body; detailed inventories belong in a formal review.
+
+The reporting subagent edits the existing body in place every 15 minutes. It does not append a new status comment, and it does not replace detailed formal reviews with dashboard prose.
+
+## Canceling A Campaign
+
+When the user explicitly cancels the benchmark and rejects its partial results:
+
+1. stop the 15-minute reporting subagent and any 30-second liveness or capacity watcher;
+2. stop every selected cell controller, model process, server, and owned descendant;
+3. verify no process still references the canceled run roots;
+4. resolve the exact ignored `benchmark/.work/` and `benchmark/result/` paths inside the campaign worktree; and
+5. delete those two trees without touching requirements, templates, instructions, shared caches, source changes, or separately published repositories.
+
+The deletion is destructive. State which local trees were removed and that the partial run cannot be resumed.
 
 ## Publishing A Demo
 

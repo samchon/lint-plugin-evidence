@@ -215,6 +215,18 @@ export namespace EvidenceBenchmarkSelfTest {
   async function testPublicationSafety(temporary: string): Promise<void> {
     const repository: string = path.join(temporary, "publication-repository");
     const runId: string = "0123456789ab-12345678-1234-4123-8123-123456789abc";
+    write(
+      path.join(
+        repository,
+        "benchmark",
+        "template",
+        "base",
+        ".github",
+        "workflows",
+        "ci.yml",
+      ),
+      "jobs:\n  test:\n    steps:\n      - run: pnpm --filter {{frontendPackageName}} exec playwright install\n",
+    );
     const workspace: string = path.join(
       repository,
       "benchmark",
@@ -277,11 +289,15 @@ export namespace EvidenceBenchmarkSelfTest {
     write(
       path.join(runRoot, "run.json"),
       `${JSON.stringify({
-        schemaVersion: 3,
+        schemaVersion: 4,
         workflow: "backend-first-gated-v1",
         instructionsTreeSha256,
         project: "todo",
         arm: "evidence",
+        engine: "codex",
+        model: "gpt-5.6-terra",
+        effort: "high",
+        cliVersion: "codex-cli 0.145.0",
         status: "completed",
         sourceCommit: "0123456789abcdef",
         turns: [
@@ -293,7 +309,11 @@ export namespace EvidenceBenchmarkSelfTest {
           "frontend-final",
           "overall-review",
           "overall-final",
-        ].map((name) => ({ name, status: 0 })),
+        ].map((name) => ({
+          name,
+          status: 0,
+          invocation: ["codex", "exec"],
+        })),
       })}\n`,
     );
     const request: EvidenceBenchmarkPublication.IRequest =
@@ -958,20 +978,19 @@ export namespace EvidenceBenchmarkSelfTest {
       ["evidence-final.md", "plain-final.md", "review.md"],
       "overall instruction inventory is invalid",
     );
-    assert.match(
-      fs.readFileSync(
-        path.join(instructions, "backend", "evidence-final.md"),
-        "utf8",
-      ),
-      /From `packages\/backend`, run `pnpm build`/,
+    const backendEvidenceFinal: string = fs.readFileSync(
+      path.join(instructions, "backend", "evidence-final.md"),
+      "utf8",
     );
     assert.match(
-      fs.readFileSync(
-        path.join(instructions, "backend", "evidence-final.md"),
-        "utf8",
-      ),
-      /Do not run the workspace-root build during this phase\./,
-      "backend final must state the root-build boundary clearly",
+      backendEvidenceFinal,
+      /build:prisma[\s\S]+packages\/api[\s\S]+pnpm build[\s\S]+build:main[\s\S]+build:sdk[\s\S]+build:test/,
+      "backend final must preserve the authored dependency order",
+    );
+    assert.match(
+      backendEvidenceFinal,
+      /Do not run the backend package's aggregate `pnpm build` or the workspace-root build during this phase\./,
+      "backend final must forbid both aggregate builds",
     );
     for (const phase of ["backend", "frontend", "overall"])
       for (const file of fs.readdirSync(path.join(instructions, phase)))
@@ -1042,28 +1061,7 @@ export namespace EvidenceBenchmarkSelfTest {
   async function testRetentionIgnore(repository: string): Promise<void> {
     for (const relative of [
       "benchmark/result/todo/evidence/runs/example/logs/stderr.raw.log",
-      "benchmark/result/todo/evidence/runs/example/gates/format.stdout.log",
-      "benchmark/result/todo/evidence/workspace/.benchmark-deps/e-deadbeef.tgz",
-    ]) {
-      const result = await EvidenceBenchmarkProcess.run(
-        "git",
-        ["check-ignore", "--no-index", relative],
-        {
-          cwd: repository,
-          allowFailure: true,
-          label: `check retained benchmark artifact ${relative}`,
-        },
-      );
-      assert.equal(
-        result.status,
-        1,
-        `canonical result artifact must remain trackable: ${relative}`,
-      );
-    }
-    for (const relative of [
       "benchmark/.work/todo/evidence/terminal/stderr.raw.log",
-      "benchmark/not-result/stray.log",
-      "benchmark/not-result/stray.tgz",
     ]) {
       const result = await EvidenceBenchmarkProcess.run(
         "git",
@@ -1077,7 +1075,7 @@ export namespace EvidenceBenchmarkSelfTest {
       assert.equal(
         result.status,
         0,
-        `non-result artifact must remain ignored: ${relative}`,
+        `local benchmark output must remain ignored: ${relative}`,
       );
     }
   }

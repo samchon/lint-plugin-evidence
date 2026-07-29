@@ -60,6 +60,12 @@ Record the outcome as a `COMMENT` review per the ledger rule above: the survivin
 
 Merge only when the user asks or a standing mandate authorizes it, and only with required checks green and one clean Overall Self-Review round on record. Use the repository's established merge method unless another is specified. If branch protection blocks the requested merge, report the blocker rather than bypassing it.
 
+## Close Resolved Issues After Merge
+
+After a pull request merges, inspect every issue it claims to resolve. Close an issue only when the merged tree satisfies its current acceptance scope; leave partially addressed, superseded, or follow-up work open with the exact remaining obligation.
+
+Use a closing reference in the pull request when the issue is fully resolved and known before merge. When verification becomes possible only after merge, close the confirmed issue explicitly and link the merge commit. Never close an issue merely because it was mentioned, and never leave a fully resolved campaign issue open without explanation.
+
 ## Contributing Upstream To ttsc
 
 An upstream `ttsc` change follows `ttsc`'s own rules, not these. Read its `AGENTS.md`, then its `project` and `development` skills, before touching that repository. Two of its constraints catch newcomers: website docs under `website/src/content/docs/` must be updated in the same change as any behavior change, and its tests, fixtures, CI, and generated baselines are specification whose modification needs explicit justification in the final report.

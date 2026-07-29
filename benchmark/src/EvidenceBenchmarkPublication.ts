@@ -138,16 +138,29 @@ export namespace EvidenceBenchmarkPublication {
       workflow?: unknown;
       project?: unknown;
       arm?: unknown;
+      engine?: unknown;
+      model?: unknown;
+      effort?: unknown;
+      cliVersion?: unknown;
       status?: unknown;
       sourceCommit?: unknown;
       instructionsTreeSha256?: unknown;
-      turns?: Array<{ name?: unknown; status?: unknown }>;
+      turns?: Array<{
+        name?: unknown;
+        status?: unknown;
+        invocation?: unknown;
+      }>;
     };
     if (
-      state.schemaVersion !== 3 ||
+      state.schemaVersion !== 4 ||
       state.workflow !== "backend-first-gated-v1" ||
       state.project !== request.project ||
       state.arm !== request.arm ||
+      state.engine !== "codex" ||
+      state.model !== "gpt-5.6-terra" ||
+      state.effort !== "high" ||
+      typeof state.cliVersion !== "string" ||
+      state.cliVersion.length === 0 ||
       state.status !== "completed" ||
       typeof state.sourceCommit !== "string" ||
       typeof state.instructionsTreeSha256 !== "string" ||
@@ -168,8 +181,13 @@ export namespace EvidenceBenchmarkPublication {
     ];
     for (const name of expectedTurns)
       if (
-        state.turns.filter((turn) => turn.name === name && turn.status === 0)
-          .length !== 1
+        state.turns.filter(
+          (turn) =>
+            turn.name === name &&
+            turn.status === 0 &&
+            Array.isArray(turn.invocation) &&
+            turn.invocation.every((value) => typeof value === "string"),
+        ).length !== 1
       )
         throw new Error(
           `Publication requires exactly one successful ${name} turn.`,

@@ -1,6 +1,8 @@
 # Evidence benchmark
 
-This benchmark compares Codex `gpt-5.6-luna` building the same application with and without `@samchon/lint-plugin-evidence`. It retains the complete generated project and measures elapsed time, native Codex token usage, API-equivalent cost, requirement and test coverage, implementation scale, gate behavior, completion honesty, and product quality.
+This benchmark compares coding agents building the same application with and without `@samchon/lint-plugin-evidence`. It retains the complete generated project and measures elapsed time, native token usage, API-equivalent cost, requirement and test coverage, implementation scale, gate behavior, completion honesty, and product quality.
+
+Campaigns use Codex `gpt-5.6-terra` with `high` effort and Claude Code `sonnet-5` with `high` effort. Every run records the engine, exact model, effort, CLI version, and invocation. The current runner launches Codex cells; Claude Code cells must not start until their engine adapter and deterministic proof are implemented on the campaign revision.
 
 ## Active supervision is required
 
@@ -9,6 +11,19 @@ The coding agent is the measured instrument. Starting the runner and waiting for
 Codex writes one JSON event per line to `logs/*.stdout.jsonl`. These JSONL files are execution logs, not requirements; they retain thread IDs, commands, file changes, token usage, completion claims, and provider errors.
 
 `Selected model is at capacity` is a transient model-server availability failure, not the coding agent giving up or the project failing. The runner retains that cell so the operator can resume the same thread, workspace, frozen inputs, logs, elapsed time, and token ledger. Repeated capacity failures may be handled by a run-scoped watcher that retries only after the latest failure proves the same provider error.
+
+## Campaign pull request
+
+Treat the benchmark as an issue campaign. Keep one campaign pull request open until every authorized wave finishes. Push deterministic runner, template, instruction, and plugin corrections to that pull request, and record detailed findings, interruptions, recoveries, interventions, and completed phases as formal `COMMENT` reviews.
+
+Assign a dedicated read-only reporting subagent to edit the pull-request body in place every 15 minutes. Keep only this dashboard in the body:
+
+| Project | Mode | Progress | Quality | Cost | Time |
+| --- | --- | --- | ---: | ---: | ---: |
+
+`Progress` gives the current retained instruction, state, and estimated completion. `Quality` is provisional until final audit. `Cost` contains native token categories and API-equivalent cost. `Time` is cumulative elapsed duration without timestamps. Keep a compact per-phase token, cost, and duration breakdown for all eight retained instructions, then report database-table, API-operation, DTO-type, DTO-property, and test-function counts for each cell. Report counts, not names.
+
+The reporting subagent reads retained state, logs, usage, and workspace inventories. It never edits a measured workspace, frozen input, campaign source, or result ledger. The separate liveness supervisor still inspects every active cell at least once every 30 seconds and handles failures immediately.
 
 ## Layout
 
@@ -19,7 +34,7 @@ benchmark/
   requirements/  subject specifications copied into docs/analysis
   template/      shared scaffold plus evidence and plain overlays
   src/           materialization, runner, recovery, repair, and publication code
-  result/        retained runs and latest successful demo workspaces
+  result/        ignored local runs and latest successful demo workspaces
   .work/         ignored package, controller, repair, and reporting state
 ```
 
@@ -75,6 +90,12 @@ pnpm --filter @samchon/evidence-benchmark resume -- todo evidence <run-id>
 Recovery is proven only when the controller is alive, `run.json` is `running`, and a new attempt JSONL contains activity. A successful launch command alone is not proof.
 
 The complete operator procedure, including stalled streams, questions, premature completion, repeated provider capacity, repairs, acceptance, reporting, and publication, is in [the benchmark running skill](../.agents/skills/benchmark/running.md).
+
+## Cancel a campaign
+
+When the user cancels a campaign and rejects its partial results, first stop the 15-minute reporting subagent, 30-second supervisor, capacity watchers, cell controllers, model processes, servers, and their owned descendants. Verify that no process references the canceled run roots. Then delete the exact ignored `benchmark/.work/` and `benchmark/result/` trees inside the campaign worktree.
+
+Do not delete requirement corpora, templates, instructions, shared caches, source changes, or a separately published result repository. Deleted local run data cannot be resumed.
 
 ## Instruction sequence
 

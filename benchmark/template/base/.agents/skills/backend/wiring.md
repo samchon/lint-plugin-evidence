@@ -102,18 +102,30 @@ Three of its settings matter beyond the paths.
 
 ## Commands
 
-`<backend>` stands for the backend package's name in its `package.json`.
-
 ```bash
-pnpm --filter <backend> build:prisma   # generate the client and the ERD
-pnpm --filter <backend> prepare        # push the schema to the database
-pnpm --filter <backend> build:sdk      # regenerate packages/api from the controllers
-pnpm --filter <backend> build:main     # compile the server
-pnpm --filter <backend> start          # run it
-pnpm --filter <backend> test           # run the e2e suite
+cd packages/backend
+pnpm build:prisma   # generate the client and the ERD
+pnpm prepare        # push the schema to the database
+
+cd ../api
+pnpm build          # compile authored DTOs
+
+cd ../backend
+pnpm build:main     # compile controllers and backend source
+pnpm build:sdk      # after every operation and DTO is settled
+pnpm build:test     # compile tests against the generated SDK
+pnpm test           # run the e2e suite
 ```
 
-The order is a dependency chain, not a preference. Nothing that imports the database client compiles before `build:prisma`. Nothing that imports the SDK sees a new endpoint before `build:sdk`.
+The order is a dependency chain, not a preference. Nothing that imports the database client compiles before `build:prisma`. The first API build proves the authored DTOs before SDK generation. `build:main` proves the controller contract against those DTOs. Run `build:sdk` only after every operation and DTO is settled; it generates the SDK and compiles the complete API package, then tests consume that fixed output.
+
+Do not use the backend package's aggregate `pnpm build` while developing this phase, and do not run the workspace-root build. The aggregate command hides which authored layer failed, while the root command also compiles the unfinished frontend.
+
+## One Writer At A Time
+
+Generation, build, lint, and test commands share generated API files, Prisma output, compiler caches, and plugin executables. Run them serially in one workspace. Never start SDK generation beside another SDK generation, build, lint, or test, and never launch parallel agents that mutate the same generated tree.
+
+A generator temporarily owns its output. Wait for it to finish before another command reads that output. Parallel execution here is not faster: one process can delete or replace a barrel while another compiler is reading it.
 
 ## The SDK Build, End To End
 
@@ -123,26 +135,29 @@ This is the loop everything else depends on, and getting it wrong produces failu
 
 **2. `prepare` pushes the schema to the database file.** SQLite means this creates or updates a local file with nothing to install and nothing to connect to. Run it after any schema change, or the running server queries columns that do not exist.
 
-**3. The controllers generate the SDK.** `build:sdk` builds the real application in memory, walks its module tree, and emits `packages/api/src/functional/**` and `swagger.json`. Two consequences follow directly:
+**3. The authored contract is compiled before generation.** Finish every DTO and controller signature, build `packages/api`, and run backend `build:main`. Keep changing the authored contract until both packages agree; do not repeatedly generate an SDK from a contract that is still being designed.
+
+**4. The settled controllers generate the SDK.** `build:sdk` builds the real application in memory, walks its module tree, emits `packages/api/src/functional/**` and `swagger.json`, and compiles the complete API package. Two consequences follow directly:
 
 - **A controller not registered in a module is absent from the SDK**, for the same reason it is absent from the running server. Both read the same tree.
 - **The JSDoc on each method becomes the SDK function's documentation and the OpenAPI description.** A documentation edit is a contract change, so it needs this step too.
 
-**4. Everything downstream consumes the regenerated SDK.** The e2e tests import their accessors from it, and the frontend imports its accessors and its types from it.
+**5. Everything downstream consumes the regenerated SDK.** Run `build:test` after generation. The e2e tests import their accessors from the SDK, and the frontend later imports the same accessors and types.
 
 That is why an unregenerated change appears to work. The backend still compiles, the server still runs, and only a consumer notices, on the next clean build, in a package nobody was editing.
 
 ## When To Regenerate
 
-| Change                                   | Run                            |
-| ---------------------------------------- | ------------------------------ |
-| a model, a column, or a schema comment   | `build:prisma`, then `prepare` |
-| a controller signature, route, or method | `build:sdk`                    |
-| a DTO in `packages/api/src/structures`   | `build:sdk`                    |
-| JSDoc on a controller method             | `build:sdk`                    |
-| a provider body only                     | nothing                        |
+| Change                                   | Run during authoring                                      |
+| ---------------------------------------- | --------------------------------------------------------- |
+| a model, a column, or a schema comment   | backend `build:prisma`, then `prepare`                    |
+| a DTO in `packages/api/src/structures`   | API `build`                                               |
+| a controller signature, route, or method | backend `build:main`                                      |
+| JSDoc on a controller method             | backend `build:main`                                      |
+| a provider body only                     | backend `build:main`                                      |
+| the complete DTO/operation contract      | backend `build:sdk`, then `build:test`                    |
 
-When in doubt, run the workspace-root `build`. It performs the whole chain in order, and it is cheaper than diagnosing a stale SDK.
+When a DTO or operation changes after SDK generation, finish the complete contract correction first, rebuild the API and backend source, then regenerate the SDK once. Do not use a root build as a substitute for assigning the failure to its package.
 
 ## Consuming The SDK
 
@@ -170,15 +185,16 @@ Given only the requirement documents and an empty repository, this is the sequen
 
 1. Read every document under `docs/analysis/`.
 2. Write the schema under `packages/backend/prisma/schema/`, then `build:prisma` and `prepare`.
-3. Write the DTOs under `packages/api/src/structures/`, the controller stubs with their `@todo` tags under `packages/backend/src/controllers/`, and their modules, then `build:sdk`.
-4. Write the tests under `packages/backend/test/features/` from the requirements and the generated SDK.
-5. Write the transformers under `packages/backend/src/transformers/` and the collectors under `packages/backend/src/collectors/`, one per DTO that needs each.
-6. Realize: swap each stub body for its call into a provider under `packages/backend/src/providers/` and drop the `@todo`, then `build:main` and run the tests.
-7. Start the server and confirm it answers.
-8. Build the frontend against simulation, then against this server.
+3. Finish the DTOs under `packages/api/src/structures/`, then run `pnpm build` from `packages/api`.
+4. Finish every controller stub, its contract JSDoc, and its module registration under `packages/backend/src/controllers/`, then run `build:main`.
+5. Once the DTO and operation contract is settled, run `build:sdk`, then write the tests under `packages/backend/test/features/` and run `build:test`.
+6. Write the transformers under `packages/backend/src/transformers/` and the collectors under `packages/backend/src/collectors/`, one per DTO that needs each.
+7. Realize: swap each stub body for its call into a provider under `packages/backend/src/providers/` and drop the `@todo`, then `build:main` and run the tests.
+8. Start the server and confirm it answers.
+9. Build the frontend against simulation, then against this server.
 
 Each step reads everything the earlier steps produced. A step that cannot proceed usually means an earlier one is incomplete, and the fix belongs there.
 
-**Steps 5 and 6 are in that order for a reason.** A provider that is written before its transformer exists inlines a selection and a mapping, and that inline copy is what the transformer then has to be reconciled with. Writing the read side and the write side first leaves the provider with only the business logic, which is what it is for.
+**Steps 6 and 7 are in that order for a reason.** A provider that is written before its transformer exists inlines a selection and a mapping, and that inline copy is what the transformer then has to be reconciled with. Writing the read side and the write side first leaves the provider with only the business logic, which is what it is for.
 
-**Step 4 before step 6 is deliberate too.** Tests written from the contract and the requirements describe what should happen; tests written after the provider describe what it happens to do, and the difference is invisible in a green suite.
+**Step 5 before step 7 is deliberate too.** Tests written from the contract and the requirements describe what should happen; tests written after the provider describe what it happens to do, and the difference is invisible in a green suite.
