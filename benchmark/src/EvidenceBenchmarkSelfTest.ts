@@ -13,6 +13,7 @@ import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.t
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkProject } from "./EvidenceBenchmarkProject.ts";
 import { EvidenceBenchmarkPublication } from "./EvidenceBenchmarkPublication.ts";
 import { EvidenceBenchmarkRepair } from "./EvidenceBenchmarkRepair.ts";
 import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
@@ -47,7 +48,7 @@ export namespace EvidenceBenchmarkSelfTest {
       testHashContract();
       await testMarkdownCorpus(temporary);
       await testComposition(fixture, temporary);
-      await testMaterialization(repository, temporary);
+      await testMaterialization(fixture, temporary);
       if (args.includes("--baseline"))
         await testBaseline(repository, temporary);
       if (args.includes("--package")) await testPackage(repository, temporary);
@@ -102,10 +103,18 @@ export namespace EvidenceBenchmarkSelfTest {
   }
 
   async function testRuntimeIsolation(): Promise<void> {
-    const assignments: EvidenceBenchmarkRuntime.IAssignment[] = [];
-    for (const project of ["todo", "reddit", "shopping", "erp"] as const)
-      for (const arm of ["evidence", "plain"] as const)
-        assignments.push(EvidenceBenchmarkRuntime.assign(project, arm));
+    assert.equal(
+      EvidenceBenchmarkProject.parse("free-form-subject"),
+      "free-form-subject",
+    );
+    assert.throws(
+      () => EvidenceBenchmarkProject.parse("../escaped"),
+      /Invalid benchmark project slug/,
+    );
+    const assignments: EvidenceBenchmarkRuntime.IAssignment[] = Array.from(
+      { length: 8 },
+      (_value, slot) => EvidenceBenchmarkRuntime.assign(slot),
+    );
     const ports: number[] = assignments.flatMap((assignment) => [
       assignment.apiPort,
       assignment.swaggerPort,
@@ -118,9 +127,10 @@ export namespace EvidenceBenchmarkSelfTest {
       "every benchmark cell endpoint must be unique",
     );
 
-    const todoEvidence: EvidenceBenchmarkRuntime.IAssignment = assignments[0]!;
+    const firstAssignment: EvidenceBenchmarkRuntime.IAssignment =
+      assignments[0]!;
     const shifted: EvidenceBenchmarkRuntime.IAssignment =
-      EvidenceBenchmarkRuntime.assign("reddit", "plain", 50_000);
+      EvidenceBenchmarkRuntime.assign(3, 50_000);
     assert.deepEqual(shifted, {
       apiPort: 50_030,
       swaggerPort: 50_031,
@@ -129,14 +139,14 @@ export namespace EvidenceBenchmarkSelfTest {
       apiHost: "http://127.0.0.1:50030",
     });
     assert.throws(
-      () => EvidenceBenchmarkRuntime.assign("erp", "plain", 65_463),
-      /between 1 and 65462/,
+      () => EvidenceBenchmarkRuntime.assign(7, 65_463),
+      /ports between 1 and 65535/,
     );
     const environment: NodeJS.ProcessEnv = {
       API_PORT: "37001",
       PLAYWRIGHT_TEST_PORT: "4173",
     };
-    EvidenceBenchmarkRuntime.apply(environment, todoEvidence);
+    EvidenceBenchmarkRuntime.apply(environment, firstAssignment);
     assert.deepEqual(environment, {
       API_PORT: "46000",
       PLAYWRIGHT_TEST_PORT: "46003",
@@ -144,12 +154,9 @@ export namespace EvidenceBenchmarkSelfTest {
       VITE_API_HOST: "http://127.0.0.1:46000",
       VITE_DEV_PORT: "46002",
     });
-    const secondWave = [
-      EvidenceBenchmarkRuntime.assign("todo", "evidence", 51_000),
-      EvidenceBenchmarkRuntime.assign("todo", "plain", 51_000),
-      EvidenceBenchmarkRuntime.assign("reddit", "evidence", 51_000),
-      EvidenceBenchmarkRuntime.assign("reddit", "plain", 51_000),
-    ];
+    const secondWave = Array.from({ length: 4 }, (_value, slot) =>
+      EvidenceBenchmarkRuntime.assign(slot, 51_000),
+    );
     const combinedPorts = [...assignments, ...secondWave].flatMap(
       (assignment) => [
         assignment.apiPort,
@@ -197,14 +204,14 @@ export namespace EvidenceBenchmarkSelfTest {
     await new Promise<void>((resolve, reject) => {
       blocker.once("error", reject);
       blocker.listen(
-        { host: "127.0.0.1", port: todoEvidence.apiPort, exclusive: true },
+        { host: "127.0.0.1", port: firstAssignment.apiPort, exclusive: true },
         resolve,
       );
     });
     try {
       await expectFailure(
-        () => EvidenceBenchmarkRuntime.assertAvailable([todoEvidence]),
-        `api port ${todoEvidence.apiPort} is unavailable`,
+        () => EvidenceBenchmarkRuntime.assertAvailable([firstAssignment]),
+        `api port ${firstAssignment.apiPort} is unavailable`,
       );
     } finally {
       await new Promise<void>((resolve, reject) =>
@@ -253,12 +260,22 @@ export namespace EvidenceBenchmarkSelfTest {
       write(
         path.join(workspace, ...relative.split("/")),
         [
+          ...(relative === EvidenceBenchmarkLintBaseline.PATHS[1]
+            ? [
+                "declare const process: { env: Record<string, string | undefined> };",
+                'const isNestiaConfigLoader = process.env.NESTIA_SDK_TRANSFORM === "1";',
+              ]
+            : []),
           "const graph = {",
           "  claims: [",
           `    { name: "fixture-${index}", type: "typescript", files: ["src/**/*.ts"], symbol: "function", reference: { type: "markdown", files: ["docs/**/*.md"], symbol: "h2" } },`,
           "  ],",
           "};",
-          'export default { rules: { "evidence/graph": ["error", graph] } };',
+          `export default { rules: { "evidence/graph": ${
+            relative === EvidenceBenchmarkLintBaseline.PATHS[1]
+              ? 'isNestiaConfigLoader ? "off" : ["error", graph]'
+              : '["error", graph]'
+          } } };`,
           "",
         ].join("\n"),
       );
@@ -266,6 +283,11 @@ export namespace EvidenceBenchmarkSelfTest {
       EvidenceBenchmarkLintBaseline.captureDirectory(workspace, "evidence");
     const lintRestorationSha256: string =
       EvidenceBenchmarkLintBaseline.digest(lintBaselines);
+    const backendLintRestorationSha256: string =
+      EvidenceBenchmarkLintBaseline.digest(
+        lintBaselines,
+        EvidenceBenchmarkLintBaseline.BACKEND_PATHS,
+      );
     write(path.join(workspace, ".env"), "SECRET=must-not-publish\n");
     write(path.join(workspace, ".env.example"), "SECRET=\n");
     write(
@@ -356,7 +378,11 @@ export namespace EvidenceBenchmarkSelfTest {
           invocation: ["codex", "exec"],
           accepted: true,
           lintRestorationSha256:
-            name === "overall-final" ? lintRestorationSha256 : undefined,
+            name === "backend-final"
+              ? backendLintRestorationSha256
+              : name === "frontend-final" || name === "overall-final"
+                ? lintRestorationSha256
+                : undefined,
         })),
       })}\n`,
     );
@@ -481,8 +507,53 @@ export namespace EvidenceBenchmarkSelfTest {
     assert.ok(calls.includes("git push origin master"));
 
     const runState = JSON.parse(fs.readFileSync(runStatePath, "utf8")) as {
-      turns: unknown[];
+      turns: Array<{
+        name: string;
+        lintRestorationSha256?: string;
+      }>;
     };
+    const backendFinal = runState.turns.find(
+      (turn) => turn.name === "backend-final",
+    )!;
+    delete backendFinal.lintRestorationSha256;
+    write(runStatePath, `${JSON.stringify(runState)}\n`);
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+          throw new Error("missing backend proof reached the process runner");
+        }),
+      "backend-final lint restoration proof",
+    );
+    backendFinal.lintRestorationSha256 = backendLintRestorationSha256;
+    const frontendFinal = runState.turns.find(
+      (turn) => turn.name === "frontend-final",
+    )!;
+    frontendFinal.lintRestorationSha256 = "wrong-proof";
+    write(runStatePath, `${JSON.stringify(runState)}\n`);
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+          throw new Error("wrong frontend proof reached the process runner");
+        }),
+      "frontend-final lint restoration proof",
+    );
+    frontendFinal.lintRestorationSha256 = lintRestorationSha256;
+    write(runStatePath, `${JSON.stringify(runState)}\n`);
+    const overallFinal = runState.turns.find(
+      (turn) => turn.name === "overall-final",
+    )!;
+    delete overallFinal.lintRestorationSha256;
+    write(runStatePath, `${JSON.stringify(runState)}\n`);
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+          throw new Error("missing overall proof reached the process runner");
+        }),
+      "overall-final lint restoration proof",
+    );
+    overallFinal.lintRestorationSha256 = lintRestorationSha256;
+    write(runStatePath, `${JSON.stringify(runState)}\n`);
+
     [runState.turns[1], runState.turns[2]] = [
       runState.turns[2],
       runState.turns[1],
@@ -1769,6 +1840,11 @@ export namespace EvidenceBenchmarkSelfTest {
     repository: string,
     temporary: string,
   ): Promise<void> {
+    fs.cpSync(
+      path.join(repository, "benchmark", "requirements", "todo"),
+      path.join(repository, "benchmark", "requirements", "free-form-subject"),
+      { recursive: true },
+    );
     const archive: string = path.join(temporary, "fake.tgz");
     fs.writeFileSync(archive, "fixture archive bytes", "utf8");
     const archiveBytes: Buffer = fs.readFileSync(archive);
@@ -1794,7 +1870,7 @@ export namespace EvidenceBenchmarkSelfTest {
     const variables: IEvidenceBenchmarkMaterialization.IVariables =
       benchmarkVariables("self-test");
     const cells: Map<string, IEvidenceBenchmarkMaterialization> = new Map();
-    for (const project of ["todo", "reddit", "erp"] as const)
+    for (const project of ["todo", "reddit", "erp", "free-form-subject"])
       for (const arm of ["evidence", "plain"] as const) {
         const cell = await EvidenceBenchmarkMaterializer.materialize({
           repository,
@@ -1838,6 +1914,53 @@ export namespace EvidenceBenchmarkSelfTest {
         EvidenceBenchmarkHash.directory(evidenceTwo.workspace),
       ),
     );
+    const sealedFiles: ReadonlyMap<string, Uint8Array> =
+      EvidenceBenchmarkHash.directory(evidenceOne.workspace);
+    const expectSeverityFailure = async (
+      relative: string,
+      before: string,
+      after: string,
+      fragment: string,
+    ): Promise<void> => {
+      const changed: Map<string, Uint8Array> = new Map(sealedFiles);
+      const source: string = Buffer.from(changed.get(relative)!).toString(
+        "utf8",
+      );
+      assert.equal(
+        source.includes(before),
+        true,
+        `severity fixture must contain ${before}`,
+      );
+      changed.set(relative, Buffer.from(source.replace(before, after), "utf8"));
+      await expectFailure(
+        () => EvidenceBenchmarkLintBaseline.capture(changed, "evidence"),
+        fragment,
+      );
+    };
+    await expectSeverityFailure(
+      EvidenceBenchmarkLintBaseline.PATHS[0],
+      '"evidence/graph": ["error", graph]',
+      '"evidence/graph": "off"',
+      'direct ["error", graph] tuple',
+    );
+    await expectSeverityFailure(
+      EvidenceBenchmarkLintBaseline.PATHS[0],
+      '"evidence/graph": ["error", graph]',
+      '"evidence/graph": "warn"',
+      'direct ["error", graph] tuple',
+    );
+    await expectSeverityFailure(
+      EvidenceBenchmarkLintBaseline.PATHS[2],
+      '"evidence/graph": ["error", graph]',
+      '"evidence/graph": true ? "off" : ["error", graph]',
+      'direct ["error", graph] tuple',
+    );
+    await expectSeverityFailure(
+      EvidenceBenchmarkLintBaseline.PATHS[1],
+      'isNestiaConfigLoader ? "off" : ["error", graph]',
+      'true ? "off" : ["error", graph]',
+      "authorized Nestia loader bypass",
+    );
     const backendLint: string = path.join(
       evidenceTwo.workspace,
       "packages",
@@ -1850,14 +1973,32 @@ export namespace EvidenceBenchmarkSelfTest {
       backendLintSource.replace('"api-operations"', '"api-operations-drift"'),
       "utf8",
     );
-    await expectFailure(
-      () =>
-        EvidenceBenchmarkLintBaseline.assertRestored(
-          evidenceTwo.workspace,
-          "evidence",
-          evidenceTwo.lintBaselines,
-        ),
-      "Lint graph semantics were not restored",
+    let semanticFailure: unknown;
+    try {
+      EvidenceBenchmarkLintBaseline.assertRestored(
+        evidenceTwo.workspace,
+        "evidence",
+        evidenceTwo.lintBaselines,
+      );
+    } catch (error) {
+      semanticFailure = error;
+    }
+    assert.ok(
+      semanticFailure instanceof Error,
+      "semantic drift must fail restoration",
+    );
+    assert.match(
+      semanticFailure.message,
+      /Lint graph semantics were not restored/,
+    );
+    assert.ok(
+      semanticFailure.message.length < 1_024,
+      "semantic drift diagnostics must remain bounded",
+    );
+    assert.doesNotMatch(
+      semanticFailure.message,
+      /"definition"/,
+      "semantic drift diagnostics must not dump complete claim objects",
     );
     fs.writeFileSync(backendLint, backendLintSource, "utf8");
     fs.appendFileSync(backendLint, "// unauthorized bypass\n", "utf8");
@@ -2128,7 +2269,7 @@ export namespace EvidenceBenchmarkSelfTest {
       artifact: first,
     });
     const runtime: EvidenceBenchmarkRuntime.IAssignment =
-      EvidenceBenchmarkRuntime.assign("todo", "evidence", 52_000);
+      EvidenceBenchmarkRuntime.assign(0, 52_000);
     EvidenceBenchmarkRuntime.apply(cell.environment, runtime);
     EvidenceBenchmarkRuntime.persist(cell.workspace, runtime);
     await EvidenceBenchmarkSetup.prepare({

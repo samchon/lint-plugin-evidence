@@ -15,6 +15,9 @@ export namespace EvidenceBenchmarkLintBaseline {
     "packages/frontend/lint.config.ts",
   ] as const;
 
+  /** API and backend configurations restored at the backend final gate. */
+  export const BACKEND_PATHS: readonly string[] = [PATHS[0], PATHS[1]];
+
   /** Captures exact bytes and literal graph semantics from an in-memory tree. */
   export function capture(
     files: ReadonlyMap<string, Uint8Array>,
@@ -95,8 +98,9 @@ export namespace EvidenceBenchmarkLintBaseline {
         throw new Error(
           [
             `Lint graph semantics were not restored for ${relative}.`,
-            `Expected: ${JSON.stringify(before.graph)}`,
-            `Actual: ${JSON.stringify(after.graph)}`,
+            `Expected semantic SHA-256: ${before.semanticSha256}.`,
+            `Actual semantic SHA-256: ${after.semanticSha256}.`,
+            claimChangeSummary(before.graph, after.graph),
           ].join("\n"),
         );
       if (after.sha256 !== before.sha256)
@@ -167,6 +171,7 @@ export namespace EvidenceBenchmarkLintBaseline {
       ts.ScriptKind.TS,
     );
     const declarations: ts.VariableDeclaration[] = [];
+    const loaderGuards: ts.VariableDeclaration[] = [];
     const rules: ts.PropertyAssignment[] = [];
     const visit = (node: ts.Node): void => {
       if (
@@ -175,6 +180,12 @@ export namespace EvidenceBenchmarkLintBaseline {
         node.name.text === "graph"
       )
         declarations.push(node);
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.name.text === "isNestiaConfigLoader"
+      )
+        loaderGuards.push(node);
       if (
         ts.isPropertyAssignment(node) &&
         propertyName(node.name) === "evidence/graph"
@@ -236,23 +247,24 @@ export namespace EvidenceBenchmarkLintBaseline {
         `Evidence graph claim names are duplicated: ${relative}.`,
       );
 
-    const activeTuples: ts.ArrayLiteralExpression[] = [];
-    const findActiveTuple = (node: ts.Node): void => {
+    const rule: ts.Expression = unwrap(rules[0]!.initializer);
+    if (relative === PATHS[1]) {
       if (
-        ts.isArrayLiteralExpression(node) &&
-        node.elements.length === 2 &&
-        ts.isStringLiteral(unwrap(node.elements[0]!)) &&
-        (unwrap(node.elements[0]!) as ts.StringLiteral).text === "error" &&
-        ts.isIdentifier(unwrap(node.elements[1]!)) &&
-        (unwrap(node.elements[1]!) as ts.Identifier).text === "graph"
+        loaderGuards.length !== 1 ||
+        !isAuthorizedLoaderGuard(loaderGuards[0]!.initializer) ||
+        !ts.isConditionalExpression(rule) ||
+        !ts.isIdentifier(unwrap(rule.condition)) ||
+        (unwrap(rule.condition) as ts.Identifier).text !==
+          "isNestiaConfigLoader" ||
+        !isString(unwrap(rule.whenTrue), "off") ||
+        !isErrorGraphTuple(unwrap(rule.whenFalse))
       )
-        activeTuples.push(node);
-      ts.forEachChild(node, findActiveTuple);
-    };
-    findActiveTuple(rules[0]!.initializer);
-    if (activeTuples.length !== 1)
+        throw new Error(
+          `Backend evidence graph rule must use only the authorized Nestia loader bypass and otherwise remain ["error", graph]: ${relative}.`,
+        );
+    } else if (loaderGuards.length !== 0 || !isErrorGraphTuple(rule))
       throw new Error(
-        `Evidence graph rule must contain one active ["error", graph] branch: ${relative}.`,
+        `Evidence graph rule must remain the direct ["error", graph] tuple: ${relative}.`,
       );
     return {
       severity: "error",
@@ -321,5 +333,70 @@ export namespace EvidenceBenchmarkLintBaseline {
     )
       return input.text;
     return undefined;
+  }
+
+  function isAuthorizedLoaderGuard(input: ts.Expression | undefined): boolean {
+    if (input === undefined) return false;
+    const node: ts.Expression = unwrap(input);
+    if (
+      !ts.isBinaryExpression(node) ||
+      node.operatorToken.kind !== ts.SyntaxKind.EqualsEqualsEqualsToken ||
+      !isString(unwrap(node.right), "1")
+    )
+      return false;
+    const variable: ts.Expression = unwrap(node.left);
+    return (
+      ts.isPropertyAccessExpression(variable) &&
+      variable.name.text === "NESTIA_SDK_TRANSFORM" &&
+      ts.isPropertyAccessExpression(variable.expression) &&
+      variable.expression.name.text === "env" &&
+      ts.isIdentifier(variable.expression.expression) &&
+      variable.expression.expression.text === "process"
+    );
+  }
+
+  function isErrorGraphTuple(node: ts.Expression): boolean {
+    return (
+      ts.isArrayLiteralExpression(node) &&
+      node.elements.length === 2 &&
+      isString(unwrap(node.elements[0]!), "error") &&
+      ts.isIdentifier(unwrap(node.elements[1]!)) &&
+      (unwrap(node.elements[1]!) as ts.Identifier).text === "graph"
+    );
+  }
+
+  function isString(node: ts.Expression, value: string): boolean {
+    return (
+      (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) &&
+      node.text === value
+    );
+  }
+
+  function claimChangeSummary(
+    before: IEvidenceBenchmarkMaterialization.ILintGraphBaseline | null,
+    after: IEvidenceBenchmarkMaterialization.ILintGraphBaseline | null,
+  ): string {
+    const expected: ReadonlyMap<string, string> = new Map(
+      (before?.claims ?? []).map((claim) => [claim.name, claim.sha256]),
+    );
+    const actual: ReadonlyMap<string, string> = new Map(
+      (after?.claims ?? []).map((claim) => [claim.name, claim.sha256]),
+    );
+    const changed: string[] = [
+      ...new Set([...expected.keys(), ...actual.keys()]),
+    ]
+      .filter((name) => expected.get(name) !== actual.get(name))
+      .sort();
+    const shown: string[] = changed.slice(0, 8);
+    const suffix: string =
+      changed.length > shown.length
+        ? `, and ${changed.length - shown.length} more`
+        : "";
+    return [
+      `Expected claims: ${expected.size}; actual claims: ${actual.size}.`,
+      `Changed claim names (${changed.length}): ${
+        shown.length === 0 ? "none" : `${shown.join(", ")}${suffix}`
+      }.`,
+    ].join("\n");
   }
 }

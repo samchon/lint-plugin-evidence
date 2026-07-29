@@ -29,8 +29,8 @@ export namespace IEvidenceBenchmarkMaterialization {
   /** Benchmark mechanisms whose necessary setup differs by construction. */
   export type Arm = "evidence" | "plain";
 
-  /** Supported requirement corpora in ascending benchmark cost order. */
-  export type Project = "todo" | "reddit" | "shopping" | "erp";
+  /** Portable subject slug backed by a benchmark/requirements directory. */
+  export type Project = string;
 
   /** Complete input needed to materialize one cell before any agent starts. */
   export interface IRequest {

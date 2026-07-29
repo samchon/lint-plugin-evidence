@@ -4,6 +4,7 @@ import path from "node:path";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkProject } from "./EvidenceBenchmarkProject.ts";
 import { EvidenceBenchmarkTurnLedger } from "./EvidenceBenchmarkTurnLedger.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 
@@ -13,7 +14,6 @@ import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBe
  */
 export namespace EvidenceBenchmarkPublication {
   const ARMS = ["evidence", "plain"] as const;
-  const PROJECTS = ["todo", "reddit", "shopping", "erp"] as const;
   /** Explicit publication request parsed from the benchmark command line. */
   export interface IRequest {
     /** Existing public GitHub repository in owner/name form. */
@@ -126,8 +126,6 @@ export namespace EvidenceBenchmarkPublication {
         "Usage: benchmark publish --repository <owner/name> --checkout <local-path> --public <project> <arm> <run-id>",
       );
     const [projectInput, armInput, runId] = positional;
-    if (!PROJECTS.includes(projectInput as (typeof PROJECTS)[number]))
-      throw new Error(`Unknown benchmark project: ${projectInput}.`);
     if (!ARMS.includes(armInput as (typeof ARMS)[number]))
       throw new Error(`Unknown benchmark arm: ${armInput}.`);
     if (
@@ -140,7 +138,7 @@ export namespace EvidenceBenchmarkPublication {
     return {
       repository,
       checkout,
-      project: projectInput as IEvidenceBenchmarkMaterialization.Project,
+      project: EvidenceBenchmarkProject.parse(projectInput!),
       arm: armInput as IEvidenceBenchmarkMaterialization.Arm,
       runId,
     };
@@ -156,6 +154,7 @@ export namespace EvidenceBenchmarkPublication {
     run: Runner = EvidenceBenchmarkProcess.run,
   ): Promise<IResult> {
     const sourceRoot: string = path.resolve(sourceRepository);
+    EvidenceBenchmarkProject.parse(request.project);
     const resultsRoot: string = path.join(sourceRoot, "benchmark", "result");
     const runRoot: string = path.resolve(
       resultsRoot,
@@ -268,22 +267,40 @@ export namespace EvidenceBenchmarkPublication {
     if (!workspaceStat?.isDirectory() || workspaceStat.isSymbolicLink())
       throw new Error(`Completed workspace was not found: ${workspace}.`);
     if (request.arm === "evidence") {
-      const lintRestorationSha256: string =
-        EvidenceBenchmarkLintBaseline.assertRestored(
-          workspace,
-          request.arm,
-          state.lintBaselines,
-        );
-      const finalTurn = state.turns.findLast(
-        (turn) =>
-          turn.name === "overall-final" &&
-          turn.status === 0 &&
-          turn.accepted === true,
+      EvidenceBenchmarkLintBaseline.assertRestored(
+        workspace,
+        request.arm,
+        state.lintBaselines,
       );
-      if (finalTurn?.lintRestorationSha256 !== lintRestorationSha256)
-        throw new Error(
-          "Evidence publication lint configuration restoration failed verification.",
+      for (const gate of [
+        {
+          name: "backend-final",
+          paths: EvidenceBenchmarkLintBaseline.BACKEND_PATHS,
+        },
+        {
+          name: "frontend-final",
+          paths: EvidenceBenchmarkLintBaseline.PATHS,
+        },
+        {
+          name: "overall-final",
+          paths: EvidenceBenchmarkLintBaseline.PATHS,
+        },
+      ] as const) {
+        const expected: string = EvidenceBenchmarkLintBaseline.digest(
+          state.lintBaselines,
+          gate.paths,
         );
+        const turn = state.turns.findLast(
+          (candidate) =>
+            candidate.name === gate.name &&
+            candidate.status === 0 &&
+            candidate.accepted === true,
+        );
+        if (turn?.lintRestorationSha256 !== expected)
+          throw new Error(
+            `Evidence publication ${gate.name} lint restoration proof failed verification.`,
+          );
+      }
       const relativeArchive: string | undefined =
         manifest.artifact.relativeArchive;
       if (relativeArchive === undefined)

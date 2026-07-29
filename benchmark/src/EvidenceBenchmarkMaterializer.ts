@@ -7,6 +7,7 @@ import { EvidenceBenchmarkCorpus } from "./EvidenceBenchmarkCorpus.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkProject } from "./EvidenceBenchmarkProject.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 
@@ -24,6 +25,8 @@ export namespace EvidenceBenchmarkMaterializer {
   ): Promise<IEvidenceBenchmarkMaterialization> {
     const started: bigint = process.hrtime.bigint();
     const repository: string = path.resolve(request.repository);
+    const project: IEvidenceBenchmarkMaterialization.Project =
+      EvidenceBenchmarkProject.requireCorpus(repository, request.project);
     const output: string = path.resolve(request.output);
     const parent: string = path.dirname(output);
     if (output === path.parse(output).root)
@@ -52,7 +55,7 @@ export namespace EvidenceBenchmarkMaterializer {
       );
       const corpus: EvidenceBenchmarkCorpus.IResult =
         EvidenceBenchmarkCorpus.read(
-          path.join(repository, "benchmark", "requirements", request.project),
+          path.join(repository, "benchmark", "requirements", project),
         );
       const requirementFiles: ReadonlyMap<string, Uint8Array> = corpus.files;
       for (const [relative, content] of requirementFiles) {
@@ -103,7 +106,7 @@ export namespace EvidenceBenchmarkMaterializer {
       const manifestRecord: IEvidenceBenchmarkMaterialization.IManifest = {
         schemaVersion: 5,
         treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
-        project: request.project,
+        project,
         arm: request.arm,
         elapsedMs: 0,
         variables: Object.fromEntries(
@@ -117,7 +120,7 @@ export namespace EvidenceBenchmarkMaterializer {
         workspaceTreeSha256,
         inputSha256: EvidenceBenchmarkHash.object({
           treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
-          project: request.project,
+          project,
           arm: request.arm,
           variables: request.variables,
           base: composition.baseTreeSha256,

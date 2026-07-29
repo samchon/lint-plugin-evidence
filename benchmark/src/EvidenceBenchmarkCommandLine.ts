@@ -8,6 +8,7 @@ import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.t
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkProject } from "./EvidenceBenchmarkProject.ts";
 import { EvidenceBenchmarkPublication } from "./EvidenceBenchmarkPublication.ts";
 import { EvidenceBenchmarkRepair } from "./EvidenceBenchmarkRepair.ts";
 import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
@@ -114,18 +115,17 @@ export namespace EvidenceBenchmarkCommandLine {
       );
       return;
     }
-    const options: IOptions = parseOptions(arguments_);
+    const options: IOptions = parseOptions(repository, arguments_);
     const instructionSets: Readonly<
       Record<IEvidenceBenchmarkMaterialization.Arm, IInstructionSet>
     > = readInstructionSets(repository);
-    const cells = options.projects.flatMap((project) =>
-      ARMS.map((arm) => ({
+    const cells = options.projects.flatMap((project, projectIndex) =>
+      ARMS.map((arm, armIndex) => ({
         project,
         arm,
         instructions: instructionSets[arm],
         runtime: EvidenceBenchmarkRuntime.assign(
-          project,
-          arm,
+          projectIndex * ARMS.length + armIndex,
           options.portBase,
         ),
       })),
@@ -204,15 +204,13 @@ export namespace EvidenceBenchmarkCommandLine {
   ): Promise<void> {
     if (arguments_.length !== 3)
       throw new Error(
-        "Usage: benchmark resume <todo|reddit|shopping|erp> <evidence|plain> <run-id>",
+        "Usage: benchmark resume <project> <evidence|plain> <run-id>",
       );
     const [projectInput, armInput, runId] = arguments_;
-    const projects = new Set(["todo", "reddit", "shopping", "erp"]);
-    if (!projects.has(projectInput!))
-      throw new Error(`Unknown benchmark project: ${projectInput}.`);
     if (!ARMS.includes(armInput as (typeof ARMS)[number]))
       throw new Error(`Unknown benchmark arm: ${armInput}.`);
-    const project = projectInput as IEvidenceBenchmarkMaterialization.Project;
+    const project: IEvidenceBenchmarkMaterialization.Project =
+      EvidenceBenchmarkProject.parse(projectInput!);
     const arm = armInput as IEvidenceBenchmarkMaterialization.Arm;
     const resultsRoot: string = path.resolve(repository, "benchmark", "result");
     const root: string = path.resolve(
@@ -683,7 +681,7 @@ export namespace EvidenceBenchmarkCommandLine {
     return sha256;
   }
 
-  function parseOptions(arguments_: string[]): IOptions {
+  function parseOptions(repository: string, arguments_: string[]): IOptions {
     const values: string[] = arguments_.slice(1);
     const projects: string[] = [];
     let portBase: number = EvidenceBenchmarkRuntime.DEFAULT_PORT_BASE;
@@ -710,15 +708,19 @@ export namespace EvidenceBenchmarkCommandLine {
     }
     if (projects.length === 0)
       throw new Error("At least one benchmark project is required.");
-    const allowed = new Set(["todo", "reddit", "shopping", "erp"]);
-    for (const value of projects)
-      if (!allowed.has(value))
-        throw new Error(`Unknown benchmark project: ${value}.`);
-    EvidenceBenchmarkRuntime.assign("erp", "plain", portBase);
+    const selected: IEvidenceBenchmarkMaterialization.Project[] = [
+      ...new Set(
+        projects.map((project) =>
+          EvidenceBenchmarkProject.requireCorpus(repository, project),
+        ),
+      ),
+    ];
+    EvidenceBenchmarkRuntime.assign(
+      selected.length * ARMS.length - 1,
+      portBase,
+    );
     return {
-      projects: [
-        ...new Set(projects),
-      ] as IEvidenceBenchmarkMaterialization.Project[],
+      projects: selected,
       portBase,
     };
   }
@@ -751,7 +753,7 @@ export namespace EvidenceBenchmarkCommandLine {
     if (props.arm !== "evidence") return undefined;
     const selected: readonly string[] | undefined =
       props.name === "backend-final"
-        ? ["packages/api/lint.config.ts", "packages/backend/lint.config.ts"]
+        ? EvidenceBenchmarkLintBaseline.BACKEND_PATHS
         : props.name === "frontend-final" || props.name === "overall-final"
           ? EvidenceBenchmarkLintBaseline.PATHS
           : undefined;

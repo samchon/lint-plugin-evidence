@@ -6,7 +6,7 @@ on:
       - ".github/workflows/benchmark.yml"
       - "benchmark/package.json"
       - "benchmark/template/**"
-      - "benchmark/requirements/todo/**"
+      - "benchmark/requirements/**"
       - "benchmark/src/**"
       - "config/**"
       - "package.json"
