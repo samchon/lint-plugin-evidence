@@ -1,4 +1,6 @@
+import fs from "node:fs";
 import net from "node:net";
+import path from "node:path";
 
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 
@@ -71,6 +73,43 @@ export namespace EvidenceBenchmarkRuntime {
     environment.VITE_API_HOST = assignment.apiHost;
     environment.VITE_DEV_PORT = String(assignment.viteDevelopmentPort);
     environment.PLAYWRIGHT_TEST_PORT = String(assignment.playwrightPort);
+  }
+
+  /**
+   * Persists cell-owned endpoints inside the workspace so commands launched by
+   * Codex, Vite, Playwright, and browser tooling share the same allocation.
+   */
+  export function persist(workspace: string, assignment: IAssignment): void {
+    const backend: string = path.join(workspace, "packages", "backend", ".env");
+    const frontend: string = path.join(
+      workspace,
+      "packages",
+      "frontend",
+      ".env",
+    );
+    fs.writeFileSync(
+      backend,
+      [
+        `API_PORT=${assignment.apiPort}`,
+        `SWAGGER_PORT=${assignment.swaggerPort}`,
+        "JWT_SECRET_KEY=benchmark-runtime-secret-at-least-32-characters",
+        "JWT_ACCESS_TTL_SECONDS=3600",
+        "JWT_REFRESH_TTL_SECONDS=2592000",
+        "",
+      ].join("\n"),
+      { encoding: "utf8", flag: "wx" },
+    );
+    fs.writeFileSync(
+      frontend,
+      [
+        `VITE_API_HOST=${assignment.apiHost}`,
+        "VITE_API_SIMULATE=false",
+        `VITE_DEV_PORT=${assignment.viteDevelopmentPort}`,
+        `PLAYWRIGHT_TEST_PORT=${assignment.playwrightPort}`,
+        "",
+      ].join("\n"),
+      { encoding: "utf8", flag: "wx" },
+    );
   }
 
   /** Fails before packaging or model use when any selected endpoint is busy. */

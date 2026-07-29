@@ -65,14 +65,18 @@ claims: [
 
 Comment every line of the existing object. Remove only those line-comment markers to reactivate it. Apply the same whole-object operation to claims in the other two package configurations. Restore every deferred claim before the final review.
 
-## Final State
+## Phase Gates
 
-Before any completion report:
+At the Backend Phase gate, restore and validate the five claims in `packages/backend/lint.config.ts` and `packages/api/lint.config.ts`. Run package-scoped API/backend gates; do not use the workspace-root build to compile the unfinished frontend.
+
+At the Frontend Phase gate, restore and validate the two claims in `packages/frontend/lint.config.ts`. If frontend work changed API or backend sources, restore and revalidate the affected configurations and re-pass the Backend Phase first.
+
+At the Overall Phase gate:
 
 1. Open all three `lint.config.ts` files and restore every temporarily commented claim.
 2. Confirm the active claim names are exactly the seven names in the configuration table.
 3. Confirm every configured evidence rule retains its original `error` severity and every claim retains its original population.
-4. Run the complete package lint, build, and test gates with no staged configuration override.
+4. Run the complete workspace lint, build, and test gates with no staged configuration override.
 5. Read and execute [Review](../review/SKILL.md) against the fully active graph.
 
-A green subset is an implementation checkpoint, not completion. Any commented claim, narrowed population, disabled rule, remaining `@todo`, or unreviewed graph edge blocks the final report.
+A green phase subset is not whole-project completion. Any claim missing from its active phase, narrowed population, disabled rule, remaining phase-owned `@todo`, or unreviewed phase edge blocks that phase report.

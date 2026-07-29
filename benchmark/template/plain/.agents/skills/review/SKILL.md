@@ -5,6 +5,16 @@ description: Defines integrity review for plain-arm mappings, including full-sco
 
 # Review
 
+## Phase Scope
+
+Apply the scope named by the current user turn.
+
+- **Backend Phase.** Review every requirement for API and backend applicability and review the complete current schema, DTO, controller, provider, database-access, backend-test, and generated-contract population. Frontend obligations remain pending rather than accepted.
+- **Frontend Phase.** Review every requirement for user-facing and integration applicability and review every route, screen, component, hook, form, state, omission, browser journey, and SDK consumption path. If a finding proves a backend defect, repair it and re-pass the complete Backend Phase before resuming.
+- **Overall Phase.** Review every requirement and every artifact across all layers without phase partitioning.
+
+Each round covers the entire active phase scope. The phase boundary is prescribed by the user turn; never subdivide that scope by file, package, lens, requirement subset, finding, or available time.
+
 ## A Filled Row Is Not A True Row
 
 An implementation may be said to realize a requirement, model, operation, or shape without the statement being accurate. A detailed-looking claim can still describe adjacent behavior or close a whole section with one partial implementation.
@@ -57,14 +67,14 @@ Record findings before repair and retain stale rows until their replacements pas
 
 ## Loop Until Dry
 
-Run complete review rounds until one entire round is dry. This loop has no maximum round count.
+Run complete review rounds over the active phase scope until one entire round is dry. This loop has no maximum round count.
 
-Every round is an independent full review of the whole current project. Reread every H2 and H3 and walk each one through every applicable layer. Then enumerate and reverse-walk every authored model and column, DTO type and property, controller operation, provider branch and database access, meaningful test assertion, route, screen, hook, form, and browser journey. Recheck every state, permission, negative path, named boundary, generated output, `@todo`, and required build, lint, test, and browser gate.
+Every round is an independent full review of the whole active phase scope. Reread every H2 and H3 and walk each one through every layer applicable to that phase. Then enumerate and reverse-walk every authored artifact in that phase. Recheck every state, permission, negative path, named boundary, generated output, `@todo`, and required phase gate.
 
-Never divide a round by file, layer, lens, requirement subset, finding, or available time. Never carry a partial round forward as if its untouched remainder had passed. Every round starts from the complete current requirements and the complete current artifact population.
+Never divide a round below the prescribed phase boundary. Never carry a partial round forward as if its untouched remainder had passed. Every round starts from the complete current requirements and the complete current artifact population for that phase.
 
 If a round finds even one missing, invented, stale, false, partial, or unverified mapping or behavior, that round is not dry. Record every finding, repair every confirmed defect at its owning layer, regenerate affected outputs, rerun every invalidated gate, and begin a new full round from the start on the changed source.
 
-The only successful stopping condition is one full round that inspects the entire scope, finds zero actionable defects or omissions, and leaves every required gate current and green. An external interruption ends the loop only as an explicitly unfinished report, never as completion.
+The only successful stopping condition is one full round that inspects the entire active phase scope, finds zero actionable defects or omissions, and leaves every required phase gate current and green. An external interruption ends the loop only as an explicitly unfinished report, never as completion.
 
-Complete this loop before every terminal completion report. Do not edit frozen instructions or lint configuration files.
+Complete this loop before every phase report. The Overall Phase repeats it over the whole project. Do not edit frozen instructions or lint configuration files.

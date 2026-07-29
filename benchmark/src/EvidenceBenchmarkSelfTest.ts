@@ -136,6 +136,54 @@ export namespace EvidenceBenchmarkSelfTest {
       VITE_API_HOST: "http://127.0.0.1:46000",
       VITE_DEV_PORT: "46002",
     });
+    const secondWave = [
+      EvidenceBenchmarkRuntime.assign("todo", "evidence", 51_000),
+      EvidenceBenchmarkRuntime.assign("todo", "plain", 51_000),
+      EvidenceBenchmarkRuntime.assign("reddit", "evidence", 51_000),
+      EvidenceBenchmarkRuntime.assign("reddit", "plain", 51_000),
+    ];
+    const combinedPorts = [...assignments, ...secondWave].flatMap(
+      (assignment) => [
+        assignment.apiPort,
+        assignment.swaggerPort,
+        assignment.viteDevelopmentPort,
+        assignment.playwrightPort,
+      ],
+    );
+    assert.equal(
+      new Set(combinedPorts).size,
+      combinedPorts.length,
+      "concurrent waves with distinct port bases must not overlap",
+    );
+
+    const persisted: string = fs.mkdtempSync(
+      path.join(os.tmpdir(), "evidence-benchmark-runtime-"),
+    );
+    try {
+      fs.mkdirSync(path.join(persisted, "packages", "backend"), {
+        recursive: true,
+      });
+      fs.mkdirSync(path.join(persisted, "packages", "frontend"), {
+        recursive: true,
+      });
+      EvidenceBenchmarkRuntime.persist(persisted, secondWave[0]!);
+      assert.match(
+        fs.readFileSync(
+          path.join(persisted, "packages", "backend", ".env"),
+          "utf8",
+        ),
+        /^API_PORT=51000$/m,
+      );
+      assert.match(
+        fs.readFileSync(
+          path.join(persisted, "packages", "frontend", ".env"),
+          "utf8",
+        ),
+        /^PLAYWRIGHT_TEST_PORT=51003$/m,
+      );
+    } finally {
+      fs.rmSync(persisted, { recursive: true, force: true });
+    }
 
     const blocker: net.Server = net.createServer();
     await new Promise<void>((resolve, reject) => {
@@ -430,6 +478,46 @@ export namespace EvidenceBenchmarkSelfTest {
         fs.existsSync(path.join(prompts, arm, "final.md")),
         `${arm} final user turn is missing`,
       );
+
+    const instructions: string = path.join(
+      repository,
+      "benchmark",
+      "instructions",
+    );
+    assert.deepEqual(
+      fs
+        .readdirSync(instructions, { withFileTypes: true })
+        .map((entry) => entry.name)
+        .sort(),
+      ["backend", "frontend", "overall"],
+      "backend-first instructions must contain exactly three phase directories",
+    );
+    for (const phase of ["backend", "frontend"])
+      assert.deepEqual(
+        fs.readdirSync(path.join(instructions, phase)).sort(),
+        ["evidence-final.md", "plain-final.md", "review.md", "start.md"],
+        `${phase} instruction inventory is invalid`,
+      );
+    assert.deepEqual(
+      fs.readdirSync(path.join(instructions, "overall")).sort(),
+      ["evidence-final.md", "plain-final.md", "review.md"],
+      "overall instruction inventory is invalid",
+    );
+    assert.match(
+      fs.readFileSync(
+        path.join(instructions, "backend", "evidence-final.md"),
+        "utf8",
+      ),
+      /From `packages\/backend`, run `pnpm build`/,
+    );
+    assert.match(
+      fs.readFileSync(
+        path.join(instructions, "backend", "evidence-final.md"),
+        "utf8",
+      ),
+      /Do not run the workspace-root build during this phase\./,
+      "backend final must state the root-build boundary clearly",
+    );
 
     const template: string = path.join(repository, "benchmark", "template");
     for (const arm of ["evidence", "plain"] as const) {
@@ -1089,6 +1177,35 @@ export namespace EvidenceBenchmarkSelfTest {
     assert.equal(
       fs.readdirSync(output).filter((file) => file.endsWith(".tgz")).length,
       1,
+    );
+
+    const cell = await EvidenceBenchmarkMaterializer.materialize({
+      repository,
+      output: path.join(temporary, "nestia-evidence-smoke"),
+      project: "todo",
+      arm: "evidence",
+      variables: benchmarkVariables("nestia-evidence-smoke"),
+      artifact: first,
+    });
+    const runtime: EvidenceBenchmarkRuntime.IAssignment =
+      EvidenceBenchmarkRuntime.assign("todo", "evidence", 52_000);
+    EvidenceBenchmarkRuntime.apply(cell.environment, runtime);
+    EvidenceBenchmarkRuntime.persist(cell.workspace, runtime);
+    await EvidenceBenchmarkSetup.prepare({
+      materialization: cell,
+      arm: "evidence",
+    });
+    await EvidenceBenchmarkProcess.pnpm(["run", "build:sdk"], {
+      cwd: path.join(cell.workspace, "packages", "backend"),
+      env: cell.environment,
+      label: "Nestia evidence config-loader smoke",
+    });
+    assert.equal(
+      fs.existsSync(
+        path.join(cell.workspace, "packages", "api", "swagger.json"),
+      ),
+      true,
+      "Nestia evidence smoke must generate the OpenAPI contract",
     );
   }
 

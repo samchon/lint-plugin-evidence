@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
+import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
@@ -14,18 +15,37 @@ import type { IEvidenceBenchmarkPackageArtifact } from "./structures/IEvidenceBe
 /** Prepares and launches retained Codex benchmark waves from one clean revision. */
 export namespace EvidenceBenchmarkCommandLine {
   const MODEL = "gpt-5.6-luna";
+  const WORKFLOW = "backend-first-gated-v1" as const;
   const ARMS = ["evidence", "plain"] as const;
 
+  type TurnName =
+    | "backend-start"
+    | "backend-review"
+    | "backend-final"
+    | "frontend-start"
+    | "frontend-review"
+    | "frontend-final"
+    | "overall-review"
+    | "overall-final";
+
   interface ITurn {
-    name: "instruction" | "goal" | "review" | "verification";
+    name: TurnName;
     elapsedMs: number;
     status: number | null;
     stdout: string;
     stderr: string;
   }
 
+  interface IInstruction {
+    name: TurnName;
+    relative: string;
+    content: string;
+  }
+
   interface IState {
-    schemaVersion: 2;
+    schemaVersion: 3;
+    workflow: typeof WORKFLOW;
+    instructionsTreeSha256: string;
     project: IEvidenceBenchmarkMaterialization.Project;
     arm: IEvidenceBenchmarkMaterialization.Arm;
     model: typeof MODEL;
@@ -55,6 +75,7 @@ export namespace EvidenceBenchmarkCommandLine {
       ARMS.map((arm) => ({
         project,
         arm,
+        instructions: readInstructions(repository, arm),
         runtime: EvidenceBenchmarkRuntime.assign(
           project,
           arm,
@@ -65,7 +86,17 @@ export namespace EvidenceBenchmarkCommandLine {
     if (arguments_[0] === "plan") {
       console.log(
         JSON.stringify(
-          { model: MODEL, portBase: options.portBase, cells },
+          {
+            model: MODEL,
+            workflow: WORKFLOW,
+            portBase: options.portBase,
+            cells: cells.map(({ instructions, ...cell }) => ({
+              ...cell,
+              instructions: instructions.map(
+                ({ content: _content, ...entry }) => entry,
+              ),
+            })),
+          },
           null,
           2,
         ),
@@ -125,6 +156,7 @@ export namespace EvidenceBenchmarkCommandLine {
     project: IEvidenceBenchmarkMaterialization.Project;
     arm: IEvidenceBenchmarkMaterialization.Arm;
     runtime: EvidenceBenchmarkRuntime.IAssignment;
+    instructions: readonly IInstruction[];
     artifact: IEvidenceBenchmarkPackageArtifact;
   }): Promise<void> {
     const started: bigint = process.hrtime.bigint();
@@ -162,6 +194,10 @@ export namespace EvidenceBenchmarkCommandLine {
         materialization.environment,
         props.runtime,
       );
+      EvidenceBenchmarkRuntime.persist(
+        materialization.workspace,
+        props.runtime,
+      );
       await EvidenceBenchmarkSetup.prepare({
         materialization,
         arm: props.arm,
@@ -173,7 +209,9 @@ export namespace EvidenceBenchmarkCommandLine {
       const logs: string = path.join(root, "logs");
       fs.mkdirSync(logs, { recursive: false });
       const state: IState = {
-        schemaVersion: 2,
+        schemaVersion: 3,
+        workflow: WORKFLOW,
+        instructionsTreeSha256: freezeInstructions(root, props.instructions),
         project: props.project,
         arm: props.arm,
         model: MODEL,
@@ -184,29 +222,13 @@ export namespace EvidenceBenchmarkCommandLine {
         turns: [],
       };
       writeState(root, state);
-      const prompts: ReadonlyArray<{
-        name: ITurn["name"];
-        relative: string;
-      }> = [
-        { name: "instruction", relative: "instruction.md" },
-        { name: "goal", relative: "goal.md" },
-        { name: "review", relative: "review.md" },
-        {
-          name: "verification",
-          relative: path.join(props.arm, "final.md"),
-        },
-      ];
-      for (const entry of prompts) {
-        const prompt: string = fs.readFileSync(
-          path.join(props.repository, "benchmark", "prompts", entry.relative),
-          "utf8",
-        );
+      for (const entry of props.instructions) {
         const turn: ITurn & { threadId?: string } = await runTurn({
           workspace: materialization.workspace,
           environment: materialization.environment,
           logs,
           name: entry.name,
-          prompt,
+          prompt: entry.content,
           threadId: state.threadId,
         });
         state.threadId ??= turn.threadId;
@@ -267,6 +289,8 @@ export namespace EvidenceBenchmarkCommandLine {
       MODEL,
       "--dangerously-bypass-approvals-and-sandbox",
       "--skip-git-repo-check",
+      "--config",
+      "shell_environment_policy.inherit=all",
     ];
     const args: string[] =
       props.threadId === undefined
@@ -318,6 +342,47 @@ export namespace EvidenceBenchmarkCommandLine {
       stderr: path.posix.join("logs", path.basename(stderrPath)),
       threadId,
     };
+  }
+
+  function readInstructions(
+    repository: string,
+    arm: IEvidenceBenchmarkMaterialization.Arm,
+  ): IInstruction[] {
+    const entries: readonly Omit<IInstruction, "content">[] = [
+      { name: "backend-start", relative: "backend/start.md" },
+      { name: "backend-review", relative: "backend/review.md" },
+      { name: "backend-final", relative: `backend/${arm}-final.md` },
+      { name: "frontend-start", relative: "frontend/start.md" },
+      { name: "frontend-review", relative: "frontend/review.md" },
+      { name: "frontend-final", relative: `frontend/${arm}-final.md` },
+      { name: "overall-review", relative: "overall/review.md" },
+      { name: "overall-final", relative: `overall/${arm}-final.md` },
+    ];
+    const root: string = path.join(repository, "benchmark", "instructions");
+    return entries.map((entry) => ({
+      ...entry,
+      content: fs.readFileSync(path.join(root, entry.relative), "utf8"),
+    }));
+  }
+
+  function freezeInstructions(
+    root: string,
+    instructions: readonly IInstruction[],
+  ): string {
+    const files: Map<string, Uint8Array> = new Map(
+      instructions.map((entry) => [
+        entry.relative,
+        Buffer.from(entry.content, "utf8"),
+      ]),
+    );
+    const destination: string = path.join(root, "inputs", "instructions");
+    fs.mkdirSync(destination, { recursive: false });
+    for (const [relative, content] of files) {
+      const target: string = path.join(destination, ...relative.split("/"));
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, content, { flag: "wx" });
+    }
+    return EvidenceBenchmarkHash.tree(files);
   }
 
   function parseOptions(arguments_: string[]): IOptions {

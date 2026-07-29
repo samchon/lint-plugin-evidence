@@ -17,6 +17,16 @@ Everything else in this repository is yours to write, from the documents alone. 
 
 Start by reading `docs/analysis/` in full, then read the backend skill's wiring topic for the order that gets an empty repository to a running server. Do not begin writing a schema after skimming one document: the concern that decides a table's shape usually lives in a different document from the one that names the table.
 
+## Development Phases
+
+Complete the project through three gates.
+
+1. Build and exhaustively review the API and backend, then pass the Backend Layer Gate. Do not implement the frontend during this phase.
+2. Build and exhaustively review the frontend against the gated SDK and live backend, then pass the Frontend Layer Gate. Return to the backend only for a named requirement, diagnostic, test, contract, or integration failure, and re-pass the backend gate after repair.
+3. Run an unpartitioned overall review and the complete workspace-root gates.
+
+Package-scoped commands own the first two gates. The workspace-root build belongs to the overall gate because it compiles every package.
+
 ## Layout
 
 ```

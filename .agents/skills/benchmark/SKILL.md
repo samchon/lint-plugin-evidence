@@ -9,7 +9,7 @@ description: Defines how @samchon/lint-plugin-evidence measures its own product 
 
 The README claims that an unattended agent can skip a requirement and still report completion, and that the evidence graph moves that omission into the build. This repository treats unproven claims as defects, so that product claim requires measured evidence.
 
-The benchmark generates the same application twice: once with the evidence plugin configured and once without it. The common prompts, subject requirements, shared template, arm overlays, and retained results under `benchmark/` are the experiment's authority.
+The benchmark generates the same application twice: once with the evidence plugin configured and once without it. The selected user-turn workflow, subject requirements, shared template, arm overlays, and retained results under `benchmark/` are the experiment's authority.
 
 The plain arm is not a strawman. Its existing review skill requires exhaustive whole-project review until a complete round is dry, because the benchmark must compare evidence against a serious manual method.
 
@@ -36,13 +36,13 @@ A shared defect affects every subject, so settle deterministic failures on the c
 Freeze these inputs before the first cell in a comparable wave starts:
 
 - the complete requirement corpus for every subject in the wave;
-- `benchmark/prompts/instruction.md`, `goal.md`, `review.md`, and both arm-specific `final.md` files;
+- the complete selected user-turn workflow: `benchmark/prompts/**` for the retained baseline protocol or `benchmark/instructions/**` for the backend-first gated protocol;
 - the shared template and both arm overlays, including their existing skills and lint configurations;
 - the locally packed product revision installed by the evidence arm;
 - the model, reasoning effort, Codex version, and toolchain versions; and
 - the measurement and quality-scoring procedure used for every arm.
 
-The first three user turns are shared. Each arm then receives its own final verification turn.
+The backend-first protocol shares each phase's start and review turn, then gives each arm its own phase-final turn. The runner must read the complete sequence once at launch, retain those exact bytes under the cell's `inputs/`, and send only the retained copy.
 
 Editing a frozen input after one cell starts invalidates comparison with that cell. Stop and remove the affected cells, record the reason in the campaign pull request, push the corrected input, and begin a new run identity for every affected cell.
 
@@ -56,7 +56,7 @@ A run is evidence only while it measures the product a real consumer would insta
 - **Give every arm its prescribed setup.** Use the same base template, requirements, user turns, model settings, and toolchain. The evidence arm alone receives the locally packed plugin and evidence lint configuration; the plain arm receives its own review instructions.
 - **Preserve the workload.** Do not weaken compilation, lint, testing, requirement coverage, or review obligations to make a cell finish.
 - **Record, never reconstruct.** Persist raw Codex streams, token categories, tool calls, commands, elapsed durations, completion claims, follow-up turns, and workspace state while the run is active. Label any later inference as an estimate.
-- **Separate costs.** Report materialization and installation overhead separately from agent wall time, and separate initial implementation from the review turn.
+- **Separate costs.** Report materialization and installation overhead separately from agent wall time. For the backend-first protocol, separate backend, frontend, and overall start, review, and final turns.
 - **Inspect surprises.** Read the live raw stream and workspace before stopping an unexpected cell, and inspect every successful retained workspace before accepting its result.
 
 ## Predict Before Spending

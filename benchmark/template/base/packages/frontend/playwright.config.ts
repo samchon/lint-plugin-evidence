@@ -1,4 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
+import process from "node:process";
+
+const environment = path.resolve(import.meta.dirname, ".env");
+if (fs.existsSync(environment)) process.loadEnvFile(environment);
 
 const host = "127.0.0.1";
 const port = Number(process.env.PLAYWRIGHT_TEST_PORT ?? 4173);

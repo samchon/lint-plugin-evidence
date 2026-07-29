@@ -1,8 +1,13 @@
 import tailwindcss from "@tailwindcss/vite";
 import ttsc from "@ttsc/unplugin/vite";
 import react from "@vitejs/plugin-react";
+import fs from "node:fs";
 import path from "node:path";
+import process from "node:process";
 import { defineConfig } from "vite";
+
+const environment = path.resolve(import.meta.dirname, ".env");
+if (fs.existsSync(environment)) process.loadEnvFile(environment);
 
 const port = Number(process.env.VITE_DEV_PORT ?? 5173);
 if (Number.isInteger(port) === false || port < 1 || port > 65_535)
