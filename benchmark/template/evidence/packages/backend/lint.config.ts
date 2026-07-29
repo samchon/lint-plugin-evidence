@@ -1,10 +1,12 @@
-import process from "node:process";
-
 import {
   evidence,
   type IEvidenceGraphConfig,
 } from "@samchon/lint-plugin-evidence";
 import type { ITtscLintConfig } from "@ttsc/lint";
+
+declare const process: {
+  env: Record<string, string | undefined>;
+};
 
 /**
  * The evidence obligations of the backend package.
