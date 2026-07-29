@@ -110,21 +110,20 @@ When the user explicitly cancels the benchmark and rejects its partial results:
 
 The deletion is destructive. State which local trees were removed and that the partial run cannot be resumed.
 
-## Publishing A Demo
+## Publishing An Accepted Result
 
-Publish only an operator-accepted completed run. The repository name is derived from its subject and arm:
+Publish only an operator-accepted completed run. Results share one independently maintained repository:
 
 ```text
-evidence-benchmark-<subject>
-evidence-benchmark-<subject>-plain
+<agent>/<model>/<project>/<evidence|plain>/
 ```
 
-Publication is always a separate explicit command:
+Record the final audit as `benchmark-report.json` beside the run state. Publication is always a separate explicit command naming both the public repository and its clean local checkout:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark publish:result -- --owner <github-login> --public todo evidence <run-id>
+pnpm --filter @samchon/evidence-benchmark publish:result -- --repository <owner/name> --checkout <local-path> --public todo evidence <run-id>
 ```
 
-There is no default owner. The command requires the authenticated `gh` login to equal `--owner`, refuses an existing repository, verifies the run, successful turn set, frozen instructions, requirements, and evidence package archive, rejects symlinks and local environment files, creates a new public repository, pushes `main`, and proves the remote commit equals the local publication commit.
+There is no default owner, repository, or checkout. The command requires the authenticated `gh` login to equal the repository owner; verifies public visibility, matching GitHub origin, clean current branch, remote parity, successful turns, frozen inputs, the completed-workspace digest, report, and evidence archive; rejects symlinks and private environment files; and replaces only the selected result leaf. It pushes one commit and proves the remote commit equals it. A pre-push failure restores the prior local leaf.
 
-The exported repository contains the completed application workspace and the repository-owned generated CI, not benchmark logs or scoring records. Publication replaces the staged workflow set with that trusted CI, so a workspace from an earlier wave also receives the current public-demo gate without changing the measured application. Evidence repositories retain `.benchmark-deps/*.tgz` because the generated lockfile uses that local package as the measured product. If creation succeeds but push or verification fails, the command deletes only the repository created by that invocation.
+The published leaf contains the completed application, result identity, audit report, and no raw logs, controller state, nested workflow, nested Git state, dependency directory, or private environment. Evidence leaves retain `.benchmark-deps/*.tgz` because the generated lockfile uses that local package as the measured product.

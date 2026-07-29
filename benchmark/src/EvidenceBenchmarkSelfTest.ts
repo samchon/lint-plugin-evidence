@@ -280,7 +280,7 @@ export namespace EvidenceBenchmarkSelfTest {
       arm: "evidence",
       requirementsTreeSha256,
       artifact: {
-        sourceCommit: "0123456789abcdef",
+        sourceCommit: "0123456789abcdef0123456789abcdef01234567",
         sha256: archiveSha256,
         relativeArchive: ".benchmark-deps/evidence.tgz",
       },
@@ -289,7 +289,7 @@ export namespace EvidenceBenchmarkSelfTest {
     write(
       path.join(runRoot, "run.json"),
       `${JSON.stringify({
-        schemaVersion: 4,
+        schemaVersion: 5,
         workflow: "backend-first-gated-v1",
         instructionsTreeSha256,
         project: "todo",
@@ -299,7 +299,9 @@ export namespace EvidenceBenchmarkSelfTest {
         effort: "high",
         cliVersion: "codex-cli 0.145.0",
         status: "completed",
-        sourceCommit: "0123456789abcdef",
+        sourceCommit: "0123456789abcdef0123456789abcdef01234567",
+        completedWorkspaceTreeSha256:
+          EvidenceBenchmarkPublication.workspaceSha256(workspace),
         turns: [
           "backend-start",
           "backend-review",
@@ -316,30 +318,29 @@ export namespace EvidenceBenchmarkSelfTest {
         })),
       })}\n`,
     );
+    write(
+      path.join(runRoot, "benchmark-report.json"),
+      `${JSON.stringify({ schemaVersion: 1, quality: { score: 100 } })}\n`,
+    );
+    const checkout: string = path.join(temporary, "publication-results");
+    write(path.join(checkout, "README.md"), "# Benchmark results\n");
     const request: EvidenceBenchmarkPublication.IRequest =
       EvidenceBenchmarkPublication.parse([
         "--",
-        "--owner",
-        "fixture-owner",
+        "--repository",
+        "fixture-owner/evidence-benchmark-results",
+        "--checkout",
+        checkout,
         "--public",
         "todo",
         "evidence",
         runId,
       ]);
-    assert.equal(
-      EvidenceBenchmarkPublication.repositoryName("todo", "evidence"),
-      "evidence-benchmark-todo",
-    );
-    assert.equal(
-      EvidenceBenchmarkPublication.repositoryName("todo", "plain"),
-      "evidence-benchmark-todo-plain",
-    );
 
     const calls: string[] = [];
     const runner: EvidenceBenchmarkPublication.Runner = async (
       command,
       arguments_,
-      options,
     ) => {
       calls.push(`${command} ${arguments_.join(" ")}`);
       if (
@@ -351,9 +352,23 @@ export namespace EvidenceBenchmarkSelfTest {
       if (
         command === "gh" &&
         arguments_[0] === "api" &&
-        arguments_[1] === "repos/fixture-owner/evidence-benchmark-todo"
+        arguments_[1] === "repos/fixture-owner/evidence-benchmark-results"
       )
-        return processResult(1, "", "gh: Not Found (HTTP 404)\n");
+        return processResult(0, "public\n");
+      if (
+        command === "git" &&
+        arguments_.join(" ") === "rev-parse --show-toplevel"
+      )
+        return processResult(0, `${checkout}\n`);
+      if (command === "git" && arguments_.join(" ") === "status --porcelain")
+        return processResult(0);
+      if (command === "git" && arguments_.join(" ") === "branch --show-current")
+        return processResult(0, "master\n");
+      if (command === "git" && arguments_.join(" ") === "remote get-url origin")
+        return processResult(
+          0,
+          "https://github.com/fixture-owner/evidence-benchmark-results.git\n",
+        );
       if (
         command === "git" &&
         arguments_[0] === "diff" &&
@@ -361,47 +376,44 @@ export namespace EvidenceBenchmarkSelfTest {
       )
         return processResult(1);
       if (command === "git" && arguments_[0] === "add") {
+        const leaf: string = path.join(
+          checkout,
+          "codex",
+          "gpt-5.6-terra",
+          "todo",
+          "evidence",
+        );
         assert.ok(
-          fs.existsSync(
-            path.join(options.cwd, ".benchmark-deps", "evidence.tgz"),
-          ),
+          fs.existsSync(path.join(leaf, ".benchmark-deps", "evidence.tgz")),
           "evidence publication must retain its local package archive",
         );
         assert.equal(
-          fs.existsSync(path.join(options.cwd, ".env")),
+          fs.existsSync(path.join(leaf, ".env")),
           false,
           "publication staging must exclude local environment files",
         );
-        const workflows: string[] = fs.readdirSync(
-          path.join(options.cwd, ".github", "workflows"),
+        assert.equal(
+          fs.existsSync(path.join(leaf, ".github", "workflows")),
+          false,
+          "consolidated publication must remove nested workflows",
         );
-        assert.deepEqual(
-          workflows,
-          ["ci.yml"],
-          "publication must install only the repository-owned workflow",
-        );
-        const workflow: string = fs.readFileSync(
-          path.join(options.cwd, ".github", "workflows", "ci.yml"),
-          "utf8",
-        );
-        assert.ok(
-          workflow.includes(
-            "pnpm --filter @evidence-benchmark/todo-evidence-frontend exec playwright install",
-          ),
-          "publication CI must render the generated frontend package name",
+        assert.equal(
+          JSON.parse(fs.readFileSync(path.join(leaf, "benchmark.json"), "utf8"))
+            .status,
+          "accepted",
         );
       }
       if (
         command === "git" &&
         arguments_[0] === "rev-parse" &&
-        arguments_[1] === "HEAD"
+        (arguments_[1] === "HEAD" || arguments_[1] === "origin/master")
       )
         return processResult(0, `${"a".repeat(40)}\n`);
       if (
         command === "gh" &&
         arguments_[0] === "api" &&
         arguments_[1] ===
-          "repos/fixture-owner/evidence-benchmark-todo/commits/main"
+          "repos/fixture-owner/evidence-benchmark-results/commits/master"
       )
         return processResult(0, `${"a".repeat(40)}\n`);
       if (
@@ -411,18 +423,14 @@ export namespace EvidenceBenchmarkSelfTest {
       )
         return processResult(
           0,
-          "https://github.com/fixture-owner/evidence-benchmark-todo\n",
+          "https://github.com/fixture-owner/evidence-benchmark-results\n",
         );
       return processResult(0);
     };
     const result: EvidenceBenchmarkPublication.IResult =
       await EvidenceBenchmarkPublication.publish(repository, request, runner);
-    assert.equal(result.repository, "fixture-owner/evidence-benchmark-todo");
-    assert.ok(
-      calls.includes(
-        "gh repo create fixture-owner/evidence-benchmark-todo --public --description todo benchmark generated in evidence mode",
-      ),
-    );
+    assert.equal(result.repository, "fixture-owner/evidence-benchmark-results");
+    assert.ok(calls.includes("git push origin master"));
 
     materialization.schemaVersion = 4;
     materialization.artifact.relativeArchive = ".benchmark-deps/../outside.tgz";
@@ -436,6 +444,16 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     materialization.artifact.relativeArchive = ".benchmark-deps/evidence.tgz";
     write(materializationPath, `${JSON.stringify(materialization)}\n`);
+
+    write(path.join(workspace, "package.json"), '{"private":false}\n');
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+          throw new Error("mutated workspace reached the process runner");
+        }),
+      "workspace failed identity verification",
+    );
+    write(path.join(workspace, "package.json"), '{"private":true}\n');
 
     await expectFailure(
       () =>
@@ -468,9 +486,32 @@ export namespace EvidenceBenchmarkSelfTest {
             if (
               command === "gh" &&
               arguments_[0] === "api" &&
-              arguments_[1] === "repos/fixture-owner/evidence-benchmark-todo"
+              arguments_[1] === "repos/fixture-owner/evidence-benchmark-results"
             )
-              return processResult(1, "", "gh: Not Found (HTTP 404)\n");
+              return processResult(0, "public\n");
+            if (
+              command === "git" &&
+              arguments_.join(" ") === "rev-parse --show-toplevel"
+            )
+              return processResult(0, `${checkout}\n`);
+            if (
+              command === "git" &&
+              arguments_.join(" ") === "status --porcelain"
+            )
+              return processResult(0);
+            if (
+              command === "git" &&
+              arguments_.join(" ") === "branch --show-current"
+            )
+              return processResult(0, "master\n");
+            if (
+              command === "git" &&
+              arguments_.join(" ") === "remote get-url origin"
+            )
+              return processResult(
+                0,
+                "https://github.com/fixture-owner/evidence-benchmark-results.git\n",
+              );
             if (
               command === "git" &&
               arguments_[0] === "diff" &&
@@ -484,21 +525,17 @@ export namespace EvidenceBenchmarkSelfTest {
             )
               return processResult(
                 0,
-                "https://github.com/fixture-owner/evidence-benchmark-todo\n",
+                "https://github.com/fixture-owner/evidence-benchmark-results\n",
               );
             if (
               command === "git" &&
               arguments_[0] === "rev-parse" &&
-              arguments_[1] === "HEAD"
+              (arguments_[1] === "HEAD" || arguments_[1] === "origin/master")
             )
               return processResult(0, `${"a".repeat(40)}\n`);
             if (command === "git" && arguments_[0] === "push")
               throw new Error("simulated publication push failure");
-            if (
-              command === "gh" &&
-              arguments_[0] === "repo" &&
-              arguments_[1] === "delete"
-            )
+            if (command === "git" && arguments_[0] === "reset")
               rolledBack = true;
             return processResult(0);
           },
@@ -508,7 +545,7 @@ export namespace EvidenceBenchmarkSelfTest {
     assert.equal(
       rolledBack,
       true,
-      "a repository created by a failed publication must be rolled back",
+      "a failed result commit must be rolled back locally",
     );
   }
 

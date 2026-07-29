@@ -95,7 +95,7 @@ The complete operator procedure, including stalled streams, questions, premature
 
 When the user cancels a campaign and rejects its partial results, first stop the 15-minute reporting subagent, 30-second supervisor, capacity watchers, cell controllers, model processes, servers, and their owned descendants. Verify that no process references the canceled run roots. Then delete the exact ignored `benchmark/.work/` and `benchmark/result/` trees inside the campaign worktree.
 
-Do not delete requirement corpora, templates, instructions, shared caches, source changes, or a separately published result repository. Deleted local run data cannot be resumed.
+Do not delete requirement corpora, templates, instructions, shared caches, source changes, or the independently maintained result repository. Deleted local run data cannot be resumed.
 
 ## Instruction sequence
 
@@ -136,24 +136,23 @@ A repair applied after measured work is an operator intervention, even when both
 
 Do not record absolute start or completion timestamps. Preserve total elapsed duration, native token categories, standard API-equivalent cost, commands and gates, first completion claims, implementation scale, coverage, quality findings, frozen-input identities, raw streams, and the final workspace.
 
-## Publish a completed demo
+## Publish an accepted result
 
-Completed and operator-accepted applications may be published as standalone public repositories:
+Completed and operator-accepted applications belong in one independently maintained result repository:
 
 ```text
-evidence-benchmark-<subject>
-evidence-benchmark-<subject>-plain
+<agent>/<model>/<project>/<evidence|plain>/
 ```
 
-Publication is explicit and has no default GitHub owner:
+Write the completed human-and-agent audit to `benchmark/result/<project>/<arm>/runs/<run-id>/benchmark-report.json`, then name both the public GitHub repository and its clean, up-to-date local checkout explicitly:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark publish:result -- --owner <github-login> --public todo evidence <run-id>
+pnpm --filter @samchon/evidence-benchmark publish:result -- --repository <owner/name> --checkout <local-path> --public todo evidence <run-id>
 ```
 
-The command requires the authenticated `gh` login to equal `--owner`, refuses an existing target, verifies the completed turn set and frozen input identities, exports the application workspace, excludes local environment files and nested Git state, and replaces the exported workflow set with the repository-owned generated CI. It then creates and pushes the new repository, verifies its remote `main` commit, and rolls back only the repository created by that failed invocation.
+There is no default owner, repository, or checkout. The command requires the authenticated `gh` login to equal the named repository owner; proves the repository is public; proves the checkout has the matching GitHub origin, a clean `main` or `master` branch, and no remote drift; verifies the run, frozen inputs, completed-workspace digest, report, and evidence archive; then replaces only that agent/model/project/arm leaf in one commit. It excludes private environment files, dependencies, nested Git state, and nested workflows. A pre-push failure restores the prior leaf; a successful push is verified against the remote branch.
 
-Evidence demos retain `.benchmark-deps/*.tgz` because their frozen lockfile installs the exact locally packed product measured by the run. Logs and benchmark scoring remain in this repository rather than the demo.
+Evidence results retain `.benchmark-deps/*.tgz` because their frozen lockfile installs the exact locally packed product measured by the run. Raw logs and controller state remain in this repository.
 
 ## Generated-project CI
 

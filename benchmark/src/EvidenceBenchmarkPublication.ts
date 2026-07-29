@@ -1,26 +1,24 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 
 /**
- * Publishes one completed benchmark workspace as a new public GitHub
- * repository.
+ * Publishes one accepted benchmark workspace into an explicit consolidated
+ * result repository.
  */
 export namespace EvidenceBenchmarkPublication {
   const ARMS = ["evidence", "plain"] as const;
   const PROJECTS = ["todo", "reddit", "shopping", "erp"] as const;
-  const TRUSTED_WORKFLOW: string = fileURLToPath(
-    new URL("../template/base/.github/workflows/ci.yml", import.meta.url),
-  );
-
   /** Explicit publication request parsed from the benchmark command line. */
   export interface IRequest {
-    /** GitHub login that must also own the authenticated CLI session. */
-    owner: string;
+    /** Existing public GitHub repository in owner/name form. */
+    repository: string;
+
+    /** Clean local checkout of the result repository. */
+    checkout: string;
 
     /** Completed benchmark subject to publish. */
     project: IEvidenceBenchmarkMaterialization.Project;
@@ -32,7 +30,7 @@ export namespace EvidenceBenchmarkPublication {
     runId: string;
   }
 
-  /** Observable identity of a repository created and pushed successfully. */
+  /** Observable identity of a result commit pushed successfully. */
   export interface IResult {
     /** Fully qualified GitHub repository name. */
     repository: string;
@@ -50,38 +48,80 @@ export namespace EvidenceBenchmarkPublication {
   /** Process boundary injected by deterministic tests instead of the real CLI. */
   export type Runner = typeof EvidenceBenchmarkProcess.run;
 
-  /** Parses an owner-explicit, public-only publication request. */
+  /** Identifies the exact publishable bytes of one completed workspace. */
+  export function workspaceSha256(root: string): string {
+    const files: Map<string, Uint8Array> = new Map();
+    const visit = (directory: string, relative: string): void => {
+      for (const entry of fs
+        .readdirSync(directory, { withFileTypes: true })
+        .sort((left, right) => left.name.localeCompare(right.name))) {
+        const location: string = path.join(directory, entry.name);
+        if (!shouldPublish(location)) continue;
+        const child: string =
+          relative.length === 0
+            ? entry.name
+            : path.posix.join(relative, entry.name);
+        if (entry.isSymbolicLink())
+          throw new Error(
+            `Refusing to identify a workspace containing a symbolic link: ${location}.`,
+          );
+        if (entry.isDirectory()) visit(location, child);
+        else if (entry.isFile()) files.set(child, fs.readFileSync(location));
+        else
+          throw new Error(
+            `Refusing to identify a non-regular workspace entry: ${location}.`,
+          );
+      }
+    };
+    visit(path.resolve(root), "");
+    return EvidenceBenchmarkHash.tree(files);
+  }
+
+  /** Parses an explicit result-repository publication request. */
   export function parse(arguments_: readonly string[]): IRequest {
     const values: string[] = arguments_.filter((value) => value !== "--");
     const positional: string[] = [];
-    let owner: string | undefined;
+    let repository: string | undefined;
+    let checkout: string | undefined;
     let publicConfirmed: boolean = false;
     for (let index: number = 0; index < values.length; index++) {
       const value: string = values[index]!;
-      if (value === "--owner") {
-        if (owner !== undefined)
-          throw new Error("GitHub owner may be specified only once.");
-        owner = values[++index];
-        if (owner === undefined)
-          throw new Error("--owner requires a GitHub login.");
-      } else if (value.startsWith("--owner=")) {
-        if (owner !== undefined)
-          throw new Error("GitHub owner may be specified only once.");
-        owner = value.slice("--owner=".length);
+      if (value === "--repository") {
+        if (repository !== undefined)
+          throw new Error("Result repository may be specified only once.");
+        repository = values[++index];
+        if (repository === undefined)
+          throw new Error("--repository requires owner/name.");
+      } else if (value.startsWith("--repository=")) {
+        if (repository !== undefined)
+          throw new Error("Result repository may be specified only once.");
+        repository = value.slice("--repository=".length);
+      } else if (value === "--checkout") {
+        if (checkout !== undefined)
+          throw new Error("Result checkout may be specified only once.");
+        checkout = values[++index];
+        if (checkout === undefined)
+          throw new Error("--checkout requires a local path.");
+      } else if (value.startsWith("--checkout=")) {
+        if (checkout !== undefined)
+          throw new Error("Result checkout may be specified only once.");
+        checkout = value.slice("--checkout=".length);
       } else if (value === "--public") publicConfirmed = true;
       else if (value.startsWith("--"))
         throw new Error(`Unknown publication option: ${value}.`);
       else positional.push(value);
     }
-    if (owner === undefined)
-      throw new Error("Publication requires --owner <github-login>.");
+    if (repository === undefined)
+      throw new Error("Publication requires --repository <owner/name>.");
+    if (checkout === undefined)
+      throw new Error("Publication requires --checkout <local-path>.");
     if (!publicConfirmed)
       throw new Error("Publication requires an explicit --public flag.");
-    if (!isGitHubLogin(owner))
-      throw new Error(`Invalid GitHub owner login: ${owner}.`);
+    if (!isGitHubRepository(repository))
+      throw new Error(`Invalid GitHub repository: ${repository}.`);
     if (positional.length !== 3)
       throw new Error(
-        "Usage: benchmark publish --owner <github-login> --public <project> <arm> <run-id>",
+        "Usage: benchmark publish --repository <owner/name> --checkout <local-path> --public <project> <arm> <run-id>",
       );
     const [projectInput, armInput, runId] = positional;
     if (!PROJECTS.includes(projectInput as (typeof PROJECTS)[number]))
@@ -96,24 +136,17 @@ export namespace EvidenceBenchmarkPublication {
     )
       throw new Error(`Invalid benchmark run ID: ${runId ?? ""}.`);
     return {
-      owner,
+      repository,
+      checkout,
       project: projectInput as IEvidenceBenchmarkMaterialization.Project,
       arm: armInput as IEvidenceBenchmarkMaterialization.Arm,
       runId,
     };
   }
 
-  /** Returns the stable evidence-default and plain-suffixed repository name. */
-  export function repositoryName(
-    project: IEvidenceBenchmarkMaterialization.Project,
-    arm: IEvidenceBenchmarkMaterialization.Arm,
-  ): string {
-    return `evidence-benchmark-${project}${arm === "plain" ? "-plain" : ""}`;
-  }
-
   /**
-   * Creates and pushes one new public repository, rolling it back on push
-   * failure.
+   * Replaces one accepted leaf and pushes one commit to the explicit public
+   * result repository.
    */
   export async function publish(
     sourceRepository: string,
@@ -145,6 +178,7 @@ export namespace EvidenceBenchmarkPublication {
       status?: unknown;
       sourceCommit?: unknown;
       instructionsTreeSha256?: unknown;
+      completedWorkspaceTreeSha256?: unknown;
       turns?: Array<{
         name?: unknown;
         status?: unknown;
@@ -152,7 +186,7 @@ export namespace EvidenceBenchmarkPublication {
       }>;
     };
     if (
-      state.schemaVersion !== 4 ||
+      state.schemaVersion !== 5 ||
       state.workflow !== "backend-first-gated-v1" ||
       state.project !== request.project ||
       state.arm !== request.arm ||
@@ -163,7 +197,9 @@ export namespace EvidenceBenchmarkPublication {
       state.cliVersion.length === 0 ||
       state.status !== "completed" ||
       typeof state.sourceCommit !== "string" ||
+      !/^[0-9a-f]{40}$/i.test(state.sourceCommit) ||
       typeof state.instructionsTreeSha256 !== "string" ||
+      typeof state.completedWorkspaceTreeSha256 !== "string" ||
       !Array.isArray(state.turns)
     )
       throw new Error(
@@ -263,61 +299,132 @@ export namespace EvidenceBenchmarkPublication {
         );
     }
     rejectSymbolicLinks(workspace);
+    if (workspaceSha256(workspace) !== state.completedWorkspaceTreeSha256)
+      throw new Error(
+        "Completed benchmark workspace failed identity verification.",
+      );
 
-    const targetName: string = repositoryName(request.project, request.arm);
-    const target: string = `${request.owner}/${targetName}`;
+    const report: string = path.join(runRoot, "benchmark-report.json");
+    const reportStat: fs.Stats | undefined = fs.lstatSync(report, {
+      throwIfNoEntry: false,
+    });
+    if (!reportStat?.isFile() || reportStat.isSymbolicLink())
+      throw new Error(
+        `Operator-accepted benchmark report was not found: ${report}.`,
+      );
+    const reportValue: unknown = JSON.parse(fs.readFileSync(report, "utf8"));
+    if (
+      typeof reportValue !== "object" ||
+      reportValue === null ||
+      Array.isArray(reportValue)
+    )
+      throw new Error("Benchmark report must be a JSON object.");
+
+    const target: string = request.repository;
+    const [owner] = target.split("/");
+    const checkout: string = path.resolve(request.checkout);
+    assertSeparateRepositories(sourceRoot, checkout);
     const viewer: string = (
       await run("gh", ["api", "user", "--jq", ".login"], {
         cwd: sourceRoot,
         label: "authenticated GitHub owner",
       })
     ).stdout.trim();
-    if (viewer.toLowerCase() !== request.owner.toLowerCase())
+    if (viewer.toLowerCase() !== owner!.toLowerCase())
       throw new Error(
         `Refusing to publish ${target}: authenticated GitHub login is ${viewer || "unknown"}.`,
       );
-    const existing = await run("gh", ["api", `repos/${target}`, "--silent"], {
-      cwd: sourceRoot,
-      allowFailure: true,
-      label: "GitHub publication collision check",
-    });
-    if (existing.status === 0)
-      throw new Error(`Refusing to overwrite existing repository ${target}.`);
-    if (!/\bHTTP 404\b|Not Found/i.test(existing.stderr))
+    const visibility: string = (
+      await run("gh", ["api", `repos/${target}`, "--jq", ".visibility"], {
+        cwd: sourceRoot,
+        label: "public result repository verification",
+      })
+    ).stdout.trim();
+    if (visibility.toLowerCase() !== "public")
       throw new Error(
-        `Could not prove that GitHub repository ${target} is absent:\n${existing.stderr.trim()}`,
+        `Refusing to publish ${target}: repository visibility is ${visibility || "unknown"}.`,
       );
+    const branch: string = await assertCheckout(run, checkout, target);
 
     const workRoot: string = path.join(sourceRoot, "benchmark", ".work");
     fs.mkdirSync(workRoot, { recursive: true });
     const stage: string = fs.mkdtempSync(
-      path.join(workRoot, `publication-${targetName}-`),
+      path.join(workRoot, `publication-${request.project}-${request.arm}-`),
     );
-    let created: boolean = false;
+    const relativeLeaf: string = [
+      String(state.engine),
+      slug(String(state.model)),
+      request.project,
+      request.arm,
+    ].join("/");
+    const leaf: string = path.join(checkout, ...relativeLeaf.split("/"));
+    assertInside(checkout, leaf, "publication leaf");
+    const backup: string = path.join(stage, "previous");
+    const prepared: string = path.join(stage, "prepared");
+    const baseCommit: string = (
+      await run("git", ["rev-parse", "HEAD"], {
+        cwd: checkout,
+        label: "result repository base commit",
+      })
+    ).stdout.trim();
+    let leafMutated: boolean = false;
+    let pushed: boolean = false;
     try {
-      fs.cpSync(workspace, stage, {
+      fs.cpSync(workspace, prepared, {
         recursive: true,
         filter: shouldPublish,
       });
-      writeTrustedWorkflow(stage);
-      await run("git", ["init", "-b", "main"], {
-        cwd: stage,
-        label: "publication repository initialization",
+      fs.rmSync(path.join(prepared, ".github", "workflows"), {
+        recursive: true,
+        force: true,
       });
-      await run("git", ["add", "-A"], {
-        cwd: stage,
-        label: "publication source staging",
+      fs.copyFileSync(report, path.join(prepared, "benchmark-report.json"));
+      fs.writeFileSync(
+        path.join(prepared, "benchmark.json"),
+        `${JSON.stringify(
+          {
+            schemaVersion: 1,
+            agent: state.engine,
+            model: slug(String(state.model)),
+            providerModel: state.model,
+            effort: state.effort,
+            project: request.project,
+            mode: request.arm,
+            status: "accepted",
+            runId: request.runId,
+            sourceCommit: state.sourceCommit,
+            instructionsTreeSha256: state.instructionsTreeSha256,
+            requirementsTreeSha256: manifest.requirementsTreeSha256,
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+      rejectSymbolicLinks(prepared);
+      if (fs.existsSync(leaf)) fs.cpSync(leaf, backup, { recursive: true });
+      leafMutated = true;
+      fs.rmSync(leaf, { recursive: true, force: true });
+      fs.mkdirSync(path.dirname(leaf), { recursive: true });
+      fs.renameSync(prepared, leaf);
+      await run("node", ["scripts/discover-results.mjs"], {
+        cwd: checkout,
+        label: "consolidated result inventory validation",
+      });
+      await run("git", ["add", "-A", "--", relativeLeaf], {
+        cwd: checkout,
+        label: "result leaf staging",
       });
       const staged = await run("git", ["diff", "--cached", "--quiet"], {
-        cwd: stage,
+        cwd: checkout,
         allowFailure: true,
-        label: "publication source presence",
+        label: "result change presence",
       });
       if (staged.status !== 1)
         throw new Error(
           staged.status === 0
-            ? "Refusing to publish an empty benchmark workspace."
-            : "Could not verify the staged publication workspace.",
+            ? "Refusing to publish an unchanged benchmark result."
+            : "Could not verify the staged benchmark result.",
         );
       await run(
         "git",
@@ -328,29 +435,16 @@ export namespace EvidenceBenchmarkPublication {
           "user.email=evidence-benchmark@localhost",
           "commit",
           "-m",
-          `Publish ${request.project} ${request.arm} benchmark`,
+          `Publish ${state.engine} ${state.model} ${request.project} ${request.arm}`,
         ],
-        { cwd: stage, label: "publication source commit" },
+        { cwd: checkout, label: "benchmark result commit" },
       );
       const commitSha: string = (
         await run("git", ["rev-parse", "HEAD"], {
-          cwd: stage,
-          label: "publication source commit identity",
+          cwd: checkout,
+          label: "benchmark result commit identity",
         })
       ).stdout.trim();
-      await run(
-        "gh",
-        [
-          "repo",
-          "create",
-          target,
-          "--public",
-          "--description",
-          `${request.project} benchmark generated in ${request.arm} mode`,
-        ],
-        { cwd: sourceRoot, label: "public benchmark repository creation" },
-      );
-      created = true;
       const url: string = (
         await run(
           "gh",
@@ -358,24 +452,30 @@ export namespace EvidenceBenchmarkPublication {
           { cwd: sourceRoot, label: "public benchmark repository URL" },
         )
       ).stdout.trim();
-      await run("git", ["remote", "add", "origin", url], {
-        cwd: stage,
-        label: "publication remote configuration",
+      const push = await run("git", ["push", "origin", branch], {
+        cwd: checkout,
+        allowFailure: true,
+        label: "consolidated benchmark result push",
       });
-      await run("git", ["push", "--set-upstream", "origin", "main"], {
-        cwd: stage,
-        label: "public benchmark repository push",
-      });
-      const remoteCommit: string = (
-        await run(
-          "gh",
-          ["api", `repos/${target}/commits/main`, "--jq", ".sha"],
-          { cwd: sourceRoot, label: "public benchmark remote commit" },
-        )
-      ).stdout.trim();
+      pushed = push.status === 0;
+      const remote = await run(
+        "gh",
+        ["api", `repos/${target}/commits/${branch}`, "--jq", ".sha"],
+        {
+          cwd: sourceRoot,
+          allowFailure: true,
+          label: "public benchmark remote commit",
+        },
+      );
+      const remoteCommit: string = remote.stdout.trim();
+      if (remote.status === 0 && remoteCommit === commitSha) pushed = true;
+      if (push.status !== 0 && !pushed)
+        throw new Error(
+          `Benchmark result push failed and the remote branch remained at ${remoteCommit || "an unverified revision"}:\n${push.stderr.trim()}`,
+        );
       if (remoteCommit !== commitSha)
         throw new Error(
-          `Published main commit drifted: local ${commitSha}, remote ${remoteCommit}.`,
+          `Published ${branch} commit drifted: local ${commitSha}, remote ${remoteCommit}.`,
         );
       return {
         repository: target,
@@ -384,16 +484,21 @@ export namespace EvidenceBenchmarkPublication {
         commitSha,
       };
     } catch (error) {
-      if (created)
+      if (!pushed && leafMutated)
         try {
-          await run("gh", ["repo", "delete", target, "--yes"], {
-            cwd: sourceRoot,
-            label: "failed publication rollback",
+          await run("git", ["reset", "--mixed", baseCommit], {
+            cwd: checkout,
+            label: "failed result commit rollback",
           });
+          fs.rmSync(leaf, { recursive: true, force: true });
+          if (fs.existsSync(backup)) {
+            fs.mkdirSync(path.dirname(leaf), { recursive: true });
+            fs.cpSync(backup, leaf, { recursive: true });
+          }
         } catch (rollback) {
           throw new AggregateError(
             [error, rollback],
-            `Publication failed and the newly created repository ${target} could not be rolled back.`,
+            `Publication failed and the local result leaf ${relativeLeaf} could not be rolled back.`,
           );
         }
       throw error;
@@ -402,11 +507,17 @@ export namespace EvidenceBenchmarkPublication {
     }
   }
 
-  function isGitHubLogin(value: string): boolean {
+  function isGitHubRepository(value: string): boolean {
+    const parts: string[] = value.split("/");
     return (
-      value.length <= 39 &&
-      /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/.test(value) &&
-      !value.includes("--")
+      parts.length === 2 &&
+      parts[0]!.length <= 39 &&
+      /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/.test(parts[0]!) &&
+      !parts[0]!.includes("--") &&
+      parts[1]!.length <= 100 &&
+      /^[A-Za-z0-9_.-]+$/.test(parts[1]!) &&
+      parts[1] !== "." &&
+      parts[1] !== ".."
     );
   }
 
@@ -439,38 +550,112 @@ export namespace EvidenceBenchmarkPublication {
     visit(root);
   }
 
-  function writeTrustedWorkflow(stage: string): void {
-    const frontendPackagePath: string = path.join(
-      stage,
-      "packages",
-      "frontend",
-      "package.json",
-    );
-    const frontendPackage = JSON.parse(
-      fs.readFileSync(frontendPackagePath, "utf8"),
-    ) as { name?: unknown };
+  async function assertCheckout(
+    run: Runner,
+    checkout: string,
+    repository: string,
+  ): Promise<string> {
+    const topLevel: string = (
+      await run("git", ["rev-parse", "--show-toplevel"], {
+        cwd: checkout,
+        label: "result checkout root",
+      })
+    ).stdout.trim();
+    if (path.resolve(topLevel) !== checkout)
+      throw new Error(`Result checkout root is ${topLevel}, not ${checkout}.`);
+    const status: string = (
+      await run("git", ["status", "--porcelain"], {
+        cwd: checkout,
+        label: "result checkout cleanliness",
+      })
+    ).stdout.trim();
+    if (status.length !== 0)
+      throw new Error("Result checkout must be clean before publication.");
+    const branch: string = (
+      await run("git", ["branch", "--show-current"], {
+        cwd: checkout,
+        label: "result checkout branch",
+      })
+    ).stdout.trim();
+    if (branch !== "main" && branch !== "master")
+      throw new Error(
+        `Result checkout must use main or master, found ${branch}.`,
+      );
+    const remote: string = (
+      await run("git", ["remote", "get-url", "origin"], {
+        cwd: checkout,
+        label: "result checkout origin",
+      })
+    ).stdout.trim();
     if (
-      typeof frontendPackage.name !== "string" ||
-      !/^@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/.test(
-        frontendPackage.name,
-      )
+      normalizeGitHubRemote(remote).toLowerCase() !== repository.toLowerCase()
     )
       throw new Error(
-        "Publication requires a safe scoped frontend package name for CI.",
+        `Result checkout origin is ${remote}, not GitHub repository ${repository}.`,
       );
-    const source: string = fs.readFileSync(TRUSTED_WORKFLOW, "utf8");
-    const rendered: string = source.replaceAll(
-      "{{frontendPackageName}}",
-      frontendPackage.name,
-    );
-    if (/\{\{[^{}]+\}\}/.test(rendered))
+    await run("git", ["fetch", "origin", branch], {
+      cwd: checkout,
+      label: "result checkout remote refresh",
+    });
+    const [local, upstream] = await Promise.all([
+      run("git", ["rev-parse", "HEAD"], {
+        cwd: checkout,
+        label: "result checkout local revision",
+      }),
+      run("git", ["rev-parse", `origin/${branch}`], {
+        cwd: checkout,
+        label: "result checkout remote revision",
+      }),
+    ]);
+    if (local.stdout.trim() !== upstream.stdout.trim())
+      throw new Error("Result checkout must exactly match its remote branch.");
+    return branch;
+  }
+
+  function normalizeGitHubRemote(value: string): string {
+    const match: RegExpExecArray | null =
+      /^(?:https:\/\/github\.com\/|git@github\.com:)([^/]+\/[^/]+?)(?:\.git)?$/i.exec(
+        value,
+      );
+    if (match === null)
       throw new Error(
-        "Publication CI contains an unresolved template variable.",
+        `Result checkout origin is not a GitHub repository: ${value}.`,
       );
-    const workflows: string = path.join(stage, ".github", "workflows");
-    fs.rmSync(workflows, { recursive: true, force: true });
-    fs.mkdirSync(workflows, { recursive: true });
-    fs.writeFileSync(path.join(workflows, "ci.yml"), rendered, "utf8");
+    return match[1]!;
+  }
+
+  function slug(value: string): string {
+    const output: string = value
+      .toLowerCase()
+      .replace(/[^a-z0-9.-]+/g, "-")
+      .replace(/^[.-]+|[.-]+$/g, "");
+    if (output.length === 0)
+      throw new Error(`Cannot derive a filesystem slug from model ${value}.`);
+    return output;
+  }
+
+  function assertSeparateRepositories(
+    sourceRepository: string,
+    resultRepository: string,
+  ): void {
+    const sourceToResult: string = path.relative(
+      sourceRepository,
+      resultRepository,
+    );
+    const resultToSource: string = path.relative(
+      resultRepository,
+      sourceRepository,
+    );
+    if (
+      sourceToResult === "" ||
+      (!sourceToResult.startsWith(`..${path.sep}`) &&
+        !path.isAbsolute(sourceToResult)) ||
+      (!resultToSource.startsWith(`..${path.sep}`) &&
+        !path.isAbsolute(resultToSource))
+    )
+      throw new Error(
+        "The benchmark source and consolidated result checkout must be separate repositories.",
+      );
   }
 
   function assertInside(parent: string, target: string, label: string): void {

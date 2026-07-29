@@ -48,7 +48,7 @@ export namespace EvidenceBenchmarkCommandLine {
   }
 
   interface IState {
-    schemaVersion: 4;
+    schemaVersion: 5;
     workflow: typeof WORKFLOW;
     instructionsTreeSha256: string;
     project: IEvidenceBenchmarkMaterialization.Project;
@@ -61,6 +61,7 @@ export namespace EvidenceBenchmarkCommandLine {
     runtime: EvidenceBenchmarkRuntime.IAssignment;
     elapsedMs: number;
     status: "running" | "interrupted" | "completed";
+    completedWorkspaceTreeSha256?: string;
     threadId?: string;
     turns: ITurn[];
   }
@@ -148,7 +149,7 @@ export namespace EvidenceBenchmarkCommandLine {
     }
     if (arguments_[0] !== "start")
       throw new Error(
-        "Usage: benchmark <plan|start> [--port-base <number>] <project>... | benchmark resume <project> <arm> <run-id> | benchmark repair --patch <file> <run-id> <project>... | benchmark publish --owner <login> --public <project> <arm> <run-id>",
+        "Usage: benchmark <plan|start> [--port-base <number>] <project>... | benchmark resume <project> <arm> <run-id> | benchmark repair --patch <file> <run-id> <project>... | benchmark publish --repository <owner/name> --checkout <local-path> --public <project> <arm> <run-id>",
       );
     const sourceCommit: string = (
       await EvidenceBenchmarkProcess.run("git", ["rev-parse", "HEAD"], {
@@ -222,7 +223,7 @@ export namespace EvidenceBenchmarkCommandLine {
       throw new Error(`Resumable state was not found: ${statePath}.`);
     const state: IState = JSON.parse(fs.readFileSync(statePath, "utf8"));
     if (
-      state.schemaVersion !== 4 ||
+      state.schemaVersion !== 5 ||
       state.workflow !== WORKFLOW ||
       state.engine !== ENGINE ||
       state.model !== MODEL ||
@@ -294,6 +295,8 @@ export namespace EvidenceBenchmarkCommandLine {
         writeState(root, state);
       }
       state.elapsedMs = baseElapsedMs + elapsed(resumed);
+      state.completedWorkspaceTreeSha256 =
+        EvidenceBenchmarkPublication.workspaceSha256(workspace);
       promoteWorkspace(repository, project, arm, workspace);
       state.status = "completed";
       writeState(root, state);
@@ -376,7 +379,7 @@ export namespace EvidenceBenchmarkCommandLine {
       const logs: string = path.join(root, "logs");
       fs.mkdirSync(logs, { recursive: false });
       state = {
-        schemaVersion: 4,
+        schemaVersion: 5,
         workflow: WORKFLOW,
         instructionsTreeSha256: freezeInstructions(root, props.instructions),
         project: props.project,
@@ -412,6 +415,8 @@ export namespace EvidenceBenchmarkCommandLine {
           );
       }
       state.elapsedMs = elapsed(started);
+      state.completedWorkspaceTreeSha256 =
+        EvidenceBenchmarkPublication.workspaceSha256(materialization.workspace);
       promoteWorkspace(
         props.repository,
         props.project,
