@@ -336,7 +336,8 @@ TestValidator.predicate("the sale lists the unit", detail.units.some((u) => u.id
 
 ## Rejections
 
-Assert that the call was refused. Do not assert which status refused it.
+Assert the exact public error contract when the requirement or controller JSDoc specifies a status or diagnosis.
+Use a generic refusal assertion only when the public contract deliberately leaves the error classification open.
 
 ```ts
 await TestValidator.error("another seller cannot edit this sale", async () => {
@@ -347,25 +348,23 @@ await TestValidator.error("another seller cannot edit this sale", async () => {
 });
 ```
 
-Whether a refusal arrives as 401, 403, 404, or 409 depends on which check the provider reaches first, and a provider that verifies existence before authority returns a not-found where you expected a forbidden. Both are correct, so pinning the code turns a legitimate reordering into a red suite. **The status is the server's choice and is not part of the contract.**
-
-Two spellings are the reflex, and neither belongs in this suite:
+When the contract names `401`, `403`, `404`, or `409`, verification order must preserve that observable distinction and the test must pin it.
+Do not weaken a named authorization, existence-hiding, lifecycle, or conflict contract into “some error.”
+When no status or diagnosis is specified, use:
 
 ```ts
-// Both forbidden: the code is not what the test is about.
-await TestValidator.httpError("not found", 404, async () => { ... });
-TestValidator.equals("status", error.status, 403);
+await TestValidator.error("request is refused", async () => { ... });
 ```
-
-`TestValidator.error` is the only rejection assertion here. It says the call was refused, which is the requirement, and says nothing about how, which is not.
 
 Await both layers: the assertion and the call inside it. A synchronous callback takes no `await` on the outer call; an async one takes it on both.
 
-## Never Test Type Errors
+## Separate Compile-Time Misuse From Runtime Boundary Tests
 
-A deliberately wrong type is a compile error, not a test. The boundary already validates types, formats, and lengths.
+A deliberately wrong literal passed through a typed SDK call is a compile error, not a test. Do not cast it through the contract or weaken production types to make that call compile.
 
-Positive paths stay clean: valid bodies, a qualified caller, no manufactured failure. The one sanctioned exception is an authority negative, where the inputs remain valid and only the caller's grade is insufficient.
+A requirement that explicitly promises runtime refusal for malformed JSON, a bad format, an out-of-range number, an empty required value, or an unsupported union member still needs an executable boundary test. Send that deliberately invalid wire payload through a small raw-HTTP test helper, assert the public refusal and unchanged state, and keep the unsafe value confined to that helper. The SDK remains the transport for every type-correct scenario.
+
+Positive paths stay clean: valid bodies, a qualified caller, and no manufactured failure. Negative paths cover every observable refusal the requirements name, including authorization, lifecycle, concurrency, and boundary validation.
 
 ## Code Discipline
 

@@ -44,6 +44,9 @@ func (documentedRule) Check(ctx *rule.Context, node *shimast.Node) {
 	selected, problems := decodeDocumentedOptions(ctx.Options)
 	if len(problems) != 0 {
 		for _, problem := range problems {
+			if !firstDocumentedCycleDiagnostic(ctx, problem) {
+				continue
+			}
 			ctx.Report(node, problem)
 		}
 		return
@@ -74,6 +77,26 @@ func (documentedRule) Check(ctx *rule.Context, node *shimast.Node) {
 			)
 		}
 	}
+}
+
+// firstDocumentedCycleDiagnostic deduplicates configuration failures through
+// the graph project rule's state, the only Program-cycle value the contributor
+// API exposes to a file rule.
+//
+// Consumers normally enable documented beside graph, as the package's canonical
+// configuration does. If graph is absent or off there is no cycle identity to
+// coordinate through; reporting in every visited file is deliberately safer
+// than suppressing a configuration failure across an unknown later cycle.
+func firstDocumentedCycleDiagnostic(ctx *rule.Context, message string) bool {
+	if ctx == nil {
+		return false
+	}
+	result := ctx.ProjectResult(graphRuleName)
+	cycle, ok := result.State.(*graphCycleState)
+	if !ok || cycle == nil {
+		return true
+	}
+	return cycle.Diagnostics.first(documentedRuleName + "\x00" + message)
 }
 
 func init() { rule.Register(documentedRule{}) }

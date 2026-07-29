@@ -127,6 +127,7 @@ func loadSwaggerInventories(
 	if err != nil {
 		message := "Evidence graph could not run its Swagger normalizer: " + err.Error() + ". Swagger references require Node.js and the installed @typia/interface, @typia/utils, and yaml dependencies."
 		for _, source := range pending {
+			inventories[source].LoadFailed = true
 			inventories[source].Problems = append(
 				inventories[source].Problems,
 				inventoryProblem{Symbol: "operation", Message: message},
@@ -185,6 +186,7 @@ func loadSwaggerInventories(
 			continue
 		}
 		message := "Evidence graph Swagger normalizer returned no result for '" + displaySwaggerSource(source) + "'. Reinstall @samchon/lint-plugin-evidence; the native and JavaScript bridge contracts disagree."
+		inventories[source].LoadFailed = true
 		inventories[source].Problems = append(
 			inventories[source].Problems,
 			inventoryProblem{Symbol: "operation", Message: message},

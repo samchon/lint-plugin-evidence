@@ -1,123 +1,63 @@
 # DTOs
 
-A DTO carries two obligations, and they sit at different granularities. Every configured requirement section and every selected model must be acknowledged by a DTO type, and every selected column by a DTO property. The lint stage fails until both hold.
-
-**The type answers to a requirement and a table.** It exists because the specification named a concept, and it represents a row someone can point at.
-
-**A property answers to the schema alone.** It does not cite a requirement. It cites the column it carries, because that is the question a property can actually answer: where does this value come from.
+The `dto-types` claim selects exported root types and independently references Markdown H2/H3 sections and Prisma models. The `dto-properties` claim selects exported properties and references Prisma columns.
 
 ```ts
 /**
- * Seller sales products.
+ * Customer-facing sale summary.
  *
- * @evidence docs/analysis/02-domain-model.md#sales The sale concept this document
- *           describes, as a caller receives it.
- * @evidence prisma:shopping_sales Represents one sale identity row.
+ * @evidence docs/analysis/02-domain-model.md#sale-summary Exposes the required
+ *           public summary.
+ * @evidence prisma:ShoppingSale Represents the persisted sale.
  */
 export interface IShoppingSale {
   /**
-   * Primary Key.
+   * Current public title.
    *
-   * @evidence prisma:shopping_sales.id Carries the row identity a caller
-   *           addresses.
+   * @evidence prisma:ShoppingSale.title Carries the stored title.
    */
-  id: string & tags.Format<"uuid">;
-
-  /**
-   * Opening time of sale.
-   *
-   * If `null`, the sale has not opened yet.
-   *
-   * @evidence prisma:shopping_sales.opened_at Exposes the opening time, with
-   *           null meaning not yet opened.
-   */
-  openedAt: null | (string & tags.Format<"date-time">);
-
-  /**
-   * Registering seller.
-   *
-   * @evidence prisma:shopping_sales.shopping_seller_id The seller this
-   *           sale belongs to, loaded through the foreign key.
-   */
-  seller: IShoppingSeller.ISummary;
+  title: string;
 }
 ```
 
-The build counts from the schema's side: it fails while any selected column goes unacknowledged. That is the mechanism that removes the phantom: a property with no column leaves nothing to cite, so it cannot shorten the column ledger, and the uncited column is what the diagnostic names.
+The property tag belongs on the property, never on the nearest root type. A derived property cites every selected source column it truly uses. A value with no stored source documents its derivation in prose; do not invent a Prisma target.
 
-Read [the evidence skill](../evidence/SKILL.md) before starting.
+## Excluding A Requirement, Model, Or Column From DTOs
 
+Put a `dto-types` exclusion on a selected exported root type. It may target a Markdown H2/H3 section or Prisma model because those are the claim's configured references.
+
+```ts
+/**
+ * Customer-facing sale summary.
+ *
+ * @evidenceExclude docs/analysis/05-user-experience.md#empty-state-copy
+ *                  CatalogPage owns this presentation-only wording; reject
+ *                  this exclusion if a response must carry it.
+ * @evidenceExclude prisma:LoginAttempt
+ *                  AuthenticationProvider owns this internal record; reject
+ *                  this exclusion if it enters a request or response body.
+ */
+export interface IShoppingSale {}
+```
+
+Put a `dto-properties` exclusion on a selected exported property, and target one Prisma column. The property is only a carrier for the claim-wide non-mapping; the reason names the real backend owner and the condition that would make the column part of the public contract.
+
+```ts
+export interface IShoppingSale {
+  /**
+   * @evidenceExclude prisma:ShoppingSale.internal_note
+   *                  ShoppingSaleProvider keeps this operator-only value
+   *                  server-side; reject this exclusion if clients may read it.
+   */
+  id: string;
+}
+```
+
+The two named claims tally independently: a model exclusion under `dto-types` does not exclude its columns under `dto-properties`, and neither affects backend or frontend claims. An H2 or Prisma model ancestor target covers every selected descendant in that obligation. Use the narrowest truthful target and keep evidence and exclusion scopes disjoint. Do not put either tag on helper typings outside `src/structures/**`; an unselected declaration is not a claim host.
+
+<!-- benchmark-template-splice: base-body -->
 {{base}}
 
-## A Table No Contract Represents Still Owes Its Discharge
+## Authored And Generated Ownership
 
-The property claim selects every column of every model, and internal storage such as sessions and `mv_*` projections has no DTO to cite from. The discharge is `@evidenceExclude`, hosted on a selected declaration of this package: keep those exclusions on the domain's nearest root type, one per model or column, each with the decision a reviewer could veto.
-
-```ts
-/**
- * @evidenceExclude prisma:shopping_customer_sessions Internal session
- *                  storage; no contract shape represents it.
- */
-```
-
-A deliberate absence recorded only in the ledger is invisible to the build, so the obligation stays reported until the exclusion exists where the claim can read it.
-
-## What Each Granularity Can And Cannot Say
-
-**A type citing only a requirement** leaves the reader unable to find the row it represents. **A type citing only a table** leaves nobody able to say why the type exists. Both are needed and they answer different questions.
-
-**A property citing a requirement instead of a column** is the common mistake here, and it passes nothing: the property obligation is against the schema, so the requirement citation does not discharge it, and the build keeps reporting the uncited column while the tag sits there looking like work.
-
-**A property that carries a nested object cites the foreign key column that reaches it**, as `seller` does above. The join is how the value is loaded; the column is where the value comes from, and it is the column that has to exist for the property to be fillable at all.
-
-## A Computed Property Cites Everything It Is Computed From
-
-**A declaration may carry as many `@evidence` tags as it needs.** This is the difference that makes a computed value expressible: an aggregate does not correspond to one column, so it cites every column the computation draws on.
-
-```ts
-/**
- * Number of customers who have favorited this sale.
- *
- * @evidence prisma:shopping_sale_favorites.shopping_sale_id Counted over the
- *           favorite rows pointing at this sale.
- * @evidence prisma:shopping_sale_favorites.deleted_at Rows a customer has
- *           un-favorited are excluded from the count.
- */
-favoriteCount: number & tags.Type<"uint32">;
-```
-
-Read what that does. A reviewer can now check the transformer against two named columns and see whether the aggregate is the one the property claims. A single exclusion saying "computed" would have told them nothing.
-
-A statistics or dashboard type does the same at the type level: it cites every requirement it serves and every model it draws on, rather than declining to cite because it maps to no single table.
-
-**Do not reach for an exclusion because a value has no single owner.** Having several owners is a reason to name all of them.
-
-## The Two Granularities Are Two Claims
-
-The type obligation and the property obligation are configured as **separate claims**: one selecting types and referencing requirements and models, one selecting properties and referencing columns.
-
-That is what makes the design work rather than collapse. Each claim counts its acknowledgements in its own tally, so a type citing a model and a property citing one of that model's columns never collide. They are answering different questions in different obligations.
-
-Within one claim the disjointness rule below applies in full. Across the two, it does not apply at all.
-
-## One Target, One Citation, Across The Whole Claim
-
-The constraint on multiple tags is disjointness, and its scope is wider than one declaration. Two citations of the same target inside one obligation are a duplicate **even when they sit on different properties**, because the obligation is counted across every host the claim selects.
-
-Three shapes report a duplicate:
-
-- the same target cited twice from one property;
-- a model and one of that model's columns cited from one property, since a citation covers its target and every selected descendant;
-- the same column cited by two different properties.
-
-The third is the one that surprises. If two aggregates both derive from a `deleted_at` column, only one of them may name it. Give the column to the property whose meaning depends on it most directly, and let the other cite the sources that are its own.
-
-So the rule is not "name everything the computation touches" without qualification. It is: **name every source that is yours to name.** Within one property, cite the full set it draws on. Across properties, a source belongs to one of them.
-
-When two properties genuinely cannot be separated that way, they are usually one property, or one of them belongs to a different DTO.
-
-## When Nothing Can Be Cited
-
-That is genuinely rare once multiple tags are available, and it usually means something upstream is missing rather than something here being computed.
-
-A property that can cite nothing at all usually means the schema lacks a column it should have. Check the model first. A type that cannot cite a requirement usually means the DTO was invented for the implementation's convenience; find the section that asks for the concept, and if there is none, the type is the defect.
+DTO structures, diagnosers, and helper typings are authored here. Functional accessors and `swagger.json` are generated from controllers. Edit the authored owner, regenerate, and inspect the result.

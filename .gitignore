@@ -7,7 +7,7 @@
 node_modules/
 
 # Build outputs
-lib/
+/packages/evidence/lib/
 dist/
 coverage/
 /packages/evidence/README.md
@@ -21,8 +21,19 @@ coverage/
 *.tsbuildinfo
 *.log
 
+# Canonical benchmark results are append-only evidence, not disposable local
+# output. Preserve raw runner/gate logs and the evidence workspace's relative
+# package archive so a committed demo never contains a broken file dependency.
+!/benchmark/result/**/*.log
+!/benchmark/result/**/*.tgz
+
 # AI assistant data
 .claude/
+
+# Benchmark transient run state. Terminal runs are promoted into the tracked
+# benchmark/result/<subject>/<arm> tree so the latest generated applications
+# remain available as demo sources.
+/benchmark/.work/
 
 # Local Go workspace overlays
 go.work

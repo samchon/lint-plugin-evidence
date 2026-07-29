@@ -94,10 +94,12 @@ The return type annotation alone reports a missing property as a mismatch on the
 
 Null handling follows the DTO signature rather than the column. An optional property takes `input.x ?? undefined`; a nullable property takes `input.x ? ... : null`. A nullable column feeding a required property takes a fallback whose meaning is correct for that field.
 
-A string column feeding a literal-union property narrows through the DTO's own indexed access:
+A string column feeding a literal-union property must be checked against the complete public vocabulary.
+When the database field is a generated closed enum, use an exhaustive `Record` from the database enum to the DTO union.
+When it is an open string, use a runtime assertion:
 
 ```ts
-status: input.status as IReport["status"],
+status: typia.assert<IReport["status"]>(input.status),
 ```
 
 Read the DTO's field type before mapping a relation. An id-string property takes `input.rel?.id`; a summary property takes the neighbor's transform. An optional relation arrives as `T | null`, so guard it: throw when the property is required, and use `?.x ?? null` when it is nullable.

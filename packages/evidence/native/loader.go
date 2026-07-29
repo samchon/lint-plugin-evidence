@@ -25,6 +25,7 @@ type typeScriptLoader struct {
 	program  map[string]*artifactInventory
 	parsed   map[string]*artifactInventory
 	resolved map[string]string
+	failures map[string]string
 }
 
 func newTypeScriptLoader(
@@ -36,6 +37,7 @@ func newTypeScriptLoader(
 		program:  program,
 		parsed:   map[string]*artifactInventory{},
 		resolved: map[string]string{},
+		failures: map[string]string{},
 	}
 }
 
@@ -60,6 +62,7 @@ func (loader *typeScriptLoader) inventory(relative string) *artifactInventory {
 func (loader *typeScriptLoader) parse(relative string) *artifactInventory {
 	content, err := os.ReadFile(path.Join(loader.root, relative))
 	if err != nil {
+		loader.failures[relative] = err.Error()
 		return nil
 	}
 	kind := shimcore.ScriptKindTS
@@ -74,9 +77,17 @@ func (loader *typeScriptLoader) parse(relative string) *artifactInventory {
 		kind,
 	)
 	if file == nil {
+		loader.failures[relative] = "the TypeScript parser returned no source file"
 		return nil
 	}
 	return scanTypeScriptInventory(relative, file)
+}
+
+func (loader *typeScriptLoader) failure(relative string) string {
+	if loader == nil {
+		return ""
+	}
+	return loader.failures[relative]
 }
 
 // exists reports whether a project-relative TypeScript file can be read at all,
@@ -157,11 +168,18 @@ func (loader *typeScriptLoader) packageEntryModule(name string) string {
 // A package's files are enumerated from disk for the same reason its entry is
 // parsed from disk: the ones an obligation most needs to name are precisely the
 // ones nothing imported, so the Program cannot be the source of truth.
-func (loader *typeScriptLoader) walk(base string) []string {
+func (loader *typeScriptLoader) walk(base string) ([]string, string) {
 	root := path.Join(loader.root, base)
 	found := []string{}
+	problem := ""
 	err := filepath.WalkDir(root, func(current string, entry fs.DirEntry, err error) error {
 		if err != nil {
+			if problem == "" {
+				problem = err.Error()
+			}
+			if entry != nil && entry.IsDir() {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if entry.IsDir() {
@@ -177,11 +195,11 @@ func (loader *typeScriptLoader) walk(base string) []string {
 		found = append(found, relative)
 		return nil
 	})
-	if err != nil {
-		return nil
+	if err != nil && problem == "" {
+		problem = err.Error()
 	}
 	sort.Strings(found)
-	return found
+	return found, problem
 }
 
 // referenceBase is the directory a reference's entry and globs resolve against.

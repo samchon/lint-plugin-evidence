@@ -20,7 +20,7 @@ Do not debug from memory or from a paraphrase of the error. The line that broke 
 | an accessor is missing from the SDK | the same, plus regeneration |
 | a runtime failure inside business logic | the provider |
 | a test fails on state it did not create | test setup, or the shared database |
-| a test fails on a status code | the assertion, which should not pin one |
+| a test fails on a status code | compare the requirement and controller JSDoc with the provider's observable error before assigning the defect |
 | the frontend cannot import something | the API package's index exports |
 | nothing builds after a dependency change | the toolchain |
 

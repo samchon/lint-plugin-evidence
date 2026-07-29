@@ -1,150 +1,70 @@
 ---
 name: review
-description: Defines the questions a completeness pass does not ask: whether each claimed realization is true, whether the source it names is itself correct, and which claims prove anything at all. Use inside every campaign round rather than after them, and again whenever any artifact or any source changes.
+description: Defines integrity review for plain-arm mappings, including full-scope rounds repeated without limit until one round finds no defect. Use during implementation and before every completion report.
 ---
 
 # Review
 
-## This Runs Inside The Campaign, Not After It
+## A Filled Row Is Not A True Row
 
-The [campaign skill](../campaign/SKILL.md) is already a reading discipline. Its rounds read the full population on both sides of an edge, from the artifacts rather than from your notes about them, because nothing here can report a gap for you. That is the right shape and this skill does not replace any of it.
+An implementation may be said to realize a requirement, model, operation, or shape without the statement being accurate. A detailed-looking claim can still describe adjacent behavior or close a whole section with one partial implementation.
 
-**Do not read this as a later phase.** A campaign round that establishes presence quickly, intending to check truth afterwards, is a campaign round that did not happen: presence in this repository is established by reading, and a reader who is not asking whether the thing is true is not really reading it.
+## Review The Triple
 
-What this skill adds is the set of questions that a completeness pass does not naturally ask, because they are not about whether a row is filled.
+For every mapping, read three artifacts:
 
-Picture the ledger line written after reading the section and building what it asks for. Now picture the line written because a similar-sounding endpoint already existed and the requirement looked covered. **They are the same line.** Both name a requirement and an artifact, both close a row, and no pass that asks whether the row is filled will ever separate them.
+1. the mapping statement, including its exact source/artifact identities and reason;
+2. the claiming code, test, schema, or screen;
+3. the requirement, model, operation, DTO, or upstream artifact the row names.
 
-## The Unit Of Review Is A Triple
+The mapping is an index for this reading, never evidence that the reading passed. A reason is useful only when the current code can contradict it.
 
-Every review step reads three things, from the artifacts rather than from the ledger.
+The claiming artifact can be wrong, the named source can be wrong, or one misreading can have propagated through both. `docs/analysis/**` is immutable specification; schema, contract, implementation, tests, and screens are authored outputs and may themselves require repair.
 
-1. **The claim.** What the ledger says this artifact does about this requirement, table, or operation.
-2. **The claiming artifact.** What the code actually does.
-3. **The source it names.** What the requirement section says, what the model stores, what the contract promises.
+## Review Granularity And Absence
 
-A campaign round already reads the second and third: that is what walking an edge is. The claim is the side it does not read, because the ledger is where the round records its verdict rather than something the round examines.
+Review each H2 and H3 identity independently. A row for an H2 does not silently close its H3 descendants. If one artifact owns an entire subtree, enumerate every descendant responsibility in the review record.
 
-So the ledger is the index of what to review and never the evidence that the review passed. It records what you believed when you wrote it, which is the thing under test.
+A non-applicability, non-storage, non-exposure, or deliberate-omission row is a claim with the same burden as implementation. Confirm the exact source permits the absence, identify the actual owner or observable alternative, and state what would prove the decision wrong. "Not applicable," "future work," and "internal" are conclusions, not reasons.
 
-## Either Side Can Be The Defect
+## Review Behavioral Claims
 
-This is the part that decides whether the skill is worth running.
+A model, controller, provider, and test may all map to one behavioral requirement. Only an assertion that fails when the behavior disappears provides executable proof.
 
-When a claim does not hold, **the artifact is not automatically what is wrong.** The source is under review too, and it fails in ways only a reader arriving from the claim is placed to notice.
+Read the test's setup, invoked operation, assertion, and negative path. Confirm it can fail for the named rule rather than merely for any error. Type-checking a DTO proves shape; calling an endpoint proves reachability; neither proves semantic behavior.
 
-**The claiming side is wrong** when the code does less than the claim says, does it in one path and not its sibling, or does something adjacent that reads similar. A provider recorded as enforcing the coupon-stacking rule, which refuses only the same coupon twice, is this.
+## Reverse Ownership
 
-**The source side is wrong** when it does not mean what the artifacts built on it assume. A column nullable where three DTOs treat it as always present. A contract omitting an effect four tests assert. A model storing a state under a name meaning the opposite of what the requirement calls it.
+Review the backward populations as seriously as requirement coverage:
 
-Here is that second case, and it is the one a two-sided review never finds.
+- every model and column;
+- every authored DTO type/property and controller operation;
+- every provider branch and database access;
+- every meaningful test assertion;
+- every route, screen, hook, form, and browser journey.
 
-```prisma
-/// Closing time of sale.
-///
-/// If `null`, the sale is forever.
-closed_at DateTime?
-```
+Each needs a requirement, upstream contract, invariant, or reasoned architectural owner. An unowned artifact is invented behavior even when all forward rows are full.
 
-```ts
-/** Whether this sale has ended. */
-closed: boolean;
-```
+## Invalidation
 
-The ledger says the sale-lifecycle requirement is realized, the transformer derives `closed` from `closed_at`, and the two agree. A review that stops there passes.
+A verdict belongs to one meaning at one digest. Changing a requirement interpretation, model, DTO, operation, provider, test, screen, or mapping reason invalidates every downstream verdict that depended on it.
 
-Reading the third side finds that the requirement calls a **suspended** sale ended too, and `closed_at` is null on every suspended row. The DTO and the transformer are faithful to the schema; the schema is missing a state the requirement describes. Repairing the DTO here would encode the gap permanently.
+Record the finding before repair, identify every dependent claim as stale, fix the owning layer, regenerate outputs, rerun validation, and review the complete affected population. Never retain a dry or green verdict from the previous source.
 
-**Both are wrong together** when a misreading propagated. The schema was built from a reading of the section, the contract from the schema, the tests from the contract, and by then nobody has reopened the document. This is precisely why the third read is not optional, and why it goes back to the source rather than to whatever intermediate artifact is nearest.
+Keep the review inventory in `.wiki/review.md`.
+For every row record the exact source identity, claiming artifact and member, falsifiable reason, current source digest, and `pending`, `accepted`, or `stale` verdict.
+Record findings before repair and retain stale rows until their replacements pass a later full round.
 
-`docs/analysis/` is the one source you never edit. It is given input. When an artifact and a section disagree, the section is right, and the finding is against the artifact or against your reading of it.
+## Loop Until Dry
 
-Every other source is yours. The Prisma models, the operation contracts, the DTOs: a finding there is a finding, and repairing it there is the correct outcome.
+Run complete review rounds until one entire round is dry. This loop has no maximum round count.
 
-## What A Ledger Entry Owes
+Every round is an independent full review of the whole current project. Reread every H2 and H3 and walk each one through every applicable layer. Then enumerate and reverse-walk every authored model and column, DTO type and property, controller operation, provider branch and database access, meaningful test assertion, route, screen, hook, form, and browser journey. Recheck every state, permission, negative path, named boundary, generated output, `@todo`, and required build, lint, test, and browser gate.
 
-An entry survives a reader comparing it to the code. That is the entire standard, and three failures account for most of what does not survive.
+Never divide a round by file, layer, lens, requirement subset, finding, or available time. Never carry a partial round forward as if its untouched remainder had passed. Every round starts from the complete current requirements and the complete current artifact population.
 
-```
-REQ-4.2 coupon stacking -> ShoppingOrderProvider   implemented
-```
+If a round finds even one missing, invented, stale, false, partial, or unverified mapping or behavior, that round is not dry. Record every finding, repair every confirmed defect at its owning layer, regenerate affected outputs, rerun every invalidated gate, and begin a new full round from the start on the changed source.
 
-**Recording only that something happened.** True of every entry ever written, so it distinguishes nothing.
+The only successful stopping condition is one full round that inspects the entire scope, finds zero actionable defects or omissions, and leaves every required gate current and green. An external interruption ends the loop only as an explicitly unfinished report, never as completion.
 
-```
-REQ-4.2 coupon stacking -> ShoppingOrderProvider.create   the coupon rule
-```
-
-**Naming the requirement again.** The row already names it. An entry says which **part** of it this artifact answers for.
-
-```
-REQ-4.2 coupon stacking -> ShoppingOrderProvider.create
-  rejects a second coupon of a kind the order already carries, at checkout
-  the other three rules in this section are not here: see REQ-4.2 rows below
-```
-
-That can be contradicted by reading the provider, which is what makes it worth writing. It also exposes its own limit, and that limit is the point: the section states four rules and this names one.
-
-**Claiming the whole of a source the artifact partly covers** is the third failure and the most expensive, because it converts a missing implementation into a satisfied row. The vaguer entries above do exactly that: the section reads as realized, and three rules go unbuilt with nothing left to report them.
-
-## Decide The Entry First, Then Find The Row
-
-The ledger is laid out requirement-first. **Do not think in that order.**
-
-Say what the artifact is responsible for, in a sentence, before looking for a requirement to file it under. Then find the section that asks for it. An entry arrived at this way describes the work; an entry arrived at from a row justifies a row you had already decided to close.
-
-The difference shows up under review as the third failure above. Someone who picked a plausible section and then wrote a line about it produces "the coupon rule", because that is genuinely all they know: the line was reverse-engineered from the row. Someone who knew the provider rejects a duplicate issuer at checkout writes that, and then either finds the section stating it or discovers there is none, which is itself the finding.
-
-**A row that can be filled is not a row that should be.** Filing an artifact under whichever section it plausibly touches is the same move as weakening an assertion until a test passes.
-
-## An Entry Is Responsibility, Not Proof
-
-Every entry says the same thing: this artifact answers for this part of this source. It never says the source holds.
-
-That decides which entry is worth trusting for which kind of requirement. A shape requirement is settled by reading the model or the DTO. **A behavioral rule is settled by nothing except a test that fails when the behavior is removed.** A model, a contract, and a provider may each be filed against the coupon-stacking section truthfully, and none of them demonstrates that stacking is refused.
-
-So when reviewing a behavioral section, find the test filed against it and read what it asserts. If no test is, the section is traced through three layers and proven by none, and every one of those entries is honest.
-
-## A Recorded Non-Exposure Is A Claim Too
-
-A ledger line saying a table is deliberately internal, or a requirement genuinely needs no storage, is a decision that carries the same burden as a realization and gets the same triple read.
-
-The failure to look for is a line recording work that was never done rather than a decision that was made. "Not exposed" on a column a requirement says a user must see is a row closed, not a decision taken.
-
-Re-read every such line each round. One that was correct when written stops being correct the moment the requirement behind it changes, and **nothing will ever flag it**, because a closed row produces no diagnostic in any campaign.
-
-## Repairing A Source Re-Opens Every Claim On It
-
-This is the cascade, and it is why the work runs in rounds rather than once.
-
-A claim is an assertion about a source. Change what the source means and every claim on it is unverified again, including the ones you passed an hour ago. Rename a column, change a nullability, add an effect to a contract, split a model in two: each invalidates every entry written against the old meaning, and **no campaign will notice**, because the artifacts still exist and the rows are still filled.
-
-So when a round repairs a source, re-review every claim naming it, in full. A verdict issued against the previous meaning is void.
-
-The ordinary direction cascades the same way. A changed provider re-opens the claims on its tests; a changed contract re-opens the claims on its screens.
-
-## Where This Lands In A Round
-
-The campaign's rounds are the rounds. This skill changes what each one does, in three places.
-
-**While walking an edge**, read the claim as well as the two artifacts, and treat a mismatch as a live question about which of the three is wrong rather than as a note to fix the artifact.
-
-**Before recording a verdict**, ask what the entry would owe a reader who did not write it, and whether anything in the repository actually proves it.
-
-**Between rounds, vary the direction.** Walk claim-to-source in one and source-to-claim in the next, asking of each requirement section and each table what every artifact built on it believes about it. The second direction is what finds one source meaning three things to three readers, and the first cannot find it at all.
-
-A finding here re-opens campaigns exactly like any other finding, including when the thing repaired was a source rather than an artifact. The campaign's rule that no verdict survives a change upstream of it applies without modification.
-
-## Prove One Directly, Once Per Round
-
-Reading establishes that a claim is plausible. Removing the behavior establishes that something depended on it.
-
-Take one claim that matters, delete the behavior it names, and confirm the build or the suite fails. Then restore it. If nothing failed, the claim was decorative, and every entry written in the same style is now suspect.
-
-Nothing in this repository will ask you to do this.
-
-## What This Skill Cannot Do
-
-It cannot tell you that an artifact nobody thought to write is missing. That is what the campaign's traversal is for, and it is why this is a lens on those rounds rather than a substitute for them: walking the population finds what is absent, and these questions decide whether what is present is real.
-
-It also cannot find a defect nobody reads for. Type-correct is not correct and recorded is not correct, and the shapes that survive both are catalogued in [the provider topic](../backend/providers.md). Each of them fills its ledger row and passes every build, so the only thing that finds one is a reader holding the code against the claim.
+Complete this loop before every terminal completion report. Do not edit frozen instructions or lint configuration files.

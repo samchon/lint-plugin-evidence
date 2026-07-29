@@ -67,10 +67,10 @@ Drive the flag from the environment rather than from code, so the same build can
 // src/lib/config.ts
 export const config = {
   get apiHost() {
-    return process.env.VITE_API_HOST?.trim() || "http://127.0.0.1:37001";
+    return import.meta.env.VITE_API_HOST?.trim() || "http://127.0.0.1:37001";
   },
   get simulate() {
-    return process.env.VITE_API_SIMULATE?.trim() === "true";
+    return import.meta.env.VITE_API_SIMULATE?.trim() === "true";
   },
 };
 ```

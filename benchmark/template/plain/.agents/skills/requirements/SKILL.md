@@ -1,26 +1,23 @@
 ---
 name: requirements
-description: Defines what the documents under docs/analysis contain, how they are organized, how to read a requirement so nothing in it is missed, and how that reading is established as complete here. Use before implementing anything and again when checking whether the specification is realized.
+description: Defines the immutable documents under docs/analysis, the exact H2/H3 requirement identity used by the plain arm, and how to build and verify its manual denominator. Use before implementation and during every integrity pass.
 ---
 
 # Requirements
 
-Everything else in this repository is downstream of how well you read these documents.
+No plugin reports a selected section missing from the plain arm. Build the denominator explicitly from exactly the H2 and H3 headings in `docs/analysis/**/*.md`, identified as `<workspace-relative-path>#<canonical-anchor>`. An explicit `{#anchor}` wins; otherwise use the renderer's canonical lowercase slug. H1, H4+, generated `docs/ERD.md`, and non-analysis Markdown are not units.
 
-There is no mechanism that will tell you a section went unread. The compiler checks the code that exists, and a requirement you never saw produces no artifact and therefore no error. Every later campaign counts against the inventory you build here, so an incomplete inventory makes every downstream verdict wrong while looking exactly like a correct one.
-
-Read [the campaign skill](../campaign/SKILL.md) and [its requirements edge](../campaign/requirements.md) before you start. That edge is the root of the graph and the only one with nothing upstream to catch its mistakes.
-
+<!-- benchmark-template-splice: base-body -->
 {{base}}
 
-## Build The Inventory As You Read
+## Build The Inventory While Reading
 
-For every heading, record the five parts in the ledger: the actor or concept, the circumstance, the required behavior, the observable result, and the named values.
+For every H2/H3 section, record actor or concept, circumstance, required behavior, observable result, named values, negative cases, cross-references, and source lines. Read through the next heading of equal or higher level.
 
-Do it while reading, not afterwards. An inventory reconstructed from memory is a summary of what you found interesting.
+Treat an H2 and each H3 child as distinct obligations. Compare the sorted heading identities rather than only their count, and map each identity forward to every applicable model, column, DTO, operation, provider path, test assertion, screen, and browser journey. A broad H2 mapping is valid only when the implementation genuinely realizes every selected child and names them individually.
 
-## The Cost Of A Miss Here
+Read every selected section for states, actor authority, ownership, refusals, and named boundaries. Traverse the documents again by actor and named concept so that a rule split across sections cannot disappear between them.
 
-A section you did not read implies a table you did not create, which implies an endpoint, a provider, a test, and a screen. When a later round finds it, every one of those campaigns re-opens in full.
+## Immutable Input
 
-That is not an argument for reading faster. It is why this campaign is worth more passes than any other, and why the two-consecutive-clean-rounds rule is a floor rather than a target.
+Never edit `docs/analysis/**` to agree with code. A contradiction is a finding against the implementation or, if the corpus itself is invalid, a frozen-input protocol finding that may stop the cell.

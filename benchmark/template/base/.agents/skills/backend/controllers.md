@@ -2,7 +2,9 @@
 
 This document owns the endpoints under `packages/backend/src/controllers/`: their shape, their request and response contracts, and the JSDoc that becomes the published documentation.
 
-The types they exchange are declared in `packages/api/src/structures` and owned by [dtos.md](dtos.md).
+Requirement-derived request and response DTOs are declared in `packages/api/src/structures`; shared wrappers such as `IPage` are declared in `packages/api/src/typings`. [dtos.md](dtos.md) owns both boundaries.
+
+The scaffold's `HealController.get` is the infrastructure exception. Keep its Nest `@Get("health")` route registered so `/health` remains available to process probes; it has no typed request or DTO response and does not use `TypedRoute`. Requirement-derived product operations follow the typed controller rules below.
 
 ## Two Views Of One Behavior
 
@@ -194,7 +196,7 @@ Four things here are the convention.
 
 **`SortableColumns` composes a related resource's sortable columns** rather than restating them. Sorting a sale by its seller's fields stays legal without a second vocabulary that drifts from the first.
 
-`IPage` and `IPage.IRequest` already exist in `packages/api/src/structures/common/IPage.ts`. Read that file rather than redeclaring either: the wrapper is shared by every listing in the product, and a second definition of it is a second contract.
+`IPage` and `IPage.IRequest` already exist in `packages/api/src/typings/IPage.ts`. Read that file rather than redeclaring either: the wrapper is shared by every listing in the product, and a second definition of it is a second contract.
 
 ## Sort Grammar
 

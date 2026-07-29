@@ -36,6 +36,8 @@ export class MyModule {}
 
 **Adding a controller is two edits, not one.** Write the controller, then register it in the module beside it, and if that module is new, import it from its parent. Forgetting the second edit is the most common way a finished endpoint turns out not to exist.
 
+The root `MyModule` starts with `HealController` registered for `/health`. Preserve that controller when adding domain modules; replacing the `controllers` array with `imports` alone silently removes the process probe.
+
 The module file sits beside the controllers it declares, named for the same group.
 
 ## The Global Singleton
@@ -74,7 +76,7 @@ Three details of that registration are load-bearing.
 
 Three things about it are the convention rather than the implementation.
 
-**The body is always a diagnosis array**, even for a one-sentence refusal. A client that renders errors writes one renderer instead of branching on whether the body happens to be a string, and a field-level failure lands on its field because `accessor` names it. `IDiagnosis` is declared in `packages/api/src/structures/common`, so the frontend's pre-submit checks and the server's rejections speak the same vocabulary.
+**The body is always a diagnosis array**, even for a one-sentence refusal. A client that renders errors writes one renderer instead of branching on whether the body happens to be a string, and a field-level failure lands on its field because `accessor` names it. `IDiagnosis` is declared in `packages/api/src/typings`, so the frontend's pre-submit checks and the server's rejections speak the same vocabulary.
 
 **The status is chosen by the caller, from meaning.** These are named constructors rather than one function taking a number, so a call site reads as the decision it made.
 

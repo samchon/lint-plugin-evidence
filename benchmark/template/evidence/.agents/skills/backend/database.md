@@ -1,41 +1,40 @@
 # Database
 
-Before you design a single model, know what this layer owes and how that debt is settled here.
+The `schema-models` claim selects Prisma model documentation and requires acknowledgement of every configured Markdown H2/H3 section.
 
-The schema answers to `docs/analysis/`. Every requirement that names persistent state must have somewhere to live, and the build enforces it: each configured requirement section must be acknowledged by a model that claims to store it, and the lint stage fails until it is.
-
-So the obligation is not a discipline you maintain. It is a compile error you clear.
+Place a citation in the `///` block attached to the exact model that stores the facts:
 
 ```prisma
-/// Seller **sales** products.
+/// A sale offered by one seller.
 ///
-/// @evidence docs/analysis/02-domain-model.md#sales Stores the sale identity
-///           and its lifecycle timestamps; the revisable content lives in the
-///           snapshot.
-model shopping_sales {
+/// @evidence docs/analysis/02-domain-model.md#sale-lifecycle Stores the states
+///           and timestamps required by the lifecycle.
+model ShoppingSale {
 }
 ```
 
-A citation sits in the `///` block, which is the same block the generated types and the ERD publish. Write which part of the section this model is responsible for, not a restatement of the section's name.
+Use leaf H3 targets by default. Use an H2 only when this one model owns every selected child and the integrity review enumerates them. An exclusion is valid only for a reviewed section with genuinely no storage responsibility; “not implemented” is never an exclusion.
 
-Read [the evidence skill](../evidence/SKILL.md) before starting, especially the part about discharging a diagnostic at the layer that owns it. A requirement you cannot cite from any model is usually not a missing tag.
+## Excluding A Requirement From The Schema
 
+Put `@evidenceExclude` in the `///` block of a selected Prisma model when the `schema-models` claim intentionally has no storage responsibility for one requirement. The carrier model does not become the requirement's owner; it only hosts the claim-local decision.
+
+```prisma
+/// A sale offered by one seller.
+///
+/// @evidenceExclude docs/analysis/05-user-experience.md#empty-state-copy
+///                  CatalogPage owns this presentation-only wording; reject
+///                  this exclusion if the requirement adds persisted choice,
+///                  audit history, or state.
+model ShoppingSale {
+}
+```
+
+Name the actual owner and a condition that would veto the exclusion. “Not implemented,” “future work,” and “not applicable” do not explain why the schema must omit a requirement. Excluding an H2 excludes every selected H3 descendant, so use a leaf unless the same ownership decision is true for all descendants. Keep evidence and exclusion scopes disjoint within this claim-reference obligation. The exclusion satisfies only `schema-models`; controller, test, DTO, and frontend claims still owe their own decisions.
+
+<!-- benchmark-template-splice: base-body -->
 {{base}}
 
-## Citing And Excluding
+## After A Schema Change
 
-**One target, one citation, across the whole claim.** A citation acknowledges the section and every selected descendant, so cite a section once, from the model that owns its concept, with a reason naming the part it answers for; a second citation of the same target from any model in this claim is a duplicate-acknowledgement error. When a section spans concepts, the other models cite only the targets that are disjointly theirs.
-
-**Cite the model that stores the fact**, not a neighbor that references it. A tag on the wrong side of a relation records a claim the code does not support, and a reviewer comparing the two will find it.
-
-**Use `@evidenceExclude` only for a reviewed decision.** A section that describes behavior with no persistent state genuinely has no model, and recording that with a reason is correct. A section you have not implemented yet is not that, and excluding it converts a true report into a false one.
-
-## After Any Schema Change
-
-Run the build. A new model may make a previously unsatisfiable citation resolve, and a removed one may leave a citation dangling somewhere else entirely.
-
-A dangling citation is not noise. It means either the schema changed under a claim that still believes the old shape, or the address was wrong from the start. Fix whichever is actually wrong, and never delete the citation to stop the message.
-
-**The dangerous changes are the ones that dangle nothing.** Rename a column and every citation of it breaks loudly. Change its nullability, widen its meaning, or add a state it can now hold, and every citation still resolves while every reason written against the old meaning is now unverified. Nothing reports that.
-
-This schema is the most-cited reference in the repository, which makes it the place where one wrong meaning propagates furthest: a model that means something other than what its citations assume produces a green build over DTOs, providers, and tests that are each individually faithful. The [review skill](../review/SKILL.md) owns finding that, and it is the reason it reads the referenced side rather than only the citing side.
+Regenerate the Prisma client and ERD. A semantic change can leave every target resolvable while making old reasons false, so invalidate API, provider, and test reviews bound to the prior schema digest.

@@ -1,4 +1,5 @@
 import {
+  assertExcludes,
   assertIncludes,
   assertStatus,
   createProject,
@@ -73,10 +74,10 @@ export const test_evidence_graph_reports_an_unreadable_population_root =
         "could not read the markdown root '../documents', which resolves to '",
         "The diagnostic must name the property the author edits and the directory it landed on.",
       );
-      assertIncludes(
+      assertExcludes(
         result,
-        "under root '../documents'",
-        "The empty population must state the base its patterns were resolved against.",
+        "Unresolved evidence target",
+        "A failed population cannot prove that its declaration target is unresolved.",
       );
     } finally {
       project.cleanup();

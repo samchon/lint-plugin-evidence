@@ -1,0 +1,25 @@
+# Dependencies and compiler state
+node_modules/
+*.tsbuildinfo
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Package outputs
+packages/api/lib/
+packages/backend/bin/
+packages/backend/lib/
+packages/backend/src/prisma/
+packages/frontend/dist/
+
+# Local SQLite state
+packages/backend/prisma/db.sqlite
+packages/backend/prisma/db.sqlite-journal
+packages/backend/prisma/db.sqlite-shm
+packages/backend/prisma/db.sqlite-wal
+
+# Browser diagnostics
+packages/frontend/playwright-report/
+packages/frontend/test-results/

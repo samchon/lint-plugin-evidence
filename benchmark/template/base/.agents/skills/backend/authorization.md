@@ -155,7 +155,9 @@ Checking only the join table gives the legitimate owner a wrongful `403`. No hap
 
 ## Sessions And Tokens
 
-A session row carries the actor foreign key, connection context, a non-null creation time, and a non-null expiry, with an index on the actor and creation time.
+A session row carries the actor foreign key, a non-null creation time, and the exact continuation, revocation, and context facts the requirements make observable. Store an expiry only when the requirements define a deadline, and store connection metadata only when a requirement or an exposed session view uses it. An implementation detail is not a reason to retain another personal datum.
+
+The following shape applies when the requirements define a refresh horizon and connection address. It is an example of that contract, not a fixed session schema for every subject.
 
 ```prisma
 model shopping_seller_sessions {
@@ -176,7 +178,7 @@ model shopping_seller_sessions {
 }
 ```
 
-The session's expiry tracks the **refresh** horizon, meaning the window during which the session can still be renewed. It does not track the short-lived access-token expiry.
+When a session has a refresh deadline, its expiry tracks the **refresh** horizon, meaning the window during which the session can still be renewed. It does not track the short-lived access-token expiry.
 
 ```ts
 // WRONG: the session dies inside its own refresh window
@@ -186,11 +188,11 @@ expired_at: accessTokenExpiry,
 expired_at: refreshTokenExpiry,
 ```
 
-Using the access expiry invalidates the session row while its refresh token is still valid, so every refresh after the first access window is wrongly rejected. The failure reaches users as being logged out for no reason, at an interval nobody connects to the code.
+Using the access expiry invalidates the session row while its refresh token is still valid, so every refresh after the first access window is wrongly rejected. The failure reaches users as being logged out for no reason, at an interval nobody connects to the code. When the requirements instead define absolute and inactivity deadlines, store and update those two facts separately; when they define no deadline, do not invent one.
 
 Issued tokens are returned in the response and are not session columns unless the requirements demand persisted tokens or revocation records.
 
-Refresh must verify the token, confirm the named session still belongs to the actor, check the session has not passed its expiry, extend that same session to the new horizon, reload the actor, and issue tokens that retain the session identity. Renewing by creating a second session loses the continuity every session listing depends on.
+Where refresh exists, it must verify the token, confirm the named session still belongs to the actor, enforce every deadline the requirements define, update only the deadlines the requirements permit, reload the actor, and issue authorization material that retains the session identity. Renewing by creating a second session loses the continuity every session listing depends on.
 
 ## The Lifecycle Surface Is Exactly Three Operations
 
@@ -256,7 +258,7 @@ export namespace SellerProvider {
 }
 ```
 
-Both checks are needed, and the second one reads the session, not only the actor. The token check proves the claim was minted for this actor. The session read, filtered through the actor relation, proves three things at once: the session is still live, it belongs to this actor, and the account has not been withdrawn. **Checking only the actor row leaves sign-out and password change ineffective**: those flows revoke the session row, and a token whose session is never re-validated stays usable until it expires on its own.
+Both checks are needed, and the second one reads the session, not only the actor. The token check proves the claim was minted for this actor. The session read, filtered through the actor relation, proves three things at once: the session is still live, it belongs to this actor, and the account has not been withdrawn. **Checking only the actor row leaves server-side revocation ineffective**: a token whose session is never re-validated stays usable until it expires on its own. Revoke exactly the sessions each operation names. Some subjects keep the password-changing session and revoke the others; another may revoke every session including the caller. Do not turn either contract into a universal password-change rule.
 
 Every actor's authorize provider is that same shape, differing only in the discriminant it checks and the table it reads. The token half is shared: `JwtUtil` in `packages/backend/src/utils/`, beside the other helpers that own no entity.
 

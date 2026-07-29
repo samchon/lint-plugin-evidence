@@ -1,159 +1,68 @@
 ---
 name: review
-description: Defines how the truth of every citation is established: what the build proves and what it cannot, how to read a citation against both the artifact making it and the target it names, why the referenced side is under review too, and the rounds this runs in. Use after the lint stage is green and again whenever any artifact or any reference changes.
+description: Defines integrity review for evidence claims: comparing every tag or exclusion with its host and source, reviewing broad scopes and residual edges, and invalidating verdicts after change. Use during implementation and the final review.
 ---
 
 # Review
 
-## Green Is Where This Skill Starts
+## Coverage Is Not Integrity
 
-The lint stage proves that a citation **exists** and **resolves**. It proves nothing about whether the citation is true.
+The graph establishes that every configured target received `@evidence` or `@evidenceExclude` from a selected host. It does not evaluate the reason or the implementation. A tag written after doing the work and a tag copied merely to clear a diagnostic are structurally identical.
 
-Picture the tag written to clear a diagnostic. It names a real requirement section, it sits on a declaration the claim selects, it is spelled correctly, and the build goes quiet. Now picture the tag written after actually doing the work. **They are the same tag.** Nothing in the file, the diagnostic, or the build output separates them, and no later pass will either, because the report that would have found the gap now reads clean.
+## Review The Triple
 
-That is why this skill exists. The graph hands you a complete inventory of claims and a verdict on none of them. Producing the verdict is yours, and it is not work you do if time permits: an unreviewed green build is a repository whose every claim is unexamined and whose report says the opposite.
+For every acknowledgement, read three artifacts:
 
-The [evidence skill](../evidence/SKILL.md) establishes that nothing is **missing**, because the build refuses to pass while an obligation is unacknowledged. This skill establishes that what is there is **true**. Neither substitutes for the other, and the work is finished only when both hold.
+1. the exact tag target and reason;
+2. the selected declaration hosting it and the code that declaration represents;
+3. the requirement, Prisma unit, SDK operation, DTO type, or screen named by the target.
 
-## The Unit Of Review Is A Triple
+A checklist may index this work; it is never evidence that the review passed. A reason must state the specific responsibility the host fulfills and be falsifiable by the code.
 
-Every review step reads three things, in this order, from the artifacts rather than from memory.
+The host can be wrong, the named source can be wrong, or one misreading can have propagated through both. `docs/analysis/**` is immutable specification; schema, contract, implementation, tests, and screens are authored outputs and may themselves require repair.
 
-1. **The reason.** What the tag claims this artifact does about this target.
-2. **The citing artifact.** What the code actually does.
-3. **The referenced target.** What the requirement section says, what the model stores, what the operation contract promises.
+## Review Reverse Ownership
 
-A step is complete only when you have read all three. Reading the first two is the natural shortcut, it feels sufficient, and it catches roughly half the defects, because it silently assumes the third is correct.
+The graph requires every configured target to receive an acknowledgement, but it does not require every selected host to carry one and does not reject an authored artifact merely because it has no owner. Enumerate selected hosts, models and columns, DTO types and properties, controller operations, provider branches and database accesses, meaningful test assertions, routes, screens, hooks, forms, and browser journeys. Map every unit back to an exact requirement, upstream contract, invariant, or reviewed architectural reason, including hosts with no evidence tag.
 
-## Either Side Can Be The Defect
+An unowned artifact is invented behavior even when all forward targets are acknowledged. Record these reverse-owner verdicts at the current digest; do not infer them from graph green or from the number of selected hosts.
 
-This is the part that decides whether the skill is worth running.
+## Review Scope And Exclusions
 
-When a reason does not hold, **the citing artifact is not automatically what is wrong.** The reference is under review too, and it fails in ways only a reader arriving from the citation is placed to notice.
+For a leaf target, inspect that exact unit. For an ancestor H2, Prisma model, TypeScript type, or namespace target, enumerate every selected descendant the tag discharges and verify that the one host or decision owns all of them. A broad tag that is true for only one descendant is an omission disguised as coverage.
 
-**The citing side is wrong** when the code does less than the reason says, does it in one path and not its sibling, or does something adjacent that reads similar. An operation whose reason says it refuses stacked coupons and whose provider refuses only the same coupon twice is this.
+Review every exclusion with the same triple. Confirm that the tag sits on a declaration selected by the named claim, the target belongs to one of that claim's configured references, the claim truly does not own it, the reason identifies the actual owner or observable alternative, and the stated veto condition still holds. “Not applicable,” “future work,” “internal,” and “not implemented” are conclusions, not reasons.
 
-**The referenced side is wrong** when the target does not mean what its citations assume. A column nullable where three DTOs treat it as always present. A contract omitting an effect four tests assert. A model storing a state under a name meaning the opposite of what the requirement calls it.
+Exclusions are claim-local. An exclusion accepted for `frontend-screens` says nothing about `backend-tests`, and an API-package exclusion cannot discharge a backend-package obligation.
 
-Here is that second case, and it is the one a two-sided review never finds.
+Hierarchy and disjointness are part of the verdict. Enumerate every selected descendant discharged by an H2, Prisma model, TypeScript type, or namespace exclusion, and reject a broad exclusion if any descendant belongs to the claim. Reject overlapping evidence and exclusion scopes within one claim-reference obligation; exclusion does not override evidence.
 
-```prisma
-/// Closing time of sale.
-///
-/// If `null`, the sale is forever.
-closed_at DateTime?
-```
+Providers are residual implementation, not claim hosts. Reject every evidence tag placed under `src/providers/**`; when a provider is the actual owner named by an exclusion, the tag remains on a selected model, operation, DTO, test, screen, or journey host.
 
-```ts
-/**
- * Whether this sale has ended.
- *
- * @evidence prisma:shopping_sales.closed_at Ended once the closing time has
- *           passed.
- */
-closed: boolean;
-```
+## Review Behavioral Claims
 
-The reason is accurate about the column and the transformer agrees with it. Two sides, consistent, and a review that stops there passes.
+A model, controller, provider, and test may all truthfully mention one behavioral requirement. Only an assertion that fails when the behavior disappears provides executable proof.
 
-Reading the third side finds that the requirement calls a **suspended** sale ended too, and `closed_at` is null on every suspended row. The citing side is faithful; the schema is missing a state the requirement describes. Repairing the DTO here, by widening the reason or retargeting the tag, would encode the gap permanently and leave nothing able to find it.
+Read the test's setup, invoked operation, assertion, and negative path. Confirm it can fail for the named behavior rather than merely for any error. Type-checking a DTO proves shape; calling an endpoint proves reachability; neither proves the semantic rule.
 
-**Both are wrong together** when a misreading propagated. The first artifact cited a section, the next copied its interpretation rather than the section, and by the fifth nobody has opened the document. This is precisely why the third read is not optional.
+## Review Residual Edges
 
-`docs/analysis/` is the one reference you never edit. It is given input. When an artifact and a section disagree, the section is right, and the finding is against the artifact or against your reading of it.
+The graph has no provider claim and no SDK-operation-to-screen claim. Review the manual residual mappings directly:
 
-Every other reference is yours. The Prisma models, the operation contracts, the DTOs: a finding there is a finding, and repairing it there is the correct outcome.
+- contract effects, requirement rules, and schema invariants against every provider path;
+- product-facing SDK operations against consuming screens/journeys or requirement-backed omissions;
+- every provider, screen, hook, and journey back to its owner.
 
-## What A Reason Owes
+A green graph verdict must never be copied into these rows.
 
-A reason survives a reader comparing it to the code. That is the entire standard, and three failures account for most of what does not survive.
+## Invalidation
 
-```ts
-/**
- * @evidence docs/analysis/04-business-rules.md#coupon-stacking Implements this
- *           requirement.
- */
-```
+A claim is about a particular meaning at a particular digest. Changing a requirement interpretation, model, DTO, operation, provider, test, screen, or cited JSDoc invalidates every downstream review that depended on it.
 
-**Restating the tag.** True of every citation ever written, so it distinguishes nothing. Its siblings are "stores this data" and "tests this operation".
+Record the finding before repair, mark dependent verdicts stale, repair at the owning layer, regenerate outputs, rerun validation, and review the complete affected population. Never preserve a prior verdict because its tag text still parses.
 
-```ts
-/**
- * @evidence docs/analysis/04-business-rules.md#coupon-stacking The coupon
- *           stacking rule.
- */
-```
+Keep graph-integrity, reverse-owner, exclusion, and residual-edge verdicts in `.wiki/review.md`.
+For every row record the exact target or source identity, claiming artifact and member, falsifiable reason, current source digest, and `pending`, `accepted`, or `stale` verdict.
+Record findings before repair and retain stale rows until their replacements pass the next complete review.
 
-**Naming the target again.** The tag already names it. A reason says which **part** of it this artifact answers for, which is the one thing the tag cannot express.
-
-```ts
-/**
- * @evidence docs/analysis/04-business-rules.md#coupon-stacking Rejects a second
- *           coupon of a kind the order already carries, at checkout.
- */
-```
-
-That can be contradicted by reading the provider, which is what makes it worth writing. It also exposes its own limit: the section states four rules and this names one, so a reviewer immediately asks where the other three live.
-
-**Claiming the whole of a target the artifact partly covers** is the third failure and the most expensive, because it converts a missing implementation into a satisfied obligation. The vaguer reasons above do exactly that: the section reads as discharged, and three rules go unbuilt with nothing left to report them.
-
-## Decide The Reason First, Then Find The Target
-
-The tag writes the target first. **Do not think in that order.**
-
-Say what this artifact is responsible for, in a sentence, before opening the documents to look for something to cite. Then find the target that says it. A reason arrived at this way is a description of the work; a reason arrived at from a target is a justification for a citation you had already decided to write.
-
-The difference shows up under review as the third failure above. Someone who picked a plausible section and then wrote a sentence about it produces "the coupon stacking rule", because that is genuinely all they know: the sentence was reverse-engineered from the tag. Someone who knew the provider rejects a duplicate issuer at checkout writes that, and then either finds the section stating it or discovers there is none, which is itself the finding.
-
-**A target that merely resolves is not a target that fits.** Retargeting until the build goes quiet is the same move as weakening an assertion until a test passes.
-
-## A Citation Is Responsibility, Not Proof
-
-Every citation says the same thing: this artifact answers for this part of this target. It never says the target holds.
-
-That distinction decides which citation is worth trusting for which kind of requirement. A shape requirement is settled by reading the model or the DTO, and a citation there is close to proof. **A behavioral rule is settled by nothing except a test that fails when the behavior is removed.** A model, a contract, and a screen may each cite the coupon-stacking section truthfully and none of them demonstrates that stacking is refused.
-
-So when reviewing a behavioral section, find the test citing it and read what it asserts. If no test cites it, the section is traced through three layers and proven by none, and every one of those citations is honest.
-
-## An Exclusion Is A Claim Too
-
-`@evidenceExclude` records a reviewed decision that this claim genuinely does not use a target. It carries the same burden as a citation and gets the same triple read.
-
-The failure to look for is an exclusion recording work that was never done rather than a decision that was made. "Not exposed" on a column a requirement says a user must see is a diagnostic silenced, not a decision taken.
-
-Re-read every exclusion each round. One that was correct when written stops being correct the moment the requirement behind it changes, and unlike a citation, **nothing about it will ever dangle**.
-
-## Repairing A Reference Re-Opens Every Citation Of It
-
-This is the cascade, and it is why the work runs in rounds rather than once.
-
-A citation is a claim about a target. Change what the target means and every claim about it is unverified again, including the ones you passed an hour ago. Rename a column, change a nullability, add an effect to a contract, split a model in two: each invalidates every reason written against the old meaning, and **not one of them will dangle**, because the address still resolves.
-
-So when a round repairs a reference, re-review every citation pointing at it, in full. A verdict issued against the previous meaning is void.
-
-The ordinary direction cascades the same way. A changed provider re-opens the reasons on its tests; a changed contract re-opens the reasons on its screens.
-
-## The Rounds
-
-1. **Enumerate the claims.** Walk the configured graph and list every citation and every exclusion in the repository, from the tags themselves rather than from your notes about them.
-2. **Review each as a triple**, reading all three sides.
-3. **Record every finding before repairing anything**, so a repair cannot quietly erase the record of what was wrong.
-4. **Repair at the side that is actually wrong**, which is sometimes the reference.
-5. **If the round produced even one finding, start over from the beginning.** Every claim, not the ones near the finding: a repair to a reference has invalidated verdicts you cannot enumerate without re-reading them.
-6. **Stop only after two consecutive complete rounds produce nothing.** One clean round means the round was tired.
-
-Vary the traversal between rounds. Walk claim-to-reference in one and reference-to-claim in the next, asking of each target what every artifact citing it believes about it. The second direction is what finds one reference meaning three things to three readers, and the first direction cannot find it at all.
-
-## Prove One Directly, Once Per Round
-
-Reading establishes that a reason is plausible. Removing the behavior establishes that something depended on it.
-
-Take one citation that matters, delete the behavior it claims, and confirm the build or the suite fails. Then restore it. If nothing failed, the claim was decorative, and every reason written in the same style is now suspect.
-
-The build will never ask you to do this.
-
-## What This Skill Cannot Do Either
-
-It cannot tell you that an artifact nobody thought to write is missing. The build does that, and the two are complements: the graph establishes the inventory, this skill establishes its truth.
-
-It also cannot find a defect nobody reads for. Type-correct is not correct and cited is not correct, and the defects that survive both are catalogued in [the provider topic](../backend/providers.md). Each of them carries a valid citation and satisfies every check, so the only thing that finds one is a reader holding the code against the claim.
+Review every current graph claim and residual edge before every completion report. Do not edit frozen instructions or lint configuration files.

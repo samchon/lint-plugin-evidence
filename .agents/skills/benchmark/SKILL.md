@@ -7,79 +7,76 @@ description: Defines how @samchon/lint-plugin-evidence measures its own product 
 
 ## Why This Exists
 
-The README claims that an unattended agent can skip a requirement and still report "done", and that the graph moves spec judgment into the build. This repository asserts that an unproven claim is a defect, so that claim owes measured evidence like any other.
+The README claims that an unattended agent can skip a requirement and still report completion, and that the evidence graph moves that omission into the build. This repository treats unproven claims as defects, so that product claim requires measured evidence.
 
-The benchmark answers it by generating the same applications twice: once with the evidence rules off and the agent instructed to self-audit to exhaustion, once with the rules on. The protocol, the arms, the subjects, the metrics, and the pre-registered hypotheses live in issue #88 and in the frozen protocol documents it produces. This skill owns the discipline around them, not their content — read #88 for what is measured, and this file for what you are allowed to do while measuring it.
+The benchmark generates the same application twice: once with the evidence plugin configured and once without it. The common prompts, subject requirements, shared template, arm overlays, and retained results under `benchmark/` are the experiment's authority.
 
-The control arm is not a strawman. Instructed exhaustive review and loop-until-dry discovery is the state of the practice, and it buys real assurance at a recurring cost. A benchmark that wins by underconfiguring it proves nothing anyone will believe.
+The plain arm is not a strawman. Its existing review skill requires exhaustive whole-project review until a complete round is dry, because the benchmark must compare evidence against a serious manual method.
 
 ## What A Request Authorizes
 
-A run is expensive, long, and consumes the runner CLI's model quota. Treat the phase boundary in the request as binding.
+A run is expensive, long, and consumes model quota. Treat the subject, arm, model, and phase boundaries in the user's request as binding.
 
-"Run a benchmark" authorizes that run and its report. It does not authorize a second run, publishing issues, opening a pull request, merging, or editing anything the run reads. Ask before crossing a boundary the request did not name, and say what a run will cost first: which subject, which arm, the expected wall-clock, and that it spends quota.
+Authorization to run a named benchmark covers that run and its report. It does not authorize an unrequested rerun or a different subject, arm, model, publication, or repository mutation. Preserve partial results when a run is interrupted instead of silently replacing them.
 
-## The Launch Gate
+## Launch Gate
 
-Launch only from a validated build. The repository suites are green and the change under test is merged before a run starts.
+Launch only from a validated, merged build. The repository suites and the consumer-shaped template proof must be green for the exact merged revision under test.
 
-This gate is unconditional. Schedule pressure, an absent user, a nearly finished branch, and a partial diagnosis leave it exactly where it is. A build that compiles is not a validated build, and "the remaining failures are probably fixture churn" is an assumption rather than evidence.
-
-A run started from an unverified tree is not evidence, because it measures a state that will never exist again. Kill it, remove its workspace so nothing later mistakes it for a result, and record the aborted attempt with its cost. #88 states the same rule from the other direction: a failed run is data, never a silent rerun.
+Schedule pressure, an absent user, or a nearly finished branch does not weaken this gate. If a common defect appears during a paid run, stop the affected wave, preserve the interrupted data, correct and revalidate the shared cause, and start a new run identity after the correction is merged.
 
 ## Subject Order
 
-Run subjects in ascending cost — todo, reddit, shopping, erp — and prefer one with a green baseline.
+Run Todo and Reddit first, with evidence and plain arms started concurrently. Run Shopping and ERP only after the cheaper subjects are stable and their requirements are ready.
 
-A defect in a shared path breaks every subject, so it is worth finding on the cheapest one. A subject that completed before the change under test also makes a regression legible as a delta, where a subject that was already failing can only show an absolute result. Reserve erp for the claims only its scale can settle.
+A shared defect affects every subject, so settle deterministic failures on the cheaper wave before spending the larger one.
 
 ## Frozen Inputs
 
-These are inputs to an experiment, not documentation, and they are frozen before the first run:
+Freeze these inputs before the first cell in a comparable wave starts:
 
-- the specification documents of every subject;
-- both arms' prompts and their method instructions;
-- the Phase 2 campaign procedure, its lenses, `K`, and its verification steps;
-- the grading rubric and the stripping procedure that precedes grading; and
-- the pinned model, reasoning effort, agent version, toolchain versions, and price sheet.
+- the complete requirement corpus for every subject in the wave;
+- `benchmark/prompts/instruction.md`, `goal.md`, and `review.md`;
+- the shared template and both arm overlays, including their existing skills and lint configurations;
+- the locally packed product revision installed by the evidence arm;
+- the model, reasoning effort, Codex version, and toolchain versions; and
+- the measurement and quality-scoring procedure used for every arm.
 
-Editing any of them after the first run invalidates every cell already collected. If one must change, say so plainly, discard the affected cells, and record why — a matrix quietly mixing two input versions reports a comparison nobody made.
+The same three user turns are supplied to both arms. Arm-specific method instructions belong only to the corresponding template overlay.
 
-Frozen inputs are exempt from the repository formatter for the same reason. `prettier.config.js` sets `proseWrap: "never"` for Markdown, so an ordinary `pnpm format` would reflow a frozen specification in place, and the diff would read as whitespace. Keep them covered by `.prettierignore` and never remove an entry to make a check pass.
+Editing a frozen input after one cell starts invalidates comparison with that cell. Preserve the affected run as interrupted, record the reason, merge the corrected input, and begin a new run identity for every affected cell.
 
-The prompts differ between arms by necessity, and #88 publishes both verbatim so a reader can judge the asymmetry. That is only auditable while the asymmetry stays confined to the arm overlay, so keep arm-specific content out of the shared tree and keep both overlays' file paths identical.
+Frozen benchmark Markdown is exempt from repository-wide formatting. Keep it covered by `.prettierignore` so an unrelated formatting pass cannot alter experimental input bytes.
 
 ## Measurement Integrity
 
 A run is evidence only while it measures the product a real consumer would install.
 
-- **Measure the real product.** No subject-name check, expected-answer check, benchmark-only branch, monkey patch, or harness-side prompt restriction that would be wrong for a project nobody is measuring. The agent sees the same package, configuration, and instructions a consumer gets.
-- **Give every arm its prescribed setup.** Configure each arm the way its own mechanism prescribes. A deliberately underconfigured control invalidates the comparison, and it is the one shortcut that would discredit the whole result.
-- **Preserve the workload.** A greener or faster run obtained by compiling, linting, testing, or reading less input is not an improvement. Never weaken a gate to make a run pass; a run that fails honestly is worth more than a green one that lies, and that failure is the exact thing this product exists to surface.
-- **Record, never reconstruct.** Token counts by category, tool calls, build invocations, and the moment of the first completion claim exist only in the runner's stream while it runs. Anything reconstructed after the fact is an estimate, and must be labelled as one.
-- **Normalize before comparing.** A vendor's token categories are its own. Codex reports an inclusive input count whose cached subset must be subtracted before conversion to cost, or the arm with the larger stable context is charged for reading it twice.
-- **Treat a surprise as failed understanding.** A result that contradicts the prediction means the change is not yet understood. Inspect the raw stream and the preserved workspace before accepting it, explaining it away, or patching around it.
+- **Measure the real product.** Do not add subject-name checks, expected-answer checks, benchmark-only product branches, monkey patches, or harness restrictions that would be invalid for an ordinary consumer.
+- **Give every arm its prescribed setup.** Use the same base template, requirements, user turns, model settings, and toolchain. The evidence arm alone receives the locally packed plugin and evidence lint configuration; the plain arm receives its own review instructions.
+- **Preserve the workload.** Do not weaken compilation, lint, testing, requirement coverage, or review obligations to make a cell finish.
+- **Record, never reconstruct.** Persist raw Codex streams, token categories, tool calls, commands, timestamps, completion claims, follow-up turns, and workspace state while the run is active. Label any later inference as an estimate.
+- **Separate costs.** Report materialization and installation overhead separately from agent wall time, and separate initial implementation from the review turn.
+- **Inspect surprises.** Read the raw stream and retained workspace before accepting, explaining, or correcting an unexpected result.
 
-## Predict Before Spending A Run
+## Predict Before Spending
 
-Name what a change should move and what should stay identical, and record the prediction before launching. Then judge the run against the prediction instead of reading it fresh.
+Record an evidence-based prediction of wall time, token use, requirement coverage, test coverage, implementation scale, and quality before launching a paid wave. Update the prediction when a new subject corpus becomes ready, but never rewrite a prediction after observing its run.
 
-Settle offline whatever a deterministic check or an existing suite can settle. A run costs hours; a Go test costs seconds, and a question answerable by either belongs to the cheaper one.
+Settle offline whatever a deterministic check can settle. A model run must not be used to discover a template, package, configuration, or build defect that the repository tests could have exposed.
 
 ## Run Ownership And Cleanup
 
-Each run owns an exact temporary root and every artifact below it. Preserve the run record and the generated workspace, then remove that root — the record is worthless without the workspace it points at, and the workspace is the only way a later reader can re-inspect what was seen.
+Each cell owns an exact temporary root and every process below it. Never reuse a workspace across arms or run identities.
 
-Never clean a shared cache to reclaim space. Confirm no process still holds the root before removing it, and verify it is gone afterwards.
+Copy the complete or interrupted workspace, raw logs, measurements, and terminal state into the retained result directory before removing temporary state. Remove only the exact temporary root after verifying that no owned process still uses it and that the retained copy is readable. Never clear shared package or model caches.
 
-## Where Results Go
+## Results
 
-A conversation ends and a machine is reimaged. Neither is a record.
+Store every attempt under `benchmark/result/<subject>/<arm>/runs/<run-id>/`. Keep the latest retained demo workspace at `benchmark/result/<subject>/<arm>/workspace/` without deleting prior run records.
 
-Append every completed run to the permanent results ledger issue, and keep working notes in `.wiki/` per the wiki skill. `.wiki/` is git-ignored and machine-local, so anything that must survive belongs in the ledger or in a published issue. Record UTC timestamps, the run's elapsed time separately from setup overhead, each token category unmerged, the subject scale, and the outcome — including the failures, which are the rows most likely to be quietly dropped.
+Record timestamps, setup and agent wall time, every native token category, commands and gates, completion-claim timing, requirement and test coverage, quality assessment, interruption reason, and the exact frozen-input identities. Keep working knowledge in `.wiki/` according to the wiki skill, but do not treat that ignored local directory as the only copy of a benchmark result.
 
-## When The Data Contradicts The README
+## Contradicting Results
 
-Correct the README.
-
-#88 commits to this in advance, and pre-registering the hypotheses is what makes the commitment enforceable: a result that falsifies H1 through H5 is the benchmark working, not the benchmark failing. A product claim that survives only because the measurement was never published is the defect this repository names in every other context.
+If measured data contradicts a public product claim, correct the claim. A result that falsifies the hypothesis is the benchmark working, not a reason to suppress or rerun the row.

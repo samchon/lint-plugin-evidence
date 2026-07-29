@@ -46,7 +46,7 @@ Decide what kind of table this is before designing it, because the decision driv
 | Stance | For | Exposure |
 | --- | --- | --- |
 | actor | an account with authentication | its own lifecycle operations |
-| session | a login session row | read surfaces only |
+| session | a login session row | read and explicit revocation surfaces where required; never ordinary client creation or field editing |
 | primary | an entity users independently create, search, and manage | create, search, detail, update, delete |
 | subsidiary | a parent-scoped supporting table | managed through the parent |
 | snapshot | an immutable point-in-time record | append-only or read-only |
@@ -243,10 +243,11 @@ When the target is single-type, it is an ordinary foreign key with no discrimina
 
 Run this test on every model before moving on, in both directions. It is the one schema question no compiler and no constraint can ask for you.
 
-**Is there a state the requirements allow that this schema cannot hold?** A nullable field the requirements say is always present is harmless; a required field the requirements say may be absent means the valid unset state cannot be written at all, and the provider will invent a placeholder to get past it.
+**Is there a state the requirements allow that this schema cannot hold?** A required field the requirements say may be absent means the valid unset state cannot be written at all, and the provider will invent a placeholder to get past it.
 
 **Is there a state the requirements forbid that this schema still admits?** This is the direction people skip, and it is where the expensive defects live.
 
+- A nullable field admits absence even though the requirements say the fact is always present.
 - Two rows collide where the design calls them distinct, because the uniqueness the requirement states is not in the schema.
 - Two mutually exclusive facts coexist, because each is its own nullable column instead of one state the row can only hold once.
 - A quantity the requirements bound is an unbounded `Int`, so the rule lives only in a provider and only where someone remembered it.

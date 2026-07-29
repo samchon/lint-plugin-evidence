@@ -20,11 +20,10 @@ import type { ITtscLintConfig } from "@ttsc/lint";
  * type-only import, so a screen no journey walks is a build failure rather than
  * a discovery made in review.
  *
- * There is deliberately no claim binding the SDK's accessors to screens. The
- * frontend builds a coherent product rather than an endpoint list, and the
- * deliberate omissions live in `packages/frontend/wiki/omissions.md` as
- * recorded decisions; an obligation here would turn every recorded omission
- * into a diagnostic to silence.
+ * There is deliberately no mechanical claim binding SDK accessors to screens.
+ * Both benchmark arms instead run the same residual review: every
+ * product-facing operation maps to a screen/journey or to a requirement-backed
+ * decision in `packages/frontend/wiki/omissions.md`.
  *
  * `evidence/singular` is deliberately absent: a domain folder holds a page
  * beside the sub-components only it uses, so one-public-identity-per-file would
@@ -35,6 +34,7 @@ const graph: IEvidenceGraphConfig = {
     // The screens deliver the requirements a user can reach. The dev gallery
     // is tooling, not delivery.
     {
+      name: "frontend-screens",
       type: "typescript",
       files: ["src/components/*/*-page.tsx", "!src/components/dev/**"],
       symbol: "function",
@@ -48,6 +48,7 @@ const graph: IEvidenceGraphConfig = {
     // The browser journeys walk the requirements end to end, through the
     // screens they cite.
     {
+      name: "frontend-journeys",
       type: "typescript",
       files: ["tests/journeys/**/*.ts"],
       symbol: "function",
@@ -78,8 +79,6 @@ export default {
     // Package-wide: every exported function, type, and property carries a
     // JSDoc block, which the stub-first order supplies from birth.
     "evidence/documented": "error",
-    // Screens are born as prop-enumerated stubs and cracked one by one, so
-    // every remaining @todo is an unrealized contract: the realize ledger.
     "evidence/todo": "error",
   },
 } satisfies ITtscLintConfig;

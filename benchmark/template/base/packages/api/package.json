@@ -1,0 +1,31 @@
+{
+  "private": true,
+  "name": "{{apiPackageName}}",
+  "version": "0.1.0",
+  "description": "Generated API SDK and authored DTO package for {{name}}",
+  "main": "./lib/index.js",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "browser": "./src/index.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "scripts": {
+    "build": "rimraf lib && ttsc -p tsconfig.json",
+    "format": "ttsc format -p tsconfig.json",
+    "lint": "ttsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@nestia/fetcher": "catalog:samchon",
+    "typia": "catalog:samchon"
+  },
+  "devDependencies": {
+    "@ttsc/lint": "catalog:typescript",
+    "@types/node": "catalog:utils",
+    "rimraf": "catalog:utils",
+    "ttsc": "catalog:typescript",
+    "typescript": "catalog:typescript"
+  }
+}

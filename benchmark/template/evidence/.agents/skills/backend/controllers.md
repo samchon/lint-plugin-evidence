@@ -1,51 +1,47 @@
 # Operations
 
-This layer answers to two upstream sources at once, and the build checks both.
+The `api-operations` claim selects exported controller operations and independently requires acknowledgement of Markdown H2/H3 sections and Prisma models.
 
-Every configured requirement section must be acknowledged by an operation that claims to realize it, and every selected model must be acknowledged by an operation that claims to expose it. The lint stage fails until both hold, so a requirement nobody built an endpoint for and a table nothing reaches are compile errors rather than things you must notice.
+Write the operation's narrowest truthful citations when its public contract is declared. The operation host owns route, actor, authorization, parameters, response, failures, and exposed models; the provider later owns implementation.
 
 ```ts
 /**
- * List the seller's own sales.
+ * Lists sales visible to the authenticated seller.
  *
  * @evidence docs/analysis/03-functional-requirements.md#browse-sales Serves the
- *           catalog browsing journey, including the visibility rule for each actor.
- * @evidence prisma:shopping_sales Exposes the sale identity and its lifecycle
- *           state to the actors permitted to see it.
+ *           seller's visibility-filtered browsing capability.
+ * @evidence prisma:ShoppingSale Exposes persisted sale identity and lifecycle.
  */
 @core.TypedRoute.Patch()
-public async index(
-  @SellerAuth() seller: SellerPayload,
-  @core.TypedBody() input: IShoppingSale.IRequest,
-): Promise<IPage<IShoppingSale.ISummary>> {
-  return ShoppingSaleProvider.index({ actor: seller, input });
+public async index(): Promise<IPage<IShoppingSale.ISummary>> {
+  // ...
 }
 ```
 
-The block is shortened to the two tags. The published documentation this method owes is unchanged and lives beside them.
+## Excluding A Requirement Or Model From Operations
 
-Write the citations when the stub is born. They cite the contract, which is complete before realize, so nothing about a citation waits for a provider; the `@todo` beside them is the one tag realize removes. The build reports every tag still standing, so realize's finish line is a diagnostic rather than a discipline.
+Put `@evidenceExclude` on a selected exported controller operation when the `api-operations` claim intentionally does not expose a Markdown requirement or Prisma model. The carrier operation is only the host of a claim-local decision; do not imply that it owns the excluded target.
 
-A declaration may carry several citations, and each is judged independently. Cite the requirement this operation serves and the model it exposes, and say which part of each it is responsible for. Each target is cited once across the whole claim: the operation that most directly realizes a section or exposes a model carries its tag, and its siblings carry no tag for that target.
+```ts
+/**
+ * Reports service health.
+ *
+ * @evidenceExclude docs/analysis/05-user-experience.md#empty-state-copy
+ *                  CatalogPage owns this presentation-only requirement; reject
+ *                  this exclusion if it gains an API response or failure rule.
+ * @evidenceExclude prisma:LoginAttempt
+ *                  AuthenticationProvider owns this internal security record;
+ *                  reject this exclusion if any endpoint exposes it.
+ */
+@Get("health")
+public get(): void {}
+```
 
-Read [the evidence skill](../evidence/SKILL.md) before starting, especially the section on discharging a diagnostic at the layer that owns it.
+Choose a stable operation in the target's domain and name the actual owner plus a condition that would veto the exclusion. A Markdown H2 exclusion also covers every selected H3 descendant, and a Prisma model target covers that selected model scope, so use the narrowest truthful target. Keep evidence and exclusion scopes disjoint within this claim-reference obligation. The decision satisfies only `api-operations`; schema, DTO, test, and frontend claims remain independent.
 
+<!-- benchmark-template-splice: base-body -->
 {{base}}
 
-## When The Diagnostic Points Here But The Hole Is Upstream
+## After A Contract Change
 
-This is the layer where that happens most, so read the message carefully before adding anything.
-
-**A model deliberately exposed by no operation is discharged with `@evidenceExclude prisma:<model> <reason>` on the operation nearest its domain**, not only in the ledger; prose the build cannot read leaves the obligation standing.
-
-**An operation that has nothing to cite is usually not an operation missing a tag.** It is a requirement with no storage, so there is no model to point at. The build names this layer because the obligation was declared here; the repair belongs to the schema.
-
-Ask the question before writing a citation. Is there a table for this requirement? If not, go add it, and let the build re-run. One upstream repair commonly clears several diagnostics here at once, and it clears them correctly.
-
-Writing a citation at this layer when the hole is upstream produces a green build over a repository that still does not satisfy the requirement. Nothing later finds that, because a citation the build accepts is a claim the build believes.
-
-## After Any Contract Change
-
-Regenerate the SDK and run the build. A changed response shape can leave a test's citation dangling and a screen's citation resolving to something that no longer means what it did.
-
-Never narrow the graph configuration to make a diagnostic stop. An edge that is not configured is not checked, and removing an obligation is the one repair that leaves no trace of what it hid.
+Regenerate the SDK and OpenAPI document, then invalidate provider, test, and frontend reviews that depended on the previous contract. Do not edit the frozen graph configuration to silence a diagnostic.
