@@ -147,10 +147,14 @@ const withMissingAndEmptyDirectory = async (
       fs.writeFileSync(
         path.join(root, "ControllerHelpers.ts"),
         [
-          "/** Helper-only source must not satisfy controller discovery. */",
-          "export const DISCOVERY_HELPER = `",
-          "@Controller(",
-          "`;",
+          'import { Controller } from "@nestjs/common";',
+          "",
+          "/** A decorated class invisible to Nestia's module-export scan. */",
+          '@Controller("private")',
+          "class InternalController {}",
+          "",
+          "/** Helper-only module export must not satisfy discovery. */",
+          "export const DISCOVERY_HELPER = true;",
           "",
         ].join("\n"),
         "utf8",

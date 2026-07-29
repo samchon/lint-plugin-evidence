@@ -50,6 +50,7 @@
     "rimraf": "catalog:utils",
     "swagger-ui-express": "catalog:backend",
     "ttsc": "catalog:typescript",
-    "typescript": "catalog:typescript"
+    "typescript": "catalog:typescript",
+    "typescript-api": "catalog:typescript"
   }
 }

@@ -89,8 +89,8 @@ const readTypeScriptSources = (root: string): string[] =>
   });
 
 const isNestControllerSource = (location: string): boolean => {
-  const ts: typeof import("typescript") = require("typescript");
-  const source: import("typescript").SourceFile = ts.createSourceFile(
+  const ts: typeof import("typescript-api") = require("typescript-api");
+  const source: import("typescript-api").SourceFile = ts.createSourceFile(
     location,
     fs.readFileSync(location, "utf8"),
     ts.ScriptTarget.Latest,
@@ -122,10 +122,39 @@ const isNestControllerSource = (location: string): boolean => {
         if (expected.has((element.propertyName ?? element.name).text))
           identifiers.add(element.name.text);
   }
+  const exported: Set<string> = new Set();
+  for (const statement of source.statements)
+    if (
+      ts.isExportDeclaration(statement) &&
+      statement.isTypeOnly === false &&
+      statement.moduleSpecifier === undefined &&
+      statement.exportClause !== undefined &&
+      ts.isNamedExports(statement.exportClause)
+    )
+      for (const element of statement.exportClause.elements)
+        if (element.isTypeOnly === false)
+          exported.add((element.propertyName ?? element.name).text);
+    else if (
+      ts.isExportAssignment(statement) &&
+      statement.isExportEquals === false &&
+      ts.isIdentifier(statement.expression)
+    )
+      exported.add(statement.expression.text);
   return source.statements.some((statement) => {
     if (ts.isClassDeclaration(statement) === false) return false;
+    const isDirectExport: boolean =
+      statement.modifiers?.some(
+        (modifier) =>
+          modifier.kind === ts.SyntaxKind.ExportKeyword ||
+          modifier.kind === ts.SyntaxKind.DefaultKeyword,
+      ) === true;
+    if (
+      isDirectExport === false &&
+      (statement.name === undefined || exported.has(statement.name.text) === false)
+    )
+      return false;
     return (ts.getDecorators(statement) ?? []).some((decorator) => {
-      const expression: import("typescript").Expression =
+      const expression: import("typescript-api").Expression =
         ts.isCallExpression(decorator.expression)
           ? decorator.expression.expression
           : decorator.expression;
