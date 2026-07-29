@@ -2075,7 +2075,7 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     assert.match(
       setupSource,
-      /admit\(workspace, root, manifest\)[\s\S]+workspaceCache[\s\S]+untrustedEnvironment\([\s\S]+npm_config_store_dir: path\.join\(workspaceCache, "pnpm-store"\)[\s\S]+runPnpm\([\s\S]+\["install", "--frozen-lockfile", "--force"\][\s\S]+sandboxedPnpm/,
+      /admit\(workspace, root, manifest\)[\s\S]+workspaceCache[\s\S]+untrustedEnvironment\([\s\S]+npm_config_store_dir: path\.join\(workspaceCache, "pnpm-store"\)[\s\S]+runPnpm\([\s\S]+\["install", "--frozen-lockfile"\][\s\S]+sandboxedPnpm/,
       "clean reproduction must use a fresh credential-free sandboxed registry install",
     );
     assert.match(

@@ -451,7 +451,7 @@ export namespace EvidenceBenchmarkSetup {
         gitConfig: EvidenceBenchmarkMaterializer.gitConfig(root),
       };
       await runPnpm(
-        ["install", "--frozen-lockfile", "--force"],
+        ["install", "--frozen-lockfile"],
         {
           cwd: shadow,
           env: environment,
