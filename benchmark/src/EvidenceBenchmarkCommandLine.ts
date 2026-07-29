@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
@@ -40,6 +41,8 @@ export namespace EvidenceBenchmarkCommandLine {
     stdout: string;
     stderr: string;
     invocation: string[];
+    accepted?: boolean;
+    lintRestorationSha256?: string;
   }
 
   interface IInstruction {
@@ -49,7 +52,7 @@ export namespace EvidenceBenchmarkCommandLine {
   }
 
   interface IState {
-    schemaVersion: 5;
+    schemaVersion: 6;
     workflow: typeof WORKFLOW;
     instructionsTreeSha256: string;
     project: IEvidenceBenchmarkMaterialization.Project;
@@ -59,6 +62,7 @@ export namespace EvidenceBenchmarkCommandLine {
     effort: typeof EFFORT;
     cliVersion: string;
     sourceCommit: string;
+    lintBaselines: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[];
     runtime: EvidenceBenchmarkRuntime.IAssignment;
     elapsedMs: number;
     status: "running" | "interrupted" | "completed";
@@ -224,12 +228,13 @@ export namespace EvidenceBenchmarkCommandLine {
       throw new Error(`Resumable state was not found: ${statePath}.`);
     const state: IState = JSON.parse(fs.readFileSync(statePath, "utf8"));
     if (
-      state.schemaVersion !== 5 ||
+      state.schemaVersion !== 6 ||
       state.workflow !== WORKFLOW ||
       state.engine !== ENGINE ||
       state.model !== MODEL ||
       state.effort !== EFFORT ||
-      state.cliVersion !== codexVersion()
+      state.cliVersion !== codexVersion() ||
+      !Array.isArray(state.lintBaselines)
     )
       throw new Error(
         `Run ${runId} does not use the resumable ${WORKFLOW} state schema.`,
@@ -247,6 +252,7 @@ export namespace EvidenceBenchmarkCommandLine {
     const logs: string = path.join(root, "logs");
     if (!fs.existsSync(workspace) || !fs.existsSync(logs))
       throw new Error(`Run ${runId} has no resumable workspace and logs.`);
+    assertStateBaselines(root, state);
     const instructions: IInstruction[] = readFrozenInstructions(root, arm);
     const environment: NodeJS.ProcessEnv = resumeEnvironment(root);
     EvidenceBenchmarkRuntime.apply(environment, state.runtime);
@@ -265,12 +271,27 @@ export namespace EvidenceBenchmarkCommandLine {
     try {
       await EvidenceBenchmarkRuntime.assertAvailable([state.runtime]);
       for (const entry of instructions) {
-        if (
-          state.turns.some(
-            (turn) => turn.name === entry.name && turn.status === 0,
-          )
-        )
-          continue;
+        const accepted: ITurn | undefined = state.turns.findLast(
+          (turn) =>
+            turn.name === entry.name &&
+            turn.status === 0 &&
+            turn.accepted === true,
+        );
+        if (accepted !== undefined) {
+          let restoration: string | undefined;
+          try {
+            restoration = verifyLintRestoration({
+              workspace,
+              arm,
+              name: entry.name,
+              baselines: state.lintBaselines,
+            });
+          } catch {}
+          if (restoration === accepted.lintRestorationSha256) continue;
+          accepted.accepted = false;
+          delete accepted.lintRestorationSha256;
+          writeState(root, state);
+        }
         state.status = "running";
         state.elapsedMs = baseElapsedMs + elapsed(resumed);
         writeState(root, state);
@@ -284,8 +305,10 @@ export namespace EvidenceBenchmarkCommandLine {
           threadId: state.threadId,
         });
         state.threadId ??= turn.threadId;
+        turn.accepted = false;
         state.turns.push(turn);
         state.elapsedMs = baseElapsedMs + elapsed(resumed);
+        writeState(root, state);
         if (turn.status !== 0) {
           state.status = "interrupted";
           writeState(root, state);
@@ -293,6 +316,13 @@ export namespace EvidenceBenchmarkCommandLine {
             `${entry.name} resume attempt exited with status ${String(turn.status)}.`,
           );
         }
+        turn.lintRestorationSha256 = verifyLintRestoration({
+          workspace,
+          arm,
+          name: entry.name,
+          baselines: state.lintBaselines,
+        });
+        turn.accepted = true;
         writeState(root, state);
       }
       state.elapsedMs = baseElapsedMs + elapsed(resumed);
@@ -380,7 +410,7 @@ export namespace EvidenceBenchmarkCommandLine {
       const logs: string = path.join(root, "logs");
       fs.mkdirSync(logs, { recursive: false });
       state = {
-        schemaVersion: 5,
+        schemaVersion: 6,
         workflow: WORKFLOW,
         instructionsTreeSha256: freezeInstructions(root, props.instructions),
         project: props.project,
@@ -390,6 +420,7 @@ export namespace EvidenceBenchmarkCommandLine {
         effort: EFFORT,
         cliVersion: codexVersion(),
         sourceCommit: props.sourceCommit,
+        lintBaselines: materialization.lintBaselines,
         runtime: props.runtime,
         elapsedMs: elapsed(started),
         status: "running",
@@ -407,6 +438,7 @@ export namespace EvidenceBenchmarkCommandLine {
           threadId: state.threadId,
         });
         state.threadId ??= turn.threadId;
+        turn.accepted = false;
         state.turns.push(turn);
         state.elapsedMs = elapsed(started);
         writeState(root, state);
@@ -414,6 +446,14 @@ export namespace EvidenceBenchmarkCommandLine {
           throw new Error(
             `${entry.name} turn exited with status ${String(turn.status)}.`,
           );
+        turn.lintRestorationSha256 = verifyLintRestoration({
+          workspace: materialization.workspace,
+          arm: props.arm,
+          name: entry.name,
+          baselines: state.lintBaselines,
+        });
+        turn.accepted = true;
+        writeState(root, state);
       }
       state.elapsedMs = elapsed(started);
       state.completedWorkspaceTreeSha256 =
@@ -650,6 +690,44 @@ export namespace EvidenceBenchmarkCommandLine {
       backendPackageName: `@evidence-benchmark/${stem}-backend`,
       frontendPackageName: `@evidence-benchmark/${stem}-frontend`,
     };
+  }
+
+  function verifyLintRestoration(props: {
+    workspace: string;
+    arm: IEvidenceBenchmarkMaterialization.Arm;
+    name: TurnName;
+    baselines: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[];
+  }): string | undefined {
+    if (props.arm !== "evidence") return undefined;
+    const selected: readonly string[] | undefined =
+      props.name === "backend-final"
+        ? ["packages/api/lint.config.ts", "packages/backend/lint.config.ts"]
+        : props.name === "frontend-final" || props.name === "overall-final"
+          ? EvidenceBenchmarkLintBaseline.PATHS
+          : undefined;
+    if (selected === undefined) return undefined;
+    return EvidenceBenchmarkLintBaseline.assertRestored(
+      props.workspace,
+      props.arm,
+      props.baselines,
+      selected,
+    );
+  }
+
+  function assertStateBaselines(root: string, state: IState): void {
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(root, "materialization.json"), "utf8"),
+    ) as Omit<IEvidenceBenchmarkMaterialization.IManifest, "schemaVersion"> & {
+      schemaVersion: unknown;
+    };
+    if (
+      manifest.schemaVersion !== 5 ||
+      EvidenceBenchmarkHash.object(manifest.lintBaselines) !==
+        EvidenceBenchmarkHash.object(state.lintBaselines)
+    )
+      throw new Error(
+        `Run ${path.basename(root)} does not retain its materialized lint baselines.`,
+      );
   }
 
   function writeState(root: string, state: IState): void {

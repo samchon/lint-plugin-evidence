@@ -5,6 +5,7 @@ import path from "node:path";
 import { EvidenceBenchmarkAtomic } from "./EvidenceBenchmarkAtomic.ts";
 import { EvidenceBenchmarkCorpus } from "./EvidenceBenchmarkCorpus.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
@@ -85,6 +86,8 @@ export namespace EvidenceBenchmarkMaterializer {
         );
       }
       EvidenceBenchmarkTemplate.validate(workspaceFiles);
+      const lintBaselines: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[] =
+        EvidenceBenchmarkLintBaseline.capture(workspaceFiles, request.arm);
 
       const workspaceTreeSha256: string =
         EvidenceBenchmarkHash.tree(workspaceFiles);
@@ -98,7 +101,7 @@ export namespace EvidenceBenchmarkMaterializer {
         toolchain: path.join(output, "cache", "toolchain-bin"),
       };
       const manifestRecord: IEvidenceBenchmarkMaterialization.IManifest = {
-        schemaVersion: 4,
+        schemaVersion: 5,
         treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
         project: request.project,
         arm: request.arm,
@@ -122,9 +125,11 @@ export namespace EvidenceBenchmarkMaterializer {
           requirements: requirementsTreeSha256,
           product: request.artifact.sha256,
           workspace: workspaceTreeSha256,
+          lintBaselines,
         }),
         workspaceFiles: EvidenceBenchmarkHash.entries(workspaceFiles),
         requirementFiles: EvidenceBenchmarkHash.entries(requirementFiles),
+        lintBaselines,
         corpus: {
           documents: corpus.documents,
           h2: corpus.h2,
@@ -172,6 +177,7 @@ export namespace EvidenceBenchmarkMaterializer {
         immutableInputs: path.join(output, "inputs", "requirements"),
         manifest: path.join(output, "materialization.json"),
         workspaceTreeSha256,
+        lintBaselines,
         environment,
       };
     } catch (error) {

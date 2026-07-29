@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 
@@ -179,14 +180,17 @@ export namespace EvidenceBenchmarkPublication {
       sourceCommit?: unknown;
       instructionsTreeSha256?: unknown;
       completedWorkspaceTreeSha256?: unknown;
+      lintBaselines?: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[];
       turns?: Array<{
         name?: unknown;
         status?: unknown;
         invocation?: unknown;
+        accepted?: unknown;
+        lintRestorationSha256?: unknown;
       }>;
     };
     if (
-      state.schemaVersion !== 5 ||
+      state.schemaVersion !== 6 ||
       state.workflow !== "backend-first-gated-v2" ||
       state.project !== request.project ||
       state.arm !== request.arm ||
@@ -200,6 +204,7 @@ export namespace EvidenceBenchmarkPublication {
       !/^[0-9a-f]{40}$/i.test(state.sourceCommit) ||
       typeof state.instructionsTreeSha256 !== "string" ||
       typeof state.completedWorkspaceTreeSha256 !== "string" ||
+      !Array.isArray(state.lintBaselines) ||
       !Array.isArray(state.turns)
     )
       throw new Error(
@@ -222,6 +227,7 @@ export namespace EvidenceBenchmarkPublication {
           (turn) =>
             turn.name === name &&
             turn.status === 0 &&
+            turn.accepted === true &&
             Array.isArray(turn.invocation) &&
             turn.invocation.every((value) => typeof value === "string"),
         ).length !== 1
@@ -263,10 +269,12 @@ export namespace EvidenceBenchmarkPublication {
       schemaVersion: unknown;
     };
     if (
-      (manifest.schemaVersion !== 3 && manifest.schemaVersion !== 4) ||
+      manifest.schemaVersion !== 5 ||
       manifest.project !== request.project ||
       manifest.arm !== request.arm ||
       manifest.artifact.sourceCommit !== state.sourceCommit ||
+      EvidenceBenchmarkHash.object(manifest.lintBaselines) !==
+        EvidenceBenchmarkHash.object(state.lintBaselines) ||
       EvidenceBenchmarkHash.tree(
         EvidenceBenchmarkHash.directory(
           path.join(runRoot, "inputs", "requirements"),
@@ -283,6 +291,22 @@ export namespace EvidenceBenchmarkPublication {
     if (!workspaceStat?.isDirectory() || workspaceStat.isSymbolicLink())
       throw new Error(`Completed workspace was not found: ${workspace}.`);
     if (request.arm === "evidence") {
+      const lintRestorationSha256: string =
+        EvidenceBenchmarkLintBaseline.assertRestored(
+          workspace,
+          request.arm,
+          state.lintBaselines,
+        );
+      const finalTurn = state.turns.findLast(
+        (turn) =>
+          turn.name === "overall-final" &&
+          turn.status === 0 &&
+          turn.accepted === true,
+      );
+      if (finalTurn?.lintRestorationSha256 !== lintRestorationSha256)
+        throw new Error(
+          "Evidence publication lint configuration restoration failed verification.",
+        );
       const relativeArchive: string | undefined =
         manifest.artifact.relativeArchive;
       if (relativeArchive === undefined)

@@ -9,6 +9,7 @@ import * as ts from "typescript-api";
 import { EvidenceBenchmarkBaseline } from "./EvidenceBenchmarkBaseline.ts";
 import { EvidenceBenchmarkCorpus } from "./EvidenceBenchmarkCorpus.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
@@ -244,6 +245,26 @@ export namespace EvidenceBenchmarkSelfTest {
       path.join(workspace, "packages", "frontend", "package.json"),
       '{"name":"@evidence-benchmark/todo-evidence-frontend"}\n',
     );
+    for (const [
+      index,
+      relative,
+    ] of EvidenceBenchmarkLintBaseline.PATHS.entries())
+      write(
+        path.join(workspace, ...relative.split("/")),
+        [
+          "const graph = {",
+          "  claims: [",
+          `    { name: "fixture-${index}", type: "typescript", files: ["src/**/*.ts"], symbol: "function", reference: { type: "markdown", files: ["docs/**/*.md"], symbol: "h2" } },`,
+          "  ],",
+          "};",
+          'export default { rules: { "evidence/graph": ["error", graph] } };',
+          "",
+        ].join("\n"),
+      );
+    const lintBaselines: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[] =
+      EvidenceBenchmarkLintBaseline.captureDirectory(workspace, "evidence");
+    const lintRestorationSha256: string =
+      EvidenceBenchmarkLintBaseline.digest(lintBaselines);
     write(path.join(workspace, ".env"), "SECRET=must-not-publish\n");
     write(path.join(workspace, ".env.example"), "SECRET=\n");
     write(
@@ -288,10 +309,11 @@ export namespace EvidenceBenchmarkSelfTest {
       "materialization.json",
     );
     const materialization = {
-      schemaVersion: 3,
+      schemaVersion: 5,
       project: "todo",
       arm: "evidence",
       requirementsTreeSha256,
+      lintBaselines,
       artifact: {
         sourceCommit: "0123456789abcdef0123456789abcdef01234567",
         sha256: archiveSha256,
@@ -302,7 +324,7 @@ export namespace EvidenceBenchmarkSelfTest {
     write(
       path.join(runRoot, "run.json"),
       `${JSON.stringify({
-        schemaVersion: 5,
+        schemaVersion: 6,
         workflow: "backend-first-gated-v2",
         instructionsTreeSha256,
         project: "todo",
@@ -313,6 +335,7 @@ export namespace EvidenceBenchmarkSelfTest {
         cliVersion: "codex-cli 0.145.0",
         status: "completed",
         sourceCommit: "0123456789abcdef0123456789abcdef01234567",
+        lintBaselines,
         completedWorkspaceTreeSha256:
           EvidenceBenchmarkPublication.workspaceSha256(workspace),
         turns: [
@@ -329,6 +352,9 @@ export namespace EvidenceBenchmarkSelfTest {
           name,
           status: 0,
           invocation: ["codex", "exec"],
+          accepted: true,
+          lintRestorationSha256:
+            name === "overall-final" ? lintRestorationSha256 : undefined,
         })),
       })}\n`,
     );
@@ -452,7 +478,6 @@ export namespace EvidenceBenchmarkSelfTest {
     assert.equal(result.repository, "fixture-owner/evidence-benchmark-results");
     assert.ok(calls.includes("git push origin master"));
 
-    materialization.schemaVersion = 4;
     materialization.artifact.relativeArchive = ".benchmark-deps/../outside.tgz";
     write(materializationPath, `${JSON.stringify(materialization)}\n`);
     await expectFailure(
@@ -1511,6 +1536,7 @@ export namespace EvidenceBenchmarkSelfTest {
       immutableInputs: path.join(root, "inputs", "requirements"),
       manifest: path.join(root, "materialization.json"),
       workspaceTreeSha256: EvidenceBenchmarkHash.bytes("setup fixture"),
+      lintBaselines: [],
       environment: {
         ...process.env,
         npm_config_store_dir: path.join(cache, "pnpm-store"),
@@ -1703,6 +1729,39 @@ export namespace EvidenceBenchmarkSelfTest {
         EvidenceBenchmarkHash.directory(evidenceTwo.workspace),
       ),
     );
+    const backendLint: string = path.join(
+      evidenceTwo.workspace,
+      "packages",
+      "backend",
+      "lint.config.ts",
+    );
+    const backendLintSource: string = fs.readFileSync(backendLint, "utf8");
+    fs.writeFileSync(
+      backendLint,
+      backendLintSource.replace('"api-operations"', '"api-operations-drift"'),
+      "utf8",
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkLintBaseline.assertRestored(
+          evidenceTwo.workspace,
+          "evidence",
+          evidenceTwo.lintBaselines,
+        ),
+      "Lint graph semantics were not restored",
+    );
+    fs.writeFileSync(backendLint, backendLintSource, "utf8");
+    fs.appendFileSync(backendLint, "// unauthorized bypass\n", "utf8");
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkLintBaseline.assertRestored(
+          evidenceTwo.workspace,
+          "evidence",
+          evidenceTwo.lintBaselines,
+        ),
+      "Lint configuration bytes were not restored",
+    );
+    fs.writeFileSync(backendLint, backendLintSource, "utf8");
     assert.equal(
       fs.readdirSync(temporary).some((entry) => entry.includes(".tmp")),
       false,
@@ -1786,7 +1845,7 @@ export namespace EvidenceBenchmarkSelfTest {
     const manifest = JSON.parse(
       fs.readFileSync(props.cell.manifest, "utf8"),
     ) as IEvidenceBenchmarkMaterialization.IManifest;
-    assert.equal(manifest.schemaVersion, 4);
+    assert.equal(manifest.schemaVersion, 5);
     assert.ok(manifest.elapsedMs >= 0);
     assert.equal("materializedAt" in manifest, false);
     assert.equal(
@@ -1799,6 +1858,42 @@ export namespace EvidenceBenchmarkSelfTest {
       h2: corpus.h2,
       h3: corpus.h3,
     });
+    assert.deepEqual(manifest.lintBaselines, props.cell.lintBaselines);
+    assert.equal(
+      EvidenceBenchmarkLintBaseline.assertRestored(
+        props.cell.workspace,
+        props.arm,
+        props.cell.lintBaselines,
+      ),
+      EvidenceBenchmarkLintBaseline.digest(props.cell.lintBaselines),
+    );
+    assert.deepEqual(
+      props.cell.lintBaselines.map((entry) => ({
+        path: entry.path,
+        claims: entry.graph?.claims.map((claim) => claim.name) ?? null,
+      })),
+      [
+        {
+          path: "packages/api/lint.config.ts",
+          claims:
+            props.arm === "evidence" ? ["dto-types", "dto-properties"] : null,
+        },
+        {
+          path: "packages/backend/lint.config.ts",
+          claims:
+            props.arm === "evidence"
+              ? ["schema-models", "api-operations", "backend-tests"]
+              : null,
+        },
+        {
+          path: "packages/frontend/lint.config.ts",
+          claims:
+            props.arm === "evidence"
+              ? ["frontend-screens", "frontend-journeys"]
+              : null,
+        },
+      ],
+    );
     const archiveRelative: string = `.benchmark-deps/e-${props.artifact.sha256.slice(0, 12)}.tgz`;
     const packageManifest = JSON.parse(
       fs.readFileSync(path.join(props.cell.workspace, "package.json"), "utf8"),
