@@ -1320,6 +1320,7 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     const printer: ts.Printer = ts.createPrinter({
       newLine: ts.NewLineKind.LineFeed,
+      removeComments: true,
     });
     for (const example of examples) {
       const lines: string[] = example.snippet
