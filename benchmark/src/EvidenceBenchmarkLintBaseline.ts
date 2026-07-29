@@ -644,7 +644,7 @@ export namespace EvidenceBenchmarkLintBaseline {
         parsed !== null &&
         !Array.isArray(parsed) &&
         section in parsed
-          ? parsed[section]
+          ? (parsed as Record<string, unknown>)[section]
           : undefined;
       if (entries === undefined) continue;
       if (

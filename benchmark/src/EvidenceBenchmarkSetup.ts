@@ -330,9 +330,18 @@ export namespace EvidenceBenchmarkSetup {
     const manifest = JSON.parse(
       fs.readFileSync(path.join(root, "materialization.json"), "utf8"),
     ) as IEvidenceBenchmarkMaterialization.IManifest;
+    const frontendPackageName: string | undefined =
+      manifest.variables.frontendPackageName;
     if (manifest.schemaVersion !== 6)
       throw new Error(
         "Benchmark dependency reproduction requires a current materialization manifest.",
+      );
+    if (
+      typeof frontendPackageName !== "string" ||
+      frontendPackageName.length === 0
+    )
+      throw new Error(
+        "Benchmark dependency reproduction requires the rendered frontend package identity.",
       );
     admit(workspace, root, manifest);
     const cache: string = path.join(root, "cache");
@@ -446,7 +455,7 @@ export namespace EvidenceBenchmarkSetup {
             name: "playwright:install",
             arguments: [
               "--filter",
-              manifest.variables.frontendPackageName,
+              frontendPackageName,
               "--fail-if-no-match",
               "playwright:install",
             ],
@@ -1030,7 +1039,7 @@ export namespace EvidenceBenchmarkSetup {
         [...EvidenceBenchmarkHash.directory(packageRoot)].map(
           ([relative, content]) => {
             if (content.includes(0)) return [relative, content] as const;
-            const text: string = content.toString("utf8");
+            const text: string = Buffer.from(content).toString("utf8");
             if (!Buffer.from(text, "utf8").equals(content))
               return [relative, content] as const;
             return [
