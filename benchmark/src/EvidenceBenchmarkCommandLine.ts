@@ -243,10 +243,14 @@ export namespace EvidenceBenchmarkCommandLine {
         }
         writeState(root, state);
       }
-      state.status = "completed";
       state.elapsedMs = baseElapsedMs + elapsed(resumed);
-      writeState(root, state);
+      fs.rmSync(path.join(workspace, ".git"), {
+        recursive: true,
+        force: true,
+      });
       promoteWorkspace(repository, project, arm, workspace);
+      state.status = "completed";
+      writeState(root, state);
     } catch (error) {
       state.status = "interrupted";
       state.elapsedMs = baseElapsedMs + elapsed(resumed);
@@ -358,15 +362,19 @@ export namespace EvidenceBenchmarkCommandLine {
             `${entry.name} turn exited with status ${String(turn.status)}.`,
           );
       }
-      state.status = "completed";
       state.elapsedMs = elapsed(started);
-      writeState(root, state);
+      fs.rmSync(path.join(materialization.workspace, ".git"), {
+        recursive: true,
+        force: true,
+      });
       promoteWorkspace(
         props.repository,
         props.project,
         props.arm,
         materialization.workspace,
       );
+      state.status = "completed";
+      writeState(root, state);
     } catch (error) {
       const elapsedMs: number = elapsed(started);
       if (state === undefined) {
