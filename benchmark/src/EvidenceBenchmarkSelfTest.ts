@@ -501,7 +501,7 @@ export namespace EvidenceBenchmarkSelfTest {
         EvidenceBenchmarkPublication.publish(repository, request, async () => {
           throw new Error("swapped turn order reached the process runner");
         }),
-      "canonical order",
+      "canonical instruction prefix",
     );
     [runState.turns[1], runState.turns[2]] = [
       runState.turns[2],
