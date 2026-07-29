@@ -327,7 +327,8 @@ export namespace EvidenceBenchmarkCommandLine {
     let hasPortBase: boolean = false;
     for (let index: number = 0; index < values.length; index++) {
       const value: string = values[index]!;
-      if (value === "--port-base") {
+      if (value === "--") continue;
+      else if (value === "--port-base") {
         if (hasPortBase)
           throw new Error("Benchmark port base may be specified only once.");
         const input: string | undefined = values[++index];
