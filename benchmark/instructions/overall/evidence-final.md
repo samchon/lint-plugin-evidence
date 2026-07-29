@@ -1,5 +1,7 @@
 # Overall Evidence Final
 
+Use goal mode for this whole-project Evidence final stage. Resume the same unfinished stage goal after an interruption; otherwise create it now. Mark it complete only when the complete application, fully restored Evidence Graph, every requirement, every test, and every canonical gate below are green.
+
 Complete final verification under the fully active Evidence Graph.
 
 1. Inspect `packages/api/lint.config.ts`, `packages/backend/lint.config.ts`, and `packages/frontend/lint.config.ts`.

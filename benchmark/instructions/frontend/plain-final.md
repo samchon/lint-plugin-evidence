@@ -1,5 +1,7 @@
 # Frontend Plain Final
 
+Use goal mode for this frontend Plain final stage. Resume the same unfinished stage goal after an interruption; otherwise create it now. Mark it complete only when the complete frontend Loop Until Dry, browser journeys, live integration, and package gates below are all green.
+
 Finish the frontend phase with a complete plain-arm Loop Until Dry over the frontend and live-integration scope.
 
 1. Re-read every requirement and decide its user-facing and integration applicability.

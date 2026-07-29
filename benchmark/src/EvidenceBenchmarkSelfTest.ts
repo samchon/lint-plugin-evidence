@@ -518,6 +518,13 @@ export namespace EvidenceBenchmarkSelfTest {
       /Do not run the workspace-root build during this phase\./,
       "backend final must state the root-build boundary clearly",
     );
+    for (const phase of ["backend", "frontend", "overall"])
+      for (const file of fs.readdirSync(path.join(instructions, phase)))
+        assert.match(
+          fs.readFileSync(path.join(instructions, phase, file), "utf8"),
+          /Use goal mode for this /,
+          `${phase}/${file} must activate a bounded stage goal`,
+        );
 
     const template: string = path.join(repository, "benchmark", "template");
     for (const arm of ["evidence", "plain"] as const) {

@@ -56,7 +56,15 @@ Use `--port-base` to move the complete disjoint port allocation when the default
 pnpm --filter @samchon/evidence-benchmark start -- --port-base 50000 todo reddit
 ```
 
-`start` packs and verifies the product once, materializes and installs all selected evidence/plain cells, then starts them concurrently with Codex `gpt-5.6-luna`. Each cell streams raw JSONL and stderr into its run directory and writes total elapsed time to `run.json` after every turn. Failed and interrupted cell directories are removed.
+`start` packs and verifies the product once, materializes and installs all selected evidence/plain cells, then starts them concurrently with Codex `gpt-5.6-luna`. Each cell streams raw JSONL and stderr into its run directory and writes total elapsed time to `run.json` after every turn. Setup failures write an external failure report and remove the unusable cell. A turn interruption retains its workspace, frozen instructions, logs, thread ID, and state.
+
+Resume one interrupted cell without changing its frozen inputs:
+
+```bash
+pnpm --filter @samchon/evidence-benchmark resume -- todo evidence <run-id>
+```
+
+The runner recovers a thread ID from JSONL when termination happened before `run.json` was updated, gives every retry fresh log files, and continues from the first incomplete stage. Failure reports remain under `benchmark/.work/<run-id>/failures/`.
 
 The runner assigns each subject and arm distinct API, Swagger, Vite development, and Playwright ports. It checks every selected port before packaging or model use, exports the assignments to agent child processes, persists them in package-local `.env` files, and records them in `run.json`. Pnpm, ttsc, Go, and Playwright caches are cell-local.
 
@@ -77,7 +85,7 @@ The backend-first workflow uses eight user turns on one Codex thread.
 
 Arm-specific method instructions stay inside the corresponding template overlay.
 
-At wave launch, the runner reads every instruction once, copies the exact bytes into each cell's `inputs/instructions/`, and records their aggregate hash in `run.json`. Later source edits cannot change an active cell's remaining turns.
+Each turn explicitly enables Goal mode and treats its complete instruction as that stage's bounded objective and completion criteria. At wave launch, the runner reads every instruction once, copies the exact bytes into each cell's `inputs/instructions/`, and records their aggregate hash in `run.json`. Later source edits cannot change an active or resumed cell's remaining turns.
 
 `benchmark/prompts/` retains the four-turn baseline protocol used by earlier frozen revisions. The current runner does not read it.
 

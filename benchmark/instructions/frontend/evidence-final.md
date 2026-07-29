@@ -1,5 +1,7 @@
 # Frontend Evidence Final
 
+Use goal mode for this frontend Evidence final stage. Resume the same unfinished stage goal after an interruption; otherwise create it now. Mark it complete only when the restored frontend Evidence Graph, browser journeys, live integration, and package gates below are all green.
+
 Finish the frontend phase under the active Evidence Graph.
 
 1. Inspect `packages/frontend/lint.config.ts` and restore `frontend-screens` and `frontend-journeys`.

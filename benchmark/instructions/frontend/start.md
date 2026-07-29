@@ -1,5 +1,7 @@
 # Frontend Start
 
+Use goal mode for this frontend implementation stage. Resume the same unfinished stage goal after an interruption; otherwise create it now. Keep it bounded to making the complete frontend and live integration ready for exhaustive review, and mark it complete only when every frontend obligation and basic frontend gate below is satisfied.
+
 Build the complete production frontend required by every file under `docs/analysis/`.
 
 Before editing, read `AGENTS.md` and every applicable Requirements, API, Frontend, Evidence, and Review instruction in full. Treat the backend phase and its generated SDK as the validated starting contract.

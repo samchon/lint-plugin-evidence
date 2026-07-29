@@ -52,7 +52,7 @@ export namespace EvidenceBenchmarkCommandLine {
     sourceCommit: string;
     runtime: EvidenceBenchmarkRuntime.IAssignment;
     elapsedMs: number;
-    status: "running" | "completed";
+    status: "running" | "interrupted" | "completed";
     threadId?: string;
     turns: ITurn[];
   }
@@ -70,6 +70,10 @@ export namespace EvidenceBenchmarkCommandLine {
     repository: string,
     arguments_: string[],
   ): Promise<void> {
+    if (arguments_[0] === "resume") {
+      await resumeCell(repository, arguments_.slice(1));
+      return;
+    }
     const options: IOptions = parseOptions(arguments_);
     const cells = options.projects.flatMap((project) =>
       ARMS.map((arm) => ({
@@ -105,7 +109,7 @@ export namespace EvidenceBenchmarkCommandLine {
     }
     if (arguments_[0] !== "start")
       throw new Error(
-        "Usage: benchmark <plan|start> [--port-base <number>] <todo|reddit|shopping|erp>...",
+        "Usage: benchmark <plan|start> [--port-base <number>] <todo|reddit|shopping|erp>... | benchmark resume <project> <arm> <run-id>",
       );
     const sourceCommit: string = (
       await EvidenceBenchmarkProcess.run("git", ["rev-parse", "HEAD"], {
@@ -149,6 +153,116 @@ export namespace EvidenceBenchmarkCommandLine {
       );
   }
 
+  async function resumeCell(
+    repository: string,
+    arguments_: readonly string[],
+  ): Promise<void> {
+    if (arguments_.length !== 3)
+      throw new Error(
+        "Usage: benchmark resume <todo|reddit|shopping|erp> <evidence|plain> <run-id>",
+      );
+    const [projectInput, armInput, runId] = arguments_;
+    const projects = new Set(["todo", "reddit", "shopping", "erp"]);
+    if (!projects.has(projectInput!))
+      throw new Error(`Unknown benchmark project: ${projectInput}.`);
+    if (!ARMS.includes(armInput as (typeof ARMS)[number]))
+      throw new Error(`Unknown benchmark arm: ${armInput}.`);
+    const project = projectInput as IEvidenceBenchmarkMaterialization.Project;
+    const arm = armInput as IEvidenceBenchmarkMaterialization.Arm;
+    const resultsRoot: string = path.resolve(repository, "benchmark", "result");
+    const root: string = path.resolve(
+      resultsRoot,
+      project,
+      arm,
+      "runs",
+      runId!,
+    );
+    assertInside(resultsRoot, root, "resume root");
+    const statePath: string = path.join(root, "run.json");
+    if (!fs.existsSync(statePath))
+      throw new Error(`Resumable state was not found: ${statePath}.`);
+    const state: IState = JSON.parse(fs.readFileSync(statePath, "utf8"));
+    if (state.schemaVersion !== 3 || state.workflow !== WORKFLOW)
+      throw new Error(
+        `Run ${runId} does not use the resumable ${WORKFLOW} state schema.`,
+      );
+    if (state.project !== project || state.arm !== arm)
+      throw new Error(`Run ${runId} does not belong to ${project}/${arm}.`);
+    if (state.status === "completed")
+      throw new Error(`Run ${runId} is already complete.`);
+
+    const workspace: string = path.join(root, "workspace");
+    const logs: string = path.join(root, "logs");
+    if (!fs.existsSync(workspace) || !fs.existsSync(logs))
+      throw new Error(`Run ${runId} has no resumable workspace and logs.`);
+    const instructions: IInstruction[] = readFrozenInstructions(root, arm);
+    const environment: NodeJS.ProcessEnv = resumeEnvironment(root);
+    EvidenceBenchmarkRuntime.apply(environment, state.runtime);
+    await EvidenceBenchmarkRuntime.assertAvailable([state.runtime]);
+    state.threadId ??= recoverThreadId(logs);
+    const baseElapsedMs: number = state.elapsedMs;
+    const resumed: bigint = process.hrtime.bigint();
+    let phase: string = "resume";
+
+    try {
+      for (const entry of instructions) {
+        if (
+          state.turns.some(
+            (turn) => turn.name === entry.name && turn.status === 0,
+          )
+        )
+          continue;
+        state.status = "running";
+        state.elapsedMs = baseElapsedMs + elapsed(resumed);
+        writeState(root, state);
+        phase = entry.name;
+        const turn: ITurn & { threadId?: string } = await runTurn({
+          workspace,
+          environment,
+          logs,
+          name: entry.name,
+          prompt: entry.content,
+          threadId: state.threadId,
+        });
+        state.threadId ??= turn.threadId;
+        state.turns.push(turn);
+        state.elapsedMs = baseElapsedMs + elapsed(resumed);
+        if (turn.status !== 0) {
+          state.status = "interrupted";
+          writeState(root, state);
+          throw new Error(
+            `${entry.name} resume attempt exited with status ${String(turn.status)}.`,
+          );
+        }
+        writeState(root, state);
+      }
+      state.status = "completed";
+      state.elapsedMs = baseElapsedMs + elapsed(resumed);
+      fs.rmSync(path.join(workspace, ".git"), {
+        recursive: true,
+        force: true,
+      });
+      writeState(root, state);
+      promoteWorkspace(repository, project, arm, workspace);
+    } catch (error) {
+      state.status = "interrupted";
+      state.elapsedMs = baseElapsedMs + elapsed(resumed);
+      writeState(root, state);
+      recordFailure({
+        repository,
+        runId: runId!,
+        root,
+        project,
+        arm,
+        phase,
+        elapsedMs: state.elapsedMs,
+        error,
+        cleanup: "retained-for-resume",
+      });
+      throw error;
+    }
+  }
+
   async function runCell(props: {
     repository: string;
     sourceCommit: string;
@@ -179,7 +293,8 @@ export namespace EvidenceBenchmarkCommandLine {
       path.isAbsolute(relativeRoot)
     )
       throw new Error(`Benchmark cell root escaped the result tree: ${root}.`);
-    let workspace: string | undefined;
+    let state: IState | undefined;
+    let phase: string = "setup";
     try {
       const materialization = await EvidenceBenchmarkMaterializer.materialize({
         repository: props.repository,
@@ -189,7 +304,6 @@ export namespace EvidenceBenchmarkCommandLine {
         variables: variables(props.project, props.arm),
         artifact: props.artifact,
       });
-      workspace = materialization.workspace;
       EvidenceBenchmarkRuntime.apply(
         materialization.environment,
         props.runtime,
@@ -208,7 +322,7 @@ export namespace EvidenceBenchmarkCommandLine {
       );
       const logs: string = path.join(root, "logs");
       fs.mkdirSync(logs, { recursive: false });
-      const state: IState = {
+      state = {
         schemaVersion: 3,
         workflow: WORKFLOW,
         instructionsTreeSha256: freezeInstructions(root, props.instructions),
@@ -223,6 +337,7 @@ export namespace EvidenceBenchmarkCommandLine {
       };
       writeState(root, state);
       for (const entry of props.instructions) {
+        phase = entry.name;
         const turn: ITurn & { threadId?: string } = await runTurn({
           workspace: materialization.workspace,
           environment: materialization.environment,
@@ -254,14 +369,37 @@ export namespace EvidenceBenchmarkCommandLine {
         materialization.workspace,
       );
     } catch (error) {
-      fs.rmSync(root, { recursive: true, force: true });
-      throw error;
-    } finally {
-      if (workspace !== undefined)
-        fs.rmSync(path.join(workspace, ".git"), {
-          recursive: true,
-          force: true,
+      const elapsedMs: number = elapsed(started);
+      if (state === undefined) {
+        recordFailure({
+          repository: props.repository,
+          runId: props.runId,
+          root,
+          project: props.project,
+          arm: props.arm,
+          phase: "setup",
+          elapsedMs,
+          error,
+          cleanup: "cell-removed",
         });
+        fs.rmSync(root, { recursive: true, force: true });
+      } else {
+        state.status = "interrupted";
+        state.elapsedMs = elapsedMs;
+        writeState(root, state);
+        recordFailure({
+          repository: props.repository,
+          runId: props.runId,
+          root,
+          project: props.project,
+          arm: props.arm,
+          phase,
+          elapsedMs,
+          error,
+          cleanup: "retained-for-resume",
+        });
+      }
+      throw error;
     }
   }
 
@@ -273,18 +411,15 @@ export namespace EvidenceBenchmarkCommandLine {
     prompt: string;
     threadId?: string;
   }): Promise<ITurn & { threadId?: string }> {
-    const stdoutPath: string = path.join(
-      props.logs,
-      `${props.name}.stdout.jsonl`,
-    );
-    const stderrPath: string = path.join(
-      props.logs,
-      `${props.name}.stderr.log`,
-    );
+    const stem: string = logStem(props.logs, props.name);
+    const stdoutPath: string = path.join(props.logs, `${stem}.stdout.jsonl`);
+    const stderrPath: string = path.join(props.logs, `${stem}.stderr.log`);
     const stdout = fs.createWriteStream(stdoutPath, { flags: "wx" });
     const stderr = fs.createWriteStream(stderrPath, { flags: "wx" });
     const common: string[] = [
       "--json",
+      "--enable",
+      "goals",
       "--model",
       MODEL,
       "--dangerously-bypass-approvals-and-sandbox",
@@ -348,7 +483,19 @@ export namespace EvidenceBenchmarkCommandLine {
     repository: string,
     arm: IEvidenceBenchmarkMaterialization.Arm,
   ): IInstruction[] {
-    const entries: readonly Omit<IInstruction, "content">[] = [
+    const entries: readonly Omit<IInstruction, "content">[] =
+      instructionEntries(arm);
+    const root: string = path.join(repository, "benchmark", "instructions");
+    return entries.map((entry) => ({
+      ...entry,
+      content: fs.readFileSync(path.join(root, entry.relative), "utf8"),
+    }));
+  }
+
+  function instructionEntries(
+    arm: IEvidenceBenchmarkMaterialization.Arm,
+  ): readonly Omit<IInstruction, "content">[] {
+    return [
       { name: "backend-start", relative: "backend/start.md" },
       { name: "backend-review", relative: "backend/review.md" },
       { name: "backend-final", relative: `backend/${arm}-final.md` },
@@ -358,11 +505,6 @@ export namespace EvidenceBenchmarkCommandLine {
       { name: "overall-review", relative: "overall/review.md" },
       { name: "overall-final", relative: `overall/${arm}-final.md` },
     ];
-    const root: string = path.join(repository, "benchmark", "instructions");
-    return entries.map((entry) => ({
-      ...entry,
-      content: fs.readFileSync(path.join(root, entry.relative), "utf8"),
-    }));
   }
 
   function freezeInstructions(
@@ -450,6 +592,168 @@ export namespace EvidenceBenchmarkCommandLine {
     fs.writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`, "utf8");
     fs.rmSync(target, { force: true });
     fs.renameSync(temporary, target);
+  }
+
+  function assertInside(parent: string, target: string, label: string): void {
+    const relative: string = path.relative(parent, target);
+    if (
+      relative === "" ||
+      relative.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relative)
+    )
+      throw new Error(`${label} escaped its parent: ${target}.`);
+  }
+
+  function readFrozenInstructions(
+    root: string,
+    arm: IEvidenceBenchmarkMaterialization.Arm,
+  ): IInstruction[] {
+    const frozen: string = path.join(root, "inputs", "instructions");
+    const entries: IInstruction[] = instructionEntries(arm).map((entry) => ({
+      ...entry,
+      content: fs.readFileSync(
+        path.join(frozen, ...entry.relative.split("/")),
+        "utf8",
+      ),
+    }));
+    const actual: string = EvidenceBenchmarkHash.tree(
+      new Map(
+        entries.map((entry) => [
+          entry.relative,
+          Buffer.from(entry.content, "utf8"),
+        ]),
+      ),
+    );
+    const state: IState = JSON.parse(
+      fs.readFileSync(path.join(root, "run.json"), "utf8"),
+    );
+    if (actual !== state.instructionsTreeSha256)
+      throw new Error(`Frozen instruction tree drifted for ${root}.`);
+    return entries;
+  }
+
+  function resumeEnvironment(root: string): NodeJS.ProcessEnv {
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(root, "materialization.json"), "utf8"),
+    ) as IEvidenceBenchmarkMaterialization.IManifest;
+    const environment: NodeJS.ProcessEnv = {
+      ...process.env,
+      npm_config_store_dir: manifest.caches.pnpm,
+      TTSC_CACHE_DIR: manifest.caches.ttsc,
+      TTSC_GO_CACHE_DIR: manifest.caches.go,
+      GOCACHE: manifest.caches.go,
+      GOTMPDIR: path.join(root, "cache", "go-tmp"),
+      PLAYWRIGHT_BROWSERS_PATH: manifest.caches.playwright,
+    };
+    EvidenceBenchmarkProcess.pinEnvironment(
+      environment,
+      manifest.caches.toolchain,
+    );
+    return environment;
+  }
+
+  function recoverThreadId(logs: string): string | undefined {
+    for (const file of fs
+      .readdirSync(logs)
+      .filter((entry) => entry.endsWith(".stdout.jsonl"))
+      .sort()) {
+      const lines: string[] = fs
+        .readFileSync(path.join(logs, file), "utf8")
+        .split(/\r?\n/);
+      for (const line of lines)
+        try {
+          const event = JSON.parse(line) as {
+            type?: unknown;
+            thread_id?: unknown;
+          };
+          if (
+            event.type === "thread.started" &&
+            typeof event.thread_id === "string"
+          )
+            return event.thread_id;
+        } catch {}
+    }
+    return undefined;
+  }
+
+  function logStem(logs: string, name: TurnName): string {
+    for (let attempt: number = 1; ; attempt++) {
+      const stem: string = attempt === 1 ? name : `${name}.attempt-${attempt}`;
+      if (
+        !fs.existsSync(path.join(logs, `${stem}.stdout.jsonl`)) &&
+        !fs.existsSync(path.join(logs, `${stem}.stderr.log`))
+      )
+        return stem;
+    }
+  }
+
+  function recordFailure(props: {
+    repository: string;
+    runId: string;
+    root: string;
+    project: IEvidenceBenchmarkMaterialization.Project;
+    arm: IEvidenceBenchmarkMaterialization.Arm;
+    phase: string;
+    elapsedMs: number;
+    error: unknown;
+    cleanup: "cell-removed" | "retained-for-resume";
+  }): void {
+    const failures: string = path.join(
+      props.repository,
+      "benchmark",
+      ".work",
+      props.runId,
+      "failures",
+    );
+    fs.mkdirSync(failures, { recursive: true });
+    const attempts: number = fs
+      .readdirSync(failures)
+      .filter((file) =>
+        file.startsWith(`${props.project}-${props.arm}-attempt-`),
+      ).length;
+    const error =
+      props.error instanceof Error
+        ? {
+            name: props.error.name,
+            message: props.error.message,
+            stack: props.error.stack,
+            cause: String(props.error.cause ?? ""),
+          }
+        : { name: "Unknown", message: String(props.error) };
+    const logs: string = path.join(props.root, "logs");
+    const tails: Record<string, string> = {};
+    if (fs.existsSync(logs))
+      for (const file of fs.readdirSync(logs).sort()) {
+        const location: string = path.join(logs, file);
+        if (!fs.statSync(location).isFile()) continue;
+        const content: string = fs.readFileSync(location, "utf8");
+        tails[file] = content.slice(-16_384);
+      }
+    const target: string = path.join(
+      failures,
+      `${props.project}-${props.arm}-attempt-${attempts + 1}.json`,
+    );
+    fs.writeFileSync(
+      target,
+      `${JSON.stringify(
+        {
+          schemaVersion: 1,
+          project: props.project,
+          arm: props.arm,
+          phase: props.phase,
+          elapsedMs: props.elapsedMs,
+          cleanup: props.cleanup,
+          error,
+          logs: tails,
+        },
+        null,
+        2,
+      )}\n`,
+      { encoding: "utf8", flag: "wx" },
+    );
+    console.error(
+      `Benchmark ${props.project}/${props.arm} failed during ${props.phase}; report: ${target}`,
+    );
   }
 
   function promoteWorkspace(
