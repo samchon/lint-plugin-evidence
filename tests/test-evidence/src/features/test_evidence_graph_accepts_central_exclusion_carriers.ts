@@ -253,6 +253,8 @@ export const test_evidence_graph_accepts_central_exclusion_carriers =
           "",
           "// @evidenceExclude docs/schema.md#schema Prisma discards this line.",
           "",
+          "/// @evidenceExclude docs/schema.md#missing This target is not configured.",
+          "",
         ].join("\n"),
       },
     });
@@ -276,6 +278,11 @@ export const test_evidence_graph_accepts_central_exclusion_carriers =
         result,
         "'//' line comment",
         "A discarded Prisma comment must remain invalid.",
+      );
+      assertIncludes(
+        result,
+        "Unresolved evidence target 'docs/schema.md#missing'",
+        "A file carrier must retain exact target resolution.",
       );
     } finally {
       failing.cleanup();

@@ -159,78 +159,49 @@ export const EVIDENCE_EXCLUDE = true;
 }
 
 /**
- * Verifies a comment-only `.schema` file can carry a top-level Prisma
- * exclusion without adding a model to the schema inventory.
+ * Verifies a top-level unattached triple-slash run becomes an exclusion
+ * carrier without claiming a Prisma model host.
  *
- * The ledger belongs to the graph input but not to Prisma generation. Parsing
- * it in the same configured set proves the extension and empty datamodel are
- * accepted while the exclusion covers the real model claim's reference.
+ * Prisma's parser and arbitrary-extension boundary belong to the consumer
+ * fixture. The native half must preserve the declaration with no host symbol
+ * and mark only its exclusion eligibility for later graph evaluation.
  *
- *  1. Configure one ordinary Prisma schema and one comment-only carrier.
- *  2. Put the only Markdown exclusion at file level in the carrier.
- *  3. Assert the combined Prisma claim is healthy and completely acknowledged.
+ *  1. Scan a comment-only file-level exclusion run.
+ *  2. Materialize it without any parsed model inventory.
+ *  3. Assert its target, empty host set, and carrier flag.
  */
 func TestGraphAcceptsFileLevelPrismaExclusionCarrier(t *testing.T) {
-	messages := runIndexRule(t, map[string]string{
-		"docs/spec.md": "## Contract\n",
-		"prisma/schema/main.prisma": `
-datasource db {
-  provider = "sqlite"
-}
-
-generator client {
-  provider = "prisma-client-js"
-}
-
-model Sale {
-  id String @id
-}
-`,
-		"prisma/schema/exclude.schema": `/// Lint-only exclusion ledger; Prisma generation does not read this extension.
+	declarations, problems := prismaClaimOf(`/// Lint-only exclusion ledger.
 ///
 /// @evidenceExclude docs/spec.md#contract This schema intentionally stores no state for the section.
-`,
-	}, `{"claims":[{
-		"type":"prisma",
-		"files":["prisma/schema/**/*.prisma","prisma/schema/exclude.schema"],
-		"symbol":"model",
-		"reference":{"type":"markdown","files":["docs/spec.md"],"symbol":"h2"}
-	}]}`)
-	assertNoProblems(t, messages)
+`, nil)
+	if len(problems) != 0 {
+		t.Fatalf("a file-level exclusion carrier must parse cleanly: %v", problems)
+	}
+	if len(declarations) != 1 {
+		t.Fatalf("expected one exclusion declaration, got %d", len(declarations))
+	}
+	declaration := declarations[0]
+	if declaration.Tag != tagExclude ||
+		declaration.Target != "docs/spec.md#contract" ||
+		len(declaration.Hosts) != 0 ||
+		!declaration.ExclusionCarrier {
+		t.Fatalf("unexpected file-level carrier: %#v", declaration)
+	}
 }
 
 /**
  * Verifies file-level Prisma carriers accept exclusions only and retain the
  * existing placement and resolution failures.
  *
- * A detached `@evidence` would claim schema ownership without a model, while a
- * double-slash tag is discarded by Prisma and an unresolved exclusion cannot
- * discharge any configured obligation.
+ * A detached `@evidence` would claim schema ownership without a model, while
+ * double-slash, block, and buried forms are not the file carrier syntax.
  *
- *  1. Exercise file-level `@evidence`, `// @evidenceExclude`, and a bad target.
- *  2. Evaluate each against the same model-only claim.
+ *  1. Exercise file-level ownership and each invalid comment form.
+ *  2. Scan every case through the native Prisma declaration locator.
  *  3. Assert every case names its exact invalid boundary.
  */
 func TestGraphRejectsInvalidFileLevelPrismaCarrierTags(t *testing.T) {
-	config := `{"claims":[{
-		"type":"prisma",
-		"files":["prisma/schema/**/*.prisma","prisma/schema/exclude.schema"],
-		"symbol":"model",
-		"reference":{"type":"markdown","files":["docs/spec.md"],"symbol":"h2"}
-	}]}`
-	schema := `
-datasource db {
-  provider = "sqlite"
-}
-
-generator client {
-  provider = "prisma-client-js"
-}
-
-model Sale {
-  id String @id
-}
-`
 	cases := []struct {
 		name     string
 		carrier  string
@@ -256,24 +227,15 @@ model Sale {
 			carrier:  "//// @evidenceExclude docs/spec.md#contract The tag is buried.\n",
 			expected: "buried behind an extra slash",
 		},
-		{
-			name:     "unresolved target",
-			carrier:  "/// @evidenceExclude docs/spec.md#missing No configured section has this address.\n",
-			expected: "Unresolved evidence target 'docs/spec.md#missing'",
-		},
 	}
 	for _, entry := range cases {
 		t.Run(entry.name, func(t *testing.T) {
-			messages := runIndexRule(t, map[string]string{
-				"docs/spec.md":                 "## Contract\n",
-				"prisma/schema/main.prisma":    schema,
-				"prisma/schema/exclude.schema": entry.carrier,
-			}, config)
-			if !strings.Contains(strings.Join(messages, "\n"), entry.expected) {
+			_, problems := prismaClaimOf(entry.carrier, nil)
+			if !strings.Contains(strings.Join(problems, "\n"), entry.expected) {
 				t.Fatalf(
 					"expected diagnostic containing %q, got:\n%s",
 					entry.expected,
-					strings.Join(messages, "\n"),
+					strings.Join(problems, "\n"),
 				)
 			}
 		})
