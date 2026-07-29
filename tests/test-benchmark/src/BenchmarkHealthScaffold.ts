@@ -6,6 +6,14 @@ import { EvidenceBenchmarkProcess } from "@samchon/evidence-benchmark/process";
 
 /** Proves the committed health SDK and live e2e contract as a consumer. */
 export namespace BenchmarkHealthScaffold {
+  const SDK_ROOT_FILES = [
+    "HttpError.ts",
+    "IConnection.ts",
+    "Primitive.ts",
+    "Resolved.ts",
+    "module.ts",
+  ] as const;
+
   interface IExecution {
     name: string;
     value?: unknown;
@@ -178,19 +186,22 @@ export namespace BenchmarkHealthScaffold {
       recursive: true,
       force: true,
     });
-    fs.rmSync(path.join(api, "src", "module.ts"), { force: true });
+    for (const file of SDK_ROOT_FILES)
+      fs.rmSync(path.join(api, "src", file), { force: true });
   };
 
   const readSdk = (api: string): ReadonlyMap<string, Buffer> => {
     const source: string = path.join(api, "src");
     const output: Map<string, Buffer> = new Map(readFunctional(api));
-    const module: string = path.join(source, "module.ts");
-    assert.equal(
-      fs.existsSync(module),
-      true,
-      "Nestia did not emit src/module.ts",
-    );
-    output.set("module.ts", fs.readFileSync(module));
+    for (const file of SDK_ROOT_FILES) {
+      const location: string = path.join(source, file);
+      assert.equal(
+        fs.existsSync(location),
+        true,
+        `Nestia did not emit src/${file}`,
+      );
+      output.set(file, fs.readFileSync(location));
+    }
     return output;
   };
 

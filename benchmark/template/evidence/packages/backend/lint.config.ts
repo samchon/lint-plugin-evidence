@@ -77,7 +77,7 @@ const graph: IEvidenceGraphConfig = {
         {
           type: "typescript",
           package: "{{apiPackageName}}",
-          files: ["src/structures/**/*.ts"],
+          file: "src/structures/index.ts",
           symbol: ["type"],
         },
       ],
