@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
  *
  * @param connection Base connection supplied by the dynamic e2e runner.
  * @returns The number of assertions reported by this infrastructure proof.
- * @evidence {@link api.functional.health.get} Asserts the live response.
+ * @evidence GET:/health Asserts the published health operation.
  */
 export async function test_api_health(
   connection: api.IConnection,

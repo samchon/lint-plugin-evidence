@@ -8,8 +8,8 @@ export class HealthController {
   /**
    * Returns the process health marker.
    *
-  * @returns Literal marker used by local and deployed health probes.
-  */
+   * @returns Literal marker used by local and deployed health probes.
+   */
   @Get("health")
   @Header("Content-Type", "text/plain")
   public get(): string {

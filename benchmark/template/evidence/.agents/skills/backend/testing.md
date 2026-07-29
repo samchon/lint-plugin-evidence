@@ -1,6 +1,6 @@
 # Testing
 
-The `backend-tests` claim selects exported feature-test functions and independently references Markdown H2/H3 sections, generated SDK operations, and authored DTO root types.
+The `backend-tests` claim selects exported feature-test functions and independently references Markdown H2/H3 sections, published Swagger/OpenAPI operations, and authored DTO root types. Tests call the generated SDK so the operation citation is backed by the consumer-facing client as well as a live assertion.
 
 ```ts
 /**
@@ -8,8 +8,8 @@ The `backend-tests` claim selects exported feature-test functions and independen
  *
  * @evidence docs/analysis/04-business-rules.md#coupon-stacking Proves the
  *           same-kind rejection with a failing request assertion.
- * @evidence {@link api.functional.orders.checkout} Invokes the published
- *           checkout operation.
+ * @evidence POST:/orders/checkout Invokes the published checkout operation
+ *           through the generated SDK.
  * @evidence {@link IShoppingOrder} Exercises the returned order shape.
  */
 export async function test_coupon_stacking(): Promise<void> {
@@ -17,7 +17,7 @@ export async function test_coupon_stacking(): Promise<void> {
 }
 ```
 
-TypeScript targets are `{@link}` references resolved through imports in the test file. A call proves reachability and a type check proves shape; the requirement citation is true only when an assertion would fail if the named behavior disappeared.
+Operation targets use `<METHOD>:<path>` from the generated Swagger document. TypeScript DTO targets are `{@link}` references resolved through imports in the test file. A generated-SDK call proves reachability and a type check proves shape; the requirement citation is true only when an assertion would fail if the named behavior disappeared.
 
 ## Excluding A Requirement, Operation, Or DTO From Backend Tests
 
@@ -30,7 +30,7 @@ import api, { type IShoppingSale } from "{{apiPackageName}}";
  * @evidenceExclude docs/analysis/05-user-experience.md#responsive-grid
  *                  Frontend viewport journeys own this presentation behavior;
  *                  reject this exclusion if the server varies the response.
- * @evidenceExclude {@link api.functional.health.get}
+ * @evidenceExclude GET:/health
  *                  The deployment probe owns liveness verification; reject
  *                  this exclusion if health gains product-visible behavior.
  * @evidenceExclude {@link IShoppingSale}
