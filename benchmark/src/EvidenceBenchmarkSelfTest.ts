@@ -393,9 +393,14 @@ export namespace EvidenceBenchmarkSelfTest {
         .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
         .map((entry) => entry.name)
         .sort(),
-      ["evidence.md", "goal.md", "instruction.md", "plain.md", "review.md"],
-      "prompt root must contain exactly the five user-turn documents",
+      ["goal.md", "instruction.md", "review.md"],
+      "prompt root must contain exactly the three common user turns",
     );
+    for (const arm of ["evidence", "plain"])
+      assert.ok(
+        fs.existsSync(path.join(prompts, arm, "final.md")),
+        `${arm} final user turn is missing`,
+      );
 
     const template: string = path.join(repository, "benchmark", "template");
     for (const arm of ["evidence", "plain"] as const) {
