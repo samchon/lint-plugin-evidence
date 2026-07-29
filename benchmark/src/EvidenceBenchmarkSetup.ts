@@ -1397,14 +1397,7 @@ export namespace EvidenceBenchmarkSetup {
       }
     }
     const real: string = fs.realpathSync(manifest);
-    const installed: string = path.resolve(workspace, "node_modules");
-    const installedStat: fs.Stats | undefined = fs.lstatSync(installed, {
-      throwIfNoEntry: false,
-    });
-    if (!installedStat?.isDirectory() || installedStat.isSymbolicLink())
-      throw new Error(
-        `Benchmark dependency root is not a real directory: ${installed}.`,
-      );
+    const installed: string = installedRoot(workspace);
     const relative: string = path.relative(installed, real);
     if (
       relative === "" ||
@@ -1557,13 +1550,15 @@ export namespace EvidenceBenchmarkSetup {
   function packageIdentity(workspace: string, manifest: string): string {
     const real: string = fs.realpathSync(manifest);
     const parsed: Record<string, unknown> = readPackage(real);
-    const installed: string = fs.realpathSync(
-      path.join(workspace, "node_modules"),
+    const installed: string = installedRoot(workspace);
+    const relative: string | undefined = containedRelation(
+      installed,
+      path.dirname(real),
     );
-    const relative: string = path
-      .relative(installed, path.dirname(real))
-      .split(path.sep)
-      .join("/");
+    if (relative === undefined || relative === ".")
+      throw new Error(
+        `Benchmark installed package identity escaped its installation: ${real}.`,
+      );
     return `${String(parsed.name)}@${String(parsed.version)}:${relative}`;
   }
 
@@ -1588,9 +1583,7 @@ export namespace EvidenceBenchmarkSetup {
       throw new Error(
         `Benchmark installed package identity has an unsafe path: ${identity}.`,
       );
-    const installed: string = fs.realpathSync(
-      path.join(workspace, "node_modules"),
-    );
+    const installed: string = installedRoot(workspace);
     const candidate: string = path.resolve(installed, ...segments);
     const relation: string = path.relative(installed, candidate);
     if (
@@ -1610,6 +1603,18 @@ export namespace EvidenceBenchmarkSetup {
         `Benchmark installed package is not a real directory: ${identity}.`,
       );
     return fs.realpathSync(candidate);
+  }
+
+  function installedRoot(workspace: string): string {
+    const installed: string = path.resolve(workspace, "node_modules");
+    const stat: fs.Stats | undefined = fs.lstatSync(installed, {
+      throwIfNoEntry: false,
+    });
+    if (!stat?.isDirectory() || stat.isSymbolicLink())
+      throw new Error(
+        `Benchmark dependency root is not a real directory: ${installed}.`,
+      );
+    return installed;
   }
 
   function readPackage(manifest: string): Record<string, unknown> {
