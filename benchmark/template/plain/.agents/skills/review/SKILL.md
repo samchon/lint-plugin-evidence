@@ -55,6 +55,18 @@ Review the backward populations as seriously as requirement coverage:
 
 Each needs a requirement, upstream contract, invariant, or reasoned architectural owner. An unowned artifact is invented behavior even when all forward rows are full.
 
+## Cross-Layer Closure
+
+An inventory is not coverage. Review the relationships between every applicable unit without representative sampling:
+
+- trace each requirement through every layer it binds: schema facts and constraints, API operations and DTO properties, backend behavior, executable tests, reachable screens, and browser journeys;
+- trace each model and column to every operation and DTO that creates, reads, changes, exposes, or deliberately hides it, then to the provider paths and tests that prove those decisions;
+- trace each API operation, parameter, response field, and error contract to its backend realization, positive and negative tests, and every required frontend consumer or requirement-backed non-user-facing decision;
+- trace each frontend route, screen, form control, state, mutation, error path, and navigation to its requirement, SDK operation, DTO field, and journey interaction, including cache invalidation, refresh, authorization, and persisted effects; and
+- trace each test assertion back to the exact requirement and behavior it proves, rejecting calls, snapshots, type checks, or generic failures that cannot fail for the named obligation.
+
+Completing one endpoint, DTO, test, or screen does not close adjacent units. Counts, generated output, route reachability, and a green build are discovery aids rather than substitutes for reading each relationship.
+
 ## Invalidation
 
 A verdict belongs to one meaning at one digest. Changing a requirement interpretation, model, DTO, operation, provider, test, screen, or mapping reason invalidates every downstream verdict that depended on it.
@@ -75,7 +87,7 @@ A partial round, a round from an older digest, a summary with no full population
 
 Run complete review rounds over the active phase scope until one entire round is dry. This loop has no maximum round count.
 
-Every round is an independent full review of the whole active phase scope. Reread every H2 and H3 and walk each one through every layer applicable to that phase. Then enumerate and reverse-walk every authored artifact in that phase. Recheck every state, permission, negative path, named boundary, generated output, `@todo`, and required phase gate.
+Every round is an independent full review of the whole active phase scope. Reread every H2 and H3 and walk each one through every layer applicable to that phase. Then enumerate and reverse-walk every authored artifact and every cross-layer relationship in that phase. Recheck every state, permission, negative path, named boundary, generated output, `@todo`, and required phase gate.
 
 Never divide a round below the prescribed phase boundary. Never carry a partial round forward as if its untouched remainder had passed. Every round starts from the complete current requirements and the complete current artifact population for that phase.
 
