@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 
@@ -9,6 +10,7 @@ import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
 import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
@@ -30,6 +32,7 @@ export namespace EvidenceBenchmarkSelfTest {
       const fixture: string = path.join(temporary, "fixture");
       createFixture(repository, fixture);
       await testPinnedPnpm(repository);
+      await testRuntimeIsolation();
       await testPinnedSetup(temporary);
       await testRepositoryInputs(repository);
       await testRetentionIgnore(repository);
@@ -96,6 +99,60 @@ export namespace EvidenceBenchmarkSelfTest {
         ),
       /NFC POSIX relative path/,
     );
+  }
+
+  async function testRuntimeIsolation(): Promise<void> {
+    const assignments: EvidenceBenchmarkRuntime.IAssignment[] = [];
+    for (const project of ["todo", "reddit", "shopping", "erp"] as const)
+      for (const arm of ["evidence", "plain"] as const)
+        assignments.push(EvidenceBenchmarkRuntime.assign(project, arm));
+    const ports: number[] = assignments.flatMap((assignment) => [
+      assignment.apiPort,
+      assignment.swaggerPort,
+      assignment.viteDevelopmentPort,
+      assignment.playwrightPort,
+    ]);
+    assert.equal(
+      new Set(ports).size,
+      ports.length,
+      "every benchmark cell endpoint must be unique",
+    );
+
+    const todoEvidence: EvidenceBenchmarkRuntime.IAssignment = assignments[0]!;
+    const environment: NodeJS.ProcessEnv = {
+      API_PORT: "37001",
+      PLAYWRIGHT_TEST_PORT: "4173",
+    };
+    EvidenceBenchmarkRuntime.apply(environment, todoEvidence);
+    assert.deepEqual(environment, {
+      API_PORT: "46000",
+      PLAYWRIGHT_TEST_PORT: "46003",
+      SWAGGER_PORT: "46001",
+      VITE_API_HOST: "http://127.0.0.1:46000",
+      VITE_DEV_PORT: "46002",
+    });
+
+    const blocker: net.Server = net.createServer();
+    await new Promise<void>((resolve, reject) => {
+      blocker.once("error", reject);
+      blocker.listen(
+        { host: "127.0.0.1", port: todoEvidence.apiPort, exclusive: true },
+        resolve,
+      );
+    });
+    try {
+      await expectFailure(
+        () => EvidenceBenchmarkRuntime.assertAvailable([todoEvidence]),
+        `api port ${todoEvidence.apiPort} is unavailable`,
+      );
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        blocker.close((error) =>
+          error === undefined ? resolve() : reject(error),
+        ),
+      );
+    }
+    await EvidenceBenchmarkRuntime.assertAvailable(assignments);
   }
 
   async function testComposition(

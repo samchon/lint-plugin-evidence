@@ -5,6 +5,7 @@ import path from "node:path";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
 import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 import type { IEvidenceBenchmarkPackageArtifact } from "./structures/IEvidenceBenchmarkPackageArtifact.ts";
@@ -28,6 +29,7 @@ export namespace EvidenceBenchmarkCommandLine {
     arm: IEvidenceBenchmarkMaterialization.Arm;
     model: typeof MODEL;
     sourceCommit: string;
+    runtime: EvidenceBenchmarkRuntime.IAssignment;
     startedAt: string;
     completedAt?: string;
     status: "running" | "completed" | "failed";
@@ -46,10 +48,15 @@ export namespace EvidenceBenchmarkCommandLine {
   ): Promise<void> {
     const projects: IEvidenceBenchmarkMaterialization.Project[] =
       parseProjects(arguments_);
+    const cells = projects.flatMap((project) =>
+      ARMS.map((arm) => ({
+        project,
+        arm,
+        runtime: EvidenceBenchmarkRuntime.assign(project, arm),
+      })),
+    );
     if (arguments_[0] === "plan") {
-      console.log(
-        JSON.stringify({ model: MODEL, projects, arms: ARMS }, null, 2),
-      );
+      console.log(JSON.stringify({ model: MODEL, cells }, null, 2));
       return;
     }
     if (arguments_[0] !== "start")
@@ -73,6 +80,9 @@ export namespace EvidenceBenchmarkCommandLine {
       throw new Error(
         `Benchmark start requires a clean merged source tree:\n${status}`,
       );
+    await EvidenceBenchmarkRuntime.assertAvailable(
+      cells.map((cell) => cell.runtime),
+    );
     const runId: string = `${timestamp()}-${sourceCommit.slice(0, 12)}`;
     const artifact: IEvidenceBenchmarkPackageArtifact =
       await EvidenceBenchmarkPackage.prepare({
@@ -81,10 +91,8 @@ export namespace EvidenceBenchmarkCommandLine {
         output: path.join(repository, "benchmark", ".work", runId, "artifact"),
       });
     const results = await Promise.allSettled(
-      projects.flatMap((project) =>
-        ARMS.map((arm) =>
-          runCell({ repository, sourceCommit, runId, project, arm, artifact }),
-        ),
+      cells.map((cell) =>
+        runCell({ repository, sourceCommit, runId, artifact, ...cell }),
       ),
     );
     const failures: unknown[] = results.flatMap((result) =>
@@ -103,6 +111,7 @@ export namespace EvidenceBenchmarkCommandLine {
     runId: string;
     project: IEvidenceBenchmarkMaterialization.Project;
     arm: IEvidenceBenchmarkMaterialization.Arm;
+    runtime: EvidenceBenchmarkRuntime.IAssignment;
     artifact: IEvidenceBenchmarkPackageArtifact;
   }): Promise<void> {
     const root: string = path.join(
@@ -122,6 +131,7 @@ export namespace EvidenceBenchmarkCommandLine {
       variables: variables(props.project, props.arm),
       artifact: props.artifact,
     });
+    EvidenceBenchmarkRuntime.apply(materialization.environment, props.runtime);
     await EvidenceBenchmarkSetup.prepare({
       materialization,
       arm: props.arm,
@@ -138,6 +148,7 @@ export namespace EvidenceBenchmarkCommandLine {
       arm: props.arm,
       model: MODEL,
       sourceCommit: props.sourceCommit,
+      runtime: props.runtime,
       startedAt: new Date().toISOString(),
       status: "running",
       turns: [],

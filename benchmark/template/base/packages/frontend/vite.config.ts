@@ -4,6 +4,10 @@ import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { defineConfig } from "vite";
 
+const port = Number(process.env.VITE_DEV_PORT ?? 5173);
+if (Number.isInteger(port) === false || port < 1 || port > 65_535)
+  throw new Error("VITE_DEV_PORT must be an integer from 1 to 65535.");
+
 export default defineConfig({
   plugins: [tailwindcss(), react(), ttsc()],
   resolve: {
@@ -12,6 +16,8 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    host: "127.0.0.1",
+    port,
+    strictPort: true,
   },
 });
