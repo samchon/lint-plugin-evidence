@@ -185,9 +185,11 @@ export namespace EvidenceBenchmarkPublication {
       );
     const manifest = JSON.parse(
       fs.readFileSync(path.join(runRoot, "materialization.json"), "utf8"),
-    ) as IEvidenceBenchmarkMaterialization.IManifest;
+    ) as Omit<IEvidenceBenchmarkMaterialization.IManifest, "schemaVersion"> & {
+      schemaVersion: unknown;
+    };
     if (
-      manifest.schemaVersion !== 3 ||
+      (manifest.schemaVersion !== 3 && manifest.schemaVersion !== 4) ||
       manifest.project !== request.project ||
       manifest.arm !== request.arm ||
       manifest.artifact.sourceCommit !== state.sourceCommit ||

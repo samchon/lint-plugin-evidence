@@ -41,7 +41,7 @@ export namespace EvidenceBenchmarkSelfTest {
       await testRepositoryInputs(repository);
       await testRetentionIgnore(repository);
       testHashContract();
-      await testCorpusAdapters(temporary);
+      await testMarkdownCorpus(temporary);
       await testComposition(fixture, temporary);
       await testMaterialization(repository, temporary);
       if (args.includes("--baseline"))
@@ -404,6 +404,7 @@ export namespace EvidenceBenchmarkSelfTest {
       ),
     );
 
+    materialization.schemaVersion = 4;
     materialization.artifact.relativeArchive = ".benchmark-deps/../outside.tgz";
     write(materializationPath, `${JSON.stringify(materialization)}\n`);
     await expectFailure(
@@ -1026,20 +1027,15 @@ export namespace EvidenceBenchmarkSelfTest {
     })) {
       if (!entry.isDirectory()) continue;
       const subject: string = path.join(requirements, entry.name);
-      const hasInventory: boolean =
-        fs.existsSync(path.join(subject, "acceptance-criteria.jsonl")) ||
-        fs.existsSync(path.join(subject, "metadata.json"));
-      if (hasInventory) {
-        const corpus: EvidenceBenchmarkCorpus.IResult =
-          EvidenceBenchmarkCorpus.read(subject);
-        assert.ok(corpus.documents > 0);
-        assert.ok(corpus.h2 > 0);
-        assert.ok(corpus.h3 > 0);
-      } else
-        await expectFailure(
-          () => EvidenceBenchmarkCorpus.read(subject),
-          "no audited machine-readable inventory",
-        );
+      const corpus: EvidenceBenchmarkCorpus.IResult =
+        EvidenceBenchmarkCorpus.read(subject);
+      assert.ok(corpus.documents > 0);
+      assert.ok(corpus.h2 > 0);
+      assert.ok(corpus.h3 > 0);
+      assert.ok(
+        [...corpus.files.keys()].every((relative) => relative.endsWith(".md")),
+        `${entry.name} requirement corpus must contain only Markdown`,
+      );
     }
   }
 
@@ -1188,171 +1184,88 @@ export namespace EvidenceBenchmarkSelfTest {
     );
   }
 
-  async function testCorpusAdapters(temporary: string): Promise<void> {
-    const root: string = path.join(temporary, "metadata-corpus");
+  /**
+   * Verifies Markdown corpus integrity without a parallel inventory contract.
+   *
+   * The corpus reader must preserve exact input bytes while deriving only
+   * structure present in Markdown. It must reject other file kinds and
+   * ambiguous requirement nodes without assigning semantics to numeric filename
+   * prefixes.
+   *
+   * 1. Read a valid corpus with shared ordering prefixes and fenced examples.
+   * 2. Reject a non-Markdown sidecar.
+   * 3. Reject duplicate and anonymous requirement nodes.
+   */
+  async function testMarkdownCorpus(temporary: string): Promise<void> {
+    const root: string = path.join(temporary, "markdown-corpus");
     write(
       path.join(root, "00-corpus-contract.md"),
-      "# Corpus Contract\n\nThe inventory is authoritative.\n",
+      "# Corpus Contract\r\n\r\nMarkdown is authoritative.\r\n",
+    );
+    write(
+      path.join(root, "00-contents.md"),
+      "# Corpus Contents\n\nTwo documents may share an ordering prefix.\n",
     );
     write(
       path.join(root, "01-requirements.md"),
-      "# Requirements\n\n## Area\n\n### REQ-ONE First\n\nBound behavior.\n",
-    );
-    const metadata = {
-      schemaVersion: 1,
-      subject: "metadata-corpus",
-      documentInventory: {
-        documents: [
-          { path: "00-corpus-contract.md", h2: 0, h3: 0 },
-          { path: "01-requirements.md", h2: 1, h3: 1 },
-        ],
-        totals: {
-          documents: 2,
-          h2: 1,
-          h3: 1,
-          atomicAcceptanceClauses: 1,
-        },
-      },
-      sectionInventory: {
-        headingPattern: "REQ-*",
-        unit: "H3",
-        states: ["present", "absent"],
-      },
-      atomicAcceptanceInventory: {
-        unit: "criterion",
-        states: ["satisfied", "unsatisfied"],
-        scoringRule: "one point per clause",
-        clauses: [
-          {
-            id: "AC-ONE",
-            source: "01-requirements.md#REQ-ONE",
-            criterion: "The first requirement is observable.",
-          },
-        ],
-      },
-    };
-    write(
-      path.join(root, "metadata.json"),
-      `${JSON.stringify(metadata, null, 2)}\n`,
+      [
+        "# Requirements",
+        "",
+        "## REQ-GROUP: Area",
+        "",
+        "### REQ-ONE: First",
+        "",
+        "Bound behavior.",
+        "",
+        "```md",
+        "## REQ-HIDDEN: Example",
+        "### REQ-HIDDEN-ONE: Example",
+        "```",
+        "",
+      ].join("\n"),
     );
     const result: EvidenceBenchmarkCorpus.IResult =
       EvidenceBenchmarkCorpus.read(root);
-    assert.equal(result.inventory, "metadata.json");
-    assert.equal(result.atomicAcceptanceClauses, 1);
-    assert.equal(result.contextCriteria, 0);
-    write(
-      path.join(root, "00-corpus-contract.md"),
-      "# Corpus Contract\r\n\r\nThe inventory is authoritative.\r\n",
-    );
-    const rawResult: EvidenceBenchmarkCorpus.IResult =
-      EvidenceBenchmarkCorpus.read(root);
+    assert.equal(result.documents, 3);
+    assert.equal(result.h2, 1);
+    assert.equal(result.h3, 1);
     assert.deepEqual(
-      rawResult.files.get("00-corpus-contract.md"),
+      result.files.get("00-corpus-contract.md"),
       fs.readFileSync(path.join(root, "00-corpus-contract.md")),
       "parser normalization must never rewrite copied corpus bytes",
     );
-    const duplicateZero: string = path.join(temporary, "duplicate-zero-corpus");
-    fs.cpSync(root, duplicateZero, { recursive: true });
+
+    const nonMarkdown: string = path.join(temporary, "non-markdown-corpus");
+    fs.cpSync(root, nonMarkdown, { recursive: true });
     write(
-      path.join(duplicateZero, "00-toc.md"),
-      "# Corpus Contents\n\nThis file has no manifest owner.\n",
+      path.join(nonMarkdown, "metadata.json"),
+      '{"parallel":"inventory"}\n',
     );
     await expectFailure(
-      () => EvidenceBenchmarkCorpus.read(duplicateZero),
-      "Markdown number is duplicated: 00",
+      () => EvidenceBenchmarkCorpus.read(nonMarkdown),
+      "root-level numbered Markdown documents: metadata.json",
     );
 
-    const raw: string = path.join(temporary, "raw-corpus");
-    fs.cpSync(root, raw, { recursive: true });
-    fs.rmSync(path.join(raw, "metadata.json"));
-    await expectFailure(
-      () => EvidenceBenchmarkCorpus.read(raw),
-      "no audited machine-readable inventory",
-    );
-    metadata.documentInventory.totals.h3 = 2;
+    const duplicate: string = path.join(temporary, "duplicate-node-corpus");
+    fs.cpSync(root, duplicate, { recursive: true });
     write(
-      path.join(root, "metadata.json"),
-      `${JSON.stringify(metadata, null, 2)}\n`,
+      path.join(duplicate, "02-more.md"),
+      "# More\n\n### REQ-ONE: Duplicate\n",
     );
     await expectFailure(
-      () => EvidenceBenchmarkCorpus.read(root),
-      "total h3 must be 1",
+      () => EvidenceBenchmarkCorpus.read(duplicate),
+      "Requirement heading is duplicated: REQ-ONE",
     );
 
-    const dual: string = path.join(temporary, "dual-corpus");
-    createDualCorpus(dual);
-    const dualResult: EvidenceBenchmarkCorpus.IResult =
-      EvidenceBenchmarkCorpus.read(dual);
-    assert.equal(dualResult.inventory, "acceptance-criteria.jsonl");
-    assert.equal(dualResult.h2, 2);
-    assert.equal(dualResult.h3, 2);
-    assert.equal(dualResult.atomicAcceptanceClauses, 2);
-    assert.equal(dualResult.contextCriteria, 3);
-
-    const missingContext: string = path.join(temporary, "missing-context");
-    fs.cpSync(dual, missingContext, { recursive: true });
+    const anonymous: string = path.join(temporary, "anonymous-h3-corpus");
+    fs.cpSync(root, anonymous, { recursive: true });
     write(
-      path.join(missingContext, "context-criteria.jsonl"),
-      `${readJsonLines(path.join(missingContext, "context-criteria.jsonl"))
-        .slice(0, 2)
-        .map((row) => JSON.stringify(row))
-        .join("\n")}\n`,
-    );
-    writeCorpusManifest(missingContext, {
-      h2: 2,
-      h3: 2,
-      acceptanceCriteria: 2,
-      contextCriteria: 2,
-    });
-    await expectFailure(
-      () => EvidenceBenchmarkCorpus.read(missingContext),
-      "does not cover every REQ H2",
-    );
-
-    const wrongSource: string = path.join(temporary, "wrong-context-source");
-    fs.cpSync(dual, wrongSource, { recursive: true });
-    const wrongSourceRows: Record<string, unknown>[] = readJsonLines(
-      path.join(wrongSource, "context-criteria.jsonl"),
-    );
-    wrongSourceRows[2]!.source = "00-toc.md";
-    write(
-      path.join(wrongSource, "context-criteria.jsonl"),
-      `${wrongSourceRows.map((row) => JSON.stringify(row)).join("\n")}\n`,
-    );
-    writeCorpusManifest(wrongSource, {
-      h2: 2,
-      h3: 2,
-      acceptanceCriteria: 2,
-      contextCriteria: 3,
-    });
-    await expectFailure(
-      () => EvidenceBenchmarkCorpus.read(wrongSource),
-      "does not own REQ H2",
-    );
-
-    const manifestDrift: string = path.join(temporary, "manifest-drift");
-    fs.cpSync(dual, manifestDrift, { recursive: true });
-    const driftedManifest = JSON.parse(
-      fs.readFileSync(path.join(manifestDrift, "corpus-manifest.json"), "utf8"),
-    ) as { files: Array<{ path: string; sha256: string }> };
-    driftedManifest.files = driftedManifest.files.filter(
-      (entry) => entry.path !== "00-toc.md",
-    );
-    write(
-      path.join(manifestDrift, "corpus-manifest.json"),
-      `${JSON.stringify(driftedManifest, null, 2)}\n`,
+      path.join(anonymous, "02-more.md"),
+      "# More\n\n### Missing identifier\n",
     );
     await expectFailure(
-      () => EvidenceBenchmarkCorpus.read(manifestDrift),
-      "file inventory must exactly match",
-    );
-
-    const drifted: string = path.join(temporary, "drifted-corpus");
-    fs.cpSync(dual, drifted, { recursive: true });
-    fs.appendFileSync(path.join(drifted, "00-toc.md"), "\nDrift.\n", "utf8");
-    await expectFailure(
-      () => EvidenceBenchmarkCorpus.read(drifted),
-      "file hash drifted",
+      () => EvidenceBenchmarkCorpus.read(anonymous),
+      "H3 must own a REQ identifier",
     );
   }
 
@@ -1512,7 +1425,7 @@ export namespace EvidenceBenchmarkSelfTest {
     const manifest = JSON.parse(
       fs.readFileSync(props.cell.manifest, "utf8"),
     ) as IEvidenceBenchmarkMaterialization.IManifest;
-    assert.equal(manifest.schemaVersion, 3);
+    assert.equal(manifest.schemaVersion, 4);
     assert.ok(manifest.elapsedMs >= 0);
     assert.equal("materializedAt" in manifest, false);
     assert.equal(
@@ -1524,27 +1437,7 @@ export namespace EvidenceBenchmarkSelfTest {
       documents: corpus.documents,
       h2: corpus.h2,
       h3: corpus.h3,
-      atomicAcceptanceClauses: corpus.atomicAcceptanceClauses,
-      contextCriteria: corpus.contextCriteria,
-      inventory: corpus.inventory,
     });
-    if (props.project === "erp") {
-      const analysis: string = path.join(
-        props.cell.workspace,
-        "docs",
-        "analysis",
-      );
-      const validation: EvidenceBenchmarkProcess.IResult =
-        EvidenceBenchmarkProcess.runSync(
-          process.execPath,
-          [path.join(analysis, "validate.mjs")],
-          {
-            cwd: analysis,
-            label: `${props.project}/${props.arm} copied corpus validator`,
-          },
-        );
-      assert.match(validation.stdout, /"contextCriteria":986/);
-    }
     const archiveRelative: string = `.benchmark-deps/e-${props.artifact.sha256.slice(0, 12)}.tgz`;
     const packageManifest = JSON.parse(
       fs.readFileSync(path.join(props.cell.workspace, "package.json"), "utf8"),
@@ -1729,7 +1622,6 @@ export namespace EvidenceBenchmarkSelfTest {
       path.join(target, "requirements"),
       { recursive: true },
     );
-    createAcceptanceInventory(path.join(target, "requirements", "todo"));
     const base: string = path.join(target, "template", "base");
     for (const skill of [
       "api",
@@ -1819,180 +1711,6 @@ export namespace EvidenceBenchmarkSelfTest {
           "utf8",
         );
     }
-  }
-
-  function createAcceptanceInventory(root: string): void {
-    const location: string = path.join(root, "acceptance-criteria.jsonl");
-    if (fs.existsSync(location)) return;
-    const clauses: string[] = [];
-    let sequence: number = 0;
-    for (const [relative, content] of EvidenceBenchmarkHash.directory(root)) {
-      if (!relative.endsWith(".md")) continue;
-      const source: string = Buffer.from(content).toString("utf8");
-      for (const match of source.matchAll(
-        /^### (REQ-[A-Za-z0-9._-]+)(?::|\s|$)/gm,
-      )) {
-        ++sequence;
-        clauses.push(
-          JSON.stringify({
-            id: `AC-${sequence}`,
-            requirement: match[1],
-            source: relative,
-            criterion: `Exercise ${match[1]} in the self-test fixture.`,
-          }),
-        );
-      }
-    }
-    write(location, `${clauses.join("\n")}\n`);
-  }
-
-  function createDualCorpus(root: string): void {
-    write(
-      path.join(root, "00-corpus-contract.md"),
-      [
-        "# Corpus Contract",
-        "",
-        "## Corpus Contract",
-        "",
-        "````md",
-        "### REQ-HIDDEN-001 Hidden by a longer fence",
-        "```",
-        "~~~",
-        "````",
-        "",
-      ].join("\n"),
-    );
-    write(
-      path.join(root, "00-toc.md"),
-      "# Corpus Contents\n\nEvery file is frozen.\n",
-    );
-    write(
-      path.join(root, "01-requirements.md"),
-      [
-        "# Requirements",
-        "",
-        "## REQ-GROUP-A: Group A",
-        "",
-        "First group context. Second group context.",
-        "",
-        "### REQ-GROUP-A-001: First leaf",
-        "",
-        "First leaf behavior.",
-        "",
-        "## REQ-GROUP-B: Group B",
-        "",
-        "Third group context.",
-        "",
-        "### REQ-GROUP-B-001: Second leaf",
-        "",
-        "Second leaf behavior.",
-        "",
-      ].join("\n"),
-    );
-    write(
-      path.join(root, "acceptance-criteria.jsonl"),
-      [
-        {
-          id: "REQ-GROUP-A-001.AC-01",
-          requirement: "REQ-GROUP-A-001",
-          source: "01-requirements.md",
-          criterion: "First leaf behavior.",
-        },
-        {
-          id: "REQ-GROUP-B-001.AC-01",
-          requirement: "REQ-GROUP-B-001",
-          source: "01-requirements.md",
-          criterion: "Second leaf behavior.",
-        },
-      ]
-        .map((row) => JSON.stringify(row))
-        .join("\n") + "\n",
-    );
-    write(
-      path.join(root, "context-criteria.jsonl"),
-      [
-        {
-          id: "REQ-GROUP-A.CTX-01",
-          requirement: "REQ-GROUP-A",
-          source: "01-requirements.md",
-          criterion: "First group context.",
-        },
-        {
-          id: "REQ-GROUP-A.CTX-02",
-          requirement: "REQ-GROUP-A",
-          source: "01-requirements.md",
-          criterion: "Second group context.",
-        },
-        {
-          id: "REQ-GROUP-B.CTX-01",
-          requirement: "REQ-GROUP-B",
-          source: "01-requirements.md",
-          criterion: "Third group context.",
-        },
-      ]
-        .map((row) => JSON.stringify(row))
-        .join("\n") + "\n",
-    );
-    write(
-      path.join(root, "validate.mjs"),
-      'process.stdout.write("dual corpus fixture valid\\n");\n',
-    );
-    writeCorpusManifest(root, {
-      h2: 2,
-      h3: 2,
-      acceptanceCriteria: 2,
-      contextCriteria: 3,
-    });
-  }
-
-  function writeCorpusManifest(
-    root: string,
-    counts: {
-      h2: number;
-      h3: number;
-      acceptanceCriteria: number;
-      contextCriteria: number;
-    },
-  ): void {
-    const files: Map<string, Uint8Array> =
-      EvidenceBenchmarkHash.directory(root);
-    files.delete("corpus-manifest.json");
-    const paths: string[] = [...files.keys()].sort();
-    const chunks: Uint8Array[] = [];
-    const entries = paths.map((relative) => {
-      const content: Uint8Array = files.get(relative)!;
-      chunks.push(
-        Buffer.from(relative, "utf8"),
-        Buffer.from([0]),
-        content,
-        Buffer.from([0]),
-      );
-      return {
-        path: relative,
-        sha256: EvidenceBenchmarkHash.bytes(content),
-      };
-    });
-    write(
-      path.join(root, "corpus-manifest.json"),
-      `${JSON.stringify(
-        {
-          schemaVersion: 1,
-          ...counts,
-          files: entries,
-          aggregateSha256: EvidenceBenchmarkHash.bytes(Buffer.concat(chunks)),
-        },
-        null,
-        2,
-      )}\n`,
-    );
-  }
-
-  function readJsonLines(location: string): Record<string, unknown>[] {
-    return fs
-      .readFileSync(location, "utf8")
-      .split(/\r?\n/)
-      .filter((line) => line.length !== 0)
-      .map((line) => JSON.parse(line) as Record<string, unknown>);
   }
 
   function writeIfMissing(location: string, content: string): void {
