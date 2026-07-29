@@ -10,6 +10,8 @@ import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkPublication } from "./EvidenceBenchmarkPublication.ts";
+import { EvidenceBenchmarkRepair } from "./EvidenceBenchmarkRepair.ts";
 import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
 import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
@@ -32,6 +34,8 @@ export namespace EvidenceBenchmarkSelfTest {
       createFixture(repository, fixture);
       await testPinnedPnpm(repository);
       await testRuntimeIsolation();
+      await testPublicationSafety(temporary);
+      await testCommonRepair(temporary);
       await testBaselineFailureCleanup(temporary);
       await testPinnedSetup(temporary);
       await testRepositoryInputs(repository);
@@ -206,6 +210,456 @@ export namespace EvidenceBenchmarkSelfTest {
       );
     }
     await EvidenceBenchmarkRuntime.assertAvailable(assignments);
+  }
+
+  async function testPublicationSafety(temporary: string): Promise<void> {
+    const repository: string = path.join(temporary, "publication-repository");
+    const runId: string = "0123456789ab-12345678-1234-4123-8123-123456789abc";
+    const workspace: string = path.join(
+      repository,
+      "benchmark",
+      "result",
+      "todo",
+      "evidence",
+      "runs",
+      runId,
+      "workspace",
+    );
+    write(path.join(workspace, "package.json"), '{"private":true}\n');
+    write(
+      path.join(workspace, "packages", "frontend", "package.json"),
+      '{"name":"@evidence-benchmark/todo-evidence-frontend"}\n',
+    );
+    write(path.join(workspace, ".env"), "SECRET=must-not-publish\n");
+    write(path.join(workspace, ".env.example"), "SECRET=\n");
+    write(
+      path.join(workspace, ".benchmark-deps", "evidence.tgz"),
+      "package archive",
+    );
+    const archiveSha256: string = EvidenceBenchmarkHash.bytes(
+      Buffer.from("package archive"),
+    );
+    const runRoot: string = path.dirname(workspace);
+    write(
+      path.join(runRoot, "inputs", "instructions", "backend", "start.md"),
+      "Start the backend.\n",
+    );
+    write(
+      path.join(runRoot, "inputs", "requirements", "requirements.md"),
+      "# Requirements\n",
+    );
+    const instructionsTreeSha256: string = EvidenceBenchmarkHash.tree(
+      EvidenceBenchmarkHash.directory(
+        path.join(runRoot, "inputs", "instructions"),
+      ),
+    );
+    const requirementsTreeSha256: string = EvidenceBenchmarkHash.tree(
+      EvidenceBenchmarkHash.directory(
+        path.join(runRoot, "inputs", "requirements"),
+      ),
+    );
+    const materializationPath: string = path.join(
+      runRoot,
+      "materialization.json",
+    );
+    const materialization = {
+      schemaVersion: 3,
+      project: "todo",
+      arm: "evidence",
+      requirementsTreeSha256,
+      artifact: {
+        sourceCommit: "0123456789abcdef",
+        sha256: archiveSha256,
+        relativeArchive: ".benchmark-deps/evidence.tgz",
+      },
+    };
+    write(materializationPath, `${JSON.stringify(materialization)}\n`);
+    write(
+      path.join(runRoot, "run.json"),
+      `${JSON.stringify({
+        schemaVersion: 3,
+        workflow: "backend-first-gated-v1",
+        instructionsTreeSha256,
+        project: "todo",
+        arm: "evidence",
+        status: "completed",
+        sourceCommit: "0123456789abcdef",
+        turns: [
+          "backend-start",
+          "backend-review",
+          "backend-final",
+          "frontend-start",
+          "frontend-review",
+          "frontend-final",
+          "overall-review",
+          "overall-final",
+        ].map((name) => ({ name, status: 0 })),
+      })}\n`,
+    );
+    const request: EvidenceBenchmarkPublication.IRequest =
+      EvidenceBenchmarkPublication.parse([
+        "--",
+        "--owner",
+        "fixture-owner",
+        "--public",
+        "todo",
+        "evidence",
+        runId,
+      ]);
+    assert.equal(
+      EvidenceBenchmarkPublication.repositoryName("todo", "evidence"),
+      "evidence-benchmark-todo",
+    );
+    assert.equal(
+      EvidenceBenchmarkPublication.repositoryName("todo", "plain"),
+      "evidence-benchmark-todo-plain",
+    );
+
+    const calls: string[] = [];
+    const runner: EvidenceBenchmarkPublication.Runner = async (
+      command,
+      arguments_,
+      options,
+    ) => {
+      calls.push(`${command} ${arguments_.join(" ")}`);
+      if (
+        command === "gh" &&
+        arguments_[0] === "api" &&
+        arguments_[1] === "user"
+      )
+        return processResult(0, "fixture-owner\n");
+      if (
+        command === "gh" &&
+        arguments_[0] === "api" &&
+        arguments_[1] === "repos/fixture-owner/evidence-benchmark-todo"
+      )
+        return processResult(1, "", "gh: Not Found (HTTP 404)\n");
+      if (
+        command === "git" &&
+        arguments_[0] === "diff" &&
+        arguments_.includes("--quiet")
+      )
+        return processResult(1);
+      if (command === "git" && arguments_[0] === "add") {
+        assert.ok(
+          fs.existsSync(
+            path.join(options.cwd, ".benchmark-deps", "evidence.tgz"),
+          ),
+          "evidence publication must retain its local package archive",
+        );
+        assert.equal(
+          fs.existsSync(path.join(options.cwd, ".env")),
+          false,
+          "publication staging must exclude local environment files",
+        );
+        const workflows: string[] = fs.readdirSync(
+          path.join(options.cwd, ".github", "workflows"),
+        );
+        assert.deepEqual(
+          workflows,
+          ["ci.yml"],
+          "publication must install only the repository-owned workflow",
+        );
+        const workflow: string = fs.readFileSync(
+          path.join(options.cwd, ".github", "workflows", "ci.yml"),
+          "utf8",
+        );
+        assert.ok(
+          workflow.includes(
+            "pnpm --filter @evidence-benchmark/todo-evidence-frontend exec playwright install",
+          ),
+          "publication CI must render the generated frontend package name",
+        );
+      }
+      if (
+        command === "git" &&
+        arguments_[0] === "rev-parse" &&
+        arguments_[1] === "HEAD"
+      )
+        return processResult(0, `${"a".repeat(40)}\n`);
+      if (
+        command === "gh" &&
+        arguments_[0] === "api" &&
+        arguments_[1] ===
+          "repos/fixture-owner/evidence-benchmark-todo/commits/main"
+      )
+        return processResult(0, `${"a".repeat(40)}\n`);
+      if (
+        command === "gh" &&
+        arguments_[0] === "repo" &&
+        arguments_[1] === "view"
+      )
+        return processResult(
+          0,
+          "https://github.com/fixture-owner/evidence-benchmark-todo\n",
+        );
+      return processResult(0);
+    };
+    const result: EvidenceBenchmarkPublication.IResult =
+      await EvidenceBenchmarkPublication.publish(repository, request, runner);
+    assert.equal(result.repository, "fixture-owner/evidence-benchmark-todo");
+    assert.ok(
+      calls.includes(
+        "gh repo create fixture-owner/evidence-benchmark-todo --public --description todo benchmark generated in evidence mode",
+      ),
+    );
+
+    materialization.artifact.relativeArchive = ".benchmark-deps/../outside.tgz";
+    write(materializationPath, `${JSON.stringify(materialization)}\n`);
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+          throw new Error("unsafe archive path reached the process runner");
+        }),
+      "unsafe product archive path",
+    );
+    materialization.artifact.relativeArchive = ".benchmark-deps/evidence.tgz";
+    write(materializationPath, `${JSON.stringify(materialization)}\n`);
+
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkPublication.publish(
+          repository,
+          request,
+          async (command, arguments_) =>
+            command === "gh" &&
+            arguments_[0] === "api" &&
+            arguments_[1] === "user"
+              ? processResult(0, "different-owner\n")
+              : processResult(0),
+        ),
+      "authenticated GitHub login is different-owner",
+    );
+
+    let rolledBack: boolean = false;
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkPublication.publish(
+          repository,
+          request,
+          async (command, arguments_) => {
+            if (
+              command === "gh" &&
+              arguments_[0] === "api" &&
+              arguments_[1] === "user"
+            )
+              return processResult(0, "fixture-owner\n");
+            if (
+              command === "gh" &&
+              arguments_[0] === "api" &&
+              arguments_[1] === "repos/fixture-owner/evidence-benchmark-todo"
+            )
+              return processResult(1, "", "gh: Not Found (HTTP 404)\n");
+            if (
+              command === "git" &&
+              arguments_[0] === "diff" &&
+              arguments_.includes("--quiet")
+            )
+              return processResult(1);
+            if (
+              command === "gh" &&
+              arguments_[0] === "repo" &&
+              arguments_[1] === "view"
+            )
+              return processResult(
+                0,
+                "https://github.com/fixture-owner/evidence-benchmark-todo\n",
+              );
+            if (
+              command === "git" &&
+              arguments_[0] === "rev-parse" &&
+              arguments_[1] === "HEAD"
+            )
+              return processResult(0, `${"a".repeat(40)}\n`);
+            if (command === "git" && arguments_[0] === "push")
+              throw new Error("simulated publication push failure");
+            if (
+              command === "gh" &&
+              arguments_[0] === "repo" &&
+              arguments_[1] === "delete"
+            )
+              rolledBack = true;
+            return processResult(0);
+          },
+        ),
+      "simulated publication push failure",
+    );
+    assert.equal(
+      rolledBack,
+      true,
+      "a repository created by a failed publication must be rolled back",
+    );
+  }
+
+  async function testCommonRepair(temporary: string): Promise<void> {
+    const repository: string = path.join(temporary, "repair-repository");
+    const runId: string = "abcdef012345-12345678-1234-4123-8123-123456789abc";
+    const patch: string = path.join(
+      repository,
+      "benchmark",
+      ".work",
+      "repairs",
+      "common.patch",
+    );
+    write(
+      patch,
+      [
+        "diff --git a/shared.txt b/shared.txt",
+        "--- a/shared.txt",
+        "+++ b/shared.txt",
+        "@@ -1 +1 @@",
+        "-before",
+        "+after",
+        "",
+      ].join("\n"),
+    );
+    for (const arm of ["evidence", "plain"] as const)
+      await createRepairCell(repository, runId, "todo", arm, "interrupted");
+    const result: EvidenceBenchmarkRepair.IResult =
+      await EvidenceBenchmarkRepair.apply(
+        repository,
+        EvidenceBenchmarkRepair.parse([
+          "--",
+          "--patch",
+          "benchmark/.work/repairs/common.patch",
+          runId,
+          "todo",
+        ]),
+      );
+    assert.equal(result.kind, "operator-intervention");
+    assert.deepEqual(result.cells, ["todo/evidence", "todo/plain"]);
+    for (const arm of ["evidence", "plain"] as const) {
+      const root: string = path.join(
+        repository,
+        "benchmark",
+        "result",
+        "todo",
+        arm,
+        "runs",
+        runId,
+      );
+      assert.equal(
+        fs
+          .readFileSync(path.join(root, "workspace", "shared.txt"), "utf8")
+          .replaceAll("\r\n", "\n"),
+        "after\n",
+      );
+      assert.ok(
+        fs.existsSync(
+          path.join(root, "interventions", `${result.patchSha256}.json`),
+        ),
+      );
+    }
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkRepair.apply(
+          repository,
+          EvidenceBenchmarkRepair.parse([
+            "--patch",
+            "benchmark/.work/repairs/common.patch",
+            runId,
+            "todo",
+          ]),
+        ),
+      "already applied",
+    );
+
+    const forbiddenPatch: string = path.join(
+      repository,
+      "benchmark",
+      ".work",
+      "repairs",
+      "requirements.patch",
+    );
+    write(
+      forbiddenPatch,
+      [
+        "diff --git a/docs/analysis/requirements.md b/docs/analysis/requirements.md",
+        "--- a/docs/analysis/requirements.md",
+        "+++ b/docs/analysis/requirements.md",
+        "@@ -1 +1 @@",
+        "-before",
+        "+after",
+        "",
+      ].join("\n"),
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkRepair.apply(
+          repository,
+          EvidenceBenchmarkRepair.parse([
+            "--patch",
+            "benchmark/.work/repairs/requirements.patch",
+            runId,
+            "todo",
+          ]),
+        ),
+      "forbidden target",
+    );
+
+    for (const arm of ["evidence", "plain"] as const)
+      await createRepairCell(
+        repository,
+        runId,
+        "reddit",
+        arm,
+        arm === "evidence" ? "running" : "interrupted",
+      );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkRepair.apply(
+          repository,
+          EvidenceBenchmarkRepair.parse([
+            "--patch",
+            "benchmark/.work/repairs/common.patch",
+            runId,
+            "reddit",
+          ]),
+        ),
+      "paused reddit/evidence",
+    );
+  }
+
+  async function createRepairCell(
+    repository: string,
+    runId: string,
+    project: IEvidenceBenchmarkMaterialization.Project,
+    arm: IEvidenceBenchmarkMaterialization.Arm,
+    status: "running" | "interrupted",
+  ): Promise<void> {
+    const root: string = path.join(
+      repository,
+      "benchmark",
+      "result",
+      project,
+      arm,
+      "runs",
+      runId,
+    );
+    const workspace: string = path.join(root, "workspace");
+    write(path.join(workspace, "shared.txt"), "before\n");
+    write(
+      path.join(root, "run.json"),
+      `${JSON.stringify({
+        project,
+        arm,
+        status,
+        sourceCommit: "0123456789abcdef",
+        turns: [{ name: "backend-start", status: 1 }],
+      })}\n`,
+    );
+    await EvidenceBenchmarkProcess.run("git", ["init", "-b", "benchmark"], {
+      cwd: workspace,
+      label: `${project}/${arm} repair fixture initialization`,
+    });
+  }
+
+  function processResult(
+    status: number | null,
+    stdout: string = "",
+    stderr: string = "",
+  ): EvidenceBenchmarkProcess.IResult {
+    return { status, stdout, stderr, elapsedMs: 0 };
   }
 
   async function testBaselineFailureCleanup(temporary: string): Promise<void> {
@@ -536,12 +990,29 @@ export namespace EvidenceBenchmarkSelfTest {
         });
       assert.ok(composition.files.size > 0);
       for (const relative of [
+        ".github/workflows/ci.yml",
         "packages/frontend/src/lib/client.ts",
         "packages/frontend/src/lib/config.ts",
       ])
         assert.ok(
           composition.files.has(relative),
           `integrated ${arm} scaffold is missing authored source ${relative}`,
+        );
+      const workflow: string = Buffer.from(
+        composition.files.get(".github/workflows/ci.yml")!,
+      ).toString("utf8");
+      for (const command of [
+        "pnpm install --frozen-lockfile",
+        "pnpm build",
+        "pnpm lint",
+        "pnpm prepare:database",
+        "pnpm test:backend",
+        "playwright install --with-deps chromium",
+        "pnpm test:frontend",
+      ])
+        assert.ok(
+          workflow.includes(command),
+          `integrated ${arm} CI is missing ${command}`,
         );
     }
 

@@ -50,7 +50,7 @@ Branch, commit, pull request, check, and merge flow, `.agents/skills/pull-reques
 
 ### Benchmark Measurement
 
-What a benchmark request authorizes, the launch gate, frozen inputs, measurement integrity, and where results are recorded, `.agents/skills/benchmark/SKILL.md`. Read before launching, modifying, or reporting a run, or before editing anything a run reads.
+Benchmark authorization, launch gates, frozen inputs, measurement integrity, active supervision, recovery, publication, and reporting, `.agents/skills/benchmark/SKILL.md`. Read before launching, observing, resuming, repairing, publishing, or reporting a run, or before editing anything a run reads.
 
 ## Maintenance
 
