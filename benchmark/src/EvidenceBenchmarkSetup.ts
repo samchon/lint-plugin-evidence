@@ -751,11 +751,9 @@ export namespace EvidenceBenchmarkSetup {
               `Benchmark workspace dependency is not linked from its frozen lock target: ${importer}#${identity}.`,
             );
           const actual: string = fs.realpathSync(direct);
-          const workspaceRoots: ReadonlySet<string> = new Set(
-            workspacePackageRoots(workspace).map(([, packageRoot]) =>
-              fs.realpathSync(packageRoot),
-            ),
-          );
+          const workspaceRoots: readonly string[] = workspacePackageRoots(
+            workspace,
+          ).map(([, packageRoot]) => packageRoot);
           const expected: string | undefined =
             effectiveLocked?.version.startsWith("link:") === true
               ? fs.realpathSync(
@@ -766,8 +764,8 @@ export namespace EvidenceBenchmarkSetup {
                 )
               : undefined;
           if (
-            !workspaceRoots.has(actual) ||
-            (expected !== undefined && actual !== expected)
+            !workspaceRoots.some((candidate) => sameFile(candidate, actual)) ||
+            (expected !== undefined && !sameFile(actual, expected))
           )
             throw new Error(
               `Benchmark workspace dependency link drifted from its frozen lock target: ${importer}#${identity}.`,
@@ -821,13 +819,13 @@ export namespace EvidenceBenchmarkSetup {
     }
     if (hasVirtualStore)
       for (const packageRoot of virtualStorePackageRoots(virtualStore))
-        if (!reachable.has(fs.realpathSync(packageRoot)))
+        if (!reachable.has(fileIdentity(packageRoot)))
           throw new Error(
             `Benchmark node_modules contains an orphan installed package payload: ${packageRoot}.`,
           );
     if (hasVirtualStore)
       for (const entry of hoistedPackageEntries(virtualStore))
-        if (!reachable.has(fs.realpathSync(entry.location)))
+        if (!reachable.has(fileIdentity(entry.location)))
           throw new Error(
             `Benchmark node_modules contains an unreachable hoisted dependency: ${entry.location}.`,
           );
@@ -876,8 +874,9 @@ export namespace EvidenceBenchmarkSetup {
   ): void {
     const real: string = fs.realpathSync(manifest);
     const packageRoot: string = path.dirname(real);
-    if (visited.has(packageRoot)) return;
-    visited.add(packageRoot);
+    const identity: string = fileIdentity(packageRoot);
+    if (visited.has(identity)) return;
+    visited.add(identity);
     const parsed: Record<string, unknown> = readPackage(real);
     const resolver: NodeJS.Require = createRequire(real);
     const dependencies: Set<string> = new Set();
@@ -981,14 +980,10 @@ export namespace EvidenceBenchmarkSetup {
     const virtualStore: string = fs.realpathSync(
       path.join(workspace, "node_modules", ".pnpm"),
     );
-    const payloads: ReadonlySet<string> = new Set(
-      virtualStorePackageRoots(virtualStore).map((packageRoot) =>
-        fs.realpathSync(packageRoot),
-      ),
-    );
-    for (const packageRoot of [...payloads].sort((left, right) =>
-      left.localeCompare(right, "en"),
-    )) {
+    const payloads: readonly string[] = virtualStorePackageRoots(virtualStore)
+      .map((packageRoot) => fs.realpathSync(packageRoot))
+      .sort((left, right) => left.localeCompare(right, "en"));
+    for (const packageRoot of payloads) {
       const relative: string = portableRelation(virtualStore, packageRoot);
       for (const [file, content] of normalizedPackageFiles(
         packageRoot,
@@ -1157,13 +1152,13 @@ export namespace EvidenceBenchmarkSetup {
     direct: string,
   ): string {
     const target: string = fs.realpathSync(direct);
-    const virtualRelation: string | undefined = containedRelation(
+    const virtualRelation: string | undefined = physicalRelation(
       virtualStore,
       target,
     );
     if (virtualRelation !== undefined) return `virtual:${virtualRelation}`;
-    const workspaceRelation: string | undefined = containedRelation(
-      fs.realpathSync(workspace),
+    const workspaceRelation: string | undefined = physicalRelation(
+      workspace,
       target,
     );
     if (
@@ -1191,7 +1186,7 @@ export namespace EvidenceBenchmarkSetup {
   }
 
   function portableRelation(root: string, target: string): string {
-    const relative: string | undefined = containedRelation(root, target);
+    const relative: string | undefined = physicalRelation(root, target);
     if (relative === undefined || relative === ".")
       throw new Error(
         `Benchmark dependency payload escaped its virtual store: ${target}.`,
@@ -1654,11 +1649,19 @@ export namespace EvidenceBenchmarkSetup {
       const relative: string | undefined = containedRelation(root, target);
       if (relative !== undefined) return relative;
     }
+    return physicalRelation(installed, target);
+  }
+
+  function physicalRelation(root: string, target: string): string | undefined {
+    for (const candidate of new Set([root, fs.realpathSync(root)])) {
+      const relative: string | undefined = containedRelation(candidate, target);
+      if (relative !== undefined) return relative;
+    }
     let ancestor: string = target;
     const targetStat: fs.Stats = fs.statSync(target);
     if (!targetStat.isDirectory()) ancestor = path.dirname(ancestor);
     for (;;) {
-      if (sameFile(installed, ancestor)) {
+      if (sameFile(root, ancestor)) {
         const relative: string | undefined = containedRelation(
           ancestor,
           target,
@@ -1671,10 +1674,13 @@ export namespace EvidenceBenchmarkSetup {
     }
   }
 
+  function fileIdentity(location: string): string {
+    const stat: fs.BigIntStats = fs.statSync(location, { bigint: true });
+    return `${stat.dev.toString(16)}:${stat.ino.toString(16)}`;
+  }
+
   function sameFile(left: string, right: string): boolean {
-    const leftStat: fs.BigIntStats = fs.statSync(left, { bigint: true });
-    const rightStat: fs.BigIntStats = fs.statSync(right, { bigint: true });
-    return leftStat.dev === rightStat.dev && leftStat.ino === rightStat.ino;
+    return fileIdentity(left) === fileIdentity(right);
   }
 
   function readPackage(manifest: string): Record<string, unknown> {
