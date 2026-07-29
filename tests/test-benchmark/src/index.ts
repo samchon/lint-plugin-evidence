@@ -8,6 +8,8 @@ import type { IEvidenceBenchmarkMaterialization } from "@samchon/evidence-benchm
 import { EvidenceBenchmarkProcess } from "@samchon/evidence-benchmark/process";
 import { EvidenceBenchmarkTemplate } from "@samchon/evidence-benchmark/template";
 
+import { BenchmarkControllerDiscovery } from "./BenchmarkControllerDiscovery.ts";
+
 const repository: string = path.resolve(import.meta.dirname, "../../..");
 const template: string = path.join(repository, "benchmark", "template");
 const variables: IEvidenceBenchmarkMaterialization.IVariables = {
@@ -19,16 +21,18 @@ const variables: IEvidenceBenchmarkMaterialization.IVariables = {
 
 /**
  * Verifies the frozen benchmark template composes both arms and that the
- * consumer-shaped plain scaffold installs and builds outside this workspace.
+ * consumer-shaped plain scaffold discovers and builds outside this workspace.
  *
  * A source-level check cannot detect a missing catalog dependency, an invalid
- * Prisma or Nestia configuration, or a package script that only works through
- * repository hoisting. The build mode therefore materializes the cheapest
- * subject exactly once in an isolated temporary directory.
+ * Prisma or Nestia configuration, runtime discovery, or a package script that
+ * only works through repository hoisting. The build mode therefore materializes
+ * the cheapest subject exactly once in an isolated temporary directory.
  *
  * 1. Compose and validate both overlays with one evidence-only workflow skill.
  * 2. Copy the complete Todo corpus into the plain scaffold.
- * 3. Generate a lockfile, install it frozen, and run the scaffold's full build.
+ * 3. Add a nested controller and non-controller exports without module edits.
+ * 4. Generate a lockfile, install it frozen, and run each Nestia generator.
+ * 5. Run the full build and source plus compiled runtime discovery proofs.
  */
 const main = async (): Promise<void> => {
   const evidence = EvidenceBenchmarkTemplate.compose({
@@ -65,6 +69,7 @@ const main = async (): Promise<void> => {
   const workspace: string = path.join(temporary, "workspace");
   try {
     writeTree(workspace, plain.files);
+    BenchmarkControllerDiscovery.inject(workspace);
     const corpus = EvidenceBenchmarkCorpus.read(
       path.join(repository, "benchmark", "requirements", "todo"),
     );
@@ -105,11 +110,7 @@ const main = async (): Promise<void> => {
       admittedLock,
       "frozen template install must preserve the generated lockfile",
     );
-    await EvidenceBenchmarkProcess.pnpm(["run", "build"], {
-      cwd: workspace,
-      env: environment,
-      label: "benchmark template full build",
-    });
+    await BenchmarkControllerDiscovery.verify(workspace, environment);
 
     for (const relative of [
       "packages/api/lib/index.js",

@@ -49,6 +49,7 @@ export namespace EvidenceBenchmarkTemplate {
     "packages/api/src/typings/index.ts",
     "packages/api/tsconfig.json",
     "packages/backend/lint.config.ts",
+    "packages/backend/nestia.config.ts",
     "packages/backend/package.json",
     "packages/backend/prisma.config.ts",
     "packages/backend/prisma/schema/exclude.schema",

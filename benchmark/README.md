@@ -52,7 +52,7 @@ pnpm --filter @samchon/evidence-benchmark test:package
 pnpm --filter test-benchmark test:build
 ```
 
-The consumer-shaped template proof composes both overlays, copies the complete Todo requirements into an isolated plain workspace, generates a lockfile, performs a frozen install, and builds the full scaffold. `.github/workflows/benchmark.yml` runs the same proof for relevant pull-request changes.
+The consumer-shaped template proof composes both overlays, copies the complete Todo requirements into an isolated plain workspace, adds a nested controller without module wiring, generates a lockfile, performs a frozen install, runs `nestia sdk`, `nestia swagger`, and `nestia all` independently, builds the full scaffold, and verifies source plus compiled runtime discovery. `.github/workflows/benchmark.yml` runs the same proof on Ubuntu and Windows for relevant pull-request changes.
 
 The evidence overlay additionally installs the locally packed product during benchmark materialization. Plain records the same package identity without receiving the package.
 

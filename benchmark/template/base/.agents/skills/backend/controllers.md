@@ -4,7 +4,7 @@ This document owns the endpoints under `packages/backend/src/controllers/`: thei
 
 Requirement-derived request and response DTOs are declared in `packages/api/src/structures`; shared wrappers such as `IPage` are declared in `packages/api/src/typings`. [dtos.md](dtos.md) owns both boundaries.
 
-The scaffold's `HealController.get` is the infrastructure exception. Keep its Nest `@Get("health")` route registered so `/health` remains available to process probes; it has no typed request or DTO response and does not use `TypedRoute`. Requirement-derived product operations follow the typed controller rules below.
+The scaffold's `HealController.get` is the infrastructure exception. Keep its Nest `@Get("health")` route below the controller discovery root so `/health` remains available to process probes; it has no typed request or DTO response and does not use `TypedRoute`. Requirement-derived product operations follow the typed controller rules below.
 
 ## Evidence Placement
 

@@ -10,7 +10,9 @@ export class MyBackend {
   private closing_?: Promise<void>;
 
   public async open(): Promise<void> {
-    this.application_ = await NestFactory.create(MyModule, { logger: false });
+    this.application_ = await NestFactory.create(await MyModule.mount(), {
+      logger: false,
+    });
     await WebSocketAdaptor.upgrade(this.application_);
     this.application_.enableCors();
     await this.application_.listen(MyConfiguration.API_PORT(), "0.0.0.0");

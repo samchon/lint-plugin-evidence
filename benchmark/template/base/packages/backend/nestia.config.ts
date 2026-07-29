@@ -1,10 +1,9 @@
 import type { INestiaConfig } from "@nestia/sdk";
-import { NestFactory } from "@nestjs/core";
 
 import { MyModule } from "./src/MyModule";
 
 export default {
-  input: () => NestFactory.create(MyModule, { logger: false }),
+  input: MyModule.input(),
   output: "../api/src",
   swagger: {
     output: "../api/swagger.json",

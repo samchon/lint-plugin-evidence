@@ -20,8 +20,8 @@ Run one mutating command at a time. A generator, build, lint, or test that share
 | --- | --- |
 | the schema does not compile, or the client does not generate | the schema |
 | a type error where a DTO meets a provider | the contract or the mapping, not the provider body |
-| a route returns 404 that should exist | module registration |
-| an accessor is missing from the SDK | the same, plus regeneration |
+| a route returns 404 that should exist | controller metadata or runtime discovery root |
+| an accessor is missing from the SDK | controller metadata or Nestia source discovery, plus regeneration |
 | a runtime failure inside business logic | the provider |
 | a test fails on state it did not create | test setup, or the shared database |
 | a test fails on a status code | compare the requirement and controller JSDoc with the provider's observable error before assigning the defect |

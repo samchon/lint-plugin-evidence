@@ -21,9 +21,15 @@ concurrency:
 
 jobs:
   template:
-    name: Todo plain template
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    name: Todo plain template (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
     steps:
       - uses: actions/checkout@v4
 
