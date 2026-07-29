@@ -123,7 +123,7 @@ const isNestControllerSource = (location: string): boolean => {
           identifiers.add(element.name.text);
   }
   const exported: Set<string> = new Set();
-  for (const statement of source.statements)
+  for (const statement of source.statements) {
     if (
       ts.isExportDeclaration(statement) &&
       statement.isTypeOnly === false &&
@@ -134,12 +134,13 @@ const isNestControllerSource = (location: string): boolean => {
       for (const element of statement.exportClause.elements)
         if (element.isTypeOnly === false)
           exported.add((element.propertyName ?? element.name).text);
-    else if (
+    if (
       ts.isExportAssignment(statement) &&
       statement.isExportEquals === false &&
       ts.isIdentifier(statement.expression)
     )
       exported.add(statement.expression.text);
+  }
   return source.statements.some((statement) => {
     if (ts.isClassDeclaration(statement) === false) return false;
     const isDirectExport: boolean =
