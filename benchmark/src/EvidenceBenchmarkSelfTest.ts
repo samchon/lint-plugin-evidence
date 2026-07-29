@@ -1640,7 +1640,7 @@ export namespace EvidenceBenchmarkSelfTest {
       materialization: cell,
       arm: "evidence",
     });
-    await EvidenceBenchmarkProcess.pnpm(["run", "build:sdk"], {
+    await EvidenceBenchmarkProcess.pnpm(["exec", "nestia", "all"], {
       cwd: path.join(cell.workspace, "packages", "backend"),
       env: cell.environment,
       label: "Nestia evidence config-loader smoke",
