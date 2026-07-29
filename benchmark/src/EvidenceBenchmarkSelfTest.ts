@@ -119,6 +119,19 @@ export namespace EvidenceBenchmarkSelfTest {
     );
 
     const todoEvidence: EvidenceBenchmarkRuntime.IAssignment = assignments[0]!;
+    const shifted: EvidenceBenchmarkRuntime.IAssignment =
+      EvidenceBenchmarkRuntime.assign("reddit", "plain", 50_000);
+    assert.deepEqual(shifted, {
+      apiPort: 50_030,
+      swaggerPort: 50_031,
+      viteDevelopmentPort: 50_032,
+      playwrightPort: 50_033,
+      apiHost: "http://127.0.0.1:50030",
+    });
+    assert.throws(
+      () => EvidenceBenchmarkRuntime.assign("erp", "plain", 65_463),
+      /between 1 and 65462/,
+    );
     const environment: NodeJS.ProcessEnv = {
       API_PORT: "37001",
       PLAYWRIGHT_TEST_PORT: "4173",

@@ -4,6 +4,9 @@ import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBe
 
 /** Assigns and validates process-level resources shared by one benchmark cell. */
 export namespace EvidenceBenchmarkRuntime {
+  /** Default first port in the eight-cell benchmark allocation. */
+  export const DEFAULT_PORT_BASE = 46_000;
+
   /** Network endpoints reserved for one project and mechanism arm. */
   export interface IAssignment {
     /** Nest application port inherited by backend commands and tests. */
@@ -26,6 +29,7 @@ export namespace EvidenceBenchmarkRuntime {
   export function assign(
     project: IEvidenceBenchmarkMaterialization.Project,
     arm: IEvidenceBenchmarkMaterialization.Arm,
+    portBase: number = DEFAULT_PORT_BASE,
   ): IAssignment {
     const projects: readonly IEvidenceBenchmarkMaterialization.Project[] = [
       "todo",
@@ -39,7 +43,15 @@ export namespace EvidenceBenchmarkRuntime {
     ];
     const slot: number =
       projects.indexOf(project) * arms.length + arms.indexOf(arm);
-    const base: number = 46_000 + slot * 10;
+    if (
+      !Number.isInteger(portBase) ||
+      portBase < 1 ||
+      portBase + (projects.length * arms.length - 1) * 10 + 3 > 65_535
+    )
+      throw new Error(
+        `Benchmark port base must be an integer between 1 and 65462: ${String(portBase)}.`,
+      );
+    const base: number = portBase + slot * 10;
     return {
       apiPort: base,
       swaggerPort: base + 1,

@@ -38,6 +38,11 @@ export namespace EvidenceBenchmarkCommandLine {
     error?: string;
   }
 
+  interface IOptions {
+    projects: IEvidenceBenchmarkMaterialization.Project[];
+    portBase: number;
+  }
+
   /**
    * Validates arguments or launches every requested subject and arm
    * concurrently.
@@ -46,22 +51,31 @@ export namespace EvidenceBenchmarkCommandLine {
     repository: string,
     arguments_: string[],
   ): Promise<void> {
-    const projects: IEvidenceBenchmarkMaterialization.Project[] =
-      parseProjects(arguments_);
-    const cells = projects.flatMap((project) =>
+    const options: IOptions = parseOptions(arguments_);
+    const cells = options.projects.flatMap((project) =>
       ARMS.map((arm) => ({
         project,
         arm,
-        runtime: EvidenceBenchmarkRuntime.assign(project, arm),
+        runtime: EvidenceBenchmarkRuntime.assign(
+          project,
+          arm,
+          options.portBase,
+        ),
       })),
     );
     if (arguments_[0] === "plan") {
-      console.log(JSON.stringify({ model: MODEL, cells }, null, 2));
+      console.log(
+        JSON.stringify(
+          { model: MODEL, portBase: options.portBase, cells },
+          null,
+          2,
+        ),
+      );
       return;
     }
     if (arguments_[0] !== "start")
       throw new Error(
-        "Usage: benchmark <plan|start> <todo|reddit|shopping|erp>...",
+        "Usage: benchmark <plan|start> [--port-base <number>] <todo|reddit|shopping|erp>...",
       );
     const sourceCommit: string = (
       await EvidenceBenchmarkProcess.run("git", ["rev-parse", "HEAD"], {
@@ -288,17 +302,49 @@ export namespace EvidenceBenchmarkCommandLine {
     };
   }
 
-  function parseProjects(
-    arguments_: string[],
-  ): IEvidenceBenchmarkMaterialization.Project[] {
+  function parseOptions(arguments_: string[]): IOptions {
     const values: string[] = arguments_.slice(1);
-    if (values.length === 0)
+    const projects: string[] = [];
+    let portBase: number = EvidenceBenchmarkRuntime.DEFAULT_PORT_BASE;
+    let hasPortBase: boolean = false;
+    for (let index: number = 0; index < values.length; index++) {
+      const value: string = values[index]!;
+      if (value === "--port-base") {
+        if (hasPortBase)
+          throw new Error("Benchmark port base may be specified only once.");
+        const input: string | undefined = values[++index];
+        if (input === undefined)
+          throw new Error("--port-base requires an integer value.");
+        portBase = parsePortBase(input);
+        hasPortBase = true;
+      } else if (value.startsWith("--port-base=")) {
+        if (hasPortBase)
+          throw new Error("Benchmark port base may be specified only once.");
+        portBase = parsePortBase(value.slice("--port-base=".length));
+        hasPortBase = true;
+      } else if (value.startsWith("--"))
+        throw new Error(`Unknown benchmark option: ${value}.`);
+      else projects.push(value);
+    }
+    if (projects.length === 0)
       throw new Error("At least one benchmark project is required.");
     const allowed = new Set(["todo", "reddit", "shopping", "erp"]);
-    for (const value of values)
+    for (const value of projects)
       if (!allowed.has(value))
         throw new Error(`Unknown benchmark project: ${value}.`);
-    return [...new Set(values)] as IEvidenceBenchmarkMaterialization.Project[];
+    EvidenceBenchmarkRuntime.assign("erp", "plain", portBase);
+    return {
+      projects: [
+        ...new Set(projects),
+      ] as IEvidenceBenchmarkMaterialization.Project[],
+      portBase,
+    };
+  }
+
+  function parsePortBase(input: string): number {
+    if (!/^\d+$/.test(input))
+      throw new Error(`Benchmark port base must be an integer: ${input}.`);
+    return Number(input);
   }
 
   function variables(
