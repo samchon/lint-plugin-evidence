@@ -254,10 +254,21 @@ export namespace EvidenceBenchmarkSelfTest {
       Buffer.from("package archive"),
     );
     const runRoot: string = path.dirname(workspace);
-    write(
-      path.join(runRoot, "inputs", "instructions", "backend", "start.md"),
-      "Start the backend.\n",
-    );
+    for (const relative of [
+      "skills-contract.md",
+      "backend/start.md",
+      "backend/review.md",
+      "backend/evidence-final.md",
+      "frontend/start.md",
+      "frontend/review.md",
+      "frontend/evidence-final.md",
+      "overall/review.md",
+      "overall/evidence-final.md",
+    ])
+      write(
+        path.join(runRoot, "inputs", "instructions", ...relative.split("/")),
+        `${relative}\n`,
+      );
     write(
       path.join(runRoot, "inputs", "requirements", "requirements.md"),
       "# Requirements\n",

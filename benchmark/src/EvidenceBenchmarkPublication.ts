@@ -230,10 +230,29 @@ export namespace EvidenceBenchmarkPublication {
           `Publication requires exactly one successful ${name} turn.`,
         );
     const instructions: string = path.join(runRoot, "inputs", "instructions");
+    const instructionFiles: Map<string, Uint8Array> =
+      EvidenceBenchmarkHash.directory(instructions);
+    const expectedInstructionFiles: readonly string[] = [
+      `backend/${request.arm}-final.md`,
+      "backend/review.md",
+      "backend/start.md",
+      `frontend/${request.arm}-final.md`,
+      "frontend/review.md",
+      "frontend/start.md",
+      `overall/${request.arm}-final.md`,
+      "overall/review.md",
+      "skills-contract.md",
+    ];
     if (
-      EvidenceBenchmarkHash.tree(
-        EvidenceBenchmarkHash.directory(instructions),
-      ) !== state.instructionsTreeSha256
+      JSON.stringify([...instructionFiles.keys()].sort()) !==
+      JSON.stringify([...expectedInstructionFiles].sort())
+    )
+      throw new Error(
+        "Publication requires the exact nine-file frozen instruction inventory.",
+      );
+    if (
+      EvidenceBenchmarkHash.tree(instructionFiles) !==
+      state.instructionsTreeSha256
     )
       throw new Error(
         "Frozen publication instructions failed identity verification.",
