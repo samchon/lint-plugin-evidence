@@ -33,11 +33,9 @@ The complete graph is declared in three package-local files. Open the file that 
 
 The template starts with all seven claims active and every evidence rule at its final severity. Do not disable a claim merely because it may become noisy later.
 
-## Development-Time Claim Deferral
+## Temporary Claim Deferral
 
-Use temporary claim deferral at your discretion when the current development stage makes an active claim produce a diagnostic flood that obscures the layer being built. Large corpora can multiply every missing requirement across several claims; processing that full frontier before its hosts exist wastes context without improving the implementation.
-
-Temporarily defer only a whole claim entry by commenting that entry inside its existing `claims` array. Keep the complete claim block in `lint.config.ts` unchanged and visible. Do not delete it, move it elsewhere, change its `files`, `symbol`, or `reference` population, disable `evidence/graph`, lower a rule severity, or alter a requirement to reduce the denominator.
+During active development, if excessive graph diagnostics bury the working context, use your judgment to comment out only the affected whole claim objects. Do not edit a deferred object or weaken the surrounding rules.
 
 For example, this is a valid temporary deferral of `api-operations` in `packages/backend/lint.config.ts`:
 
@@ -65,20 +63,7 @@ claims: [
 ],
 ```
 
-Comment every line of the existing object so its nested comments cannot terminate a block comment. To reactivate the claim, remove only those line-comment markers and restore the exact object at its original array position. Apply the same whole-object operation to `dto-types` or `dto-properties` in `packages/api/lint.config.ts`, and to `frontend-screens` or `frontend-journeys` in `packages/frontend/lint.config.ts`.
-
-Claims may be activated, deferred again after an upstream rewrite, and reactivated as implementation dependencies change. Use the following milestones as guidance rather than a mandatory schedule:
-
-1. Activate `schema-models` when the database model is substantially declared.
-2. Activate `dto-types` and `dto-properties` when authored contract structures exist.
-3. Activate `api-operations` when controller stubs expose the intended contract.
-4. Activate `backend-tests` when generated operations, DTOs, and feature-test hosts exist.
-5. Activate `frontend-screens` when the page surface is declared.
-6. Activate `frontend-journeys` when page exports and browser journey hosts exist.
-
-After activating a claim, inspect its complete diagnostic population and repair the owning artifacts and acknowledgements. Temporary deferral controls when the work is surfaced; it never removes the work.
-
-Keep `evidence/documented`, `evidence/todo`, and `evidence/singular` active wherever the package config defines them. Those rules maintain declaration and implementation debt while graph claims are staged.
+Comment every line of the existing object. Remove only those line-comment markers to reactivate it. Apply the same whole-object operation to claims in the other two package configurations. Restore every deferred claim before the final review.
 
 ## Final State
 

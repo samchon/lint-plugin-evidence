@@ -5,11 +5,13 @@
 
 ### Evidence Graph
 
-How the evidence graph maps claims to sources, which `lint.config.ts` owns each claim, and the fully active state required at completion, `.agents/skills/evidence/SKILL.md`.
+**Mandatory.** The evidence graph this repository is checked against: what each obligation means, how a citation is written and where it belongs, what each diagnostic is telling you, which `lint.config.ts` owns each claim, and which failures the build cannot see, `.agents/skills/evidence/SKILL.md`.
 
-The graph is split across `packages/api/lint.config.ts`, `packages/backend/lint.config.ts`, and `packages/frontend/lint.config.ts`. While the application is still under active development, if some claims produce enough diagnostics to overwhelm the working context, you may temporarily comment out only those affected whole claim objects. Follow the skill's exact deferral procedure and restore every claim before completion.
+A missed requirement is a compile error here rather than something you have to notice. The lint stage names the exact target nothing acknowledges, so your job is not to hunt for gaps but to make every citation say something true.
 
-Read it before editing an evidence lint configuration, adding `@evidence` or `@evidenceExclude`, or responding to graph diagnostics.
+The graph is split across `packages/api/lint.config.ts`, `packages/backend/lint.config.ts`, and `packages/frontend/lint.config.ts`. Read the skill before starting work, whenever a graph diagnostic appears, and before believing a green build.
+
+During active development, if excessive lint-rule compile errors bury the working context, you may temporarily comment out the affected claim objects at your discretion; restore every claim before completion.
 
 ### Review
 
