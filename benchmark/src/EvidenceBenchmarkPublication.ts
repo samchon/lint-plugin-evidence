@@ -609,6 +609,10 @@ export namespace EvidenceBenchmarkPublication {
     ]);
     if (local.stdout.trim() !== upstream.stdout.trim())
       throw new Error("Result checkout must exactly match its remote branch.");
+    await run("node", ["scripts/discover-results.mjs"], {
+      cwd: checkout,
+      label: "existing consolidated result inventory validation",
+    });
     return branch;
   }
 
