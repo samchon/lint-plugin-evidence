@@ -221,20 +221,20 @@ export namespace EvidenceBenchmarkPublication {
       "overall-review",
       "overall-final",
     ];
-    for (const name of expectedTurns)
-      if (
-        state.turns.filter(
-          (turn) =>
-            turn.name === name &&
-            turn.status === 0 &&
-            turn.accepted === true &&
-            Array.isArray(turn.invocation) &&
-            turn.invocation.every((value) => typeof value === "string"),
-        ).length !== 1
+    const acceptedTurns = state.turns.filter((turn) => turn.accepted === true);
+    if (
+      JSON.stringify(acceptedTurns.map((turn) => turn.name)) !==
+        JSON.stringify(expectedTurns) ||
+      acceptedTurns.some(
+        (turn) =>
+          turn.status !== 0 ||
+          !Array.isArray(turn.invocation) ||
+          turn.invocation.some((value) => typeof value !== "string"),
       )
-        throw new Error(
-          `Publication requires exactly one successful ${name} turn.`,
-        );
+    )
+      throw new Error(
+        "Publication requires exactly one accepted successful attempt for every turn in canonical order.",
+      );
     const instructions: string = path.join(runRoot, "inputs", "instructions");
     const instructionFiles: Map<string, Uint8Array> =
       EvidenceBenchmarkHash.directory(instructions);

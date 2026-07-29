@@ -72,7 +72,7 @@ A patch applied before any model turn is a frozen-input hotfix. A patch applied 
 
 Do not accept `status: completed` or an agent's final prose by itself. Verify:
 
-- every prescribed backend, frontend, and overall turn has exactly one successful attempt;
+- the skills-contract turn and every prescribed backend, frontend, and overall turn have exactly one accepted successful attempt in canonical order;
 - the package-local and workspace terminal builds pass with every deferred evidence claim restored;
 - lint, database preparation, backend tests, frontend tests, and runtime probes pass;
 - requirement and test coverage are audited against the frozen corpus;
@@ -92,7 +92,7 @@ Keep the pull-request body small:
 
 Record causes, recoveries, interventions, completed phases, scoring evidence, and clean self-review rounds as formal `COMMENT` pull-request reviews. Update the body immediately when a visible state is wrong; do not wait for the next 15-minute pass.
 
-For each cell, keep a compact phase breakdown for `backend/start`, `backend/review`, `backend/final`, `frontend/start`, `frontend/review`, `frontend/final`, `overall/review`, and `overall/final`. Each completed or active phase reports cumulative native token categories, API-equivalent cost, and elapsed duration.
+For each cell, keep a compact turn breakdown for `skills-contract`, `backend/start`, `backend/review`, `backend/final`, `frontend/start`, `frontend/review`, `frontend/final`, `overall/review`, and `overall/final`. The skills contract is measured work, not free setup. Every completed or active turn reports cumulative native token categories, API-equivalent cost, and elapsed duration.
 
 Below the status table, report implementation scale as counts rather than names. Count database tables, API operations, DTO types and properties, and test functions for each cell. Do not enumerate table or operation names in the pull-request body; detailed inventories belong in a formal review.
 

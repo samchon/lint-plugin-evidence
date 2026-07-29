@@ -321,8 +321,9 @@ export namespace EvidenceBenchmarkSelfTest {
       },
     };
     write(materializationPath, `${JSON.stringify(materialization)}\n`);
+    const runStatePath: string = path.join(runRoot, "run.json");
     write(
-      path.join(runRoot, "run.json"),
+      runStatePath,
       `${JSON.stringify({
         schemaVersion: 6,
         workflow: "backend-first-gated-v2",
@@ -477,6 +478,27 @@ export namespace EvidenceBenchmarkSelfTest {
       await EvidenceBenchmarkPublication.publish(repository, request, runner);
     assert.equal(result.repository, "fixture-owner/evidence-benchmark-results");
     assert.ok(calls.includes("git push origin master"));
+
+    const runState = JSON.parse(fs.readFileSync(runStatePath, "utf8")) as {
+      turns: unknown[];
+    };
+    [runState.turns[1], runState.turns[2]] = [
+      runState.turns[2],
+      runState.turns[1],
+    ];
+    write(runStatePath, `${JSON.stringify(runState)}\n`);
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+          throw new Error("swapped turn order reached the process runner");
+        }),
+      "canonical order",
+    );
+    [runState.turns[1], runState.turns[2]] = [
+      runState.turns[2],
+      runState.turns[1],
+    ];
+    write(runStatePath, `${JSON.stringify(runState)}\n`);
 
     materialization.artifact.relativeArchive = ".benchmark-deps/../outside.tgz";
     write(materializationPath, `${JSON.stringify(materialization)}\n`);
@@ -1136,6 +1158,11 @@ export namespace EvidenceBenchmarkSelfTest {
       /return \[\s*\{ name: "skills-contract", relative: "skills-contract\.md" \},\s*\{ name: "backend-start"/,
       "the skills contract must be the first frozen runner turn",
     );
+    assert.match(
+      commandLine,
+      /const instructionSets:[\s\S]+readInstructionSets\(repository\)[\s\S]+instructions: instructionSets\[arm\]/,
+      "one immutable instruction snapshot per arm must be shared by every selected cell",
+    );
     for (const phase of ["backend", "frontend"])
       assert.deepEqual(
         fs.readdirSync(path.join(instructions, phase)).sort(),
@@ -1160,6 +1187,15 @@ export namespace EvidenceBenchmarkSelfTest {
       backendEvidenceFinal,
       /Do not run the backend package's aggregate `pnpm build` or the workspace-root build during this phase\./,
       "backend final must forbid both aggregate builds",
+    );
+    const frontendEvidenceFinal: string = fs.readFileSync(
+      path.join(instructions, "frontend", "evidence-final.md"),
+      "utf8",
+    );
+    assert.match(
+      frontendEvidenceFinal,
+      /Inspect all three package `lint\.config\.ts` files\.[\s\S]+Restore all seven original claim objects[\s\S]+original populations and `error` severities/,
+      "frontend final must inspect the complete seven-claim configuration",
     );
     for (const phase of ["backend", "frontend", "overall"])
       for (const file of fs.readdirSync(path.join(instructions, phase)))
@@ -1293,23 +1329,29 @@ export namespace EvidenceBenchmarkSelfTest {
       "Frontend journey/report | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys` | None",
       "Overall final | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys` | None",
     ];
-    const documentedRows = new Set(
-      skill
-        .split(/\r?\n/)
-        .filter((line) => line.startsWith("|"))
-        .map((line) =>
-          line
-            .split("|")
-            .slice(1, -1)
-            .map((cell) => cell.trim())
-            .join(" | "),
-        ),
+    const matrixStart: number = skill.indexOf(
+      "| Gate | Must be active | May be deferred only if not started |",
     );
-    for (const row of matrix)
-      assert.ok(
-        documentedRows.has(row),
-        `Evidence phase matrix is missing ${row}`,
+    const matrixEnd: number = skill.indexOf(
+      "\n\nBefore `build:sdk`",
+      matrixStart,
+    );
+    assert.ok(matrixStart >= 0 && matrixEnd > matrixStart);
+    const documentedRows: readonly string[] = skill
+      .slice(matrixStart, matrixEnd)
+      .split(/\r?\n/)
+      .map((line) =>
+        line
+          .split("|")
+          .slice(1, -1)
+          .map((cell) => cell.trim())
+          .join(" | "),
       );
+    assert.deepEqual(documentedRows, [
+      "Gate | Must be active | May be deferred only if not started",
+      "--- | --- | ---",
+      ...matrix,
+    ]);
     for (const contract of [
       "Diagnostic volume never permits deferring the claim for the layer under active development.",
       "Before `build:sdk`, the schema, DTO, and API-operation claims must all be active and healthy.",
@@ -1386,6 +1428,11 @@ export namespace EvidenceBenchmarkSelfTest {
         ),
         `${example.name} example drifted from the materialized lint config`,
       );
+      assert.equal(
+        normalizeClaimSource(actual.node.getText(actual.source)),
+        normalizeClaimSource(expected.node.getText(expected.source)),
+        `${example.name} example must retain the exact whole claim object`,
+      );
     }
   }
 
@@ -1444,6 +1491,23 @@ export namespace EvidenceBenchmarkSelfTest {
     return ts.isIdentifier(name) || ts.isStringLiteral(name)
       ? name.text
       : undefined;
+  }
+
+  function normalizeClaimSource(input: string): string {
+    const lines: string[] = input.replaceAll("\r\n", "\n").split("\n");
+    const indentation: number = Math.min(
+      ...lines
+        .slice(1, -1)
+        .filter((line) => line.trim().length !== 0)
+        .map((line) => line.match(/^\s*/)![0].length),
+    );
+    return lines
+      .map((line, index) =>
+        index === 0 || index === lines.length - 1
+          ? line.trim()
+          : line.slice(indentation).trimEnd(),
+      )
+      .join("\n");
   }
 
   async function testRetentionIgnore(repository: string): Promise<void> {
@@ -1961,6 +2025,10 @@ export namespace EvidenceBenchmarkSelfTest {
         `${props.project}/${props.arm} retained a package placeholder in ${relative}`,
       );
     }
+    if (props.arm === "evidence")
+      assertEvidenceClaimDeferralContract(
+        EvidenceBenchmarkHash.directory(props.cell.workspace),
+      );
   }
 
   function renderFixtureVariables(

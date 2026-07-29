@@ -51,6 +51,11 @@ export namespace EvidenceBenchmarkCommandLine {
     content: string;
   }
 
+  interface IInstructionSet {
+    entries: readonly IInstruction[];
+    sha256: string;
+  }
+
   interface IState {
     schemaVersion: 6;
     workflow: typeof WORKFLOW;
@@ -118,11 +123,14 @@ export namespace EvidenceBenchmarkCommandLine {
       return;
     }
     const options: IOptions = parseOptions(arguments_);
+    const instructionSets: Readonly<
+      Record<IEvidenceBenchmarkMaterialization.Arm, IInstructionSet>
+    > = readInstructionSets(repository);
     const cells = options.projects.flatMap((project) =>
       ARMS.map((arm) => ({
         project,
         arm,
-        instructions: readInstructions(repository, arm),
+        instructions: instructionSets[arm],
         runtime: EvidenceBenchmarkRuntime.assign(
           project,
           arm,
@@ -141,7 +149,7 @@ export namespace EvidenceBenchmarkCommandLine {
             portBase: options.portBase,
             cells: cells.map(({ instructions, ...cell }) => ({
               ...cell,
-              instructions: instructions.map(
+              instructions: instructions.entries.map(
                 ({ content: _content, ...entry }) => entry,
               ),
             })),
@@ -234,7 +242,8 @@ export namespace EvidenceBenchmarkCommandLine {
       state.model !== MODEL ||
       state.effort !== EFFORT ||
       state.cliVersion !== codexVersion() ||
-      !Array.isArray(state.lintBaselines)
+      !Array.isArray(state.lintBaselines) ||
+      !Array.isArray(state.turns)
     )
       throw new Error(
         `Run ${runId} does not use the resumable ${WORKFLOW} state schema.`,
@@ -254,6 +263,7 @@ export namespace EvidenceBenchmarkCommandLine {
       throw new Error(`Run ${runId} has no resumable workspace and logs.`);
     assertStateBaselines(root, state);
     const instructions: IInstruction[] = readFrozenInstructions(root, arm);
+    assertAcceptedTurnOrder(state.turns, instructions);
     const environment: NodeJS.ProcessEnv = resumeEnvironment(root);
     EvidenceBenchmarkRuntime.apply(environment, state.runtime);
     state.threadId ??= recoverThreadId(logs);
@@ -288,8 +298,19 @@ export namespace EvidenceBenchmarkCommandLine {
             });
           } catch {}
           if (restoration === accepted.lintRestorationSha256) continue;
-          accepted.accepted = false;
-          delete accepted.lintRestorationSha256;
+          const index: number = instructions.findIndex(
+            (instruction) => instruction.name === entry.name,
+          );
+          for (const turn of state.turns)
+            if (
+              turn.accepted === true &&
+              instructions.findIndex(
+                (instruction) => instruction.name === turn.name,
+              ) >= index
+            ) {
+              turn.accepted = false;
+              delete turn.lintRestorationSha256;
+            }
           writeState(root, state);
         }
         state.status = "running";
@@ -328,6 +349,7 @@ export namespace EvidenceBenchmarkCommandLine {
       state.elapsedMs = baseElapsedMs + elapsed(resumed);
       state.completedWorkspaceTreeSha256 =
         EvidenceBenchmarkPublication.workspaceSha256(workspace);
+      assertAcceptedTurnOrder(state.turns, instructions, true);
       promoteWorkspace(repository, project, arm, workspace);
       state.status = "completed";
       writeState(root, state);
@@ -357,7 +379,7 @@ export namespace EvidenceBenchmarkCommandLine {
     project: IEvidenceBenchmarkMaterialization.Project;
     arm: IEvidenceBenchmarkMaterialization.Arm;
     runtime: EvidenceBenchmarkRuntime.IAssignment;
-    instructions: readonly IInstruction[];
+    instructions: IInstructionSet;
     artifact: IEvidenceBenchmarkPackageArtifact;
   }): Promise<void> {
     const started: bigint = process.hrtime.bigint();
@@ -427,7 +449,7 @@ export namespace EvidenceBenchmarkCommandLine {
         turns: [],
       };
       writeState(root, state);
-      for (const entry of props.instructions) {
+      for (const entry of props.instructions.entries) {
         phase = entry.name;
         const turn: ITurn & { threadId?: string } = await runTurn({
           workspace: materialization.workspace,
@@ -458,6 +480,7 @@ export namespace EvidenceBenchmarkCommandLine {
       state.elapsedMs = elapsed(started);
       state.completedWorkspaceTreeSha256 =
         EvidenceBenchmarkPublication.workspaceSha256(materialization.workspace);
+      assertAcceptedTurnOrder(state.turns, props.instructions.entries, true);
       promoteWorkspace(
         props.repository,
         props.project,
@@ -584,17 +607,49 @@ export namespace EvidenceBenchmarkCommandLine {
     };
   }
 
-  function readInstructions(
+  function readInstructionSets(
     repository: string,
-    arm: IEvidenceBenchmarkMaterialization.Arm,
-  ): IInstruction[] {
-    const entries: readonly Omit<IInstruction, "content">[] =
-      instructionEntries(arm);
+  ): Readonly<Record<IEvidenceBenchmarkMaterialization.Arm, IInstructionSet>> {
     const root: string = path.join(repository, "benchmark", "instructions");
-    return entries.map((entry) => ({
-      ...entry,
-      content: fs.readFileSync(path.join(root, entry.relative), "utf8"),
-    }));
+    const inventory: ReadonlyMap<string, string> = new Map(
+      [
+        ...new Set(
+          ARMS.flatMap((arm) =>
+            instructionEntries(arm).map((entry) => entry.relative),
+          ),
+        ),
+      ].map((relative) => [
+        relative,
+        fs.readFileSync(path.join(root, relative), "utf8"),
+      ]),
+    );
+    const create = (
+      arm: IEvidenceBenchmarkMaterialization.Arm,
+    ): IInstructionSet => {
+      const entries: readonly IInstruction[] = Object.freeze(
+        instructionEntries(arm).map((entry) =>
+          Object.freeze({
+            ...entry,
+            content: inventory.get(entry.relative)!,
+          }),
+        ),
+      );
+      return Object.freeze({
+        entries,
+        sha256: EvidenceBenchmarkHash.tree(
+          new Map(
+            entries.map((entry) => [
+              entry.relative,
+              Buffer.from(entry.content, "utf8"),
+            ]),
+          ),
+        ),
+      });
+    };
+    return Object.freeze({
+      evidence: create("evidence"),
+      plain: create("plain"),
+    });
   }
 
   function instructionEntries(
@@ -615,14 +670,17 @@ export namespace EvidenceBenchmarkCommandLine {
 
   function freezeInstructions(
     root: string,
-    instructions: readonly IInstruction[],
+    instructions: IInstructionSet,
   ): string {
     const files: Map<string, Uint8Array> = new Map(
-      instructions.map((entry) => [
+      instructions.entries.map((entry) => [
         entry.relative,
         Buffer.from(entry.content, "utf8"),
       ]),
     );
+    const sha256: string = EvidenceBenchmarkHash.tree(files);
+    if (sha256 !== instructions.sha256)
+      throw new Error("Shared benchmark instruction snapshot drifted.");
     const destination: string = path.join(root, "inputs", "instructions");
     fs.mkdirSync(destination, { recursive: false });
     for (const [relative, content] of files) {
@@ -630,7 +688,7 @@ export namespace EvidenceBenchmarkCommandLine {
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.writeFileSync(target, content, { flag: "wx" });
     }
-    return EvidenceBenchmarkHash.tree(files);
+    return sha256;
   }
 
   function parseOptions(arguments_: string[]): IOptions {
@@ -712,6 +770,39 @@ export namespace EvidenceBenchmarkCommandLine {
       props.baselines,
       selected,
     );
+  }
+
+  function assertAcceptedTurnOrder(
+    turns: readonly ITurn[],
+    instructions: readonly IInstruction[],
+    complete: boolean = false,
+  ): void {
+    const accepted: readonly ITurn[] = turns.filter(
+      (turn) => turn.accepted === true,
+    );
+    if (
+      accepted.some(
+        (turn) =>
+          turn.status !== 0 ||
+          !Array.isArray(turn.invocation) ||
+          turn.invocation.some((value) => typeof value !== "string"),
+      )
+    )
+      throw new Error(
+        "Accepted benchmark turns must retain successful invocations.",
+      );
+    const actual: readonly TurnName[] = accepted.map((turn) => turn.name);
+    const expected: readonly TurnName[] = instructions
+      .slice(0, accepted.length)
+      .map((entry) => entry.name);
+    if (
+      accepted.length > instructions.length ||
+      JSON.stringify(actual) !== JSON.stringify(expected) ||
+      (complete && accepted.length !== instructions.length)
+    )
+      throw new Error(
+        "Accepted benchmark turns do not form the canonical instruction prefix.",
+      );
   }
 
   function assertStateBaselines(root: string, state: IState): void {

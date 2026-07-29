@@ -149,7 +149,7 @@ At the Backend Phase gate, restore and validate the five claims in `packages/bac
 
 Do not use the backend package's aggregate `pnpm build` or the workspace-root build during this phase.
 
-At the Frontend Phase gate, restore and validate the two claims in `packages/frontend/lint.config.ts`. If frontend work changed API or backend sources, restore and revalidate the affected configurations and re-pass the Backend Phase first.
+At the Frontend Phase gate, open all three `lint.config.ts` files and confirm that all seven original claim objects are active with their original populations and `error` severities. Validate the two frontend claims in `packages/frontend/lint.config.ts`. If frontend work changed API or backend sources, revalidate the affected configurations and re-pass the Backend Phase first.
 
 At the Overall Phase gate:
 
