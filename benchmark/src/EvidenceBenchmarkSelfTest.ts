@@ -2310,27 +2310,38 @@ export namespace EvidenceBenchmarkSelfTest {
       env: cell.environment,
       label: "Nestia evidence config-loader smoke",
     });
-    await EvidenceBenchmarkProcess.pnpm(["run", "build"], {
-      cwd: cell.workspace,
-      env: cell.environment,
-      label: "packaged Evidence template build",
-    });
-    const lint: EvidenceBenchmarkProcess.IResult =
-      await EvidenceBenchmarkProcess.pnpm(["run", "lint"], {
+    const build: EvidenceBenchmarkProcess.IResult =
+      await EvidenceBenchmarkProcess.pnpm(["run", "build"], {
         cwd: cell.workspace,
         env: cell.environment,
-        label: "packaged Evidence template lint",
+        label: "packaged Evidence template graph gate",
         allowFailure: true,
       });
     assert.notEqual(
-      lint.status,
+      build.status,
       0,
-      "the pristine Evidence template must report its unimplemented graph",
+      "the pristine Evidence template must stop at its unimplemented graph",
+    );
+    const buildOutput: string = `${build.stdout}\n${build.stderr}`.replace(
+      /\u001b\[[0-9;]*m/g,
+      "",
     );
     assert.match(
-      `${lint.stdout}\n${lint.stderr}`,
+      buildOutput,
       /evidence\/graph/,
-      "the packaged Evidence lint failure must come from the active graph",
+      "the packaged Evidence build must reach the active graph",
+    );
+    const compilerDiagnostics: string[] = buildOutput
+      .split(/\r?\n/)
+      .filter((line) => /\berror TS\d+:/.test(line));
+    assert.ok(
+      compilerDiagnostics.length !== 0,
+      "the packaged Evidence build must retain compiler diagnostics",
+    );
+    assert.deepEqual(
+      compilerDiagnostics.filter((line) => !line.includes("[evidence/graph]")),
+      [],
+      "the packaged Evidence build must not hide a non-graph compiler failure",
     );
     assert.equal(
       fs.existsSync(

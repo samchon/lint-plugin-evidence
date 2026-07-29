@@ -55,7 +55,7 @@ jobs:
       - name: Compose both arms
         run: pnpm --filter test-benchmark start
 
-      - name: Build and lint packaged Evidence template
+      - name: Verify packaged Evidence graph gate
         run: pnpm --filter @samchon/evidence-benchmark test:package
 
       - name: Install and build Todo plain template
