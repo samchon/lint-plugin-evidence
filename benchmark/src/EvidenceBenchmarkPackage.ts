@@ -601,6 +601,7 @@ export namespace EvidenceBenchmarkPackage {
         };
       } catch (error) {
         if (!isNodeError(error, "EEXIST")) throw error;
+        if (await recoverOrphanedLock(lock, repository)) continue;
       }
       if (Date.now() >= deadline) {
         const owner: string = fs.existsSync(lock)
@@ -611,6 +612,51 @@ export namespace EvidenceBenchmarkPackage {
         );
       }
       await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+
+  async function recoverOrphanedLock(
+    lock: string,
+    repository: string,
+  ): Promise<boolean> {
+    let observed: string;
+    try {
+      observed = await fs.promises.readFile(lock, "utf8");
+    } catch (error) {
+      if (isNodeError(error, "ENOENT")) return true;
+      throw error;
+    }
+    let owner: unknown;
+    try {
+      owner = JSON.parse(observed);
+    } catch {
+      return false;
+    }
+    if (
+      !isObject(owner) ||
+      owner.repository !== path.resolve(repository) ||
+      typeof owner.pid !== "number" ||
+      !Number.isSafeInteger(owner.pid) ||
+      owner.pid <= 0 ||
+      processExists(owner.pid)
+    )
+      return false;
+    try {
+      if ((await fs.promises.readFile(lock, "utf8")) !== observed) return false;
+      await fs.promises.unlink(lock);
+      return true;
+    } catch (error) {
+      if (isNodeError(error, "ENOENT")) return true;
+      throw error;
+    }
+  }
+
+  function processExists(pid: number): boolean {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (error) {
+      return !isNodeError(error, "ESRCH");
     }
   }
 
