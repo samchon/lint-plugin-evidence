@@ -98,7 +98,7 @@ export namespace EvidenceBenchmarkMaterializer {
         toolchain: path.join(output, "cache", "toolchain-bin"),
       };
       const manifestRecord: IEvidenceBenchmarkMaterialization.IManifest = {
-        schemaVersion: 3,
+        schemaVersion: 4,
         treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
         project: request.project,
         arm: request.arm,
@@ -129,9 +129,6 @@ export namespace EvidenceBenchmarkMaterializer {
           documents: corpus.documents,
           h2: corpus.h2,
           h3: corpus.h3,
-          atomicAcceptanceClauses: corpus.atomicAcceptanceClauses,
-          contextCriteria: corpus.contextCriteria,
-          inventory: corpus.inventory,
         },
         artifact: {
           name: request.artifact.name,

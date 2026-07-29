@@ -10,6 +10,8 @@ import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkPublication } from "./EvidenceBenchmarkPublication.ts";
+import { EvidenceBenchmarkRepair } from "./EvidenceBenchmarkRepair.ts";
 import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
 import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
@@ -32,12 +34,14 @@ export namespace EvidenceBenchmarkSelfTest {
       createFixture(repository, fixture);
       await testPinnedPnpm(repository);
       await testRuntimeIsolation();
+      await testPublicationSafety(temporary);
+      await testCommonRepair(temporary);
       await testBaselineFailureCleanup(temporary);
       await testPinnedSetup(temporary);
       await testRepositoryInputs(repository);
       await testRetentionIgnore(repository);
       testHashContract();
-      await testCorpusAdapters(temporary);
+      await testMarkdownCorpus(temporary);
       await testComposition(fixture, temporary);
       await testMaterialization(repository, temporary);
       if (args.includes("--baseline"))
@@ -206,6 +210,553 @@ export namespace EvidenceBenchmarkSelfTest {
       );
     }
     await EvidenceBenchmarkRuntime.assertAvailable(assignments);
+  }
+
+  async function testPublicationSafety(temporary: string): Promise<void> {
+    const repository: string = path.join(temporary, "publication-repository");
+    const runId: string = "0123456789ab-12345678-1234-4123-8123-123456789abc";
+    write(
+      path.join(
+        repository,
+        "benchmark",
+        "template",
+        "base",
+        ".github",
+        "workflows",
+        "ci.yml",
+      ),
+      "jobs:\n  test:\n    steps:\n      - run: pnpm --filter {{frontendPackageName}} exec playwright install\n",
+    );
+    const workspace: string = path.join(
+      repository,
+      "benchmark",
+      "result",
+      "todo",
+      "evidence",
+      "runs",
+      runId,
+      "workspace",
+    );
+    write(path.join(workspace, "package.json"), '{"private":true}\n');
+    write(
+      path.join(workspace, "packages", "frontend", "package.json"),
+      '{"name":"@evidence-benchmark/todo-evidence-frontend"}\n',
+    );
+    write(path.join(workspace, ".env"), "SECRET=must-not-publish\n");
+    write(path.join(workspace, ".env.example"), "SECRET=\n");
+    write(
+      path.join(workspace, ".benchmark-deps", "evidence.tgz"),
+      "package archive",
+    );
+    const archiveSha256: string = EvidenceBenchmarkHash.bytes(
+      Buffer.from("package archive"),
+    );
+    const runRoot: string = path.dirname(workspace);
+    write(
+      path.join(runRoot, "inputs", "instructions", "backend", "start.md"),
+      "Start the backend.\n",
+    );
+    write(
+      path.join(runRoot, "inputs", "requirements", "requirements.md"),
+      "# Requirements\n",
+    );
+    const instructionsTreeSha256: string = EvidenceBenchmarkHash.tree(
+      EvidenceBenchmarkHash.directory(
+        path.join(runRoot, "inputs", "instructions"),
+      ),
+    );
+    const requirementsTreeSha256: string = EvidenceBenchmarkHash.tree(
+      EvidenceBenchmarkHash.directory(
+        path.join(runRoot, "inputs", "requirements"),
+      ),
+    );
+    const materializationPath: string = path.join(
+      runRoot,
+      "materialization.json",
+    );
+    const materialization = {
+      schemaVersion: 3,
+      project: "todo",
+      arm: "evidence",
+      requirementsTreeSha256,
+      artifact: {
+        sourceCommit: "0123456789abcdef0123456789abcdef01234567",
+        sha256: archiveSha256,
+        relativeArchive: ".benchmark-deps/evidence.tgz",
+      },
+    };
+    write(materializationPath, `${JSON.stringify(materialization)}\n`);
+    write(
+      path.join(runRoot, "run.json"),
+      `${JSON.stringify({
+        schemaVersion: 5,
+        workflow: "backend-first-gated-v1",
+        instructionsTreeSha256,
+        project: "todo",
+        arm: "evidence",
+        engine: "codex",
+        model: "gpt-5.6-terra",
+        effort: "high",
+        cliVersion: "codex-cli 0.145.0",
+        status: "completed",
+        sourceCommit: "0123456789abcdef0123456789abcdef01234567",
+        completedWorkspaceTreeSha256:
+          EvidenceBenchmarkPublication.workspaceSha256(workspace),
+        turns: [
+          "backend-start",
+          "backend-review",
+          "backend-final",
+          "frontend-start",
+          "frontend-review",
+          "frontend-final",
+          "overall-review",
+          "overall-final",
+        ].map((name) => ({
+          name,
+          status: 0,
+          invocation: ["codex", "exec"],
+        })),
+      })}\n`,
+    );
+    write(
+      path.join(runRoot, "benchmark-report.json"),
+      `${JSON.stringify({ schemaVersion: 1, quality: { score: 100 } })}\n`,
+    );
+    const checkout: string = path.join(temporary, "publication-results");
+    write(path.join(checkout, "README.md"), "# Benchmark results\n");
+    const request: EvidenceBenchmarkPublication.IRequest =
+      EvidenceBenchmarkPublication.parse([
+        "--",
+        "--repository",
+        "fixture-owner/evidence-benchmark-results",
+        "--checkout",
+        checkout,
+        "--public",
+        "todo",
+        "evidence",
+        runId,
+      ]);
+
+    const calls: string[] = [];
+    const runner: EvidenceBenchmarkPublication.Runner = async (
+      command,
+      arguments_,
+    ) => {
+      calls.push(`${command} ${arguments_.join(" ")}`);
+      if (
+        command === "gh" &&
+        arguments_[0] === "api" &&
+        arguments_[1] === "user"
+      )
+        return processResult(0, "fixture-owner\n");
+      if (
+        command === "gh" &&
+        arguments_[0] === "api" &&
+        arguments_[1] === "repos/fixture-owner/evidence-benchmark-results"
+      )
+        return processResult(0, "public\n");
+      if (
+        command === "git" &&
+        arguments_.join(" ") === "rev-parse --show-toplevel"
+      )
+        return processResult(0, `${checkout}\n`);
+      if (command === "git" && arguments_.join(" ") === "status --porcelain")
+        return processResult(0);
+      if (command === "git" && arguments_.join(" ") === "branch --show-current")
+        return processResult(0, "master\n");
+      if (command === "git" && arguments_.join(" ") === "remote get-url origin")
+        return processResult(
+          0,
+          "https://github.com/fixture-owner/evidence-benchmark-results.git\n",
+        );
+      if (
+        command === "git" &&
+        arguments_[0] === "diff" &&
+        arguments_.includes("--quiet")
+      )
+        return processResult(1);
+      if (command === "git" && arguments_[0] === "add") {
+        const leaf: string = path.join(
+          checkout,
+          "codex",
+          "gpt-5.6-terra",
+          "todo",
+          "evidence",
+        );
+        assert.ok(
+          fs.existsSync(path.join(leaf, ".benchmark-deps", "evidence.tgz")),
+          "evidence publication must retain its local package archive",
+        );
+        assert.equal(
+          fs.existsSync(path.join(leaf, ".env")),
+          false,
+          "publication staging must exclude local environment files",
+        );
+        assert.equal(
+          fs.existsSync(path.join(leaf, ".github", "workflows")),
+          false,
+          "consolidated publication must remove nested workflows",
+        );
+        const published = JSON.parse(
+          fs.readFileSync(path.join(leaf, "benchmark.json"), "utf8"),
+        ) as {
+          status?: unknown;
+          completedWorkspaceTreeSha256?: unknown;
+        };
+        assert.equal(published.status, "accepted");
+        assert.equal(
+          published.completedWorkspaceTreeSha256,
+          EvidenceBenchmarkPublication.workspaceSha256(workspace),
+        );
+      }
+      if (
+        command === "git" &&
+        arguments_[0] === "rev-parse" &&
+        (arguments_[1] === "HEAD" || arguments_[1] === "origin/master")
+      )
+        return processResult(0, `${"a".repeat(40)}\n`);
+      if (
+        command === "gh" &&
+        arguments_[0] === "api" &&
+        arguments_[1] ===
+          "repos/fixture-owner/evidence-benchmark-results/commits/master"
+      )
+        return processResult(0, `${"a".repeat(40)}\n`);
+      if (
+        command === "gh" &&
+        arguments_[0] === "repo" &&
+        arguments_[1] === "view"
+      )
+        return processResult(
+          0,
+          "https://github.com/fixture-owner/evidence-benchmark-results\n",
+        );
+      return processResult(0);
+    };
+    const result: EvidenceBenchmarkPublication.IResult =
+      await EvidenceBenchmarkPublication.publish(repository, request, runner);
+    assert.equal(result.repository, "fixture-owner/evidence-benchmark-results");
+    assert.ok(calls.includes("git push origin master"));
+
+    materialization.schemaVersion = 4;
+    materialization.artifact.relativeArchive = ".benchmark-deps/../outside.tgz";
+    write(materializationPath, `${JSON.stringify(materialization)}\n`);
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+          throw new Error("unsafe archive path reached the process runner");
+        }),
+      "unsafe product archive path",
+    );
+    materialization.artifact.relativeArchive = ".benchmark-deps/evidence.tgz";
+    write(materializationPath, `${JSON.stringify(materialization)}\n`);
+
+    write(path.join(workspace, "package.json"), '{"private":false}\n');
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+          throw new Error("mutated workspace reached the process runner");
+        }),
+      "workspace failed identity verification",
+    );
+    write(path.join(workspace, "package.json"), '{"private":true}\n');
+
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkPublication.publish(
+          repository,
+          request,
+          async (command, arguments_) =>
+            command === "gh" &&
+            arguments_[0] === "api" &&
+            arguments_[1] === "user"
+              ? processResult(0, "different-owner\n")
+              : processResult(0),
+        ),
+      "authenticated GitHub login is different-owner",
+    );
+
+    let rolledBack: boolean = false;
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkPublication.publish(
+          repository,
+          request,
+          async (command, arguments_) => {
+            if (
+              command === "gh" &&
+              arguments_[0] === "api" &&
+              arguments_[1] === "user"
+            )
+              return processResult(0, "fixture-owner\n");
+            if (
+              command === "gh" &&
+              arguments_[0] === "api" &&
+              arguments_[1] === "repos/fixture-owner/evidence-benchmark-results"
+            )
+              return processResult(0, "public\n");
+            if (
+              command === "git" &&
+              arguments_.join(" ") === "rev-parse --show-toplevel"
+            )
+              return processResult(0, `${checkout}\n`);
+            if (
+              command === "git" &&
+              arguments_.join(" ") === "status --porcelain"
+            )
+              return processResult(0);
+            if (
+              command === "git" &&
+              arguments_.join(" ") === "branch --show-current"
+            )
+              return processResult(0, "master\n");
+            if (
+              command === "git" &&
+              arguments_.join(" ") === "remote get-url origin"
+            )
+              return processResult(
+                0,
+                "https://github.com/fixture-owner/evidence-benchmark-results.git\n",
+              );
+            if (
+              command === "git" &&
+              arguments_[0] === "diff" &&
+              arguments_.includes("--quiet")
+            )
+              return processResult(1);
+            if (
+              command === "gh" &&
+              arguments_[0] === "repo" &&
+              arguments_[1] === "view"
+            )
+              return processResult(
+                0,
+                "https://github.com/fixture-owner/evidence-benchmark-results\n",
+              );
+            if (
+              command === "git" &&
+              arguments_[0] === "rev-parse" &&
+              (arguments_[1] === "HEAD" || arguments_[1] === "origin/master")
+            )
+              return processResult(0, `${"a".repeat(40)}\n`);
+            if (command === "git" && arguments_[0] === "push")
+              throw new Error("simulated publication push failure");
+            if (command === "git" && arguments_[0] === "reset")
+              rolledBack = true;
+            return processResult(0);
+          },
+        ),
+      "simulated publication push failure",
+    );
+    assert.equal(
+      rolledBack,
+      true,
+      "a failed result commit must be rolled back locally",
+    );
+  }
+
+  async function testCommonRepair(temporary: string): Promise<void> {
+    const repository: string = path.join(temporary, "repair-repository");
+    const runId: string = "abcdef012345-12345678-1234-4123-8123-123456789abc";
+    const patch: string = path.join(
+      repository,
+      "benchmark",
+      ".work",
+      "repairs",
+      "common.patch",
+    );
+    write(
+      patch,
+      [
+        "diff --git a/shared.txt b/shared.txt",
+        "--- a/shared.txt",
+        "+++ b/shared.txt",
+        "@@ -1 +1 @@",
+        "-before",
+        "+after",
+        "",
+      ].join("\n"),
+    );
+    for (const arm of ["evidence", "plain"] as const)
+      await createRepairCell(repository, runId, "todo", arm, "interrupted");
+    const result: EvidenceBenchmarkRepair.IResult =
+      await EvidenceBenchmarkRepair.apply(
+        repository,
+        EvidenceBenchmarkRepair.parse([
+          "--",
+          "--patch",
+          "benchmark/.work/repairs/common.patch",
+          runId,
+          "todo",
+        ]),
+      );
+    assert.equal(result.kind, "operator-intervention");
+    assert.deepEqual(result.cells, ["todo/evidence", "todo/plain"]);
+    for (const arm of ["evidence", "plain"] as const) {
+      const root: string = path.join(
+        repository,
+        "benchmark",
+        "result",
+        "todo",
+        arm,
+        "runs",
+        runId,
+      );
+      assert.equal(
+        fs
+          .readFileSync(path.join(root, "workspace", "shared.txt"), "utf8")
+          .replaceAll("\r\n", "\n"),
+        "after\n",
+      );
+      assert.ok(
+        fs.existsSync(
+          path.join(root, "interventions", `${result.patchSha256}.json`),
+        ),
+      );
+    }
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkRepair.apply(
+          repository,
+          EvidenceBenchmarkRepair.parse([
+            "--patch",
+            "benchmark/.work/repairs/common.patch",
+            runId,
+            "todo",
+          ]),
+        ),
+      "already applied",
+    );
+
+    const forbiddenPatch: string = path.join(
+      repository,
+      "benchmark",
+      ".work",
+      "repairs",
+      "requirements.patch",
+    );
+    write(
+      forbiddenPatch,
+      [
+        "diff --git a/docs/analysis/requirements.md b/docs/analysis/requirements.md",
+        "--- a/docs/analysis/requirements.md",
+        "+++ b/docs/analysis/requirements.md",
+        "@@ -1 +1 @@",
+        "-before",
+        "+after",
+        "",
+      ].join("\n"),
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkRepair.apply(
+          repository,
+          EvidenceBenchmarkRepair.parse([
+            "--patch",
+            "benchmark/.work/repairs/requirements.patch",
+            runId,
+            "todo",
+          ]),
+        ),
+      "forbidden target",
+    );
+
+    const dependencyPatch: string = path.join(
+      repository,
+      "benchmark",
+      ".work",
+      "repairs",
+      "dependency.patch",
+    );
+    write(
+      dependencyPatch,
+      [
+        "diff --git a/packages/backend/node_modules/example.txt b/packages/backend/node_modules/example.txt",
+        "new file mode 100644",
+        "--- /dev/null",
+        "+++ b/packages/backend/node_modules/example.txt",
+        "@@ -0,0 +1 @@",
+        "+forbidden",
+        "",
+      ].join("\n"),
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkRepair.apply(
+          repository,
+          EvidenceBenchmarkRepair.parse([
+            "--patch",
+            "benchmark/.work/repairs/dependency.patch",
+            runId,
+            "todo",
+          ]),
+        ),
+      "forbidden target",
+    );
+
+    for (const arm of ["evidence", "plain"] as const)
+      await createRepairCell(
+        repository,
+        runId,
+        "reddit",
+        arm,
+        arm === "evidence" ? "running" : "interrupted",
+      );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkRepair.apply(
+          repository,
+          EvidenceBenchmarkRepair.parse([
+            "--patch",
+            "benchmark/.work/repairs/common.patch",
+            runId,
+            "reddit",
+          ]),
+        ),
+      "paused reddit/evidence",
+    );
+  }
+
+  async function createRepairCell(
+    repository: string,
+    runId: string,
+    project: IEvidenceBenchmarkMaterialization.Project,
+    arm: IEvidenceBenchmarkMaterialization.Arm,
+    status: "running" | "interrupted",
+  ): Promise<void> {
+    const root: string = path.join(
+      repository,
+      "benchmark",
+      "result",
+      project,
+      arm,
+      "runs",
+      runId,
+    );
+    const workspace: string = path.join(root, "workspace");
+    write(path.join(workspace, "shared.txt"), "before\n");
+    write(
+      path.join(root, "run.json"),
+      `${JSON.stringify({
+        project,
+        arm,
+        status,
+        sourceCommit: "0123456789abcdef",
+        turns: [{ name: "backend-start", status: 1 }],
+      })}\n`,
+    );
+    await EvidenceBenchmarkProcess.run("git", ["init", "-b", "benchmark"], {
+      cwd: workspace,
+      label: `${project}/${arm} repair fixture initialization`,
+    });
+  }
+
+  function processResult(
+    status: number | null,
+    stdout: string = "",
+    stderr: string = "",
+  ): EvidenceBenchmarkProcess.IResult {
+    return { status, stdout, stderr, elapsedMs: 0 };
   }
 
   async function testBaselineFailureCleanup(temporary: string): Promise<void> {
@@ -503,20 +1054,19 @@ export namespace EvidenceBenchmarkSelfTest {
       ["evidence-final.md", "plain-final.md", "review.md"],
       "overall instruction inventory is invalid",
     );
-    assert.match(
-      fs.readFileSync(
-        path.join(instructions, "backend", "evidence-final.md"),
-        "utf8",
-      ),
-      /From `packages\/backend`, run `pnpm build`/,
+    const backendEvidenceFinal: string = fs.readFileSync(
+      path.join(instructions, "backend", "evidence-final.md"),
+      "utf8",
     );
     assert.match(
-      fs.readFileSync(
-        path.join(instructions, "backend", "evidence-final.md"),
-        "utf8",
-      ),
-      /Do not run the workspace-root build during this phase\./,
-      "backend final must state the root-build boundary clearly",
+      backendEvidenceFinal,
+      /build:prisma[\s\S]+packages\/api[\s\S]+pnpm build[\s\S]+build:main[\s\S]+build:sdk[\s\S]+build:test/,
+      "backend final must preserve the authored dependency order",
+    );
+    assert.match(
+      backendEvidenceFinal,
+      /Do not run the backend package's aggregate `pnpm build` or the workspace-root build during this phase\./,
+      "backend final must forbid both aggregate builds",
     );
     for (const phase of ["backend", "frontend", "overall"])
       for (const file of fs.readdirSync(path.join(instructions, phase)))
@@ -536,12 +1086,29 @@ export namespace EvidenceBenchmarkSelfTest {
         });
       assert.ok(composition.files.size > 0);
       for (const relative of [
+        ".github/workflows/ci.yml",
         "packages/frontend/src/lib/client.ts",
         "packages/frontend/src/lib/config.ts",
       ])
         assert.ok(
           composition.files.has(relative),
           `integrated ${arm} scaffold is missing authored source ${relative}`,
+        );
+      const workflow: string = Buffer.from(
+        composition.files.get(".github/workflows/ci.yml")!,
+      ).toString("utf8");
+      for (const command of [
+        "pnpm install --frozen-lockfile",
+        "pnpm build",
+        "pnpm lint",
+        "pnpm prepare:database",
+        "pnpm test:backend",
+        "playwright install --with-deps chromium",
+        "pnpm test:frontend",
+      ])
+        assert.ok(
+          workflow.includes(command),
+          `integrated ${arm} CI is missing ${command}`,
         );
     }
 
@@ -555,48 +1122,22 @@ export namespace EvidenceBenchmarkSelfTest {
     })) {
       if (!entry.isDirectory()) continue;
       const subject: string = path.join(requirements, entry.name);
-      const hasInventory: boolean =
-        fs.existsSync(path.join(subject, "acceptance-criteria.jsonl")) ||
-        fs.existsSync(path.join(subject, "metadata.json"));
-      if (hasInventory) {
-        const corpus: EvidenceBenchmarkCorpus.IResult =
-          EvidenceBenchmarkCorpus.read(subject);
-        assert.ok(corpus.documents > 0);
-        assert.ok(corpus.h2 > 0);
-        assert.ok(corpus.h3 > 0);
-      } else
-        await expectFailure(
-          () => EvidenceBenchmarkCorpus.read(subject),
-          "no audited machine-readable inventory",
-        );
+      const corpus: EvidenceBenchmarkCorpus.IResult =
+        EvidenceBenchmarkCorpus.read(subject);
+      assert.ok(corpus.documents > 0);
+      assert.ok(corpus.h2 > 0);
+      assert.ok(corpus.h3 > 0);
+      assert.ok(
+        [...corpus.files.keys()].every((relative) => relative.endsWith(".md")),
+        `${entry.name} requirement corpus must contain only Markdown`,
+      );
     }
   }
 
   async function testRetentionIgnore(repository: string): Promise<void> {
     for (const relative of [
       "benchmark/result/todo/evidence/runs/example/logs/stderr.raw.log",
-      "benchmark/result/todo/evidence/runs/example/gates/format.stdout.log",
-      "benchmark/result/todo/evidence/workspace/.benchmark-deps/e-deadbeef.tgz",
-    ]) {
-      const result = await EvidenceBenchmarkProcess.run(
-        "git",
-        ["check-ignore", "--no-index", relative],
-        {
-          cwd: repository,
-          allowFailure: true,
-          label: `check retained benchmark artifact ${relative}`,
-        },
-      );
-      assert.equal(
-        result.status,
-        1,
-        `canonical result artifact must remain trackable: ${relative}`,
-      );
-    }
-    for (const relative of [
       "benchmark/.work/todo/evidence/terminal/stderr.raw.log",
-      "benchmark/not-result/stray.log",
-      "benchmark/not-result/stray.tgz",
     ]) {
       const result = await EvidenceBenchmarkProcess.run(
         "git",
@@ -610,7 +1151,7 @@ export namespace EvidenceBenchmarkSelfTest {
       assert.equal(
         result.status,
         0,
-        `non-result artifact must remain ignored: ${relative}`,
+        `local benchmark output must remain ignored: ${relative}`,
       );
     }
   }
@@ -717,171 +1258,88 @@ export namespace EvidenceBenchmarkSelfTest {
     );
   }
 
-  async function testCorpusAdapters(temporary: string): Promise<void> {
-    const root: string = path.join(temporary, "metadata-corpus");
+  /**
+   * Verifies Markdown corpus integrity without a parallel inventory contract.
+   *
+   * The corpus reader must preserve exact input bytes while deriving only
+   * structure present in Markdown. It must reject other file kinds and
+   * ambiguous requirement nodes without assigning semantics to numeric filename
+   * prefixes.
+   *
+   * 1. Read a valid corpus with shared ordering prefixes and fenced examples.
+   * 2. Reject a non-Markdown sidecar.
+   * 3. Reject duplicate and anonymous requirement nodes.
+   */
+  async function testMarkdownCorpus(temporary: string): Promise<void> {
+    const root: string = path.join(temporary, "markdown-corpus");
     write(
       path.join(root, "00-corpus-contract.md"),
-      "# Corpus Contract\n\nThe inventory is authoritative.\n",
+      "# Corpus Contract\r\n\r\nMarkdown is authoritative.\r\n",
+    );
+    write(
+      path.join(root, "00-contents.md"),
+      "# Corpus Contents\n\nTwo documents may share an ordering prefix.\n",
     );
     write(
       path.join(root, "01-requirements.md"),
-      "# Requirements\n\n## Area\n\n### REQ-ONE First\n\nBound behavior.\n",
-    );
-    const metadata = {
-      schemaVersion: 1,
-      subject: "metadata-corpus",
-      documentInventory: {
-        documents: [
-          { path: "00-corpus-contract.md", h2: 0, h3: 0 },
-          { path: "01-requirements.md", h2: 1, h3: 1 },
-        ],
-        totals: {
-          documents: 2,
-          h2: 1,
-          h3: 1,
-          atomicAcceptanceClauses: 1,
-        },
-      },
-      sectionInventory: {
-        headingPattern: "REQ-*",
-        unit: "H3",
-        states: ["present", "absent"],
-      },
-      atomicAcceptanceInventory: {
-        unit: "criterion",
-        states: ["satisfied", "unsatisfied"],
-        scoringRule: "one point per clause",
-        clauses: [
-          {
-            id: "AC-ONE",
-            source: "01-requirements.md#REQ-ONE",
-            criterion: "The first requirement is observable.",
-          },
-        ],
-      },
-    };
-    write(
-      path.join(root, "metadata.json"),
-      `${JSON.stringify(metadata, null, 2)}\n`,
+      [
+        "# Requirements",
+        "",
+        "## REQ-GROUP: Area",
+        "",
+        "### REQ-ONE: First",
+        "",
+        "Bound behavior.",
+        "",
+        "```md",
+        "## REQ-HIDDEN: Example",
+        "### REQ-HIDDEN-ONE: Example",
+        "```",
+        "",
+      ].join("\n"),
     );
     const result: EvidenceBenchmarkCorpus.IResult =
       EvidenceBenchmarkCorpus.read(root);
-    assert.equal(result.inventory, "metadata.json");
-    assert.equal(result.atomicAcceptanceClauses, 1);
-    assert.equal(result.contextCriteria, 0);
-    write(
-      path.join(root, "00-corpus-contract.md"),
-      "# Corpus Contract\r\n\r\nThe inventory is authoritative.\r\n",
-    );
-    const rawResult: EvidenceBenchmarkCorpus.IResult =
-      EvidenceBenchmarkCorpus.read(root);
+    assert.equal(result.documents, 3);
+    assert.equal(result.h2, 1);
+    assert.equal(result.h3, 1);
     assert.deepEqual(
-      rawResult.files.get("00-corpus-contract.md"),
+      result.files.get("00-corpus-contract.md"),
       fs.readFileSync(path.join(root, "00-corpus-contract.md")),
       "parser normalization must never rewrite copied corpus bytes",
     );
-    const duplicateZero: string = path.join(temporary, "duplicate-zero-corpus");
-    fs.cpSync(root, duplicateZero, { recursive: true });
+
+    const nonMarkdown: string = path.join(temporary, "non-markdown-corpus");
+    fs.cpSync(root, nonMarkdown, { recursive: true });
     write(
-      path.join(duplicateZero, "00-toc.md"),
-      "# Corpus Contents\n\nThis file has no manifest owner.\n",
+      path.join(nonMarkdown, "metadata.json"),
+      '{"parallel":"inventory"}\n',
     );
     await expectFailure(
-      () => EvidenceBenchmarkCorpus.read(duplicateZero),
-      "Markdown number is duplicated: 00",
+      () => EvidenceBenchmarkCorpus.read(nonMarkdown),
+      "root-level numbered Markdown documents: metadata.json",
     );
 
-    const raw: string = path.join(temporary, "raw-corpus");
-    fs.cpSync(root, raw, { recursive: true });
-    fs.rmSync(path.join(raw, "metadata.json"));
-    await expectFailure(
-      () => EvidenceBenchmarkCorpus.read(raw),
-      "no audited machine-readable inventory",
-    );
-    metadata.documentInventory.totals.h3 = 2;
+    const duplicate: string = path.join(temporary, "duplicate-node-corpus");
+    fs.cpSync(root, duplicate, { recursive: true });
     write(
-      path.join(root, "metadata.json"),
-      `${JSON.stringify(metadata, null, 2)}\n`,
+      path.join(duplicate, "02-more.md"),
+      "# More\n\n### REQ-ONE: Duplicate\n",
     );
     await expectFailure(
-      () => EvidenceBenchmarkCorpus.read(root),
-      "total h3 must be 1",
+      () => EvidenceBenchmarkCorpus.read(duplicate),
+      "Requirement heading is duplicated: REQ-ONE",
     );
 
-    const dual: string = path.join(temporary, "dual-corpus");
-    createDualCorpus(dual);
-    const dualResult: EvidenceBenchmarkCorpus.IResult =
-      EvidenceBenchmarkCorpus.read(dual);
-    assert.equal(dualResult.inventory, "acceptance-criteria.jsonl");
-    assert.equal(dualResult.h2, 2);
-    assert.equal(dualResult.h3, 2);
-    assert.equal(dualResult.atomicAcceptanceClauses, 2);
-    assert.equal(dualResult.contextCriteria, 3);
-
-    const missingContext: string = path.join(temporary, "missing-context");
-    fs.cpSync(dual, missingContext, { recursive: true });
+    const anonymous: string = path.join(temporary, "anonymous-h3-corpus");
+    fs.cpSync(root, anonymous, { recursive: true });
     write(
-      path.join(missingContext, "context-criteria.jsonl"),
-      `${readJsonLines(path.join(missingContext, "context-criteria.jsonl"))
-        .slice(0, 2)
-        .map((row) => JSON.stringify(row))
-        .join("\n")}\n`,
-    );
-    writeCorpusManifest(missingContext, {
-      h2: 2,
-      h3: 2,
-      acceptanceCriteria: 2,
-      contextCriteria: 2,
-    });
-    await expectFailure(
-      () => EvidenceBenchmarkCorpus.read(missingContext),
-      "does not cover every REQ H2",
-    );
-
-    const wrongSource: string = path.join(temporary, "wrong-context-source");
-    fs.cpSync(dual, wrongSource, { recursive: true });
-    const wrongSourceRows: Record<string, unknown>[] = readJsonLines(
-      path.join(wrongSource, "context-criteria.jsonl"),
-    );
-    wrongSourceRows[2]!.source = "00-toc.md";
-    write(
-      path.join(wrongSource, "context-criteria.jsonl"),
-      `${wrongSourceRows.map((row) => JSON.stringify(row)).join("\n")}\n`,
-    );
-    writeCorpusManifest(wrongSource, {
-      h2: 2,
-      h3: 2,
-      acceptanceCriteria: 2,
-      contextCriteria: 3,
-    });
-    await expectFailure(
-      () => EvidenceBenchmarkCorpus.read(wrongSource),
-      "does not own REQ H2",
-    );
-
-    const manifestDrift: string = path.join(temporary, "manifest-drift");
-    fs.cpSync(dual, manifestDrift, { recursive: true });
-    const driftedManifest = JSON.parse(
-      fs.readFileSync(path.join(manifestDrift, "corpus-manifest.json"), "utf8"),
-    ) as { files: Array<{ path: string; sha256: string }> };
-    driftedManifest.files = driftedManifest.files.filter(
-      (entry) => entry.path !== "00-toc.md",
-    );
-    write(
-      path.join(manifestDrift, "corpus-manifest.json"),
-      `${JSON.stringify(driftedManifest, null, 2)}\n`,
+      path.join(anonymous, "02-more.md"),
+      "# More\n\n### Missing identifier\n",
     );
     await expectFailure(
-      () => EvidenceBenchmarkCorpus.read(manifestDrift),
-      "file inventory must exactly match",
-    );
-
-    const drifted: string = path.join(temporary, "drifted-corpus");
-    fs.cpSync(dual, drifted, { recursive: true });
-    fs.appendFileSync(path.join(drifted, "00-toc.md"), "\nDrift.\n", "utf8");
-    await expectFailure(
-      () => EvidenceBenchmarkCorpus.read(drifted),
-      "file hash drifted",
+      () => EvidenceBenchmarkCorpus.read(anonymous),
+      "H3 must own a REQ identifier",
     );
   }
 
@@ -1041,7 +1499,7 @@ export namespace EvidenceBenchmarkSelfTest {
     const manifest = JSON.parse(
       fs.readFileSync(props.cell.manifest, "utf8"),
     ) as IEvidenceBenchmarkMaterialization.IManifest;
-    assert.equal(manifest.schemaVersion, 3);
+    assert.equal(manifest.schemaVersion, 4);
     assert.ok(manifest.elapsedMs >= 0);
     assert.equal("materializedAt" in manifest, false);
     assert.equal(
@@ -1053,27 +1511,7 @@ export namespace EvidenceBenchmarkSelfTest {
       documents: corpus.documents,
       h2: corpus.h2,
       h3: corpus.h3,
-      atomicAcceptanceClauses: corpus.atomicAcceptanceClauses,
-      contextCriteria: corpus.contextCriteria,
-      inventory: corpus.inventory,
     });
-    if (props.project === "erp") {
-      const analysis: string = path.join(
-        props.cell.workspace,
-        "docs",
-        "analysis",
-      );
-      const validation: EvidenceBenchmarkProcess.IResult =
-        EvidenceBenchmarkProcess.runSync(
-          process.execPath,
-          [path.join(analysis, "validate.mjs")],
-          {
-            cwd: analysis,
-            label: `${props.project}/${props.arm} copied corpus validator`,
-          },
-        );
-      assert.match(validation.stdout, /"contextCriteria":986/);
-    }
     const archiveRelative: string = `.benchmark-deps/e-${props.artifact.sha256.slice(0, 12)}.tgz`;
     const packageManifest = JSON.parse(
       fs.readFileSync(path.join(props.cell.workspace, "package.json"), "utf8"),
@@ -1202,7 +1640,7 @@ export namespace EvidenceBenchmarkSelfTest {
       materialization: cell,
       arm: "evidence",
     });
-    await EvidenceBenchmarkProcess.pnpm(["run", "build:sdk"], {
+    await EvidenceBenchmarkProcess.pnpm(["exec", "nestia", "all"], {
       cwd: path.join(cell.workspace, "packages", "backend"),
       env: cell.environment,
       label: "Nestia evidence config-loader smoke",
@@ -1258,7 +1696,6 @@ export namespace EvidenceBenchmarkSelfTest {
       path.join(target, "requirements"),
       { recursive: true },
     );
-    createAcceptanceInventory(path.join(target, "requirements", "todo"));
     const base: string = path.join(target, "template", "base");
     for (const skill of [
       "api",
@@ -1348,180 +1785,6 @@ export namespace EvidenceBenchmarkSelfTest {
           "utf8",
         );
     }
-  }
-
-  function createAcceptanceInventory(root: string): void {
-    const location: string = path.join(root, "acceptance-criteria.jsonl");
-    if (fs.existsSync(location)) return;
-    const clauses: string[] = [];
-    let sequence: number = 0;
-    for (const [relative, content] of EvidenceBenchmarkHash.directory(root)) {
-      if (!relative.endsWith(".md")) continue;
-      const source: string = Buffer.from(content).toString("utf8");
-      for (const match of source.matchAll(
-        /^### (REQ-[A-Za-z0-9._-]+)(?::|\s|$)/gm,
-      )) {
-        ++sequence;
-        clauses.push(
-          JSON.stringify({
-            id: `AC-${sequence}`,
-            requirement: match[1],
-            source: relative,
-            criterion: `Exercise ${match[1]} in the self-test fixture.`,
-          }),
-        );
-      }
-    }
-    write(location, `${clauses.join("\n")}\n`);
-  }
-
-  function createDualCorpus(root: string): void {
-    write(
-      path.join(root, "00-corpus-contract.md"),
-      [
-        "# Corpus Contract",
-        "",
-        "## Corpus Contract",
-        "",
-        "````md",
-        "### REQ-HIDDEN-001 Hidden by a longer fence",
-        "```",
-        "~~~",
-        "````",
-        "",
-      ].join("\n"),
-    );
-    write(
-      path.join(root, "00-toc.md"),
-      "# Corpus Contents\n\nEvery file is frozen.\n",
-    );
-    write(
-      path.join(root, "01-requirements.md"),
-      [
-        "# Requirements",
-        "",
-        "## REQ-GROUP-A: Group A",
-        "",
-        "First group context. Second group context.",
-        "",
-        "### REQ-GROUP-A-001: First leaf",
-        "",
-        "First leaf behavior.",
-        "",
-        "## REQ-GROUP-B: Group B",
-        "",
-        "Third group context.",
-        "",
-        "### REQ-GROUP-B-001: Second leaf",
-        "",
-        "Second leaf behavior.",
-        "",
-      ].join("\n"),
-    );
-    write(
-      path.join(root, "acceptance-criteria.jsonl"),
-      [
-        {
-          id: "REQ-GROUP-A-001.AC-01",
-          requirement: "REQ-GROUP-A-001",
-          source: "01-requirements.md",
-          criterion: "First leaf behavior.",
-        },
-        {
-          id: "REQ-GROUP-B-001.AC-01",
-          requirement: "REQ-GROUP-B-001",
-          source: "01-requirements.md",
-          criterion: "Second leaf behavior.",
-        },
-      ]
-        .map((row) => JSON.stringify(row))
-        .join("\n") + "\n",
-    );
-    write(
-      path.join(root, "context-criteria.jsonl"),
-      [
-        {
-          id: "REQ-GROUP-A.CTX-01",
-          requirement: "REQ-GROUP-A",
-          source: "01-requirements.md",
-          criterion: "First group context.",
-        },
-        {
-          id: "REQ-GROUP-A.CTX-02",
-          requirement: "REQ-GROUP-A",
-          source: "01-requirements.md",
-          criterion: "Second group context.",
-        },
-        {
-          id: "REQ-GROUP-B.CTX-01",
-          requirement: "REQ-GROUP-B",
-          source: "01-requirements.md",
-          criterion: "Third group context.",
-        },
-      ]
-        .map((row) => JSON.stringify(row))
-        .join("\n") + "\n",
-    );
-    write(
-      path.join(root, "validate.mjs"),
-      'process.stdout.write("dual corpus fixture valid\\n");\n',
-    );
-    writeCorpusManifest(root, {
-      h2: 2,
-      h3: 2,
-      acceptanceCriteria: 2,
-      contextCriteria: 3,
-    });
-  }
-
-  function writeCorpusManifest(
-    root: string,
-    counts: {
-      h2: number;
-      h3: number;
-      acceptanceCriteria: number;
-      contextCriteria: number;
-    },
-  ): void {
-    const files: Map<string, Uint8Array> =
-      EvidenceBenchmarkHash.directory(root);
-    files.delete("corpus-manifest.json");
-    const paths: string[] = [...files.keys()].sort();
-    const chunks: Uint8Array[] = [];
-    const entries = paths.map((relative) => {
-      const content: Uint8Array = files.get(relative)!;
-      chunks.push(
-        Buffer.from(relative, "utf8"),
-        Buffer.from([0]),
-        content,
-        Buffer.from([0]),
-      );
-      return {
-        path: relative,
-        sha256: EvidenceBenchmarkHash.bytes(content),
-      };
-    });
-    write(
-      path.join(root, "corpus-manifest.json"),
-      `${JSON.stringify(
-        {
-          schemaVersion: 1,
-          ...counts,
-          files: entries,
-          aggregateSha256: EvidenceBenchmarkHash.bytes(Buffer.concat(chunks)),
-        },
-        null,
-        2,
-      )}\n`,
-    );
-  }
-
-  function readJsonLines(location: string): Record<string, unknown>[] {
-    return fs
-      .readFileSync(location, "utf8")
-      .split(/\r?\n/)
-      .filter((line) => line.length !== 0)
-      .map((line) => JSON.parse(line) as Record<string, unknown>);
   }
 
   function writeIfMissing(location: string, content: string): void {

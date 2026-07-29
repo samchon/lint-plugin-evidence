@@ -10,6 +10,10 @@ The exact failing command, its exact output, the stack trace, the request and re
 
 Do not debug from memory or from a paraphrase of the error. The line that broke is frequently not the line that is wrong, and the only way to tell is to have the real message in front of you.
 
+Keep the retained log complete and the conversational context bounded. Redirect a large diagnostic to a file, inspect the failing section and a focused summary, and preserve the file path for later review. Do not use unbounded `DEBUG=*`, dump an entire workspace, or feed stale compiler logs back into the context when a named command and focused excerpt identify the owner.
+
+Run one mutating command at a time. A generator, build, lint, or test that shares generated files or compiler caches with another process can manufacture a second failure unrelated to the first.
+
 ## Classify First
 
 | Symptom | Owner |

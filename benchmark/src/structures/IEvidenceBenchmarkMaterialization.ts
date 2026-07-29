@@ -80,7 +80,7 @@ export namespace IEvidenceBenchmarkMaterialization {
   /** Permanent pre-run record written beside the workspace and input copy. */
   export interface IManifest {
     /** Manifest schema version; readers reject unsupported future shapes. */
-    schemaVersion: 3;
+    schemaVersion: 4;
 
     /** Versioned algorithm shared by every aggregate tree identity. */
     treeAlgorithm: "sha256-posix-path-nul-bytes-v1";
@@ -118,7 +118,7 @@ export namespace IEvidenceBenchmarkMaterialization {
     /** Preserved requirement path and byte ledger. */
     requirementFiles: readonly ITreeEntry[];
 
-    /** Validated human and machine-readable requirement inventory summary. */
+    /** Validated Markdown requirement structure. */
     corpus: {
       /** Number of Markdown documents copied from the subject directory. */
       documents: number;
@@ -128,15 +128,6 @@ export namespace IEvidenceBenchmarkMaterialization {
 
       /** Number of REQ-owned level-three sections. */
       h3: number;
-
-      /** Number of validated atomic acceptance clauses. */
-      atomicAcceptanceClauses: number;
-
-      /** Separately scored H2 context criteria, never added to atomic clauses. */
-      contextCriteria: number;
-
-      /** Machine-readable corpus contract selected by filename. */
-      inventory: "acceptance-criteria.jsonl" | "metadata.json";
     };
 
     /** Product package identity installed only when arm is evidence. */

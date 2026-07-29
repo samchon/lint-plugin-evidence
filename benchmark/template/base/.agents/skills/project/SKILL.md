@@ -21,9 +21,9 @@ Start by reading `docs/analysis/` in full, then read the backend skill's wiring 
 
 Complete the project through three gates.
 
-1. Build and exhaustively review the API and backend, then pass the Backend Layer Gate. Do not implement the frontend during this phase.
-2. Build and exhaustively review the frontend against the gated SDK and live backend, then pass the Frontend Layer Gate. Return to the backend only for a named requirement, diagnostic, test, contract, or integration failure, and re-pass the backend gate after repair.
-3. Run an unpartitioned overall review and the complete workspace-root gates.
+1. Build the API and backend, apply the active arm's Backend Phase review, and pass the Backend Layer Gate. Do not implement the frontend during this phase.
+2. Build the frontend against the gated SDK and live backend, apply the active arm's Frontend Phase review, and pass the Frontend Layer Gate. Return to the backend only for a named requirement, diagnostic, test, contract, or integration failure, and re-pass the backend gate after repair.
+3. Apply the active arm's Overall Phase review and run the complete workspace-root gates.
 
 Package-scoped commands own the first two gates. The workspace-root build belongs to the overall gate because it compiles every package.
 
@@ -96,13 +96,14 @@ Never substitute stock `tsc`, `ts-node`, or a separate ESLint invocation. A gree
 
 Each step consumes the previous step's output, so the order is not a preference.
 
-1. `build:prisma` generates the Prisma client from `prisma/schema`. Nothing that imports the client compiles before this runs.
-2. The backend's `build:sdk` uses its Nestia configuration and controller graph to regenerate the API package's `src/functional` and `swagger.json`. Run it after any controller, DTO, or public contract JSDoc change.
-3. The API package compiles the authored contract and regenerated accessors.
-4. The backend's `build:main` compiles the server.
-5. The frontend build type-checks the application against the regenerated SDK.
+1. Backend `build:prisma` generates the Prisma client from `prisma/schema`. Nothing that imports the client compiles before this runs.
+2. API `pnpm build` compiles the authored DTO contract while it is still changing.
+3. Backend `build:main` compiles the complete controller contract and server against those DTOs.
+4. After every operation and DTO is settled, backend `build:sdk` regenerates `src/functional` and `swagger.json`, then compiles the complete API package.
+5. Backend `build:test` compiles tests against that fixed SDK.
+6. The frontend build type-checks the application against the regenerated SDK.
 
-`pnpm build` at the workspace root runs the chain in that order.
+The workspace-root `pnpm build` is an Overall Phase command after every package exists. Do not use it during the Backend Phase, because it also compiles the unfinished frontend. Use the package commands above separately so a failure remains assigned to its authored layer.
 
 ## Generated Artifacts
 
@@ -129,7 +130,7 @@ pnpm test
 pnpm format
 ```
 
-Run them from the workspace root. `pnpm lint` is the same compiler without emitting, so it reports exactly what `pnpm build` would and finishes sooner.
+Run these workspace commands only for whole-project verification after every layer exists. During the Backend Phase, use the package-scoped sequence in the Backend skill instead. `pnpm lint` uses the same compiler without emitting, so it reports what the corresponding build would without replacing that layer's required build.
 
 **`pnpm format` applies the formatting; it is not a check you can fail.** `ttsc format` rewrites the files, and formatting is deliberately not a lint severity, so a difference in spacing never competes with a real diagnostic in the same output. Run it before you finish a piece of work rather than hand-aligning anything, and never argue with what it produces.
 

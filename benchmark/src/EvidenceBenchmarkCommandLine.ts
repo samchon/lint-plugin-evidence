@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -7,6 +7,8 @@ import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkPublication } from "./EvidenceBenchmarkPublication.ts";
+import { EvidenceBenchmarkRepair } from "./EvidenceBenchmarkRepair.ts";
 import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
 import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
@@ -14,7 +16,9 @@ import type { IEvidenceBenchmarkPackageArtifact } from "./structures/IEvidenceBe
 
 /** Prepares and launches retained Codex benchmark waves from one clean revision. */
 export namespace EvidenceBenchmarkCommandLine {
-  const MODEL = "gpt-5.6-luna";
+  const ENGINE = "codex" as const;
+  const MODEL = "gpt-5.6-terra";
+  const EFFORT = "high" as const;
   const WORKFLOW = "backend-first-gated-v1" as const;
   const ARMS = ["evidence", "plain"] as const;
 
@@ -34,6 +38,7 @@ export namespace EvidenceBenchmarkCommandLine {
     status: number | null;
     stdout: string;
     stderr: string;
+    invocation: string[];
   }
 
   interface IInstruction {
@@ -43,16 +48,20 @@ export namespace EvidenceBenchmarkCommandLine {
   }
 
   interface IState {
-    schemaVersion: 3;
+    schemaVersion: 5;
     workflow: typeof WORKFLOW;
     instructionsTreeSha256: string;
     project: IEvidenceBenchmarkMaterialization.Project;
     arm: IEvidenceBenchmarkMaterialization.Arm;
+    engine: typeof ENGINE;
     model: typeof MODEL;
+    effort: typeof EFFORT;
+    cliVersion: string;
     sourceCommit: string;
     runtime: EvidenceBenchmarkRuntime.IAssignment;
     elapsedMs: number;
     status: "running" | "interrupted" | "completed";
+    completedWorkspaceTreeSha256?: string;
     threadId?: string;
     turns: ITurn[];
   }
@@ -71,7 +80,36 @@ export namespace EvidenceBenchmarkCommandLine {
     arguments_: string[],
   ): Promise<void> {
     if (arguments_[0] === "resume") {
-      await resumeCell(repository, arguments_.slice(1));
+      await resumeCell(
+        repository,
+        arguments_.slice(1).filter((value) => value !== "--"),
+      );
+      return;
+    }
+    if (arguments_[0] === "repair") {
+      console.log(
+        JSON.stringify(
+          await EvidenceBenchmarkRepair.apply(
+            repository,
+            EvidenceBenchmarkRepair.parse(arguments_.slice(1)),
+          ),
+          null,
+          2,
+        ),
+      );
+      return;
+    }
+    if (arguments_[0] === "publish") {
+      console.log(
+        JSON.stringify(
+          await EvidenceBenchmarkPublication.publish(
+            repository,
+            EvidenceBenchmarkPublication.parse(arguments_.slice(1)),
+          ),
+          null,
+          2,
+        ),
+      );
       return;
     }
     const options: IOptions = parseOptions(arguments_);
@@ -91,7 +129,9 @@ export namespace EvidenceBenchmarkCommandLine {
       console.log(
         JSON.stringify(
           {
+            engine: ENGINE,
             model: MODEL,
+            effort: EFFORT,
             workflow: WORKFLOW,
             portBase: options.portBase,
             cells: cells.map(({ instructions, ...cell }) => ({
@@ -109,7 +149,7 @@ export namespace EvidenceBenchmarkCommandLine {
     }
     if (arguments_[0] !== "start")
       throw new Error(
-        "Usage: benchmark <plan|start> [--port-base <number>] <todo|reddit|shopping|erp>... | benchmark resume <project> <arm> <run-id>",
+        "Usage: benchmark <plan|start> [--port-base <number>] <project>... | benchmark resume <project> <arm> <run-id> | benchmark repair --patch <file> <run-id> <project>... | benchmark publish --repository <owner/name> --checkout <local-path> --public <project> <arm> <run-id>",
       );
     const sourceCommit: string = (
       await EvidenceBenchmarkProcess.run("git", ["rev-parse", "HEAD"], {
@@ -182,14 +222,25 @@ export namespace EvidenceBenchmarkCommandLine {
     if (!fs.existsSync(statePath))
       throw new Error(`Resumable state was not found: ${statePath}.`);
     const state: IState = JSON.parse(fs.readFileSync(statePath, "utf8"));
-    if (state.schemaVersion !== 3 || state.workflow !== WORKFLOW)
+    if (
+      state.schemaVersion !== 5 ||
+      state.workflow !== WORKFLOW ||
+      state.engine !== ENGINE ||
+      state.model !== MODEL ||
+      state.effort !== EFFORT ||
+      state.cliVersion !== codexVersion()
+    )
       throw new Error(
         `Run ${runId} does not use the resumable ${WORKFLOW} state schema.`,
       );
     if (state.project !== project || state.arm !== arm)
       throw new Error(`Run ${runId} does not belong to ${project}/${arm}.`);
-    if (state.status === "completed")
-      throw new Error(`Run ${runId} is already complete.`);
+    if (state.status !== "interrupted")
+      throw new Error(
+        state.status === "completed"
+          ? `Run ${runId} is already complete.`
+          : `Run ${runId} is still running; refusing a parallel resume controller.`,
+      );
 
     const workspace: string = path.join(root, "workspace");
     const logs: string = path.join(root, "logs");
@@ -243,10 +294,12 @@ export namespace EvidenceBenchmarkCommandLine {
         }
         writeState(root, state);
       }
-      state.status = "completed";
       state.elapsedMs = baseElapsedMs + elapsed(resumed);
-      writeState(root, state);
+      state.completedWorkspaceTreeSha256 =
+        EvidenceBenchmarkPublication.workspaceSha256(workspace);
       promoteWorkspace(repository, project, arm, workspace);
+      state.status = "completed";
+      writeState(root, state);
     } catch (error) {
       state.status = "interrupted";
       state.elapsedMs = baseElapsedMs + elapsed(resumed);
@@ -326,12 +379,15 @@ export namespace EvidenceBenchmarkCommandLine {
       const logs: string = path.join(root, "logs");
       fs.mkdirSync(logs, { recursive: false });
       state = {
-        schemaVersion: 3,
+        schemaVersion: 5,
         workflow: WORKFLOW,
         instructionsTreeSha256: freezeInstructions(root, props.instructions),
         project: props.project,
         arm: props.arm,
+        engine: ENGINE,
         model: MODEL,
+        effort: EFFORT,
+        cliVersion: codexVersion(),
         sourceCommit: props.sourceCommit,
         runtime: props.runtime,
         elapsedMs: elapsed(started),
@@ -358,15 +414,17 @@ export namespace EvidenceBenchmarkCommandLine {
             `${entry.name} turn exited with status ${String(turn.status)}.`,
           );
       }
-      state.status = "completed";
       state.elapsedMs = elapsed(started);
-      writeState(root, state);
+      state.completedWorkspaceTreeSha256 =
+        EvidenceBenchmarkPublication.workspaceSha256(materialization.workspace);
       promoteWorkspace(
         props.repository,
         props.project,
         props.arm,
         materialization.workspace,
       );
+      state.status = "completed";
+      writeState(root, state);
     } catch (error) {
       const elapsedMs: number = elapsed(started);
       if (state === undefined) {
@@ -421,6 +479,8 @@ export namespace EvidenceBenchmarkCommandLine {
       "goals",
       "--model",
       MODEL,
+      "--config",
+      `model_reasoning_effort=${EFFORT}`,
       "--dangerously-bypass-approvals-and-sandbox",
       "--skip-git-repo-check",
       "--config",
@@ -478,6 +538,7 @@ export namespace EvidenceBenchmarkCommandLine {
       status,
       stdout: path.posix.join("logs", path.basename(stdoutPath)),
       stderr: path.posix.join("logs", path.basename(stderrPath)),
+      invocation: [executable.command, ...executable.prefix, ...args],
       threadId,
     };
   }
@@ -794,14 +855,27 @@ export namespace EvidenceBenchmarkCommandLine {
       parent,
       `.workspace.${process.pid}.tmp`,
     );
+    const backup: string = path.join(
+      parent,
+      `.workspace.${process.pid}.backup`,
+    );
     fs.rmSync(temporary, { recursive: true, force: true });
+    fs.rmSync(backup, { recursive: true, force: true });
     fs.cpSync(workspace, temporary, {
       recursive: true,
       filter: (source) =>
         ![".git", "node_modules"].includes(path.basename(source)),
     });
-    fs.rmSync(target, { recursive: true, force: true });
-    fs.renameSync(temporary, target);
+    if (fs.existsSync(target)) fs.renameSync(target, backup);
+    try {
+      fs.renameSync(temporary, target);
+      fs.rmSync(backup, { recursive: true, force: true });
+    } catch (error) {
+      fs.rmSync(target, { recursive: true, force: true });
+      if (fs.existsSync(backup)) fs.renameSync(backup, target);
+      fs.rmSync(temporary, { recursive: true, force: true });
+      throw error;
+    }
   }
 
   function elapsed(started: bigint): number {
@@ -825,6 +899,27 @@ export namespace EvidenceBenchmarkCommandLine {
     if (!fs.existsSync(entrypoint))
       throw new Error(`Codex CLI entrypoint was not found: ${entrypoint}.`);
     return { command: process.execPath, prefix: [entrypoint] };
+  }
+
+  function codexVersion(): string {
+    const executable: { command: string; prefix: string[] } = codexExecutable();
+    const result = spawnSync(
+      executable.command,
+      [...executable.prefix, "--version"],
+      {
+        encoding: "utf8",
+        shell: false,
+        windowsHide: true,
+      },
+    );
+    if (result.status !== 0)
+      throw new Error(
+        `Unable to read Codex CLI version: ${(result.stderr ?? "").trim()}`,
+      );
+    const version: string = (result.stdout ?? "").trim();
+    if (version.length === 0)
+      throw new Error("Codex CLI returned an empty version.");
+    return version;
   }
 
   async function initializeWorkspace(

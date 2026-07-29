@@ -15,3 +15,5 @@ pnpm format
 ```
 
 Run `pnpm prepare:database` after changing the Prisma schema. Install Chromium once with `pnpm --filter {{frontendPackageName}} playwright:install` before running the browser suite.
+
+The included GitHub Actions workflow performs a frozen install, build, lint, SQLite preparation, backend tests, and Chromium frontend tests on every push and pull request. It uses only local CI environment values and requires no repository secrets.
