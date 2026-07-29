@@ -46,6 +46,9 @@ export namespace EvidenceBenchmarkSetup {
       environment,
       path.join(request.materialization.root, "cache", "toolchain-bin"),
     );
+    // The model retains authentication, while its lifecycle children inherit
+    // the same exact-version package-manager path used during clean setup.
+    request.materialization.environment.PATH = environment.PATH;
     fs.mkdirSync(environment.HOME!, { recursive: true });
     fs.mkdirSync(environment.COREPACK_HOME!, { recursive: true });
     fs.mkdirSync(environment.npm_config_store_dir!, { recursive: true });
@@ -1420,10 +1423,20 @@ export namespace EvidenceBenchmarkSetup {
       }
     }
     const real: string = fs.realpathSync(manifest);
-    if (installedRelation(workspace, real) === undefined)
+    if (installedRelation(workspace, real) === undefined) {
+      const installed: string = installedRoot(workspace);
+      const roots: readonly string[] = [
+        ...new Set([installed, fs.realpathSync(installed)]),
+      ];
       throw new Error(
-        `Benchmark gate package escaped the cell installation: ${name} at ${real}.`,
+        `Benchmark gate package escaped the cell installation: ${name} at ${real}; roots=${JSON.stringify(
+          roots.map((root) => ({
+            root,
+            relative: path.relative(root, real),
+          })),
+        )}.`,
       );
+    }
     return real;
   }
 
