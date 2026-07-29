@@ -469,7 +469,7 @@ export namespace EvidenceBenchmarkSetup {
         EvidenceBenchmarkHash.object(reproduced)
       )
         throw new Error(
-          "Benchmark installed dependency payloads do not match a clean frozen registry install.",
+          `Benchmark installed dependency payloads do not match a clean frozen registry install: ${dependencyInstallationDifference(actual, reproduced)}.`,
         );
       if (verifyGates)
         for (const command of [
@@ -987,10 +987,12 @@ export namespace EvidenceBenchmarkSetup {
       left.localeCompare(right, "en"),
     )) {
       const relative: string = portableRelation(virtualStore, packageRoot);
-      output[`payload/${relative}`] = normalizedPackageTree(
+      for (const [file, content] of normalizedPackageFiles(
         packageRoot,
         workspace,
-      );
+      ))
+        output[`payload/${relative}/${file}`] =
+          EvidenceBenchmarkHash.bytes(content);
     }
     for (const entry of hoistedPackageEntries(virtualStore))
       output[`hoisted/${entry.name}`] = normalizedDependencyTarget(
@@ -1059,26 +1061,40 @@ export namespace EvidenceBenchmarkSetup {
     );
   }
 
-  function normalizedPackageTree(
+  function normalizedPackageFiles(
     packageRoot: string,
     workspace: string,
-  ): string {
-    return EvidenceBenchmarkHash.tree(
-      new Map(
-        [...EvidenceBenchmarkHash.directory(packageRoot)].map(
-          ([relative, content]) => {
-            if (content.includes(0)) return [relative, content] as const;
-            const text: string = Buffer.from(content).toString("utf8");
-            if (!Buffer.from(text, "utf8").equals(content))
-              return [relative, content] as const;
-            return [
-              relative,
-              Buffer.from(normalizeWorkspacePath(text, workspace), "utf8"),
-            ] as const;
-          },
-        ),
+  ): ReadonlyMap<string, Uint8Array> {
+    return new Map(
+      [...EvidenceBenchmarkHash.directory(packageRoot)].map(
+        ([relative, content]) => {
+          if (content.includes(0)) return [relative, content] as const;
+          const text: string = Buffer.from(content).toString("utf8");
+          if (!Buffer.from(text, "utf8").equals(content))
+            return [relative, content] as const;
+          return [
+            relative,
+            Buffer.from(normalizeWorkspacePath(text, workspace), "utf8"),
+          ] as const;
+        },
       ),
     );
+  }
+
+  function dependencyInstallationDifference(
+    actual: Readonly<Record<string, string>>,
+    reproduced: Readonly<Record<string, string>>,
+  ): string {
+    const keys: readonly string[] = [
+      ...new Set([...Object.keys(actual), ...Object.keys(reproduced)]),
+    ].sort((left, right) => left.localeCompare(right, "en"));
+    for (const key of keys) {
+      if (!(key in actual)) return `unexpected ${key}`;
+      if (!(key in reproduced)) return `missing ${key}`;
+      if (actual[key] !== reproduced[key])
+        return `changed ${key} (${actual[key]} != ${reproduced[key]})`;
+    }
+    return "aggregate identity changed without a ledger entry difference";
   }
 
   function launcherIdentity(location: string, workspace: string): string {
@@ -1093,12 +1109,19 @@ export namespace EvidenceBenchmarkSetup {
   }
 
   function normalizeWorkspacePath(input: string, workspace: string): string {
+    const workspaces: readonly string[] = [
+      ...new Set([path.resolve(workspace), fs.realpathSync(workspace)]),
+    ];
     const variants: [string, string][] = [
-      ...pathSpellings(path.resolve(workspace)).map(
-        (value) => [value, "<workspace>"] as [string, string],
+      ...workspaces.flatMap((root) =>
+        pathSpellings(root).map(
+          (value) => [value, "<workspace>"] as [string, string],
+        ),
       ),
-      ...pathSpellings(path.dirname(path.resolve(workspace))).map(
-        (value) => [value, "<cell>"] as [string, string],
+      ...workspaces.flatMap((root) =>
+        pathSpellings(path.dirname(root)).map(
+          (value) => [value, "<cell>"] as [string, string],
+        ),
       ),
     ];
     let output: string = input;
@@ -1397,14 +1420,7 @@ export namespace EvidenceBenchmarkSetup {
       }
     }
     const real: string = fs.realpathSync(manifest);
-    const installed: string = installedRoot(workspace);
-    const relative: string = path.relative(installed, real);
-    if (
-      relative === "" ||
-      relative === ".." ||
-      relative.startsWith(`..${path.sep}`) ||
-      path.isAbsolute(relative)
-    )
+    if (installedRelation(workspace, real) === undefined)
       throw new Error(
         `Benchmark gate package escaped the cell installation: ${name} at ${real}.`,
       );
@@ -1550,9 +1566,8 @@ export namespace EvidenceBenchmarkSetup {
   function packageIdentity(workspace: string, manifest: string): string {
     const real: string = fs.realpathSync(manifest);
     const parsed: Record<string, unknown> = readPackage(real);
-    const installed: string = installedRoot(workspace);
-    const relative: string | undefined = containedRelation(
-      installed,
+    const relative: string | undefined = installedRelation(
+      workspace,
       path.dirname(real),
     );
     if (relative === undefined || relative === ".")
@@ -1615,6 +1630,18 @@ export namespace EvidenceBenchmarkSetup {
         `Benchmark dependency root is not a real directory: ${installed}.`,
       );
     return installed;
+  }
+
+  function installedRelation(
+    workspace: string,
+    target: string,
+  ): string | undefined {
+    const installed: string = installedRoot(workspace);
+    for (const root of new Set([installed, fs.realpathSync(installed)])) {
+      const relative: string | undefined = containedRelation(root, target);
+      if (relative !== undefined) return relative;
+    }
+    return undefined;
   }
 
   function readPackage(manifest: string): Record<string, unknown> {
