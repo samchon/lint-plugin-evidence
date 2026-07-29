@@ -3,7 +3,9 @@ import type { HttpException } from "@nestjs/common";
 
 import { ErrorUtil } from "./ErrorUtil";
 
+/** Translates known Prisma failures into public HTTP exceptions. */
 export namespace PrismaErrorUtil {
+  /** Maps one known Prisma request error to its HTTP representation. */
   export function from(error: PrismaClientKnownRequestError): HttpException {
     switch (error.code) {
       case "P2025":

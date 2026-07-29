@@ -5,10 +5,12 @@ import { NestFactory } from "@nestjs/core";
 import { MyConfiguration } from "./MyConfiguration";
 import { MyModule } from "./MyModule";
 
+/** Owns the lifecycle of the generated Nest application. */
 export class MyBackend {
   private application_?: INestApplication;
   private closing_?: Promise<void>;
 
+  /** Creates and starts the HTTP application once. */
   public async open(): Promise<void> {
     this.application_ = await NestFactory.create(await MyModule.mount(), {
       logger: false,
@@ -19,6 +21,7 @@ export class MyBackend {
     if (process.send) process.send("ready");
   }
 
+  /** Closes the active application and coalesces concurrent close requests. */
   public async close(): Promise<void> {
     if (this.closing_ !== undefined) return this.closing_;
     if (this.application_ === undefined) return;

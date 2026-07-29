@@ -20,12 +20,10 @@ public async index(): Promise<IPage<IShoppingSale.ISummary>> {
 
 ## Excluding A Requirement Or Model From Operations
 
-Put `@evidenceExclude` on a selected exported controller operation when the `api-operations` claim intentionally does not expose a Markdown requirement or Prisma model. The carrier operation is only the host of a claim-local decision; do not imply that it owns the excluded target.
+Collect `api-operations` exclusions on the exported const in `packages/backend/src/controllers/CONTROLLER_EVIDENCE_EXCLUDE.ts`. The const is a claim-local carrier rather than an operation owner; keep truthful `@evidence` on selected controller methods.
 
 ```ts
 /**
- * Reports service health.
- *
  * @evidenceExclude docs/analysis/05-user-experience.md#empty-state-copy
  *                  CatalogPage owns this presentation-only requirement; reject
  *                  this exclusion if it gains an API response or failure rule.
@@ -33,11 +31,10 @@ Put `@evidenceExclude` on a selected exported controller operation when the `api
  *                  AuthenticationProvider owns this internal security record;
  *                  reject this exclusion if any endpoint exposes it.
  */
-@Get("health")
-public get(): void {}
+export const CONTROLLER_EVIDENCE_EXCLUDE = true;
 ```
 
-Choose a stable operation in the target's domain and name the actual owner plus a condition that would veto the exclusion. A Markdown H2 exclusion also covers every selected H3 descendant, and a Prisma model target covers that selected model scope, so use the narrowest truthful target. Keep evidence and exclusion scopes disjoint within this claim-reference obligation. The decision satisfies only `api-operations`; schema, DTO, test, and frontend claims remain independent.
+Name the actual owner plus a condition that would veto the exclusion. A Markdown H2 exclusion also covers every selected H3 descendant, and a Prisma model target covers that selected model scope, so use the narrowest truthful target. Keep evidence and exclusion scopes disjoint within this claim-reference obligation. The decision satisfies only `api-operations`; schema, DTO, test, and frontend claims remain independent.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}

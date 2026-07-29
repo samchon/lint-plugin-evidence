@@ -31,7 +31,7 @@ TypeScript exclusions may be collected on the public const in the matching claim
 - `packages/api/src/structures/DTO_EVIDENCE_EXCLUDE.ts` for `dto-types` and `dto-properties`; and
 - `packages/backend/test/features/TEST_EVIDENCE_EXCLUDE.ts` for `backend-tests`.
 
-The const's property symbol need not match the claim's ownership selector. The file still must match that claim, the export must remain public, and every target remains claim-local and reference-local.
+The const's property symbol need not match the claim's ownership selector. The file still must match that claim, the export must remain public, and every target remains claim-local and reference-local. The same carrier tag may participate in multiple matching claim-reference pairs: in particular, a Prisma model on `DTO_EVIDENCE_EXCLUDE` is both a `dto-types` model target and an ancestor of that model's selected `dto-properties` columns. Use an exact column target when only the property obligation is excluded.
 
 Schema exclusions may be collected as unattached top-level `/// @evidenceExclude` lines in `packages/backend/prisma/schema/exclude.schema`. That lint-only file is an explicit input of `schema-models` and is not a Prisma generate, migration, or ERD input. Only exclusions belong there; `@evidence` remains directly above its model or field.
 

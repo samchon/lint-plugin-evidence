@@ -7,6 +7,7 @@ import path from "node:path";
 import * as ts from "typescript-api";
 
 import { EvidenceBenchmarkBaseline } from "./EvidenceBenchmarkBaseline.ts";
+import { EvidenceBenchmarkConsumerProof } from "./EvidenceBenchmarkConsumerProof.ts";
 import { EvidenceBenchmarkCorpus } from "./EvidenceBenchmarkCorpus.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
@@ -2305,6 +2306,7 @@ export namespace EvidenceBenchmarkSelfTest {
       materialization: cell,
       arm: "evidence",
     });
+    await EvidenceBenchmarkConsumerProof.verifyPrismaIsolation(cell);
     await EvidenceBenchmarkProcess.pnpm(["exec", "nestia", "all"], {
       cwd: path.join(cell.workspace, "packages", "backend"),
       env: cell.environment,
@@ -2349,6 +2351,10 @@ export namespace EvidenceBenchmarkSelfTest {
       ),
       true,
       "Nestia evidence smoke must generate the OpenAPI contract",
+    );
+    await EvidenceBenchmarkConsumerProof.verifyActiveGraph(
+      cell,
+      benchmarkVariables("nestia-evidence-smoke"),
     );
   }
 

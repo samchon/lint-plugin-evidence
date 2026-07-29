@@ -7,21 +7,33 @@ import typia, { tags } from "typia";
 import { MyConfiguration } from "./MyConfiguration";
 import { PrismaClient } from "./prisma/client";
 
+/** Provides validated process state shared by backend providers. */
 export class MyGlobal {
+  /** Returns the validated runtime environment. */
   public static get env(): MyGlobal.IEnvironments {
     return environments.get();
   }
 
+  /** Returns the singleton Prisma client. */
   public static get prisma(): PrismaClient {
     return prisma.get();
   }
 }
 
+/** Public contracts for global backend state. */
 export namespace MyGlobal {
+  /** Environment values required by the backend process. */
   export interface IEnvironments {
+    /** HTTP port accepted by the Nest listener. */
     API_PORT: `${number}`;
+
+    /** Secret used to sign authentication tokens. */
     JWT_SECRET_KEY: string & tags.MinLength<32>;
+
+    /** Lifetime of an access token in seconds. */
     JWT_ACCESS_TTL_SECONDS: string & tags.Pattern<"^[1-9][0-9]*$">;
+
+    /** Lifetime of a refresh token in seconds. */
     JWT_REFRESH_TTL_SECONDS: string & tags.Pattern<"^[1-9][0-9]*$">;
   }
 }

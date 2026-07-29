@@ -21,10 +21,9 @@ Operation targets use `<METHOD>:<path>` from the generated Swagger document. Typ
 
 ## Excluding A Requirement, Operation, Or DTO From Backend Tests
 
-Put `@evidenceExclude` on a selected exported feature-test function when `backend-tests` intentionally does not verify a configured requirement, generated SDK operation, or DTO root type. Use the path target for Markdown and the braced inline-link target for TypeScript. The linked symbol must be imported into the test file; the braces are required.
+Collect `backend-tests` exclusions on the exported const in `packages/backend/test/features/TEST_EVIDENCE_EXCLUDE.ts`. The const is a claim-local carrier rather than a test owner; keep truthful `@evidence` on selected feature-test functions. Use the path target for Markdown and the braced inline-link target for TypeScript. The linked symbol must be imported into the carrier file; the braces are required.
 
 ```ts
-import api from "{{apiPackageName}}";
 import { type IShoppingSale } from "{{apiPackageName}}/structures";
 
 /**
@@ -38,7 +37,7 @@ import { type IShoppingSale } from "{{apiPackageName}}/structures";
  *                  No backend feature exchanges this presentation projection;
  *                  reject this exclusion when an operation returns the type.
  */
-export async function test_health_boundary(): Promise<void> {}
+export const TEST_EVIDENCE_EXCLUDE = true;
 ```
 
 An exclusion is claim-local: it does not discharge frontend journeys or any other backend claim. An H2, namespace, or type target covers its selected descendants, so use the narrowest target and keep evidence and exclusion scopes disjoint within each claim-reference obligation. The reason must name the actual owner and a condition that would veto the omission; lack of a test is not itself a reason.

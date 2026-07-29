@@ -1,6 +1,8 @@
 import type { IPage } from "{{apiPackageName}}";
 
+/** Builds paginated Prisma queries with stable response metadata. */
 export namespace PaginationUtil {
+  /** Inputs needed to execute and transform one paginated query. */
   export interface IProps<
     Where extends object,
     OrderBy extends object,
@@ -8,6 +10,7 @@ export namespace PaginationUtil {
     Raw extends object,
     Output extends object,
   > {
+    /** Prisma-compatible read and count operations. */
     schema: {
       findMany(
         input: Payload & {
@@ -19,10 +22,15 @@ export namespace PaginationUtil {
       ): Promise<Raw[]>;
       count(input: { where: Where }): Promise<number>;
     };
+
+    /** Constant query payload merged into every read. */
     payload: Payload;
+
+    /** Maps one raw database record to its public DTO. */
     transform(record: Raw): Output | Promise<Output>;
   }
 
+  /** Creates a paginated query executor from one schema adapter. */
   export const paginate =
     <
       Where extends object,

@@ -28,7 +28,7 @@ Keep `structures` flat, with one file per root DTO named for the interface it de
 
 Put `@evidence` on the DTO type or property that represents the cited requirement, model, or column. The `dto-types` and `dto-properties` claims tally independently, so cite the declaration at the granularity that actually owns the contract.
 
-Collect reviewed exclusions for either claim on the exported const in `packages/api/src/structures/DTO_EVIDENCE_EXCLUDE.ts`. The carrier is eligible for both claims without changing their type and property selectors. A target still participates only in the matching claim-reference obligation; never use the shared file to imply that one exclusion covers both claims.
+Collect reviewed exclusions for either claim on the exported const in `packages/api/src/structures/DTO_EVIDENCE_EXCLUDE.ts`. The carrier is eligible for both claims without changing their type and property selectors. Participation still follows each claim-reference pair: Markdown belongs only to `dto-types`, a Prisma column only to `dto-properties`, and a Prisma model can cover both the model obligation and its descendant-column obligation.
 
 ## Everything Is Exported From The Index
 

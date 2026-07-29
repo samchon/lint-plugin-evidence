@@ -2,6 +2,7 @@ import { apiConnection } from "@/lib/client";
 
 import { AppProviders } from "./components/providers/app-providers";
 
+/** Renders the benchmark workspace entry screen. */
 export function App() {
   return (
     <AppProviders>
