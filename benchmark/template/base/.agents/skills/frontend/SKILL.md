@@ -7,6 +7,8 @@ description: Indexes the frontend conventions and states the rules that cross al
 
 The frontend is where a requirement becomes something a user can actually do. An operation nobody can reach from a screen is a requirement that was built and never delivered.
 
+Begin this phase only after the Backend Layer Gate passes and the generated SDK reflects that gated contract.
+
 Read this file first, then the topic document for what you are about to touch.
 
 ## Topics
@@ -33,12 +35,12 @@ Each step consumes the previous one, which is why the order is not a preference.
 2. Pre-design the screens as stubs in `src/components/<domain>/`: each page component and its sub-components with their props enumerated, the contract JSDoc, an `@todo` tag naming what the screen still owes, and a placeholder body. The whole surface is declared before any screen works.
 3. Build the primitives under `src/components/ui/`, the layout chrome in `src/components/app-frame.tsx`, and the composed providers in `src/components/providers/app-providers.tsx`.
 4. Build `src/lib/<domain>/`: the connection, the view-model types, the fixtures, and the hooks with their keys.
-5. Lay the route table in `src/App.tsx` with its guarded layouts, over the stubs, so the whole surface navigates from the first day.
+5. Lay the route table in `src/App.tsx` with its guarded layouts, over the stubs, so the whole surface navigates from the start of the frontend phase.
 6. Crack the screens one by one against simulation, every state from the start, adding each screen's gallery rows as it lands and removing its `@todo` as it realizes. [screens.md](screens.md) owns the cracking discipline.
 7. Write the journey specs under `tests/journeys/` mirroring the requirement journeys, still against simulation.
 8. Close against the live backend: sessions, persistence, authorization, and the verification record in `wiki/verification.md`.
 
-The backend's stubs make step 1 possible on day one: the SDK exists before any provider does, so the frontend never waits for realize. Cracking a screen is experimental work: run the app with simulation on and drive it through the Playwright MCP browser while you build, against the SDK's mockup simulator, so every state is provoked and seen rather than imagined. What simulation cannot prove, the closing pass owns, and [verification.md](verification.md) says what that requires.
+The gated SDK makes step 1 deterministic: the frontend starts from a realized and tested backend contract rather than an unfinished stub contract. Cracking a screen is experimental work: run the app with simulation on and drive it through the Playwright MCP browser while you build, against the SDK's mockup simulator, so every state is provoked and seen rather than imagined. What simulation cannot prove, the closing pass owns, and [verification.md](verification.md) says what that requires.
 
 ## Stack
 
@@ -79,6 +81,8 @@ Record every deliberate omission with its reason in `packages/frontend/wiki/omis
 An unrecorded omission is indistinguishable from an oversight. The next reader re-derives the decision, or reverses it by accident.
 
 Never invent a feature the SDK does not support. If a requirement needs behavior the contract does not expose, that is a finding against the API, not an invitation to build a frontend-only path.
+
+Return to the API or backend only when a named requirement, diagnostic, test, SDK contract failure, or live-integration failure proves a defect there. Record the trigger, repair the owning layer, regenerate the SDK, and re-pass the complete Backend Layer Gate before resuming frontend work. Do not switch layers speculatively.
 
 ## Frontend Layer Gate
 

@@ -18,8 +18,8 @@ export interface IEvidenceBenchmarkBaseline {
   /** Exact pnpm release that executed every admission step. */
   pnpmVersion: "10.10.0";
 
-  /** UTC timestamp recorded after every neutral admission step passed. */
-  completedAt: string;
+  /** Total monotonic wall-clock milliseconds across neutral admission steps. */
+  elapsedMs: number;
 
   /** Timings and retained process logs separated from measured agent work. */
   steps: Readonly<
@@ -58,7 +58,7 @@ export namespace IEvidenceBenchmarkBaseline {
     /** Repository root containing the complete benchmark base and arm trees. */
     repository: string;
 
-    /** New output root atomically published on pass or diagnostic failure. */
+    /** New output root atomically published only after every step passes. */
     output: string;
   }
 }

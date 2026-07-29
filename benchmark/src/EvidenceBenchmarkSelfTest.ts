@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 
@@ -9,6 +10,7 @@ import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
 import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
@@ -25,11 +27,12 @@ export namespace EvidenceBenchmarkSelfTest {
     const temporary: string = fs.mkdtempSync(
       path.join(os.tmpdir(), "evidence-benchmark-self-test-"),
     );
-    let preserveFailure: boolean = false;
     try {
       const fixture: string = path.join(temporary, "fixture");
       createFixture(repository, fixture);
       await testPinnedPnpm(repository);
+      await testRuntimeIsolation();
+      await testBaselineFailureCleanup(temporary);
       await testPinnedSetup(temporary);
       await testRepositoryInputs(repository);
       await testRetentionIgnore(repository);
@@ -43,16 +46,8 @@ export namespace EvidenceBenchmarkSelfTest {
       console.log(
         `Benchmark self-test passed${args.includes("--baseline") ? " with neutral baseline" : ""}${args.includes("--package") ? " with package smoke" : ""}.`,
       );
-    } catch (error) {
-      preserveFailure = args.includes("--baseline");
-      if (preserveFailure)
-        console.error(
-          `Baseline self-test failure retained its diagnostics at ${temporary}.`,
-        );
-      throw error;
     } finally {
-      if (!preserveFailure)
-        fs.rmSync(temporary, { recursive: true, force: true });
+      fs.rmSync(temporary, { recursive: true, force: true });
     }
   }
 
@@ -95,6 +90,145 @@ export namespace EvidenceBenchmarkSelfTest {
           new Map([["C:/absolute.txt", Buffer.from("x", "utf8")]]),
         ),
       /NFC POSIX relative path/,
+    );
+  }
+
+  async function testRuntimeIsolation(): Promise<void> {
+    const assignments: EvidenceBenchmarkRuntime.IAssignment[] = [];
+    for (const project of ["todo", "reddit", "shopping", "erp"] as const)
+      for (const arm of ["evidence", "plain"] as const)
+        assignments.push(EvidenceBenchmarkRuntime.assign(project, arm));
+    const ports: number[] = assignments.flatMap((assignment) => [
+      assignment.apiPort,
+      assignment.swaggerPort,
+      assignment.viteDevelopmentPort,
+      assignment.playwrightPort,
+    ]);
+    assert.equal(
+      new Set(ports).size,
+      ports.length,
+      "every benchmark cell endpoint must be unique",
+    );
+
+    const todoEvidence: EvidenceBenchmarkRuntime.IAssignment = assignments[0]!;
+    const shifted: EvidenceBenchmarkRuntime.IAssignment =
+      EvidenceBenchmarkRuntime.assign("reddit", "plain", 50_000);
+    assert.deepEqual(shifted, {
+      apiPort: 50_030,
+      swaggerPort: 50_031,
+      viteDevelopmentPort: 50_032,
+      playwrightPort: 50_033,
+      apiHost: "http://127.0.0.1:50030",
+    });
+    assert.throws(
+      () => EvidenceBenchmarkRuntime.assign("erp", "plain", 65_463),
+      /between 1 and 65462/,
+    );
+    const environment: NodeJS.ProcessEnv = {
+      API_PORT: "37001",
+      PLAYWRIGHT_TEST_PORT: "4173",
+    };
+    EvidenceBenchmarkRuntime.apply(environment, todoEvidence);
+    assert.deepEqual(environment, {
+      API_PORT: "46000",
+      PLAYWRIGHT_TEST_PORT: "46003",
+      SWAGGER_PORT: "46001",
+      VITE_API_HOST: "http://127.0.0.1:46000",
+      VITE_DEV_PORT: "46002",
+    });
+    const secondWave = [
+      EvidenceBenchmarkRuntime.assign("todo", "evidence", 51_000),
+      EvidenceBenchmarkRuntime.assign("todo", "plain", 51_000),
+      EvidenceBenchmarkRuntime.assign("reddit", "evidence", 51_000),
+      EvidenceBenchmarkRuntime.assign("reddit", "plain", 51_000),
+    ];
+    const combinedPorts = [...assignments, ...secondWave].flatMap(
+      (assignment) => [
+        assignment.apiPort,
+        assignment.swaggerPort,
+        assignment.viteDevelopmentPort,
+        assignment.playwrightPort,
+      ],
+    );
+    assert.equal(
+      new Set(combinedPorts).size,
+      combinedPorts.length,
+      "concurrent waves with distinct port bases must not overlap",
+    );
+
+    const persisted: string = fs.mkdtempSync(
+      path.join(os.tmpdir(), "evidence-benchmark-runtime-"),
+    );
+    try {
+      fs.mkdirSync(path.join(persisted, "packages", "backend"), {
+        recursive: true,
+      });
+      fs.mkdirSync(path.join(persisted, "packages", "frontend"), {
+        recursive: true,
+      });
+      EvidenceBenchmarkRuntime.persist(persisted, secondWave[0]!);
+      assert.match(
+        fs.readFileSync(
+          path.join(persisted, "packages", "backend", ".env"),
+          "utf8",
+        ),
+        /^API_PORT=51000$/m,
+      );
+      assert.match(
+        fs.readFileSync(
+          path.join(persisted, "packages", "frontend", ".env"),
+          "utf8",
+        ),
+        /^PLAYWRIGHT_TEST_PORT=51003$/m,
+      );
+    } finally {
+      fs.rmSync(persisted, { recursive: true, force: true });
+    }
+
+    const blocker: net.Server = net.createServer();
+    await new Promise<void>((resolve, reject) => {
+      blocker.once("error", reject);
+      blocker.listen(
+        { host: "127.0.0.1", port: todoEvidence.apiPort, exclusive: true },
+        resolve,
+      );
+    });
+    try {
+      await expectFailure(
+        () => EvidenceBenchmarkRuntime.assertAvailable([todoEvidence]),
+        `api port ${todoEvidence.apiPort} is unavailable`,
+      );
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        blocker.close((error) =>
+          error === undefined ? resolve() : reject(error),
+        ),
+      );
+    }
+    await EvidenceBenchmarkRuntime.assertAvailable(assignments);
+  }
+
+  async function testBaselineFailureCleanup(temporary: string): Promise<void> {
+    const output: string = path.join(temporary, "failed-neutral-baseline");
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkBaseline.prepare({
+          repository: path.join(temporary, "missing-repository"),
+          output,
+        }),
+      "Neutral scaffold admission failed",
+    );
+    assert.equal(
+      fs.existsSync(output),
+      false,
+      "failed neutral admission must not publish an output directory",
+    );
+    assert.deepEqual(
+      fs
+        .readdirSync(temporary)
+        .filter((entry) => entry.startsWith(".failed-neutral-baseline.")),
+      [],
+      "failed neutral admission must remove its staging directory",
     );
   }
 
@@ -329,6 +463,69 @@ export namespace EvidenceBenchmarkSelfTest {
   }
 
   async function testRepositoryInputs(repository: string): Promise<void> {
+    const prompts: string = path.join(repository, "benchmark", "prompts");
+    assert.deepEqual(
+      fs
+        .readdirSync(prompts, { withFileTypes: true })
+        .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+        .map((entry) => entry.name)
+        .sort(),
+      ["goal.md", "instruction.md", "review.md"],
+      "prompt root must contain exactly the three common user turns",
+    );
+    for (const arm of ["evidence", "plain"])
+      assert.ok(
+        fs.existsSync(path.join(prompts, arm, "final.md")),
+        `${arm} final user turn is missing`,
+      );
+
+    const instructions: string = path.join(
+      repository,
+      "benchmark",
+      "instructions",
+    );
+    assert.deepEqual(
+      fs
+        .readdirSync(instructions, { withFileTypes: true })
+        .map((entry) => entry.name)
+        .sort(),
+      ["backend", "frontend", "overall"],
+      "backend-first instructions must contain exactly three phase directories",
+    );
+    for (const phase of ["backend", "frontend"])
+      assert.deepEqual(
+        fs.readdirSync(path.join(instructions, phase)).sort(),
+        ["evidence-final.md", "plain-final.md", "review.md", "start.md"],
+        `${phase} instruction inventory is invalid`,
+      );
+    assert.deepEqual(
+      fs.readdirSync(path.join(instructions, "overall")).sort(),
+      ["evidence-final.md", "plain-final.md", "review.md"],
+      "overall instruction inventory is invalid",
+    );
+    assert.match(
+      fs.readFileSync(
+        path.join(instructions, "backend", "evidence-final.md"),
+        "utf8",
+      ),
+      /From `packages\/backend`, run `pnpm build`/,
+    );
+    assert.match(
+      fs.readFileSync(
+        path.join(instructions, "backend", "evidence-final.md"),
+        "utf8",
+      ),
+      /Do not run the workspace-root build during this phase\./,
+      "backend final must state the root-build boundary clearly",
+    );
+    for (const phase of ["backend", "frontend", "overall"])
+      for (const file of fs.readdirSync(path.join(instructions, phase)))
+        assert.match(
+          fs.readFileSync(path.join(instructions, phase, file), "utf8"),
+          /Use goal mode for this /,
+          `${phase}/${file} must activate a bounded stage goal`,
+        );
+
     const template: string = path.join(repository, "benchmark", "template");
     for (const arm of ["evidence", "plain"] as const) {
       const composition: EvidenceBenchmarkTemplate.IComposition =
@@ -493,12 +690,14 @@ export namespace EvidenceBenchmarkSelfTest {
         TTSC_GO_CACHE_DIR: path.join(cache, "go-build"),
         GOCACHE: path.join(cache, "go-build"),
         GOTMPDIR: path.join(cache, "go-tmp"),
+        PLAYWRIGHT_BROWSERS_PATH: path.join(cache, "playwright"),
       },
     };
     const setup = await EvidenceBenchmarkSetup.prepare({
       materialization,
       arm: "plain",
     });
+    assert.ok(setup.elapsedMs >= setup.lockElapsedMs + setup.installElapsedMs);
     assert.equal(setup.pnpmVersion, EvidenceBenchmarkProcess.PNPM_VERSION);
     assert.ok(fs.existsSync(path.join(workspace, "pnpm-lock.yaml")));
     assert.ok(fs.existsSync(path.join(root, "setup.json")));
@@ -703,7 +902,7 @@ export namespace EvidenceBenchmarkSelfTest {
       payloadSha256: EvidenceBenchmarkHash.bytes("fixture payload"),
       sourceCommit: "0000000000000000000000000000000000000000",
       sourceLockSha256: EvidenceBenchmarkHash.bytes("fixture lock"),
-      preparedAt: "2000-01-01T00:00:00.000Z",
+      elapsedMs: 0,
       packElapsedMs: 0,
       smokeInstallElapsedMs: 0,
       smokeCheckElapsedMs: 0,
@@ -842,6 +1041,13 @@ export namespace EvidenceBenchmarkSelfTest {
     const manifest = JSON.parse(
       fs.readFileSync(props.cell.manifest, "utf8"),
     ) as IEvidenceBenchmarkMaterialization.IManifest;
+    assert.equal(manifest.schemaVersion, 3);
+    assert.ok(manifest.elapsedMs >= 0);
+    assert.equal("materializedAt" in manifest, false);
+    assert.equal(
+      props.cell.environment.PLAYWRIGHT_BROWSERS_PATH,
+      manifest.caches.playwright,
+    );
     assert.equal(manifest.artifact.sha256, props.artifact.sha256);
     assert.deepEqual(manifest.corpus, {
       documents: corpus.documents,
@@ -979,6 +1185,35 @@ export namespace EvidenceBenchmarkSelfTest {
       fs.readdirSync(output).filter((file) => file.endsWith(".tgz")).length,
       1,
     );
+
+    const cell = await EvidenceBenchmarkMaterializer.materialize({
+      repository,
+      output: path.join(temporary, "nestia-evidence-smoke"),
+      project: "todo",
+      arm: "evidence",
+      variables: benchmarkVariables("nestia-evidence-smoke"),
+      artifact: first,
+    });
+    const runtime: EvidenceBenchmarkRuntime.IAssignment =
+      EvidenceBenchmarkRuntime.assign("todo", "evidence", 52_000);
+    EvidenceBenchmarkRuntime.apply(cell.environment, runtime);
+    EvidenceBenchmarkRuntime.persist(cell.workspace, runtime);
+    await EvidenceBenchmarkSetup.prepare({
+      materialization: cell,
+      arm: "evidence",
+    });
+    await EvidenceBenchmarkProcess.pnpm(["run", "build:sdk"], {
+      cwd: path.join(cell.workspace, "packages", "backend"),
+      env: cell.environment,
+      label: "Nestia evidence config-loader smoke",
+    });
+    assert.equal(
+      fs.existsSync(
+        path.join(cell.workspace, "packages", "api", "swagger.json"),
+      ),
+      true,
+      "Nestia evidence smoke must generate the OpenAPI contract",
+    );
   }
 
   async function testBaseline(
@@ -990,6 +1225,7 @@ export namespace EvidenceBenchmarkSelfTest {
       output: path.join(temporary, "neutral-baseline"),
     });
     assert.equal(baseline.pnpmVersion, EvidenceBenchmarkProcess.PNPM_VERSION);
+    assert.ok(baseline.elapsedMs > 0);
     assert.equal(
       Object.keys(baseline.steps).length,
       9,

@@ -80,7 +80,7 @@ export namespace IEvidenceBenchmarkMaterialization {
   /** Permanent pre-run record written beside the workspace and input copy. */
   export interface IManifest {
     /** Manifest schema version; readers reject unsupported future shapes. */
-    schemaVersion: 2;
+    schemaVersion: 3;
 
     /** Versioned algorithm shared by every aggregate tree identity. */
     treeAlgorithm: "sha256-posix-path-nul-bytes-v1";
@@ -91,8 +91,8 @@ export namespace IEvidenceBenchmarkMaterialization {
     /** Mechanism arm whose overlay and package policy were applied. */
     arm: Arm;
 
-    /** UTC timestamp at which atomic materialization completed. */
-    materializedAt: string;
+    /** Monotonic wall-clock milliseconds spent materializing this cell. */
+    elapsedMs: number;
 
     /** Strict variables used to render the template placeholders. */
     variables: Readonly<Record<string, string>>;
@@ -170,6 +170,9 @@ export namespace IEvidenceBenchmarkMaterialization {
 
       /** Absolute Go object cache used only by this cell. */
       go: string;
+
+      /** Absolute Playwright browser cache used only by this cell. */
+      playwright: string;
 
       /** Directory containing the exact-version pnpm launcher for this cell. */
       toolchain: string;

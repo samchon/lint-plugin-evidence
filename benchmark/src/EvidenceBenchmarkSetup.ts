@@ -18,6 +18,7 @@ export namespace EvidenceBenchmarkSetup {
   export async function prepare(
     request: IEvidenceBenchmarkSetup.IRequest,
   ): Promise<IEvidenceBenchmarkSetup> {
+    const started: bigint = process.hrtime.bigint();
     const workspace: string = request.materialization.workspace;
     const environment: NodeJS.ProcessEnv = request.materialization.environment;
     EvidenceBenchmarkProcess.pinEnvironment(
@@ -28,6 +29,7 @@ export namespace EvidenceBenchmarkSetup {
     fs.mkdirSync(environment.TTSC_CACHE_DIR!, { recursive: true });
     fs.mkdirSync(environment.TTSC_GO_CACHE_DIR!, { recursive: true });
     fs.mkdirSync(environment.GOTMPDIR!, { recursive: true });
+    fs.mkdirSync(environment.PLAYWRIGHT_BROWSERS_PATH!, { recursive: true });
 
     const pnpm = await EvidenceBenchmarkProcess.pnpm(["--version"], {
       cwd: workspace,
@@ -98,7 +100,7 @@ export namespace EvidenceBenchmarkSetup {
       );
 
     const result: IEvidenceBenchmarkSetup = {
-      completedAt: new Date().toISOString(),
+      elapsedMs: Number(process.hrtime.bigint() - started) / 1_000_000,
       lockElapsedMs: lock.elapsedMs,
       installElapsedMs: install.elapsedMs,
       lockSha256: afterInstall,

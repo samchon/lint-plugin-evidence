@@ -21,6 +21,9 @@ export namespace EvidenceBenchmarkTemplate {
     "packages/backend/lint.config.ts",
     "packages/frontend/lint.config.ts",
   ]);
+  const EVIDENCE_ONLY_PATHS: ReadonlySet<string> = new Set([
+    ".agents/skills/evidence/SKILL.md",
+  ]);
   const BASE_REQUIRED_PATHS: readonly string[] = [
     ".agents/skills/api/SKILL.md",
     ".agents/skills/backend/SKILL.md",
@@ -75,6 +78,7 @@ export namespace EvidenceBenchmarkTemplate {
     Record<IEvidenceBenchmarkMaterialization.Arm, readonly string[]>
   > = {
     evidence: [
+      ".agents/skills/evidence/SKILL.md",
       ".agents/skills/review/SKILL.md",
       "AGENTS.md",
       "packages/api/lint.config.ts",
@@ -260,9 +264,23 @@ export namespace EvidenceBenchmarkTemplate {
     }
     requireEqualPathSets(
       "evidence and plain overlay",
-      overlays.evidence,
+      new Map(
+        [...overlays.evidence].filter(
+          ([relative]) => !EVIDENCE_ONLY_PATHS.has(relative),
+        ),
+      ),
       overlays.plain,
     );
+    for (const relative of EVIDENCE_ONLY_PATHS) {
+      if (!overlays.evidence.has(relative))
+        throw new Error(
+          `Evidence template is missing evidence-only path: ${relative}.`,
+        );
+      if (overlays.plain.has(relative) || base.has(relative))
+        throw new Error(
+          `Evidence-only template path must belong only to the evidence overlay: ${relative}.`,
+        );
+    }
     const collisions: Record<
       IEvidenceBenchmarkMaterialization.Arm,
       Set<string>

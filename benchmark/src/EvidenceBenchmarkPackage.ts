@@ -46,6 +46,7 @@ export namespace EvidenceBenchmarkPackage {
   async function prepareUncached(
     request: IEvidenceBenchmarkPackageArtifact.IRequest,
   ): Promise<IEvidenceBenchmarkPackageArtifact> {
+    const started: bigint = process.hrtime.bigint();
     const repository: string = path.resolve(request.repository);
     const output: string = path.resolve(request.output);
     const parent: string = path.dirname(output);
@@ -125,7 +126,7 @@ export namespace EvidenceBenchmarkPackage {
         sourceLockSha256: EvidenceBenchmarkHash.file(
           path.join(repository, "pnpm-lock.yaml"),
         ),
-        preparedAt: new Date().toISOString(),
+        elapsedMs: Number(process.hrtime.bigint() - started) / 1_000_000,
         packElapsedMs: packed.elapsedMs,
         smokeInstallElapsedMs: smoke.installElapsedMs,
         smokeCheckElapsedMs: smoke.checkElapsedMs,
@@ -589,7 +590,6 @@ export namespace EvidenceBenchmarkPackage {
           `${JSON.stringify({
             pid: process.pid,
             repository: path.resolve(repository),
-            createdAt: new Date().toISOString(),
           })}\n`,
           "utf8",
         );

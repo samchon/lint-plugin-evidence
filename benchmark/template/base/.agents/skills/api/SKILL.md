@@ -201,7 +201,7 @@ So a screen built against simulation is built against the real contract. If it r
 
 That last part is the trap. Values are random per call, so anything that needs stable data across a run needs the randomness seeded. A screenshot program or a browser test that depends on a particular product name will otherwise pass locally and fail in the next run for no reason anyone can see.
 
-**How to use it.** Develop the frontend against simulation: screens, navigation, forms, loading and empty and error states, and the browser programs that cover the main flows, all with no server and no database. Then finish against the live backend, because persistence, sessions, authorization, refresh, and side effects are exactly what simulation does not prove.
+**How to use it.** After the Backend Layer Gate passes, use simulation inside the frontend phase for screens, navigation, forms, loading, empty and error states, and browser programs that cover the main flows. Then close against the already gated live backend, because persistence, sessions, authorization, refresh, and side effects are exactly what simulation does not prove. Simulation is a frontend implementation technique, not permission to begin frontend work before backend realization.
 
 Label the evidence accordingly. A run in simulation is shape-and-flow evidence, never integration evidence, and a program named for live integration must never be pointed at the simulated path.
 

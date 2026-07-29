@@ -13,6 +13,7 @@
   "scripts": {
     "start": "node --experimental-transform-types src/executable/benchmark.ts start",
     "plan": "node --experimental-transform-types src/executable/benchmark.ts plan",
+    "resume": "node --experimental-transform-types src/executable/benchmark.ts resume",
     "check": "pnpm run check:source && tsc --noEmit -p tsconfig.json",
     "check:source": "node --experimental-transform-types src/executable/check-source-contract.ts",
     "test": "pnpm run test:unit && pnpm run test:package",

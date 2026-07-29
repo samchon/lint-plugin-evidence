@@ -9,6 +9,7 @@
     "build:prisma": "prisma generate --schema=prisma/schema",
     "build:sdk": "rimraf ../api/src/functional ../api/src/module.ts ../api/swagger.json && nestia all && node ../api/scripts/ensure-nestia-exports.cjs",
     "build:test": "rimraf bin && ttsc -p test/tsconfig.json",
+    "dev": "ttsx src/executable/server.ts",
     "format": "ttsc format -p tsconfig.json && ttsc format -p test/tsconfig.json",
     "lint": "ttsc -p tsconfig.lint.json --noEmit",
     "prepare": "prisma db push --schema=prisma/schema",

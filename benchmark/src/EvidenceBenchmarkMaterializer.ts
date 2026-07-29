@@ -21,6 +21,7 @@ export namespace EvidenceBenchmarkMaterializer {
   export async function materialize(
     request: IEvidenceBenchmarkMaterialization.IRequest,
   ): Promise<IEvidenceBenchmarkMaterialization> {
+    const started: bigint = process.hrtime.bigint();
     const repository: string = path.resolve(request.repository);
     const output: string = path.resolve(request.output);
     const parent: string = path.dirname(output);
@@ -93,14 +94,15 @@ export namespace EvidenceBenchmarkMaterializer {
         pnpm: path.join(output, "cache", "pnpm-store"),
         ttsc: path.join(output, "cache", "ttsc"),
         go: path.join(output, "cache", "go-build"),
+        playwright: path.join(output, "cache", "playwright"),
         toolchain: path.join(output, "cache", "toolchain-bin"),
       };
       const manifestRecord: IEvidenceBenchmarkMaterialization.IManifest = {
-        schemaVersion: 2,
+        schemaVersion: 3,
         treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
         project: request.project,
         arm: request.arm,
-        materializedAt: new Date().toISOString(),
+        elapsedMs: 0,
         variables: Object.fromEntries(
           Object.entries(request.variables).sort(([left], [right]) =>
             left.localeCompare(right, "en"),
@@ -148,12 +150,15 @@ export namespace EvidenceBenchmarkMaterializer {
         TTSC_GO_CACHE_DIR: caches.go,
         GOCACHE: caches.go,
         GOTMPDIR: path.join(output, "cache", "go-tmp"),
+        PLAYWRIGHT_BROWSERS_PATH: caches.playwright,
       };
       const stageToolchain: string = path.join(stage, "cache", "toolchain-bin");
       EvidenceBenchmarkProcess.pinEnvironment(environment, stageToolchain);
 
       writeTree(path.join(stage, "workspace"), workspaceFiles);
       writeTree(path.join(stage, "inputs", "requirements"), requirementFiles);
+      manifestRecord.elapsedMs =
+        Number(process.hrtime.bigint() - started) / 1_000_000;
       fs.writeFileSync(
         path.join(stage, "materialization.json"),
         `${JSON.stringify(manifestRecord, null, 2)}\n`,

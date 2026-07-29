@@ -5,6 +5,16 @@ description: Defines integrity review for evidence claims: comparing every tag o
 
 # Review
 
+## Phase Scope
+
+Read [Evidence Lint](../evidence/SKILL.md) before reviewing and apply the scope named by the current user turn.
+
+- **Backend Phase.** Restore and review `schema-models`, `api-operations`, `backend-tests`, `dto-types`, and `dto-properties` across `packages/backend/lint.config.ts` and `packages/api/lint.config.ts`. Review every requirement for backend applicability and every API/backend host, source, provider edge, and test. Frontend obligations remain pending.
+- **Frontend Phase.** Restore and review `frontend-screens` and `frontend-journeys` in `packages/frontend/lint.config.ts`, including SDK-operation-to-screen residual edges and live integration. If frontend work changes API or backend sources, invalidate the affected verdicts and re-pass the complete Backend Phase before resuming.
+- **Overall Phase.** Restore all three configurations and all seven claims, then review the entire project without phase partitioning.
+
+Reject a phase report when a claim in that phase remains commented, a population was narrowed, `evidence/graph` was disabled, or an evidence rule severity was lowered. Run that phase's complete lint, build, test, and runtime gates before reviewing graph integrity.
+
 ## Coverage Is Not Integrity
 
 The graph establishes that every configured target received `@evidence` or `@evidenceExclude` from a selected host. It does not evaluate the reason or the implementation. A tag written after doing the work and a tag copied merely to clear a diagnostic are structurally identical.
@@ -55,6 +65,8 @@ The graph has no provider claim and no SDK-operation-to-screen claim. Review the
 
 A green graph verdict must never be copied into these rows.
 
+Review provider residual edges during the Backend Phase and SDK-operation-to-screen residual edges during the Frontend Phase. Review both again during the Overall Phase.
+
 ## Invalidation
 
 A claim is about a particular meaning at a particular digest. Changing a requirement interpretation, model, DTO, operation, provider, test, screen, or cited JSDoc invalidates every downstream review that depended on it.
@@ -65,4 +77,4 @@ Keep graph-integrity, reverse-owner, exclusion, and residual-edge verdicts in `.
 For every row record the exact target or source identity, claiming artifact and member, falsifiable reason, current source digest, and `pending`, `accepted`, or `stale` verdict.
 Record findings before repair and retain stale rows until their replacements pass the next complete review.
 
-Review every current graph claim and residual edge before every completion report. Do not edit frozen instructions or lint configuration files.
+Review every graph claim and residual edge in the active phase before its phase report. The Overall Phase must review the complete graph and every residual edge again. Do not edit frozen instructions, and do not weaken a lint configuration to make the review green.

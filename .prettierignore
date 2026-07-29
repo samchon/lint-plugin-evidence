@@ -3,5 +3,6 @@
 # changes the workload and invalidates every affected comparison cell.
 benchmark/requirements/
 benchmark/prompts/
+benchmark/instructions/
 benchmark/template/
 benchmark/result/

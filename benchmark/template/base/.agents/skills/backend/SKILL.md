@@ -49,7 +49,7 @@ Work the layers in order, and let each one read everything the earlier ones deci
 5. Write the transformers under `packages/backend/src/transformers/` and the collectors under `packages/backend/src/collectors/`, one namespace per DTO that needs each.
 6. Realize: replace each stub body with its call into a provider under `packages/backend/src/providers/`, remove the `@todo`, and run the tests until they hold.
 
-**The stub is what makes this order executable.** The SDK generates from controllers, so without stubs nothing downstream can start until the providers exist; with them, the contract ships to the tests and the frontend on day one, and the `@todo` tags are the exact ledger of what realize still owes. A suite written at step 4 runs red against random stub answers, and that is the point: realize turns it green.
+**The stub is what makes this order executable.** The SDK generates from controllers, so without stubs the backend tests cannot start until the providers exist; with them, the contract reaches the tests before realization, and the `@todo` tags are the exact ledger of what realize still owes. A suite written at step 4 runs red against random stub answers, and that is the point: realize turns it green. The frontend consumes the generated SDK only after the Backend Layer Gate passes.
 
 The read side and the write side come before the provider that composes them. A provider written first inlines a selection and a mapping, and that copy is what the transformer then has to be reconciled with. [wiring.md](wiring.md) has the same sequence with the commands each step runs.
 
@@ -83,6 +83,10 @@ After any substantial piece of work, ask what `null` means for each field, which
 
 Passing this gate means the backend layer is internally validated at the current repository state. It is not a project-completion claim; frontend delivery remains a separate obligation.
 
-The build passes, the lint stage passes, the tests pass, and you read their output.
+Review every requirement for its API and backend applicability and review the complete API and backend artifact population. A backend round may not be divided by file, package, requirement subset, or available time. Frontend obligations remain pending rather than accepted.
+
+From `packages/api`, run its lint and build commands. From `packages/backend`, run `pnpm build`, `pnpm lint`, and `pnpm test`, then launch `pnpm dev` and exercise `/health` and representative requirement-backed operations. Do not use the workspace-root build to judge this gate, because it compiles the later frontend phase.
+
+Fix every finding, regenerate affected output, and repeat the complete backend-scoped review until one round is dry and every command passes. Do not begin frontend implementation before this gate passes.
 
 Never report compiled, tested, or complete for something you did not observe. A truthful "blocked on X" outranks a hopeful "done", and it is the one report the next reader can act on.
