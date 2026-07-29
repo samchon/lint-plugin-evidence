@@ -60,7 +60,7 @@ The evidence overlay additionally installs the locally packed product during ben
 
 Run Todo and Reddit first, with evidence and plain arms concurrent within each subject wave. Run Shopping and ERP only after the cheaper subjects complete successfully.
 
-Those four directories are the current campaign corpus, not an execution allow-list. Any 1-63 character lowercase subject slug with a complete `benchmark/requirements/<subject>/` Markdown corpus enters the same plan, materialization, runtime, recovery, repair, and publication paths. The runner assigns ports from the selected wave order, never from a subject-name table.
+Those four directories are the current campaign corpus, not an execution allow-list. Any 1-63 character lowercase subject slug made from letters, digits, and hyphens, except Windows device names, enters the same plan, materialization, runtime, recovery, repair, and publication paths when it owns a complete `benchmark/requirements/<subject>/` Markdown corpus. The runner assigns ports from the selected wave order, never from a subject-name table.
 
 Inspect the exact wave without a model call, then launch it from the same clean, validated, pushed commit:
 

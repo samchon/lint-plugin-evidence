@@ -279,6 +279,7 @@ export namespace EvidenceBenchmarkCommandLine {
         );
         if (accepted !== undefined) {
           let restoration: string | undefined;
+          let restorationVerified: boolean = false;
           try {
             restoration = verifyLintRestoration({
               workspace,
@@ -286,8 +287,13 @@ export namespace EvidenceBenchmarkCommandLine {
               name: entry.name,
               baselines: state.lintBaselines,
             });
+            restorationVerified = true;
           } catch {}
-          if (restoration === accepted.lintRestorationSha256) continue;
+          if (
+            restorationVerified &&
+            restoration === accepted.lintRestorationSha256
+          )
+            continue;
           const index: number = instructions.findIndex(
             (instruction) => instruction.name === entry.name,
           );

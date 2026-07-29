@@ -170,53 +170,44 @@ export namespace EvidenceBenchmarkLintBaseline {
       true,
       ts.ScriptKind.TS,
     );
-    const declarations: ts.VariableDeclaration[] = [];
-    const loaderGuards: ts.VariableDeclaration[] = [];
-    const rules: ts.PropertyAssignment[] = [];
-    const visit = (node: ts.Node): void => {
-      if (
-        ts.isVariableDeclaration(node) &&
-        ts.isIdentifier(node.name) &&
-        node.name.text === "graph"
-      )
-        declarations.push(node);
-      if (
-        ts.isVariableDeclaration(node) &&
-        ts.isIdentifier(node.name) &&
-        node.name.text === "isNestiaConfigLoader"
-      )
-        loaderGuards.push(node);
-      if (
-        ts.isPropertyAssignment(node) &&
-        propertyName(node.name) === "evidence/graph"
-      )
-        rules.push(node);
-      ts.forEachChild(node, visit);
-    };
-    visit(source);
+    const declarations = topLevelVariables(source, "graph");
+    const loaderGuards = topLevelVariables(source, "isNestiaConfigLoader");
+    const rules: ts.ObjectLiteralExpression | undefined = exportedRules(
+      relative,
+      source,
+    );
+    const rule: ts.PropertyAssignment | undefined =
+      rules === undefined
+        ? undefined
+        : directProperty(relative, rules, "evidence/graph", "rules");
     if (arm === "plain") {
-      if (declarations.length !== 0 || rules.length !== 0)
+      if (declarations.length !== 0 || rule !== undefined)
         throw new Error(
           `Plain lint configuration unexpectedly declares an evidence graph: ${relative}.`,
         );
       return null;
     }
-    if (declarations.length !== 1 || rules.length !== 1)
+    if (
+      declarations.length !== 1 ||
+      declarations[0]!.constant === false ||
+      rule === undefined
+    )
       throw new Error(
-        `Evidence lint configuration must declare one graph and one evidence/graph rule: ${relative}.`,
+        `Evidence lint configuration must declare one top-level const graph and one active evidence/graph rule: ${relative}.`,
       );
-    const initializer: ts.Expression | undefined = declarations[0]!.initializer;
+    const initializer: ts.Expression | undefined =
+      declarations[0]!.declaration.initializer;
     if (initializer === undefined)
       throw new Error(`Evidence graph has no initializer: ${relative}.`);
     const graph: ts.Expression = unwrap(initializer);
     if (!ts.isObjectLiteralExpression(graph))
       throw new Error(`Evidence graph must be an object literal: ${relative}.`);
-    const claimsProperty: ts.PropertyAssignment | undefined =
-      graph.properties.find(
-        (property): property is ts.PropertyAssignment =>
-          ts.isPropertyAssignment(property) &&
-          propertyName(property.name) === "claims",
-      );
+    const claimsProperty: ts.PropertyAssignment | undefined = directProperty(
+      relative,
+      graph,
+      "claims",
+      "graph",
+    );
     if (claimsProperty === undefined)
       throw new Error(`Evidence graph has no claims array: ${relative}.`);
     const claimsExpression: ts.Expression = unwrap(claimsProperty.initializer);
@@ -247,22 +238,23 @@ export namespace EvidenceBenchmarkLintBaseline {
         `Evidence graph claim names are duplicated: ${relative}.`,
       );
 
-    const rule: ts.Expression = unwrap(rules[0]!.initializer);
+    const ruleExpression: ts.Expression = unwrap(rule.initializer);
     if (relative === PATHS[1]) {
       if (
         loaderGuards.length !== 1 ||
-        !isAuthorizedLoaderGuard(loaderGuards[0]!.initializer) ||
-        !ts.isConditionalExpression(rule) ||
-        !ts.isIdentifier(unwrap(rule.condition)) ||
-        (unwrap(rule.condition) as ts.Identifier).text !==
+        loaderGuards[0]!.constant === false ||
+        !isAuthorizedLoaderGuard(loaderGuards[0]!.declaration.initializer) ||
+        !ts.isConditionalExpression(ruleExpression) ||
+        !ts.isIdentifier(unwrap(ruleExpression.condition)) ||
+        (unwrap(ruleExpression.condition) as ts.Identifier).text !==
           "isNestiaConfigLoader" ||
-        !isString(unwrap(rule.whenTrue), "off") ||
-        !isErrorGraphTuple(unwrap(rule.whenFalse))
+        !isString(unwrap(ruleExpression.whenTrue), "off") ||
+        !isErrorGraphTuple(unwrap(ruleExpression.whenFalse))
       )
         throw new Error(
           `Backend evidence graph rule must use only the authorized Nestia loader bypass and otherwise remain ["error", graph]: ${relative}.`,
         );
-    } else if (loaderGuards.length !== 0 || !isErrorGraphTuple(rule))
+    } else if (loaderGuards.length !== 0 || !isErrorGraphTuple(ruleExpression))
       throw new Error(
         `Evidence graph rule must remain the direct ["error", graph] tuple: ${relative}.`,
       );
@@ -335,6 +327,91 @@ export namespace EvidenceBenchmarkLintBaseline {
     return undefined;
   }
 
+  function exportedRules(
+    relative: string,
+    source: ts.SourceFile,
+  ): ts.ObjectLiteralExpression | undefined {
+    const assignments: ts.ExportAssignment[] = source.statements.filter(
+      (statement): statement is ts.ExportAssignment =>
+        ts.isExportAssignment(statement) && statement.isExportEquals === false,
+    );
+    if (assignments.length !== 1)
+      throw new Error(
+        `Lint configuration must contain exactly one default export: ${relative}.`,
+      );
+    const expression: ts.Expression = unwrap(assignments[0]!.expression);
+    if (!ts.isObjectLiteralExpression(expression))
+      throw new Error(
+        `Lint configuration default export must be a direct object literal: ${relative}.`,
+      );
+    const property: ts.PropertyAssignment | undefined = directProperty(
+      relative,
+      expression,
+      "rules",
+      "default export",
+    );
+    if (property === undefined) return undefined;
+    const rules: ts.Expression = unwrap(property.initializer);
+    if (!ts.isObjectLiteralExpression(rules))
+      throw new Error(
+        `Lint configuration rules must be a direct object literal: ${relative}.`,
+      );
+    return rules;
+  }
+
+  function directProperty(
+    relative: string,
+    object: ts.ObjectLiteralExpression,
+    target: string,
+    label: string,
+  ): ts.PropertyAssignment | undefined {
+    const names: Set<string> = new Set();
+    let found: ts.PropertyAssignment | undefined;
+    for (const property of object.properties) {
+      if (!ts.isPropertyAssignment(property))
+        throw new Error(
+          `Lint configuration ${label} accepts only direct property assignments: ${relative}.`,
+        );
+      const name: string | undefined = propertyName(property.name);
+      if (name === undefined)
+        throw new Error(
+          `Lint configuration ${label} property name is not literal: ${relative}.`,
+        );
+      if (names.has(name))
+        throw new Error(
+          `Lint configuration ${label} property is duplicated: ${relative}#${name}.`,
+        );
+      names.add(name);
+      if (name === target) found = property;
+    }
+    return found;
+  }
+
+  function topLevelVariables(
+    source: ts.SourceFile,
+    target: string,
+  ): {
+    declaration: ts.VariableDeclaration;
+    constant: boolean;
+  }[] {
+    const output: {
+      declaration: ts.VariableDeclaration;
+      constant: boolean;
+    }[] = [];
+    for (const statement of source.statements) {
+      if (!ts.isVariableStatement(statement)) continue;
+      const constant: boolean =
+        (statement.declarationList.flags & ts.NodeFlags.Const) !== 0;
+      for (const declaration of statement.declarationList.declarations)
+        if (
+          ts.isIdentifier(declaration.name) &&
+          declaration.name.text === target
+        )
+          output.push({ declaration, constant });
+    }
+    return output;
+  }
+
   function isAuthorizedLoaderGuard(input: ts.Expression | undefined): boolean {
     if (input === undefined) return false;
     const node: ts.Expression = unwrap(input);
@@ -387,7 +464,7 @@ export namespace EvidenceBenchmarkLintBaseline {
     ]
       .filter((name) => expected.get(name) !== actual.get(name))
       .sort();
-    const shown: string[] = changed.slice(0, 8);
+    const shown: string[] = changed.slice(0, 8).map(summarizeClaimName);
     const suffix: string =
       changed.length > shown.length
         ? `, and ${changed.length - shown.length} more`
@@ -398,5 +475,10 @@ export namespace EvidenceBenchmarkLintBaseline {
         shown.length === 0 ? "none" : `${shown.join(", ")}${suffix}`
       }.`,
     ].join("\n");
+  }
+
+  function summarizeClaimName(name: string): string {
+    const encoded: string = JSON.stringify(name);
+    return encoded.length <= 64 ? encoded : `${encoded.slice(0, 63)}…`;
   }
 }

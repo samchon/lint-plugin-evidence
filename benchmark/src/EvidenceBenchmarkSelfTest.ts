@@ -111,6 +111,10 @@ export namespace EvidenceBenchmarkSelfTest {
       () => EvidenceBenchmarkProject.parse("../escaped"),
       /Invalid benchmark project slug/,
     );
+    assert.throws(
+      () => EvidenceBenchmarkProject.parse("con"),
+      /Invalid benchmark project slug/,
+    );
     const assignments: EvidenceBenchmarkRuntime.IAssignment[] = Array.from(
       { length: 8 },
       (_value, slot) => EvidenceBenchmarkRuntime.assign(slot),
@@ -554,10 +558,10 @@ export namespace EvidenceBenchmarkSelfTest {
     overallFinal.lintRestorationSha256 = lintRestorationSha256;
     write(runStatePath, `${JSON.stringify(runState)}\n`);
 
-    [runState.turns[1], runState.turns[2]] = [
-      runState.turns[2],
-      runState.turns[1],
-    ];
+    const secondTurn = runState.turns[1]!;
+    const thirdTurn = runState.turns[2]!;
+    runState.turns[1] = thirdTurn;
+    runState.turns[2] = secondTurn;
     await expectFailure(
       () =>
         EvidenceBenchmarkTurnLedger.assertAcceptedOrder(
@@ -574,10 +578,8 @@ export namespace EvidenceBenchmarkSelfTest {
         }),
       "canonical instruction prefix",
     );
-    [runState.turns[1], runState.turns[2]] = [
-      runState.turns[2],
-      runState.turns[1],
-    ];
+    runState.turns[1] = secondTurn;
+    runState.turns[2] = thirdTurn;
     write(runStatePath, `${JSON.stringify(runState)}\n`);
 
     materialization.artifact.relativeArchive = ".benchmark-deps/../outside.tgz";
@@ -1961,6 +1963,24 @@ export namespace EvidenceBenchmarkSelfTest {
       'true ? "off" : ["error", graph]',
       "authorized Nestia loader bypass",
     );
+    await expectSeverityFailure(
+      EvidenceBenchmarkLintBaseline.PATHS[0],
+      '"evidence/graph": ["error", graph]',
+      '"evidence/graph": "off" }, decoy: { "evidence/graph": ["error", graph]',
+      'direct ["error", graph] tuple',
+    );
+    await expectSeverityFailure(
+      EvidenceBenchmarkLintBaseline.PATHS[0],
+      '"evidence/graph": ["error", graph]',
+      '"evidence/todo": "error" }, decoy: { "evidence/graph": ["error", graph]',
+      "active evidence/graph rule",
+    );
+    await expectSeverityFailure(
+      EvidenceBenchmarkLintBaseline.PATHS[1],
+      "const isNestiaConfigLoader",
+      "let isNestiaConfigLoader",
+      "authorized Nestia loader bypass",
+    );
     const backendLint: string = path.join(
       evidenceTwo.workspace,
       "packages",
@@ -1968,9 +1988,13 @@ export namespace EvidenceBenchmarkSelfTest {
       "lint.config.ts",
     );
     const backendLintSource: string = fs.readFileSync(backendLint, "utf8");
+    const longClaimName: string = "x".repeat(4_096);
     fs.writeFileSync(
       backendLint,
-      backendLintSource.replace('"api-operations"', '"api-operations-drift"'),
+      backendLintSource.replace(
+        '"api-operations"',
+        JSON.stringify(longClaimName),
+      ),
       "utf8",
     );
     let semanticFailure: unknown;
@@ -1994,6 +2018,11 @@ export namespace EvidenceBenchmarkSelfTest {
     assert.ok(
       semanticFailure.message.length < 1_024,
       "semantic drift diagnostics must remain bounded",
+    );
+    assert.equal(
+      semanticFailure.message.includes(longClaimName),
+      false,
+      "semantic drift diagnostics must truncate individual claim names",
     );
     assert.doesNotMatch(
       semanticFailure.message,
