@@ -2,6 +2,8 @@
 
 The end-to-end suite under `packages/backend/test/` is the only artifact that proves the product behaves as the requirements say.
 
+The scaffold already contains `test/features/api/health/test_api_health.ts`. It is an infrastructure proof, not requirement evidence: it calls the generated `api.functional.health.get` accessor, asserts the exact `"OK"` marker, and returns its assertion count for the runner report. Keep it intact while adding requirement-derived scenarios.
+
 ## Read Three Things Before Writing One Test
 
 A test is written from three sources, and skipping any of them produces a test that compiles and proves the wrong thing.

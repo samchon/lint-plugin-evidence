@@ -37,7 +37,7 @@ const main = async (): Promise<void> => {
   );
   assert.ok(Array.isArray(controllers));
   assert.deepEqual(controllers.map((controller) => controller.name).sort(), [
-    "HealController",
+    "HealthController",
     "NestedDiscoveryController",
   ]);
   assert.equal(new Set(controllers).size, controllers.length);

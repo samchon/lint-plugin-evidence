@@ -9,6 +9,7 @@ import { EvidenceBenchmarkProcess } from "@samchon/evidence-benchmark/process";
 import { EvidenceBenchmarkTemplate } from "@samchon/evidence-benchmark/template";
 
 import { BenchmarkControllerDiscovery } from "./BenchmarkControllerDiscovery.ts";
+import { BenchmarkHealthScaffold } from "./BenchmarkHealthScaffold.ts";
 
 const repository: string = path.resolve(import.meta.dirname, "../../..");
 const template: string = path.join(repository, "benchmark", "template");
@@ -53,6 +54,35 @@ const main = async (): Promise<void> => {
     [...plain.files.keys()].sort(),
     "benchmark arms may differ only by the evidence workflow skill",
   );
+  for (const relative of [
+    "packages/api/src/functional/health/index.ts",
+    "packages/api/src/functional/index.ts",
+    "packages/backend/src/controllers/HealthController.ts",
+    "packages/backend/test/features/api/health/test_api_health.ts",
+  ])
+    assert.deepEqual(
+      evidence.files.get(relative),
+      plain.files.get(relative),
+      `${relative} must be the same base asset in both arms`,
+    );
+  for (const [arm, files] of [
+    ["evidence", evidence.files],
+    ["plain", plain.files],
+  ] as const) {
+    const legacyController: string = ["Heal", "Controller"].join("");
+    const legacy: string[] = [...files]
+      .filter(
+        ([relative, content]) =>
+          relative.includes(legacyController) ||
+          Buffer.from(content).includes(legacyController),
+      )
+      .map(([relative]) => relative);
+    assert.deepEqual(
+      legacy,
+      [],
+      `${arm} template retains the misspelled legacy controller contract`,
+    );
+  }
   EvidenceBenchmarkTemplate.validate(evidence.files);
   EvidenceBenchmarkTemplate.validate(plain.files);
 
@@ -66,10 +96,21 @@ const main = async (): Promise<void> => {
   const temporary: string = fs.mkdtempSync(
     path.join(os.tmpdir(), "evidence-template-build-"),
   );
+  const evidenceWorkspace: string = path.join(temporary, "evidence-workspace");
   const workspace: string = path.join(temporary, "workspace");
   try {
+    writeTree(evidenceWorkspace, evidence.files);
     writeTree(workspace, plain.files);
-    BenchmarkControllerDiscovery.inject(workspace);
+    for (const relative of [
+      "packages/api/src/functional/health/index.ts",
+      "packages/backend/src/controllers/HealthController.ts",
+      "packages/backend/test/features/api/health/test_api_health.ts",
+    ])
+      assert.deepEqual(
+        fs.readFileSync(path.join(evidenceWorkspace, ...relative.split("/"))),
+        fs.readFileSync(path.join(workspace, ...relative.split("/"))),
+        `${relative} drifted between materialized arms`,
+      );
     const corpus = EvidenceBenchmarkCorpus.read(
       path.join(repository, "benchmark", "requirements", "todo"),
     );
@@ -110,7 +151,10 @@ const main = async (): Promise<void> => {
       admittedLock,
       "frozen template install must preserve the generated lockfile",
     );
+    await BenchmarkHealthScaffold.verifyCommittedSdk(workspace, environment);
+    BenchmarkControllerDiscovery.inject(workspace);
     await BenchmarkControllerDiscovery.verify(workspace, environment);
+    await BenchmarkHealthScaffold.verifyRuntimeAndDrift(workspace, environment);
 
     for (const relative of [
       "packages/api/lib/index.js",
