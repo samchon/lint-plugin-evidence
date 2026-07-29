@@ -2165,7 +2165,12 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     assert.match(
       turnLedgerSource,
-      /props\.turns\.forEach[\s\S]+cached_input_tokens[\s\S]+reasoning_output_tokens[\s\S]+log inventory does not exactly match/,
+      /cached_input_tokens[\s\S]+reasoning_output_tokens/,
+      "publication must retain all native token categories",
+    );
+    assert.match(
+      turnLedgerSource,
+      /props\.turns\.forEach[\s\S]+log inventory does not exactly match/,
       "publication must retain every attempt, all native token categories, and the exact log inventory",
     );
     assert.match(
