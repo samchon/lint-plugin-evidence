@@ -294,10 +294,6 @@ export namespace EvidenceBenchmarkCommandLine {
         writeState(root, state);
       }
       state.elapsedMs = baseElapsedMs + elapsed(resumed);
-      fs.rmSync(path.join(workspace, ".git"), {
-        recursive: true,
-        force: true,
-      });
       promoteWorkspace(repository, project, arm, workspace);
       state.status = "completed";
       writeState(root, state);
@@ -416,10 +412,6 @@ export namespace EvidenceBenchmarkCommandLine {
           );
       }
       state.elapsedMs = elapsed(started);
-      fs.rmSync(path.join(materialization.workspace, ".git"), {
-        recursive: true,
-        force: true,
-      });
       promoteWorkspace(
         props.repository,
         props.project,
@@ -657,6 +649,7 @@ export namespace EvidenceBenchmarkCommandLine {
     const target: string = path.join(root, "run.json");
     const temporary: string = `${target}.${process.pid}.tmp`;
     fs.writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+    fs.rmSync(target, { force: true });
     fs.renameSync(temporary, target);
   }
 
