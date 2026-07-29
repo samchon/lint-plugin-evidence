@@ -1,8 +1,8 @@
 import { TypedRoute } from "@nestia/core";
-import { Controller } from "@nestjs/common";
+import { Controller as HttpController } from "@nestjs/common";
 
 /** Proves that a nested controller needs no static module registration. */
-@Controller("discovery")
+@HttpController("discovery")
 export class NestedDiscoveryController {
   /**
    * Returns the nested discovery marker.

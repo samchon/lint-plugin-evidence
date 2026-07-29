@@ -146,7 +146,13 @@ const withMissingAndEmptyDirectory = async (
     if (helperOnly !== undefined) {
       fs.writeFileSync(
         path.join(root, "ControllerHelpers.ts"),
-        "/** Helper-only source must not satisfy controller discovery. */\nexport const DISCOVERY_HELPER = true;\n",
+        [
+          "/** Helper-only source must not satisfy controller discovery. */",
+          "export const DISCOVERY_HELPER = `",
+          "@Controller(",
+          "`;",
+          "",
+        ].join("\n"),
         "utf8",
       );
       await helperOnly();

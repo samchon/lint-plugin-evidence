@@ -20,11 +20,12 @@ export namespace MyModule {
   export const input = (): INestiaConfig.IInput => {
     const root: string = path.resolve(process.cwd(), "src", "controllers");
     assertDirectory(root, "Nestia controller source root");
-    if (hasTypeScriptSource(root) === false)
+    const sources: readonly string[] = readTypeScriptSources(root);
+    if (sources.length === 0)
       throw new Error(
         `Nestia controller source root contains no TypeScript source: ${root}.`,
       );
-    if (hasNestControllerSource(root) === false)
+    if (sources.some(isNestControllerSource) === false)
       throw new Error(
         `Nestia controller source root contains no NestJS controller source: ${root}.`,
       );
@@ -75,32 +76,71 @@ const assertDirectory = (root: string, label: string): void => {
     throw new Error(`${label} is not a directory: ${root}.`);
 };
 
-const hasTypeScriptSource = (root: string): boolean =>
-  fs.readdirSync(root, { withFileTypes: true }).some((entry) => {
+const readTypeScriptSources = (root: string): string[] =>
+  fs.readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
     const location: string = path.join(root, entry.name);
-    if (entry.isDirectory()) return hasTypeScriptSource(location);
-    if (entry.isFile() === false) return false;
+    if (entry.isDirectory()) return readTypeScriptSources(location);
+    if (entry.isFile() === false) return [];
     const lower: string = entry.name.toLowerCase();
-    return (
-      /\.(?:[cm]?ts)$/.test(lower) &&
+    return /\.(?:[cm]?ts)$/.test(lower) &&
       /\.(?:d\.[cm]?ts|d\.ts)$/.test(lower) === false
-    );
+      ? [location]
+      : [];
   });
 
-const hasNestControllerSource = (root: string): boolean =>
-  fs.readdirSync(root, { withFileTypes: true }).some((entry) => {
-    const location: string = path.join(root, entry.name);
-    if (entry.isDirectory()) return hasNestControllerSource(location);
+const isNestControllerSource = (location: string): boolean => {
+  const ts: typeof import("typescript") = require("typescript");
+  const source: import("typescript").SourceFile = ts.createSourceFile(
+    location,
+    fs.readFileSync(location, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const identifiers: Set<string> = new Set();
+  const namespaces: Map<string, ReadonlySet<string>> = new Map();
+  for (const statement of source.statements) {
     if (
-      entry.isFile() === false ||
-      /\.(?:[cm]?ts)$/i.test(entry.name) === false ||
-      /\.(?:d\.[cm]?ts|d\.ts)$/i.test(entry.name)
+      ts.isImportDeclaration(statement) === false ||
+      ts.isStringLiteral(statement.moduleSpecifier) === false ||
+      statement.importClause?.namedBindings === undefined
     )
-      return false;
-    return /(?:^|\n)\s*@(Typed)?Controller\s*\(/.test(
-      fs.readFileSync(location, "utf8"),
-    );
+      continue;
+    const module: string = statement.moduleSpecifier.text;
+    const expected: ReadonlySet<string> =
+      module === "@nestjs/common"
+        ? new Set(["Controller"])
+        : module === "@nestia/core"
+          ? new Set(["TypedController"])
+          : new Set();
+    if (expected.size === 0) continue;
+    const bindings = statement.importClause.namedBindings;
+    if (ts.isNamespaceImport(bindings))
+      namespaces.set(bindings.name.text, expected);
+    else
+      for (const element of bindings.elements)
+        if (expected.has((element.propertyName ?? element.name).text))
+          identifiers.add(element.name.text);
+  }
+  return source.statements.some((statement) => {
+    if (ts.isClassDeclaration(statement) === false) return false;
+    return (ts.getDecorators(statement) ?? []).some((decorator) => {
+      const expression: import("typescript").Expression =
+        ts.isCallExpression(decorator.expression)
+          ? decorator.expression.expression
+          : decorator.expression;
+      if (ts.isIdentifier(expression))
+        return identifiers.has(expression.text);
+      return (
+        ts.isPropertyAccessExpression(expression) &&
+        ts.isIdentifier(expression.expression) &&
+        namespaces
+          .get(expression.expression.text)
+          ?.has(expression.name.text) === true
+      );
+    });
   });
+};
 
 const readControllers = (
   module: Type<unknown>,
