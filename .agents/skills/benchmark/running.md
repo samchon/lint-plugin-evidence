@@ -106,7 +106,7 @@ When the user explicitly cancels the benchmark and rejects its partial results:
 2. stop every selected cell controller, model process, server, and owned descendant;
 3. verify no process still references the canceled run roots;
 4. resolve the exact ignored `benchmark/.work/` and `benchmark/result/` paths inside the campaign worktree; and
-5. delete those two trees without touching requirements, templates, instructions, shared caches, source changes, or separately published repositories.
+5. delete those two trees without touching requirements, templates, instructions, shared caches, source changes, or the independently maintained result repository.
 
 The deletion is destructive. State which local trees were removed and that the partial run cannot be resumed.
 
