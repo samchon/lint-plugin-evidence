@@ -44,4 +44,4 @@ Choose a stable operation in the target's domain and name the actual owner plus 
 
 ## After A Contract Change
 
-Regenerate the SDK and OpenAPI document, then invalidate provider, test, and frontend reviews that depended on the previous contract. Do not edit the frozen graph configuration to silence a diagnostic.
+Regenerate the SDK and OpenAPI document, then invalidate provider, test, and frontend reviews that depended on the previous contract. Never narrow a graph population to silence a diagnostic; temporary whole-claim deferral is governed by [Evidence Lint](../evidence/SKILL.md) and must be restored before completion.

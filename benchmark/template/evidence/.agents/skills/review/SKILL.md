@@ -5,6 +5,12 @@ description: Defines integrity review for evidence claims: comparing every tag o
 
 # Review
 
+## Restore The Complete Graph
+
+Read [Evidence Lint](../evidence/SKILL.md) before reviewing. Open `packages/backend/lint.config.ts`, `packages/api/lint.config.ts`, and `packages/frontend/lint.config.ts`; restore every temporarily deferred claim and confirm the active inventory is exactly `schema-models`, `api-operations`, `backend-tests`, `dto-types`, `dto-properties`, `frontend-screens`, and `frontend-journeys`.
+
+Reject a completion report when any claim entry remains commented, a claim population was narrowed, `evidence/graph` was disabled, or an evidence rule severity was lowered. Run the complete lint, build, and test gates against the fully active configuration before reviewing graph integrity.
+
 ## Coverage Is Not Integrity
 
 The graph establishes that every configured target received `@evidence` or `@evidenceExclude` from a selected host. It does not evaluate the reason or the implementation. A tag written after doing the work and a tag copied merely to clear a diagnostic are structurally identical.
@@ -65,4 +71,4 @@ Keep graph-integrity, reverse-owner, exclusion, and residual-edge verdicts in `.
 For every row record the exact target or source identity, claiming artifact and member, falsifiable reason, current source digest, and `pending`, `accepted`, or `stale` verdict.
 Record findings before repair and retain stale rows until their replacements pass the next complete review.
 
-Review every current graph claim and residual edge before every completion report. Do not edit frozen instructions or lint configuration files.
+Review every current graph claim and residual edge before every completion report. Do not edit frozen instructions, and do not weaken a lint configuration to make the review green.

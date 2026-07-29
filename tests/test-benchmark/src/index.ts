@@ -26,7 +26,7 @@ const variables: IEvidenceBenchmarkMaterialization.IVariables = {
  * repository hoisting. The build mode therefore materializes the cheapest
  * subject exactly once in an isolated temporary directory.
  *
- * 1. Compose and validate the evidence and plain overlays with identical paths.
+ * 1. Compose and validate both overlays with one evidence-only workflow skill.
  * 2. Copy the complete Todo corpus into the plain scaffold.
  * 3. Generate a lockfile, install it frozen, and run the scaffold's full build.
  */
@@ -41,17 +41,20 @@ const main = async (): Promise<void> => {
     arm: "plain",
     variables,
   });
+  const evidenceOnly = ".agents/skills/evidence/SKILL.md";
+  assert.equal(evidence.files.has(evidenceOnly), true);
+  assert.equal(plain.files.has(evidenceOnly), false);
   assert.deepEqual(
-    [...evidence.files.keys()].sort(),
+    [...evidence.files.keys()].filter((key) => key !== evidenceOnly).sort(),
     [...plain.files.keys()].sort(),
-    "benchmark arms must expose the same rendered path set",
+    "benchmark arms may differ only by the evidence workflow skill",
   );
   EvidenceBenchmarkTemplate.validate(evidence.files);
   EvidenceBenchmarkTemplate.validate(plain.files);
 
   if (!process.argv.includes("--build")) {
     console.log(
-      `Benchmark template composition passed for ${plain.files.size} files in both arms.`,
+      `Benchmark template composition passed for ${plain.files.size} shared files and one evidence workflow skill.`,
     );
     return;
   }
