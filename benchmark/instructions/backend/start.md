@@ -4,7 +4,7 @@ Use goal mode for this backend implementation stage. Resume the same unfinished 
 
 Build the complete API and backend required by every file under `docs/analysis/`.
 
-Before editing, read `AGENTS.md` and every applicable Requirements, API, Backend, Evidence, and Review instruction in full. Treat every normative sentence, table row, state transition, authorization rule, error case, non-functional requirement, and atomic acceptance criterion as binding.
+The skills-contract turn remains binding. Before editing, re-read `AGENTS.md` and every applicable Requirements, API, Backend, Evidence, and Review instruction in full. Treat every normative sentence, table row, state transition, authorization rule, error case, non-functional requirement, and atomic acceptance criterion as binding.
 
 Complete this phase in dependency order:
 

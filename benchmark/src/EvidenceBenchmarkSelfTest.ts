@@ -4,6 +4,8 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 
+import * as ts from "typescript-api";
+
 import { EvidenceBenchmarkBaseline } from "./EvidenceBenchmarkBaseline.ts";
 import { EvidenceBenchmarkCorpus } from "./EvidenceBenchmarkCorpus.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
@@ -290,7 +292,7 @@ export namespace EvidenceBenchmarkSelfTest {
       path.join(runRoot, "run.json"),
       `${JSON.stringify({
         schemaVersion: 5,
-        workflow: "backend-first-gated-v1",
+        workflow: "backend-first-gated-v2",
         instructionsTreeSha256,
         project: "todo",
         arm: "evidence",
@@ -303,6 +305,7 @@ export namespace EvidenceBenchmarkSelfTest {
         completedWorkspaceTreeSha256:
           EvidenceBenchmarkPublication.workspaceSha256(workspace),
         turns: [
+          "skills-contract",
           "backend-start",
           "backend-review",
           "backend-final",
@@ -1061,8 +1064,41 @@ export namespace EvidenceBenchmarkSelfTest {
         .readdirSync(instructions, { withFileTypes: true })
         .map((entry) => entry.name)
         .sort(),
-      ["backend", "frontend", "overall"],
-      "backend-first instructions must contain exactly three phase directories",
+      ["backend", "frontend", "overall", "skills-contract.md"],
+      "backend-first instructions must contain the contract and three phase directories",
+    );
+    const skillsContract: string = fs.readFileSync(
+      path.join(instructions, "skills-contract.md"),
+      "utf8",
+    );
+    assert.match(
+      skillsContract,
+      /Before implementation, generation, project commands, or file edits:[\s\S]+Read `AGENTS\.md` in full\.[\s\S]+Enumerate every `\.agents\/skills\/\*\*\/SKILL\.md` file[\s\S]+read each one in full[\s\S]+Follow them without deviation\.[\s\S]+Never silently omit, replace, weaken, or reinterpret a skill rule\./,
+      "the first frozen turn must establish the complete skills contract",
+    );
+    assert.match(
+      skillsContract,
+      /Do not start backend work in this turn\./,
+      "the skills-contract turn must finish before backend implementation",
+    );
+    assert.match(
+      skillsContract,
+      /Use goal mode for this /,
+      "skills-contract.md must activate a bounded stage goal",
+    );
+    const commandLine: string = fs.readFileSync(
+      path.join(
+        repository,
+        "benchmark",
+        "src",
+        "EvidenceBenchmarkCommandLine.ts",
+      ),
+      "utf8",
+    );
+    assert.match(
+      commandLine,
+      /return \[\s*\{ name: "skills-contract", relative: "skills-contract\.md" \},\s*\{ name: "backend-start"/,
+      "the skills contract must be the first frozen runner turn",
     );
     for (const phase of ["backend", "frontend"])
       assert.deepEqual(
@@ -1091,11 +1127,15 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     for (const phase of ["backend", "frontend", "overall"])
       for (const file of fs.readdirSync(path.join(instructions, phase)))
-        assert.match(
-          fs.readFileSync(path.join(instructions, phase, file), "utf8"),
+        for (const contract of [
           /Use goal mode for this /,
-          `${phase}/${file} must activate a bounded stage goal`,
-        );
+          /The skills-contract turn remains binding\.[^\n]*re-read `AGENTS\.md`/i,
+        ])
+          assert.match(
+            fs.readFileSync(path.join(instructions, phase, file), "utf8"),
+            contract,
+            `${phase}/${file} must preserve its bounded goal and skills contract`,
+          );
 
     const template: string = path.join(repository, "benchmark", "template");
     for (const arm of ["evidence", "plain"] as const) {
@@ -1131,6 +1171,8 @@ export namespace EvidenceBenchmarkSelfTest {
           workflow.includes(command),
           `integrated ${arm} CI is missing ${command}`,
         );
+      if (arm === "evidence")
+        assertEvidenceClaimDeferralContract(composition.files);
     }
 
     const requirements: string = path.join(
@@ -1153,6 +1195,218 @@ export namespace EvidenceBenchmarkSelfTest {
         `${entry.name} requirement corpus must contain only Markdown`,
       );
     }
+  }
+
+  function assertEvidenceClaimDeferralContract(
+    files: ReadonlyMap<string, Uint8Array>,
+  ): void {
+    const configurations: Readonly<Record<string, readonly string[]>> = {
+      "packages/backend/lint.config.ts": [
+        "schema-models",
+        "api-operations",
+        "backend-tests",
+      ],
+      "packages/api/lint.config.ts": ["dto-types", "dto-properties"],
+      "packages/frontend/lint.config.ts": [
+        "frontend-screens",
+        "frontend-journeys",
+      ],
+    };
+    const claims: Map<
+      string,
+      Map<string, { node: ts.ObjectLiteralExpression; source: ts.SourceFile }>
+    > = new Map();
+    for (const [relative, names] of Object.entries(configurations)) {
+      const content: Uint8Array | undefined = files.get(relative);
+      assert.ok(
+        content,
+        `materialized Evidence template is missing ${relative}`,
+      );
+      const objects = readClaimObjects(
+        relative,
+        Buffer.from(content).toString("utf8"),
+      );
+      assert.deepEqual(
+        [...objects.keys()],
+        names,
+        `${relative} claim ownership drifted`,
+      );
+      claims.set(relative, objects);
+    }
+    assert.equal(
+      [...claims.values()].reduce((sum, entries) => sum + entries.size, 0),
+      7,
+      "the materialized Evidence graph must own exactly seven claims",
+    );
+
+    const skillPath: string = ".agents/skills/evidence/SKILL.md";
+    const skillBytes: Uint8Array | undefined = files.get(skillPath);
+    assert.ok(
+      skillBytes,
+      `materialized Evidence template is missing ${skillPath}`,
+    );
+    const skill: string = Buffer.from(skillBytes).toString("utf8");
+    const matrix: readonly string[] = [
+      "Schema authoring | `schema-models` | `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys`",
+      "DTO authoring | `schema-models`, `dto-types`, `dto-properties` | `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys`",
+      "Controller authoring | `schema-models`, `dto-types`, `dto-properties`, `api-operations` | `backend-tests`, `frontend-screens`, `frontend-journeys`",
+      "SDK generation | `schema-models`, `dto-types`, `dto-properties`, `api-operations` | `backend-tests`, `frontend-screens`, `frontend-journeys`",
+      "Backend test | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests` | `frontend-screens`, `frontend-journeys`",
+      "Backend report | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests` | `frontend-screens`, `frontend-journeys`",
+      "Frontend screen | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens` | `frontend-journeys`",
+      "Frontend journey/report | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys` | None",
+      "Overall final | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys` | None",
+    ];
+    const documentedRows = new Set(
+      skill
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith("|"))
+        .map((line) =>
+          line
+            .split("|")
+            .slice(1, -1)
+            .map((cell) => cell.trim())
+            .join(" | "),
+        ),
+    );
+    for (const row of matrix)
+      assert.ok(
+        documentedRows.has(row),
+        `Evidence phase matrix is missing ${row}`,
+      );
+    for (const contract of [
+      "Diagnostic volume never permits deferring the claim for the layer under active development.",
+      "Before `build:sdk`, the schema, DTO, and API-operation claims must all be active and healthy.",
+      "Never edit a claim's internals, severity, rule entry, `files`, `symbol`, or `reference` population; never disable `evidence/graph` or add an environment bypass.",
+      "An agent's prose report is not restoration evidence.",
+    ])
+      assert.ok(
+        skill.includes(contract),
+        `Evidence deferral contract is missing ${contract}`,
+      );
+
+    const examplePattern =
+      /<!-- claim-deferral-example: ([^#\s]+)#([a-z-]+) -->\r?\n```ts\r?\n([\s\S]*?)\r?\n```/g;
+    const examples: Array<{
+      relative: string;
+      name: string;
+      snippet: string;
+    }> = [];
+    for (const match of skill.matchAll(examplePattern))
+      examples.push({
+        relative: match[1]!,
+        name: match[2]!,
+        snippet: match[3]!,
+      });
+    assert.deepEqual(
+      examples.map(({ relative, name }) => `${relative}#${name}`),
+      [
+        "packages/backend/lint.config.ts#api-operations",
+        "packages/api/lint.config.ts#dto-properties",
+        "packages/frontend/lint.config.ts#frontend-screens",
+      ],
+      "the Evidence skill must carry one actual whole-object example per config",
+    );
+    const printer: ts.Printer = ts.createPrinter({
+      newLine: ts.NewLineKind.LineFeed,
+    });
+    for (const example of examples) {
+      const lines: string[] = example.snippet
+        .replaceAll("\r\n", "\n")
+        .split("\n");
+      assert.equal(lines[0], "claims: [");
+      assert.equal(lines.at(-1), "],");
+      const commented: string[] = lines.slice(1, -1);
+      assert.ok(commented.length > 0, `${example.name} example is empty`);
+      assert.ok(
+        commented.every((line) => /^\s*\/\/(?: |$)/.test(line)),
+        `${example.name} must comment every line of the whole claim object`,
+      );
+      const restored: string = commented
+        .map((line) => line.replace(/^(\s*)\/\/ ?/, "$1"))
+        .join("\n");
+      const restoredObjects = readClaimObjects(
+        `${example.relative}#${example.name}`,
+        `const graph = { claims: [\n${restored}\n] };\n`,
+      );
+      assert.deepEqual(
+        [...restoredObjects.keys()],
+        [example.name],
+        `${example.name} example must restore exactly one whole claim`,
+      );
+      const expected = claims.get(example.relative)?.get(example.name);
+      const actual = restoredObjects.get(example.name);
+      assert.ok(
+        expected !== undefined && actual !== undefined,
+        `${example.relative} does not own ${example.name}`,
+      );
+      assert.equal(
+        printer.printNode(ts.EmitHint.Expression, actual.node, actual.source),
+        printer.printNode(
+          ts.EmitHint.Expression,
+          expected.node,
+          expected.source,
+        ),
+        `${example.name} example drifted from the materialized lint config`,
+      );
+    }
+  }
+
+  function readClaimObjects(
+    filename: string,
+    content: string,
+  ): Map<string, { node: ts.ObjectLiteralExpression; source: ts.SourceFile }> {
+    const source: ts.SourceFile = ts.createSourceFile(
+      filename,
+      content,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    );
+    const arrays: ts.ArrayLiteralExpression[] = [];
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isPropertyAssignment(node) &&
+        propertyName(node.name) === "claims" &&
+        ts.isArrayLiteralExpression(node.initializer)
+      )
+        arrays.push(node.initializer);
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    assert.equal(arrays.length, 1, `${filename} must define one claims array`);
+    const output = new Map<
+      string,
+      { node: ts.ObjectLiteralExpression; source: ts.SourceFile }
+    >();
+    for (const element of arrays[0]!.elements) {
+      assert.ok(
+        ts.isObjectLiteralExpression(element),
+        `${filename} claims must contain only object literals`,
+      );
+      const property = element.properties.find(
+        (candidate): candidate is ts.PropertyAssignment =>
+          ts.isPropertyAssignment(candidate) &&
+          propertyName(candidate.name) === "name",
+      );
+      assert.ok(
+        property !== undefined && ts.isStringLiteral(property.initializer),
+        `${filename} claim is missing its literal name`,
+      );
+      assert.equal(
+        output.has(property.initializer.text),
+        false,
+        `${filename} duplicates ${property.initializer.text}`,
+      );
+      output.set(property.initializer.text, { node: element, source });
+    }
+    return output;
+  }
+
+  function propertyName(name: ts.PropertyName): string | undefined {
+    return ts.isIdentifier(name) || ts.isStringLiteral(name)
+      ? name.text
+      : undefined;
   }
 
   async function testRetentionIgnore(repository: string): Promise<void> {

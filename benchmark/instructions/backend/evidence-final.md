@@ -2,6 +2,8 @@
 
 Use goal mode for this backend Evidence final stage. Resume the same unfinished stage goal after an interruption; otherwise create it now. Mark it complete only when the restored backend Evidence Graph, package gates, tests, and live-server checks below are all green.
 
+The skills-contract turn remains binding. Re-read `AGENTS.md` and the applicable Backend, Evidence, and Review instructions in full before any final-stage action.
+
 Finish the backend phase under the fully active API and backend Evidence Graph.
 
 1. Inspect `packages/api/lint.config.ts` and `packages/backend/lint.config.ts`.

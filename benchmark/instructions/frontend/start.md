@@ -4,7 +4,7 @@ Use goal mode for this frontend implementation stage. Resume the same unfinished
 
 Build the complete production frontend required by every file under `docs/analysis/`.
 
-Before editing, read `AGENTS.md` and every applicable Requirements, API, Frontend, Evidence, and Review instruction in full. Treat the backend phase and its generated SDK as the validated starting contract.
+The skills-contract turn remains binding. Before editing, re-read `AGENTS.md` and every applicable Requirements, API, Frontend, Evidence, and Review instruction in full. Treat the backend phase and its generated SDK as the validated starting contract.
 
 Inventory every requirement-backed user journey before implementation. Build the screen plan, routes, state, forms, lists, error states, responsive interface, simulation fixtures, browser journeys, and live integration in the order prescribed by the Frontend skill. Remove every frontend `@todo` as its obligation is realized.
 

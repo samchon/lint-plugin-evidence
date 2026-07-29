@@ -21,7 +21,7 @@ Assign a dedicated read-only reporting subagent to edit the pull-request body in
 | Project | Mode | Progress | Quality | Cost | Time |
 | ------- | ---- | -------- | ------: | ---: | ---: |
 
-`Progress` gives the current retained instruction, state, and estimated completion. `Quality` is provisional until final audit. `Cost` contains native token categories and API-equivalent cost. `Time` is cumulative elapsed duration without timestamps. Keep a compact per-phase token, cost, and duration breakdown for all eight retained instructions, then report database-table, API-operation, DTO-type, DTO-property, and test-function counts for each cell. Report counts, not names.
+`Progress` gives the current retained instruction, state, and estimated completion. `Quality` is provisional until final audit. `Cost` contains native token categories and API-equivalent cost. `Time` is cumulative elapsed duration without timestamps. Keep a compact per-phase token, cost, and duration breakdown for all nine retained instructions, then report database-table, API-operation, DTO-type, DTO-property, and test-function counts for each cell. Report counts, not names.
 
 The reporting subagent reads retained state, logs, usage, and workspace inventories. It never edits a measured workspace, frozen input, campaign source, or result ledger. The separate liveness supervisor still inspects every active cell at least once every 30 seconds and handles failures immediately.
 
@@ -99,10 +99,11 @@ Do not delete requirement corpora, templates, instructions, shared caches, sourc
 
 ## Instruction sequence
 
-The backend-first workflow uses eight user turns on one Codex thread.
+The backend-first workflow uses nine user turns on one Codex thread.
 
 | Step            | Evidence                     | Plain                     |
 | --------------- | ---------------------------- | ------------------------- |
+| Skills contract | `skills-contract.md`         | `skills-contract.md`      |
 | Backend start   | `backend/start.md`           | `backend/start.md`        |
 | Backend review  | `backend/review.md`          | `backend/review.md`       |
 | Backend final   | `backend/evidence-final.md`  | `backend/plain-final.md`  |
@@ -132,7 +133,7 @@ A repair applied after measured work is an operator intervention, even when both
 
 ## Accept a result
 
-`status: completed` is provisional. Before accepting a cell, verify all eight prescribed turns, build, lint, database preparation, backend tests, frontend tests, runtime behavior, requirement coverage, test coverage, enabled evidence claims, residual placeholders, and semantic quality. Failed capacity attempts remain in cumulative cost and time; setup and repair overhead remain separate.
+`status: completed` is provisional. Before accepting a cell, verify all nine prescribed turns, build, lint, database preparation, backend tests, frontend tests, runtime behavior, requirement coverage, test coverage, enabled evidence claims, residual placeholders, and semantic quality. Failed capacity attempts remain in cumulative cost and time; setup and repair overhead remain separate.
 
 Do not record absolute start or completion timestamps. Preserve total elapsed duration, native token categories, standard API-equivalent cost, commands and gates, first completion claims, implementation scale, coverage, quality findings, frozen-input identities, raw streams, and the final workspace.
 

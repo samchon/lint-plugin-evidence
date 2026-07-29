@@ -19,10 +19,11 @@ export namespace EvidenceBenchmarkCommandLine {
   const ENGINE = "codex" as const;
   const MODEL = "gpt-5.6-terra";
   const EFFORT = "high" as const;
-  const WORKFLOW = "backend-first-gated-v1" as const;
+  const WORKFLOW = "backend-first-gated-v2" as const;
   const ARMS = ["evidence", "plain"] as const;
 
   type TurnName =
+    | "skills-contract"
     | "backend-start"
     | "backend-review"
     | "backend-final"
@@ -560,6 +561,7 @@ export namespace EvidenceBenchmarkCommandLine {
     arm: IEvidenceBenchmarkMaterialization.Arm,
   ): readonly Omit<IInstruction, "content">[] {
     return [
+      { name: "skills-contract", relative: "skills-contract.md" },
       { name: "backend-start", relative: "backend/start.md" },
       { name: "backend-review", relative: "backend/review.md" },
       { name: "backend-final", relative: `backend/${arm}-final.md` },

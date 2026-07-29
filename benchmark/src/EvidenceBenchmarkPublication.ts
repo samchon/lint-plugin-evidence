@@ -187,7 +187,7 @@ export namespace EvidenceBenchmarkPublication {
     };
     if (
       state.schemaVersion !== 5 ||
-      state.workflow !== "backend-first-gated-v1" ||
+      state.workflow !== "backend-first-gated-v2" ||
       state.project !== request.project ||
       state.arm !== request.arm ||
       state.engine !== "codex" ||
@@ -206,6 +206,7 @@ export namespace EvidenceBenchmarkPublication {
         `Publication requires the completed ${request.project}/${request.arm} run ${request.runId}.`,
       );
     const expectedTurns: readonly string[] = [
+      "skills-contract",
       "backend-start",
       "backend-review",
       "backend-final",

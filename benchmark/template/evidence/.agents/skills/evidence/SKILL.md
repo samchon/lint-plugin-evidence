@@ -49,21 +49,27 @@ The template starts with all seven claims active and every evidence rule at its 
 
 ## Temporary Claim Deferral
 
-During active development, prefer deferring a later-layer claim that has not started when its expected diagnostics would bury the current work. Comment out only the affected whole claim object. Do not edit the deferred object, disable `evidence/graph`, lower a severity, add an environment bypass, or narrow a population.
+During active development, a later-layer claim that has not started may be deferred when its expected diagnostics would bury the current work. Diagnostic volume never permits deferring the claim for the layer under active development. Comment out only the affected whole claim object.
 
-Use the backend claims in dependency order:
+This matrix is the canonical claim-state contract:
 
-1. While designing the schema, keep `schema-models` active. You may defer the not-yet-started `api-operations`, `backend-tests`, `dto-types`, and `dto-properties` claims.
-2. When DTO work starts, restore `dto-types` and `dto-properties`. Build the authored API package until the DTO contract holds.
-3. When controller work starts, restore `api-operations`. Compile the backend source until every operation and DTO is settled.
-4. Only then run `build:sdk`.
-5. When feature-test work starts, restore `backend-tests`, write the tests against that SDK, and run `build:test`.
-6. Before the Backend Phase report, restore and validate all five backend-phase claims.
+| Gate | Must be active | May be deferred only if not started |
+| --- | --- | --- |
+| Schema authoring | `schema-models` | `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys` |
+| DTO authoring | `schema-models`, `dto-types`, `dto-properties` | `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys` |
+| Controller authoring | `schema-models`, `dto-types`, `dto-properties`, `api-operations` | `backend-tests`, `frontend-screens`, `frontend-journeys` |
+| SDK generation | `schema-models`, `dto-types`, `dto-properties`, `api-operations` | `backend-tests`, `frontend-screens`, `frontend-journeys` |
+| Backend test | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests` | `frontend-screens`, `frontend-journeys` |
+| Backend report | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests` | `frontend-screens`, `frontend-journeys` |
+| Frontend screen | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens` | `frontend-journeys` |
+| Frontend journey/report | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys` | None |
+| Overall final | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys` | None |
 
-Use the same rule in the frontend: `frontend-screens` and `frontend-journeys` may remain deferred only until work on their respective populations begins. Both must be restored before the Frontend Phase report.
+Before `build:sdk`, the schema, DTO, and API-operation claims must all be active and healthy. Backend, Frontend, and Overall reports require every claim owned by that phase to be restored. If frontend work proves a named backend defect, restore and revalidate every affected backend claim, regenerate affected output, and re-pass the Backend Phase gate before resuming frontend work.
 
 For example, this is a valid temporary deferral of `api-operations` in `packages/backend/lint.config.ts`:
 
+<!-- claim-deferral-example: packages/backend/lint.config.ts#api-operations -->
 ```ts
 claims: [
   // {
@@ -88,7 +94,47 @@ claims: [
 ],
 ```
 
-Comment every line of the existing object. Remove only those line-comment markers to reactivate it. Apply the same whole-object operation to claims in the other two package configurations. The purpose is to postpone feedback for work that has not started, not to hide feedback for the layer currently being built.
+This is the same operation for `dto-properties` in `packages/api/lint.config.ts`:
+
+<!-- claim-deferral-example: packages/api/lint.config.ts#dto-properties -->
+```ts
+claims: [
+  // {
+  //   name: "dto-properties",
+  //   type: "typescript",
+  //   files: ["src/structures/**/*.ts"],
+  //   symbol: "property",
+  //   reference: {
+  //     type: "prisma",
+  //     root: "../backend",
+  //     files: ["prisma/schema/**/*.prisma"],
+  //     symbol: ["column"],
+  //   },
+  // },
+],
+```
+
+This is the same operation for `frontend-screens` in `packages/frontend/lint.config.ts`:
+
+<!-- claim-deferral-example: packages/frontend/lint.config.ts#frontend-screens -->
+```ts
+claims: [
+  // {
+  //   name: "frontend-screens",
+  //   type: "typescript",
+  //   files: ["src/components/*/*-page.tsx", "!src/components/dev/**"],
+  //   symbol: "function",
+  //   reference: {
+  //     type: "markdown",
+  //     root: "../..",
+  //     files: ["docs/analysis/**/*.md"],
+  //     symbol: ["h2", "h3"],
+  //   },
+  // },
+],
+```
+
+Comment every line of the existing object and remove only those line-comment markers to restore its original text. Never edit a claim's internals, severity, rule entry, `files`, `symbol`, or `reference` population; never disable `evidence/graph` or add an environment bypass. Deferral postpones feedback only for work that has not started. It never hides an active layer's diagnostics.
 
 ## Phase Gates
 
@@ -110,7 +156,7 @@ At the Overall Phase gate:
 1. Open all three `lint.config.ts` files and restore every temporarily commented claim.
 2. Confirm the active claim names are exactly the seven names in the configuration table.
 3. Confirm every configured evidence rule retains its original `error` severity and every claim retains its original population.
-4. Run the complete workspace lint, build, and test gates with no staged configuration override.
+4. Verify restoration from the actual three configuration files, then run the complete workspace lint, build, and test gates with no staged configuration override. An agent's prose report is not restoration evidence.
 5. Read and execute [Review](../review/SKILL.md) against the fully active graph.
 
 A green phase subset is not whole-project completion. Any claim missing from its active phase, narrowed population, disabled rule, remaining phase-owned `@todo`, or unreviewed phase edge blocks that phase report.
