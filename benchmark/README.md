@@ -19,7 +19,7 @@ Treat the benchmark as an issue campaign. Keep one campaign pull request open un
 Assign a dedicated read-only reporting subagent to edit the pull-request body in place every 15 minutes. Keep only this dashboard in the body:
 
 | Project | Mode | Progress | Quality | Cost | Time |
-| --- | --- | --- | ---: | ---: | ---: |
+| ------- | ---- | -------- | ------: | ---: | ---: |
 
 `Progress` gives the current retained instruction, state, and estimated completion. `Quality` is provisional until final audit. `Cost` contains native token categories and API-equivalent cost. `Time` is cumulative elapsed duration without timestamps. Keep a compact per-phase token, cost, and duration breakdown for all eight retained instructions, then report database-table, API-operation, DTO-type, DTO-property, and test-function counts for each cell. Report counts, not names.
 
