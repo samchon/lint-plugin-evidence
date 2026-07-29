@@ -181,13 +181,22 @@ export namespace EvidenceBenchmarkBaseline {
         environment,
       });
 
+      const completedSteps: Readonly<
+        Record<
+          IEvidenceBenchmarkBaseline.Step,
+          IEvidenceBenchmarkBaseline.IStep
+        >
+      > = completeSteps(steps);
       const record: Omit<IEvidenceBenchmarkBaseline, "root" | "workspace"> = {
         baseTreeSha256,
         renderedTreeSha256,
         lockSha256,
         pnpmVersion: EvidenceBenchmarkProcess.PNPM_VERSION,
-        completedAt: new Date().toISOString(),
-        steps: completeSteps(steps),
+        elapsedMs: Object.values(completedSteps).reduce(
+          (sum, step) => sum + step.elapsedMs,
+          0,
+        ),
+        steps: completedSteps,
       };
       fs.writeFileSync(
         path.join(stage, "baseline.json"),
@@ -201,28 +210,8 @@ export namespace EvidenceBenchmarkBaseline {
         ...record,
       };
     } catch (error) {
-      const failure = {
-        status: "failed",
-        failedAt: new Date().toISOString(),
-        baseTreeSha256,
-        renderedTreeSha256,
-        lockSha256,
-        steps,
-        error:
-          error instanceof Error
-            ? { name: error.name, message: error.message, stack: error.stack }
-            : { message: String(error) },
-      };
-      fs.writeFileSync(
-        path.join(stage, "baseline.failure.json"),
-        `${JSON.stringify(failure, null, 2)}\n`,
-        { encoding: "utf8", flag: "wx" },
-      );
-      await EvidenceBenchmarkAtomic.publish(stage, output);
-      throw new Error(
-        `Neutral scaffold admission failed; diagnostics are preserved at ${output}.`,
-        { cause: error },
-      );
+      fs.rmSync(stage, { recursive: true, force: true });
+      throw new Error("Neutral scaffold admission failed.", { cause: error });
     }
   }
 

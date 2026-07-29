@@ -21,6 +21,7 @@ export namespace EvidenceBenchmarkMaterializer {
   export async function materialize(
     request: IEvidenceBenchmarkMaterialization.IRequest,
   ): Promise<IEvidenceBenchmarkMaterialization> {
+    const started: bigint = process.hrtime.bigint();
     const repository: string = path.resolve(request.repository);
     const output: string = path.resolve(request.output);
     const parent: string = path.dirname(output);
@@ -96,11 +97,11 @@ export namespace EvidenceBenchmarkMaterializer {
         toolchain: path.join(output, "cache", "toolchain-bin"),
       };
       const manifestRecord: IEvidenceBenchmarkMaterialization.IManifest = {
-        schemaVersion: 2,
+        schemaVersion: 3,
         treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
         project: request.project,
         arm: request.arm,
-        materializedAt: new Date().toISOString(),
+        elapsedMs: 0,
         variables: Object.fromEntries(
           Object.entries(request.variables).sort(([left], [right]) =>
             left.localeCompare(right, "en"),
@@ -154,6 +155,8 @@ export namespace EvidenceBenchmarkMaterializer {
 
       writeTree(path.join(stage, "workspace"), workspaceFiles);
       writeTree(path.join(stage, "inputs", "requirements"), requirementFiles);
+      manifestRecord.elapsedMs =
+        Number(process.hrtime.bigint() - started) / 1_000_000;
       fs.writeFileSync(
         path.join(stage, "materialization.json"),
         `${JSON.stringify(manifestRecord, null, 2)}\n`,

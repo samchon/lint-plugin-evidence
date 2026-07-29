@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -24,18 +25,16 @@ export namespace EvidenceBenchmarkCommandLine {
   }
 
   interface IState {
-    schemaVersion: 1;
+    schemaVersion: 2;
     project: IEvidenceBenchmarkMaterialization.Project;
     arm: IEvidenceBenchmarkMaterialization.Arm;
     model: typeof MODEL;
     sourceCommit: string;
     runtime: EvidenceBenchmarkRuntime.IAssignment;
-    startedAt: string;
-    completedAt?: string;
-    status: "running" | "completed" | "failed";
+    elapsedMs: number;
+    status: "running" | "completed";
     threadId?: string;
     turns: ITurn[];
-    error?: string;
   }
 
   interface IOptions {
@@ -92,12 +91,12 @@ export namespace EvidenceBenchmarkCommandLine {
     ).stdout.trim();
     if (status.length !== 0)
       throw new Error(
-        `Benchmark start requires a clean merged source tree:\n${status}`,
+        `Benchmark start requires a clean source tree:\n${status}`,
       );
     await EvidenceBenchmarkRuntime.assertAvailable(
       cells.map((cell) => cell.runtime),
     );
-    const runId: string = `${timestamp()}-${sourceCommit.slice(0, 12)}`;
+    const runId: string = `${sourceCommit.slice(0, 12)}-${crypto.randomUUID()}`;
     const artifact: IEvidenceBenchmarkPackageArtifact =
       await EvidenceBenchmarkPackage.prepare({
         repository,
@@ -128,47 +127,63 @@ export namespace EvidenceBenchmarkCommandLine {
     runtime: EvidenceBenchmarkRuntime.IAssignment;
     artifact: IEvidenceBenchmarkPackageArtifact;
   }): Promise<void> {
-    const root: string = path.join(
+    const started: bigint = process.hrtime.bigint();
+    const resultsRoot: string = path.resolve(
       props.repository,
       "benchmark",
       "result",
+    );
+    const root: string = path.resolve(
+      resultsRoot,
       props.project,
       props.arm,
       "runs",
       props.runId,
     );
-    const materialization = await EvidenceBenchmarkMaterializer.materialize({
-      repository: props.repository,
-      output: root,
-      project: props.project,
-      arm: props.arm,
-      variables: variables(props.project, props.arm),
-      artifact: props.artifact,
-    });
-    EvidenceBenchmarkRuntime.apply(materialization.environment, props.runtime);
-    await EvidenceBenchmarkSetup.prepare({
-      materialization,
-      arm: props.arm,
-    });
-    await initializeWorkspace(
-      materialization.workspace,
-      materialization.environment,
-    );
-    const logs: string = path.join(root, "logs");
-    fs.mkdirSync(logs, { recursive: false });
-    const state: IState = {
-      schemaVersion: 1,
-      project: props.project,
-      arm: props.arm,
-      model: MODEL,
-      sourceCommit: props.sourceCommit,
-      runtime: props.runtime,
-      startedAt: new Date().toISOString(),
-      status: "running",
-      turns: [],
-    };
-    writeState(root, state);
+    const relativeRoot: string = path.relative(resultsRoot, root);
+    if (
+      relativeRoot === "" ||
+      relativeRoot.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relativeRoot)
+    )
+      throw new Error(`Benchmark cell root escaped the result tree: ${root}.`);
+    let workspace: string | undefined;
     try {
+      const materialization = await EvidenceBenchmarkMaterializer.materialize({
+        repository: props.repository,
+        output: root,
+        project: props.project,
+        arm: props.arm,
+        variables: variables(props.project, props.arm),
+        artifact: props.artifact,
+      });
+      workspace = materialization.workspace;
+      EvidenceBenchmarkRuntime.apply(
+        materialization.environment,
+        props.runtime,
+      );
+      await EvidenceBenchmarkSetup.prepare({
+        materialization,
+        arm: props.arm,
+      });
+      await initializeWorkspace(
+        materialization.workspace,
+        materialization.environment,
+      );
+      const logs: string = path.join(root, "logs");
+      fs.mkdirSync(logs, { recursive: false });
+      const state: IState = {
+        schemaVersion: 2,
+        project: props.project,
+        arm: props.arm,
+        model: MODEL,
+        sourceCommit: props.sourceCommit,
+        runtime: props.runtime,
+        elapsedMs: elapsed(started),
+        status: "running",
+        turns: [],
+      };
+      writeState(root, state);
       const prompts: ReadonlyArray<{
         name: ITurn["name"];
         relative: string;
@@ -196,6 +211,7 @@ export namespace EvidenceBenchmarkCommandLine {
         });
         state.threadId ??= turn.threadId;
         state.turns.push(turn);
+        state.elapsedMs = elapsed(started);
         writeState(root, state);
         if (turn.status !== 0)
           throw new Error(
@@ -203,7 +219,12 @@ export namespace EvidenceBenchmarkCommandLine {
           );
       }
       state.status = "completed";
-      state.completedAt = new Date().toISOString();
+      state.elapsedMs = elapsed(started);
+      fs.rmSync(path.join(materialization.workspace, ".git"), {
+        recursive: true,
+        force: true,
+      });
+      writeState(root, state);
       promoteWorkspace(
         props.repository,
         props.project,
@@ -211,17 +232,14 @@ export namespace EvidenceBenchmarkCommandLine {
         materialization.workspace,
       );
     } catch (error) {
-      state.status = "failed";
-      state.completedAt = new Date().toISOString();
-      state.error =
-        error instanceof Error ? (error.stack ?? error.message) : String(error);
+      fs.rmSync(root, { recursive: true, force: true });
       throw error;
     } finally {
-      writeState(root, state);
-      fs.rmSync(path.join(materialization.workspace, ".git"), {
-        recursive: true,
-        force: true,
-      });
+      if (workspace !== undefined)
+        fs.rmSync(path.join(workspace, ".git"), {
+          recursive: true,
+          force: true,
+        });
     }
   }
 
@@ -396,11 +414,8 @@ export namespace EvidenceBenchmarkCommandLine {
     fs.renameSync(temporary, target);
   }
 
-  function timestamp(): string {
-    return new Date()
-      .toISOString()
-      .replaceAll(/[-:]/g, "")
-      .replace(/\.\d{3}Z$/, "Z");
+  function elapsed(started: bigint): number {
+    return Number(process.hrtime.bigint() - started) / 1_000_000;
   }
 
   function codexExecutable(): { command: string; prefix: string[] } {

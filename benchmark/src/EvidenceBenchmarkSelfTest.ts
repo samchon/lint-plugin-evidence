@@ -27,12 +27,12 @@ export namespace EvidenceBenchmarkSelfTest {
     const temporary: string = fs.mkdtempSync(
       path.join(os.tmpdir(), "evidence-benchmark-self-test-"),
     );
-    let preserveFailure: boolean = false;
     try {
       const fixture: string = path.join(temporary, "fixture");
       createFixture(repository, fixture);
       await testPinnedPnpm(repository);
       await testRuntimeIsolation();
+      await testBaselineFailureCleanup(temporary);
       await testPinnedSetup(temporary);
       await testRepositoryInputs(repository);
       await testRetentionIgnore(repository);
@@ -46,16 +46,8 @@ export namespace EvidenceBenchmarkSelfTest {
       console.log(
         `Benchmark self-test passed${args.includes("--baseline") ? " with neutral baseline" : ""}${args.includes("--package") ? " with package smoke" : ""}.`,
       );
-    } catch (error) {
-      preserveFailure = args.includes("--baseline");
-      if (preserveFailure)
-        console.error(
-          `Baseline self-test failure retained its diagnostics at ${temporary}.`,
-        );
-      throw error;
     } finally {
-      if (!preserveFailure)
-        fs.rmSync(temporary, { recursive: true, force: true });
+      fs.rmSync(temporary, { recursive: true, force: true });
     }
   }
 
@@ -166,6 +158,30 @@ export namespace EvidenceBenchmarkSelfTest {
       );
     }
     await EvidenceBenchmarkRuntime.assertAvailable(assignments);
+  }
+
+  async function testBaselineFailureCleanup(temporary: string): Promise<void> {
+    const output: string = path.join(temporary, "failed-neutral-baseline");
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkBaseline.prepare({
+          repository: path.join(temporary, "missing-repository"),
+          output,
+        }),
+      "Neutral scaffold admission failed",
+    );
+    assert.equal(
+      fs.existsSync(output),
+      false,
+      "failed neutral admission must not publish an output directory",
+    );
+    assert.deepEqual(
+      fs
+        .readdirSync(temporary)
+        .filter((entry) => entry.startsWith(".failed-neutral-baseline.")),
+      [],
+      "failed neutral admission must remove its staging directory",
+    );
   }
 
   async function testComposition(
@@ -585,6 +601,7 @@ export namespace EvidenceBenchmarkSelfTest {
       materialization,
       arm: "plain",
     });
+    assert.ok(setup.elapsedMs >= setup.lockElapsedMs + setup.installElapsedMs);
     assert.equal(setup.pnpmVersion, EvidenceBenchmarkProcess.PNPM_VERSION);
     assert.ok(fs.existsSync(path.join(workspace, "pnpm-lock.yaml")));
     assert.ok(fs.existsSync(path.join(root, "setup.json")));
@@ -789,7 +806,7 @@ export namespace EvidenceBenchmarkSelfTest {
       payloadSha256: EvidenceBenchmarkHash.bytes("fixture payload"),
       sourceCommit: "0000000000000000000000000000000000000000",
       sourceLockSha256: EvidenceBenchmarkHash.bytes("fixture lock"),
-      preparedAt: "2000-01-01T00:00:00.000Z",
+      elapsedMs: 0,
       packElapsedMs: 0,
       smokeInstallElapsedMs: 0,
       smokeCheckElapsedMs: 0,
@@ -928,6 +945,9 @@ export namespace EvidenceBenchmarkSelfTest {
     const manifest = JSON.parse(
       fs.readFileSync(props.cell.manifest, "utf8"),
     ) as IEvidenceBenchmarkMaterialization.IManifest;
+    assert.equal(manifest.schemaVersion, 3);
+    assert.ok(manifest.elapsedMs >= 0);
+    assert.equal("materializedAt" in manifest, false);
     assert.equal(manifest.artifact.sha256, props.artifact.sha256);
     assert.deepEqual(manifest.corpus, {
       documents: corpus.documents,
@@ -1076,6 +1096,7 @@ export namespace EvidenceBenchmarkSelfTest {
       output: path.join(temporary, "neutral-baseline"),
     });
     assert.equal(baseline.pnpmVersion, EvidenceBenchmarkProcess.PNPM_VERSION);
+    assert.ok(baseline.elapsedMs > 0);
     assert.equal(
       Object.keys(baseline.steps).length,
       9,

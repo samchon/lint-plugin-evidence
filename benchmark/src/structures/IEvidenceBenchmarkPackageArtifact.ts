@@ -27,8 +27,8 @@ export interface IEvidenceBenchmarkPackageArtifact {
   /** SHA-256 identity of the source repository's frozen pnpm lockfile. */
   sourceLockSha256: string;
 
-  /** UTC timestamp recorded after the archive passed its consumer smoke. */
-  preparedAt: string;
+  /** Total monotonic wall-clock milliseconds spent preparing this artifact. */
+  elapsedMs: number;
 
   /** Wall-clock milliseconds spent in the single pnpm pack process. */
   packElapsedMs: number;

@@ -18,6 +18,7 @@ export namespace EvidenceBenchmarkSetup {
   export async function prepare(
     request: IEvidenceBenchmarkSetup.IRequest,
   ): Promise<IEvidenceBenchmarkSetup> {
+    const started: bigint = process.hrtime.bigint();
     const workspace: string = request.materialization.workspace;
     const environment: NodeJS.ProcessEnv = request.materialization.environment;
     EvidenceBenchmarkProcess.pinEnvironment(
@@ -98,7 +99,7 @@ export namespace EvidenceBenchmarkSetup {
       );
 
     const result: IEvidenceBenchmarkSetup = {
-      completedAt: new Date().toISOString(),
+      elapsedMs: Number(process.hrtime.bigint() - started) / 1_000_000,
       lockElapsedMs: lock.elapsedMs,
       installElapsedMs: install.elapsedMs,
       lockSha256: afterInstall,

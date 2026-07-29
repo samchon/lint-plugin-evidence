@@ -10,10 +10,10 @@ benchmark/
   requirements/  subject specifications copied into docs/analysis
   template/      shared scaffold plus evidence and plain overlays
   src/           corpus, template, package, materialization, and setup code
-  result/        retained benchmark outputs and latest demo workspaces
+  result/        successful benchmark outputs and latest demo workspaces
 ```
 
-Store each completed or interrupted attempt under `benchmark/result/<subject>/<arm>/runs/<run-id>/`. Keep the latest retained demo at `benchmark/result/<subject>/<arm>/workspace/`. Temporary setup state belongs under `benchmark/.work/`.
+Store each successful attempt under `benchmark/result/<subject>/<arm>/runs/<run-id>/`. Keep the latest successful demo at `benchmark/result/<subject>/<arm>/workspace/`. Temporary setup state belongs under `benchmark/.work/`.
 
 ## Template proof
 
@@ -55,7 +55,7 @@ Use `--port-base` to move the complete disjoint port allocation when the default
 pnpm --filter @samchon/evidence-benchmark start -- --port-base 50000 todo reddit
 ```
 
-`start` packs and verifies the product once, materializes and installs all selected evidence/plain cells, then starts them concurrently with Codex `gpt-5.6-luna`. Each cell streams raw JSONL and stderr into its retained run directory, writes `run.json` after every turn, and preserves failures and quota interruptions. It sends `instruction.md`, `goal.md`, `review.md`, and the arm-specific `final.md` in order on the same Codex thread.
+`start` packs and verifies the product once, materializes and installs all selected evidence/plain cells, then starts them concurrently with Codex `gpt-5.6-luna`. Each cell streams raw JSONL and stderr into its run directory and writes total elapsed time to `run.json` after every turn. Failed and interrupted cell directories are removed. It sends `instruction.md`, `goal.md`, `review.md`, and the arm-specific `final.md` in order on the same Codex thread.
 
 The runner assigns each subject and arm distinct API, Swagger, Vite development, and Playwright ports. It checks every selected port before packaging or model use, exports the assignments to all agent child processes, and records them in `run.json`.
 
@@ -70,4 +70,4 @@ The runner assigns each subject and arm distinct API, Swagger, Vite development,
 
 Arm-specific method instructions stay inside the corresponding template overlay.
 
-Preserve a failed, interrupted, or quota-limited run with its raw logs and generated workspace. Never silently replace it. A later attempt receives a new run ID.
+Every later attempt receives a new opaque run ID. The latest successful subject-arm result and demo workspace remain preserved.

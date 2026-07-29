@@ -1,9 +1,9 @@
 import type { IEvidenceBenchmarkMaterialization } from "./IEvidenceBenchmarkMaterialization.ts";
 
-/** Untimed dependency setup record captured before a coding agent can start. */
+/** Dependency setup record captured before a coding agent can start. */
 export interface IEvidenceBenchmarkSetup {
-  /** UTC timestamp after the frozen install and version checks completed. */
-  completedAt: string;
+  /** Total monotonic wall-clock milliseconds spent preparing dependencies. */
+  elapsedMs: number;
 
   /** Milliseconds spent resolving and writing the initial frozen lockfile. */
   lockElapsedMs: number;
