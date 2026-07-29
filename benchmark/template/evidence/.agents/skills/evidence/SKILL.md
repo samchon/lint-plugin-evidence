@@ -23,7 +23,7 @@ Use the owning layer document for tag placement and examples:
 
 ## Configuration Ownership
 
-The complete graph is declared in three files.
+The complete graph is declared in three package-local files. Open the file that owns the affected population; there is no root graph configuration that replaces them.
 
 | File | Claims |
 | --- | --- |
@@ -38,6 +38,34 @@ The template starts with all seven claims active and every evidence rule at its 
 Use temporary claim deferral at your discretion when the current development stage makes an active claim produce a diagnostic flood that obscures the layer being built. Large corpora can multiply every missing requirement across several claims; processing that full frontier before its hosts exist wastes context without improving the implementation.
 
 Temporarily defer only a whole claim entry by commenting that entry inside its existing `claims` array. Keep the complete claim block in `lint.config.ts` unchanged and visible. Do not delete it, move it elsewhere, change its `files`, `symbol`, or `reference` population, disable `evidence/graph`, lower a rule severity, or alter a requirement to reduce the denominator.
+
+For example, this is a valid temporary deferral of `api-operations` in `packages/backend/lint.config.ts`:
+
+```ts
+claims: [
+  // {
+  //   name: "api-operations",
+  //   type: "typescript",
+  //   files: ["src/controllers/**/*.ts"],
+  //   symbol: "function",
+  //   reference: [
+  //     {
+  //       type: "markdown",
+  //       root: "../..",
+  //       files: ["docs/analysis/**/*.md"],
+  //       symbol: ["h2", "h3"],
+  //     },
+  //     {
+  //       type: "prisma",
+  //       files: ["prisma/schema/**/*.prisma"],
+  //       symbol: ["model"],
+  //     },
+  //   ],
+  // },
+],
+```
+
+Comment every line of the existing object so its nested comments cannot terminate a block comment. To reactivate the claim, remove only those line-comment markers and restore the exact object at its original array position. Apply the same whole-object operation to `dto-types` or `dto-properties` in `packages/api/lint.config.ts`, and to `frontend-screens` or `frontend-journeys` in `packages/frontend/lint.config.ts`.
 
 Claims may be activated, deferred again after an upstream rewrite, and reactivated as implementation dependencies change. Use the following milestones as guidance rather than a mandatory schedule:
 
