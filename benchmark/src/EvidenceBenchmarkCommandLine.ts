@@ -198,13 +198,20 @@ export namespace EvidenceBenchmarkCommandLine {
     const instructions: IInstruction[] = readFrozenInstructions(root, arm);
     const environment: NodeJS.ProcessEnv = resumeEnvironment(root);
     EvidenceBenchmarkRuntime.apply(environment, state.runtime);
-    await EvidenceBenchmarkRuntime.assertAvailable([state.runtime]);
     state.threadId ??= recoverThreadId(logs);
+    if (
+      state.threadId === undefined &&
+      state.turns.some((turn) => turn.status === 0)
+    )
+      throw new Error(
+        `Run ${runId} completed a turn but has no recoverable thread ID.`,
+      );
     const baseElapsedMs: number = state.elapsedMs;
     const resumed: bigint = process.hrtime.bigint();
-    let phase: string = "resume";
+    let phase: string = "resume-admission";
 
     try {
+      await EvidenceBenchmarkRuntime.assertAvailable([state.runtime]);
       for (const entry of instructions) {
         if (
           state.turns.some(
@@ -238,10 +245,6 @@ export namespace EvidenceBenchmarkCommandLine {
       }
       state.status = "completed";
       state.elapsedMs = baseElapsedMs + elapsed(resumed);
-      fs.rmSync(path.join(workspace, ".git"), {
-        recursive: true,
-        force: true,
-      });
       writeState(root, state);
       promoteWorkspace(repository, project, arm, workspace);
     } catch (error) {
@@ -357,10 +360,6 @@ export namespace EvidenceBenchmarkCommandLine {
       }
       state.status = "completed";
       state.elapsedMs = elapsed(started);
-      fs.rmSync(path.join(materialization.workspace, ".git"), {
-        recursive: true,
-        force: true,
-      });
       writeState(root, state);
       promoteWorkspace(
         props.repository,
@@ -461,14 +460,18 @@ export namespace EvidenceBenchmarkCommandLine {
     });
     child.stderr.pipe(stderr);
     child.stdin.end(props.prompt, "utf8");
-    const status: number | null = await new Promise((resolve, reject) => {
-      child.once("error", reject);
-      child.once("close", resolve);
-    });
-    await Promise.all([
-      new Promise<void>((resolve) => stdout.end(resolve)),
-      new Promise<void>((resolve) => stderr.end(resolve)),
-    ]);
+    let status: number | null;
+    try {
+      status = await new Promise((resolve, reject) => {
+        child.once("error", reject);
+        child.once("close", resolve);
+      });
+    } finally {
+      await Promise.all([
+        new Promise<void>((resolve) => stdout.end(resolve)),
+        new Promise<void>((resolve) => stderr.end(resolve)),
+      ]);
+    }
     return {
       name: props.name,
       elapsedMs: Number(process.hrtime.bigint() - started) / 1_000_000,
@@ -726,9 +729,12 @@ export namespace EvidenceBenchmarkCommandLine {
       for (const file of fs.readdirSync(logs).sort()) {
         const location: string = path.join(logs, file);
         if (!fs.statSync(location).isFile()) continue;
-        const content: string = fs.readFileSync(location, "utf8");
-        tails[file] = content.slice(-16_384);
+        tails[file] = readTail(location, 16_384);
       }
+    const statePath: string = path.join(props.root, "run.json");
+    const state: unknown = fs.existsSync(statePath)
+      ? JSON.parse(fs.readFileSync(statePath, "utf8"))
+      : undefined;
     const target: string = path.join(
       failures,
       `${props.project}-${props.arm}-attempt-${attempts + 1}.json`,
@@ -744,6 +750,7 @@ export namespace EvidenceBenchmarkCommandLine {
           elapsedMs: props.elapsedMs,
           cleanup: props.cleanup,
           error,
+          state,
           logs: tails,
         },
         null,
@@ -754,6 +761,19 @@ export namespace EvidenceBenchmarkCommandLine {
     console.error(
       `Benchmark ${props.project}/${props.arm} failed during ${props.phase}; report: ${target}`,
     );
+  }
+
+  function readTail(location: string, maximumBytes: number): string {
+    const size: number = fs.statSync(location).size;
+    const length: number = Math.min(size, maximumBytes);
+    const buffer: Buffer = Buffer.alloc(length);
+    const descriptor: number = fs.openSync(location, "r");
+    try {
+      fs.readSync(descriptor, buffer, 0, length, size - length);
+    } finally {
+      fs.closeSync(descriptor);
+    }
+    return buffer.toString("utf8");
   }
 
   function promoteWorkspace(
