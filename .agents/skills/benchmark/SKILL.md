@@ -29,10 +29,10 @@ After the campaign pull request merges, close only the linked issues whose curre
 
 Use this fixed engine matrix unless the user explicitly replaces it:
 
-| Engine | Model | Effort |
-| --- | --- | --- |
-| Codex | `gpt-5.6-terra` | `high` |
-| Claude Code | `sonnet-5` | `high` |
+| Engine      | Model           | Effort |
+| ----------- | --------------- | ------ |
+| Codex       | `gpt-5.6-terra` | `high` |
+| Claude Code | `sonnet-5`      | `high` |
 
 Record the engine, exact model, effort, CLI version, and invocation in every run. Do not substitute a model after launch or silently inherit an effort setting. Do not launch an engine until its adapter and deterministic proof pass on the exact campaign revision.
 
