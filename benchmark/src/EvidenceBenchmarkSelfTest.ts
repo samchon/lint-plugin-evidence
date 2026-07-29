@@ -3957,10 +3957,18 @@ export namespace EvidenceBenchmarkSelfTest {
       EvidenceBenchmarkRuntime.assign(0, 52_000);
     EvidenceBenchmarkRuntime.apply(cell.environment, runtime);
     EvidenceBenchmarkRuntime.persist(cell.workspace, runtime);
-    await EvidenceBenchmarkSetup.prepare({
-      materialization: cell,
-      arm: "evidence",
-    });
+    const directPnpm: EvidenceBenchmarkSetup.ReproductionRunner = (
+      arguments_,
+      options,
+    ) => EvidenceBenchmarkProcess.pnpm(arguments_, options);
+    await EvidenceBenchmarkSetup.bootstrapPackageManager(cell, directPnpm);
+    await EvidenceBenchmarkSetup.prepare(
+      {
+        materialization: cell,
+        arm: "evidence",
+      },
+      directPnpm,
+    );
     await EvidenceBenchmarkConsumerProof.verifyPrismaIsolation(cell);
     await EvidenceBenchmarkProcess.pnpm(["exec", "nestia", "all"], {
       cwd: path.join(cell.workspace, "packages", "backend"),
