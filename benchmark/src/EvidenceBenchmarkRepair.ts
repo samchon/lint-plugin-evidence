@@ -329,10 +329,6 @@ export namespace EvidenceBenchmarkRepair {
         );
       const target: string = newHeader.slice(2);
       const segments: string[] = target.split("/");
-      const lowerSegments: string[] = segments.map((part) =>
-        part.toLowerCase(),
-      );
-      const lowerTarget: string = target.toLowerCase();
       if (
         oldHeader !== "/dev/null" &&
         (!oldHeader.startsWith("a/") || oldHeader.slice(2) !== target)
@@ -345,16 +341,17 @@ export namespace EvidenceBenchmarkRepair {
         target !== normalized ||
         target.includes("\\") ||
         path.posix.isAbsolute(target) ||
-        segments.some((part) => part === "" || part === "." || part === "..") ||
-        lowerSegments.some(
+        segments.some(
           (part) =>
-            part === ".benchmark-cache" ||
+            part === "" ||
+            part === "." ||
+            part === ".." ||
             part === ".git" ||
             part === "node_modules" ||
             part === ".benchmark-deps",
         ) ||
-        lowerTarget === "docs/analysis" ||
-        lowerTarget.startsWith("docs/analysis/")
+        target === "docs/analysis" ||
+        target.startsWith("docs/analysis/")
       )
         throw new Error(`Repair patch has a forbidden target: ${target}.`);
     }

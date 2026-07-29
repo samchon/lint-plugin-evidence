@@ -86,48 +86,6 @@ export namespace IEvidenceBenchmarkMaterialization {
     claims: readonly ILintClaimBaseline[];
   }
 
-  /** Exact compiler Program route to one lint configuration. */
-  export interface ILintProgramBaseline {
-    /** Workspace-relative POSIX path to the owning tsconfig. */
-    path: string;
-
-    /** Exact tsconfig-relative lint configuration pointer. */
-    configFile: string;
-
-    /** SHA-256 identity of the complete tsconfig bytes. */
-    sha256: string;
-  }
-
-  /** Immutable command surface of one benchmark package manifest. */
-  export interface ILintScriptsBaseline {
-    /** Workspace-relative POSIX path to the package manifest. */
-    path: string;
-
-    /** Exact package identity used by workspace filters and dependency links. */
-    name: string;
-
-    /** Hash of the package identity and complete scripts object. */
-    sha256: string;
-
-    /** Exact named commands present when the cell was materialized. */
-    scripts: Readonly<Record<string, string>>;
-
-    /** Existing dependency specifiers that agents may not replace or remove. */
-    dependencies: Readonly<Record<string, string>>;
-
-    /** Hash of package-manager identity, engine, and resolution controls. */
-    resolutionSha256: string;
-  }
-
-  /** Exact immutable file that controls a measured command or shared policy. */
-  export interface IInfrastructureFileBaseline {
-    /** Workspace-relative POSIX path to the frozen infrastructure file. */
-    path: string;
-
-    /** SHA-256 identity of the complete file bytes. */
-    sha256: string;
-  }
-
   /** Exact and semantic identities for one package lint configuration. */
   export interface ILintConfigBaseline {
     /** Workspace-relative POSIX path to the package configuration. */
@@ -141,15 +99,6 @@ export namespace IEvidenceBenchmarkMaterialization {
 
     /** Evidence graph inventory; null for a Plain arm configuration. */
     graph: ILintGraphBaseline | null;
-
-    /** Compiler Programs sealed to this exact configuration. */
-    programs: readonly ILintProgramBaseline[];
-
-    /** Package command surfaces sealed with this policy owner. */
-    scripts: readonly ILintScriptsBaseline[];
-
-    /** Shared policies, workspace routing, and fixed command runners. */
-    infrastructure: readonly IInfrastructureFileBaseline[];
   }
 
   /** Exact root and child package identities rendered into every scaffold. */
@@ -170,7 +119,7 @@ export namespace IEvidenceBenchmarkMaterialization {
   /** Permanent pre-run record written beside the workspace and input copy. */
   export interface IManifest {
     /** Manifest schema version; readers reject unsupported future shapes. */
-    schemaVersion: 7;
+    schemaVersion: 5;
 
     /** Versioned algorithm shared by every aggregate tree identity. */
     treeAlgorithm: "sha256-posix-path-nul-bytes-v1";
@@ -198,9 +147,6 @@ export namespace IEvidenceBenchmarkMaterialization {
 
     /** SHA-256 identity of the final generated workspace. */
     workspaceTreeSha256: string;
-
-    /** Frozen pnpm lock identity finalized before either paired model starts. */
-    dependencyLockSha256?: string;
 
     /** Aggregate identity binding all trees, variables, arm, and product. */
     inputSha256: string;
@@ -247,14 +193,8 @@ export namespace IEvidenceBenchmarkMaterialization {
       relativeArchive?: string;
     };
 
-    /** Cell-owned mutable caches isolated from every other benchmark cell. */
+    /** Cell-local cache paths kept outside the generated project tree. */
     caches: {
-      /** Empty operator-home replacement used by child tools. */
-      home: string;
-
-      /** Absolute Corepack home containing this cell's pinned pnpm payload. */
-      corepack: string;
-
       /** Absolute pnpm content-addressed store used only by this cell. */
       pnpm: string;
 
@@ -264,17 +204,8 @@ export namespace IEvidenceBenchmarkMaterialization {
       /** Absolute Go object cache used only by this cell. */
       go: string;
 
-      /** Absolute Go module cache used only by this cell. */
-      goModules: string;
-
-      /** Absolute Go workspace used only by this cell. */
-      goPath: string;
-
       /** Absolute Playwright browser cache used only by this cell. */
       playwright: string;
-
-      /** Absolute operating-system temporary directory used only by this cell. */
-      temp: string;
 
       /** Directory containing the exact-version pnpm launcher for this cell. */
       toolchain: string;

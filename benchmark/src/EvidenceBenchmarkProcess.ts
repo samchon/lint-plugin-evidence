@@ -112,9 +112,12 @@ export namespace EvidenceBenchmarkProcess {
     options: IOptions,
   ): Promise<IResult> {
     const selector: string = `pnpm@${PNPM_VERSION}`;
+    if (process.platform !== "win32")
+      return run("corepack", [selector, ...arguments_], options);
+    const entrypoint: string = corepackEntrypoint();
     return run(
       process.execPath,
-      [corepackEntrypoint(), selector, ...arguments_],
+      [entrypoint, selector, ...arguments_],
       options,
     );
   }
@@ -145,7 +148,7 @@ export namespace EvidenceBenchmarkProcess {
       launcher = path.join(root, "pnpm");
       content = [
         "#!/bin/sh",
-        `exec ${shellQuote(process.execPath)} ${shellQuote(corepackEntrypoint())} ${shellQuote(`pnpm@${PNPM_VERSION}`)} "$@"`,
+        `exec corepack "pnpm@${PNPM_VERSION}" "$@"`,
         "",
       ].join("\n");
     }
@@ -168,41 +171,19 @@ export namespace EvidenceBenchmarkProcess {
     ].join(path.delimiter);
   }
 
-  function shellQuote(input: string): string {
-    return `'${input.replaceAll("'", "'\\''")}'`;
-  }
-
-  /** Returns the exact Corepack program dispatched through the active Node.js. */
-  export function corepackEntrypoint(): string {
-    const executableRoot: string = path.dirname(process.execPath);
-    const candidates: readonly string[] = [
-      path.join(
-        executableRoot,
-        "node_modules",
-        "corepack",
-        "dist",
-        "corepack.js",
-      ),
-      path.resolve(
-        executableRoot,
-        "..",
-        "lib",
-        "node_modules",
-        "corepack",
-        "dist",
-        "corepack.js",
-      ),
-    ];
-    for (const candidate of candidates) {
-      const stat: fs.Stats | undefined = fs.lstatSync(candidate, {
-        throwIfNoEntry: false,
-      });
-      if (stat?.isFile() && !stat.isSymbolicLink())
-        return fs.realpathSync(candidate);
-    }
-    throw new Error(
-      `Pinned pnpm requires an exact Corepack entrypoint from ${process.execPath}: ${candidates.join(", ")}.`,
+  function corepackEntrypoint(): string {
+    const entrypoint: string = path.join(
+      path.dirname(process.execPath),
+      "node_modules",
+      "corepack",
+      "dist",
+      "corepack.js",
     );
+    if (!fs.existsSync(entrypoint))
+      throw new Error(
+        `Pinned pnpm requires the Corepack entrypoint beside Node.js: ${entrypoint}.`,
+      );
+    return entrypoint;
   }
 
   function failure(command: string, options: IOptions, result: IResult): Error {

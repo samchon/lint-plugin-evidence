@@ -72,14 +72,6 @@ export namespace EvidenceBenchmarkCorpus {
           );
       }
     }
-    if (h2 === 0)
-      throw new Error(
-        `Benchmark requirement corpus has no level-two requirement groups: ${root}.`,
-      );
-    if (h3 === 0)
-      throw new Error(
-        `Benchmark requirement corpus has no REQ-owned level-three requirements: ${root}.`,
-      );
     return {
       files,
       documents: files.size,

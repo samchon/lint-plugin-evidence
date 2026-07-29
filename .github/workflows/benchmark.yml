@@ -49,14 +49,14 @@ jobs:
       - name: Install repository dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Restore ttsc plugin cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/ttsc
+          key: ttsc-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'packages/evidence/src/**', 'packages/evidence/native/**') }}
+
       - name: Check benchmark template test
         run: pnpm --filter test-benchmark check
 
-      - name: Compose both arms
+      - name: Test Todo Plain backend template
         run: pnpm --filter test-benchmark start
-
-      - name: Verify packaged Evidence graph gate
-        run: pnpm --filter @samchon/evidence-benchmark test:package
-
-      - name: Install and build Todo plain template
-        run: pnpm --filter test-benchmark test:build

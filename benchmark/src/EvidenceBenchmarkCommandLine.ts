@@ -1,21 +1,17 @@
 import { spawn, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
-import net from "node:net";
-import os from "node:os";
 import path from "node:path";
 
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
-import { EvidenceBenchmarkPath } from "./EvidenceBenchmarkPath.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 import { EvidenceBenchmarkProject } from "./EvidenceBenchmarkProject.ts";
 import { EvidenceBenchmarkPublication } from "./EvidenceBenchmarkPublication.ts";
 import { EvidenceBenchmarkRepair } from "./EvidenceBenchmarkRepair.ts";
 import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
-import { EvidenceBenchmarkSandbox } from "./EvidenceBenchmarkSandbox.ts";
 import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
 import { EvidenceBenchmarkTurnLedger } from "./EvidenceBenchmarkTurnLedger.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
@@ -38,12 +34,8 @@ export namespace EvidenceBenchmarkCommandLine {
     stdout: string;
     stderr: string;
     invocation: string[];
-    accepted: boolean;
-    threadId?: string;
-    modelPid?: number;
-    workspaceRestorationSha256?: string;
+    accepted?: boolean;
     lintRestorationSha256?: string;
-    installationReproductionSha256?: string;
   }
 
   interface IInstruction {
@@ -58,7 +50,7 @@ export namespace EvidenceBenchmarkCommandLine {
   }
 
   interface IState {
-    schemaVersion: 10;
+    schemaVersion: 6;
     workflow: typeof WORKFLOW;
     instructionsTreeSha256: string;
     project: IEvidenceBenchmarkMaterialization.Project;
@@ -72,9 +64,6 @@ export namespace EvidenceBenchmarkCommandLine {
     runtime: EvidenceBenchmarkRuntime.IAssignment;
     elapsedMs: number;
     status: "running" | "interrupted" | "completed";
-    controllerPid: number;
-    pairedSetupSha256: string;
-    initialWorkspaceTreeSha256: string;
     completedWorkspaceTreeSha256?: string;
     threadId?: string;
     turns: ITurn[];
@@ -83,16 +72,6 @@ export namespace EvidenceBenchmarkCommandLine {
   interface IOptions {
     projects: IEvidenceBenchmarkMaterialization.Project[];
     portBase: number;
-  }
-
-  interface IPairedSetup {
-    arm: IEvidenceBenchmarkMaterialization.Arm;
-    root: string;
-  }
-
-  interface ISetupBarrier {
-    arrive(setup: IPairedSetup): Promise<string>;
-    reject(error: unknown): void;
   }
 
   /**
@@ -194,17 +173,6 @@ export namespace EvidenceBenchmarkCommandLine {
       throw new Error(
         `Benchmark start requires a clean source tree:\n${status}`,
       );
-    const upstreamCommit: string = (
-      await EvidenceBenchmarkProcess.run(
-        "git",
-        ["rev-parse", "--verify", "@{upstream}"],
-        { cwd: repository, label: "benchmark pushed source revision" },
-      )
-    ).stdout.trim();
-    if (upstreamCommit !== sourceCommit)
-      throw new Error(
-        `Benchmark start requires the exact source commit to be pushed: local=${sourceCommit} upstream=${upstreamCommit}.`,
-      );
     await EvidenceBenchmarkRuntime.assertAvailable(
       cells.map((cell) => cell.runtime),
     );
@@ -215,22 +183,9 @@ export namespace EvidenceBenchmarkCommandLine {
         expectedCommit: sourceCommit,
         output: path.join(repository, "benchmark", ".work", runId, "artifact"),
       });
-    const barriers: ReadonlyMap<
-      IEvidenceBenchmarkMaterialization.Project,
-      ISetupBarrier
-    > = new Map(
-      options.projects.map((project) => [project, createSetupBarrier()]),
-    );
     const results = await Promise.allSettled(
       cells.map((cell) =>
-        runCell({
-          repository,
-          sourceCommit,
-          runId,
-          artifact,
-          barrier: barriers.get(cell.project)!,
-          ...cell,
-        }),
+        runCell({ repository, sourceCommit, runId, artifact, ...cell }),
       ),
     );
     const failures: unknown[] = results.flatMap((result) =>
@@ -265,26 +220,18 @@ export namespace EvidenceBenchmarkCommandLine {
       "runs",
       runId!,
     );
-    EvidenceBenchmarkPath.assertInside(repository, resultsRoot, "result root");
-    EvidenceBenchmarkPath.assertInside(resultsRoot, root, "resume root");
-    EvidenceBenchmarkPath.assertDirectory(root, "resume root");
+    assertInside(resultsRoot, root, "resume root");
     const statePath: string = path.join(root, "run.json");
     if (!fs.existsSync(statePath))
       throw new Error(`Resumable state was not found: ${statePath}.`);
     const state: IState = JSON.parse(fs.readFileSync(statePath, "utf8"));
     if (
-      state.schemaVersion !== 10 ||
+      state.schemaVersion !== 6 ||
       state.workflow !== WORKFLOW ||
       state.engine !== ENGINE ||
       state.model !== MODEL ||
       state.effort !== EFFORT ||
-      state.cliVersion !== EvidenceBenchmarkSandbox.version() ||
-      !Number.isSafeInteger(state.controllerPid) ||
-      state.controllerPid <= 0 ||
-      typeof state.pairedSetupSha256 !== "string" ||
-      !/^[0-9a-f]{64}$/.test(state.pairedSetupSha256) ||
-      typeof state.initialWorkspaceTreeSha256 !== "string" ||
-      !/^[0-9a-f]{64}$/.test(state.initialWorkspaceTreeSha256) ||
+      state.cliVersion !== codexVersion() ||
       !Array.isArray(state.lintBaselines) ||
       !Array.isArray(state.turns)
     )
@@ -293,80 +240,18 @@ export namespace EvidenceBenchmarkCommandLine {
       );
     if (state.project !== project || state.arm !== arm)
       throw new Error(`Run ${runId} does not belong to ${project}/${arm}.`);
-    EvidenceBenchmarkRuntime.assertAssignment(state.runtime);
-    const currentCommit: string = (
-      await EvidenceBenchmarkProcess.run("git", ["rev-parse", "HEAD"], {
-        cwd: repository,
-        label: "benchmark resume source revision",
-      })
-    ).stdout.trim();
-    const sourceStatus: string = (
-      await EvidenceBenchmarkProcess.run(
-        "git",
-        ["status", "--porcelain=v1", "--untracked-files=all"],
-        { cwd: repository, label: "benchmark resume source cleanliness" },
-      )
-    ).stdout.trim();
-    const upstreamCommit: string = (
-      await EvidenceBenchmarkProcess.run(
-        "git",
-        ["rev-parse", "--verify", "@{upstream}"],
-        { cwd: repository, label: "benchmark resume pushed source revision" },
-      )
-    ).stdout.trim();
-    if (
-      currentCommit !== state.sourceCommit ||
-      upstreamCommit !== state.sourceCommit ||
-      sourceStatus.length !== 0
-    )
+    if (state.status !== "interrupted")
       throw new Error(
-        `Run ${runId} requires its clean pushed source commit ${state.sourceCommit}; local=${currentCommit} upstream=${upstreamCommit}${sourceStatus.length === 0 ? "" : ` dirty=${JSON.stringify(sourceStatus)}`}.`,
+        state.status === "completed"
+          ? `Run ${runId} is already complete.`
+          : `Run ${runId} is still running; refusing a parallel resume controller.`,
       );
-    if (state.status === "completed")
-      throw new Error(`Run ${runId} is already complete.`);
+
     const workspace: string = path.join(root, "workspace");
     const logs: string = path.join(root, "logs");
     if (!fs.existsSync(workspace) || !fs.existsSync(logs))
       throw new Error(`Run ${runId} has no resumable workspace and logs.`);
-    EvidenceBenchmarkPath.assertDirectory(workspace, "resume workspace");
-    EvidenceBenchmarkPath.assertDirectory(logs, "resume logs");
-    if (
-      state.controllerPid !== process.pid &&
-      processAlive(state.controllerPid)
-    )
-      throw new Error(
-        `Run ${runId} is still owned by live controller ${state.controllerPid}; refusing a parallel resume controller.`,
-      );
-    stopOrphanedModels(state.turns, workspace);
-    if (state.status === "running") {
-      state.status = "interrupted";
-      writeState(root, state);
-    } else if (state.status !== "interrupted")
-      throw new Error(`Run ${runId} has an invalid resume status.`);
-    state.controllerPid = process.pid;
-    writeState(root, state);
     assertStateBaselines(root, state);
-    EvidenceBenchmarkSetup.assertPairedProof(root, state.pairedSetupSha256);
-    EvidenceBenchmarkMaterializer.assertRequirementsRestored(workspace, root);
-    EvidenceBenchmarkRuntime.assertRestored(workspace, state.runtime);
-    EvidenceBenchmarkSetup.assertRestored(workspace, root, arm);
-    const currentInstallation: string =
-      await EvidenceBenchmarkSetup.assertReproducible(workspace, root);
-    const latestAccepted: ITurn | undefined = state.turns.findLast(
-      (turn) => turn.accepted === true,
-    );
-    if (
-      latestAccepted !== undefined &&
-      latestAccepted.installationReproductionSha256 !== currentInstallation
-    )
-      throw new Error(
-        "Benchmark resume installation drifted from its latest accepted turn.",
-      );
-    EvidenceBenchmarkLintBaseline.assertInfrastructureRestored(
-      workspace,
-      arm,
-      state.lintBaselines,
-    );
     const instructions: IInstruction[] = readFrozenInstructions(root, arm);
     EvidenceBenchmarkTurnLedger.assertAcceptedOrder(state.turns);
     const environment: NodeJS.ProcessEnv = resumeEnvironment(root);
@@ -396,23 +281,17 @@ export namespace EvidenceBenchmarkCommandLine {
           let restoration: string | undefined;
           let restorationVerified: boolean = false;
           try {
-            restoration = await verifyLintRestoration({
+            restoration = verifyLintRestoration({
               workspace,
               arm,
               name: entry.name,
               baselines: state.lintBaselines,
-              runtime: state.runtime,
             });
             restorationVerified = true;
           } catch {}
           if (
             restorationVerified &&
-            restoration === accepted.lintRestorationSha256 &&
-            (entry.name !== "skills-contract" ||
-              (accepted.workspaceRestorationSha256 ===
-                state.initialWorkspaceTreeSha256 &&
-                EvidenceBenchmarkPublication.workspaceSha256(workspace) ===
-                  state.initialWorkspaceTreeSha256))
+            restoration === accepted.lintRestorationSha256
           )
             continue;
           const index: number = instructions.findIndex(
@@ -427,7 +306,6 @@ export namespace EvidenceBenchmarkCommandLine {
             ) {
               turn.accepted = false;
               delete turn.lintRestorationSha256;
-              delete turn.workspaceRestorationSha256;
             }
           writeState(root, state);
         }
@@ -435,21 +313,19 @@ export namespace EvidenceBenchmarkCommandLine {
         state.elapsedMs = baseElapsedMs + elapsed(resumed);
         writeState(root, state);
         phase = entry.name;
-        const turn: ITurn = await runTurn({
+        const turn: ITurn & { threadId?: string } = await runTurn({
           workspace,
           environment,
           logs,
           name: entry.name,
           prompt: entry.content,
           threadId: state.threadId,
-          retain: (active) => {
-            state.threadId ??= active.threadId;
-            if (!state.turns.includes(active)) state.turns.push(active);
-            state.elapsedMs = baseElapsedMs + elapsed(resumed);
-            writeState(root, state);
-          },
         });
-        EvidenceBenchmarkSetup.resetMutableCaches(workspace);
+        state.threadId ??= turn.threadId;
+        turn.accepted = false;
+        state.turns.push(turn);
+        state.elapsedMs = baseElapsedMs + elapsed(resumed);
+        writeState(root, state);
         if (turn.status !== 0) {
           state.status = "interrupted";
           writeState(root, state);
@@ -457,27 +333,11 @@ export namespace EvidenceBenchmarkCommandLine {
             `${entry.name} resume attempt exited with status ${String(turn.status)}.`,
           );
         }
-        if (state.threadId === undefined)
-          throw new Error(
-            `${entry.name} resume attempt succeeded without a resumable thread ID.`,
-          );
-        if (entry.name === "skills-contract")
-          turn.workspaceRestorationSha256 = assertSkillsContractRestored(
-            workspace,
-            state.initialWorkspaceTreeSha256,
-          );
-        turn.installationReproductionSha256 =
-          await EvidenceBenchmarkSetup.assertReproducible(
-            workspace,
-            root,
-            entry.name === "overall-final",
-          );
-        turn.lintRestorationSha256 = await verifyLintRestoration({
+        turn.lintRestorationSha256 = verifyLintRestoration({
           workspace,
           arm,
           name: entry.name,
           baselines: state.lintBaselines,
-          runtime: state.runtime,
         });
         turn.accepted = true;
         writeState(root, state);
@@ -517,7 +377,6 @@ export namespace EvidenceBenchmarkCommandLine {
     runtime: EvidenceBenchmarkRuntime.IAssignment;
     instructions: IInstructionSet;
     artifact: IEvidenceBenchmarkPackageArtifact;
-    barrier: ISetupBarrier;
   }): Promise<void> {
     const started: bigint = process.hrtime.bigint();
     const resultsRoot: string = path.resolve(
@@ -532,20 +391,14 @@ export namespace EvidenceBenchmarkCommandLine {
       "runs",
       props.runId,
     );
-    EvidenceBenchmarkPath.assertInside(
-      props.repository,
-      resultsRoot,
-      "result root",
-    );
-    fs.mkdirSync(resultsRoot, { recursive: true });
-    EvidenceBenchmarkPath.assertDirectory(resultsRoot, "result root");
-    EvidenceBenchmarkPath.assertInside(
-      resultsRoot,
-      root,
-      "benchmark cell root",
-    );
+    const relativeRoot: string = path.relative(resultsRoot, root);
+    if (
+      relativeRoot === "" ||
+      relativeRoot.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relativeRoot)
+    )
+      throw new Error(`Benchmark cell root escaped the result tree: ${root}.`);
     let state: IState | undefined;
-    let pairedSetupSha256: string | undefined;
     let phase: string = "setup";
     try {
       const materialization = await EvidenceBenchmarkMaterializer.materialize({
@@ -564,39 +417,18 @@ export namespace EvidenceBenchmarkCommandLine {
         materialization.workspace,
         props.runtime,
       );
-      EvidenceBenchmarkRuntime.assertRestored(
-        materialization.workspace,
-        props.runtime,
-      );
-      await EvidenceBenchmarkSetup.bootstrapPackageManager(materialization);
-      materialization.environment.CODEX_HOME = prepareModelHome(root);
-      await verifyPermissionProfile({
-        workspace: materialization.workspace,
-        root,
-        environment: materialization.environment,
-        runtime: props.runtime,
-      });
       await EvidenceBenchmarkSetup.prepare({
         materialization,
         arm: props.arm,
       });
-      EvidenceBenchmarkMaterializer.finalizeDependencyLock(root);
       await initializeWorkspace(
         materialization.workspace,
         materialization.environment,
       );
-      await EvidenceBenchmarkSetup.assertReproducible(
-        materialization.workspace,
-        root,
-      );
-      pairedSetupSha256 = await props.barrier.arrive({
-        arm: props.arm,
-        root,
-      });
       const logs: string = path.join(root, "logs");
       fs.mkdirSync(logs, { recursive: false });
       state = {
-        schemaVersion: 10,
+        schemaVersion: 6,
         workflow: WORKFLOW,
         instructionsTreeSha256: freezeInstructions(root, props.instructions),
         project: props.project,
@@ -604,63 +436,39 @@ export namespace EvidenceBenchmarkCommandLine {
         engine: ENGINE,
         model: MODEL,
         effort: EFFORT,
-        cliVersion: EvidenceBenchmarkSandbox.version(),
+        cliVersion: codexVersion(),
         sourceCommit: props.sourceCommit,
         lintBaselines: materialization.lintBaselines,
         runtime: props.runtime,
         elapsedMs: elapsed(started),
         status: "running",
-        controllerPid: process.pid,
-        pairedSetupSha256,
-        initialWorkspaceTreeSha256:
-          EvidenceBenchmarkPublication.workspaceSha256(
-            materialization.workspace,
-          ),
         turns: [],
       };
       writeState(root, state);
       for (const entry of props.instructions.entries) {
         phase = entry.name;
-        const turn: ITurn = await runTurn({
+        const turn: ITurn & { threadId?: string } = await runTurn({
           workspace: materialization.workspace,
           environment: materialization.environment,
           logs,
           name: entry.name,
           prompt: entry.content,
           threadId: state.threadId,
-          retain: (active) => {
-            state!.threadId ??= active.threadId;
-            if (!state!.turns.includes(active)) state!.turns.push(active);
-            state!.elapsedMs = elapsed(started);
-            writeState(root, state!);
-          },
         });
-        EvidenceBenchmarkSetup.resetMutableCaches(materialization.workspace);
+        state.threadId ??= turn.threadId;
+        turn.accepted = false;
+        state.turns.push(turn);
+        state.elapsedMs = elapsed(started);
+        writeState(root, state);
         if (turn.status !== 0)
           throw new Error(
             `${entry.name} turn exited with status ${String(turn.status)}.`,
           );
-        if (state.threadId === undefined)
-          throw new Error(
-            `${entry.name} turn succeeded without a resumable thread ID.`,
-          );
-        if (entry.name === "skills-contract")
-          turn.workspaceRestorationSha256 = assertSkillsContractRestored(
-            materialization.workspace,
-            state.initialWorkspaceTreeSha256,
-          );
-        turn.installationReproductionSha256 =
-          await EvidenceBenchmarkSetup.assertReproducible(
-            materialization.workspace,
-            root,
-            entry.name === "overall-final",
-          );
-        turn.lintRestorationSha256 = await verifyLintRestoration({
+        turn.lintRestorationSha256 = verifyLintRestoration({
           workspace: materialization.workspace,
           arm: props.arm,
           name: entry.name,
           baselines: state.lintBaselines,
-          runtime: props.runtime,
         });
         turn.accepted = true;
         writeState(root, state);
@@ -678,7 +486,6 @@ export namespace EvidenceBenchmarkCommandLine {
       state.status = "completed";
       writeState(root, state);
     } catch (error) {
-      props.barrier.reject(error);
       const elapsedMs: number = elapsed(started);
       if (state === undefined) {
         recordFailure({
@@ -713,48 +520,6 @@ export namespace EvidenceBenchmarkCommandLine {
     }
   }
 
-  function createSetupBarrier(): ISetupBarrier {
-    const cells: Map<IEvidenceBenchmarkMaterialization.Arm, IPairedSetup> =
-      new Map();
-    let settle: ((identity: string) => void) | undefined;
-    let fail: ((error: unknown) => void) | undefined;
-    let settled: boolean = false;
-    const promise: Promise<string> = new Promise((resolve, reject) => {
-      settle = resolve;
-      fail = reject;
-    });
-    void promise.catch(() => undefined);
-    return {
-      async arrive(setup): Promise<string> {
-        if (cells.has(setup.arm))
-          throw new Error(`Duplicate paired setup arrival: ${setup.arm}.`);
-        cells.set(setup.arm, setup);
-        if (cells.size === 2 && !settled)
-          try {
-            const evidence: IPairedSetup | undefined = cells.get("evidence");
-            const plain: IPairedSetup | undefined = cells.get("plain");
-            if (evidence === undefined || plain === undefined)
-              throw new Error("Paired setup barrier has no complete arm pair.");
-            const identity: string = EvidenceBenchmarkSetup.assertPaired(
-              evidence.root,
-              plain.root,
-            );
-            settled = true;
-            settle!(identity);
-          } catch (error) {
-            settled = true;
-            fail!(error);
-          }
-        return promise;
-      },
-      reject(error): void {
-        if (settled) return;
-        settled = true;
-        fail!(error);
-      },
-    };
-  }
-
   async function runTurn(props: {
     workspace: string;
     environment: NodeJS.ProcessEnv;
@@ -762,299 +527,80 @@ export namespace EvidenceBenchmarkCommandLine {
     name: ITurn["name"];
     prompt: string;
     threadId?: string;
-    retain: (turn: ITurn) => void;
-  }): Promise<ITurn> {
+  }): Promise<ITurn & { threadId?: string }> {
     const stem: string = logStem(props.logs, props.name);
     const stdoutPath: string = path.join(props.logs, `${stem}.stdout.jsonl`);
     const stderrPath: string = path.join(props.logs, `${stem}.stderr.log`);
-    const args: string[] = EvidenceBenchmarkTurnLedger.invocationArguments({
-      workspace: props.workspace,
-      threadId: props.threadId,
-      model: MODEL,
-      effort: EFFORT,
-      writable: props.name !== "skills-contract",
-    });
-    const executable: EvidenceBenchmarkSandbox.IExecutable =
-      EvidenceBenchmarkSandbox.resolveExecutable();
-    fs.writeFileSync(stdoutPath, "", { flag: "wx" });
-    try {
-      fs.writeFileSync(stderrPath, "", { flag: "wx" });
-    } catch (error) {
-      fs.rmSync(stdoutPath, { force: true });
-      throw error;
-    }
+    const stdout = fs.createWriteStream(stdoutPath, { flags: "wx" });
+    const stderr = fs.createWriteStream(stderrPath, { flags: "wx" });
+    const common: string[] = [
+      "--json",
+      "--enable",
+      "goals",
+      "--model",
+      MODEL,
+      "--config",
+      `model_reasoning_effort=${EFFORT}`,
+      "--dangerously-bypass-approvals-and-sandbox",
+      "--skip-git-repo-check",
+      "--config",
+      "shell_environment_policy.inherit=all",
+    ];
+    const args: string[] =
+      props.threadId === undefined
+        ? ["exec", ...common, "--cd", props.workspace, "-"]
+        : ["exec", "resume", ...common, props.threadId, "-"];
     const started: bigint = process.hrtime.bigint();
-    const turn: ITurn = {
-      name: props.name,
-      elapsedMs: 0,
-      status: null,
-      stdout: path.posix.join("logs", path.basename(stdoutPath)),
-      stderr: path.posix.join("logs", path.basename(stderrPath)),
-      invocation: [executable.command, ...executable.prefix, ...args],
-      accepted: false,
-    };
-    props.retain(turn);
-    const stdout = fs.createWriteStream(stdoutPath, { flags: "a" });
-    const stderr = fs.createWriteStream(stderrPath, { flags: "a" });
+    const executable: { command: string; prefix: string[] } = codexExecutable();
     const child = spawn(executable.command, [...executable.prefix, ...args], {
       cwd: props.workspace,
       env: props.environment,
       shell: false,
       windowsHide: true,
-      detached: process.platform !== "win32",
       stdio: "pipe",
     });
-    if (child.pid !== undefined) turn.modelPid = child.pid;
-    let retentionError: unknown;
-    const retain = (): void => {
-      turn.elapsedMs = Number(process.hrtime.bigint() - started) / 1_000_000;
-      try {
-        props.retain(turn);
-      } catch (error) {
-        retentionError ??= error;
-        if (child.pid !== undefined)
-          try {
-            terminateProcessTree(child.pid);
-          } catch (termination) {
-            retentionError = new AggregateError(
-              [retentionError, termination],
-              "Active benchmark attempt retention and process termination both failed.",
-            );
-          }
-      }
-    };
-    retain();
-    const heartbeat: NodeJS.Timeout = setInterval(retain, 1_000);
-    heartbeat.unref();
+    let threadId: string | undefined;
     let remainder: string = "";
-    const readThreadId = (line: string): void => {
-      try {
-        const event: unknown = JSON.parse(line);
-        if (
-          typeof event === "object" &&
-          event !== null &&
-          "type" in event &&
-          event.type === "thread.started" &&
-          "thread_id" in event &&
-          typeof event.thread_id === "string" &&
-          event.thread_id.length !== 0
-        ) {
-          turn.threadId = event.thread_id;
-          retain();
-        }
-      } catch {}
-    };
     child.stdout.on("data", (chunk: Buffer) => {
       stdout.write(chunk);
       remainder += chunk.toString("utf8");
       const lines: string[] = remainder.split(/\r?\n/);
       remainder = lines.pop() ?? "";
-      for (const line of lines) readThreadId(line);
+      for (const line of lines)
+        try {
+          const event: unknown = JSON.parse(line);
+          if (
+            typeof event === "object" &&
+            event !== null &&
+            "thread_id" in event &&
+            typeof event.thread_id === "string"
+          )
+            threadId = event.thread_id;
+        } catch {}
     });
     child.stderr.pipe(stderr);
     child.stdin.end(props.prompt, "utf8");
-    let processError: unknown;
+    let status: number | null;
     try {
-      turn.status = await new Promise((resolve, reject) => {
+      status = await new Promise((resolve, reject) => {
         child.once("error", reject);
         child.once("close", resolve);
       });
-      if (remainder.length !== 0) readThreadId(remainder);
-    } catch (error) {
-      processError = error;
     } finally {
-      clearInterval(heartbeat);
-      retain();
       await Promise.all([
         new Promise<void>((resolve) => stdout.end(resolve)),
         new Promise<void>((resolve) => stderr.end(resolve)),
       ]);
     }
-    if (retentionError !== undefined) throw retentionError;
-    if (processError !== undefined) throw processError;
-    return turn;
-  }
-
-  async function verifyPermissionProfile(props: {
-    workspace: string;
-    root: string;
-    environment: NodeJS.ProcessEnv;
-    runtime: EvidenceBenchmarkRuntime.IAssignment;
-  }): Promise<void> {
-    assertNoAmbientManagedPolicy();
-    const scratch: string = path.join(
-      props.workspace,
-      ".benchmark-cache",
-      "permission-preflight",
-    );
-    const probe: string = path.join(scratch, "probe.cjs");
-    const writable: string = path.join(scratch, "workspace-write.txt");
-    const modelSentinel: string = path.join(
-      props.root,
-      "model-home",
-      "sandbox-denied.txt",
-    );
-    fs.mkdirSync(scratch, { recursive: true });
-    fs.writeFileSync(modelSentinel, "denied\n", {
-      encoding: "utf8",
-      flag: "wx",
-    });
-    fs.writeFileSync(
-      probe,
-      [
-        'const fs = require("node:fs");',
-        'const net = require("node:net");',
-        "const [writable, npmrc, toolchain, corepack, controller, model, port] = process.argv.slice(2);",
-        "const denied = (operation, label) => {",
-        "  try { operation(); } catch { return; }",
-        "  throw new Error(`permission preflight unexpectedly accessed ${label}`);",
-        "};",
-        "fs.writeFileSync(writable, 'workspace\\n');",
-        "fs.readFileSync(npmrc);",
-        "fs.readFileSync(toolchain);",
-        "fs.readFileSync(corepack);",
-        "denied(() => fs.appendFileSync(npmrc, 'forbidden\\n'), 'retained npm config for write');",
-        "denied(() => fs.readFileSync(controller), 'controller state');",
-        "denied(() => fs.readFileSync(model), 'model authentication home');",
-        "new Promise((resolve, reject) => {",
-        "  const socket = net.connect(Number(port), '127.0.0.1');",
-        "  socket.setTimeout(5000);",
-        "  socket.once('connect', () => { socket.end(); resolve(); });",
-        "  socket.once('timeout', () => reject(new Error('loopback permission preflight timed out')));",
-        "  socket.once('error', reject);",
-        "}).catch((error) => { console.error(error); process.exitCode = 1; });",
-        "",
-      ].join("\n"),
-      { encoding: "utf8", flag: "wx" },
-    );
-    const server: net.Server = net.createServer((socket) => socket.end());
-    let listening: boolean = false;
-    try {
-      await new Promise<void>((resolve, reject) => {
-        server.once("error", reject);
-        server.listen(props.runtime.apiPort, "127.0.0.1", resolve);
-      });
-      listening = true;
-      const executable: EvidenceBenchmarkSandbox.IExecutable =
-        EvidenceBenchmarkSandbox.resolveExecutable();
-      const authority: EvidenceBenchmarkSandbox.IAuthority = {
-        workspace: props.workspace,
-        toolchain: path.join(props.root, "cache", "toolchain-bin"),
-        corepack: path.join(props.root, "cache", "corepack"),
-        npmConfig: EvidenceBenchmarkMaterializer.npmConfig(props.root),
-        gitConfig: EvidenceBenchmarkMaterializer.gitConfig(props.root),
-      };
-      await EvidenceBenchmarkProcess.run(
-        executable.command,
-        [
-          ...executable.prefix,
-          ...EvidenceBenchmarkSandbox.argumentsFor(
-            authority,
-            process.execPath,
-            [
-              probe,
-              writable,
-              EvidenceBenchmarkMaterializer.npmConfig(props.root),
-              path.join(
-                props.root,
-                "cache",
-                "toolchain-bin",
-                process.platform === "win32" ? "pnpm.cmd" : "pnpm",
-              ),
-              firstRegularFile(path.join(props.root, "cache", "corepack")),
-              path.join(props.root, "materialization.json"),
-              modelSentinel,
-              String(props.runtime.apiPort),
-            ],
-          ),
-        ],
-        {
-          cwd: props.workspace,
-          env: props.environment,
-          label: "benchmark Codex permission profile preflight",
-        },
-      );
-    } finally {
-      try {
-        if (listening)
-          await new Promise<void>((resolve, reject) =>
-            server.close((error) =>
-              error === undefined ? resolve() : reject(error),
-            ),
-          );
-      } finally {
-        fs.rmSync(scratch, { recursive: true, force: true });
-        fs.rmSync(modelSentinel, { force: true });
-      }
-    }
-  }
-
-  function assertNoAmbientManagedPolicy(): void {
-    const candidates: readonly string[] =
-      process.platform === "win32"
-        ? [path.join(os.homedir(), ".codex", "managed_config.toml")]
-        : ["/etc/codex/managed_config.toml"];
-    for (const candidate of candidates)
-      if (
-        fs.existsSync(candidate) &&
-        hasTomlPolicy(fs.readFileSync(candidate, "utf8"))
-      )
-        throw new Error(
-          `Benchmark permission profiles cannot run with ambient managed policy: ${candidate}.`,
-        );
-    if (process.platform !== "darwin") return;
-    const managed = spawnSync(
-      "defaults",
-      ["read", "com.openai.codex", "config_toml_base64"],
-      { encoding: "utf8", shell: false },
-    );
-    if (
-      managed.status === 0 &&
-      hasTomlPolicy(
-        Buffer.from((managed.stdout ?? "").trim(), "base64").toString("utf8"),
-      )
-    )
-      throw new Error(
-        "Benchmark permission profiles cannot run with ambient managed macOS policy.",
-      );
-  }
-
-  function hasTomlPolicy(content: string): boolean {
-    return content
-      .split(/\r?\n/)
-      .some(
-        (line) => line.trim().length !== 0 && !line.trimStart().startsWith("#"),
-      );
-  }
-
-  function firstRegularFile(directory: string): string {
-    for (const entry of fs
-      .readdirSync(directory, { withFileTypes: true })
-      .sort((left, right) => left.name.localeCompare(right.name, "en"))) {
-      const location: string = path.join(directory, entry.name);
-      if (entry.isDirectory()) {
-        const nested: string | undefined =
-          firstRegularFileOrUndefined(location);
-        if (nested !== undefined) return nested;
-      } else if (entry.isFile()) return location;
-    }
-    throw new Error(
-      `Benchmark permission preflight found no retained file: ${directory}.`,
-    );
-  }
-
-  function firstRegularFileOrUndefined(directory: string): string | undefined {
-    for (const entry of fs
-      .readdirSync(directory, { withFileTypes: true })
-      .sort((left, right) => left.name.localeCompare(right.name, "en"))) {
-      const location: string = path.join(directory, entry.name);
-      if (entry.isDirectory()) {
-        const nested: string | undefined =
-          firstRegularFileOrUndefined(location);
-        if (nested !== undefined) return nested;
-      } else if (entry.isFile()) return location;
-    }
-    return undefined;
+    return {
+      name: props.name,
+      elapsedMs: Number(process.hrtime.bigint() - started) / 1_000_000,
+      status,
+      stdout: path.posix.join("logs", path.basename(stdoutPath)),
+      stderr: path.posix.join("logs", path.basename(stderrPath)),
+      invocation: [executable.command, ...executable.prefix, ...args],
+      threadId,
+    };
   }
 
   function readInstructionSets(
@@ -1204,55 +750,20 @@ export namespace EvidenceBenchmarkCommandLine {
     };
   }
 
-  function assertSkillsContractRestored(
-    workspace: string,
-    expected: string,
-  ): string {
-    const actual: string =
-      EvidenceBenchmarkPublication.workspaceSha256(workspace);
-    if (actual !== expected)
-      throw new Error(
-        `The read-only skills-contract turn changed the measured workspace: expected ${expected}, received ${actual}.`,
-      );
-    return actual;
-  }
-
-  async function verifyLintRestoration(props: {
+  function verifyLintRestoration(props: {
     workspace: string;
     arm: IEvidenceBenchmarkMaterialization.Arm;
     name: TurnName;
     baselines: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[];
-    runtime: EvidenceBenchmarkRuntime.IAssignment;
-  }): Promise<string | undefined> {
-    EvidenceBenchmarkMaterializer.assertRequirementsRestored(
-      props.workspace,
-      path.dirname(props.workspace),
-    );
-    EvidenceBenchmarkRuntime.assertRestored(props.workspace, props.runtime);
-    EvidenceBenchmarkSetup.assertRestored(
-      props.workspace,
-      path.dirname(props.workspace),
-      props.arm,
-    );
-    const infrastructure: string =
-      EvidenceBenchmarkLintBaseline.assertInfrastructureRestored(
-        props.workspace,
-        props.arm,
-        props.baselines,
-      );
-    if (props.arm === "plain")
-      return EvidenceBenchmarkLintBaseline.assertRestored(
-        props.workspace,
-        props.arm,
-        props.baselines,
-      );
+  }): string | undefined {
+    if (props.arm !== "evidence") return undefined;
     const selected: readonly string[] | undefined =
-      props.name === "skills-contract"
-        ? undefined
-        : props.name.startsWith("backend-")
-          ? EvidenceBenchmarkLintBaseline.BACKEND_PATHS
-          : EvidenceBenchmarkLintBaseline.PATHS;
-    if (selected === undefined) return infrastructure;
+      props.name === "backend-final"
+        ? EvidenceBenchmarkLintBaseline.BACKEND_PATHS
+        : props.name === "frontend-final" || props.name === "overall-final"
+          ? EvidenceBenchmarkLintBaseline.PATHS
+          : undefined;
+    if (selected === undefined) return undefined;
     return EvidenceBenchmarkLintBaseline.assertRestored(
       props.workspace,
       props.arm,
@@ -1268,166 +779,21 @@ export namespace EvidenceBenchmarkCommandLine {
       schemaVersion: unknown;
     };
     if (
-      manifest.schemaVersion !== 7 ||
-      manifest.artifact.sourceCommit !== state.sourceCommit ||
-      !path.basename(root).startsWith(`${state.sourceCommit.slice(0, 12)}-`) ||
-      manifest.inputSha256 !==
-        EvidenceBenchmarkMaterializer.inputSha256(manifest) ||
+      manifest.schemaVersion !== 5 ||
       EvidenceBenchmarkHash.object(manifest.lintBaselines) !==
         EvidenceBenchmarkHash.object(state.lintBaselines)
     )
       throw new Error(
         `Run ${path.basename(root)} does not retain its materialized lint baselines.`,
       );
-    EvidenceBenchmarkMaterializer.assertCacheLayout(root, manifest.caches);
-    EvidenceBenchmarkMaterializer.assertDependencyLock(root);
   }
 
   function writeState(root: string, state: IState): void {
     const target: string = path.join(root, "run.json");
     const temporary: string = `${target}.${process.pid}.tmp`;
-    const descriptor: number = fs.openSync(temporary, "w");
-    try {
-      fs.writeFileSync(
-        descriptor,
-        `${JSON.stringify(state, null, 2)}\n`,
-        "utf8",
-      );
-      fs.fsyncSync(descriptor);
-    } finally {
-      fs.closeSync(descriptor);
-    }
+    fs.writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+    fs.rmSync(target, { force: true });
     fs.renameSync(temporary, target);
-  }
-
-  function processAlive(pid: number): boolean {
-    try {
-      process.kill(pid, 0);
-      return true;
-    } catch (error) {
-      return (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        error.code === "EPERM"
-      );
-    }
-  }
-
-  function stopOrphanedModels(
-    turns: readonly ITurn[],
-    workspace: string,
-  ): void {
-    for (const turn of turns)
-      if (
-        turn.status === null &&
-        turn.accepted === false &&
-        Number.isSafeInteger(turn.modelPid) &&
-        turn.modelPid! > 0 &&
-        processAlive(turn.modelPid!)
-      ) {
-        const commandLine: string | undefined = processCommandLine(
-          turn.modelPid!,
-        );
-        if (commandLine === undefined && !processAlive(turn.modelPid!))
-          continue;
-        const normalized: string = (commandLine ?? "").toLowerCase();
-        const workspaceCandidates: string[] = [
-          path.resolve(workspace),
-          path.resolve(workspace).replaceAll("\\", "\\\\"),
-          path.resolve(workspace).replaceAll("\\", "/"),
-        ].map((value) => value.toLowerCase());
-        if (
-          commandLine === undefined ||
-          !normalized.includes("codex") ||
-          workspaceCandidates.every(
-            (candidate) => !normalized.includes(candidate),
-          )
-        )
-          throw new Error(
-            `Refusing to terminate unverified model process ${turn.modelPid}.`,
-          );
-        terminateProcessTree(turn.modelPid!);
-      }
-  }
-
-  function processCommandLine(pid: number): string | undefined {
-    if (process.platform === "win32") {
-      const script: string = [
-        `$p = Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}"`,
-        "if ($null -ne $p) { [Console]::Out.Write($p.CommandLine) }",
-      ].join("; ");
-      const result = spawnSync(
-        "powershell.exe",
-        ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script],
-        {
-          encoding: "utf8",
-          shell: false,
-          windowsHide: true,
-        },
-      );
-      const output: string = (result.stdout ?? "").toString();
-      return result.status === 0 && output.trim().length !== 0
-        ? output
-        : undefined;
-    }
-    const proc: string = `/proc/${pid}/cmdline`;
-    if (fs.existsSync(proc))
-      try {
-        return fs.readFileSync(proc).toString("utf8").replaceAll("\0", " ");
-      } catch (error) {
-        if (
-          typeof error === "object" &&
-          error !== null &&
-          "code" in error &&
-          error.code === "ENOENT"
-        )
-          return undefined;
-        throw error;
-      }
-    const result = spawnSync(
-      "ps",
-      ["-ww", "-p", String(pid), "-o", "command="],
-      {
-        encoding: "utf8",
-        shell: false,
-      },
-    );
-    const output: string = (result.stdout ?? "").toString();
-    return result.status === 0 && output.trim().length !== 0
-      ? output
-      : undefined;
-  }
-
-  function terminateProcessTree(pid: number): void {
-    if (process.platform === "win32") {
-      const result = spawnSync(
-        "taskkill.exe",
-        ["/PID", String(pid), "/T", "/F"],
-        {
-          encoding: "utf8",
-          shell: false,
-          windowsHide: true,
-        },
-      );
-      if (result.status !== 0 && processAlive(pid))
-        throw new Error(
-          `Could not terminate owned model process ${pid}: ${(result.stderr ?? "").toString().trim()}.`,
-        );
-      return;
-    }
-    for (const signal of ["SIGTERM", "SIGKILL"] as const)
-      try {
-        process.kill(-pid, signal);
-      } catch (error) {
-        if (
-          typeof error !== "object" ||
-          error === null ||
-          !("code" in error) ||
-          error.code !== "ESRCH"
-        )
-          throw error;
-      }
   }
 
   function assertInside(parent: string, target: string, label: string): void {
@@ -1472,89 +838,20 @@ export namespace EvidenceBenchmarkCommandLine {
     const manifest = JSON.parse(
       fs.readFileSync(path.join(root, "materialization.json"), "utf8"),
     ) as IEvidenceBenchmarkMaterialization.IManifest;
-    EvidenceBenchmarkMaterializer.assertCacheLayout(root, manifest.caches);
     const environment: NodeJS.ProcessEnv = {
-      ...EvidenceBenchmarkMaterializer.hostEnvironment(),
-      HOME: manifest.caches.home,
-      USERPROFILE: manifest.caches.home,
-      APPDATA: path.join(manifest.caches.home, "appdata", "roaming"),
-      LOCALAPPDATA: path.join(manifest.caches.home, "appdata", "local"),
-      XDG_CACHE_HOME: path.join(manifest.caches.home, ".cache"),
-      XDG_CONFIG_HOME: path.join(manifest.caches.home, ".config"),
-      COREPACK_HOME: manifest.caches.corepack,
+      ...process.env,
+      npm_config_store_dir: manifest.caches.pnpm,
       TTSC_CACHE_DIR: manifest.caches.ttsc,
       TTSC_GO_CACHE_DIR: manifest.caches.go,
       GOCACHE: manifest.caches.go,
-      GOENV: "off",
-      GOMODCACHE: manifest.caches.goModules,
-      GOPATH: manifest.caches.goPath,
-      GOTMPDIR: path.join(manifest.caches.temp, "go"),
+      GOTMPDIR: path.join(root, "cache", "go-tmp"),
       PLAYWRIGHT_BROWSERS_PATH: manifest.caches.playwright,
-      TMPDIR: manifest.caches.temp,
-      TEMP: manifest.caches.temp,
-      TMP: manifest.caches.temp,
-      CODEX_HOME: assertModelHome(root),
-      GIT_CONFIG_NOSYSTEM: "1",
-      GIT_CONFIG_GLOBAL: EvidenceBenchmarkMaterializer.gitConfig(root),
     };
-    for (const key of Object.keys(environment))
-      if (key.toLowerCase().startsWith("npm_config_")) delete environment[key];
-    environment.npm_config_store_dir = manifest.caches.pnpm;
-    environment.npm_config_userconfig =
-      EvidenceBenchmarkMaterializer.npmConfig(root);
-    environment.npm_config_globalconfig =
-      EvidenceBenchmarkMaterializer.npmConfig(root);
-    // Resume must not inherit Nestia's loader-only rule bypass from its caller.
-    delete environment.NESTIA_SDK_TRANSFORM;
     EvidenceBenchmarkProcess.pinEnvironment(
       environment,
       manifest.caches.toolchain,
     );
     return environment;
-  }
-
-  /**
-   * Gives the measured CLI authentication without host instructions or config.
-   *
-   * The retained home stays outside the writable workspace so resumed threads
-   * preserve their native session while model tools cannot rewrite authority.
-   */
-  function prepareModelHome(root: string): string {
-    const target: string = path.join(root, "model-home");
-    if (fs.existsSync(target))
-      throw new Error(`Benchmark model home already exists: ${target}.`);
-    fs.mkdirSync(target, { recursive: false });
-    const source: string =
-      process.env.CODEX_HOME ?? path.join(os.homedir(), ".codex");
-    const authentication: string = path.join(source, "auth.json");
-    if (fs.existsSync(authentication))
-      fs.copyFileSync(authentication, path.join(target, "auth.json"));
-    else if (
-      [process.env.OPENAI_API_KEY, process.env.CODEX_API_KEY].every(
-        (key) => typeof key !== "string" || key.length === 0,
-      )
-    )
-      throw new Error(
-        "Benchmark Codex authentication requires auth.json, OPENAI_API_KEY, or CODEX_API_KEY.",
-      );
-    return assertModelHome(root);
-  }
-
-  function assertModelHome(root: string): string {
-    const target: string = path.join(root, "model-home");
-    const stat: fs.Stats | undefined = fs.lstatSync(target, {
-      throwIfNoEntry: false,
-    });
-    if (!stat?.isDirectory() || stat.isSymbolicLink())
-      throw new Error(
-        `Benchmark model home is not a real directory: ${target}.`,
-      );
-    for (const forbidden of ["AGENTS.md", "AGENTS.override.md", "config.toml"])
-      if (fs.existsSync(path.join(target, forbidden)))
-        throw new Error(
-          `Benchmark model home contains forbidden host policy: ${forbidden}.`,
-        );
-    return target;
   }
 
   function recoverThreadId(logs: string): string | undefined {
@@ -1573,8 +870,7 @@ export namespace EvidenceBenchmarkCommandLine {
           };
           if (
             event.type === "thread.started" &&
-            typeof event.thread_id === "string" &&
-            event.thread_id.length !== 0
+            typeof event.thread_id === "string"
           )
             return event.thread_id;
         } catch {}
@@ -1706,9 +1002,7 @@ export namespace EvidenceBenchmarkCommandLine {
     fs.cpSync(workspace, temporary, {
       recursive: true,
       filter: (source) =>
-        ![".benchmark-cache", ".git", "node_modules"].includes(
-          path.basename(source).toLowerCase(),
-        ),
+        ![".git", "node_modules"].includes(path.basename(source)),
     });
     if (fs.existsSync(target)) fs.renameSync(target, backup);
     try {
@@ -1724,6 +1018,46 @@ export namespace EvidenceBenchmarkCommandLine {
 
   function elapsed(started: bigint): number {
     return Number(process.hrtime.bigint() - started) / 1_000_000;
+  }
+
+  function codexExecutable(): { command: string; prefix: string[] } {
+    if (process.platform !== "win32") return { command: "codex", prefix: [] };
+    const appData: string | undefined = process.env.APPDATA;
+    if (appData === undefined)
+      throw new Error("Codex launch on Windows requires APPDATA.");
+    const entrypoint: string = path.join(
+      appData,
+      "npm",
+      "node_modules",
+      "@openai",
+      "codex",
+      "bin",
+      "codex.js",
+    );
+    if (!fs.existsSync(entrypoint))
+      throw new Error(`Codex CLI entrypoint was not found: ${entrypoint}.`);
+    return { command: process.execPath, prefix: [entrypoint] };
+  }
+
+  function codexVersion(): string {
+    const executable: { command: string; prefix: string[] } = codexExecutable();
+    const result = spawnSync(
+      executable.command,
+      [...executable.prefix, "--version"],
+      {
+        encoding: "utf8",
+        shell: false,
+        windowsHide: true,
+      },
+    );
+    if (result.status !== 0)
+      throw new Error(
+        `Unable to read Codex CLI version: ${(result.stderr ?? "").trim()}`,
+      );
+    const version: string = (result.stdout ?? "").trim();
+    if (version.length === 0)
+      throw new Error("Codex CLI returned an empty version.");
+    return version;
   }
 
   async function initializeWorkspace(

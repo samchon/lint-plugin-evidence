@@ -25,52 +25,10 @@ export interface IEvidenceBenchmarkSetup {
 
   /** Exact TypeScript-Go package installed in the benchmark workspace. */
   typescriptVersion: "7.0.2";
-
-  /** Exact Node.js release that installed and executes the benchmark cell. */
-  nodeVersion: string;
-
-  /** Operating-system platform that owns the installed native payloads. */
-  nodePlatform: NodeJS.Platform;
-
-  /** Processor architecture that owns the installed native payloads. */
-  nodeArchitecture: string;
-
-  /** SHA-256 identity of the Node.js executable used by the harness. */
-  nodeExecutableSha256: string;
-
-  /** SHA-256 identity of the Corepack program that dispatches pinned pnpm. */
-  corepackExecutableSha256: string;
-
-  /** Aggregate identity of the cell-owned Corepack package-manager payload. */
-  corepackHomeSha256: string;
-
-  /** Initial direct dependency names whose complete runtime closures are sealed. */
-  installedSeedPackages: readonly string[];
-
-  /** Installed compiler, lint host, and measured-product payload identities. */
-  installedPackagesSha256: Readonly<Record<string, string>>;
-
-  /** Initial successful dependency-resolution edges, fixed by package identity. */
-  installedPackageResolutions: readonly IEvidenceBenchmarkSetup.IResolution[];
-
-  /** Exact launcher identities for commands used by frozen gate scripts. */
-  installedLaunchersSha256: Readonly<Record<string, string>>;
 }
 
 /** Setup request paired with one completed materialization. */
 export namespace IEvidenceBenchmarkSetup {
-  /** One successful package resolution observed in the initial install graph. */
-  export interface IResolution {
-    /** Workspace package label or installed parent-package identity. */
-    from: string;
-
-    /** Dependency name resolved from that exact parent. */
-    dependency: string;
-
-    /** Installed package identity reached by the initial resolution. */
-    to: string;
-  }
-
   /** Inputs required to install one cell without warming another cell's caches. */
   export interface IRequest {
     /** Materialized cell whose workspace and local cache environment are ready. */

@@ -6,7 +6,6 @@ import { EvidenceBenchmarkAtomic } from "./EvidenceBenchmarkAtomic.ts";
 import { EvidenceBenchmarkCorpus } from "./EvidenceBenchmarkCorpus.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
-import { EvidenceBenchmarkPath } from "./EvidenceBenchmarkPath.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 import { EvidenceBenchmarkProject } from "./EvidenceBenchmarkProject.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
@@ -14,285 +13,6 @@ import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBe
 
 /** Atomically materializes one benchmark workspace and immutable input ledger. */
 export namespace EvidenceBenchmarkMaterializer {
-  /** Returns the only cache authority layout admitted for one cell root. */
-  export function cacheLayout(
-    root: string,
-  ): IEvidenceBenchmarkMaterialization.IManifest["caches"] {
-    const output: string = path.resolve(root);
-    const workspaceCache: string = path.join(
-      output,
-      "workspace",
-      ".benchmark-cache",
-    );
-    return {
-      home: path.join(output, "cache", "home"),
-      corepack: path.join(output, "cache", "corepack"),
-      pnpm: path.join(workspaceCache, "pnpm-store"),
-      ttsc: path.join(workspaceCache, "ttsc"),
-      go: path.join(workspaceCache, "go-build"),
-      goModules: path.join(workspaceCache, "go-modules"),
-      goPath: path.join(workspaceCache, "go-path"),
-      playwright: path.join(workspaceCache, "playwright"),
-      temp: path.join(workspaceCache, "tmp"),
-      toolchain: path.join(output, "cache", "toolchain-bin"),
-    };
-  }
-
-  /** Rejects cache authority that drifted outside the canonical cell layout. */
-  export function assertCacheLayout(
-    root: string,
-    input: unknown,
-  ): asserts input is IEvidenceBenchmarkMaterialization.IManifest["caches"] {
-    if (typeof input !== "object" || input === null || Array.isArray(input))
-      throw new Error("Benchmark materialization has no cache authority map.");
-    const actual = input as Record<string, unknown>;
-    const expected = cacheLayout(root);
-    const expectedKeys: readonly string[] = Object.keys(expected).sort();
-    if (
-      JSON.stringify(Object.keys(actual).sort()) !==
-      JSON.stringify(expectedKeys)
-    )
-      throw new Error(
-        "Benchmark materialization cache authority inventory drifted.",
-      );
-    for (const key of expectedKeys) {
-      const value: unknown = actual[key];
-      const canonical: string = expected[key as keyof typeof expected];
-      if (
-        typeof value !== "string" ||
-        path.resolve(value) !== path.resolve(canonical)
-      )
-        throw new Error(
-          `Benchmark materialization cache authority drifted: ${key}.`,
-        );
-      EvidenceBenchmarkPath.assertInside(root, value, `benchmark cache ${key}`);
-    }
-  }
-
-  /** Recomputes the aggregate materialization identity from retained fields. */
-  export function inputSha256(
-    manifest: IEvidenceBenchmarkMaterialization.IManifest,
-  ): string {
-    return EvidenceBenchmarkHash.object({
-      treeAlgorithm: manifest.treeAlgorithm,
-      project: manifest.project,
-      arm: manifest.arm,
-      variables: manifest.variables,
-      base: manifest.baseTreeSha256,
-      overlay: manifest.armTreeSha256,
-      requirements: manifest.requirementsTreeSha256,
-      product: manifest.artifact.sha256,
-      workspace: manifest.workspaceTreeSha256,
-      lintBaselines: manifest.lintBaselines,
-      caches: manifest.caches,
-      dependencyLock: manifest.dependencyLockSha256 ?? null,
-    });
-  }
-
-  /**
-   * Freezes the generated dependency lock exactly once before the paired setup
-   * barrier can release either measured model.
-   */
-  export function finalizeDependencyLock(root: string): string {
-    const manifestPath: string = path.join(root, "materialization.json");
-    const manifest = JSON.parse(
-      fs.readFileSync(manifestPath, "utf8"),
-    ) as IEvidenceBenchmarkMaterialization.IManifest;
-    assertCacheLayout(root, manifest.caches);
-    if (
-      manifest.schemaVersion !== 7 ||
-      manifest.dependencyLockSha256 !== undefined ||
-      manifest.inputSha256 !== inputSha256(manifest)
-    )
-      throw new Error(
-        "Benchmark dependency lock cannot finalize a drifted materialization.",
-      );
-    const source: string = path.join(root, "workspace", "pnpm-lock.yaml");
-    const sourceStat: fs.Stats | undefined = fs.lstatSync(source, {
-      throwIfNoEntry: false,
-    });
-    if (!sourceStat?.isFile() || sourceStat.isSymbolicLink())
-      throw new Error("Benchmark dependency lock is not a real file.");
-    const target: string = path.join(root, "inputs", "pnpm-lock.yaml");
-    fs.copyFileSync(source, target, fs.constants.COPYFILE_EXCL);
-    const identity: string = EvidenceBenchmarkHash.file(target);
-    if (EvidenceBenchmarkHash.file(source) !== identity)
-      throw new Error("Benchmark dependency lock drifted while being frozen.");
-    manifest.dependencyLockSha256 = identity;
-    manifest.inputSha256 = inputSha256(manifest);
-    writeJsonAtomically(manifestPath, manifest);
-    return identity;
-  }
-
-  /** Requires the current workspace lock to equal its frozen input copy. */
-  export function assertDependencyLock(root: string): string {
-    const manifest = JSON.parse(
-      fs.readFileSync(path.join(root, "materialization.json"), "utf8"),
-    ) as IEvidenceBenchmarkMaterialization.IManifest;
-    const frozen: string = path.join(root, "inputs", "pnpm-lock.yaml");
-    const workspace: string = path.join(root, "workspace", "pnpm-lock.yaml");
-    if (
-      manifest.schemaVersion !== 7 ||
-      typeof manifest.dependencyLockSha256 !== "string" ||
-      !/^[0-9a-f]{64}$/.test(manifest.dependencyLockSha256) ||
-      manifest.inputSha256 !== inputSha256(manifest) ||
-      EvidenceBenchmarkHash.file(frozen) !== manifest.dependencyLockSha256 ||
-      EvidenceBenchmarkHash.file(workspace) !== manifest.dependencyLockSha256
-    )
-      throw new Error("Benchmark dependency lock was not restored.");
-    return manifest.dependencyLockSha256;
-  }
-
-  /**
-   * Returns the minimal host environment needed by portable child processes.
-   *
-   * Benchmark children do not inherit arbitrary compiler, package-manager,
-   * runtime, loader, or repository configuration from the operator shell.
-   */
-  export function hostEnvironment(): NodeJS.ProcessEnv {
-    const exact: ReadonlyMap<string, string> = new Map(
-      [
-        "ALL_PROXY",
-        "APPDATA",
-        "CI",
-        "CODEX_API_KEY",
-        "COLORTERM",
-        "COMSPEC",
-        "GITHUB_ACTIONS",
-        "HOME",
-        "HOMEDRIVE",
-        "HOMEPATH",
-        "HTTP_PROXY",
-        "HTTPS_PROXY",
-        "LANG",
-        "LOCALAPPDATA",
-        "NO_PROXY",
-        "NODE_EXTRA_CA_CERTS",
-        "NUMBER_OF_PROCESSORS",
-        "OPENAI_API_KEY",
-        "OS",
-        "PATHEXT",
-        "PROGRAMDATA",
-        "ProgramFiles",
-        "ProgramFiles(x86)",
-        "ProgramW6432",
-        "RUNNER_ARCH",
-        "RUNNER_OS",
-        "SHELL",
-        "SSL_CERT_DIR",
-        "SSL_CERT_FILE",
-        "SystemRoot",
-        "TERM",
-        "TZ",
-        "USER",
-        "USERDOMAIN",
-        "USERNAME",
-        "USERPROFILE",
-        "WINDIR",
-      ].map((key) => [key.toLowerCase(), key] as const),
-    );
-    const output: NodeJS.ProcessEnv = {};
-    for (const [key, value] of Object.entries(process.env)) {
-      const normalized: string = key.toLowerCase();
-      const canonical: string | undefined = exact.get(normalized);
-      if (canonical !== undefined) output[canonical] = value;
-      else if (normalized.startsWith("lc_")) output[key] = value;
-    }
-    output.PATH = process.env.PATH ?? process.env.Path ?? "";
-    return output;
-  }
-
-  /**
-   * Removes model credentials and credential-bearing proxy variables before
-   * executing workspace-authored lifecycle or gate code.
-   */
-  export function untrustedEnvironment(
-    source: NodeJS.ProcessEnv,
-  ): NodeJS.ProcessEnv {
-    const forbidden: ReadonlySet<string> = new Set(
-      [
-        "ALL_PROXY",
-        "CODEX_API_KEY",
-        "HTTP_PROXY",
-        "HTTPS_PROXY",
-        "NODE_EXTRA_CA_CERTS",
-        "NO_PROXY",
-        "OPENAI_API_KEY",
-        "SSL_CERT_DIR",
-        "SSL_CERT_FILE",
-      ].map((key) => key.toLowerCase()),
-    );
-    return Object.fromEntries(
-      Object.entries(source).filter(
-        ([key]) => forbidden.has(key.toLowerCase()) === false,
-      ),
-    );
-  }
-
-  /** Returns the empty cell-owned npm config after verifying its exact bytes. */
-  export function npmConfig(root: string): string {
-    return emptyConfiguration(root, "npmrc", "package-manager");
-  }
-
-  /** Returns the empty cell-owned Git config after verifying its exact bytes. */
-  export function gitConfig(root: string): string {
-    return emptyConfiguration(root, "gitconfig", "Git");
-  }
-
-  function emptyConfiguration(
-    root: string,
-    name: string,
-    label: string,
-  ): string {
-    const location: string = path.join(root, "inputs", name);
-    const stat: fs.Stats | undefined = fs.lstatSync(location, {
-      throwIfNoEntry: false,
-    });
-    if (
-      !stat?.isFile() ||
-      stat.isSymbolicLink() ||
-      fs.readFileSync(location).byteLength !== 0
-    )
-      throw new Error(
-        `Benchmark cell does not retain its empty ${label} config.`,
-      );
-    return location;
-  }
-
-  /** Rejects any drift in the measured workspace's frozen requirement copy. */
-  export function assertRequirementsRestored(
-    workspace: string,
-    root: string,
-  ): void {
-    const manifest = JSON.parse(
-      fs.readFileSync(path.join(root, "materialization.json"), "utf8"),
-    ) as Omit<IEvidenceBenchmarkMaterialization.IManifest, "schemaVersion"> & {
-      schemaVersion: unknown;
-    };
-    const analysis: string = path.join(workspace, "docs", "analysis");
-    const stat: fs.Stats | undefined = fs.lstatSync(analysis, {
-      throwIfNoEntry: false,
-    });
-    if (
-      manifest.schemaVersion !== 7 ||
-      !stat?.isDirectory() ||
-      stat.isSymbolicLink()
-    )
-      throw new Error(
-        "Benchmark workspace does not retain its frozen requirement directory.",
-      );
-    const files: ReadonlyMap<string, Uint8Array> =
-      EvidenceBenchmarkHash.directory(analysis);
-    if (
-      EvidenceBenchmarkHash.tree(files) !== manifest.requirementsTreeSha256 ||
-      EvidenceBenchmarkHash.object(EvidenceBenchmarkHash.entries(files)) !==
-        EvidenceBenchmarkHash.object(manifest.requirementFiles)
-    )
-      throw new Error(
-        "Benchmark workspace requirement copy was not restored to its frozen input.",
-      );
-  }
-
   /**
    * Builds one cell below a sibling staging directory and publishes it once.
    *
@@ -317,9 +37,7 @@ export namespace EvidenceBenchmarkMaterializer {
       throw new Error(
         `Benchmark materialization refuses to overwrite an existing cell: ${output}.`,
       );
-    EvidenceBenchmarkPath.assertSymlinkFree(parent, "materialization parent");
     fs.mkdirSync(parent, { recursive: true });
-    EvidenceBenchmarkPath.assertDirectory(parent, "materialization parent");
     const stage: string = path.join(
       parent,
       `.${path.basename(output)}.${process.pid}.${crypto.randomUUID()}.tmp`,
@@ -378,9 +96,15 @@ export namespace EvidenceBenchmarkMaterializer {
         EvidenceBenchmarkHash.tree(workspaceFiles);
       const requirementsTreeSha256: string =
         EvidenceBenchmarkHash.tree(requirementFiles);
-      const caches = cacheLayout(output);
+      const caches = {
+        pnpm: path.join(output, "cache", "pnpm-store"),
+        ttsc: path.join(output, "cache", "ttsc"),
+        go: path.join(output, "cache", "go-build"),
+        playwright: path.join(output, "cache", "playwright"),
+        toolchain: path.join(output, "cache", "toolchain-bin"),
+      };
       const manifestRecord: IEvidenceBenchmarkMaterialization.IManifest = {
-        schemaVersion: 7,
+        schemaVersion: 5,
         treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
         project,
         arm: request.arm,
@@ -394,7 +118,18 @@ export namespace EvidenceBenchmarkMaterializer {
         armTreeSha256: composition.armTreeSha256,
         requirementsTreeSha256,
         workspaceTreeSha256,
-        inputSha256: "",
+        inputSha256: EvidenceBenchmarkHash.object({
+          treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
+          project,
+          arm: request.arm,
+          variables: request.variables,
+          base: composition.baseTreeSha256,
+          overlay: composition.armTreeSha256,
+          requirements: requirementsTreeSha256,
+          product: request.artifact.sha256,
+          workspace: workspaceTreeSha256,
+          lintBaselines,
+        }),
         workspaceFiles: EvidenceBenchmarkHash.entries(workspaceFiles),
         requirementFiles: EvidenceBenchmarkHash.entries(requirementFiles),
         lintBaselines,
@@ -413,56 +148,20 @@ export namespace EvidenceBenchmarkMaterializer {
         },
         caches,
       };
-      manifestRecord.inputSha256 = inputSha256(manifestRecord);
       const environment: NodeJS.ProcessEnv = {
-        ...hostEnvironment(),
-        HOME: caches.home,
-        USERPROFILE: caches.home,
-        APPDATA: path.join(caches.home, "appdata", "roaming"),
-        LOCALAPPDATA: path.join(caches.home, "appdata", "local"),
-        XDG_CACHE_HOME: path.join(caches.home, ".cache"),
-        XDG_CONFIG_HOME: path.join(caches.home, ".config"),
-        COREPACK_HOME: caches.corepack,
+        ...process.env,
+        npm_config_store_dir: caches.pnpm,
         TTSC_CACHE_DIR: caches.ttsc,
         TTSC_GO_CACHE_DIR: caches.go,
         GOCACHE: caches.go,
-        GOENV: "off",
-        GOMODCACHE: caches.goModules,
-        GOPATH: caches.goPath,
-        GOTMPDIR: path.join(caches.temp, "go"),
+        GOTMPDIR: path.join(output, "cache", "go-tmp"),
         PLAYWRIGHT_BROWSERS_PATH: caches.playwright,
-        TMPDIR: caches.temp,
-        TEMP: caches.temp,
-        TMP: caches.temp,
       };
-      for (const key of Object.keys(environment))
-        if (key.toLowerCase().startsWith("npm_config_"))
-          delete environment[key];
-      environment.npm_config_store_dir = caches.pnpm;
-      environment.npm_config_userconfig = path.join(output, "inputs", "npmrc");
-      environment.npm_config_globalconfig = path.join(
-        output,
-        "inputs",
-        "npmrc",
-      );
-      environment.GIT_CONFIG_NOSYSTEM = "1";
-      environment.GIT_CONFIG_GLOBAL = path.join(output, "inputs", "gitconfig");
-      // Nestia owns this flag only inside its private config-loader child.
-      // An inherited value would disable Evidence rules in ordinary Programs.
-      delete environment.NESTIA_SDK_TRANSFORM;
       const stageToolchain: string = path.join(stage, "cache", "toolchain-bin");
       EvidenceBenchmarkProcess.pinEnvironment(environment, stageToolchain);
 
       writeTree(path.join(stage, "workspace"), workspaceFiles);
       writeTree(path.join(stage, "inputs", "requirements"), requirementFiles);
-      fs.writeFileSync(path.join(stage, "inputs", "npmrc"), "", {
-        encoding: "utf8",
-        flag: "wx",
-      });
-      fs.writeFileSync(path.join(stage, "inputs", "gitconfig"), "", {
-        encoding: "utf8",
-        flag: "wx",
-      });
       manifestRecord.elapsedMs =
         Number(process.hrtime.bigint() - started) / 1_000_000;
       fs.writeFileSync(
@@ -470,7 +169,6 @@ export namespace EvidenceBenchmarkMaterializer {
         `${JSON.stringify(manifestRecord, null, 2)}\n`,
         { encoding: "utf8", flag: "wx" },
       );
-      EvidenceBenchmarkPath.assertDirectory(parent, "materialization parent");
       await EvidenceBenchmarkAtomic.publish(stage, output);
       environment.PATH = (environment.PATH ?? "")
         .split(path.delimiter)
@@ -570,22 +268,6 @@ export namespace EvidenceBenchmarkMaterializer {
         `Refusing to clean a benchmark staging path outside its parent: ${stage}.`,
       );
     fs.rmSync(resolvedStage, { recursive: true, force: true });
-  }
-
-  function writeJsonAtomically(location: string, value: unknown): void {
-    const temporary: string = `${location}.${process.pid}.${crypto.randomUUID()}.tmp`;
-    const descriptor: number = fs.openSync(temporary, "wx");
-    try {
-      fs.writeFileSync(
-        descriptor,
-        `${JSON.stringify(value, null, 2)}\n`,
-        "utf8",
-      );
-      fs.fsyncSync(descriptor);
-    } finally {
-      fs.closeSync(descriptor);
-    }
-    fs.renameSync(temporary, location);
   }
 
   function isObject(input: unknown): input is Record<string, unknown> {

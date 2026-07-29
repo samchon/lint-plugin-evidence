@@ -71,8 +71,10 @@ const graph: IEvidenceGraphConfig = {
           symbol: ["h2", "h3"],
         },
         {
-          type: "swagger",
-          file: "../api/swagger.json",
+          type: "typescript",
+          package: "{{apiPackageName}}",
+          file: "src/functional/index.ts",
+          symbol: ["function"],
         },
         {
           type: "typescript",
