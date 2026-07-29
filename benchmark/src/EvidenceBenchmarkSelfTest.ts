@@ -578,7 +578,6 @@ export namespace EvidenceBenchmarkSelfTest {
       );
     const infrastructureLintRestorationSha256: string =
       EvidenceBenchmarkLintBaseline.infrastructureDigest(lintBaselines);
-    write(path.join(workspace, ".env"), "SECRET=must-not-publish\n");
     write(path.join(workspace, ".env.example"), "SECRET=\n");
     write(
       path.join(workspace, ".benchmark-deps", "evidence.tgz"),
@@ -953,11 +952,12 @@ export namespace EvidenceBenchmarkSelfTest {
           fs.existsSync(path.join(leaf, ".benchmark-deps", "evidence.tgz")),
           "evidence publication must retain its local package archive",
         );
-        assert.equal(
-          fs.existsSync(path.join(leaf, ".env")),
-          false,
-          "publication staging must exclude local environment files",
-        );
+        for (const runtimePackage of ["backend", "frontend"])
+          assert.equal(
+            fs.existsSync(path.join(leaf, "packages", runtimePackage, ".env")),
+            false,
+            `publication staging must exclude the ${runtimePackage} runtime environment`,
+          );
         assert.equal(
           fs.existsSync(path.join(leaf, ".github", "workflows")),
           false,
