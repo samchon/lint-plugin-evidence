@@ -60,25 +60,25 @@ A screen designed before reading the contract gets rebuilt after reading it.
 
 ## Build The Product, Not The Endpoint List
 
-Do not turn every operation into a feature. Prefer a coherent product over exhaustive coverage, and leave out operations that are diagnostic, redundant, or that expose backend mechanics no user benefits from.
+Every user-visible requirement must be reachable and complete. Do not turn every operation into a separate screen, but do not omit a required capability merely because it is complex, operational, or less central to the main journey.
 
-Record every deliberate omission with its reason in `packages/frontend/wiki/omissions.md`, the way a real project keeps an omissions log:
+An SDK operation may be omitted from the interface only when it is infrastructure-only, genuinely redundant with another complete user path, or exposes backend mechanics no user can benefit from. Record every such decision with the exact requirement analysis, replacement path or non-user owner, and a condition that would invalidate the omission in `packages/frontend/wiki/omissions.md`:
 
 ```markdown
 ## Omitted On Purpose
 
-- Review, question, answer, and comment surfaces
-- Deep seller operations such as raw SKU authoring and inventory updates
-- Manual payment vendor selection
+- `/health`
+- A dedicated session-introspection screen
 
 ## Why
 
-- The product goal is a coherent buyer flow plus practical operator tooling.
-- The omitted areas add operational complexity, duplicate an existing path,
-  or expose backend mechanics that do not help a shopper.
+- `/health` is an infrastructure probe and no requirement makes it user-facing.
+- The authenticated application shell already presents every required session
+  fact and state; add the screen if a requirement gives introspection its own
+  user journey.
 ```
 
-An unrecorded omission is indistinguishable from an oversight. The next reader re-derives the decision, or reverses it by accident.
+Cost, implementation difficulty, or a preference for a smaller product never justifies an omission. An unrecorded or unfalsifiable omission is indistinguishable from an oversight.
 
 Never invent a feature the SDK does not support. If a requirement needs behavior the contract does not expose, that is a finding against the API, not an invitation to build a frontend-only path.
 
