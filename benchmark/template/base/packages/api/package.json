@@ -10,6 +10,11 @@
       "types": "./src/index.ts",
       "browser": "./src/index.ts",
       "default": "./lib/index.js"
+    },
+    "./structures": {
+      "types": "./src/structures/index.ts",
+      "browser": "./src/structures/index.ts",
+      "default": "./lib/structures/index.js"
     }
   },
   "scripts": {

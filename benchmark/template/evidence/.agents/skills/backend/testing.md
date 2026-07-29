@@ -24,7 +24,8 @@ Operation targets use `<METHOD>:<path>` from the generated Swagger document. Typ
 Put `@evidenceExclude` on a selected exported feature-test function when `backend-tests` intentionally does not verify a configured requirement, generated SDK operation, or DTO root type. Use the path target for Markdown and the braced inline-link target for TypeScript. The linked symbol must be imported into the test file; the braces are required.
 
 ```ts
-import api, { type IShoppingSale } from "{{apiPackageName}}";
+import api from "{{apiPackageName}}";
+import { type IShoppingSale } from "{{apiPackageName}}/structures";
 
 /**
  * @evidenceExclude docs/analysis/05-user-experience.md#responsive-grid
