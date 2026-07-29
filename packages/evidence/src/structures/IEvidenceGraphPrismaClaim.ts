@@ -10,9 +10,10 @@ import type { IEvidenceGraphReference } from "./IEvidenceGraphReference";
  * nobody asked for is invisible until someone reads the whole schema against
  * the whole specification.
  *
- * Declarations live in `///` documentation comments. Both `@evidence <target>
- * <reason>` and `@evidenceExclude <target> <reason>` require a target and a
- * non-empty explanation.
+ * Ownership declarations live in `///` documentation comments immediately above
+ * their model or field. Both `@evidence <target> <reason>` and
+ * `@evidenceExclude <target> <reason>` require a target and a non-empty
+ * explanation.
  *
  * A triple-slash comment and a block comment both host a citation, because
  * Prisma documents a declaration with either and both reach the generated
@@ -25,6 +26,11 @@ import type { IEvidenceGraphReference } from "./IEvidenceGraphReference";
  * Prisma's own rule. A blank line before a top-level block detaches the comment
  * entirely, and a comment above a block attribute or a closing brace documents
  * nothing; a citation in any of those positions is reported.
+ *
+ * A matching claim file has one exclusion-only exception: an unattached
+ * top-level `/// @evidenceExclude` run is a file-level carrier. This supports a
+ * lint-only `.schema` ledger outside Prisma generation. `@evidence` in the same
+ * position remains invalid.
  *
  * ```prisma
  * /// @evidence docs/requirements.md#pricing Sale price derives from this section.
@@ -86,15 +92,16 @@ export interface IEvidenceGraphPrismaClaim {
   files: string[];
 
   /**
-   * Prisma node kind or kinds eligible to host this claim's declarations.
+   * Prisma node kind or kinds eligible to host this claim's ownership evidence.
    *
    * Omit this property to select models, columns, and relations. A single value
    * selects one kind; a non-empty array selects the union of its kinds.
    *
    * The default is the widest one, because on the claiming side a selector
-   * narrows where a citation may sit rather than what must be covered. Narrow
-   * it to `"model"` when only tables owe an answer and a column-level citation
-   * should be reported as out of scope.
+   * narrows where ownership evidence may sit rather than what must be covered.
+   * Narrow it to `"model"` when only tables owe an answer and a column-level
+   * citation should be reported as out of scope. A file-level exclusion carrier
+   * is eligible independently of this selector.
    *
    * @default ["model", "column", "relation"]
    */

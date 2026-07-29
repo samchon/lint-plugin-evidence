@@ -6,6 +6,12 @@ Requirement-derived request and response DTOs are declared in `packages/api/src/
 
 The scaffold's `HealController.get` is the infrastructure exception. Keep its Nest `@Get("health")` route registered so `/health` remains available to process probes; it has no typed request or DTO response and does not use `TypedRoute`. Requirement-derived product operations follow the typed controller rules below.
 
+## Evidence Placement
+
+Put every `@evidence` on the controller method that owns the operation. Its reason states why that operation implements the requirement or exposes the cited model; a file-level substitute is not ownership.
+
+Collect reviewed `api-operations` exclusions on the exported const in `packages/backend/src/controllers/CONTROLLER_EVIDENCE_EXCLUDE.ts`. Its property symbol is an exclusion carrier even though the claim selects function hosts. Keep the carrier in the controller claim files, and never move real method evidence onto it.
+
 ## Two Views Of One Behavior
 
 An operation has an implementation view and a consumer view, and both must state the same effects. The implementation view explains the reads, joins, transactions, validation, and edge cases. The consumer view explains purpose, request meaning, response meaning, success effects, state transitions, and rejections.

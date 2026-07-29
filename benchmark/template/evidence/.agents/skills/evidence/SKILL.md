@@ -21,6 +21,20 @@ Use the owning layer document for tag placement and examples:
 - [verification.md](../frontend/verification.md) for `frontend-journeys`; and
 - [providers.md](../backend/providers.md) for the residual provider edge, where neither evidence tag belongs.
 
+## Acknowledgement Placement
+
+Ownership and non-applicability have different homes. Keep every `@evidence` on the actual declaration selected by the claim: a model or field, DTO type or property, controller method, test function, screen, or journey. Never move ownership evidence into a central ledger.
+
+TypeScript exclusions may be collected on the public const in the matching claim population:
+
+- `packages/backend/src/controllers/CONTROLLER_EVIDENCE_EXCLUDE.ts` for `api-operations`;
+- `packages/api/src/structures/DTO_EVIDENCE_EXCLUDE.ts` for `dto-types` and `dto-properties`; and
+- `packages/backend/test/features/TEST_EVIDENCE_EXCLUDE.ts` for `backend-tests`.
+
+The const's property symbol need not match the claim's ownership selector. The file still must match that claim, the export must remain public, and every target remains claim-local and reference-local.
+
+Schema exclusions may be collected as unattached top-level `/// @evidenceExclude` lines in `packages/backend/prisma/schema/exclude.schema`. That lint-only file is an explicit input of `schema-models` and is not a Prisma generate, migration, or ERD input. Only exclusions belong there; `@evidence` remains directly above its model or field.
+
 ## Configuration Ownership
 
 The complete graph is declared in three package-local files. Open the file that owns the affected population; there is no root graph configuration that replaces them.

@@ -24,6 +24,12 @@ Keep `structures` flat, with one file per root DTO named for the interface it de
 
 `IEntity`, `IPage`, and `IDiagnosis` live in `src/typings` because they are shared transport primitives rather than DTOs derived from a database model or requirement operation. Import them from the API package entry exactly like DTOs, but do not move them into `structures` or redeclare them beside a domain DTO.
 
+## Evidence Placement
+
+Put `@evidence` on the DTO type or property that represents the cited requirement, model, or column. The `dto-types` and `dto-properties` claims tally independently, so cite the declaration at the granularity that actually owns the contract.
+
+Collect reviewed exclusions for either claim on the exported const in `packages/api/src/structures/DTO_EVIDENCE_EXCLUDE.ts`. The carrier is eligible for both claims without changing their type and property selectors. A target still participates only in the matching claim-reference obligation; never use the shared file to imply that one exclusion covers both claims.
+
 ## Everything Is Exported From The Index
 
 A type that is not reachable from the package entry does not exist for a consumer.

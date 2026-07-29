@@ -16,6 +16,12 @@ A test is written from three sources, and skipping any of them produces a test t
 
 The requirements half is what the other two cannot supply. The SDK tells you what the product can do; only the documents tell you what it must do, and a suite written from the SDK alone proves the endpoints exist.
 
+## Evidence Placement
+
+Put `@evidence` on the exported test function whose scenario proves the cited requirement, SDK operation, or DTO type. The reason must name the observable proof that the body actually performs.
+
+Collect reviewed `backend-tests` exclusions on the exported const in `packages/backend/test/features/TEST_EVIDENCE_EXCLUDE.ts`. The carrier's property symbol is intentionally separate from the claim's function selector. Use it only when the public suite genuinely cannot or should not exercise the target; never move evidence from a real scenario into the ledger.
+
 ## Layout
 
 ```

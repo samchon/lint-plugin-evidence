@@ -1,6 +1,6 @@
 /**
- * A Prisma schema node kind that can become an evidence unit or host an
- * evidence declaration.
+ * A Prisma schema node kind that can become an evidence unit or a selected host
+ * for ownership evidence.
  *
  * `"model"` selects a declared model. `"column"` selects a stored field of one,
  * and `"relation"` selects a relation field. The split follows Prisma's own
@@ -30,6 +30,9 @@
  * a view exactly as it addresses a table.
  *
  * Enums, composite types, indexes, and datasource or generator settings are
- * outside this contract. They materialize no unit and host no declaration.
+ * outside this contract. They materialize no unit and host no declaration. A
+ * claim may separately accept `@evidenceExclude` in an unattached top-level
+ * triple-slash run in a matching file; that carrier has no Prisma symbol and
+ * never hosts `@evidence`.
  */
 export type EvidenceGraphPrismaSymbol = "model" | "column" | "relation";

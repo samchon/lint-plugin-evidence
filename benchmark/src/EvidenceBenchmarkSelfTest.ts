@@ -917,6 +917,27 @@ export namespace EvidenceBenchmarkSelfTest {
       "plain template is missing required paths",
     );
 
+    const missingCarrier: string = path.join(
+      temporary,
+      "missing-exclusion-carrier",
+    );
+    fs.cpSync(fixture, missingCarrier, { recursive: true });
+    fs.rmSync(
+      path.join(
+        missingCarrier,
+        "benchmark/template/base/packages/backend/prisma/schema/exclude.schema",
+      ),
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkTemplate.compose({
+          template: path.join(missingCarrier, "benchmark", "template"),
+          arm: "evidence",
+          variables,
+        }),
+      "base template is missing required paths: packages/backend/prisma/schema/exclude.schema",
+    );
+
     const replacementDrift: string = path.join(temporary, "replacement-drift");
     fs.cpSync(fixture, replacementDrift, { recursive: true });
     fs.appendFileSync(

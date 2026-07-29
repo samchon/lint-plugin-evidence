@@ -23,7 +23,10 @@ const graph: IEvidenceGraphConfig = {
     {
       name: "schema-models",
       type: "prisma",
-      files: ["prisma/schema/**/*.prisma"],
+      files: [
+        "prisma/schema/**/*.prisma",
+        "prisma/schema/exclude.schema",
+      ],
       symbol: "model",
       reference: {
         type: "markdown",

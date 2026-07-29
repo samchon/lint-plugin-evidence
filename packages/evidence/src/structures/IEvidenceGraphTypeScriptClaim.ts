@@ -11,8 +11,10 @@ import type { IEvidenceGraphReference } from "./IEvidenceGraphReference";
  * {@link EvidenceGraphTypeScriptSymbol}.
  *
  * Both `@evidence <target> <reason>` and `@evidenceExclude <target> <reason>`
- * require a target and a non-empty explanation. An exclusion can move between
- * eligible declarations without changing the target scope this claim excludes.
+ * require a target and a non-empty explanation. Ownership evidence must sit on
+ * a host selected by {@link symbol}. An exclusion may instead sit on any
+ * supported public export in the matching {@link files}, without changing the
+ * target scope this claim excludes.
  */
 export interface IEvidenceGraphTypeScriptClaim {
   /** Identifies the claiming artifacts as TypeScript. */
@@ -49,13 +51,16 @@ export interface IEvidenceGraphTypeScriptClaim {
   files: string[];
 
   /**
-   * TypeScript symbol kind or kinds eligible to host this claim's declarations.
+   * TypeScript symbol kind or kinds eligible to host this claim's ownership
+   * evidence.
    *
    * Omit this property to select exported type, function, and property symbols.
    * A single value selects one kind; a non-empty array selects the union of its
    * kinds. A mixed variable statement containing callable and data declarations
-   * can host both function and property claims. A JSDoc block on an unsupported
-   * or unexported declaration does not satisfy the claim.
+   * can host both function and property claims. `@evidenceExclude` may use any
+   * supported public export in a matching file as a central carrier regardless
+   * of this selector. A JSDoc block on an unsupported or unexported declaration
+   * does not satisfy either form.
    *
    * @default ["type", "function", "property"]
    */

@@ -99,7 +99,7 @@ A mixed variable statement can carry both function and property host kinds becau
 `evidence/graph` evaluates the complete configured graph once per Program and answers three distinct questions.
 
 - **Resolution.** Does every declaration target resolve to exactly one selected unit or structural ancestor?
-- **Host eligibility.** Does the declaration live on a symbol kind selected by its claim?
+- **Host eligibility.** Does `@evidence` live on a symbol kind selected by its claim, or does `@evidenceExclude` live on an eligible carrier in a matching claim file?
 - **Coverage.** Does every selected reference unit have one acknowledgement in this claim?
 
 Keep claim and reference state separate. A declaration that satisfies one claim or reference never leaks coverage into another, even when the physical target is the same.
@@ -115,6 +115,12 @@ Three properties are load-bearing.
 - **The reason is mandatory.** A blank exclusion is not a decision anyone can review.
 - **It belongs to one claim.** Another claim referencing the same source still owes its own acknowledgement.
 - **It follows hierarchy.** Excluding a parent excludes every selected descendant, and an overlapping evidence scope is a duplicate rather than a silent override.
+
+Carrier eligibility is intentionally wider than ownership evidence and no wider than the claim's file population.
+
+- A TypeScript exclusion may sit on any supported public export in a matching claim file, even when the claim's `symbol` selector chooses another host kind. Unexported and unsupported declarations remain ineligible.
+- A Prisma exclusion may sit on a selected model or field host, or in an unattached top-level `///` run in a matching claim file. This permits a lint-only `.schema` ledger outside Prisma generation. The same unattached position never accepts `@evidence`.
+- Markdown and Swagger claim hosts retain their selected-symbol behavior.
 
 Never auto-exclude, auto-retarget, or delete an artifact or citation to make a graph green. Repair is the author's, and every diagnostic must name the path that performs it.
 

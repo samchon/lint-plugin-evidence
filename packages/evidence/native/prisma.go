@@ -496,7 +496,9 @@ func prismaModelUnits(model prismaModel) []*evidenceUnit {
 // preference: `///` and `/* */` both reach the parser's `documentation` and
 // both are emitted into the generated client and into prisma-markdown's ERD,
 // so both host a citation here. `//` is discarded by Prisma itself and is the
-// only form that cannot. Every other unusable placement — documenting nothing,
+// only form that cannot. A top-level unattached `///` run is the one
+// exclusion-only carrier.
+// Every other unusable placement — documenting nothing,
 // documenting something this graph does not address, or burying the tag behind
 // an extra slash — names the move that fixes it.
 func prismaDeclarationsFromComments(
@@ -514,6 +516,44 @@ func prismaDeclarationsFromComments(
 					problems,
 					"Evidence tag at "+location+" sits in a '//' line comment, which Prisma discards rather than attaching to the declaration below it. Write the citation on a '///' or '/* */' documentation comment directly above the model, column, or relation it grounds.",
 				)
+			}
+			continue
+		}
+		if run.FileLevel {
+			hosted := inventories[run.Path]
+			if len(hosted) == 0 {
+				continue
+			}
+			for _, offset := range prismaBuriedTagLines(run.Body) {
+				problems = append(
+					problems,
+					"Evidence tag at "+run.Path+":"+decimal(run.Line+offset)+" is buried behind an extra slash. Prisma reads a fourth slash as content, so the tag no longer opens its documentation line and nothing resolves it. Write exactly three slashes.",
+				)
+			}
+			for _, parsed := range parseCommentDeclarations(run.Body, true) {
+				sequence++
+				line := run.Line + parsed.LineOffset
+				if parsed.Tag == tagEvidence {
+					problems = append(
+						problems,
+						"@evidence at "+run.Path+":"+decimal(line)+" is on a file-level Prisma exclusion carrier. Move ownership evidence directly above the selected model, column, or relation it grounds; only @evidenceExclude may be unattached at file level.",
+					)
+					continue
+				}
+				declaration := &evidenceDeclaration{
+					ID:               "prisma:" + run.Path + ":" + decimal(line) + ":" + decimal(sequence),
+					Type:             artifactPrisma,
+					Tag:              parsed.Tag,
+					Target:           parsed.Target,
+					Reason:           parsed.Reason,
+					ExclusionCarrier: true,
+					Path:             run.Path,
+					Line:             line,
+					Sequence:         sequence,
+				}
+				for _, inventory := range hosted {
+					inventory.Declarations = append(inventory.Declarations, declaration)
+				}
 			}
 			continue
 		}

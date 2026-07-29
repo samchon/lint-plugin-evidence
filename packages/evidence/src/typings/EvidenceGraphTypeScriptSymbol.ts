@@ -1,6 +1,6 @@
 /**
- * A public TypeScript contract kind that can become an evidence unit or host an
- * evidence declaration.
+ * A public TypeScript contract kind that can become an evidence unit or a
+ * selected host for ownership evidence.
  *
  * The selector is intentionally semantic rather than a list of AST node names:
  * `"function"` includes the common ways a project exports callable behavior,
@@ -54,5 +54,10 @@
  * another file does not create a second unit in the barrel file. TypeScript
  * target characters are matched exactly; Markdown path-separator normalization
  * does not rewrite literal symbol names.
+ *
+ * Every supported public declaration described here may carry
+ * `@evidenceExclude` when its file belongs to a claim, even when that claim's
+ * selector omits its kind. The selector still controls `@evidence`; an
+ * unsupported or unexported declaration carries neither form.
  */
 export type EvidenceGraphTypeScriptSymbol = "type" | "function" | "property";
