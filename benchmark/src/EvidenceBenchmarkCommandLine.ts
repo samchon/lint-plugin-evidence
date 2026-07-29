@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -16,7 +16,9 @@ import type { IEvidenceBenchmarkPackageArtifact } from "./structures/IEvidenceBe
 
 /** Prepares and launches retained Codex benchmark waves from one clean revision. */
 export namespace EvidenceBenchmarkCommandLine {
-  const MODEL = "gpt-5.6-luna";
+  const ENGINE = "codex" as const;
+  const MODEL = "gpt-5.6-terra";
+  const EFFORT = "high" as const;
   const WORKFLOW = "backend-first-gated-v1" as const;
   const ARMS = ["evidence", "plain"] as const;
 
@@ -36,6 +38,7 @@ export namespace EvidenceBenchmarkCommandLine {
     status: number | null;
     stdout: string;
     stderr: string;
+    invocation: string[];
   }
 
   interface IInstruction {
@@ -45,12 +48,15 @@ export namespace EvidenceBenchmarkCommandLine {
   }
 
   interface IState {
-    schemaVersion: 3;
+    schemaVersion: 4;
     workflow: typeof WORKFLOW;
     instructionsTreeSha256: string;
     project: IEvidenceBenchmarkMaterialization.Project;
     arm: IEvidenceBenchmarkMaterialization.Arm;
+    engine: typeof ENGINE;
     model: typeof MODEL;
+    effort: typeof EFFORT;
+    cliVersion: string;
     sourceCommit: string;
     runtime: EvidenceBenchmarkRuntime.IAssignment;
     elapsedMs: number;
@@ -122,7 +128,9 @@ export namespace EvidenceBenchmarkCommandLine {
       console.log(
         JSON.stringify(
           {
+            engine: ENGINE,
             model: MODEL,
+            effort: EFFORT,
             workflow: WORKFLOW,
             portBase: options.portBase,
             cells: cells.map(({ instructions, ...cell }) => ({
@@ -213,7 +221,14 @@ export namespace EvidenceBenchmarkCommandLine {
     if (!fs.existsSync(statePath))
       throw new Error(`Resumable state was not found: ${statePath}.`);
     const state: IState = JSON.parse(fs.readFileSync(statePath, "utf8"));
-    if (state.schemaVersion !== 3 || state.workflow !== WORKFLOW)
+    if (
+      state.schemaVersion !== 4 ||
+      state.workflow !== WORKFLOW ||
+      state.engine !== ENGINE ||
+      state.model !== MODEL ||
+      state.effort !== EFFORT ||
+      state.cliVersion !== codexVersion()
+    )
       throw new Error(
         `Run ${runId} does not use the resumable ${WORKFLOW} state schema.`,
       );
@@ -361,12 +376,15 @@ export namespace EvidenceBenchmarkCommandLine {
       const logs: string = path.join(root, "logs");
       fs.mkdirSync(logs, { recursive: false });
       state = {
-        schemaVersion: 3,
+        schemaVersion: 4,
         workflow: WORKFLOW,
         instructionsTreeSha256: freezeInstructions(root, props.instructions),
         project: props.project,
         arm: props.arm,
+        engine: ENGINE,
         model: MODEL,
+        effort: EFFORT,
+        cliVersion: codexVersion(),
         sourceCommit: props.sourceCommit,
         runtime: props.runtime,
         elapsedMs: elapsed(started),
@@ -456,6 +474,8 @@ export namespace EvidenceBenchmarkCommandLine {
       "goals",
       "--model",
       MODEL,
+      "--config",
+      `model_reasoning_effort=${EFFORT}`,
       "--dangerously-bypass-approvals-and-sandbox",
       "--skip-git-repo-check",
       "--config",
@@ -513,6 +533,7 @@ export namespace EvidenceBenchmarkCommandLine {
       status,
       stdout: path.posix.join("logs", path.basename(stdoutPath)),
       stderr: path.posix.join("logs", path.basename(stderrPath)),
+      invocation: [executable.command, ...executable.prefix, ...args],
       threadId,
     };
   }
@@ -859,6 +880,27 @@ export namespace EvidenceBenchmarkCommandLine {
     if (!fs.existsSync(entrypoint))
       throw new Error(`Codex CLI entrypoint was not found: ${entrypoint}.`);
     return { command: process.execPath, prefix: [entrypoint] };
+  }
+
+  function codexVersion(): string {
+    const executable: { command: string; prefix: string[] } = codexExecutable();
+    const result = spawnSync(
+      executable.command,
+      [...executable.prefix, "--version"],
+      {
+        encoding: "utf8",
+        shell: false,
+        windowsHide: true,
+      },
+    );
+    if (result.status !== 0)
+      throw new Error(
+        `Unable to read Codex CLI version: ${(result.stderr ?? "").trim()}`,
+      );
+    const version: string = (result.stdout ?? "").trim();
+    if (version.length === 0)
+      throw new Error("Codex CLI returned an empty version.");
+    return version;
   }
 
   async function initializeWorkspace(

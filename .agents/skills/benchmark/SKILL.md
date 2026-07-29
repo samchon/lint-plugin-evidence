@@ -21,6 +21,23 @@ Authorization to run a named benchmark covers that run, active supervision, reco
 
 Publication requires separate explicit authorization. Never infer a GitHub owner from this repository, its remote, the package scope, or an example command.
 
+## Campaign Contract
+
+A benchmark is an issue campaign, not a detached batch process. Keep one campaign pull request open while its authorized waves run. Commit and push deterministic runner, template, instruction, and plugin corrections to that pull request; record detailed findings, interruptions, recoveries, interventions, and completed phases as formal `COMMENT` reviews. Do not merge the campaign pull request between waves.
+
+After the campaign pull request merges, close only the linked issues whose current acceptance scope the merged tree actually satisfies. Keep the handoff or residual issue open until its own implementation pull request merges.
+
+Use this fixed engine matrix unless the user explicitly replaces it:
+
+| Engine | Model | Effort |
+| --- | --- | --- |
+| Codex | `gpt-5.6-terra` | `high` |
+| Claude Code | `sonnet-5` | `high` |
+
+Record the engine, exact model, effort, CLI version, and invocation in every run. Do not substitute a model after launch or silently inherit an effort setting. Do not launch an engine until its adapter and deterministic proof pass on the exact campaign revision.
+
+Assign a dedicated read-only reporting subagent to refresh the campaign pull-request body every 15 minutes. That subagent reads retained state, logs, usage, and workspace inventories; it never edits a measured workspace, frozen input, or source branch. The 30-second liveness supervisor is a separate responsibility and must act immediately rather than waiting for the reporting interval.
+
 ## Launch Gate
 
 Launch only from a clean pushed commit. The repository suites and the consumer-shaped template proof must be green for that exact revision. Keep the campaign pull request open until every authorized subject finishes; do not merge it between waves.
@@ -84,6 +101,12 @@ Store attempts under `benchmark/result/<subject>/<arm>/runs/<run-id>/`. Keep the
 Record total elapsed time, setup and agent wall time, every native token category, commands and gates, completion-claim timing, requirement and test coverage, quality assessment, and the exact frozen-input identities. Do not record absolute start or completion timestamps. Keep working knowledge in `.wiki/` according to the wiki skill, but do not treat that ignored local directory as the only copy of a benchmark result.
 
 Completion is provisional until an operator verifies the full prescribed turn sequence, terminal build, lint, backend and frontend tests, residual requirement coverage, and semantic quality. Only that accepted workspace may become a public demo repository.
+
+## Cancellation
+
+When the user cancels a campaign and explicitly rejects its partial results, stop the campaign reporting monitor, automatic resumers, cell controllers, model processes, servers, and their owned descendants. Verify that no owned process remains before deleting data.
+
+Remove only the canceled campaign's ignored `benchmark/.work/` and `benchmark/result/` trees after resolving their exact workspace paths. Do not delete requirement corpora, templates, instructions, shared caches, source changes, or an independently published result repository. Report that the removed local run data is not recoverable.
 
 ## Contradicting Results
 

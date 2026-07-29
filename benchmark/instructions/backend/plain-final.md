@@ -4,13 +4,19 @@ Use goal mode for this backend Plain final stage. Resume the same unfinished sta
 
 Finish the backend phase with a complete plain-arm Loop Until Dry over the API and backend scope.
 
+Each complete review round must include these gates:
+
 1. Re-read every requirement and decide its API and backend applicability.
 2. Review every current schema unit, DTO, controller operation, provider branch, database access, backend test assertion, negative path, authorization rule, and generated SDK contract.
-3. Fix every finding, regenerate affected outputs, rerun invalidated checks, and restart the complete backend-scoped round until one entire round is dry.
-4. From `packages/api`, run its canonical lint and build commands.
-5. From `packages/backend`, run `pnpm build`, `pnpm lint`, and `pnpm test`.
-6. From `packages/backend`, launch `pnpm dev`, verify `/health` and representative requirement-backed operations against the live server, then stop it cleanly.
+3. Fix every finding.
+4. From `packages/backend`, run `pnpm build:prisma` and `pnpm prepare`.
+5. From `packages/api`, run `pnpm lint` and `pnpm build`.
+6. Return to `packages/backend` and run `pnpm build:main`.
+7. Confirm every operation and DTO is settled, then run `pnpm build:sdk`.
+8. Run `pnpm build:test`, `pnpm lint`, `pnpm test`, and the live-server checks.
 
-Do not run the workspace-root build during this phase. Any failed command, review finding, unremoved backend `@todo`, or unverified backend requirement means the phase is incomplete. Do not mark frontend obligations accepted; they remain pending.
+Any finding, correction, generated-output change, or failed gate makes the round non-dry. Restart the complete backend-scoped round at the resulting source digest. Stop after one entire current-digest round finds zero actionable defect and leaves every gate current and green; one dry round is sufficient.
+
+Run the commands serially. Do not run the backend package's aggregate `pnpm build` or the workspace-root build during this phase. Any failed command, review finding, unremoved backend `@todo`, or unverified backend requirement means the phase is incomplete. Do not mark frontend obligations accepted; they remain pending.
 
 Report the exact commands and results.
