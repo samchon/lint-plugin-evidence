@@ -13,7 +13,8 @@ type prismaLocation struct {
 }
 
 // prismaCommentForm distinguishes the three comment syntaxes Prisma's grammar
-// accepts, because only one of them may carry a citation.
+// accepts: line comments carry no citation, and only triple-slash documentation
+// can become an unattached file-level exclusion carrier.
 type prismaCommentForm string
 
 const (

@@ -756,14 +756,25 @@ export namespace EvidenceBenchmarkCommandLine {
     name: TurnName;
     baselines: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[];
   }): string | undefined {
-    if (props.arm !== "evidence") return undefined;
+    const infrastructure: string =
+      EvidenceBenchmarkLintBaseline.assertInfrastructureRestored(
+        props.workspace,
+        props.arm,
+        props.baselines,
+      );
+    if (props.arm === "plain")
+      return EvidenceBenchmarkLintBaseline.assertRestored(
+        props.workspace,
+        props.arm,
+        props.baselines,
+      );
     const selected: readonly string[] | undefined =
       props.name === "backend-final"
         ? EvidenceBenchmarkLintBaseline.BACKEND_PATHS
         : props.name === "frontend-final" || props.name === "overall-final"
           ? EvidenceBenchmarkLintBaseline.PATHS
           : undefined;
-    if (selected === undefined) return undefined;
+    if (selected === undefined) return infrastructure;
     return EvidenceBenchmarkLintBaseline.assertRestored(
       props.workspace,
       props.arm,
@@ -847,6 +858,8 @@ export namespace EvidenceBenchmarkCommandLine {
       GOTMPDIR: path.join(root, "cache", "go-tmp"),
       PLAYWRIGHT_BROWSERS_PATH: manifest.caches.playwright,
     };
+    // Resume must not inherit Nestia's loader-only rule bypass from its caller.
+    delete environment.NESTIA_SDK_TRANSFORM;
     EvidenceBenchmarkProcess.pinEnvironment(
       environment,
       manifest.caches.toolchain,

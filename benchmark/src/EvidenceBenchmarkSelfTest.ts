@@ -253,10 +253,25 @@ export namespace EvidenceBenchmarkSelfTest {
       runId,
       "workspace",
     );
-    write(path.join(workspace, "package.json"), '{"private":true}\n');
+    const workspacePackage = {
+      private: true,
+      scripts: { test: "fixture root test" },
+    };
+    write(
+      path.join(workspace, "package.json"),
+      `${JSON.stringify(workspacePackage)}\n`,
+    );
     write(
       path.join(workspace, "packages", "frontend", "package.json"),
-      '{"name":"@evidence-benchmark/todo-evidence-frontend"}\n',
+      '{"name":"@evidence-benchmark/todo-evidence-frontend","scripts":{"test":"fixture frontend test"}}\n',
+    );
+    write(
+      path.join(workspace, "packages", "api", "package.json"),
+      '{"scripts":{"build":"fixture api build"}}\n',
+    );
+    write(
+      path.join(workspace, "packages", "backend", "package.json"),
+      '{"scripts":{"build":"fixture backend build"}}\n',
     );
     for (const [
       index,
@@ -277,14 +292,58 @@ export namespace EvidenceBenchmarkSelfTest {
           `    { name: "fixture-${index}", type: "typescript", files: ["src/**/*.ts"], symbol: "function", reference: { type: "markdown", files: ["docs/**/*.md"], symbol: "h2" } },`,
           "  ],",
           "};",
-          `export default { rules: { "evidence/graph": ${
+          "export default {",
+          "  rules: {",
+          `    "evidence/graph": ${
             relative === EvidenceBenchmarkLintBaseline.PATHS[1] ||
             relative === EvidenceBenchmarkLintBaseline.PATHS[3]
               ? 'isNestiaConfigLoader ? "off" : ["error", graph]'
               : '["error", graph]'
-          } } };`,
+          },`,
+          `    "evidence/documented": ${
+            relative === EvidenceBenchmarkLintBaseline.PATHS[1] ||
+            relative === EvidenceBenchmarkLintBaseline.PATHS[3]
+              ? 'isNestiaConfigLoader ? "off" : "error"'
+              : '"error"'
+          },`,
+          ...(relative === EvidenceBenchmarkLintBaseline.PATHS[2]
+            ? []
+            : [
+                `    "evidence/singular": ${
+                  relative === EvidenceBenchmarkLintBaseline.PATHS[1] ||
+                  relative === EvidenceBenchmarkLintBaseline.PATHS[3]
+                    ? 'isNestiaConfigLoader ? "off" : "error"'
+                    : '"error"'
+                },`,
+              ]),
+          `    "evidence/todo": ${
+            relative === EvidenceBenchmarkLintBaseline.PATHS[1] ||
+            relative === EvidenceBenchmarkLintBaseline.PATHS[3]
+              ? 'isNestiaConfigLoader ? "off" : "error"'
+              : '"error"'
+          },`,
+          "  },",
+          "};",
           "",
         ].join("\n"),
+      );
+    for (const program of EvidenceBenchmarkLintBaseline.PROGRAMS)
+      write(
+        path.join(workspace, ...program.path.split("/")),
+        `${JSON.stringify(
+          {
+            compilerOptions: {
+              plugins: [
+                {
+                  transform: "@ttsc/lint",
+                  configFile: program.configFile,
+                },
+              ],
+            },
+          },
+          null,
+          2,
+        )}\n`,
       );
     const lintBaselines: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[] =
       EvidenceBenchmarkLintBaseline.captureDirectory(workspace, "evidence");
@@ -295,6 +354,8 @@ export namespace EvidenceBenchmarkSelfTest {
         lintBaselines,
         EvidenceBenchmarkLintBaseline.BACKEND_PATHS,
       );
+    const infrastructureLintRestorationSha256: string =
+      EvidenceBenchmarkLintBaseline.infrastructureDigest(lintBaselines);
     write(path.join(workspace, ".env"), "SECRET=must-not-publish\n");
     write(path.join(workspace, ".env.example"), "SECRET=\n");
     write(
@@ -389,7 +450,7 @@ export namespace EvidenceBenchmarkSelfTest {
               ? backendLintRestorationSha256
               : name === "frontend-final" || name === "overall-final"
                 ? lintRestorationSha256
-                : undefined,
+                : infrastructureLintRestorationSha256,
         })),
       })}\n`,
     );
@@ -513,12 +574,37 @@ export namespace EvidenceBenchmarkSelfTest {
     assert.equal(result.repository, "fixture-owner/evidence-benchmark-results");
     assert.ok(calls.includes("git push origin master"));
 
+    write(path.join(workspace, "benchmark.json"), '{"forged":true}\n');
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+          throw new Error("reserved workspace path reached the process runner");
+        }),
+      "owns reserved publication path: benchmark.json",
+    );
+    fs.rmSync(path.join(workspace, "benchmark.json"));
+
     const runState = JSON.parse(fs.readFileSync(runStatePath, "utf8")) as {
       turns: Array<{
         name: string;
         lintRestorationSha256?: string;
       }>;
     };
+    const backendStart = runState.turns.find(
+      (turn) => turn.name === "backend-start",
+    )!;
+    delete backendStart.lintRestorationSha256;
+    write(runStatePath, `${JSON.stringify(runState)}\n`);
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+          throw new Error(
+            "missing infrastructure proof reached the process runner",
+          );
+        }),
+      "infrastructure immutability proof",
+    );
+    backendStart.lintRestorationSha256 = infrastructureLintRestorationSha256;
     const backendFinal = runState.turns.find(
       (turn) => turn.name === "backend-final",
     )!;
@@ -597,7 +683,10 @@ export namespace EvidenceBenchmarkSelfTest {
     materialization.artifact.relativeArchive = ".benchmark-deps/evidence.tgz";
     write(materializationPath, `${JSON.stringify(materialization)}\n`);
 
-    write(path.join(workspace, "package.json"), '{"private":false}\n');
+    write(
+      path.join(workspace, "package.json"),
+      `${JSON.stringify({ ...workspacePackage, private: false })}\n`,
+    );
     await expectFailure(
       () =>
         EvidenceBenchmarkPublication.publish(repository, request, async () => {
@@ -605,7 +694,10 @@ export namespace EvidenceBenchmarkSelfTest {
         }),
       "workspace failed identity verification",
     );
-    write(path.join(workspace, "package.json"), '{"private":true}\n');
+    write(
+      path.join(workspace, "package.json"),
+      `${JSON.stringify(workspacePackage)}\n`,
+    );
 
     await expectFailure(
       () =>
@@ -1253,6 +1345,16 @@ export namespace EvidenceBenchmarkSelfTest {
       /EvidenceBenchmarkTurnLedger\.assertAcceptedOrder\(state\.turns\)/,
       "resume admission must use the shared accepted-turn validator",
     );
+    assert.match(
+      commandLine,
+      /props\.arm === "plain"[\s\S]+EvidenceBenchmarkLintBaseline\.assertRestored\([\s\S]+props\.baselines/,
+      "every Plain turn must preserve its frozen lint policies and Program routing",
+    );
+    assert.match(
+      commandLine,
+      /function resumeEnvironment[\s\S]+delete environment\.NESTIA_SDK_TRANSFORM/,
+      "resume must clear Nestia's loader-only rule bypass",
+    );
     const publicationSource: string = fs.readFileSync(
       path.join(
         repository,
@@ -1266,6 +1368,11 @@ export namespace EvidenceBenchmarkSelfTest {
       publicationSource,
       /EvidenceBenchmarkTurnLedger\.assertAcceptedOrder\(state\.turns, true\)/,
       "publication must use the shared complete-turn validator",
+    );
+    assert.match(
+      publicationSource,
+      /Plain publication lint configuration immutability proof failed verification/,
+      "Plain publication must revalidate every retained lint immutability proof",
     );
     for (const phase of ["backend", "frontend"])
       assert.deepEqual(
@@ -1340,6 +1447,11 @@ export namespace EvidenceBenchmarkSelfTest {
           composition.files.has(relative),
           `integrated ${arm} scaffold is missing authored source ${relative}`,
         );
+      assert.match(
+        Buffer.from(composition.files.get("AGENTS.md")!).toString("utf8"),
+        /The measurement boundary is frozen\.[^\n]+package scripts,[^\n]+compiler `tsconfig` files,[^\n]+lint-plugin routing/,
+        `integrated ${arm} instructions must disclose the frozen command and Program boundary`,
+      );
       const workflow: string = Buffer.from(
         composition.files.get(".github/workflows/ci.yml")!,
       ).toString("utf8");
@@ -1453,11 +1565,10 @@ export namespace EvidenceBenchmarkSelfTest {
         `backend main projection drifted from canonical ${name}`,
       );
     }
-    for (const [relative, configFile] of [
-      ["packages/backend/tsconfig.json", "./lint.config.main.ts"],
-      ["packages/backend/tsconfig.lint.json", "./lint.config.ts"],
-      ["packages/backend/test/tsconfig.json", "../lint.config.ts"],
-    ] as const) {
+    for (const {
+      path: relative,
+      configFile,
+    } of EvidenceBenchmarkLintBaseline.PROGRAMS) {
       const bytes: Uint8Array | undefined = files.get(relative);
       assert.ok(bytes, `materialized Evidence template is missing ${relative}`);
       const config = JSON.parse(Buffer.from(bytes).toString("utf8")) as {
@@ -1814,7 +1925,7 @@ export namespace EvidenceBenchmarkSelfTest {
    *
    * 1. Read a valid corpus with shared ordering prefixes and fenced examples.
    * 2. Reject a non-Markdown sidecar.
-   * 3. Reject duplicate and anonymous requirement nodes.
+   * 3. Reject vacuous, duplicate, and anonymous requirement structures.
    */
   async function testMarkdownCorpus(temporary: string): Promise<void> {
     const root: string = path.join(temporary, "markdown-corpus");
@@ -1887,6 +1998,29 @@ export namespace EvidenceBenchmarkSelfTest {
       () => EvidenceBenchmarkCorpus.read(anonymous),
       "H3 must own a REQ identifier",
     );
+
+    const noGroups: string = path.join(temporary, "no-group-corpus");
+    write(
+      path.join(noGroups, "00-notes.md"),
+      "# Notes\n\nThis document declares no requirement group.\n",
+    );
+    await expectFailure(
+      () => EvidenceBenchmarkCorpus.read(noGroups),
+      "no level-two requirement groups",
+    );
+
+    const noRequirements: string = path.join(
+      temporary,
+      "no-requirement-corpus",
+    );
+    write(
+      path.join(noRequirements, "00-groups.md"),
+      "# Groups\n\n## REQ-GROUP: Area\n",
+    );
+    await expectFailure(
+      () => EvidenceBenchmarkCorpus.read(noRequirements),
+      "no REQ-owned level-three requirements",
+    );
   }
 
   async function testMaterialization(
@@ -1923,26 +2057,40 @@ export namespace EvidenceBenchmarkSelfTest {
     const variables: IEvidenceBenchmarkMaterialization.IVariables =
       benchmarkVariables("self-test");
     const cells: Map<string, IEvidenceBenchmarkMaterialization> = new Map();
-    for (const project of ["todo", "reddit", "erp", "free-form-subject"])
-      for (const arm of ["evidence", "plain"] as const) {
-        const cell = await EvidenceBenchmarkMaterializer.materialize({
-          repository,
-          output: path.join(temporary, `${project}-${arm}`),
-          project,
-          arm,
-          variables,
-          artifact,
-        });
-        cells.set(`${project}/${arm}`, cell);
-        assertIntegratedCell({
-          repository,
-          project,
-          arm,
-          variables,
-          artifact,
-          cell,
-        });
-      }
+    const inheritedNestiaLoader: string | undefined =
+      process.env.NESTIA_SDK_TRANSFORM;
+    process.env.NESTIA_SDK_TRANSFORM = "1";
+    try {
+      for (const project of ["todo", "reddit", "erp", "free-form-subject"])
+        for (const arm of ["evidence", "plain"] as const) {
+          const cell = await EvidenceBenchmarkMaterializer.materialize({
+            repository,
+            output: path.join(temporary, `${project}-${arm}`),
+            project,
+            arm,
+            variables,
+            artifact,
+          });
+          assert.equal(
+            cell.environment.NESTIA_SDK_TRANSFORM,
+            undefined,
+            "materialized cells must clear Nestia's loader-only rule bypass",
+          );
+          cells.set(`${project}/${arm}`, cell);
+          assertIntegratedCell({
+            repository,
+            project,
+            arm,
+            variables,
+            artifact,
+            cell,
+          });
+        }
+    } finally {
+      if (inheritedNestiaLoader === undefined)
+        delete process.env.NESTIA_SDK_TRANSFORM;
+      else process.env.NESTIA_SDK_TRANSFORM = inheritedNestiaLoader;
+    }
     const evidenceOne: IEvidenceBenchmarkMaterialization =
       cells.get("todo/evidence")!;
     const plain: IEvidenceBenchmarkMaterialization = cells.get("todo/plain")!;
@@ -2032,6 +2180,94 @@ export namespace EvidenceBenchmarkSelfTest {
       "let isNestiaConfigLoader",
       "authorized Nestia loader bypass",
     );
+    await expectSeverityFailure(
+      EvidenceBenchmarkLintBaseline.PATHS[0],
+      '"evidence/documented": "error"',
+      '"evidence/documented": "off"',
+      'evidence/documented must remain at "error" severity',
+    );
+    await expectSeverityFailure(
+      EvidenceBenchmarkLintBaseline.PATHS[1],
+      '"evidence/singular": isNestiaConfigLoader ? "off" : "error"',
+      '"evidence/singular": "off"',
+      "authorized Nestia loader bypass",
+    );
+    await expectSeverityFailure(
+      EvidenceBenchmarkLintBaseline.PATHS[2],
+      '"evidence/todo": "error"',
+      '"evidence/todo": "warn"',
+      'evidence/todo must remain at "error" severity',
+    );
+    await expectSeverityFailure(
+      EvidenceBenchmarkLintBaseline.PATHS[3],
+      '"evidence/documented": isNestiaConfigLoader ? "off" : "error"',
+      '"evidence/documented": isNestiaConfigLoader ? "off" : "warn"',
+      "authorized Nestia loader bypass",
+    );
+    const testProgram: string = path.join(
+      evidenceTwo.workspace,
+      "packages",
+      "backend",
+      "tsconfig.test.json",
+    );
+    const testProgramSource: string = fs.readFileSync(testProgram, "utf8");
+    fs.writeFileSync(
+      testProgram,
+      testProgramSource.replace(
+        '"configFile": "./lint.config.ts"',
+        '"configFile": "./lint.config.main.ts"',
+      ),
+      "utf8",
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkLintBaseline.assertRestored(
+          evidenceTwo.workspace,
+          "evidence",
+          evidenceTwo.lintBaselines,
+        ),
+      "must load ./lint.config.ts",
+    );
+    fs.writeFileSync(testProgram, `${testProgramSource}\n`, "utf8");
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkLintBaseline.assertRestored(
+          evidenceTwo.workspace,
+          "evidence",
+          evidenceTwo.lintBaselines,
+        ),
+      "Lint Program bytes were not restored",
+    );
+    fs.writeFileSync(testProgram, testProgramSource, "utf8");
+    const backendPackage: string = path.join(
+      evidenceTwo.workspace,
+      "packages",
+      "backend",
+      "package.json",
+    );
+    const backendPackageSource: string = fs.readFileSync(
+      backendPackage,
+      "utf8",
+    );
+    const backendPackageValue = JSON.parse(backendPackageSource) as {
+      scripts: Record<string, string>;
+    };
+    backendPackageValue.scripts.pretest = "NESTIA_SDK_TRANSFORM=1 pnpm lint";
+    fs.writeFileSync(
+      backendPackage,
+      `${JSON.stringify(backendPackageValue, null, 2)}\n`,
+      "utf8",
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkLintBaseline.assertRestored(
+          evidenceTwo.workspace,
+          "evidence",
+          evidenceTwo.lintBaselines,
+        ),
+      "package command surface was not restored",
+    );
+    fs.writeFileSync(backendPackage, backendPackageSource, "utf8");
     const backendLint: string = path.join(
       evidenceTwo.workspace,
       "packages",

@@ -157,6 +157,9 @@ export namespace EvidenceBenchmarkMaterializer {
         GOTMPDIR: path.join(output, "cache", "go-tmp"),
         PLAYWRIGHT_BROWSERS_PATH: caches.playwright,
       };
+      // Nestia owns this flag only inside its private config-loader child.
+      // An inherited value would disable Evidence rules in ordinary Programs.
+      delete environment.NESTIA_SDK_TRANSFORM;
       const stageToolchain: string = path.join(stage, "cache", "toolchain-bin");
       EvidenceBenchmarkProcess.pinEnvironment(environment, stageToolchain);
 

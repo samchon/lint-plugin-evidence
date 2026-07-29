@@ -75,7 +75,7 @@ Use `--port-base` to move the complete disjoint port allocation when the default
 pnpm --filter @samchon/evidence-benchmark start -- --port-base 50000 todo reddit
 ```
 
-`start` packs and verifies the product once, materializes and installs every selected evidence/plain cell, then starts them concurrently. It freezes the instruction bytes before the first turn and updates `run.json` after each attempt. Evidence materialization also seals the exact bytes and literal claim inventory of all three canonical package lint configurations plus the immutable backend source-Program projection into both the manifest and retained run state.
+`start` packs and verifies the product once, materializes and installs every selected evidence/plain cell, then starts them concurrently. It freezes the instruction bytes before the first turn and updates `run.json` after each attempt. Both arms seal their package lint policies, all compiler-Program routes, and package command surfaces into the manifest and retained run state. Evidence also seals the literal claim inventory of all three canonical package lint configurations plus the immutable backend source-Program projection.
 
 The runner assigns each subject and arm distinct API, Swagger, Vite development, and Playwright ports. It checks every selected port before packaging or model use, exports the assignments to agent child processes, persists them in package-local `.env` files, and records them in `run.json`. Pnpm, ttsc, Go, and Playwright caches are cell-local.
 

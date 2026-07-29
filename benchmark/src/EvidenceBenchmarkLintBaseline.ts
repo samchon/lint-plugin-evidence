@@ -16,6 +16,43 @@ export namespace EvidenceBenchmarkLintBaseline {
     "packages/backend/lint.config.main.ts",
   ] as const;
 
+  /** Compiler Programs whose lint-config routing is a frozen campaign input. */
+  export const PROGRAMS = [
+    {
+      path: "packages/api/tsconfig.json",
+      lintConfig: PATHS[0],
+      configFile: "./lint.config.ts",
+    },
+    {
+      path: "packages/backend/tsconfig.json",
+      lintConfig: PATHS[3],
+      configFile: "./lint.config.main.ts",
+    },
+    {
+      path: "packages/backend/tsconfig.lint.json",
+      lintConfig: PATHS[1],
+      configFile: "./lint.config.ts",
+    },
+    {
+      path: "packages/backend/tsconfig.test.json",
+      lintConfig: PATHS[1],
+      configFile: "./lint.config.ts",
+    },
+    {
+      path: "packages/frontend/tsconfig.json",
+      lintConfig: PATHS[2],
+      configFile: "./lint.config.ts",
+    },
+  ] as const;
+
+  /** Package command surfaces that may not replace or wrap measured gates. */
+  export const SCRIPTS = [
+    { path: "packages/api/package.json", lintConfig: PATHS[0] },
+    { path: "packages/backend/package.json", lintConfig: PATHS[1] },
+    { path: "packages/frontend/package.json", lintConfig: PATHS[2] },
+    { path: "package.json", lintConfig: PATHS[3] },
+  ] as const;
+
   /** API, canonical backend, and source-program projection final identities. */
   export const BACKEND_PATHS: readonly string[] = [
     PATHS[0],
@@ -28,6 +65,20 @@ export namespace EvidenceBenchmarkLintBaseline {
     files: ReadonlyMap<string, Uint8Array>,
     arm: IEvidenceBenchmarkMaterialization.Arm,
   ): IEvidenceBenchmarkMaterialization.ILintConfigBaseline[] {
+    const programs: readonly {
+      lintConfig: string;
+      baseline: IEvidenceBenchmarkMaterialization.ILintProgramBaseline;
+    }[] = PROGRAMS.map((program) => ({
+      lintConfig: program.lintConfig,
+      baseline: readProgram(files, program),
+    }));
+    const scripts: readonly {
+      lintConfig: string;
+      baseline: IEvidenceBenchmarkMaterialization.ILintScriptsBaseline;
+    }[] = SCRIPTS.map((entry) => ({
+      lintConfig: entry.lintConfig,
+      baseline: readScripts(files, entry.path),
+    }));
     return PATHS.map((relative) => {
       const content: Uint8Array | undefined = files.get(relative);
       if (content === undefined)
@@ -41,6 +92,12 @@ export namespace EvidenceBenchmarkLintBaseline {
         sha256: EvidenceBenchmarkHash.bytes(content),
         semanticSha256: EvidenceBenchmarkHash.object(graph),
         graph,
+        programs: programs
+          .filter((program) => program.lintConfig === relative)
+          .map((program) => program.baseline),
+        scripts: scripts
+          .filter((entry) => entry.lintConfig === relative)
+          .map((entry) => entry.baseline),
       };
     });
   }
@@ -52,7 +109,11 @@ export namespace EvidenceBenchmarkLintBaseline {
   ): IEvidenceBenchmarkMaterialization.ILintConfigBaseline[] {
     return capture(
       new Map(
-        PATHS.map((relative) => {
+        [
+          ...PATHS,
+          ...PROGRAMS.map((program) => program.path),
+          ...SCRIPTS.map((entry) => entry.path),
+        ].map((relative) => {
           const location: string = path.join(workspace, ...relative.split("/"));
           const stat: fs.Stats | undefined = fs.lstatSync(location, {
             throwIfNoEntry: false,
@@ -112,8 +173,124 @@ export namespace EvidenceBenchmarkLintBaseline {
         throw new Error(
           `Lint configuration bytes were not restored for ${relative}: expected ${before.sha256}, received ${after.sha256}.`,
         );
+      if (
+        JSON.stringify(
+          after.programs.map((program) => ({
+            path: program.path,
+            configFile: program.configFile,
+          })),
+        ) !==
+        JSON.stringify(
+          before.programs.map((program) => ({
+            path: program.path,
+            configFile: program.configFile,
+          })),
+        )
+      )
+        throw new Error(
+          `Lint Program routing was not restored for ${relative}.`,
+        );
+      for (const expectedProgram of before.programs) {
+        const actualProgram = after.programs.find(
+          (program) => program.path === expectedProgram.path,
+        );
+        if (actualProgram?.sha256 !== expectedProgram.sha256)
+          throw new Error(
+            `Lint Program bytes were not restored for ${expectedProgram.path}: expected ${expectedProgram.sha256}, received ${actualProgram?.sha256 ?? "missing"}.`,
+          );
+      }
+      if (
+        JSON.stringify(
+          after.scripts.map((entry) => ({
+            path: entry.path,
+            sha256: entry.sha256,
+          })),
+        ) !==
+        JSON.stringify(
+          before.scripts.map((entry) => ({
+            path: entry.path,
+            sha256: entry.sha256,
+          })),
+        )
+      )
+        throw new Error(
+          `Benchmark package command surface was not restored for ${relative}.`,
+        );
     }
     return digest(baselines, selected);
+  }
+
+  /**
+   * Requires immutable Program routes, package commands, and main projection.
+   *
+   * Evidence claim objects may be deferred during an authorized later-layer
+   * phase, so this gate deliberately excludes canonical claim bytes while
+   * retaining every mechanism that decides whether the measured gates run.
+   */
+  export function assertInfrastructureRestored(
+    workspace: string,
+    arm: IEvidenceBenchmarkMaterialization.Arm,
+    baselines: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[],
+  ): string {
+    validateBaselines(baselines, arm);
+    const actual: ReadonlyMap<
+      string,
+      IEvidenceBenchmarkMaterialization.ILintConfigBaseline
+    > = new Map(
+      captureDirectory(workspace, arm).map((entry) => [entry.path, entry]),
+    );
+    for (const before of baselines) {
+      const after = actual.get(before.path);
+      if (after === undefined)
+        throw new Error(
+          `Benchmark infrastructure lost lint policy owner: ${before.path}.`,
+        );
+      if (
+        EvidenceBenchmarkHash.object(after.programs) !==
+        EvidenceBenchmarkHash.object(before.programs)
+      )
+        throw new Error(
+          `Benchmark lint Program routing was not restored for ${before.path}.`,
+        );
+      if (
+        EvidenceBenchmarkHash.object(after.scripts) !==
+        EvidenceBenchmarkHash.object(before.scripts)
+      )
+        throw new Error(
+          `Benchmark package command surface was not restored for ${before.path}.`,
+        );
+    }
+    const expectedMain = baselines.find((entry) => entry.path === PATHS[3]);
+    const actualMain = actual.get(PATHS[3]);
+    if (
+      expectedMain === undefined ||
+      actualMain === undefined ||
+      expectedMain.semanticSha256 !== actualMain.semanticSha256 ||
+      expectedMain.sha256 !== actualMain.sha256
+    )
+      throw new Error(
+        "Benchmark backend source-Program projection was not restored.",
+      );
+    return infrastructureDigest(baselines);
+  }
+
+  /** Returns the immutable Program, command, and projection identity. */
+  export function infrastructureDigest(
+    baselines: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[],
+  ): string {
+    return EvidenceBenchmarkHash.object(
+      baselines.map((entry) => ({
+        path: entry.path,
+        programs: entry.programs,
+        scripts: entry.scripts,
+        ...(entry.path === PATHS[3]
+          ? {
+              sha256: entry.sha256,
+              semanticSha256: entry.semanticSha256,
+            }
+          : {}),
+      })),
+    );
   }
 
   /** Returns the sealed identity for a selected restoration gate. */
@@ -160,7 +337,117 @@ export namespace EvidenceBenchmarkLintBaseline {
           throw new Error(
             `Benchmark lint claim seal is corrupt: ${entry.path}#${claim.name}.`,
           );
+      const expectedPrograms = PROGRAMS.filter(
+        (program) => program.lintConfig === entry.path,
+      );
+      if (
+        JSON.stringify(
+          entry.programs.map((program) => ({
+            path: program.path,
+            configFile: program.configFile,
+          })),
+        ) !==
+        JSON.stringify(
+          expectedPrograms.map((program) => ({
+            path: program.path,
+            configFile: program.configFile,
+          })),
+        )
+      )
+        throw new Error(
+          `Benchmark lint Program inventory is corrupt: ${entry.path}.`,
+        );
+      const expectedScripts = SCRIPTS.filter(
+        (scripts) => scripts.lintConfig === entry.path,
+      );
+      if (
+        JSON.stringify(entry.scripts.map((scripts) => scripts.path)) !==
+          JSON.stringify(expectedScripts.map((scripts) => scripts.path)) ||
+        entry.scripts.some(
+          (scripts) =>
+            scripts.sha256 !== EvidenceBenchmarkHash.object(scripts.scripts),
+        )
+      )
+        throw new Error(
+          `Benchmark package command seal is corrupt: ${entry.path}.`,
+        );
     }
+  }
+
+  function readProgram(
+    files: ReadonlyMap<string, Uint8Array>,
+    expected: (typeof PROGRAMS)[number],
+  ): IEvidenceBenchmarkMaterialization.ILintProgramBaseline {
+    const content: Uint8Array | undefined = files.get(expected.path);
+    if (content === undefined)
+      throw new Error(
+        `Benchmark lint Program source is missing: ${expected.path}.`,
+      );
+    const parsed: unknown = JSON.parse(Buffer.from(content).toString("utf8"));
+    const plugins: unknown =
+      typeof parsed === "object" &&
+      parsed !== null &&
+      !Array.isArray(parsed) &&
+      "compilerOptions" in parsed &&
+      typeof parsed.compilerOptions === "object" &&
+      parsed.compilerOptions !== null &&
+      !Array.isArray(parsed.compilerOptions) &&
+      "plugins" in parsed.compilerOptions
+        ? parsed.compilerOptions.plugins
+        : undefined;
+    const required = [
+      {
+        transform: "@ttsc/lint",
+        configFile: expected.configFile,
+      },
+    ];
+    if (JSON.stringify(plugins) !== JSON.stringify(required))
+      throw new Error(
+        `Benchmark lint Program ${expected.path} must load ${expected.configFile} through its sole @ttsc/lint plugin entry.`,
+      );
+    return {
+      path: expected.path,
+      configFile: expected.configFile,
+      sha256: EvidenceBenchmarkHash.bytes(content),
+    };
+  }
+
+  function readScripts(
+    files: ReadonlyMap<string, Uint8Array>,
+    relative: string,
+  ): IEvidenceBenchmarkMaterialization.ILintScriptsBaseline {
+    const content: Uint8Array | undefined = files.get(relative);
+    if (content === undefined)
+      throw new Error(
+        `Benchmark package command source is missing: ${relative}.`,
+      );
+    const parsed: unknown = JSON.parse(Buffer.from(content).toString("utf8"));
+    const value: unknown =
+      typeof parsed === "object" &&
+      parsed !== null &&
+      !Array.isArray(parsed) &&
+      "scripts" in parsed
+        ? parsed.scripts
+        : undefined;
+    if (
+      typeof value !== "object" ||
+      value === null ||
+      Array.isArray(value) ||
+      Object.values(value).some((command) => typeof command !== "string")
+    )
+      throw new Error(
+        `Benchmark package scripts must be a string-valued object: ${relative}.`,
+      );
+    const scripts: Readonly<Record<string, string>> = Object.fromEntries(
+      Object.entries(value as Record<string, string>).sort(([left], [right]) =>
+        left.localeCompare(right, "en"),
+      ),
+    );
+    return {
+      path: relative,
+      sha256: EvidenceBenchmarkHash.object(scripts),
+      scripts,
+    };
   }
 
   function readGraph(
@@ -263,10 +550,55 @@ export namespace EvidenceBenchmarkLintBaseline {
       throw new Error(
         `Evidence graph rule must remain the direct ["error", graph] tuple: ${relative}.`,
       );
+    validateSupportingRules(
+      relative,
+      rules,
+      relative === PATHS[1] || relative === PATHS[3],
+    );
     return {
       severity: "error",
       claims,
     };
+  }
+
+  function validateSupportingRules(
+    relative: string,
+    rules: ts.ObjectLiteralExpression,
+    loaderGuarded: boolean,
+  ): void {
+    const names: readonly string[] =
+      relative === PATHS[2]
+        ? ["evidence/documented", "evidence/todo"]
+        : ["evidence/documented", "evidence/singular", "evidence/todo"];
+    for (const name of names) {
+      const property: ts.PropertyAssignment | undefined = directProperty(
+        relative,
+        rules,
+        name,
+        "rules",
+      );
+      if (property === undefined)
+        throw new Error(
+          `Evidence lint configuration is missing required ${name} severity: ${relative}.`,
+        );
+      const expression: ts.Expression = unwrap(property.initializer);
+      if (loaderGuarded) {
+        if (
+          !ts.isConditionalExpression(expression) ||
+          !ts.isIdentifier(unwrap(expression.condition)) ||
+          (unwrap(expression.condition) as ts.Identifier).text !==
+            "isNestiaConfigLoader" ||
+          !isString(unwrap(expression.whenTrue), "off") ||
+          !isString(unwrap(expression.whenFalse), "error")
+        )
+          throw new Error(
+            `Backend ${name} must use only the authorized Nestia loader bypass and otherwise remain "error": ${relative}.`,
+          );
+      } else if (!isString(expression, "error"))
+        throw new Error(
+          `Evidence ${name} must remain at "error" severity: ${relative}.`,
+        );
+    }
   }
 
   function literalObject(

@@ -266,12 +266,30 @@ export namespace EvidenceBenchmarkPublication {
     });
     if (!workspaceStat?.isDirectory() || workspaceStat.isSymbolicLink())
       throw new Error(`Completed workspace was not found: ${workspace}.`);
+    EvidenceBenchmarkLintBaseline.assertRestored(
+      workspace,
+      request.arm,
+      state.lintBaselines,
+    );
     if (request.arm === "evidence") {
-      EvidenceBenchmarkLintBaseline.assertRestored(
-        workspace,
-        request.arm,
-        state.lintBaselines,
-      );
+      const infrastructure: string =
+        EvidenceBenchmarkLintBaseline.infrastructureDigest(state.lintBaselines);
+      const finalGates: ReadonlySet<string> = new Set([
+        "backend-final",
+        "frontend-final",
+        "overall-final",
+      ]);
+      if (
+        state.turns.some(
+          (turn) =>
+            turn.accepted === true &&
+            !finalGates.has(turn.name) &&
+            turn.lintRestorationSha256 !== infrastructure,
+        )
+      )
+        throw new Error(
+          "Evidence publication infrastructure immutability proof failed verification.",
+        );
       for (const gate of [
         {
           name: "backend-final",
@@ -335,8 +353,22 @@ export namespace EvidenceBenchmarkPublication {
         throw new Error(
           "Evidence publication product archive failed verification.",
         );
+    } else {
+      const expected: string = EvidenceBenchmarkLintBaseline.digest(
+        state.lintBaselines,
+      );
+      if (
+        state.turns.some(
+          (turn) =>
+            turn.accepted === true && turn.lintRestorationSha256 !== expected,
+        )
+      )
+        throw new Error(
+          "Plain publication lint configuration immutability proof failed verification.",
+        );
     }
     rejectSymbolicLinks(workspace);
+    rejectReservedPublicationFiles(workspace);
     if (workspaceSha256(workspace) !== state.completedWorkspaceTreeSha256)
       throw new Error(
         "Completed benchmark workspace failed identity verification.",
@@ -587,6 +619,16 @@ export namespace EvidenceBenchmarkPublication {
       }
     };
     visit(root);
+  }
+
+  function rejectReservedPublicationFiles(workspace: string): void {
+    for (const name of ["benchmark.json", "benchmark-report.json"]) {
+      const location: string = path.join(workspace, name);
+      if (fs.lstatSync(location, { throwIfNoEntry: false }) !== undefined)
+        throw new Error(
+          `Completed workspace owns reserved publication path: ${name}.`,
+        );
+    }
   }
 
   async function assertCheckout(

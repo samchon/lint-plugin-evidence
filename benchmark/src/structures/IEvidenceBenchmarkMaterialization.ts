@@ -86,6 +86,30 @@ export namespace IEvidenceBenchmarkMaterialization {
     claims: readonly ILintClaimBaseline[];
   }
 
+  /** Exact compiler Program route to one lint configuration. */
+  export interface ILintProgramBaseline {
+    /** Workspace-relative POSIX path to the owning tsconfig. */
+    path: string;
+
+    /** Exact tsconfig-relative lint configuration pointer. */
+    configFile: string;
+
+    /** SHA-256 identity of the complete tsconfig bytes. */
+    sha256: string;
+  }
+
+  /** Immutable command surface of one benchmark package manifest. */
+  export interface ILintScriptsBaseline {
+    /** Workspace-relative POSIX path to the package manifest. */
+    path: string;
+
+    /** Hash of the complete scripts object, including lifecycle hooks. */
+    sha256: string;
+
+    /** Exact named commands present when the cell was materialized. */
+    scripts: Readonly<Record<string, string>>;
+  }
+
   /** Exact and semantic identities for one package lint configuration. */
   export interface ILintConfigBaseline {
     /** Workspace-relative POSIX path to the package configuration. */
@@ -99,6 +123,12 @@ export namespace IEvidenceBenchmarkMaterialization {
 
     /** Evidence graph inventory; null for a Plain arm configuration. */
     graph: ILintGraphBaseline | null;
+
+    /** Compiler Programs sealed to this exact configuration. */
+    programs: readonly ILintProgramBaseline[];
+
+    /** Package command surfaces sealed with this policy owner. */
+    scripts: readonly ILintScriptsBaseline[];
   }
 
   /** Exact root and child package identities rendered into every scaffold. */
