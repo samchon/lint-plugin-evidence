@@ -19,7 +19,7 @@ The base layer skills and executable tests own general implementation correctnes
 
 ## Coverage Is Not Integrity
 
-The graph establishes that every configured target received `@evidence` or `@evidenceExclude` from a selected host. It does not decide whether the reason is true. A tag copied merely to clear a diagnostic and a tag written after doing the work are structurally identical.
+The graph establishes that every configured target received `@evidence` from a selected ownership host or `@evidenceExclude` from an eligible carrier in a matching claim file. It does not decide whether the reason is true. A tag copied merely to clear a diagnostic and a tag written after doing the work are structurally identical.
 
 ## Review Every Acknowledgement
 

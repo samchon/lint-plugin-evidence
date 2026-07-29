@@ -22,7 +22,7 @@ When a citation reason only repeats the heading, do not write it. Re-read until 
 
 ## Exclusions Are Reviewed Decisions
 
-Use `@evidenceExclude <target> <reason>` only when the current named claim intentionally has no responsibility for the target. Put it on a declaration selected by that claim, name the actual owner or observable alternative, and state a condition that would veto the decision. “Not applicable,” “internal,” “future work,” and “not implemented” are conclusions rather than reasons.
+Use `@evidenceExclude <target> <reason>` only when the current named claim intentionally has no responsibility for the target. Put it on an eligible exclusion carrier in a matching claim file, name the actual owner or observable alternative, and state a condition that would veto the decision. “Not applicable,” “internal,” “future work,” and “not implemented” are conclusions rather than reasons.
 
 Exclusions are claim-local. The same requirement may need independent decisions from `schema-models`, `api-operations`, `dto-types`, `dto-properties`, `backend-tests`, `frontend-screens`, and `frontend-journeys`. A parent target covers all selected descendants, and overlapping `@evidence` and `@evidenceExclude` scopes within one claim-reference obligation are contradictory. Prefer an H3 exclusion; use an H2 only after checking every selected descendant.
 
