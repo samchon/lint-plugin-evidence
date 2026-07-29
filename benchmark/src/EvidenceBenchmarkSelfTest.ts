@@ -393,14 +393,9 @@ export namespace EvidenceBenchmarkSelfTest {
         .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
         .map((entry) => entry.name)
         .sort(),
-      ["goal.md", "instruction.md", "review.md"],
-      "only common user turns may be top-level prompt documents",
+      ["evidence.md", "goal.md", "instruction.md", "plain.md", "review.md"],
+      "prompt root must contain exactly the five user-turn documents",
     );
-    for (const arm of ["evidence", "plain"])
-      assert.ok(
-        fs.existsSync(path.join(prompts, arm, "verification.md")),
-        `${arm} final verification prompt is missing`,
-      );
 
     const template: string = path.join(repository, "benchmark", "template");
     for (const arm of ["evidence", "plain"] as const) {

@@ -164,7 +164,7 @@ export namespace EvidenceBenchmarkCommandLine {
         { name: "review", relative: "review.md" },
         {
           name: "verification",
-          relative: path.join(props.arm, "verification.md"),
+          relative: `${props.arm}.md`,
         },
       ];
       for (const entry of prompts) {
