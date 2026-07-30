@@ -499,7 +499,9 @@ export namespace EvidenceBenchmarkRunner {
         state.cliVersion !== undefined &&
         state.cliVersion !== thread.cliVersion
       )
-        throw new Error("Retained benchmark cell uses a different CLI version.");
+        throw new Error(
+          "Retained benchmark cell uses a different CLI version.",
+        );
       state.sessionId = thread.id;
       state.cliVersion = thread.cliVersion;
       current().threadIdle = object(thread.status, false)?.type === "idle";
