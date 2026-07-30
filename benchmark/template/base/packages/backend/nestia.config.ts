@@ -1,7 +1,4 @@
 import type { INestiaConfig } from "@nestia/sdk";
-import { NestFactory } from "@nestjs/core";
-
-import { MyModule } from "./src/MyModule";
 
 export default {
   input: ["src/controllers"],
