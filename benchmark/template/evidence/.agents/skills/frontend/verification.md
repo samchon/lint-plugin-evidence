@@ -1,6 +1,6 @@
 # Verification
 
-The `frontend-journeys` claim selects exported functions under `tests/journeys/**` and independently references Markdown H2/H3 sections and page functions.
+The `frontend-journeys` claim selects exported functions under `tests/journeys/**` and independently references Markdown H2/H3 sections and page functions. The following declaration excerpt demonstrates tag placement only; the base Verification skill still owns the complete browser interaction.
 
 ```ts
 /**
@@ -12,8 +12,6 @@ export async function journey_customer_checkout(page: Page): Promise<void> {}
 ```
 
 The page `{@link}` resolves through an import in the journey file. Presentation-only specs and fixtures are outside this claim; do not use them to acknowledge functional requirements.
-
-After the last screen is realized, run `rg --hidden -n -F '@todo' packages/frontend --glob '*.ts' --glob '*.tsx'` from the workspace root and require no matches before the closing browser modes. This source-scoped search excludes the Evidence instruction files that teach the tag.
 
 ## Excluding A Requirement Or Page From Journeys
 
@@ -33,7 +31,7 @@ import type { AdminRedirectPage } from "../../src/components/admin/admin-redirec
 export const JOURNEY_EVIDENCE_EXCLUDE = true;
 ```
 
-Name the actual owner and a condition that would veto the omission. An H2 or TypeScript ancestor target covers every selected descendant, so use the narrowest truthful target and keep evidence and exclusion scopes disjoint within this claim-reference obligation. A screen exclusion does not discharge a journey exclusion, and neither affects backend tests.
+[Evidence Lint](../evidence/SKILL.md) owns the common exclusion rules. This carrier settles only `frontend-journeys`; every other claim remains independent. [Review](../review/SKILL.md) owns the phase-scoped `@todo` search.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}

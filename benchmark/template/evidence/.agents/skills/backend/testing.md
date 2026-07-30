@@ -1,6 +1,6 @@
 # Testing
 
-The `backend-tests` claim selects exported feature-test functions and independently references Markdown H2/H3 sections, generated SDK operation functions, and authored DTO root types.
+The `backend-tests` claim selects exported feature-test functions and independently references Markdown H2/H3 sections, generated SDK operation functions, and authored DTO root types. The following excerpt demonstrates tag placement only; the base Testing skill still requires a complete scenario and business assertion.
 
 ```ts
 /**
@@ -37,7 +37,7 @@ import type { IShoppingSale } from "{{apiPackageName}}";
 export const TEST_EVIDENCE_EXCLUDE = true;
 ```
 
-An exclusion is claim-local: it does not discharge frontend journeys or any other backend claim. An H2, namespace, or type target covers its selected descendants, so use the narrowest target and keep evidence and exclusion scopes disjoint within each claim-reference obligation. The reason must name the actual owner and a condition that would veto the omission; lack of a test is not itself a reason.
+[Evidence Lint](../evidence/SKILL.md) owns the common exclusion rules. This carrier settles only `backend-tests`; every other claim remains independent.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}

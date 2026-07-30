@@ -38,7 +38,7 @@ Collect `api-operations` exclusions on the exported const in `packages/backend/s
 export const CONTROLLER_EVIDENCE_EXCLUDE = true;
 ```
 
-Name the actual owner plus a condition that would veto the exclusion. A Markdown H2 exclusion also covers every selected H3 descendant, and a Prisma model target covers that selected model scope, so use the narrowest truthful target. Keep evidence and exclusion scopes disjoint within this claim-reference obligation. The decision satisfies only `api-operations`; schema, DTO, test, and frontend claims remain independent.
+[Evidence Lint](../evidence/SKILL.md) owns the common exclusion rules. This carrier settles only `api-operations`; every other claim remains independent.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}

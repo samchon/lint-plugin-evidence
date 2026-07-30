@@ -28,7 +28,7 @@ Collect reviewed `schema-models` exclusions as unattached top-level `/// @eviden
 
 Keep `exclude.schema` free of models and ownership evidence. Prisma generation, migration, and ERD still read only the `.prisma` schema folder; do not widen those commands to include this lint-only file.
 
-Name the actual owner and a condition that would veto the exclusion. “Not implemented,” “future work,” and “not applicable” do not explain why the schema must omit a requirement. Excluding an H2 excludes every selected H3 descendant, so use a leaf unless the same omission decision is true for all descendants. Keep evidence and exclusion scopes disjoint within this claim-reference obligation. The exclusion satisfies only `schema-models`; controller, test, DTO, and frontend claims still owe their own decisions.
+[Evidence Lint](../evidence/SKILL.md) owns the common exclusion rules. This carrier settles only `schema-models`; every other claim remains independent.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}

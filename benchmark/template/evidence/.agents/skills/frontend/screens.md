@@ -1,6 +1,6 @@
 # Screens
 
-The `frontend-screens` claim selects exported page functions and references Markdown H2/H3 sections. The `frontend-journeys` claim references those page functions from browser journeys.
+The `frontend-screens` claim selects exported page functions and references Markdown H2/H3 sections. The `frontend-journeys` claim references those page functions from browser journeys. The following declaration excerpt demonstrates tag placement only; the base Screens skill still owns the complete component body.
 
 ```tsx
 /**
@@ -30,7 +30,7 @@ Put `@evidenceExclude` on `packages/frontend/src/components/SCREEN_EVIDENCE_EXCL
 export const SCREEN_EVIDENCE_EXCLUDE = true;
 ```
 
-Name the actual owner and a condition that would veto the exclusion. “Backend-only” without naming the enforcing owner and observable boundary is insufficient. An H2 exclusion covers every selected H3 descendant, so use a leaf unless one omission decision is true for all descendants. Keep evidence and exclusion scopes disjoint within this claim-reference obligation. The exclusion says nothing about `frontend-journeys` or any backend claim.
+[Evidence Lint](../evidence/SKILL.md) owns the common exclusion rules. This carrier settles only `frontend-screens`; every other claim remains independent.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}
