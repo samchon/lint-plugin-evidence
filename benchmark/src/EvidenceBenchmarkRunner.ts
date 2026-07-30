@@ -47,6 +47,7 @@ export namespace EvidenceBenchmarkRunner {
     terminalTurnId: string | null;
     terminalTurnCompleted: boolean;
     threadIdle: boolean;
+    tokenUsageTurnId: string | null;
     tokenUsageStart: IEvidenceBenchmarkTokenUsage;
     tokenUsageEnd: IEvidenceBenchmarkTokenUsage | null;
     tokenUsage: IEvidenceBenchmarkTokenUsage;
@@ -157,6 +158,7 @@ export namespace EvidenceBenchmarkRunner {
         terminalTurnId: null,
         terminalTurnCompleted: false,
         threadIdle: false,
+        tokenUsageTurnId: null,
         tokenUsageStart: structuredClone(state.threadTokenUsage),
         tokenUsageEnd: null,
         tokenUsage: zeroUsage(),
@@ -302,6 +304,7 @@ export namespace EvidenceBenchmarkRunner {
       record.terminalTurnId = null;
       record.terminalTurnCompleted = false;
       record.threadIdle = false;
+      record.tokenUsageTurnId = null;
       publish();
       await publication;
       if (outcome !== undefined) return;
@@ -333,6 +336,17 @@ export namespace EvidenceBenchmarkRunner {
           message:
             "Codex Goal completed without an exact native token checkpoint.",
           instructionIndex: record.index,
+        });
+        return;
+      }
+      if (record.tokenUsageTurnId !== record.terminalTurnId) {
+        finish("interrupted", {
+          name: "EvidenceBenchmarkTokenCheckpointError",
+          message:
+            "Codex Goal completed without an exact terminal-turn token checkpoint.",
+          instructionIndex: record.index,
+          tokenUsageTurnId: record.tokenUsageTurnId,
+          terminalTurnId: record.terminalTurnId,
         });
         return;
       }
@@ -372,7 +386,14 @@ export namespace EvidenceBenchmarkRunner {
       if (message.method === "thread/tokenUsage/updated") {
         const usage: IEvidenceBenchmarkTokenUsage | undefined =
           tokenUsage(params);
-        if (usage !== undefined) state.threadTokenUsage = usage;
+        if (usage !== undefined) {
+          if (typeof params.turnId !== "string") {
+            finish("interrupted", message);
+            return;
+          }
+          state.threadTokenUsage = usage;
+          current().tokenUsageTurnId = params.turnId;
+        }
         publish();
         await advance();
         return;
@@ -569,6 +590,7 @@ export namespace EvidenceBenchmarkRunner {
               previous.terminalTurnId !== null &&
               previous.terminalTurnCompleted &&
               previous.threadIdle &&
+              previous.tokenUsageTurnId === previous.terminalTurnId &&
               previous.tokenUsageEnd !== null &&
               usageAdvanced(previous.tokenUsageEnd, previous.tokenUsageStart) &&
               goal.status === "complete"
@@ -597,17 +619,19 @@ export namespace EvidenceBenchmarkRunner {
             goal.status === "complete" &&
             (record.terminalTurnId === null ||
               !record.terminalTurnCompleted ||
-              !record.threadIdle)
+              !record.threadIdle ||
+              record.tokenUsageTurnId !== record.terminalTurnId)
           )
             finish("interrupted", {
               name: "EvidenceBenchmarkResumeInterruption",
               message:
-                "Completed Goal lacks an exact terminal-turn and idle checkpoint.",
+                "Completed Goal lacks exact terminal-turn, idle, and token checkpoints.",
               instructionIndex: record.index,
               goal,
               terminalTurnId: record.terminalTurnId,
               terminalTurnCompleted: record.terminalTurnCompleted,
               threadIdle: record.threadIdle,
+              tokenUsageTurnId: record.tokenUsageTurnId,
             });
           else if (goal.status === "active" || goal.status === "complete")
             await advance();
@@ -686,6 +710,7 @@ export namespace EvidenceBenchmarkRunner {
         record.terminalTurnId === null ||
         !record.terminalTurnCompleted ||
         !record.threadIdle ||
+        record.tokenUsageTurnId !== record.terminalTurnId ||
         record.tokenUsageEnd === null ||
         !usageAdvanced(record.tokenUsageEnd, record.tokenUsageStart) ||
         !sameUsage(

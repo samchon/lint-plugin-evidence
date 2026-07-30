@@ -129,6 +129,7 @@ const main = async (): Promise<void> => {
       assert.equal(goal.goal?.status, "complete");
       assert.equal(goal.terminalTurnCompleted, true);
       assert.equal(goal.threadIdle, true);
+      assert.equal(goal.tokenUsageTurnId, goal.terminalTurnId);
       assert.equal(goal.tokenUsage.totalTokens, 10);
       assert.equal(goal.tokenUsage.inputTokens, 6);
       assert.equal(goal.tokenUsage.outputTokens, 4);
@@ -334,6 +335,23 @@ const main = async (): Promise<void> => {
       /native token checkpoint/,
     );
 
+    const staleTerminalToken = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--omit-terminal-token"],
+      onOutput: () => undefined,
+    });
+    assert.equal(staleTerminalToken.status, "interrupted");
+    assert.equal(staleTerminalToken.nextInstructionIndex, 0);
+    assert.match(
+      staleTerminalToken.interruption?.message ?? "",
+      /terminal-turn token checkpoint/,
+    );
+
     const missingNotificationThread = await EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("evidence"),
       cwd: root,
@@ -485,6 +503,9 @@ const fakeAppServer = (): void => {
   );
   const emptyGoal: boolean = process.argv.includes("--empty-goal");
   const omitToken: boolean = process.argv.includes("--omit-token");
+  const omitTerminalToken: boolean = process.argv.includes(
+    "--omit-terminal-token",
+  );
   const missingThreadId: boolean = process.argv.includes("--missing-thread-id");
   const previousActive: boolean = process.argv.includes("--previous-active");
   const previousGoal: boolean =
@@ -604,6 +625,38 @@ const fakeAppServer = (): void => {
           goal: goal(objective, "blocked"),
         },
       });
+    if (omitTerminalToken) {
+      const previousTurnId: string = `${turnId}-previous`;
+      send({
+        method: "turn/started",
+        params: {
+          threadId: "fixture-thread",
+          turn: { id: previousTurnId },
+        },
+      });
+      send({
+        method: "thread/tokenUsage/updated",
+        params: {
+          threadId: "fixture-thread",
+          turnId: previousTurnId,
+          tokenUsage: { total },
+        },
+      });
+      send({
+        method: "thread/status/changed",
+        params: {
+          threadId: "fixture-thread",
+          status: { type: "idle" },
+        },
+      });
+      send({
+        method: "turn/completed",
+        params: {
+          threadId: "fixture-thread",
+          turn: { id: previousTurnId, status: "completed", durationMs: 1 },
+        },
+      });
+    }
     send({
       method: "turn/started",
       params: {
@@ -611,11 +664,12 @@ const fakeAppServer = (): void => {
         turn: { id: turnId },
       },
     });
-    if (!omitToken)
+    if (!omitToken && !omitTerminalToken)
       send({
         method: "thread/tokenUsage/updated",
         params: {
           ...(missingThreadId ? {} : { threadId: "fixture-thread" }),
+          turnId,
           tokenUsage: { total },
         },
       });
