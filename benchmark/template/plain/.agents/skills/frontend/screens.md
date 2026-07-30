@@ -27,6 +27,6 @@ Walk both directions on each edge. Forward finds the screen nobody built; backwa
 
 ## After Any Contract Change
 
-The frontend campaign re-opens in full. A changed response can leave a screen reading a field that no longer exists, and a changed rejection can leave an error state saying the wrong thing.
+The frontend dimension of the current campaign round re-opens in full. A changed response can leave a screen reading a field that no longer exists, and a changed rejection can leave an error state saying the wrong thing.
 
-If a screen needs something the SDK does not expose, that finding belongs to the API campaign. Send it up rather than improvising a path around it.
+If a screen needs something the SDK does not expose, that finding belongs to the campaign's API dimension. Send it up rather than improvising a path around it.

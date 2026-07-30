@@ -135,7 +135,7 @@ The campaign's rounds are the rounds. This skill changes what each one does, in 
 
 **Within the same round, walk both directions.** Walk claim-to-source and source-to-claim, asking of each requirement section and each table what every artifact built on it believes about it. Source-to-claim is what finds one source meaning three things to three readers, and claim-to-source cannot find it alone.
 
-A finding here re-opens campaigns exactly like any other finding, including when the thing repaired was a source rather than an artifact. The campaign's rule that no verdict survives a change upstream of it applies without modification.
+A finding here re-opens the current campaign round exactly like any other finding, including when the thing repaired was a source rather than an artifact. The rule that no verdict survives a change upstream of it applies without modification.
 
 ## One Indivisible Round
 

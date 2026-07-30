@@ -15,7 +15,7 @@ Read [the campaign skill](../campaign/SKILL.md) and [its test edge](../campaign/
 
 Walking by operation finds missing endpoint coverage. Walking by requirement finds missing rules. Walking by actor, following each one through every journey the documents give them as one continuous session, finds the flow whose every step works and whose sequence does not.
 
-Run all three. They are not the same pass performed differently.
+Run all three as distinct walks inside one indivisible campaign round. None substitutes for another.
 
 ## Prove The Suite Proves Something
 
@@ -25,6 +25,6 @@ This is the only direct measurement of whether the suite is doing its job, and i
 
 ## After Any Test Finding
 
-A failing assertion usually means a defect in the implementation, which sends you to the logic campaign. Sometimes it means the contract cannot express what the requirement needs, which sends you further up.
+A failing assertion usually means a defect in the implementation, which sends you to the campaign's logic dimension. Sometimes it means the contract cannot express what the requirement needs, which sends you further up.
 
 Fix it at the layer that owns it. **Never weaken an assertion to make the suite green.** The suite exists to fail.

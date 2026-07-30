@@ -29,10 +29,10 @@ A count, a total, or a joined display value has no column. Record the derivation
 
 ## After Any DTO Change
 
-The logic campaign re-opens, because the transformer must supply every property and the collector must accept every creation field.
+The logic relationship in the current campaign round re-opens, because the transformer must supply every property and the collector must accept every creation field.
 
-The test campaign re-opens when a response shape changed, because assertions read those properties.
+The test relationship re-opens when a response shape changed, because assertions read those properties.
 
-The frontend campaign re-opens for the same reason: a screen reading a property that no longer exists compiles against the old SDK and fails against the new one.
+The frontend relationship re-opens for the same reason: a screen reading a property that no longer exists compiles against the old SDK and fails against the new one.
 
-When a property has no source and should, the finding belongs to the database campaign. Add the column there rather than describing the property as computed to make the question go away.
+When a property has no source and should, the finding belongs to the database dimension of the campaign. Add the column there rather than describing the property as computed to make the question go away.
