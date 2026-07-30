@@ -470,6 +470,26 @@ const main = async (): Promise<void> => {
       readObjective(root, sources, ENTRIES[2]!),
     );
 
+    const regressedGoalStatus = await EvidenceBenchmarkRunner.run({
+      state: completedCurrentBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--current-goal",
+        "--active-goal-get",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(regressedGoalStatus.status, "interrupted");
+    assert.match(
+      regressedGoalStatus.interruption?.message ?? "",
+      /exact retained Goal boundary/,
+    );
+
     const activeCurrentBoundary = structuredClone(completedCurrentBoundary);
     const activeCurrentRecord = activeCurrentBoundary.goals[1]!;
     activeCurrentRecord.goal!.status = "active";
@@ -583,6 +603,7 @@ const fakeAppServer = (): void => {
   const blockedThenComplete: boolean = process.argv.includes(
     "--blocked-then-complete",
   );
+  const activeGoalGet: boolean = process.argv.includes("--active-goal-get");
   const emptyGoal: boolean = process.argv.includes("--empty-goal");
   const omitToken: boolean = process.argv.includes("--omit-token");
   const omitTerminalToken: boolean = process.argv.includes(
@@ -767,7 +788,9 @@ const fakeAppServer = (): void => {
             : previousGoal
               ? goal(
                   retainedObjective(),
-                  previousActive || currentActive ? "active" : "complete",
+                  activeGoalGet || previousActive || currentActive
+                    ? "active"
+                    : "complete",
                 )
               : null,
         },

@@ -724,6 +724,8 @@ export namespace EvidenceBenchmarkRunner {
             if (
               resumeSnapshotRecordIndex !== record.index ||
               (goal.status !== "active" && goal.status !== "complete") ||
+              (resumeSnapshot.status === "complete" &&
+                goal.status !== "complete") ||
               (record.goal.status !== "active" &&
                 record.goal.status !== "complete")
             )
