@@ -49,7 +49,13 @@ const main = async (): Promise<void> => {
     assert.equal(completed.nextInstructionIndex, entries.length);
     assert.equal(completed.instructions.length, entries.length);
     assert.equal(completed.processes.length, entries.length);
-    assert.equal(completed.tokenUsage.totalTokens, entries.length * 10);
+    assert.deepEqual(completed.tokenUsage, {
+      totalTokens: 90,
+      inputTokens: 27,
+      cachedInputTokens: 18,
+      cacheWriteInputTokens: 9,
+      outputTokens: 36,
+    } satisfies EvidenceBenchmarkClaudeRunner.IEvidenceBenchmarkTokenUsage);
     assert.equal("reasoningOutputTokens" in completed.tokenUsage, false);
     assert.equal(completed.costUsd, entries.length * 0.01);
     completed.processes.forEach((process, index) => {
@@ -88,7 +94,13 @@ const main = async (): Promise<void> => {
       assert.equal(instruction.inputDispatched, true);
       assert.equal(instruction.completed, true);
       assert.equal(instruction.processIndexes.length, 1);
-      assert.equal(instruction.tokenUsage.totalTokens, 10);
+      assert.deepEqual(instruction.tokenUsage, {
+        totalTokens: 10,
+        inputTokens: 3,
+        cachedInputTokens: 2,
+        cacheWriteInputTokens: 1,
+        outputTokens: 4,
+      } satisfies EvidenceBenchmarkClaudeRunner.IEvidenceBenchmarkTokenUsage);
       assert.equal(instruction.costUsd, 0.01);
     });
     assert.deepEqual(
@@ -175,8 +187,20 @@ const main = async (): Promise<void> => {
       errorResult.instructions[0]?.terminalResult?.subtype,
       "error_during_execution",
     );
-    assert.equal(errorResult.instructions[0]?.tokenUsage.totalTokens, 5);
-    assert.equal(errorResult.tokenUsage.totalTokens, 5);
+    assert.deepEqual(errorResult.instructions[0]?.tokenUsage, {
+      totalTokens: 5,
+      inputTokens: 1,
+      cachedInputTokens: 1,
+      cacheWriteInputTokens: 1,
+      outputTokens: 2,
+    } satisfies EvidenceBenchmarkClaudeRunner.IEvidenceBenchmarkTokenUsage);
+    assert.deepEqual(errorResult.tokenUsage, {
+      totalTokens: 5,
+      inputTokens: 1,
+      cachedInputTokens: 1,
+      cacheWriteInputTokens: 1,
+      outputTokens: 2,
+    } satisfies EvidenceBenchmarkClaudeRunner.IEvidenceBenchmarkTokenUsage);
     assert.equal(errorResult.instructions[0]?.costUsd, 0.02);
     assert.equal(errorResult.costUsd, 0.02);
     assert.equal(errorResult.processes[0]?.exitCode, 1);
@@ -452,9 +476,9 @@ const fakeClaude = (): void => {
           is_error: true,
           session_id: sessionId,
           usage: {
-            input_tokens: 3,
-            cache_read_input_tokens: 0,
-            cache_creation_input_tokens: 0,
+            input_tokens: 1,
+            cache_read_input_tokens: 1,
+            cache_creation_input_tokens: 1,
             output_tokens: 2,
           },
           total_cost_usd: 0.02,
@@ -471,9 +495,9 @@ const fakeClaude = (): void => {
         session_id: sessionId,
         result: input,
         usage: {
-          input_tokens: 6,
-          cache_read_input_tokens: 0,
-          cache_creation_input_tokens: 0,
+          input_tokens: 3,
+          cache_read_input_tokens: 2,
+          cache_creation_input_tokens: 1,
           output_tokens: 4,
         },
         total_cost_usd: 0.01,

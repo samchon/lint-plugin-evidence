@@ -130,10 +130,23 @@ const main = async (): Promise<void> => {
       assert.equal(goal.terminalTurnCompleted, true);
       assert.equal(goal.threadIdle, true);
       assert.equal(goal.tokenUsageTurnId, goal.terminalTurnId);
-      assert.equal(goal.tokenUsage.totalTokens, 10);
-      assert.equal(goal.tokenUsage.inputTokens, 6);
-      assert.equal(goal.tokenUsage.outputTokens, 4);
+      assert.deepEqual(goal.tokenUsage, {
+        totalTokens: 10,
+        inputTokens: 6,
+        cachedInputTokens: 2,
+        cacheWriteInputTokens: 1,
+        outputTokens: 4,
+        reasoningOutputTokens: 3,
+      } satisfies EvidenceBenchmarkRunner.IEvidenceBenchmarkTokenUsage);
     });
+    assert.deepEqual(completed.threadTokenUsage, {
+      totalTokens: 90,
+      inputTokens: 54,
+      cachedInputTokens: 18,
+      cacheWriteInputTokens: 9,
+      outputTokens: 36,
+      reasoningOutputTokens: 27,
+    } satisfies EvidenceBenchmarkRunner.IEvidenceBenchmarkTokenUsage);
     assert.equal(snapshots.at(-1)?.status, "completed");
 
     if (process.platform === "win32") {
@@ -709,10 +722,10 @@ const fakeAppServer = (): void => {
                   total: {
                     totalTokens: goalIndex * 10,
                     inputTokens: goalIndex * 6,
-                    cachedInputTokens: 0,
-                    cacheWriteInputTokens: 0,
+                    cachedInputTokens: goalIndex * 2,
+                    cacheWriteInputTokens: goalIndex,
                     outputTokens: goalIndex * 4,
-                    reasoningOutputTokens: 0,
+                    reasoningOutputTokens: goalIndex * 3,
                   },
                 },
               },
@@ -723,10 +736,10 @@ const fakeAppServer = (): void => {
               const total = {
                 totalTokens: goalIndex * 10,
                 inputTokens: goalIndex * 6,
-                cachedInputTokens: 0,
-                cacheWriteInputTokens: 0,
+                cachedInputTokens: goalIndex * 2,
+                cacheWriteInputTokens: goalIndex,
                 outputTokens: goalIndex * 4,
-                reasoningOutputTokens: 0,
+                reasoningOutputTokens: goalIndex * 3,
               };
               send({
                 method: "thread/status/changed",
@@ -836,10 +849,10 @@ const fakeAppServer = (): void => {
     const total = {
       totalTokens: goalIndex * 10,
       inputTokens: goalIndex * 6,
-      cachedInputTokens: 0,
-      cacheWriteInputTokens: 0,
+      cachedInputTokens: goalIndex * 2,
+      cacheWriteInputTokens: goalIndex,
       outputTokens: goalIndex * 4,
-      reasoningOutputTokens: 0,
+      reasoningOutputTokens: goalIndex * 3,
     };
     send({
       id: request.id,
