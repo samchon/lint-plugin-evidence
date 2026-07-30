@@ -50,6 +50,8 @@ Omitting the run ID creates a new run under `benchmark/result/<subject>/<engine>
 
 A preparation failure before the native session starts is not a measured result. Correct the external prerequisite without changing frozen benchmark meaning, then launch under the existing authorization. Stop for user direction if correction would change an input or cell identity.
 
+Parallel Evidence cells must share one immutable package archive instead of running the package's destructive `prepack` concurrently. From the clean frozen revision, pack once into an ignored path, set `EVIDENCE_BENCHMARK_ARCHIVE` to that archive for the cohort, and launch every Evidence cell with the same environment value. Each cell copies the archive and records its SHA-256; Plain never reads it.
+
 ## Instruction Sequence
 
 One native session receives exactly nine instructions in this order:
@@ -112,7 +114,7 @@ If the runner rejects the CLI version, cell identity, native checkpoint, or term
 Each run keeps:
 
 - `workspace/`: the prepared baseline and measured agent changes;
-- `state.json`: cell identity including the benchmark Git revision, record paths, session and CLI identity, instruction cursor and records, cumulative native token categories, process records, status, and interruption details;
+- `state.json`: cell identity including the benchmark Git revision and Evidence artifact SHA-256 when applicable, record paths, session and CLI identity, instruction cursor and records, cumulative native token categories, process records, status, and interruption details;
 - `events.jsonl`: every native stdin, stdout, and stderr chunk with observation time, process index, sequence, stream, and process-relative elapsed time; and
 - `raw.log`: the same raw chunks concatenated in delivery order.
 
@@ -122,7 +124,7 @@ Do not reconstruct missing measurements. Report native token categories separate
 
 ## Acceptance
 
-Treat execution as complete only when `state.json` records `completed`, the cursor has passed all nine instructions, every instruction has the engine-specific terminal checkpoint, and every terminal process exited with code zero and no signal.
+Treat execution as complete only when `state.json` records `completed`, the cursor has passed all nine instructions, every instruction has the engine-specific terminal checkpoint, and the final process exited with code zero and no signal.
 
 Runner completion proves only that the sequence reached those recorded terminal conditions. It does not prove requirement coverage, implementation correctness, test quality, graph integrity, or product quality.
 

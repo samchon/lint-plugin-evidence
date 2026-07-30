@@ -100,7 +100,14 @@ export namespace EvidenceBenchmarkRunner {
     const state: IEvidenceBenchmarkRunState = structuredClone(props.state);
     const entries = instructionEntries(state.arm);
     if (state.nextInstructionIndex >= entries.length) {
-      state.status = "completed";
+      try {
+        validateCompletedState(state, entries);
+        state.status = "completed";
+        delete state.interruption;
+      } catch (error) {
+        state.status = "interrupted";
+        state.interruption = normalizeInterruption(error);
+      }
       await props.onState?.(structuredClone(state));
       return state;
     }
@@ -591,6 +598,43 @@ export namespace EvidenceBenchmarkRunner {
       ["overall-review", "overall/review.md"],
       ["overall-final", `overall/${arm}-final.md`],
     ];
+  }
+
+  function validateCompletedState(
+    state: IEvidenceBenchmarkRunState,
+    entries: readonly (readonly [string, string])[],
+  ): void {
+    if (
+      state.nextInstructionIndex !== entries.length ||
+      state.goals.length !== entries.length
+    )
+      throw new Error("Codex retained an invalid completed cursor.");
+    entries.forEach((entry, index) => {
+      const record: IEvidenceBenchmarkGoalRecord | undefined = state.goals.find(
+        (candidate) => candidate.index === index,
+      );
+      if (
+        record === undefined ||
+        record.name !== entry[0] ||
+        record.relativePath !== entry[1] ||
+        record.objectiveText !==
+          `${record.prescribedText}\n\n${record.continuationText}` ||
+        record.goal?.status !== "complete" ||
+        record.terminalTurnId === null ||
+        !record.terminalTurnCompleted ||
+        !record.threadIdle ||
+        record.tokenUsageEnd === null
+      )
+        throw new Error("Codex retained an invalid completed Goal.");
+    });
+    const terminal: IEvidenceBenchmarkProcessRecord | undefined =
+      state.processes.at(-1);
+    if (
+      terminal === undefined ||
+      terminal.exitCode !== 0 ||
+      terminal.signal !== null
+    )
+      throw new Error("Codex retained an invalid terminal process.");
   }
 
   function tokenUsage(

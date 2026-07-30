@@ -105,6 +105,26 @@ const main = async (): Promise<void> => {
     });
     assert.equal(snapshots.at(-1)?.status, "completed");
 
+    const invalidCursor = structuredClone(completed);
+    invalidCursor.status = "interrupted";
+    invalidCursor.processes.at(-1)!.exitCode = null;
+    const rejectedCursor = await EvidenceBenchmarkRunner.run({
+      state: invalidCursor,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(rejectedCursor.status, "interrupted");
+    assert.match(
+      rejectedCursor.interruption?.message ?? "",
+      /invalid terminal process/,
+    );
+    assert.equal(rejectedCursor.processes.length, 1);
+
     const interruptedOutput: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] =
       [];
     const interrupted = await EvidenceBenchmarkRunner.run({

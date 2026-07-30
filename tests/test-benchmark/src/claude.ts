@@ -194,6 +194,26 @@ const main = async (): Promise<void> => {
     assert.equal(closed.interruption, undefined);
     assert.equal(closed.processes.length, entries.length);
 
+    const invalidCursor = structuredClone(completed);
+    invalidCursor.status = "interrupted";
+    invalidCursor.instructions.at(-1)!.terminalResult = null;
+    const rejectedCursor = await EvidenceBenchmarkClaudeRunner.run({
+      state: invalidCursor,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(rejectedCursor.status, "interrupted");
+    assert.match(
+      rejectedCursor.interruption?.message ?? "",
+      /invalid completed instruction/,
+    );
+    assert.equal(rejectedCursor.processes.length, entries.length);
+
     for (const [relativePath, source] of sources)
       assert.deepEqual(
         fs.readFileSync(path.join(root, ...relativePath.split("/"))),

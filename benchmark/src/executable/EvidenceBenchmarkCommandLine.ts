@@ -30,6 +30,7 @@ interface IEvidenceBenchmarkCell {
   arm: EvidenceBenchmarkRunner.EvidenceBenchmarkArm;
   runId: string;
   benchmarkRevision: string;
+  evidenceArtifactSha256?: string;
   model: string;
   effort: EvidenceBenchmarkEffort;
 }
@@ -106,7 +107,21 @@ const main = async (): Promise<void> => {
     temporary === undefined ? undefined : path.join(temporary, "evidence.tgz");
   let prepared: EvidenceBenchmarkWorkspace.IEvidenceBenchmarkWorkspaceResult;
   try {
-    if (archive !== undefined) await packEvidence(repository, archive);
+    if (archive !== undefined) {
+      const retainedArchive: string | undefined =
+        process.env.EVIDENCE_BENCHMARK_ARCHIVE;
+      if (retainedArchive === undefined)
+        await packEvidence(repository, archive);
+      else {
+        const source: string = path.resolve(retainedArchive);
+        if (!fs.statSync(source).isFile())
+          throw new Error(
+            "EVIDENCE_BENCHMARK_ARCHIVE must name a regular file.",
+          );
+        fs.copyFileSync(source, archive);
+      }
+      cell.evidenceArtifactSha256 = sha256(archive);
+    }
     prepared = await EvidenceBenchmarkWorkspace.prepareWorkspace({
       repository,
       output,
@@ -315,6 +330,9 @@ const readBenchmarkRevision = (repository: string): string => {
     throw new Error("Unable to identify the benchmark repository revision.");
   return value;
 };
+
+const sha256 = (file: string): string =>
+  crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 
 const packEvidence = async (
   repository: string,

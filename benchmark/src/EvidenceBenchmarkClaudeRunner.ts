@@ -86,6 +86,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
     const entries = EvidenceBenchmarkRunner.instructionEntries(state.arm);
     try {
       if (state.nextInstructionIndex >= entries.length) {
+        validateCompletedState(state, entries);
         state.status = "completed";
         delete state.interruption;
         await publish(props, state);
@@ -457,6 +458,45 @@ export namespace EvidenceBenchmarkClaudeRunner {
       throw new Error(
         "Claude Code completed with a permission denial or native error.",
       );
+  }
+
+  function validateCompletedState(
+    state: IEvidenceBenchmarkRunState,
+    entries: readonly (readonly [string, string])[],
+  ): void {
+    if (
+      state.nextInstructionIndex !== entries.length ||
+      state.instructions.length !== entries.length
+    )
+      throw new Error("Claude Code retained an invalid completed cursor.");
+    entries.forEach((entry, index) => {
+      const instruction: IEvidenceBenchmarkInstructionRecord | undefined =
+        state.instructions.find((candidate) => candidate.index === index);
+      if (
+        instruction === undefined ||
+        instruction.name !== entry[0] ||
+        instruction.relativePath !== entry[1] ||
+        instruction.objectiveText !==
+          `${instruction.prescribedText}\n\n${instruction.continuationText}` ||
+        !instruction.completed ||
+        instruction.terminalResult === null
+      )
+        throw new Error(
+          "Claude Code retained an invalid completed instruction.",
+        );
+      validateSuccessfulResult(instruction.terminalResult);
+      const processIndex: number | undefined =
+        instruction.processIndexes.at(-1);
+      const processRecord:
+        EvidenceBenchmarkRunner.IEvidenceBenchmarkProcessRecord | undefined =
+        processIndex === undefined ? undefined : state.processes[processIndex];
+      if (
+        processRecord === undefined ||
+        processRecord.exitCode !== 0 ||
+        processRecord.signal !== null
+      )
+        throw new Error("Claude Code retained an invalid terminal process.");
+    });
   }
 
   function collectEvent(
