@@ -5,7 +5,7 @@ import type { HttpError } from "{{apiPackageName}}";
  *
  * Keep real ownership evidence on the exported test function that proves it.
  * Add only reviewed non-applicability decisions here, for example:
- * `@evidenceExclude docs/analysis/example.md#section This package cannot observe the requirement through its public API.`
+ * `@evidenceExclude docs/analysis/example.md#section Frontend browser journeys own this presentation-only requirement; reject this exclusion if an API response varies by it.`
  *
  * @evidenceExclude {@link HttpError.prototype.toJSON} The inherited Nestia SDK dependency owns this transport-error serializer outside authored application behavior; remove this exclusion if an application requirement or authored test begins specifying HttpError serialization.
  */

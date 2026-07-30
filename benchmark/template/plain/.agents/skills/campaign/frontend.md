@@ -56,20 +56,12 @@ A journey without a specification has never been performed as one actor. A speci
 
 The compiler cannot tell you that a control does nothing.
 
-Run every flow at mobile, tablet, and desktop widths. Confirm every control causes an observable change and every state is reachable. SDK simulation can prove contract shape and client flow; integration against the live backend separately proves server behavior.
+Run every requirement-backed flow. For the main journeys, perform the interactive pass owned by the base Verification skill and inspect the layout at mobile, tablet, and desktop widths. Confirm every control causes an observable change and every required state is reachable. SDK simulation can prove contract shape and client flow; integration against the live backend separately proves server behavior.
 
-## Place In The Round
-
-Within every campaign round, traverse every applicable requirement, operation, component, screen, state, journey, browser specification, and internal edge in both directions.
-
-This dimension is not a separate round or separately mergeable verdict. Any finding invalidates the whole campaign round: correct it at its owning layer, propagate its consequences, and restart the complete traversal at the first requirement. Completion requires one entire current-state round covering this dimension and every sibling dimension with zero actionable improvements.
-
-## Cascade
+## Findings
 
 Requirements findings and contract changes re-open this dimension in full. A logic change re-opens it when the response shape or refusal meaning changes.
 
 A missing operation discovered while building a screen belongs to the API dimension, not a frontend-only workaround. Correct it upstream and accept that every downstream relationship re-opens.
 
-## Dimension Exit
-
-This dimension is exhausted within the full round when every user-facing requirement has a screen or recorded omission, every operation has a consumer or recorded reason, every internal edge is accounted for, every screen handles every state, and every journey has been run rather than merely compiled.
+Within the indivisible round owned by [SKILL.md](SKILL.md), this dimension is exhausted when every user-facing requirement has a screen or recorded omission, every operation has a consumer or recorded reason, every internal edge is accounted for, every screen handles every state, and every journey has been run rather than merely compiled.

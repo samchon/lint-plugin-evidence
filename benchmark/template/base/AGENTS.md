@@ -13,6 +13,10 @@ Follow the literal request; it is the contract, not a hint at what the user "rea
 - **The measurement boundary is frozen.** Do not edit agent instructions or add policy overrides, package names or scripts, existing dependency specifiers, package-manager or engine resolution controls, workspace routing, shared lint or compiler configuration, or fixed gate runners. Run the named gates exactly as provided.
 - **Never claim what you have not verified.** A build or test claim means the command ran and you read its output. Those commands are layer gates, not proof that every requirement is realized.
 
+## Language
+
+Repository artifacts are English: source, tests, documents, and commit messages.
+
 ## Skills
 
 Durable project conventions live under `.agents/skills/`. Read the linked skill when its topic applies; each skill indexes its own topic documents.

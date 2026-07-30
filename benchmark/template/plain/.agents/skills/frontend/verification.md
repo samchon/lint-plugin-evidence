@@ -4,7 +4,7 @@ The browser suite has a denominator, and nothing counts it for you.
 
 Every journey the documents give an actor must have a spec under `tests/journeys/` that walks it, and every spec must name the journey it walks. The exported `journey_` functions are what make both directions countable, so the walk is against the documents and the export list, never against memory.
 
-Read [the campaign skill](../campaign/SKILL.md) and [its frontend edge](../campaign/frontend.md) before starting; the journey-to-spec walk lives there with the rest of the frontend campaign.
+Read [the campaign skill](../campaign/SKILL.md) and [its frontend edge](../campaign/frontend.md) before starting; the journey-to-spec walk lives there with the rest of the campaign's frontend dimension.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}

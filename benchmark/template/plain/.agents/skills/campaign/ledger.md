@@ -10,7 +10,7 @@ The campaign population is too large to hold in memory. The ledger records the e
 
 ## What It Holds
 
-**The requirement inventory.** Keep one entry per selected H2/H3 section in `docs/analysis/**/*.md`, identified as `<workspace-relative-path>#<canonical-anchor>`. Record the actor or concept, applicable circumstance, required behavior, observable result, named values, negative cases, cross-references, and source lines. This current inventory is the denominator for every artifact relationship.
+**The requirement inventory.** Keep one entry per identity defined by the [Requirements skill](../requirements/SKILL.md). Record the actor or concept, applicable circumstance, required behavior, observable result, named values, negative cases, cross-references, and source lines. This current inventory is the denominator for every artifact relationship.
 
 **The indivisible round state.** Record the repository state, active phase, complete population traversed, start and finish, findings, corrections, invalidated gates and relationships, and whether the traversal reached the last artifact without a change. Never create separate verdicts for sibling dimensions, agents, packages, or slices.
 

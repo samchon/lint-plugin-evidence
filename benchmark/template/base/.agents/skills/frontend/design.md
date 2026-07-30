@@ -106,7 +106,7 @@ A generated interface has a recognizable accent. Each item below is something th
 ### Assets
 
 - Use an established icon set rather than hand-rolled SVG paths.
-- Use a stable placeholder image source with a descriptive seed, so the same image comes back on every run.
+- Prefer checked-in or local fixture images. When an external placeholder is unavoidable, pin a stable descriptive seed and record the network dependency.
 - Customize the component library's defaults. Shipping its untouched default theme is itself a tell.
 
 ## No Em Dashes

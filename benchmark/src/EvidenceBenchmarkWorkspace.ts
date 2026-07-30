@@ -25,7 +25,6 @@ export namespace EvidenceBenchmarkWorkspace {
   export interface IEvidenceBenchmarkWorkspaceResult {
     root: string;
     workspace: string;
-    environment: NodeJS.ProcessEnv;
   }
   export async function prepareWorkspace(
     request: IEvidenceBenchmarkWorkspaceRequest,
@@ -67,12 +66,10 @@ export namespace EvidenceBenchmarkWorkspace {
         injectEvidence(workspace, request.artifact);
       }
       const environment: NodeJS.ProcessEnv = { ...process.env };
-      await pnpm(
-        ["install", "--lockfile-only", "--no-frozen-lockfile"],
-        workspace,
-        environment,
-      );
-      await pnpm(["install", "--frozen-lockfile"], workspace, environment);
+      for (const name of Object.keys(environment))
+        if (name.toUpperCase() === "EVIDENCE_BENCHMARK_ARCHIVE")
+          delete environment[name];
+      await pnpm(["install", "--no-frozen-lockfile"], workspace, environment);
       await run("git", ["init", "-b", "benchmark"], workspace, environment);
       await run("git", ["add", "-A"], workspace, environment);
       await run(
@@ -93,7 +90,6 @@ export namespace EvidenceBenchmarkWorkspace {
       return {
         root: output,
         workspace: path.join(output, "workspace"),
-        environment,
       };
     } catch (error) {
       fs.rmSync(stage, { recursive: true, force: true });

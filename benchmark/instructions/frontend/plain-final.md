@@ -1,10 +1,10 @@
 # Frontend Plain Final
 
-Treat this frontend Plain final stage as one bounded objective. Preserve the same unfinished objective across an interruption; otherwise begin it now. Declare it complete only when the complete frontend Loop Until Dry, browser journeys, live integration, and package gates below are all green.
+Treat this frontend Plain final stage as one bounded objective. Preserve the same unfinished objective across an interruption; otherwise begin it now. Declare it complete only when the complete frontend Restart Until Dry, browser journeys, live integration, and package gates below are all green.
 
 The skills-contract turn remains binding. Re-read `AGENTS.md` and the applicable Frontend and Review instructions in full before any final-stage action.
 
-Finish the frontend phase with a complete plain-arm Loop Until Dry over the frontend and live-integration scope. Each complete round must:
+Finish the frontend phase with a complete plain-arm Restart Until Dry over the frontend and live-integration scope. Each complete round must:
 
 1. re-read every requirement and decide its user-facing and integration applicability;
 2. review every route, screen, component, hook, form, state, error path, deliberate omission, browser journey, and SDK consumption path;

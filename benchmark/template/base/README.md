@@ -11,6 +11,7 @@ pnpm install
 cp packages/backend/.env.example packages/backend/.env
 pnpm build
 pnpm lint
+pnpm prepare:database
 pnpm test
 pnpm format
 ```

@@ -194,11 +194,11 @@ Issued tokens are returned in the response and are not session columns unless th
 
 Where refresh exists, it must verify the token, confirm the named session still belongs to the actor, enforce every deadline the requirements define, update only the deadlines the requirements permit, reload the actor, and issue authorization material that retains the session identity. Renewing by creating a second session loses the continuity every session listing depends on.
 
-## The Lifecycle Surface Is Exactly Three Operations
+## The Lifecycle Vocabulary Has Three Operations
 
-Join, login, and refresh. Nothing else is an authentication lifecycle operation.
+Join, login, and refresh are the only authentication lifecycle operations. Implement only the ones the requirements define.
 
-**Actor kind fixes which three apply.** An anonymous visitor holds no credentials, so it gets join and refresh and no login. A member or an administrator gets all three.
+An anonymous visitor has no login because it has no credentials. A credentialed actor can join and login. Either kind has refresh only when the requirements define session continuation and the contract exposes it.
 
 **Logout is not an operation.** Authentication is stateless: the client disposes of its token. A route that "logs out" either does nothing the client could not do alone, or it is really a session-revocation operation, which is an ordinary endpoint over the session resource and should be named as one.
 

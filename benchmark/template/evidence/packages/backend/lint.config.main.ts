@@ -13,9 +13,9 @@ declare const process: {
  *
  * `tsconfig.json` contains `src` but not `test`, so only claims whose authored
  * hosts can exist in that Program belong here. The canonical backend lint
- * configuration retains all five backend-phase claims and owns temporary
- * deferral. This projection is sealed benchmark input and must not be edited
- * by agents.
+ * configuration retains all five backend-phase claims and owns manual
+ * whole-claim deferral during development. Only this immutable projection
+ * disables the graph for Nestia's private config-loader Program.
  */
 const graph: IEvidenceGraphConfig = {
   claims: [

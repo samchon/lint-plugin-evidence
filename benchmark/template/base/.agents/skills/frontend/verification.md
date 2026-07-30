@@ -10,12 +10,11 @@ Every one of those ships from a green build. Browser verification is the only th
 
 ## Where The Programs Live
 
-All browser programs live in `tests/` at the package root, one spec file per purpose, driven by one runner with a mode argument.
+All browser programs live in `tests/` at the package root, one spec file per purpose, under one Playwright configuration.
 
 ```
 packages/frontend/
   playwright.config.ts
-  scripts/run-playwright.mjs
   tests/
     journeys/            one spec per requirement journey
     ui-review.spec.ts    layout and interaction review across viewports
@@ -23,13 +22,13 @@ packages/frontend/
 ```
 
 ```json
-"test:e2e": "node scripts/run-playwright.mjs e2e",
-"ui:review": "node scripts/run-playwright.mjs ui-review",
-"readme:screens": "node scripts/run-playwright.mjs readme",
+"test:e2e": "pnpm build && playwright test tests/journeys",
+"ui:review": "pnpm build && playwright test tests/ui-review.spec.ts",
+"readme:screens": "pnpm build && playwright test tests/readme.spec.ts",
 "playwright:install": "playwright install chromium"
 ```
 
-The runner serves the production build on a fixed local port and points the browser at it, so every closing mode tests what actually ships rather than the development server. Drive interim per-screen and gallery passes through the dev server, then require a production build, a repository-wide search proving that no implementation-pending sentence or unfinished stub remains, and the closing browser modes after the last screen is cracked. Take the port from the environment with a validated default, and fail loudly on a bad value rather than silently binding somewhere else.
+Playwright serves the production build on a fixed local port and points the browser at it, so every closing mode tests what actually ships rather than the development server. Drive interim per-screen and gallery passes through the dev server, then require a production build, a repository-wide search proving that no implementation-pending sentence or unfinished stub remains, and the closing browser modes after the last screen is cracked. Take the port from the environment with a validated default, and fail loudly on a bad value rather than silently binding somewhere else.
 
 Install the browser before the first run. In Linux CI the install needs its system dependencies explicitly, run from the frontend package directory.
 
@@ -48,7 +47,7 @@ The export is the point. A journey that exists only inside a `test()` callback c
 
 The exported journey is lexically outside Playwright's registered `test()` callback, so `playwright/no-standalone-expect` rejects `expect()` inside it. Keep the complete interaction in the exported function and use web-first locator waits or explicit throwing checks for the conditions it owns; keep Playwright `expect()` assertions inside the wrapping `test()` callback. Do not remove a check to satisfy the rule—the helper and wrapper together must still fail when the named behavior disappears.
 
-The e2e mode runs the same specs under `journeys/` twice. Run `pnpm test:e2e` with `VITE_API_SIMULATE=true` during development, then run the same command with `VITE_API_SIMULATE=false` against the prepared, separately running backend to close.
+Run the same specs under `journeys/` twice: invoke `pnpm test:e2e` with `VITE_API_SIMULATE=true` during development, then invoke it again with `VITE_API_SIMULATE=false` against the prepared, separately running backend to close.
 
 ## Two Meanings, Recorded Apart
 
@@ -64,13 +63,15 @@ Development happens against the simulation program and closes with the live one.
 
 Simulation returns valid random data, so the states that matter most never appear on demand: the empty list, the rejection, the longest name, the zero price. Waiting to meet them in the wild means shipping them unseen.
 
-Build one dev-only route, gated by the environment flag and absent from production navigation, that renders each screen's presentational components against fixture view models: one row per state a screen owes. The ui-review program walks it at the three widths, which turns "every screen handles every state" from a claim into something a browser run visits.
+Build one dev-only route gated by Vite's `import.meta.env.DEV` signal and absent from production navigation. It renders each screen's presentational components against fixture view models, one row per state a screen owes. Visit it through the interactive browser while developing each screen, at all three widths.
+
+The production `ui:review` program cannot reach a DEV-only route. It reviews the real shipping screens at the same widths after the production build; the gallery supplies deterministic state inspection during development, while `ui:review` verifies the built presentation.
 
 When a defect arrives from the wild, its fixture joins the gallery, so the state that escaped once cannot escape silently again.
 
 ## Keep The Frontend Program Frontend-Only
 
-The frontend test program does not boot the backend, assert backend health, or check server state. Those belong to the live integration program.
+The frontend program does not boot the backend, assert backend health, seed its database, or inspect server state. Live mode consumes a separately prepared and running backend; backend setup and health remain external prerequisites, not frontend assertions.
 
 Mixing them makes a frontend failure indistinguishable from an environment failure, and a suite that goes red because a database was not seeded teaches everyone to ignore it.
 

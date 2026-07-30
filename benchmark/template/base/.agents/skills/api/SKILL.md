@@ -34,7 +34,7 @@ An edit to a generated path survives until the next generation and then disappea
 
 `src/index.ts` is the stable public facade. It re-exports authored structures and typings directly as well as Nestia's generated `module.ts`, so a raw `nestia sdk`, `swagger`, or `all` run cannot erase an authored package export by replacing the generated barrel. Export a new authored folder from this facade; never make its reachability depend only on an edit to `module.ts`.
 
-To change what an operation exposes, change the controller signature, its DTO, or its JSDoc, then run the SDK generation. The backend skill's operations and wiring topics own those conventions.
+To change what an operation exposes, change the controller signature, its DTO, or its JSDoc. Compile the authored contract while it is changing, then regenerate once the complete contract is settled. The backend [operations](../backend/controllers.md) and [wiring](../backend/wiring.md) topics own that boundary.
 
 **Everything published from here carries JSDoc, down to each property.** This package is the API reference: its types reach consumers who never open this repository, and a property documented only by its name tells them nothing about what value belongs there. That holds for the authored paths in the table above and for the controller JSDoc the generated ones are built from.
 
@@ -197,7 +197,7 @@ This is not a hand-written mock, and understanding what it actually does is what
 
 **It validates the typed boundary exactly as the server would.** Look again at the generated `simulate`: it runs `typia.assert` over each path parameter and over the request body, through the same DTO validator the server's boundary uses. A malformed type, format, or declared range fails here for the same contract reason. A provider-owned authorization, lifecycle, uniqueness, concurrency, or other business refusal is not simulated because no provider runs.
 
-**It returns a value generated from the response type.** `typia.random<IShoppingSale>()` produces a value satisfying the declared type and every tag on it: a real uuid where the contract says uuid, a value inside the declared range where it says minimum and maximum, a member of the union where it says union. The response cannot be shaped wrongly, because it is generated from the contract rather than written by someone guessing at it.
+**It returns a value generated from the response type.** `typia.random<IShoppingSale>()` produces a value satisfying the declared type and every tag on it: a real uuid where the contract says uuid, a value inside the declared range where it says minimum and maximum, a member of the union where it says union. It proves the declared type-and-tag shape, not semantic consistency between independently generated fields.
 
 So a screen built against simulation is built against the real contract. If it renders a field the contract does not have, it breaks immediately.
 

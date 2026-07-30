@@ -24,7 +24,7 @@ A value nothing exposes may mean the operation is missing or the value is unnece
 
 The DTO tree under `packages/api/src/structures/` is its own denominator at two granularities, and [the DTO topic](../backend/dtos.md) owns how a mapping is recorded.
 
-**Type level, both directions.** For every requirement concept a caller must receive, name the DTO type that carries it. For every root type in the `structures` export list, name the requirement that asked for it and the table it represents. A type with neither is an invented shape.
+**Type level, both directions.** For every requirement concept a caller must exchange, name the DTO type that carries it. For every root type in the `structures` export list, name the requirement that asked for it and the table, workflow, or derivation it represents. A type with neither a requirement nor a source is an invented shape.
 
 **Property level, both directions.** Every property names the column it carries or the derivation that computes it. Then walk the schema forward, column by column: every column a requirement says a caller must see appears in a read variant. The forward direction finds stored values the API never exposes.
 
@@ -38,20 +38,10 @@ An operation's existence is not coverage. Check its contract:
 - **Every mutable state is reachable.** Every state users may change has an operation that changes it.
 - **Every refusal has a contract.** A prohibited attempt has an explicit refusal downstream code can implement.
 
-## Place In The Round
-
-Within every campaign round, traverse every operation against requirements and schema in both directions, every DTO type against requirements and tables in both directions, and every property against columns in both directions.
-
-This dimension is not a separate round or separately mergeable verdict. A finding anywhere invalidates the whole campaign round: correct it, propagate its consequences, and restart the complete traversal at the first requirement. Completion requires one entire current-state round covering this dimension and every sibling dimension with zero actionable improvements.
-
-## Cascade
+## Findings
 
 Requirements and schema findings re-open this dimension in full. Any contract change re-opens the logic, test, and frontend relationships because each consumes that contract.
 
 Adding an operation adds logic and tests. Changing a response shape changes logic, tests, and frontend callers. Changing authorization changes both the guard and the tests that prove it.
 
-## Dimension Exit
-
-This dimension is exhausted within the full round when every requirement names its operation, every operation names its requirement, every column names its exposure or recorded reason for none, every root type names its requirement and table, and every DTO property names its source while every caller-visible column reaches a read variant.
-
-SDK generation proves that the contract is well formed, not that it is the right contract.
+Within the indivisible round owned by [SKILL.md](SKILL.md), this dimension is exhausted when every requirement names its operation, every operation names its requirement, every column names its exposure or recorded reason for none, every root type names its requirement and precise source, and every DTO property names its source while every caller-visible column reaches a read variant. SDK generation proves only that the contract is well formed.

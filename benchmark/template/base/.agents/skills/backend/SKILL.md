@@ -11,7 +11,7 @@ Read this file first, then the topic document for the layer you are about to tou
 
 ## Topics
 
-- [wiring.md](wiring.md): controller discovery, shared module metadata, the global singleton, the bootstrap, the environment, the generators, and the order of a first run. **Read this first if the repository is empty**, and again whenever you add a controller, because runtime and generated populations must remain identical.
+- [wiring.md](wiring.md): controller discovery, shared module metadata, the global singleton, the bootstrap, the environment, and the generator commands. **Read this first if the repository is empty**, and again whenever you add a controller, because runtime and generated populations must remain identical.
 - [database.md](database.md): schema organization, naming, the documentation-comment contract, stance, temporal and deletion rules, snapshots, ownership. Read before adding or changing a model.
 - [dtos.md](dtos.md): what a DTO is named, what each variant means, how every property earns its place, and how relations are shaped. **DTOs live in `packages/api/src/structures`, not in this package.** Read before declaring any type a caller will see.
 - [controllers.md](controllers.md): endpoint shape, response cardinality, the request grammar, and the JSDoc that becomes the published contract. Read before adding or changing an endpoint.
@@ -51,7 +51,7 @@ Work the layers in order, and let each one read everything the earlier ones deci
 
 **The stub is what makes this order executable.** The SDK generates from controllers, so without stubs the backend tests cannot start until the providers exist; with them, the contract reaches the tests before realization, and the implementation-pending sentences are the exact ledger of what realize still owes. A suite written at step 4 runs red against random stub answers, and that is the point: realize turns it green. The frontend consumes the generated SDK only after the Backend Layer Gate passes.
 
-The read side and the write side come before the provider that composes them. A provider written first inlines a selection and a mapping, and that copy is what the transformer then has to be reconciled with. [wiring.md](wiring.md) has the same sequence with the commands each step runs.
+The read side and the write side come before the provider that composes them. A provider written first inlines a selection and a mapping, and that copy is what the transformer then has to be reconciled with. This section owns the phase order; [wiring.md](wiring.md) owns the discovery, environment, and generation commands used within it.
 
 Reading an earlier layer is itself a review. Hold what you just read against what you are about to build, and treat a contradiction as a finding rather than an obstacle to route around. Each layer is the first place some kind of defect becomes visible: making a rule concrete enough to store is what exposes a rule no set of rows can satisfy, and building a test from a real journey is what exposes a requirement nothing can exercise.
 

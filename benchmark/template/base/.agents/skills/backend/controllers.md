@@ -97,9 +97,9 @@ A path describes a resource and a workflow state, under one service root.
 
 **A recovery path ends in `/restore`**, as in `PUT /shopping/seller/sale/{id}/restore`. Never a synonym: `/recover`, `/reactivate`, `/reinstate`, `/undelete`, and `/activate` all describe the same surface in a vocabulary nothing else in the repository shares, and the recovery half of the deletion model is identified by that exact segment.
 
-## Authentication Owns Three Operations, And The Rest Are Ordinary Routes
+## Authentication Uses Three Operation Kinds, And The Rest Are Ordinary Routes
 
-Join, login, and refresh live under the authentication surface, at `/shopping/auth/{actor}/{operation}`, all three as `post`, each returning the actor's `.IAuthorized`.
+When the requirements define them, join, login, and refresh live under the authentication surface at `/shopping/auth/{actor}/{operation}`. Each is `post` and returns the actor's `.IAuthorized`.
 
 | Operation | Route                                | Request     |
 | --------- | ------------------------------------ | ----------- |
@@ -107,7 +107,7 @@ Join, login, and refresh live under the authentication surface, at `/shopping/au
 | login     | `POST /shopping/auth/seller/login`   | `.ILogin`   |
 | refresh   | `POST /shopping/auth/seller/refresh` | `.IRefresh` |
 
-Every one of the three carries `@setHeader token.access Authorization` in its JSDoc, which is what makes the generated accessor write the issued token into the caller's connection; the JSDoc section below owns that tag. Which of the three an actor gets is decided in [authorization.md](authorization.md): an anonymous visitor has join and refresh and no login.
+Every implemented lifecycle operation carries `@setHeader token.access Authorization` in its JSDoc, which makes the generated accessor write the issued token into the caller's connection. [authorization.md](authorization.md) owns which operations apply to each actor.
 
 Everything else that feels like authentication is an ordinary endpoint over its own resource, at a resource-shaped path.
 
@@ -399,4 +399,4 @@ A per-actor visibility rule lives in the provider's query, keyed by the actor th
 
 ## After Changing An Endpoint
 
-Regenerate the SDK. The tests and the frontend both import it, so an unregenerated change appears to work locally and fails on the next clean build.
+During contract authoring, run the backend `build:api` and `build:main` checks. Once the complete DTO and operation contract is settled, regenerate the SDK once and rebuild its consumers. [wiring.md](wiring.md) owns that boundary and its commands.

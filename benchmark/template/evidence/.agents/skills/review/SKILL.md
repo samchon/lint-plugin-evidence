@@ -1,6 +1,6 @@
 ---
 name: review
-description: Defines integrity review for active evidence claims: restoring their configuration, comparing every acknowledgement with its host and source, checking broad scopes and exclusions, and rerunning affected gates after a correction. Use during implementation and before an evidence-arm phase report.
+description: Defines integrity review for active evidence claims: restoring their configuration, enumerating every current host, comparing acknowledgements with their hosts and sources, completing common residual reviews, and rerunning invalidated work after a correction. Use during implementation and before an evidence-arm phase report.
 ---
 
 # Review
@@ -10,16 +10,33 @@ description: Defines integrity review for active evidence claims: restoring thei
 Read [Evidence Lint](../evidence/SKILL.md) before reviewing and apply the phase named by the current user turn.
 
 - **Backend Phase.** Restore and review `schema-models`, `api-operations`, `backend-tests`, `dto-types`, and `dto-properties` in `packages/backend/lint.config.ts`. Confirm the immutable main and test Program projections are unchanged. Frontend claims remain pending.
-- **Frontend Phase.** Restore and review `frontend-screens` and `frontend-journeys` in `packages/frontend/lint.config.ts`. If frontend work changed API or backend sources, restore the affected claims and re-pass the Backend Phase gates first.
+- **Frontend Phase.** Restore all seven claims in the two canonical configurations, then review `frontend-screens` and `frontend-journeys`. If frontend work changed API or backend sources, re-pass the affected Backend Phase gates first; otherwise retain the current-digest backend verdict while keeping all five backend claims active.
 - **Overall Phase.** Restore both canonical configurations, confirm both backend Program projections are unchanged, and review all seven claims.
 
 Reject a phase report when an active-phase claim remains commented, a population was narrowed, `evidence/graph` was disabled, an evidence rule severity was lowered, an immutable Program projection changed, or a configuration-only environment bypass replaced an ordinary gate.
 
-The base layer skills and executable tests own general implementation correctness. This review owns the configured Evidence Graph and the truth of the declarations used to satisfy it. Do not add a Plain-style census of every unselected artifact, provider branch, database access, SDK consumer, or residual edge.
+The base layer skills and executable tests own general implementation correctness, including their complete provider and SDK-consumption populations. Perform those common reviews in both benchmark arms. This review owns the configured Evidence Graph and the truth of the declarations used to satisfy it; do not expand the graph to unselected artifacts or repeat a common population as a second Evidence-only census.
 
 ## Coverage Is Not Integrity
 
 The graph establishes that every configured target received `@evidence` from a selected ownership host or `@evidenceExclude` from an eligible carrier in a matching claim file. It does not decide whether the reason is true. A tag copied merely to clear a diagnostic and a tag written after doing the work are structurally identical.
+
+## Review Every Current Host
+
+The graph checks target-to-host coverage. It cannot report a selected host that carries no acknowledgement, so review the reverse direction from the current files rather than from tags or a prior inventory.
+
+For the active phase, enumerate every authored Prisma model and column, DTO type and property, controller operation, feature-test function, production page, and browser-journey function in the claim populations. Trace each one to the applicable source:
+
+- a model and column to the requirement that makes the stored fact necessary;
+- a DTO type and property to the requirement and model, column, or named derivation it represents;
+- an operation to the requirement and persistent model or explicit non-persistent boundary it exposes;
+- a test to the requirement, operation, and exchanged DTO shape it proves;
+- a page to the user-visible requirement it delivers; and
+- a browser journey to the requirement and pages it performs.
+
+An artifact with no such source is invented, and a necessary exception must name the requirement-backed boundary that makes it necessary. Do not create a second per-artifact ledger; the review record keeps findings and the current-digest result.
+
+This host census is one continuous active-phase traversal. A finding, correction, or population change invalidates it. Restart at the first current host and repeat until one complete census reaches the end with zero findings.
 
 ## Review Every Acknowledgement
 
@@ -30,6 +47,8 @@ For every `@evidence` and `@evidenceExclude` acknowledgement in the active claim
 3. the requirement, Prisma unit, SDK operation, DTO type, or screen named by the target.
 
 Confirm that ownership uses a selected claim host or an exclusion uses an eligible carrier in a matching claim file, the target belongs to that claim's configured reference, and the reason states a specific responsibility or omission that the current code can falsify. A checklist may index this work; it is not proof by itself.
+
+For every cited Markdown H2/H3, apply the Requirements skill's fact extraction. Across the acknowledgements and exclusions for that claim, account for every applicable actor, circumstance, required behavior, observable result, named value, negative case, and cross-reference in the section. Structural coverage of the heading is not integrity proof for facts the reason and implementation omit.
 
 ## Broad Scopes And Exclusions
 
@@ -45,11 +64,13 @@ Providers are not selected hosts or eligible carriers. Reject `@evidence` tags u
 
 When a test function claims a behavioral requirement, read its setup, invoked operation, assertion, and negative path. The assertion must fail when the named behavior disappears. Type-checking a DTO proves shape, and calling an endpoint proves reachability; neither proves a semantic rule.
 
+Complete the common mutation calibration owned by [the base Testing skill](../backend/testing.md) before beginning the candidate clean review.
+
 ## Invalidation
 
 A verdict belongs to one meaning at one source digest. Changing a tag, its host, its target, its reason, or the represented contract invalidates the affected acknowledgement.
 
-Record the finding, repair its owning artifact, regenerate affected output after the authored contract settles, rerun the affected graph and package gates, and review the changed acknowledgement again. Do not invalidate unrelated graph claims or start a Plain-style whole-phase campaign unless the change actually altered their configured sources or targets.
+Record the finding, repair its owning artifact, regenerate affected output after the authored contract settles, and rerun the affected graph and package gates. Review every changed acknowledgement again, and restart the current host census after any correction or population change. Do not invalidate unrelated graph claims.
 
 Keep a concise review record in `wiki/review.md`: the source digest, confirmed findings, repairs, restored claim inventory, and exact gate results. Do not create a per-artifact ledger outside the graph's selected acknowledgements.
 
@@ -67,8 +88,10 @@ An Evidence phase is complete when:
 
 - every phase claim is restored with its original population and `error` severity;
 - the graph reports no diagnostic;
+- one complete current-state host census has found zero defects;
 - every active acknowledgement has passed the host-target-reason review above;
+- every base-owned complete provider, SDK-consumption, and component-consumption review in the active phase is current;
 - every affected package, test, and live gate is current and green; and
 - no phase-owned `@todo` remains.
 
-One successful pass over the active acknowledgements at the current digest is sufficient. Do not repeat an unlimited full-project review after these conditions hold. Do not edit frozen instructions, change an immutable projection, or narrow a lint configuration to manufacture completion.
+One successful current-digest host census and acknowledgement pass is sufficient; do not require a second clean pass. Do not edit frozen instructions, change an immutable projection, or narrow a lint configuration to manufacture completion.

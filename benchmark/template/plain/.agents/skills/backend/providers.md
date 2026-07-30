@@ -13,7 +13,7 @@ Read [the campaign skill](../campaign/SKILL.md) and [its logic edge](../campaign
 
 ## After Any Implementation Change
 
-The test campaign re-opens, because what the tests must prove has moved.
+The test relationship in the current campaign round re-opens, because what the tests must prove has moved.
 
 When a fix here reveals that the contract or the schema was wrong, fix it there and accept that everything below that layer re-opens with it. Patching the provider to compensate for a wrong contract hides the defect from every layer after it, and the cost of the correction grows with each layer built on top.
 

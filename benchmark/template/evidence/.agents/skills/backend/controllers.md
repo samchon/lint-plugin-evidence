@@ -10,7 +10,7 @@ Write the operation's narrowest truthful citations when its public contract is d
  *
  * @evidence docs/analysis/03-functional-requirements.md#browse-sales Serves the
  *           seller's visibility-filtered browsing capability.
- * @evidence prisma:ShoppingSale Exposes persisted sale identity and lifecycle.
+ * @evidence prisma:shopping_sales Exposes persisted sale identity and lifecycle.
  */
 @core.TypedRoute.Patch()
 public async index(): Promise<IPage<IShoppingSale.ISummary>> {
@@ -31,14 +31,14 @@ Collect `api-operations` exclusions on the exported const in `packages/backend/s
  * @evidenceExclude docs/analysis/05-user-experience.md#empty-state-copy
  *                  CatalogPage owns this presentation-only requirement; reject
  *                  this exclusion if it gains an API response or failure rule.
- * @evidenceExclude prisma:LoginAttempt
+ * @evidenceExclude prisma:shopping_login_attempts
  *                  AuthenticationProvider owns this internal security record;
  *                  reject this exclusion if any endpoint exposes it.
  */
 export const CONTROLLER_EVIDENCE_EXCLUDE = true;
 ```
 
-Name the actual owner plus a condition that would veto the exclusion. A Markdown H2 exclusion also covers every selected H3 descendant, and a Prisma model target covers that selected model scope, so use the narrowest truthful target. Keep evidence and exclusion scopes disjoint within this claim-reference obligation. The decision satisfies only `api-operations`; schema, DTO, test, and frontend claims remain independent.
+[Evidence Lint](../evidence/SKILL.md) owns the common exclusion rules. This carrier settles only `api-operations`; every other claim remains independent.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}

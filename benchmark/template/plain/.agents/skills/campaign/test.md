@@ -32,9 +32,9 @@ Inspect what each test actually asserts. Verify effects beyond the immediate res
 
 ## Shapes To Tests
 
-Enumerate every root DTO type from the `packages/api/src/structures` export list.
+Enumerate every root DTO type and the request, response, or nested variants that current operations actually exchange.
 
-For each type, name the test that constructs its request variant and the test that reads its response variant. A shape no test constructs or reads indicates either an untested operation or an invented type, and the owning dimension must correct it.
+For each applicable variant, name the test that constructs or reads it. Do not demand a response proof for an input-only type or a request proof for a response-only type. An exchanged shape no test reaches indicates either an untested operation or an invented type, and the owning dimension must correct it.
 
 ## Test Correctness Versus Coverage
 
@@ -42,22 +42,10 @@ For each type, name the test that constructs its request variant and the test th
 
 A missing test is a coverage finding. A test that pins an incidental constant, fabricates an invalid identity, or asserts nothing beyond structural conformance is a defect in an existing test. Record and correct the right class instead of counting a weak test as coverage.
 
-## Place In The Round
-
-Within every campaign round, enumerate and traverse every requirement identifier, generated API accessor, root DTO type, test case, success path, refusal, authorization boundary, and observable consequence from the current artifacts.
-
-Apply behavior-removal checks owned by the [Review skill](../review/SKILL.md) where prescribed, within this same round.
-
-This dimension is not a separate round or separately mergeable verdict. Any finding invalidates the whole campaign round: correct it at its owning layer, propagate its consequences, and restart the complete traversal at the first requirement. Completion requires one entire current-state round covering this dimension and every sibling dimension with zero actionable improvements.
-
-## Cascade
+## Findings
 
 Requirements, contract, and logic changes re-open this dimension in full. A failing or insufficient test may reveal an implementation, contract, or schema defect; correct the owning layer and propagate its consequences rather than weakening the assertion.
 
 Never weaken an assertion merely to make the suite green.
 
-## Dimension Exit
-
-This dimension is exhausted within the full round when every requirement names a test that would fail without it, every accessor has success and stated refusal paths covered, every root shape is constructed and read, and every test names the requirement it proves.
-
-A green suite proves only the assertions that exist. It cannot report a requirement or test that was never written.
+Within the indivisible round owned by [SKILL.md](SKILL.md), this dimension is exhausted when every requirement names a test that would fail without it, every accessor has success and stated refusal paths covered, every applicable exchanged DTO variant is constructed or read, and every test names the requirement it proves. A green suite proves only the assertions that exist.

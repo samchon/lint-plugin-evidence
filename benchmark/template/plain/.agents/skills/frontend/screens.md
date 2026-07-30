@@ -21,12 +21,12 @@ That plan is what makes a missing screen visible while there is still time to bu
 
 As soon as the structure exists, the frontend's own obligations exist with it, and [the frontend edge](../campaign/frontend.md) defines the minimum set. Record any newly discovered relationship in the campaign ledger when the structure grows, so one place answers what the current subgraph is. Do not edit the frozen skill documents.
 
-Two of those edges are worth naming here because they fail quietly. **A component nothing renders is dead code** that still costs review attention. **A field rendered from a property the contract does not carry** compiles and fails at runtime, because nothing between the response type and the rendered element checks that the property exists.
+Two of those edges are worth naming here because they fail quietly. **A component nothing renders is dead code** that still costs review attention. **A field rendered from a property the contract does not carry** should fail strict compilation; a cast, `any`, or local redeclaration that hides that failure is itself the defect.
 
 Walk both directions on each edge. Forward finds the screen nobody built; backward finds the component nobody uses.
 
 ## After Any Contract Change
 
-The frontend campaign re-opens in full. A changed response can leave a screen reading a field that no longer exists, and a changed rejection can leave an error state saying the wrong thing.
+The frontend dimension of the current campaign round re-opens in full. A changed response can leave a screen reading a field that no longer exists, and a changed rejection can leave an error state saying the wrong thing.
 
-If a screen needs something the SDK does not expose, that finding belongs to the API campaign. Send it up rather than improvising a path around it.
+If a screen needs something the SDK does not expose, that finding belongs to the campaign's API dimension. Send it up rather than improvising a path around it.

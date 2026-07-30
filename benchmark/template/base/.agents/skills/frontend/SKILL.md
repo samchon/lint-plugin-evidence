@@ -40,7 +40,7 @@ Each step consumes the previous one, which is why the order is not a preference.
 7. Write the journey specs under `tests/journeys/` mirroring the requirement journeys, still against simulation.
 8. Close against the live backend: sessions, persistence, authorization, and the verification record in `wiki/verification.md`.
 
-The gated SDK fixes the contract before frontend work begins: the frontend starts from a realized and tested backend contract rather than an unfinished stub contract. Cracking a screen is experimental work: run the app with simulation on for contract-generated success responses, use gallery fixtures for named UI states, and drive both through the Playwright MCP browser while you build. What simulation cannot prove, the closing pass owns, and [verification.md](verification.md) says what that requires.
+The gated SDK fixes the contract before frontend work begins: the frontend starts from a realized and tested backend contract rather than an unfinished stub contract. Cracking a screen is experimental work: run the app with simulation on for contract-generated success responses, use gallery fixtures for named UI states, and drive both through an available interactive browser tool while you build. What simulation cannot prove, the closing pass owns, and [verification.md](verification.md) owns both the preferred browser path and its fallback.
 
 ## Stack
 
@@ -87,5 +87,11 @@ Return to the API or backend only when a named requirement, diagnostic, test, SD
 ## Frontend Layer Gate
 
 The frontend is not finished when it compiles, and a green build says nothing about whether a control does anything.
+
+Before accepting the gate, enumerate every current product-facing SDK operation and trace it to a screen and browser journey or to its requirement-backed entry in `packages/frontend/wiki/omissions.md`. Then walk backward from every screen data call to the generated accessor it uses.
+
+Enumerate every production component as well. Trace each domain or shared component to the screen that renders it, or to a requirement-backed necessary boundary such as an application provider or reusable primitive. A component with no current consumer or necessary boundary is dead code.
+
+Perform both traversals against the current SDK, component, and screen files rather than a remembered plan. An unconsumed operation, unrecorded omission, handwritten transport path, or unowned component is a finding.
 
 This layer passes when the application starts, every requirement-backed user journey works when performed, the interface is coherent at every required width, deliberate omissions are recorded, and the verification document reflects what was actually run against a real backend.

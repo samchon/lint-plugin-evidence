@@ -19,7 +19,7 @@ The numeric prefix orders domains from foundational to dependent, so a reader me
 
 ## Field Types
 
-The vocabulary is closed. There is no JSON, object, or array type, and structure that needs querying is normalized into a child table instead.
+There is no JSON, object, or array modeling shortcut. Normalize structure that needs querying into child tables. Store an encoded document only when the requirements define it as opaque rather than queryable, using a datasource-supported representation and documenting that boundary.
 
 | Use        | For                                                             |
 | ---------- | --------------------------------------------------------------- |
@@ -47,7 +47,7 @@ Decide what kind of table this is before designing it, because the decision driv
 | --- | --- | --- |
 | actor | an account with authentication | its own lifecycle operations |
 | session | a login session row | read and explicit revocation surfaces where required; never ordinary client creation or field editing |
-| primary | an entity users independently create, search, and manage | create, search, detail, update, delete |
+| primary | an entity with an independent lifecycle | the requirement-defined operations over that lifecycle |
 | subsidiary | a parent-scoped supporting table | managed through the parent |
 | snapshot | an immutable point-in-time record | append-only or read-only |
 | material | a read-only `mv_*` projection | read-only |
@@ -333,12 +333,12 @@ Each row is a design that compiles and is wrong. Recognizing them is faster than
 | Wrong shape | Preferred design |
 | --- | --- |
 | a counter or aggregate column on a base table | compute it in the query, or give it an explicit `mv_*` table |
-| a current value derived from history rows and also stored | store the history and calculate the current value |
+| a current value duplicated between history and another writable store | choose one authoritative current store; keep history as audit unless the requirements make it the source |
 | a description saying "query output" beside a column that stores it | drop the column and its indexes |
 | several nullable actor foreign keys for "one of these owns it" | subtype ownership tables |
 | a cluster of nullable fields forming a one-to-one detail | a dependent table with a unique foreign key |
 | a unique and a plain index on the same fields | keep the unique one |
-| an index that is a subset of a composite index | keep the superset |
+| an index that is the ordered leading prefix of a composite index with compatible ordering | keep the composite index; other subsets may serve different queries |
 | a circular foreign key between two tables | one direction only; the child references the parent, and the selected state lives on the child |
 | a domain-named primary key such as `review_id` | `id`; keep the business key as an ordinary field with a unique index |
 | a target-only unique on a submitted record such as a vote or a report | include the submitting actor in the unique index |

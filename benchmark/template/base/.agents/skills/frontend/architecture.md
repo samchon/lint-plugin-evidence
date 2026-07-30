@@ -8,20 +8,28 @@ The frontend is a single-page application. It builds to static assets and talks 
 
 Do not add a server tier, an API route layer, a backend-for-frontend, or a server-rendering framework. `packages/backend` is the server. A second one inside the frontend duplicates authentication, duplicates error handling, and puts business decisions in a place the backend's tests never reach.
 
-## Call The SDK From The Screen That Owns The Workflow
+## Domain Hooks Call The SDK For Their Screens
 
 ```ts
-import api, { IShoppingSale, IPage } from "{{apiPackageName}}";
+import { useQuery } from "@tanstack/react-query";
+import api from "{{apiPackageName}}";
 
-const page: IPage<IShoppingSale.ISummary> =
-  await api.functional.shopping.customer.sale.index(connection, {
-    limit: 20,
+import { apiConnection } from "@/lib/client";
+
+export function useSales() {
+  return useQuery({
+    queryKey: ["shopping", "sales"] as const,
+    queryFn: () =>
+      api.functional.shopping.customer.sale.index(apiConnection, {
+        limit: 20,
+      }),
   });
+}
 ```
 
-Keep the call visible at the call site, so the screen shows which operation, which DTO, which loading state, and which error path it owns.
+The screen calls its domain hook; the hook calls the generated accessor directly and owns its query key, invalidation, and transport state. This keeps the operation visible where the domain data path is defined while the screen owns rendering and interaction states.
 
-Do not introduce a wrapper, service module, repository object, or command facade whose only purpose is to hide the generated SDK. That indirection buys nothing: the SDK is already typed, already named after the routes, and already regenerated when the contract changes. Hiding it behind a hand-written layer means the hand-written layer is what breaks instead, and it breaks silently.
+Do not insert a wrapper, service module, repository object, or command facade between the hook and the SDK. The SDK is already typed and regenerated with the contract; a hand-written transport layer is the copy that drifts.
 
 Mapping a response into the shape a screen wants is fine when the same mapping is used more than once inside that screen. Keep it local to the screen, not in a shared layer that grows into a second contract.
 
@@ -32,8 +40,6 @@ packages/frontend/
   index.html
   vite.config.ts
   playwright.config.ts
-  scripts/
-    run-playwright.mjs             one runner, several modes
   src/
     main.tsx                       entry
     App.tsx                        routes and the shell
@@ -114,16 +120,7 @@ const keys = {
 
 The keys are `as const` and prefixed with the domain. The constant assertion is what makes a typo in a key a compile error instead of a query that silently never matches an invalidation. The prefix keeps two domains from colliding on a name as ordinary as `session`.
 
-A parameterized key takes the parameter, so each distinct query caches separately. A catalog key that ignores the search string serves the first search's results to every later one.
-
-```ts
-export function useCatalog(search: string) {
-  return useQuery({
-    queryKey: keys.catalog(search),
-    queryFn: () => fetchCatalog(search),
-  });
-}
-```
+A parameterized key takes the parameter, so each distinct query caches separately. A catalog hook whose key ignores the search string can serve the first search's results to every later one.
 
 A mutation invalidates **every** key that shows what it changed, not the obvious one.
 
@@ -167,7 +164,7 @@ function ProductRoute() {
 
 function CatalogRoute() {
   return (
-    <Suspense fallback={<CatalogPageFallback />}>
+    <Suspense fallback={<AppSkeleton />}>
       <CatalogPage />
     </Suspense>
   );
@@ -194,7 +191,7 @@ export function App() {
 Three things here are the convention rather than the example.
 
 - **A page never reads route parameters.** It takes `productId: string`, so it cannot be rendered without one and its type says so. The wrapper owns the missing case, once, where the route is declared.
-- **A page that suspends exports its own fallback beside it**, so the skeleton and the screen it stands in for change together.
+- **A route uses a shared or route-local Suspense fallback.** A page's query-loading fallback stays private to the page file, so one-file-one-export remains intact.
 - **The catch-all route is declared.** Without it an unknown path renders nothing, which reads as a broken application rather than a wrong address.
 
 ## Providers Are Composed In One File
@@ -238,16 +235,16 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   "preview": "vite preview --host 0.0.0.0",
   "lint": "ttsc -p tsconfig.json --noEmit",
   "format": "ttsc format -p tsconfig.json",
-  "test:e2e": "node scripts/run-playwright.mjs e2e",
-  "ui:review": "node scripts/run-playwright.mjs ui-review",
-  "readme:screens": "node scripts/run-playwright.mjs readme",
+  "test:e2e": "pnpm build && playwright test tests/journeys",
+  "ui:review": "pnpm build && playwright test tests/ui-review.spec.ts",
+  "readme:screens": "pnpm build && playwright test tests/readme.spec.ts",
   "playwright:install": "playwright install chromium"
 }
 ```
 
 **`lint` is one command because the compile is one pass.** `ttsc` emits type errors and lint diagnostics in the same stream and sums both into the exit code, so a separate `typecheck` script running stock `tsc` would report green over failures this project treats as errors. There is no `tsc` here and no separate lint invocation; the project skill owns why.
 
-One runner with a mode argument beats several near-identical configurations. `build` runs `lint` before bundling, so a broken type or a lint failure stops the build rather than shipping.
+Each browser script builds once, then selects its own stable spec path under the shared Playwright configuration. `build` runs `lint` before bundling, so a broken type or lint failure stops before the browser starts.
 
 ## Record The Notable Choices
 

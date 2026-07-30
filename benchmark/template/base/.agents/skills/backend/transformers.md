@@ -148,4 +148,4 @@ A selection cannot nest a recursive relation indefinitely, so do not try.
 
 Select the lookup keys instead: the parent foreign key for a parent reference, `id` for a children reference, both when the DTO has both, and leave the recursive relation itself unselected. Resolve the property afterwards through an id-keyed cache that loads each node once and is safe against cycles.
 
-Guard a nullable parent before reading through it. At a depth beyond what the contract promises, return a bounded shape such as an empty children array, as long as it still satisfies the DTO.
+Guard a nullable parent before reading through it. Truncate recursion only at a depth the public contract states, and make that bound visible in the DTO contract. Without such a bound, resolve the complete finite relation with cycle protection or redesign the DTO to declare one; an empty children array is not truthful merely because it type-checks.

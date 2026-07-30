@@ -33,7 +33,7 @@ const body = {
 } satisfies IShoppingSale.IRequest;
 ```
 
-**An absent filter is `undefined`, never an empty string.** The empty string is a value, and a search for it matches nothing. This is the same distinction the request DTO makes with `?: null | T`, and getting it wrong produces a listing that silently returns zero rows the first time a user clears a field.
+**An absent filter is `undefined`, never an empty string.** The empty string is a real input whose predicate-specific meaning may differ from absence. Preserve the distinction declared by `?: null | T` instead of sending a value when the user cleared the filter.
 
 **Sort is `"+field"` and `"-field"` tokens in priority order**, and the fields come from the declared union. Do not build a `sortBy` plus `sortOrder` pair in the interface and translate: two controls can disagree, and the contract has one.
 
@@ -52,7 +52,7 @@ const body = {
 | no rows exist yet          | how to create the first one                  |
 | the filter matched nothing | which filter to relax, and a way to clear it |
 
-Conflating them tells a user their search failed when the product is simply new, or tells them the product is empty when they typed one wrong letter. The screen knows which it is: a request with no active filter that returns nothing is the first, everything else is the second.
+Conflating them tells a user their search failed when the product is simply new, or tells them the product is empty when a filter excluded every visible row. Distinguish the two only when the contract exposes an unfiltered accessible total or another reliable signal. An empty unfiltered page alone is insufficient because pagination and actor visibility can produce the same result.
 
 The remaining states are owned by [screens.md](screens.md), and a list owes all of them.
 

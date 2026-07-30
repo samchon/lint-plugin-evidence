@@ -13,16 +13,16 @@ Read [the campaign skill](../campaign/SKILL.md) and [its API edge](../campaign/a
 
 ## After Any Contract Change
 
-Regenerating the SDK is the first step, not the last. The change re-opens three campaigns.
+Regenerating the SDK is the first step, not the last. The change re-opens three relationships in the current campaign round.
 
-- **The test campaign**, because what the tests must prove has moved. A new rejection needs a test that attempts it; a changed response shape changes every assertion against it.
-- **The logic campaign**, because the provider implements this contract and its effects.
-- **The frontend campaign**, because a screen consumes these operations and a changed contract can leave it reading a field that no longer exists.
+- **The test relationship**, because what the tests must prove has moved. A new rejection needs a test that attempts it; a changed response shape changes every assertion against it.
+- **The logic relationship**, because the provider implements this contract and its effects.
+- **The frontend relationship**, because a screen consumes these operations and a changed contract can leave it reading a field that no longer exists.
 
 Record the re-opening in the ledger as you make the change.
 
 ## When The Contract Cannot Express It
 
-If a requirement needs an operation you cannot design because the schema has no state for it, the finding belongs to the database campaign. Fix it there.
+If a requirement needs an operation you cannot design because the schema has no state for it, the finding belongs to the database dimension of the campaign. Fix it there.
 
 Adding a column from here to make an operation designable is the workaround that hides the defect from every layer after it, and it commits the rest of the work to a schema decision nobody reviewed.

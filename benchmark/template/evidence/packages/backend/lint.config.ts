@@ -4,10 +4,6 @@ import {
 } from "@samchon/lint-plugin-evidence";
 import type { ITtscLintConfig } from "@ttsc/lint";
 
-declare const process: {
-  env: Record<string, string | undefined>;
-};
-
 /**
  * The evidence obligations of the backend package.
  *
@@ -126,9 +122,6 @@ const graph: IEvidenceGraphConfig = {
   ],
 };
 
-const isNestiaConfigLoader: boolean =
-  process.env.NESTIA_SDK_TRANSFORM === "1";
-
 export default {
   extends: "../../config/lint.config.ts",
   // Prisma owns this generated client. The authored schema remains selected by
@@ -138,10 +131,6 @@ export default {
     evidence,
   },
   rules: {
-    // Nestia compiles only nestia.config.ts in a temporary one-file Program
-    // before it loads the real controller project. Evidence populations do not
-    // exist in that private loader pass; the normal build and lint Programs
-    // retain every rule at error severity.
-    "evidence/graph": isNestiaConfigLoader ? "off" : ["error", graph],
+    "evidence/graph": ["error", graph],
   },
 } satisfies ITtscLintConfig;
