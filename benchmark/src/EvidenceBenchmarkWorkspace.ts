@@ -1,5 +1,4 @@
 import { spawn } from "node:child_process";
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 export namespace EvidenceBenchmarkWorkspace {
@@ -34,12 +33,8 @@ export namespace EvidenceBenchmarkWorkspace {
       throw new Error(`Benchmark workspace already exists: ${output}.`);
     const parent: string = path.dirname(output);
     fs.mkdirSync(parent, { recursive: true });
-    const stage: string = path.join(
-      parent,
-      `.${path.basename(output)}.${process.pid}.${crypto.randomUUID()}.tmp`,
-    );
+    const stage: string = fs.mkdtempSync(path.join(parent, ".tmp-"));
     const workspace: string = path.join(stage, "workspace");
-    fs.mkdirSync(stage);
     try {
       const template: string = path.resolve(
         request.repository,
