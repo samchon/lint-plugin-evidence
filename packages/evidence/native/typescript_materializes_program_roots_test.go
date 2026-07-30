@@ -192,7 +192,7 @@ func TestRootedTypeScriptClaimResolvesInlineLinksAcrossProgramRoots(t *testing.T
 	root, config, sources := rootedTypeScriptProgram(
 		t,
 		map[string]string{
-			"packages/api/src/structures/ISale.ts": "import type { IContract } from \"../../backend/src/IContract\";\n/** @evidence {@link IContract} Implements the backend contract. */\nexport interface ISale {}",
+			"packages/api/src/structures/ISale.ts": "import type { IContract } from \"../../../backend/src/IContract\";\n/** @evidence {@link IContract} Implements the backend contract. */\nexport interface ISale {}",
 			"packages/backend/src/IContract.ts":    "export interface IContract {}",
 		},
 		[]string{
