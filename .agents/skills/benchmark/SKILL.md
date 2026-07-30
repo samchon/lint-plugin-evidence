@@ -103,7 +103,7 @@ The runner verifies the retained cell and preserves earlier objectives, token us
 
 Codex can continue the exact current Goal when the retained native Goal and terminal checkpoints still match. A new app-server process is transport for the same session, not a new measured cell.
 
-Claude Code can continue at an instruction boundary when the prior successful result is retained, or start the current instruction when it was never dispatched. If the current instruction was dispatched without a successful terminal result, exact resume is unavailable: preserve the incomplete cell and stop. Resending the objective or adding “continue” would create a new user input and is forbidden.
+Claude Code can continue at an instruction boundary when the prior successful result is retained, or start the current instruction when it was never dispatched. If the current instruction was dispatched without a successful terminal result, exact resume is unavailable: preserve the incomplete cell and stop. Resending the objective or adding `continue` would create a new user input and is forbidden.
 
 If the runner rejects the CLI version, cell identity, native checkpoint, or terminal boundary, stop. Do not bypass the check, edit `state.json`, create a replacement instruction, or start a fresh run under the old result.
 
