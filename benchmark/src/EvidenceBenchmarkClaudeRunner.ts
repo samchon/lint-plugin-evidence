@@ -288,9 +288,9 @@ export namespace EvidenceBenchmarkClaudeRunner {
       processError ??= error;
     });
     try {
+      await emit("stdin", instruction.objectiveText);
       instruction.inputDispatched = true;
       await publish(props, state);
-      await emit("stdin", instruction.objectiveText);
       child.stdin.end(instruction.objectiveText, "utf8");
     } catch (error) {
       child.stdin.destroy();
