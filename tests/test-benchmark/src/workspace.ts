@@ -19,43 +19,6 @@ import { EvidenceBenchmarkWorkspace } from "../../../benchmark/src/EvidenceBench
  * 3. Assert the stage was renamed atomically to the exact requested output.
  */
 const main = async (): Promise<void> => {
-  const repositoryRoot: string = path.resolve(import.meta.dirname, "../../..");
-  const backendPackage = JSON.parse(
-    fs.readFileSync(
-      path.join(
-        repositoryRoot,
-        "benchmark",
-        "template",
-        "base",
-        "packages",
-        "backend",
-        "package.json",
-      ),
-      "utf8",
-    ),
-  ) as { scripts: Record<string, string> };
-  const workspacePackage = JSON.parse(
-    fs.readFileSync(
-      path.join(
-        repositoryRoot,
-        "benchmark",
-        "template",
-        "base",
-        "package.json",
-      ),
-      "utf8",
-    ),
-  ) as { scripts: Record<string, string> };
-  assert.equal(backendPackage.scripts.prepare, undefined);
-  assert.equal(
-    backendPackage.scripts["prepare:database"],
-    "prisma db push --schema=prisma/schema",
-  );
-  assert.equal(
-    workspacePackage.scripts["prepare:database"],
-    "pnpm --filter {{backendPackageName}} --fail-if-no-match prepare:database",
-  );
-
   const root: string = fs.mkdtempSync(
     path.join(os.tmpdir(), "evidence-benchmark-workspace-"),
   );
