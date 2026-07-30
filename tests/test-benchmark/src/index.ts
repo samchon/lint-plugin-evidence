@@ -52,8 +52,12 @@ const main = async (): Promise<void> => {
       effort: "high",
       command: process.execPath,
       commandPrefixArguments: prefix,
-      onOutput: (_processIndex, output) => completedOutput.push(output),
-      onState: (state) => snapshots.push(state),
+      onOutput: (_processIndex, output) => {
+        completedOutput.push(output);
+      },
+      onState: (state) => {
+        snapshots.push(state);
+      },
     });
 
     assert.equal(completed.status, "completed");
@@ -111,7 +115,9 @@ const main = async (): Promise<void> => {
       effort: "high",
       command: process.execPath,
       commandPrefixArguments: [...prefix, "--fail"],
-      onOutput: (_processIndex, output) => interruptedOutput.push(output),
+      onOutput: (_processIndex, output) => {
+        interruptedOutput.push(output);
+      },
     });
     assert.equal(interrupted.status, "interrupted");
     assert.equal(interrupted.nextInstructionIndex, 0);
