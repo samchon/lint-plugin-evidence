@@ -263,6 +263,19 @@ export namespace EvidenceBenchmarkSelfTest {
   }
 
   function isProcessAlive(pid: number): boolean {
+    if (process.platform !== "win32") {
+      const status: cp.SpawnSyncReturns<string> = cp.spawnSync(
+        "ps",
+        ["-o", "stat=", "-p", String(pid)],
+        {
+          encoding: "utf8",
+          stdio: "pipe",
+        },
+      );
+      if (status.status !== 0) return false;
+      const state: string = status.stdout.trim();
+      return state.length !== 0 && !state.startsWith("Z");
+    }
     try {
       process.kill(pid, 0);
       return true;
