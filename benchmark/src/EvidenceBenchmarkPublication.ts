@@ -176,14 +176,20 @@ export namespace EvidenceBenchmarkPublication {
       cliVersion?: unknown;
       status?: unknown;
       sourceCommit?: unknown;
+      elapsedMs?: unknown;
+      threadId?: unknown;
       instructionsTreeSha256?: unknown;
       completedWorkspaceTreeSha256?: unknown;
       lintBaselines?: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[];
       turns?: Array<{
         name?: unknown;
+        elapsedMs?: unknown;
         status?: unknown;
+        stdout?: unknown;
+        stderr?: unknown;
         invocation?: unknown;
         accepted?: unknown;
+        threadId?: unknown;
         lintRestorationSha256?: unknown;
       }>;
     }>(runRoot, "Completed benchmark state");
@@ -200,6 +206,11 @@ export namespace EvidenceBenchmarkPublication {
       state.status !== "completed" ||
       typeof state.sourceCommit !== "string" ||
       !/^[0-9a-f]{40}$/i.test(state.sourceCommit) ||
+      typeof state.elapsedMs !== "number" ||
+      !Number.isFinite(state.elapsedMs) ||
+      state.elapsedMs < 0 ||
+      typeof state.threadId !== "string" ||
+      state.threadId.length === 0 ||
       typeof state.instructionsTreeSha256 !== "string" ||
       typeof state.completedWorkspaceTreeSha256 !== "string" ||
       !Array.isArray(state.lintBaselines) ||
@@ -264,6 +275,15 @@ export namespace EvidenceBenchmarkPublication {
     });
     if (!workspaceStat?.isDirectory() || workspaceStat.isSymbolicLink())
       throw new Error(`Completed workspace was not found: ${workspace}.`);
+    const ledger: EvidenceBenchmarkTurnLedger.ISummary =
+      EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
+        runRoot,
+        workspace,
+        threadId: state.threadId,
+        model: state.model,
+        effort: state.effort,
+        turns: state.turns,
+      });
     if (request.arm === "evidence") {
       EvidenceBenchmarkLintBaseline.assertRestored(
         workspace,
@@ -349,12 +369,19 @@ export namespace EvidenceBenchmarkPublication {
         `Operator-accepted benchmark report was not found: ${report}.`,
       );
     const reportValue: unknown = JSON.parse(fs.readFileSync(report, "utf8"));
-    if (
-      typeof reportValue !== "object" ||
-      reportValue === null ||
-      Array.isArray(reportValue)
-    )
-      throw new Error("Benchmark report must be a JSON object.");
+    assertReport({
+      value: reportValue,
+      runRoot,
+      request,
+      state: {
+        elapsedMs: state.elapsedMs,
+        sourceCommit: state.sourceCommit,
+        instructionsTreeSha256: state.instructionsTreeSha256,
+        completedWorkspaceTreeSha256: state.completedWorkspaceTreeSha256,
+      },
+      requirementsTreeSha256: manifest.requirementsTreeSha256,
+      ledger,
+    });
 
     const target: string = request.repository;
     const [owner] = target.split("/");
@@ -542,6 +569,285 @@ export namespace EvidenceBenchmarkPublication {
     } finally {
       fs.rmSync(stage, { recursive: true, force: true });
     }
+  }
+
+  function assertReport(props: {
+    value: unknown;
+    runRoot: string;
+    request: IRequest;
+    state: {
+      elapsedMs: number;
+      sourceCommit: string;
+      instructionsTreeSha256: string;
+      completedWorkspaceTreeSha256: string;
+    };
+    requirementsTreeSha256: string;
+    ledger: EvidenceBenchmarkTurnLedger.ISummary;
+  }): void {
+    const report = object(props.value, "benchmark report");
+    if (
+      report.schemaVersion !== 1 ||
+      report.status !== "accepted" ||
+      report.project !== props.request.project ||
+      report.arm !== props.request.arm ||
+      report.runId !== props.request.runId
+    )
+      throw new Error(
+        "Benchmark report identity does not match the accepted run.",
+      );
+    if (props.state.elapsedMs < props.ledger.elapsedMs)
+      throw new Error(
+        "Benchmark controller elapsed time is shorter than its model attempts.",
+      );
+    const measurement = object(report.measurement, "report measurement");
+    exactNumber(
+      measurement.totalElapsedMs,
+      props.state.elapsedMs,
+      "total elapsed time",
+    );
+    exactNumber(
+      measurement.agentElapsedMs,
+      props.ledger.elapsedMs,
+      "agent elapsed time",
+    );
+    exactNumber(
+      measurement.nonAgentElapsedMs,
+      props.state.elapsedMs - props.ledger.elapsedMs,
+      "non-agent elapsed time",
+    );
+    const attempts = object(measurement.attempts, "report attempts");
+    exactNumber(attempts.total, props.ledger.attempts, "attempt total");
+    exactNumber(attempts.accepted, props.ledger.accepted, "accepted attempts");
+    exactNumber(
+      attempts.rejected,
+      props.ledger.attempts - props.ledger.accepted,
+      "rejected attempts",
+    );
+    const tokens = object(measurement.tokens, "report tokens");
+    for (const category of Object.keys(props.ledger.tokens) as Array<
+      keyof EvidenceBenchmarkTurnLedger.ISummary["tokens"]
+    >)
+      exactNumber(
+        tokens[category],
+        props.ledger.tokens[category],
+        `token category ${category}`,
+      );
+    const pricing = object(measurement.pricingUsdPerMillion, "report pricing");
+    const inputPrice: number = finiteNonnegative(
+      pricing.input,
+      "input-token price",
+    );
+    const cachedInputPrice: number = finiteNonnegative(
+      pricing.cachedInput,
+      "cached-input-token price",
+    );
+    const outputPrice: number = finiteNonnegative(
+      pricing.output,
+      "output-token price",
+    );
+    if (inputPrice === 0 || outputPrice === 0)
+      throw new Error(
+        "Benchmark report requires positive standard input and output token prices.",
+      );
+    const expectedCost: number =
+      ((props.ledger.tokens.input_tokens -
+        props.ledger.tokens.cached_input_tokens) *
+        inputPrice +
+        props.ledger.tokens.cached_input_tokens * cachedInputPrice +
+        props.ledger.tokens.output_tokens * outputPrice) /
+      1_000_000;
+    const actualCost: number = finiteNonnegative(
+      measurement.apiEquivalentCostUsd,
+      "API-equivalent cost",
+    );
+    if (
+      !Number.isFinite(expectedCost) ||
+      Math.abs(actualCost - expectedCost) > 1e-9
+    )
+      throw new Error(
+        "Benchmark report API-equivalent cost does not match native token totals and retained pricing.",
+      );
+    const gates = object(report.gates, "report gates");
+    for (const gate of [
+      "build",
+      "lint",
+      "database",
+      "backendTests",
+      "frontendTests",
+      "runtime",
+    ])
+      if (gates[gate] !== "passed")
+        throw new Error(`Benchmark report gate ${gate} is not passed.`);
+    const coverage = object(report.coverage, "report coverage");
+    for (const category of ["requirements", "tests"]) {
+      const count = object(coverage[category], `${category} coverage`);
+      const total: number = nonnegativeInteger(
+        count.total,
+        `${category} total`,
+      );
+      const covered: number = nonnegativeInteger(
+        count.covered,
+        `${category} covered`,
+      );
+      if (covered > total)
+        throw new Error(
+          `Benchmark report ${category} coverage exceeds its denominator.`,
+        );
+    }
+    const implementation = object(
+      report.implementation,
+      "report implementation scale",
+    );
+    for (const metric of [
+      "tables",
+      "apiOperations",
+      "dtoTypes",
+      "dtoProperties",
+      "testFunctions",
+    ])
+      nonnegativeInteger(implementation[metric], `implementation ${metric}`);
+    const completion = object(report.completion, "report completion");
+    if (
+      completion.firstClaimTurn !== null &&
+      (typeof completion.firstClaimTurn !== "string" ||
+        !EvidenceBenchmarkTurnLedger.NAMES.includes(
+          completion.firstClaimTurn as EvidenceBenchmarkTurnLedger.Name,
+        ))
+    )
+      throw new Error("Benchmark report has an invalid first completion turn.");
+    if (typeof completion.honest !== "boolean")
+      throw new Error(
+        "Benchmark report must classify first-claim completion honesty.",
+      );
+    const quality = object(report.quality, "report quality");
+    const score: number = nonnegativeInteger(quality.score, "quality score");
+    if (score > 100) throw new Error("Benchmark quality score exceeds 100.");
+    if (
+      typeof quality.summary !== "string" ||
+      quality.summary.trim().length === 0 ||
+      !Array.isArray(quality.residualDefects) ||
+      quality.residualDefects.some(
+        (defect) => typeof defect !== "string" || defect.trim().length === 0,
+      )
+    )
+      throw new Error(
+        "Benchmark report requires a quality summary and residual-defect inventory.",
+      );
+    const frozen = object(report.frozenInputs, "report frozen inputs");
+    if (
+      frozen.sourceCommit !== props.state.sourceCommit ||
+      frozen.instructionsTreeSha256 !== props.state.instructionsTreeSha256 ||
+      frozen.requirementsTreeSha256 !== props.requirementsTreeSha256 ||
+      frozen.completedWorkspaceTreeSha256 !==
+        props.state.completedWorkspaceTreeSha256
+    )
+      throw new Error(
+        "Benchmark report frozen-input identities do not match the retained run.",
+      );
+    const interventions: string[] = retainedInterventions(
+      props.runRoot,
+      props.request,
+      props.state.sourceCommit,
+    );
+    if (
+      !Array.isArray(report.interventions) ||
+      JSON.stringify(report.interventions) !== JSON.stringify(interventions)
+    )
+      throw new Error(
+        "Benchmark report interventions do not match the retained repair ledger.",
+      );
+  }
+
+  function retainedInterventions(
+    runRoot: string,
+    request: IRequest,
+    sourceCommit: string,
+  ): string[] {
+    const directory: string = path.join(runRoot, "interventions");
+    const stat: fs.Stats | undefined = fs.lstatSync(directory, {
+      throwIfNoEntry: false,
+    });
+    if (stat === undefined) return [];
+    if (!stat.isDirectory() || stat.isSymbolicLink())
+      throw new Error("Benchmark intervention ledger is not a real directory.");
+    const entries: fs.Dirent[] = fs.readdirSync(directory, {
+      withFileTypes: true,
+    });
+    if (
+      entries.some(
+        (entry) =>
+          !entry.isFile() ||
+          entry.isSymbolicLink() ||
+          !/^[0-9a-f]{64}\.(?:json|patch)$/.test(entry.name),
+      )
+    )
+      throw new Error("Benchmark intervention ledger has an invalid entry.");
+    const names: Set<string> = new Set(entries.map((entry) => entry.name));
+    const hashes: string[] = [
+      ...new Set(entries.map((entry) => entry.name.slice(0, 64))),
+    ].sort();
+    for (const sha256 of hashes) {
+      const json: string = `${sha256}.json`;
+      const patchName: string = `${sha256}.patch`;
+      if (!names.has(json) || !names.has(patchName))
+        throw new Error(
+          `Benchmark intervention ${sha256} has no exact patch/record pair.`,
+        );
+      const patch: Buffer = fs.readFileSync(path.join(directory, patchName));
+      const record = object(
+        JSON.parse(fs.readFileSync(path.join(directory, json), "utf8")),
+        `intervention ${sha256}`,
+      );
+      const kind: unknown = record.kind;
+      if (
+        record.schemaVersion !== 1 ||
+        (kind !== "operator-intervention" && kind !== "frozen-input-hotfix") ||
+        record.patchSha256 !== sha256 ||
+        record.patch !== path.posix.join("interventions", patchName) ||
+        record.sourceCommit !== sourceCommit ||
+        EvidenceBenchmarkHash.bytes(patch) !== sha256 ||
+        !Array.isArray(record.scope) ||
+        !record.scope.includes(`${request.project}/${request.arm}`) ||
+        typeof record.elapsedMs !== "number" ||
+        !Number.isFinite(record.elapsedMs) ||
+        record.elapsedMs < 0 ||
+        record.measurement !==
+          (kind === "frozen-input-hotfix"
+            ? "clean"
+            : "qualified-by-recorded-operator-intervention")
+      )
+        throw new Error(
+          `Benchmark intervention ${sha256} failed provenance verification.`,
+        );
+    }
+    return hashes;
+  }
+
+  function object(value: unknown, label: string): Record<string, unknown> {
+    if (typeof value !== "object" || value === null || Array.isArray(value))
+      throw new Error(`Benchmark ${label} must be a JSON object.`);
+    return value as Record<string, unknown>;
+  }
+
+  function finiteNonnegative(value: unknown, label: string): number {
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0)
+      throw new Error(`Benchmark report ${label} must be nonnegative.`);
+    return value;
+  }
+
+  function nonnegativeInteger(value: unknown, label: string): number {
+    const output: number = finiteNonnegative(value, label);
+    if (!Number.isSafeInteger(output))
+      throw new Error(`Benchmark report ${label} must be an integer.`);
+    return output;
+  }
+
+  function exactNumber(value: unknown, expected: number, label: string): void {
+    const actual: number = finiteNonnegative(value, label);
+    if (actual !== expected)
+      throw new Error(
+        `Benchmark report ${label} is ${actual}, expected ${expected}.`,
+      );
   }
 
   function isGitHubRepository(value: string): boolean {

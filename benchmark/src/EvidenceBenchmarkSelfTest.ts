@@ -424,6 +424,62 @@ export namespace EvidenceBenchmarkSelfTest {
     };
     write(materializationPath, `${JSON.stringify(materialization)}\n`);
     const runStatePath: string = path.join(runRoot, "run.json");
+    const threadId: string = "019c1234-5678-789a-bcde-f0123456789a";
+    const turnNames: readonly EvidenceBenchmarkTurnLedger.Name[] =
+      EvidenceBenchmarkTurnLedger.NAMES;
+    const commonInvocation: string[] = [
+      "--json",
+      "--enable",
+      "goals",
+      "--model",
+      "gpt-5.6-terra",
+      "--config",
+      "model_reasoning_effort=high",
+      ...EvidenceBenchmarkCommandLine.codexIsolationArguments(workspace, {}),
+      "--skip-git-repo-check",
+    ];
+    const turns = turnNames.map((name, index) => {
+      const stem: string = name;
+      const stdout: string = path.posix.join("logs", `${stem}.stdout.jsonl`);
+      const stderr: string = path.posix.join("logs", `${stem}.stderr.log`);
+      write(
+        path.join(runRoot, ...stdout.split("/")),
+        [
+          JSON.stringify({ type: "thread.started", thread_id: threadId }),
+          JSON.stringify({
+            type: "turn.completed",
+            usage: {
+              input_tokens: 100,
+              cached_input_tokens: 50,
+              output_tokens: 20,
+              reasoning_output_tokens: 5,
+            },
+          }),
+          "",
+        ].join("\n"),
+      );
+      write(path.join(runRoot, ...stderr.split("/")), "");
+      return {
+        name,
+        elapsedMs: 10,
+        status: 0,
+        stdout,
+        stderr,
+        invocation:
+          index === 0
+            ? ["codex", "exec", ...commonInvocation, "--cd", workspace, "-"]
+            : ["codex", "exec", "resume", ...commonInvocation, threadId, "-"],
+        threadId,
+        accepted: true,
+        lintRestorationSha256:
+          name === "backend-final"
+            ? backendLintRestorationSha256
+            : name === "frontend-final" || name === "overall-final"
+              ? lintRestorationSha256
+              : undefined,
+      };
+    });
+    const elapsedMs: number = 100;
     write(
       runStatePath,
       `${JSON.stringify({
@@ -438,36 +494,75 @@ export namespace EvidenceBenchmarkSelfTest {
         cliVersion: "codex-cli 0.145.0",
         status: "completed",
         sourceCommit: "0123456789abcdef0123456789abcdef01234567",
+        elapsedMs,
+        threadId,
         lintBaselines,
         completedWorkspaceTreeSha256:
           EvidenceBenchmarkPublication.workspaceSha256(workspace),
-        turns: [
-          "skills-contract",
-          "backend-start",
-          "backend-review",
-          "backend-final",
-          "frontend-start",
-          "frontend-review",
-          "frontend-final",
-          "overall-review",
-          "overall-final",
-        ].map((name) => ({
-          name,
-          status: 0,
-          invocation: ["codex", "exec"],
-          accepted: true,
-          lintRestorationSha256:
-            name === "backend-final"
-              ? backendLintRestorationSha256
-              : name === "frontend-final" || name === "overall-final"
-                ? lintRestorationSha256
-                : undefined,
-        })),
+        turns,
       })}\n`,
     );
+    const report = {
+      schemaVersion: 1,
+      status: "accepted",
+      project: "todo",
+      arm: "evidence",
+      runId,
+      measurement: {
+        totalElapsedMs: elapsedMs,
+        agentElapsedMs: 90,
+        nonAgentElapsedMs: 10,
+        attempts: { total: 9, accepted: 9, rejected: 0 },
+        tokens: {
+          input_tokens: 900,
+          cached_input_tokens: 450,
+          output_tokens: 180,
+          reasoning_output_tokens: 45,
+        },
+        pricingUsdPerMillion: {
+          input: 1,
+          cachedInput: 0.1,
+          output: 2,
+        },
+        apiEquivalentCostUsd: 0.000855,
+      },
+      gates: {
+        build: "passed",
+        lint: "passed",
+        database: "passed",
+        backendTests: "passed",
+        frontendTests: "passed",
+        runtime: "passed",
+      },
+      coverage: {
+        requirements: { total: 1, covered: 1 },
+        tests: { total: 1, covered: 1 },
+      },
+      implementation: {
+        tables: 1,
+        apiOperations: 1,
+        dtoTypes: 1,
+        dtoProperties: 1,
+        testFunctions: 1,
+      },
+      completion: { firstClaimTurn: "overall-final", honest: true },
+      quality: {
+        score: 100,
+        summary: "Fixture audit passed.",
+        residualDefects: [],
+      },
+      frozenInputs: {
+        sourceCommit: materialization.artifact.sourceCommit,
+        instructionsTreeSha256,
+        requirementsTreeSha256,
+        completedWorkspaceTreeSha256:
+          EvidenceBenchmarkPublication.workspaceSha256(workspace),
+      },
+      interventions: [],
+    };
     write(
       path.join(runRoot, "benchmark-report.json"),
-      `${JSON.stringify({ schemaVersion: 1, quality: { score: 100 } })}\n`,
+      `${JSON.stringify(report)}\n`,
     );
     const checkout: string = path.join(temporary, "publication-results");
     write(path.join(checkout, "README.md"), "# Benchmark results\n");
@@ -580,6 +675,18 @@ export namespace EvidenceBenchmarkSelfTest {
         );
       return processResult(0);
     };
+    const reportPath: string = path.join(runRoot, "benchmark-report.json");
+    fs.writeFileSync(reportPath, "{}\n", "utf8");
+    await assert.rejects(
+      EvidenceBenchmarkPublication.publish(repository, request, runner),
+      /Benchmark report identity does not match the accepted run/,
+    );
+    assert.equal(
+      calls.length,
+      0,
+      "an invalid operator report must fail before external publication calls",
+    );
+    fs.writeFileSync(reportPath, `${JSON.stringify(report)}\n`, "utf8");
     const result: EvidenceBenchmarkPublication.IResult =
       await EvidenceBenchmarkPublication.publish(repository, request, runner);
     assert.equal(result.repository, "fixture-owner/evidence-benchmark-results");
