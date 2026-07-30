@@ -24,10 +24,16 @@ export namespace EvidenceBenchmarkRunner {
   export interface IEvidenceBenchmarkProcessRecord {
     command: string;
     arguments: string[];
-    output: IEvidenceBenchmarkOutput[];
     elapsedMs: number;
     exitCode: number | null;
     signal: NodeJS.Signals | null;
+  }
+
+  export interface IEvidenceBenchmarkInterruption {
+    name: string;
+    message: string;
+    stack?: string;
+    detail?: unknown;
   }
 
   export interface IEvidenceBenchmarkGoalRecord {
@@ -55,7 +61,7 @@ export namespace EvidenceBenchmarkRunner {
     threadTokenUsage: IEvidenceBenchmarkTokenUsage;
     goals: IEvidenceBenchmarkGoalRecord[];
     processes: IEvidenceBenchmarkProcessRecord[];
-    interruption?: unknown;
+    interruption?: IEvidenceBenchmarkInterruption;
   }
 
   export interface IEvidenceBenchmarkRunProps {
@@ -67,6 +73,10 @@ export namespace EvidenceBenchmarkRunner {
     environment?: NodeJS.ProcessEnv;
     command?: string;
     commandPrefixArguments?: readonly string[];
+    onOutput: (
+      processIndex: number,
+      output: IEvidenceBenchmarkOutput,
+    ) => void | Promise<void>;
     onState?: (state: IEvidenceBenchmarkRunState) => void | Promise<void>;
   }
 
@@ -176,10 +186,10 @@ export namespace EvidenceBenchmarkRunner {
       `model_reasoning_effort="${props.effort}"`,
       "--strict-config",
     ];
+    const processIndex: number = state.processes.length;
     const processRecord: IEvidenceBenchmarkProcessRecord = {
       command,
       arguments: arguments_,
-      output: [],
       elapsedMs: 0,
       exitCode: null,
       signal: null,
@@ -197,22 +207,26 @@ export namespace EvidenceBenchmarkRunner {
       value: "completed" | "interrupted",
       interruption?: unknown,
     ): void => {
+      if (interruption !== undefined && state.interruption === undefined)
+        state.interruption = normalizeInterruption(interruption);
       if (outcome !== undefined) return;
       outcome = value;
-      if (interruption !== undefined) state.interruption = interruption;
       resolveOutcome(value);
     };
 
+    let outputPublication: Promise<void> = Promise.resolve();
+    let outputFailed = false;
     let publication: Promise<void> = Promise.resolve();
     let publicationFailed = false;
     const publish = (): void => {
       if (props.onState === undefined || publicationFailed) return;
       const snapshot: IEvidenceBenchmarkRunState = structuredClone(state);
+      const output: Promise<void> = outputPublication;
       publication = publication
+        .then(() => output)
         .then(() => props.onState!(snapshot))
         .catch((error: unknown) => {
           publicationFailed = true;
-          state.interruption = error;
           finish("interrupted", error);
         });
     };
@@ -235,13 +249,24 @@ export namespace EvidenceBenchmarkRunner {
       text: string,
     ): void => {
       if (text.length === 0) return;
-      processRecord.output.push({
+      const output: IEvidenceBenchmarkOutput = {
         sequence: sequence++,
         elapsedMs: elapsed(started),
         stream,
         text,
-      });
-      publish();
+      };
+      if (outputFailed) return;
+      outputPublication = outputPublication
+        .then(() =>
+          outputFailed
+            ? undefined
+            : props.onOutput(processIndex, structuredClone(output)),
+        )
+        .catch((error: unknown) => {
+          outputFailed = true;
+          finish("interrupted", error);
+          publish();
+        });
     };
     child.stderr.on("data", (text: string) => append("stderr", text));
     child.stdin.on("error", (error) => finish("interrupted", error));
@@ -432,7 +457,7 @@ export namespace EvidenceBenchmarkRunner {
           waiter.reject(new Error("Codex app-server exited."));
         pending.clear();
         if (outcome === "completed" && (exitCode !== 0 || signal !== null))
-          state.interruption = { exitCode, signal };
+          finish("interrupted", { exitCode, signal });
         if (outcome === undefined) finish("interrupted", { exitCode, signal });
         publish();
         resolve();
@@ -483,47 +508,43 @@ export namespace EvidenceBenchmarkRunner {
         else {
           const goal: Record<string, unknown> = object(goalResponse.goal);
           const record: IEvidenceBenchmarkGoalRecord = current();
-          const previous: IEvidenceBenchmarkGoalRecord | undefined =
-            state.goals.find(
-              (candidate) => candidate.index === state.nextInstructionIndex - 1,
-            );
-          const previousGoalId: unknown = previous?.goal?.id;
-          const nativeGoalId: unknown = goal.id;
-          const nativeObjective: unknown = goal.objective;
-          if (
-            record.goal === null &&
-            goal.status === "complete" &&
-            previous?.goal?.status === "complete" &&
-            ((typeof previousGoalId === "string" &&
-              nativeGoalId === previousGoalId) ||
-              nativeObjective === previous.objectiveText)
+          if (record.goal === null)
+            finish("interrupted", {
+              name: "EvidenceBenchmarkResumeInterruption",
+              message: "Retained state has no exact current Goal checkpoint.",
+              instructionIndex: record.index,
+              nativeGoal: goal,
+            });
+          else if (
+            record.goal.objective !== record.objectiveText ||
+            goal.objective !== record.objectiveText
           )
-            await beginGoal();
+            finish("interrupted", {
+              name: "EvidenceBenchmarkResumeInterruption",
+              message: "Native Goal does not match the retained current Goal.",
+              instructionIndex: record.index,
+              retainedGoal: record.goal,
+              nativeGoal: goal,
+            });
           else {
             record.goal = goal;
-            if (
-              goal.status === "complete" &&
-              (!record.terminalTurnCompleted || record.terminalTurnId === null)
-            ) {
-              const turns: unknown = thread.turns;
-              const terminal: Record<string, unknown> | undefined =
-                Array.isArray(turns)
-                  ? turns
-                      .toReversed()
-                      .map((turn) => object(turn, false))
-                      .find((turn) => turn?.status === "completed")
-                  : undefined;
-              if (typeof terminal?.id === "string") {
-                record.terminalTurnId = terminal.id;
-                record.terminalTurnCompleted = true;
-              }
-            }
             publish();
             if (
               goal.status === "complete" &&
-              (record.terminalTurnId === null || !record.terminalTurnCompleted)
+              (record.terminalTurnId === null ||
+                !record.terminalTurnCompleted ||
+                !record.threadIdle)
             )
-              finish("interrupted", goalResponse);
+              finish("interrupted", {
+                name: "EvidenceBenchmarkResumeInterruption",
+                message:
+                  "Completed Goal lacks an exact terminal-turn and idle checkpoint.",
+                instructionIndex: record.index,
+                goal,
+                terminalTurnId: record.terminalTurnId,
+                terminalTurnCompleted: record.terminalTurnCompleted,
+                threadIdle: record.threadIdle,
+              });
             else if (goal.status === "active" || goal.status === "complete")
               await advance();
             else finish("interrupted", goal);
@@ -540,11 +561,13 @@ export namespace EvidenceBenchmarkRunner {
     child.stdin.end();
     await closed;
     await notifications;
+    await outputPublication;
     await publication;
     state.status =
       result === "completed" &&
       processRecord.exitCode === 0 &&
       processRecord.signal === null &&
+      !outputFailed &&
       !publicationFailed
         ? "completed"
         : "interrupted";
@@ -605,6 +628,49 @@ export namespace EvidenceBenchmarkRunner {
       outputTokens: 0,
       reasoningOutputTokens: 0,
     };
+  }
+
+  function normalizeInterruption(
+    value: unknown,
+  ): IEvidenceBenchmarkInterruption {
+    const source: Record<string, unknown> | undefined = object(value, false);
+    const detail: unknown = serializable(value);
+    const message: string =
+      value instanceof Error
+        ? value.message
+        : typeof source?.message === "string"
+          ? source.message
+          : typeof value === "string"
+            ? value
+            : (JSON.stringify(detail) ?? String(detail));
+    return {
+      name:
+        value instanceof Error
+          ? value.name
+          : typeof source?.name === "string"
+            ? source.name
+            : "BenchmarkInterruption",
+      message,
+      ...(value instanceof Error && value.stack !== undefined
+        ? { stack: value.stack }
+        : typeof source?.stack === "string"
+          ? { stack: source.stack }
+          : {}),
+      ...(detail === undefined ? {} : { detail }),
+    };
+  }
+
+  function serializable(value: unknown): unknown {
+    try {
+      const text: string | undefined = JSON.stringify(
+        value,
+        (_key, member: unknown) =>
+          typeof member === "bigint" ? member.toString() : member,
+      );
+      return text === undefined ? String(value) : JSON.parse(text);
+    } catch {
+      return String(value);
+    }
   }
 
   function object(value: unknown, required?: true): Record<string, unknown>;

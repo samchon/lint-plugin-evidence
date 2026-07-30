@@ -28,6 +28,7 @@ const ENTRIES = [
  * 1. Complete every prescribed Goal through one fake app-server process.
  * 2. Assert exact text, automatic progression, token deltas, and raw records.
  * 3. Assert a non-zero native exit is retained as an interruption.
+ * 4. Assert callback errors retain serializable Error identity and context.
  */
 const main = async (): Promise<void> => {
   const root: string = fs.mkdtempSync(
@@ -41,6 +42,8 @@ const main = async (): Promise<void> => {
       "--fake-app-server",
     ];
     const snapshots: EvidenceBenchmarkRunner.IEvidenceBenchmarkRunState[] = [];
+    const completedOutput: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] =
+      [];
     const completed = await EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("evidence"),
       cwd: root,
@@ -49,6 +52,7 @@ const main = async (): Promise<void> => {
       effort: "high",
       command: process.execPath,
       commandPrefixArguments: prefix,
+      onOutput: (_processIndex, output) => completedOutput.push(output),
       onState: (state) => snapshots.push(state),
     });
 
@@ -58,10 +62,11 @@ const main = async (): Promise<void> => {
     assert.equal(completed.processes.length, 1);
     assert.equal(completed.processes[0]!.exitCode, 0);
     assert.equal(completed.processes[0]!.signal, null);
-    assert.ok(completed.processes[0]!.output.length > 0);
-    const requests = completed.processes[0]!.output.filter(
-      (output) => output.stream === "stdin",
-    ).map((output) => JSON.parse(output.text) as Record<string, unknown>);
+    assert.equal("output" in completed.processes[0]!, false);
+    assert.ok(completedOutput.length > 0);
+    const requests = completedOutput
+      .filter((output) => output.stream === "stdin")
+      .map((output) => JSON.parse(output.text) as Record<string, unknown>);
     assert.equal(
       requests.some((request) => request.method === "turn/start"),
       false,
@@ -96,6 +101,8 @@ const main = async (): Promise<void> => {
     });
     assert.equal(snapshots.at(-1)?.status, "completed");
 
+    const interruptedOutput: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] =
+      [];
     const interrupted = await EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("evidence"),
       cwd: root,
@@ -104,18 +111,39 @@ const main = async (): Promise<void> => {
       effort: "high",
       command: process.execPath,
       commandPrefixArguments: [...prefix, "--fail"],
+      onOutput: (_processIndex, output) => interruptedOutput.push(output),
     });
     assert.equal(interrupted.status, "interrupted");
     assert.equal(interrupted.nextInstructionIndex, 0);
     assert.equal(interrupted.processes[0]!.exitCode, 7);
     assert.match(
-      interrupted.processes[0]!.output.filter(
-        (output) => output.stream === "stderr",
-      )
+      interruptedOutput
+        .filter((output) => output.stream === "stderr")
         .map((output) => output.text)
         .join(""),
       /fixture interruption/,
     );
+
+    const outputFailure = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => {
+        throw new Error("fixture durable output failure");
+      },
+    });
+    assert.equal(outputFailure.status, "interrupted");
+    assert.equal(outputFailure.interruption?.name, "Error");
+    assert.equal(
+      outputFailure.interruption?.message,
+      "fixture durable output failure",
+    );
+    assert.equal(typeof outputFailure.interruption?.stack, "string");
+    assert.doesNotThrow(() => JSON.stringify(outputFailure.interruption));
 
     for (const [relative, source] of sources)
       assert.deepEqual(

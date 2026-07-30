@@ -138,9 +138,6 @@ const runBenchmark = async (
   initialState: EvidenceBenchmarkRunner.IEvidenceBenchmarkRunState,
 ): Promise<void> => {
   const repository: string = path.resolve(import.meta.dirname, "../../..");
-  const cursors: number[] = initialState.processes.map(
-    (processRecord) => processRecord.output.length,
-  );
   const result = await EvidenceBenchmarkRunner.run({
     state: initialState,
     cwd: records.workspace,
@@ -148,33 +145,14 @@ const runBenchmark = async (
     model: cell.model,
     effort: cell.effort,
     environment: process.env,
+    onOutput: (processIndex, output): void => {
+      appendDurably(
+        records.events,
+        `${JSON.stringify({ processIndex, ...output })}\n`,
+      );
+      appendDurably(records.raw, output.text);
+    },
     onState: (state): void => {
-      for (
-        let processIndex = 0;
-        processIndex < state.processes.length;
-        ++processIndex
-      ) {
-        const processRecord = state.processes[processIndex]!;
-        const cursor: number = cursors[processIndex] ?? 0;
-        const outputRecords = processRecord.output.slice(cursor);
-        if (outputRecords.length === 0) continue;
-        appendDurably(
-          records.events,
-          outputRecords
-            .map((record) =>
-              JSON.stringify({
-                processIndex,
-                ...record,
-              }),
-            )
-            .join("\n") + "\n",
-        );
-        appendDurably(
-          records.raw,
-          outputRecords.map((record) => record.text).join(""),
-        );
-        cursors[processIndex] = processRecord.output.length;
-      }
       replaceDurably(
         records.state,
         `${JSON.stringify({ cell, records, state }, null, 2)}\n`,
