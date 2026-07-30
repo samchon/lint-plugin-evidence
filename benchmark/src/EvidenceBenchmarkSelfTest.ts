@@ -7,6 +7,7 @@ import path from "node:path";
 import * as ts from "typescript-api";
 
 import { EvidenceBenchmarkBaseline } from "./EvidenceBenchmarkBaseline.ts";
+import { EvidenceBenchmarkCommandLine } from "./EvidenceBenchmarkCommandLine.ts";
 import { EvidenceBenchmarkConsumerProof } from "./EvidenceBenchmarkConsumerProof.ts";
 import { EvidenceBenchmarkCorpus } from "./EvidenceBenchmarkCorpus.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
@@ -39,6 +40,7 @@ export namespace EvidenceBenchmarkSelfTest {
       const fixture: string = path.join(temporary, "fixture");
       createFixture(repository, fixture);
       await testPinnedPnpm(repository);
+      testCodexIsolation(temporary);
       await testRuntimeIsolation();
       await testPublicationSafety(temporary);
       await testCommonRepair(temporary);
@@ -101,6 +103,55 @@ export namespace EvidenceBenchmarkSelfTest {
         ),
       /NFC POSIX relative path/,
     );
+  }
+
+  function testCodexIsolation(temporary: string): void {
+    const root: string = path.join(temporary, "codex-isolation");
+    const workspace: string = path.join(root, "workspace");
+    const environment: NodeJS.ProcessEnv = {
+      API_PORT: "46000",
+      COREPACK_HOME: path.join(root, "cache", "corepack"),
+      GOCACHE: path.join(root, "cache", "go"),
+      GOMODCACHE: path.join(root, "cache", "go-mod"),
+      GOPATH: path.join(root, "cache", "go-path"),
+      GOTMPDIR: path.join(root, "cache", "go-tmp"),
+      npm_config_cache: path.join(root, "cache", "npm"),
+      npm_config_store_dir: path.join(root, "cache", "pnpm"),
+      OPENAI_API_KEY: "must-not-leak",
+      HTTPS_PROXY: "http://must-not-leak.invalid",
+      PLAYWRIGHT_BROWSERS_PATH: path.join(root, "cache", "playwright"),
+      PLAYWRIGHT_TEST_PORT: "46003",
+      SWAGGER_PORT: "46001",
+      TTSC_CACHE_DIR: path.join(root, "cache", "ttsc"),
+      TTSC_GO_CACHE_DIR: path.join(root, "cache", "go"),
+      VITE_API_HOST: "http://127.0.0.1:46000",
+      VITE_DEV_PORT: "46002",
+    };
+    const arguments_: readonly string[] =
+      EvidenceBenchmarkCommandLine.codexIsolationArguments(
+        workspace,
+        environment,
+      );
+    const invocation: string = arguments_.join("\n");
+    assert.equal(
+      invocation.includes("--dangerously-bypass-approvals-and-sandbox"),
+      false,
+      "measured Codex turns must never bypass approvals and sandboxing",
+    );
+    assert.equal(
+      invocation.includes("shell_environment_policy.inherit=all"),
+      false,
+      "measured Codex tools must not inherit the complete controller environment",
+    );
+    assert.match(invocation, /default_permissions="benchmark"/);
+    assert.match(
+      invocation,
+      /permissions\.benchmark\.filesystem\.":root"="deny"/,
+    );
+    assert.match(invocation, /permissions\.benchmark\.network\.domains=/);
+    assert.match(invocation, /shell_environment_policy\.inherit="core"/);
+    assert.match(invocation, /shell_environment_policy\.set=/);
+    assert.equal(invocation.includes("must-not-leak"), false);
   }
 
   async function testRuntimeIsolation(): Promise<void> {

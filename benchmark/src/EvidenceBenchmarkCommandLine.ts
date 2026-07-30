@@ -75,6 +75,90 @@ export namespace EvidenceBenchmarkCommandLine {
   }
 
   /**
+   * Builds the exact least-privilege Codex configuration for one measured cell.
+   *
+   * The Codex process retains its own authentication, while model-launched
+   * commands can read only the minimal runtime and can write only the measured
+   * workspace plus its run-owned cache tree.
+   */
+  export function codexIsolationArguments(
+    workspace: string,
+    environment: NodeJS.ProcessEnv,
+  ): string[] {
+    const cache: string = path.join(path.dirname(workspace), "cache");
+    const home: string = path.join(cache, "agent-home");
+    const temporary: string = path.join(cache, "os-temp");
+    const explicit: Record<string, string> = {
+      CI: "1",
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
+      GOTOOLCHAIN: "local",
+      HOME: home,
+      USERPROFILE: home,
+      TEMP: temporary,
+      TMP: temporary,
+      TMPDIR: temporary,
+      XDG_CACHE_HOME: path.join(cache, "xdg"),
+    };
+    for (const name of [
+      "API_PORT",
+      "COREPACK_HOME",
+      "GOCACHE",
+      "GOMODCACHE",
+      "GOPATH",
+      "GOTMPDIR",
+      "npm_config_cache",
+      "npm_config_store_dir",
+      "PLAYWRIGHT_BROWSERS_PATH",
+      "PLAYWRIGHT_TEST_PORT",
+      "SWAGGER_PORT",
+      "TTSC_CACHE_DIR",
+      "TTSC_GO_CACHE_DIR",
+      "VITE_API_HOST",
+      "VITE_DEV_PORT",
+    ] as const) {
+      const value: string | undefined = environment[name];
+      if (value !== undefined) explicit[name] = value;
+    }
+    return [
+      "--ignore-user-config",
+      "--ignore-rules",
+      "--strict-config",
+      "--config",
+      'approval_policy="never"',
+      "--config",
+      'default_permissions="benchmark"',
+      "--config",
+      'permissions.benchmark.extends=":workspace"',
+      "--config",
+      'permissions.benchmark.filesystem.":root"="deny"',
+      "--config",
+      'permissions.benchmark.filesystem.":minimal"="read"',
+      "--config",
+      'permissions.benchmark.filesystem.":tmpdir"="deny"',
+      "--config",
+      'permissions.benchmark.filesystem.":slash_tmp"="deny"',
+      "--config",
+      `permissions.benchmark.workspace_roots={${tomlString(cache)}=true}`,
+      "--config",
+      'permissions.benchmark.filesystem.":workspace_roots"."."="write"',
+      "--config",
+      "permissions.benchmark.network.enabled=true",
+      "--config",
+      "permissions.benchmark.network.allow_upstream_proxy=false",
+      "--config",
+      'permissions.benchmark.network.domains={localhost="allow","127.0.0.1"="allow"}',
+      "--config",
+      'shell_environment_policy.inherit="core"',
+      "--config",
+      "shell_environment_policy.ignore_default_excludes=false",
+      "--config",
+      'shell_environment_policy.exclude=["*_PROXY","OPENAI_*","AZURE_*","AWS_*","GITHUB_TOKEN","GH_TOKEN","*KEY*","*SECRET*","*TOKEN*"]',
+      "--config",
+      `shell_environment_policy.set=${tomlStringMap(explicit)}`,
+    ];
+  }
+
+  /**
    * Validates arguments or launches every requested subject and arm
    * concurrently.
    */
@@ -528,6 +612,9 @@ export namespace EvidenceBenchmarkCommandLine {
     prompt: string;
     threadId?: string;
   }): Promise<ITurn & { threadId?: string }> {
+    const cache: string = path.join(path.dirname(props.workspace), "cache");
+    fs.mkdirSync(path.join(cache, "agent-home"), { recursive: true });
+    fs.mkdirSync(path.join(cache, "os-temp"), { recursive: true });
     const stem: string = logStem(props.logs, props.name);
     const stdoutPath: string = path.join(props.logs, `${stem}.stdout.jsonl`);
     const stderrPath: string = path.join(props.logs, `${stem}.stderr.log`);
@@ -541,10 +628,8 @@ export namespace EvidenceBenchmarkCommandLine {
       MODEL,
       "--config",
       `model_reasoning_effort=${EFFORT}`,
-      "--dangerously-bypass-approvals-and-sandbox",
+      ...codexIsolationArguments(props.workspace, props.environment),
       "--skip-git-repo-check",
-      "--config",
-      "shell_environment_policy.inherit=all",
     ];
     const args: string[] =
       props.threadId === undefined
@@ -840,12 +925,17 @@ export namespace EvidenceBenchmarkCommandLine {
     ) as IEvidenceBenchmarkMaterialization.IManifest;
     const environment: NodeJS.ProcessEnv = {
       ...process.env,
+      COREPACK_HOME: path.join(root, "cache", "corepack"),
+      GOMODCACHE: path.join(root, "cache", "go-mod"),
+      GOPATH: path.join(root, "cache", "go-path"),
       npm_config_store_dir: manifest.caches.pnpm,
+      npm_config_cache: path.join(root, "cache", "npm"),
       TTSC_CACHE_DIR: manifest.caches.ttsc,
       TTSC_GO_CACHE_DIR: manifest.caches.go,
       GOCACHE: manifest.caches.go,
       GOTMPDIR: path.join(root, "cache", "go-tmp"),
       PLAYWRIGHT_BROWSERS_PATH: manifest.caches.playwright,
+      XDG_CACHE_HOME: path.join(root, "cache", "xdg"),
     };
     EvidenceBenchmarkProcess.pinEnvironment(
       environment,
@@ -876,6 +966,17 @@ export namespace EvidenceBenchmarkCommandLine {
         } catch {}
     }
     return undefined;
+  }
+
+  function tomlString(value: string): string {
+    return JSON.stringify(value);
+  }
+
+  function tomlStringMap(values: Readonly<Record<string, string>>): string {
+    return `{${Object.entries(values)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${tomlString(key)}=${tomlString(value)}`)
+      .join(",")}}`;
   }
 
   function logStem(logs: string, name: TurnName): string {
