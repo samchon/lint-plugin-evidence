@@ -1,6 +1,6 @@
 ---
 name: benchmark
-description: Defines authorization, frozen inputs, launch, native Goal operation, interruption recovery, retained measurement, acceptance, comparison, publication boundaries, and truthful reporting for the @samchon/lint-plugin-evidence benchmark. Use before preparing, launching, observing, resuming, accepting, comparing, publishing, or reporting a benchmark run; benchmark program development and deterministic tests use the development skill.
+description: Defines authorization, frozen inputs, launch, native Goal operation, interruption recovery, retained measurement, acceptance, comparison, publication boundaries, and truthful reporting for the @samchon/lint-plugin-evidence benchmark. Use before preparing, launching, observing, resuming, accepting, comparing, publishing, or reporting a benchmark run.
 ---
 
 # Benchmark
@@ -83,7 +83,7 @@ On interruption:
 3. Resume only when the cell identity, frozen inputs, workspace, CLI version, current Goal objective, and native session checkpoint remain exact.
 4. Stop and report the retained facts when any identity or input drift exists, the exact checkpoint is missing, the workspace was modified externally, the cause is unknown, or the same deterministic failure recurs.
 
-Do not add a controller, polling supervisor, automatic retry loop, repair patch, fallback session, or substitute prompt. Recovery is the same runner resuming the same native session.
+On recovery, invoke only the resume command below against the retained native session. Do not add prompts, repair the workspace, substitute a session, or retry automatically.
 
 If the user cancels, stop the active command, preserve its run directory, and report it as incomplete. Do not delete it or mark it complete; resuming later requires renewed authorization.
 
