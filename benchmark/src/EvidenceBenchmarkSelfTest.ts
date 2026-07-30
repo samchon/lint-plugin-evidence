@@ -211,11 +211,10 @@ export namespace EvidenceBenchmarkSelfTest {
           "-e",
           [
             'const cp = require("node:child_process");',
-            `const child = cp.spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)", ${JSON.stringify(workspace)}], { stdio: "ignore", detached: true });`,
+            'const child = cp.spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore", detached: true });',
             "console.log(`owned-pid=${child.pid}`);",
             "child.unref();",
           ].join(""),
-          workspace,
         ],
         cwd: workspace,
         environment: process.env,
@@ -235,9 +234,48 @@ export namespace EvidenceBenchmarkSelfTest {
       );
       assert.equal(isProcessAlive(sentinel.pid!), true);
 
+      const bridgeScript: string = [
+        'const cp = require("node:child_process");',
+        'const child = cp.spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore", detached: true });',
+        "console.log(`owned-pid=${child.pid}`);",
+        "child.unref();",
+      ].join("");
+      const nestedDetached = await EvidenceBenchmarkAgentProcess.run({
+        command: process.execPath,
+        arguments: [
+          "-e",
+          [
+            'const cp = require("node:child_process");',
+            `const bridge = cp.spawn(process.execPath, ["-e", ${JSON.stringify(bridgeScript)}], { stdio: ["ignore", "pipe", "inherit"] });`,
+            "bridge.stdout.pipe(process.stdout);",
+          ].join(""),
+        ],
+        cwd: workspace,
+        environment: process.env,
+        engine: "claude-code",
+        stdin: "",
+        stdout: path.join(root, "nested-detached.stdout.jsonl"),
+        stderr: path.join(root, "nested-detached.stderr.log"),
+        onStdout: () => {},
+      });
+      ownedPids.push(
+        readOwnedPid(path.join(root, "nested-detached.stdout.jsonl")),
+      );
+      assert.equal(nestedDetached.status, 0);
+      assert.equal(nestedDetached.nativeTerminalCleanup, undefined);
+      assert.equal(
+        isProcessAlive(ownedPids.at(-1)!),
+        false,
+        "cleanup must retain ancestry through an exited intermediate process",
+      );
+      assert.equal(isProcessAlive(sentinel.pid!), true);
+
       const earlyExit = await EvidenceBenchmarkAgentProcess.run({
         command: process.execPath,
-        arguments: ["-e", "process.exit(7)"],
+        arguments: [
+          "-e",
+          'process.stdin.once("data", () => process.exit(7)); process.stdin.resume();',
+        ],
         cwd: workspace,
         environment: process.env,
         engine: "claude-code",
