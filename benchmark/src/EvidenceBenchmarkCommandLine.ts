@@ -35,11 +35,11 @@ export namespace EvidenceBenchmarkCommandLine {
     name: TurnName;
     elapsedMs: number;
     status: number | null;
+    signal?: NodeJS.Signals | null;
     stdout: string;
     stderr: string;
     invocation: string[];
     cwd: string;
-    nativeTerminalCleanup?: true;
     accepted?: boolean;
     lintRestorationSha256?: string;
     sessionId?: string;
@@ -1044,45 +1044,30 @@ export namespace EvidenceBenchmarkCommandLine {
       props.engine.engine === "codex"
         ? props.environment
         : claudeEnvironment(cache, props.environment);
-    let sessionId: string | undefined;
-    let remainder: string = "";
     const result: EvidenceBenchmarkAgentProcess.IResult =
       await EvidenceBenchmarkAgentProcess.run({
         command: executable.command,
         arguments: [...executable.prefix, ...args],
         cwd: props.workspace,
         environment,
-        engine: props.engine.engine,
         stdin: props.prompt,
         stdout: stdoutPath,
         stderr: stderrPath,
-        onStdout: (chunk: Buffer): void => {
-          remainder += chunk.toString("utf8");
-          const lines: string[] = remainder.split(/\r?\n/);
-          remainder = lines.pop() ?? "";
-          for (const line of lines)
-            try {
-              const event: unknown = JSON.parse(line);
-              const observed: string | undefined = eventSessionId(
-                props.engine.engine,
-                event,
-              );
-              if (observed !== undefined) sessionId = observed;
-            } catch {}
-        },
       });
+    const sessionId: string | undefined = sessionIdFromLog(
+      stdoutPath,
+      props.engine.engine,
+    );
     return {
       name: props.name,
       elapsedMs: result.elapsedMs,
-      status: result.status,
+      status: result.exitCode,
+      signal: result.signal,
       stdout: path.posix.join("logs", path.basename(stdoutPath)),
       stderr: path.posix.join("logs", path.basename(stderrPath)),
       invocation: [executable.command, ...executable.prefix, ...args],
       cwd: props.workspace,
       sessionId,
-      ...(result.nativeTerminalCleanup === true
-        ? { nativeTerminalCleanup: true }
-        : {}),
     };
   }
 
@@ -1454,18 +1439,27 @@ export namespace EvidenceBenchmarkCommandLine {
       .readdirSync(logs)
       .filter((entry) => entry.endsWith(".stdout.jsonl"))
       .sort()) {
-      const lines: string[] = fs
-        .readFileSync(path.join(logs, file), "utf8")
-        .split(/\r?\n/);
-      for (const line of lines)
-        try {
-          const sessionId: string | undefined = eventSessionId(
-            engine,
-            JSON.parse(line) as unknown,
-          );
-          if (sessionId !== undefined) return sessionId;
-        } catch {}
+      const sessionId: string | undefined = sessionIdFromLog(
+        path.join(logs, file),
+        engine,
+      );
+      if (sessionId !== undefined) return sessionId;
     }
+    return undefined;
+  }
+
+  function sessionIdFromLog(
+    location: string,
+    engine: EvidenceBenchmarkEngine.Name,
+  ): string | undefined {
+    for (const line of fs.readFileSync(location, "utf8").split(/\r?\n/))
+      try {
+        const sessionId: string | undefined = eventSessionId(
+          engine,
+          JSON.parse(line) as unknown,
+        );
+        if (sessionId !== undefined) return sessionId;
+      } catch {}
     return undefined;
   }
 

@@ -144,129 +144,107 @@ export namespace EvidenceBenchmarkSelfTest {
       { stdio: "ignore", windowsHide: true },
     );
     assert.notEqual(sentinel.pid, undefined);
-    const ownedPids: number[] = [];
+    let inheritedPid: number | undefined;
     try {
-      const terminal = await EvidenceBenchmarkAgentProcess.run({
-        command: process.execPath,
-        arguments: [
-          "-e",
-          [
-            'const cp = require("node:child_process");',
-            `const child = cp.spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)", ${JSON.stringify(workspace)}], { stdio: ["ignore", "inherit", "inherit"] });`,
-            "console.log(`owned-pid=${child.pid}`);",
-            "child.unref();",
-            'console.log(JSON.stringify({ type: "turn.completed", usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1, reasoning_output_tokens: 0 } }));',
-            "setInterval(() => {}, 1000);",
-          ].join(""),
-          workspace,
-        ],
-        cwd: workspace,
-        environment: process.env,
-        engine: "codex",
-        stdin: "",
-        stdout: path.join(root, "terminal.stdout.jsonl"),
-        stderr: path.join(root, "terminal.stderr.log"),
-        onStdout: () => {},
-      });
-      ownedPids.push(readOwnedPid(path.join(root, "terminal.stdout.jsonl")));
-      assert.equal(terminal.status, 0);
-      assert.equal(terminal.nativeTerminalCleanup, true);
-      assert.match(
-        fs.readFileSync(path.join(root, "terminal.stdout.jsonl"), "utf8"),
-        /"type":"turn\.completed"/,
-        "terminal cleanup must preserve the native completion event",
-      );
-      assert.equal(isProcessAlive(ownedPids.at(-1)!), false);
-      assert.equal(isProcessAlive(sentinel.pid!), true);
-
+      let spawnedPid: number | undefined;
       const natural = await EvidenceBenchmarkAgentProcess.run({
         command: process.execPath,
         arguments: [
           "-e",
           [
-            'const cp = require("node:child_process");',
-            `const child = cp.spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)", ${JSON.stringify(workspace)}], { stdio: ["ignore", "inherit", "inherit"] });`,
-            "console.log(`owned-pid=${child.pid}`);",
-            "child.unref();",
+            'process.stdout.write("stdout-exact");',
+            'process.stderr.write("stderr-exact");',
+            "setTimeout(() => process.exit(0), 50);",
           ].join(""),
-          workspace,
         ],
         cwd: workspace,
         environment: process.env,
-        engine: "claude-code",
         stdin: "",
         stdout: path.join(root, "natural.stdout.jsonl"),
         stderr: path.join(root, "natural.stderr.log"),
-        onStdout: () => {},
+        onSpawn: (pid) => {
+          spawnedPid = pid;
+        },
       });
-      ownedPids.push(readOwnedPid(path.join(root, "natural.stdout.jsonl")));
-      assert.equal(natural.status, 0);
-      assert.equal(natural.nativeTerminalCleanup, undefined);
-      assert.equal(isProcessAlive(ownedPids.at(-1)!), false);
+      assert.equal(natural.exitCode, 0);
+      assert.equal(natural.signal, null);
+      assert.equal(natural.pid, spawnedPid);
+      assert.ok(
+        natural.elapsedMs >= 25 && natural.elapsedMs < 5_000,
+        `spawn-to-exit duration is outside its expected bound: ${natural.elapsedMs}`,
+      );
+      assert.equal(
+        fs.readFileSync(path.join(root, "natural.stdout.jsonl"), "utf8"),
+        "stdout-exact",
+      );
+      assert.equal(
+        fs.readFileSync(path.join(root, "natural.stderr.log"), "utf8"),
+        "stderr-exact",
+      );
       assert.equal(isProcessAlive(sentinel.pid!), true);
 
-      const detached = await EvidenceBenchmarkAgentProcess.run({
+      const failed = await EvidenceBenchmarkAgentProcess.run({
+        command: process.execPath,
+        arguments: ["-e", "process.exit(7)"],
+        cwd: workspace,
+        environment: process.env,
+        stdin: "",
+        stdout: path.join(root, "failed.stdout.jsonl"),
+        stderr: path.join(root, "failed.stderr.log"),
+      });
+      assert.equal(failed.exitCode, 7);
+      assert.equal(failed.signal, null);
+      assert.equal(isProcessAlive(sentinel.pid!), true);
+
+      let signalPid: number | undefined;
+      const signaled = await EvidenceBenchmarkAgentProcess.run({
+        command: process.execPath,
+        arguments: ["-e", "setInterval(() => {}, 1000)"],
+        cwd: workspace,
+        environment: process.env,
+        stdin: "",
+        stdout: path.join(root, "signaled.stdout.jsonl"),
+        stderr: path.join(root, "signaled.stderr.log"),
+        onSpawn: (pid) => {
+          signalPid = pid;
+          setTimeout(() => process.kill(pid, "SIGTERM"), 50);
+        },
+      });
+      assert.equal(signaled.pid, signalPid);
+      assert.equal(signaled.exitCode, process.platform === "win32" ? 1 : null);
+      assert.equal(
+        signaled.signal,
+        process.platform === "win32" ? null : "SIGTERM",
+      );
+      assert.equal(isProcessAlive(sentinel.pid!), true);
+
+      const inheritedStarted: number = Date.now();
+      const inherited = await EvidenceBenchmarkAgentProcess.run({
         command: process.execPath,
         arguments: [
           "-e",
           [
             'const cp = require("node:child_process");',
-            'const child = cp.spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore", detached: true });',
-            "console.log(`owned-pid=${child.pid}`);",
+            'const child = cp.spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: ["ignore", "inherit", "inherit"] });',
+            "console.log(`inherited-pid=${child.pid}`);",
             "child.unref();",
           ].join(""),
         ],
         cwd: workspace,
         environment: process.env,
-        engine: "claude-code",
         stdin: "",
-        stdout: path.join(root, "detached.stdout.jsonl"),
-        stderr: path.join(root, "detached.stderr.log"),
-        onStdout: () => {},
+        stdout: path.join(root, "inherited.stdout.jsonl"),
+        stderr: path.join(root, "inherited.stderr.log"),
       });
-      ownedPids.push(readOwnedPid(path.join(root, "detached.stdout.jsonl")));
-      assert.equal(detached.status, 0);
-      assert.equal(detached.nativeTerminalCleanup, undefined);
-      assert.equal(
-        isProcessAlive(ownedPids.at(-1)!),
-        false,
-        "natural close must still clean an ignored-stdio detached descendant",
+      inheritedPid = readProcessPid(
+        path.join(root, "inherited.stdout.jsonl"),
+        /inherited-pid=(\d+)/,
       );
-      assert.equal(isProcessAlive(sentinel.pid!), true);
-
-      const bridgeScript: string = [
-        'const cp = require("node:child_process");',
-        'const child = cp.spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore", detached: true });',
-        "console.log(`owned-pid=${child.pid}`);",
-        "child.unref();",
-      ].join("");
-      const nestedDetached = await EvidenceBenchmarkAgentProcess.run({
-        command: process.execPath,
-        arguments: [
-          "-e",
-          [
-            'const cp = require("node:child_process");',
-            `const bridge = cp.spawn(process.execPath, ["-e", ${JSON.stringify(bridgeScript)}], { stdio: ["ignore", "pipe", "inherit"] });`,
-            "bridge.stdout.pipe(process.stdout);",
-          ].join(""),
-        ],
-        cwd: workspace,
-        environment: process.env,
-        engine: "claude-code",
-        stdin: "",
-        stdout: path.join(root, "nested-detached.stdout.jsonl"),
-        stderr: path.join(root, "nested-detached.stderr.log"),
-        onStdout: () => {},
-      });
-      ownedPids.push(
-        readOwnedPid(path.join(root, "nested-detached.stdout.jsonl")),
-      );
-      assert.equal(nestedDetached.status, 0);
-      assert.equal(nestedDetached.nativeTerminalCleanup, undefined);
-      assert.equal(
-        isProcessAlive(ownedPids.at(-1)!),
-        false,
-        "cleanup must retain ancestry through an exited intermediate process",
+      assert.equal(inherited.exitCode, 0);
+      assert.equal(inherited.signal, null);
+      assert.ok(
+        Date.now() - inheritedStarted < 5_000,
+        "an inherited stdio descriptor must not block the direct-child result",
       );
       assert.equal(isProcessAlive(sentinel.pid!), true);
 
@@ -278,26 +256,71 @@ export namespace EvidenceBenchmarkSelfTest {
         ],
         cwd: workspace,
         environment: process.env,
-        engine: "claude-code",
         stdin: "x".repeat(2 * 1024 * 1024),
         stdout: path.join(root, "epipe.stdout.jsonl"),
         stderr: path.join(root, "epipe.stderr.log"),
-        onStdout: () => {},
       });
-      assert.equal(earlyExit.status, 7);
+      assert.equal(earlyExit.exitCode, 7);
+      assert.equal(earlyExit.signal, null);
+      assert.equal(isProcessAlive(sentinel.pid!), true);
+
+      await assert.rejects(
+        EvidenceBenchmarkAgentProcess.run({
+          command: path.join(root, "missing-executable"),
+          arguments: [],
+          cwd: workspace,
+          environment: process.env,
+          stdin: "",
+          stdout: path.join(root, "spawn-error.stdout.jsonl"),
+          stderr: path.join(root, "spawn-error.stderr.log"),
+        }),
+        "a synchronous or asynchronous spawn failure must reject",
+      );
+      assert.equal(isProcessAlive(sentinel.pid!), true);
+
+      const occupiedStdout: string = path.join(
+        root,
+        "stream-error.stdout.jsonl",
+      );
+      fs.writeFileSync(occupiedStdout, "occupied", "utf8");
+      let streamErrorPid: number | undefined;
+      await assert.rejects(
+        EvidenceBenchmarkAgentProcess.run({
+          command: process.execPath,
+          arguments: ["-e", "setInterval(() => {}, 1000)"],
+          cwd: workspace,
+          environment: process.env,
+          stdin: "",
+          stdout: occupiedStdout,
+          stderr: path.join(root, "stream-error.stderr.log"),
+          onSpawn: (pid) => {
+            streamErrorPid = pid;
+          },
+        }),
+        "a retained-log stream failure must reject and stop the direct child",
+      );
+      assert.notEqual(streamErrorPid, undefined);
+      await waitForProcessExit(streamErrorPid!);
       assert.equal(isProcessAlive(sentinel.pid!), true);
     } finally {
-      for (const pid of ownedPids)
-        if (isProcessAlive(pid)) process.kill(pid, "SIGKILL");
+      if (inheritedPid !== undefined && isProcessAlive(inheritedPid))
+        process.kill(inheritedPid, "SIGKILL");
       if (isProcessAlive(sentinel.pid!)) sentinel.kill("SIGKILL");
     }
   }
 
-  function readOwnedPid(file: string): number {
+  function readProcessPid(file: string, pattern: RegExp): number {
     const text: string = fs.readFileSync(file, "utf8");
-    const match: RegExpExecArray | null = /owned-pid=(\d+)/.exec(text);
-    assert.notEqual(match, null, `owned descendant PID missing from ${file}`);
+    const match: RegExpExecArray | null = pattern.exec(text);
+    assert.notEqual(match, null, `process PID missing from ${file}`);
     return Number(match![1]);
+  }
+
+  async function waitForProcessExit(pid: number): Promise<void> {
+    const deadline: number = Date.now() + 3_000;
+    while (isProcessAlive(pid) && Date.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    assert.equal(isProcessAlive(pid), false, `process ${pid} did not exit`);
   }
 
   function isProcessAlive(pid: number): boolean {
@@ -486,15 +509,14 @@ export namespace EvidenceBenchmarkSelfTest {
         turn,
       });
     inspectCurrent();
-    turn.nativeTerminalCleanup = true;
-    inspectCurrent();
-    turn.nativeTerminalCleanup = false;
+    turn.signal = "SIGTERM";
     assert.throws(
       inspectCurrent,
-      /invalid retained ledger entry/,
-      "native-terminal cleanup markers must be the literal retained truth value",
+      /did not exit successfully/,
+      "a native termination signal must never be normalized into success",
     );
-    turn.nativeTerminalCleanup = true;
+    turn.signal = null;
+    inspectCurrent();
     const invocation: string[] = [...(turn.invocation as string[])];
     const rootsIndex: number = invocation.findIndex((value) =>
       value.startsWith("permissions.benchmark.workspace_roots="),

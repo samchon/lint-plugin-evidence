@@ -151,6 +151,9 @@ export namespace EvidenceBenchmarkTurnLedger {
     /** Child-process exit status. */
     status?: unknown;
 
+    /** Native signal when the child did not exit ordinarily. */
+    signal?: unknown;
+
     /** Measured child-process duration. */
     elapsedMs?: unknown;
 
@@ -165,9 +168,6 @@ export namespace EvidenceBenchmarkTurnLedger {
 
     /** Exact child-process working directory. */
     cwd?: unknown;
-
-    /** Whether Codex required forced tree cleanup after its native terminal. */
-    nativeTerminalCleanup?: unknown;
 
     /** Machine-gate acceptance written after the process succeeds. */
     accepted?: unknown;
@@ -218,6 +218,7 @@ export namespace EvidenceBenchmarkTurnLedger {
       accepted.some(
         (turn) =>
           turn.status !== 0 ||
+          (turn.signal !== undefined && turn.signal !== null) ||
           !Array.isArray(turn.invocation) ||
           turn.invocation.some((value) => typeof value !== "string"),
       )
@@ -342,12 +343,13 @@ export namespace EvidenceBenchmarkTurnLedger {
         (typeof props.turn.status !== "number" ||
           !Number.isInteger(props.turn.status) ||
           props.turn.status < 0)) ||
+      (props.turn.signal !== undefined &&
+        props.turn.signal !== null &&
+        typeof props.turn.signal !== "string") ||
       typeof props.turn.accepted !== "boolean" ||
       (props.turn.sessionId !== undefined &&
         (typeof props.turn.sessionId !== "string" ||
           props.turn.sessionId.length === 0)) ||
-      (props.turn.nativeTerminalCleanup !== undefined &&
-        props.turn.nativeTerminalCleanup !== true) ||
       typeof props.turn.cwd !== "string" ||
       path.resolve(props.turn.cwd) !== path.resolve(props.workspace)
     )
@@ -417,24 +419,16 @@ export namespace EvidenceBenchmarkTurnLedger {
             structuredOutputRequired,
           );
     if (
-      props.turn.nativeTerminalCleanup === true &&
-      (props.engine !== "codex" ||
-        props.turn.status !== 0 ||
-        !structuredOutputRequired ||
-        !evidence.linked ||
-        !evidence.terminal)
-    )
-      throw new Error(
-        `Benchmark attempt ${String(props.turn.name)} has an invalid native-terminal cleanup marker.`,
-      );
-    if (
       (evidence.linked && props.turn.sessionId !== props.sessionId) ||
       (!evidence.linked && props.turn.sessionId !== undefined)
     )
       throw new Error(
         `Benchmark attempt ${String(props.turn.name)} is not linked to its retained session identity.`,
       );
-    if (props.turn.status !== 0)
+    if (
+      props.turn.status !== 0 ||
+      (props.turn.signal !== undefined && props.turn.signal !== null)
+    )
       return {
         sessionLinked: evidence.linked,
         verdict: "process-failed",
