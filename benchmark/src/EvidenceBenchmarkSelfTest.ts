@@ -2665,6 +2665,15 @@ export namespace EvidenceBenchmarkSelfTest {
         /ttsc -p tsconfig\.tools\.json --noEmit && ttsc -p tsconfig\.lint\.json --noEmit/,
         `integrated ${arm} backend lint must preserve generic tool-module checks before the authored-program gate`,
       );
+      assert.equal(
+        (
+          JSON.parse(backendPackage) as {
+            scripts: Record<string, string>;
+          }
+        ).scripts["build:sdk"],
+        "nestia all && node ../api/scripts/ensure-nestia-exports.cjs && pnpm --dir ../api build",
+        `integrated ${arm} SDK generation must preserve the stable API facade while Nestia analyzes the controller graph`,
+      );
       const backendLintProject: string = Buffer.from(
         composition.files.get("packages/backend/tsconfig.lint.json")!,
       ).toString("utf8");
