@@ -191,6 +191,7 @@ export namespace EvidenceBenchmarkAgentProcess {
   ): Promise<void> {
     if (process.platform !== "win32") {
       killProcessTree(child);
+      await cleanupPosixWorkspaceProcesses(workspace);
       return;
     }
     const encodedWorkspace: string = Buffer.from(
@@ -244,6 +245,41 @@ export namespace EvidenceBenchmarkAgentProcess {
       cleanup.once("error", finish);
       cleanup.once("close", finish);
     });
+  }
+
+  async function cleanupPosixWorkspaceProcesses(
+    workspace: string,
+  ): Promise<void> {
+    const normalizedWorkspace: string = path.resolve(workspace);
+    const listing: string = await new Promise((resolve) => {
+      let child: cp.ChildProcessWithoutNullStreams;
+      try {
+        child = cp.spawn("ps", ["-eo", "pid=,args="], {
+          stdio: "pipe",
+        });
+      } catch {
+        resolve("");
+        return;
+      }
+      const stdout: Buffer[] = [];
+      child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+      child.once("error", () => resolve(""));
+      child.once("close", () =>
+        resolve(Buffer.concat(stdout).toString("utf8")),
+      );
+    });
+    for (const line of listing.split(/\r?\n/)) {
+      const match: RegExpExecArray | null = /^\s*(\d+)\s+(.*)$/.exec(line);
+      if (
+        match === null ||
+        Number(match[1]) === process.pid ||
+        !match[2]!.includes(normalizedWorkspace)
+      )
+        continue;
+      try {
+        process.kill(Number(match[1]), "SIGKILL");
+      } catch {}
+    }
   }
 
   function killProcessTree(child: cp.ChildProcess): void {
