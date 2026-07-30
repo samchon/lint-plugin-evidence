@@ -492,7 +492,7 @@ const fakeAppServer = (): void => {
   const wrongGoal: boolean = process.argv.includes("--wrong-goal");
   const wrongThread: boolean = process.argv.includes("--wrong-thread");
   let goalIndex = previousGoal ? 1 : 0;
-  let waitingForIdle = false;
+  let waitingForTurnCompletion = false;
   const send = (value: unknown, callback?: () => void): void => {
     process.stdout.write(`${JSON.stringify(value)}\n`, callback);
   };
@@ -563,7 +563,7 @@ const fakeAppServer = (): void => {
       request.method !== "thread/goal/set" ||
       request.params?.status !== "active" ||
       typeof request.params.objective !== "string" ||
-      waitingForIdle
+      waitingForTurnCompletion
     )
       return send({
         id: request.id,
@@ -627,21 +627,21 @@ const fakeAppServer = (): void => {
         turnId,
       },
     });
+    waitingForTurnCompletion = true;
     send({
-      method: "turn/completed",
+      method: "thread/status/changed",
       params: {
         threadId: "fixture-thread",
-        turn: { id: turnId, status: "completed", durationMs: 1 },
+        status: { type: "idle" },
       },
     });
-    waitingForIdle = true;
     setTimeout(() => {
-      waitingForIdle = false;
+      waitingForTurnCompletion = false;
       send({
-        method: "thread/status/changed",
+        method: "turn/completed",
         params: {
           threadId: "fixture-thread",
-          status: { type: "idle" },
+          turn: { id: turnId, status: "completed", durationMs: 1 },
         },
       });
     }, 10);

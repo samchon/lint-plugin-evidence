@@ -324,10 +324,18 @@ export namespace EvidenceBenchmarkRunner {
         record.goal?.status !== "complete" ||
         record.terminalTurnId === null ||
         !record.terminalTurnCompleted ||
-        !record.threadIdle ||
-        !usageAdvanced(state.threadTokenUsage, record.tokenUsageStart)
+        !record.threadIdle
       )
         return;
+      if (!usageAdvanced(state.threadTokenUsage, record.tokenUsageStart)) {
+        finish("interrupted", {
+          name: "EvidenceBenchmarkTokenCheckpointError",
+          message:
+            "Codex Goal completed without an exact native token checkpoint.",
+          instructionIndex: record.index,
+        });
+        return;
+      }
       advancing = true;
       record.tokenUsageEnd = structuredClone(state.threadTokenUsage);
       record.tokenUsage = subtract(
@@ -418,20 +426,9 @@ export namespace EvidenceBenchmarkRunner {
       if (message.method === "thread/status/changed") {
         const status: Record<string, unknown> = object(params.status);
         const record: IEvidenceBenchmarkGoalRecord = current();
-        record.threadIdle =
-          status.type === "idle" && record.terminalTurnCompleted;
+        record.threadIdle = status.type === "idle";
         publish();
-        if (
-          record.threadIdle &&
-          !usageAdvanced(state.threadTokenUsage, record.tokenUsageStart)
-        )
-          finish("interrupted", {
-            name: "EvidenceBenchmarkTokenCheckpointError",
-            message:
-              "Codex Goal completed without an exact native token checkpoint.",
-            instructionIndex: record.index,
-          });
-        else if (status.type === "systemError" || status.type === "notLoaded")
+        if (status.type === "systemError" || status.type === "notLoaded")
           finish("interrupted", message);
         else await advance();
       }
