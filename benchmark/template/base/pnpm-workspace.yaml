@@ -23,7 +23,6 @@ catalogs:
 
   typescript:
     typescript: ^7.0.2
-    typescript-api: npm:typescript@5.9.3
     ttsc: &ttsc ^0.22.0
     "@ttsc/lint": *ttsc
     "@ttsc/unplugin": *ttsc

@@ -1391,6 +1391,50 @@ export namespace EvidenceBenchmarkSelfTest {
           composition.files.has(relative),
           `integrated ${arm} scaffold is missing authored source ${relative}`,
         );
+      const myModule: string = Buffer.from(
+        composition.files.get("packages/backend/src/MyModule.ts")!,
+      ).toString("utf8");
+      assert.match(
+        myModule,
+        /path\.join\(__dirname, "controllers"\)/,
+        `integrated ${arm} runtime must discover its adjacent controller tree`,
+      );
+      assert.doesNotMatch(
+        myModule,
+        /process\.cwd\(\)|fs\.existsSync/,
+        `integrated ${arm} runtime must not hide a missing controller tree with a source fallback`,
+      );
+      const nestiaConfig: string = Buffer.from(
+        composition.files.get("packages/backend/nestia.config.ts")!,
+      ).toString("utf8");
+      assert.match(
+        nestiaConfig,
+        /input: \["src\/controllers"\]/,
+        `integrated ${arm} Nestia config must select the authored controller tree directly`,
+      );
+      const wiring: string = Buffer.from(
+        composition.files.get(".agents/skills/backend/wiring.md")!,
+      ).toString("utf8");
+      assert.doesNotMatch(
+        wiring,
+        /MyModule\.input\(\)/,
+        `integrated ${arm} wiring guide must not teach a nonexistent controller input API`,
+      );
+      const healthTest: string = Buffer.from(
+        composition.files.get(
+          "packages/backend/test/features/api/health/test_api_health.ts",
+        )!,
+      ).toString("utf8");
+      assert.match(
+        healthTest,
+        /assert\.equal\(response, "OK"\)/,
+        `integrated ${arm} health test must assert the exact marker`,
+      );
+      assert.doesNotMatch(
+        healthTest,
+        /typia\.assert\(response\)/,
+        `integrated ${arm} health test must not accept every string response`,
+      );
       const workflow: string = Buffer.from(
         composition.files.get(".github/workflows/ci.yml")!,
       ).toString("utf8");

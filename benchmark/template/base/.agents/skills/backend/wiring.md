@@ -21,7 +21,7 @@ const module = await MyModule.mount({
 });
 ```
 
-Runtime discovery uses `__dirname/controllers`, which resolves to `src/controllers` under `ttsx` and `lib/controllers` after `ttsc`. Nestia generation cannot reuse that runtime root because it compiles `nestia.config.ts` under a temporary config-loader directory. `MyModule.input()` therefore resolves the authored `src/controllers` directory from the backend working directory. These are two views of the same relative tree, owned by one factory.
+Runtime discovery uses `__dirname/controllers`, which resolves to `src/controllers` under `ttsx` and `lib/controllers` after `ttsc`. Nestia generation reads the authored source directly with `input: ["src/controllers"]`; this working-directory-relative input is stable even though Nestia compiles its configuration under a temporary loader directory. These are two views of the same relative tree.
 
 After generation, inspect the actual controller count, Swagger paths, and SDK accessors. An exported const, helper function, ordinary class, or central evidence-exclusion carrier has no Nest controller metadata and must not appear in any of those outputs. The scaffold's health controller is discovered by its defining file exactly like every product controller.
 
@@ -81,7 +81,7 @@ Its `schema` points at the folder rather than a file, which is what makes the sp
 
 Three of its settings matter beyond the paths.
 
-- **`input` selects the authored controller directory.** `MyModule.input()` names the same relative controller tree runtime discovery mounts, but resolves the TypeScript source root directly so Nestia's temporary config-loader directory cannot change the population.
+- **`input` selects the authored controller directory.** The literal `["src/controllers"]` names the source tree corresponding to runtime's adjacent `controllers` directory, without depending on Nestia's temporary config-loader directory.
 - **`security`** is what puts the bearer scheme into the published document, so a consumer knows a token is needed.
 - **`simulate: true`** is what gives the SDK its simulation mode, which the frontend develops against.
 
@@ -122,7 +122,7 @@ This is the loop everything else depends on, and getting it wrong produces failu
 
 **3. The authored contract is compiled before generation.** Finish every DTO and controller signature, build `packages/api`, and run backend `build:main`. Keep changing the authored contract until both packages agree; do not repeatedly generate an SDK from a contract that is still being designed.
 
-**4. The settled controllers generate the SDK.** `build:sdk` reads the authored controller directory from `MyModule.input()`, emits `packages/api/src/functional/**` and `swagger.json`, and compiles the complete API package. Two consequences follow directly:
+**4. The settled controllers generate the SDK.** `build:sdk` reads the authored `src/controllers` directory from `nestia.config.ts`, emits `packages/api/src/functional/**` and `swagger.json`, and compiles the complete API package. Two consequences follow directly:
 
 - **A controller outside the owned directory is absent from runtime and the SDK.** A controller inside it needs no second registration edit, and the generated population must match runtime discovery.
 - **The JSDoc on each method becomes the SDK function's documentation and the OpenAPI description.** A documentation edit is a contract change, so it needs this step too.

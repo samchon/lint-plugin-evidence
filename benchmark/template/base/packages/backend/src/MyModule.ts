@@ -1,6 +1,5 @@
 import { DynamicModule } from "@nestia/core";
 import type { ModuleMetadata } from "@nestjs/common/interfaces";
-import fs from "node:fs";
 import path from "node:path";
 
 /**
@@ -16,15 +15,11 @@ export namespace MyModule {
   export const mount = async (
     metadata: Omit<ModuleMetadata, "controllers"> = {},
   ) => {
-    const adjacent: string = path.join(__dirname, "controllers");
-    const fromSource: boolean = fs.existsSync(adjacent) === false;
-    const directory: string = fromSource
-      ? path.join(process.cwd(), "src", "controllers")
-      : adjacent;
+    const directory: string = path.join(__dirname, "controllers");
     const module = await DynamicModule.mount(
       directory,
       metadata,
-      fromSource || __filename.endsWith(".ts"),
+      __filename.endsWith(".ts"),
     );
     const controllers: unknown = Reflect.getMetadata("controllers", module);
     if (Array.isArray(controllers) === false || controllers.length === 0)

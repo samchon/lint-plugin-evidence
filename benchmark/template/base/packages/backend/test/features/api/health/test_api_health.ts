@@ -1,5 +1,5 @@
 import api from "{{apiPackageName}}";
-import typia from "typia";
+import assert from "node:assert/strict";
 
 /**
  * Validate that the generated health accessor reaches the running backend.
@@ -11,7 +11,7 @@ import typia from "typia";
  *
  * 1. Derive an anonymous connection from the base host.
  * 2. Call the generated health accessor.
- * 3. Validate the response against its generated type.
+ * 3. Assert the exact health marker.
  *
  * @param connection Base connection supplied by the dynamic e2e runner.
  * @evidence {@link api.functional.health.get} Exercises the generated health operation.
@@ -25,6 +25,6 @@ export async function test_api_health(
   // Step 2: Call the generated health accessor
   const response = await api.functional.health.get(healthConnection);
 
-  // Step 3: Validate the response against its generated type
-  typia.assert(response);
+  // Step 3: Assert the exact health marker
+  assert.equal(response, "OK");
 }

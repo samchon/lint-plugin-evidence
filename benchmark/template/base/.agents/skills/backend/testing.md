@@ -2,7 +2,7 @@
 
 The end-to-end suite under `packages/backend/test/` is the only artifact that proves the product behaves as the requirements say.
 
-The scaffold already contains `test/features/api/health/test_api_health.ts`. It is an infrastructure proof, not requirement evidence: it calls the generated `api.functional.health.get` accessor and validates the generated response contract with `typia.assert`. Keep it intact while adding requirement-derived scenarios.
+The scaffold already contains `test/features/api/health/test_api_health.ts`. It is an infrastructure proof, not requirement evidence: it calls the generated `api.functional.health.get` accessor and asserts the exact `"OK"` marker. Keep it intact while adding requirement-derived scenarios.
 
 ## Read Three Things Before Writing One Test
 
