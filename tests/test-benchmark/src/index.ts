@@ -433,6 +433,88 @@ const main = async (): Promise<void> => {
       onOutput: () => undefined,
     });
     assert.equal(nextBoundaryResume.status, "completed");
+
+    const completedCurrentBoundary = structuredClone(completed);
+    completedCurrentBoundary.status = "interrupted";
+    completedCurrentBoundary.nextInstructionIndex = 1;
+    completedCurrentBoundary.goals = completedCurrentBoundary.goals.slice(0, 2);
+    completedCurrentBoundary.threadTokenUsage = structuredClone(
+      completedCurrentBoundary.goals[1]!.tokenUsageEnd!,
+    );
+    const completedCurrentOutput: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] =
+      [];
+    const completedCurrentResume = await EvidenceBenchmarkRunner.run({
+      state: completedCurrentBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--current-goal",
+        "--late-resume-snapshot",
+      ],
+      onOutput: (_processIndex, output) => {
+        completedCurrentOutput.push(output);
+      },
+    });
+    assert.equal(completedCurrentResume.status, "completed");
+    const resumedGoalRequests = completedCurrentOutput
+      .filter((output) => output.stream === "stdin")
+      .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+      .filter((request) => request.method === "thread/goal/set");
+    assert.equal(resumedGoalRequests.length, ENTRIES.length - 2);
+    assert.equal(
+      (resumedGoalRequests[0]?.params as Record<string, unknown>)?.objective,
+      readObjective(root, sources, ENTRIES[2]!),
+    );
+
+    const activeCurrentBoundary = structuredClone(completedCurrentBoundary);
+    const activeCurrentRecord = activeCurrentBoundary.goals[1]!;
+    activeCurrentRecord.goal!.status = "active";
+    activeCurrentRecord.terminalTurnId = null;
+    activeCurrentRecord.terminalTurnCompleted = false;
+    activeCurrentRecord.threadIdle = false;
+    activeCurrentRecord.tokenUsageTurnId = null;
+    activeCurrentRecord.tokenUsageEnd = null;
+    activeCurrentRecord.tokenUsage = {
+      totalTokens: 0,
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
+      outputTokens: 0,
+      reasoningOutputTokens: 0,
+    };
+    activeCurrentBoundary.threadTokenUsage = structuredClone(
+      activeCurrentBoundary.goals[0]!.tokenUsageEnd!,
+    );
+    const activeCurrentOutput: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] =
+      [];
+    const activeCurrentResume = await EvidenceBenchmarkRunner.run({
+      state: activeCurrentBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--current-active"],
+      onOutput: (_processIndex, output) => {
+        activeCurrentOutput.push(output);
+      },
+    });
+    assert.equal(activeCurrentResume.status, "completed");
+    const activeResumedGoalRequests = activeCurrentOutput
+      .filter((output) => output.stream === "stdin")
+      .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+      .filter((request) => request.method === "thread/goal/set");
+    assert.equal(activeResumedGoalRequests.length, ENTRIES.length - 2);
+    assert.equal(
+      (activeResumedGoalRequests[0]?.params as Record<string, unknown>)
+        ?.objective,
+      readObjective(root, sources, ENTRIES[2]!),
+    );
+
     const activePreviousBoundary = await EvidenceBenchmarkRunner.run({
       state: nextBoundary,
       cwd: root,
@@ -446,7 +528,7 @@ const main = async (): Promise<void> => {
     assert.equal(activePreviousBoundary.status, "interrupted");
     assert.match(
       activePreviousBoundary.interruption?.message ?? "",
-      /undispatched Goal boundary/,
+      /resume Goal snapshot/,
     );
 
     const outputFailure = await EvidenceBenchmarkRunner.run({
@@ -506,13 +588,19 @@ const fakeAppServer = (): void => {
   const omitTerminalToken: boolean = process.argv.includes(
     "--omit-terminal-token",
   );
+  const currentActive: boolean = process.argv.includes("--current-active");
+  const currentGoal: boolean =
+    currentActive || process.argv.includes("--current-goal");
+  const lateResumeSnapshot: boolean = process.argv.includes(
+    "--late-resume-snapshot",
+  );
   const missingThreadId: boolean = process.argv.includes("--missing-thread-id");
   const previousActive: boolean = process.argv.includes("--previous-active");
   const previousGoal: boolean =
-    previousActive || process.argv.includes("--previous-goal");
+    currentGoal || previousActive || process.argv.includes("--previous-goal");
   const wrongGoal: boolean = process.argv.includes("--wrong-goal");
   const wrongThread: boolean = process.argv.includes("--wrong-thread");
-  let goalIndex = previousGoal ? 1 : 0;
+  let goalIndex = currentActive ? 1 : currentGoal ? 2 : previousGoal ? 1 : 0;
   let waitingForTurnCompletion = false;
   const send = (value: unknown, callback?: () => void): void => {
     process.stdout.write(`${JSON.stringify(value)}\n`, callback);
@@ -531,8 +619,8 @@ const fakeAppServer = (): void => {
     updatedAt: goalIndex + 1,
   });
   const input = readline.createInterface({ input: process.stdin });
-  const firstObjective = (): string => {
-    const relativePath: string = ENTRIES[0]![1];
+  const retainedObjective = (): string => {
+    const relativePath: string = ENTRIES[currentGoal ? 1 : 0]![1];
     return `${fs.readFileSync(
       path.join(process.cwd(), ...relativePath.split("/")),
       "utf8",
@@ -559,16 +647,117 @@ const fakeAppServer = (): void => {
         },
       });
     if (request.method === "thread/resume")
-      return send({
-        id: request.id,
-        result: {
-          thread: {
-            id: wrongThread ? "fixture-other-thread" : "fixture-thread",
-            cliVersion: "fixture-cli",
-            status: { type: "idle" },
+      return send(
+        {
+          id: request.id,
+          result: {
+            thread: {
+              id: wrongThread ? "fixture-other-thread" : "fixture-thread",
+              cliVersion: "fixture-cli",
+              status: { type: "idle" },
+            },
           },
         },
-      });
+        () => {
+          if (wrongThread) return;
+          if (previousGoal) {
+            send({
+              method: "thread/tokenUsage/updated",
+              params: {
+                threadId: "fixture-thread",
+                turnId: `turn-${goalIndex}`,
+                tokenUsage: {
+                  total: {
+                    totalTokens: goalIndex * 10,
+                    inputTokens: goalIndex * 6,
+                    cachedInputTokens: 0,
+                    cacheWriteInputTokens: 0,
+                    outputTokens: goalIndex * 4,
+                    reasoningOutputTokens: 0,
+                  },
+                },
+              },
+            });
+            const continueCurrentGoal = (): void => {
+              goalIndex++;
+              const turnId: string = `turn-${goalIndex}`;
+              const total = {
+                totalTokens: goalIndex * 10,
+                inputTokens: goalIndex * 6,
+                cachedInputTokens: 0,
+                cacheWriteInputTokens: 0,
+                outputTokens: goalIndex * 4,
+                reasoningOutputTokens: 0,
+              };
+              send({
+                method: "thread/status/changed",
+                params: {
+                  threadId: "fixture-thread",
+                  status: { type: "active" },
+                },
+              });
+              send({
+                method: "turn/started",
+                params: {
+                  threadId: "fixture-thread",
+                  turn: { id: turnId },
+                },
+              });
+              send({
+                method: "thread/goal/updated",
+                params: {
+                  threadId: "fixture-thread",
+                  goal: goal(retainedObjective(), "complete"),
+                  turnId,
+                },
+              });
+              send({
+                method: "thread/tokenUsage/updated",
+                params: {
+                  threadId: "fixture-thread",
+                  turnId,
+                  tokenUsage: { total },
+                },
+              });
+              waitingForTurnCompletion = true;
+              send({
+                method: "thread/status/changed",
+                params: {
+                  threadId: "fixture-thread",
+                  status: { type: "idle" },
+                },
+              });
+              setTimeout(() => {
+                waitingForTurnCompletion = false;
+                send({
+                  method: "turn/completed",
+                  params: {
+                    threadId: "fixture-thread",
+                    turn: { id: turnId, status: "completed", durationMs: 1 },
+                  },
+                });
+              }, 10);
+            };
+            const emitSnapshot = (): void =>
+              send(
+                {
+                  method: "thread/goal/updated",
+                  params: {
+                    threadId: "fixture-thread",
+                    goal: goal(
+                      retainedObjective(),
+                      previousActive || currentActive ? "active" : "complete",
+                    ),
+                    turnId: null,
+                  },
+                },
+                currentActive ? continueCurrentGoal : undefined,
+              );
+            if (lateResumeSnapshot) setTimeout(emitSnapshot, 10);
+            else emitSnapshot();
+          }
+        },
+      );
     if (request.method === "thread/goal/get")
       return send({
         id: request.id,
@@ -576,7 +765,10 @@ const fakeAppServer = (): void => {
           goal: emptyGoal
             ? null
             : previousGoal
-              ? goal(firstObjective(), previousActive ? "active" : "complete")
+              ? goal(
+                  retainedObjective(),
+                  previousActive || currentActive ? "active" : "complete",
+                )
               : null,
         },
       });
@@ -615,6 +807,21 @@ const fakeAppServer = (): void => {
           wrongGoal ? `${objective}\nwrong objective` : objective,
           "active",
         ),
+      },
+    });
+    send({
+      method: "thread/goal/updated",
+      params: {
+        threadId: "fixture-thread",
+        goal: goal(objective, "active"),
+        turnId: null,
+      },
+    });
+    send({
+      method: "thread/status/changed",
+      params: {
+        threadId: "fixture-thread",
+        status: { type: "active" },
       },
     });
     if (blockedThenComplete)
@@ -664,6 +871,14 @@ const fakeAppServer = (): void => {
         turn: { id: turnId },
       },
     });
+    send({
+      method: "thread/goal/updated",
+      params: {
+        threadId: "fixture-thread",
+        goal: goal(objective, "complete"),
+        turnId,
+      },
+    });
     if (!omitToken && !omitTerminalToken)
       send({
         method: "thread/tokenUsage/updated",
@@ -673,14 +888,6 @@ const fakeAppServer = (): void => {
           tokenUsage: { total },
         },
       });
-    send({
-      method: "thread/goal/updated",
-      params: {
-        threadId: "fixture-thread",
-        goal: goal(objective, "complete"),
-        turnId,
-      },
-    });
     waitingForTurnCompletion = true;
     send({
       method: "thread/status/changed",

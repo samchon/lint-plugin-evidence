@@ -170,6 +170,14 @@ export namespace EvidenceBenchmarkRunner {
 
     prepare();
     const fresh: boolean = state.sessionId === undefined;
+    let resumeReconciled: boolean = fresh;
+    let resumeSnapshotPending: boolean = !fresh;
+    let resumeSnapshot: Record<string, unknown> | undefined;
+    let resumeSnapshotRecordIndex: number | undefined;
+    let resolveResumeSnapshot!: () => void;
+    const resumeSnapshotPromise = new Promise<void>((resolve) => {
+      resolveResumeSnapshot = resolve;
+    });
     state.status = "running";
     delete state.interruption;
 
@@ -323,6 +331,8 @@ export namespace EvidenceBenchmarkRunner {
       if (outcome !== undefined) return;
       const record: IEvidenceBenchmarkGoalRecord = current();
       if (
+        !resumeReconciled ||
+        resumeSnapshotPending ||
         advancing ||
         record.goal?.status !== "complete" ||
         record.terminalTurnId === null ||
@@ -391,6 +401,35 @@ export namespace EvidenceBenchmarkRunner {
             finish("interrupted", message);
             return;
           }
+          if (!resumeReconciled && resumeSnapshotPending) {
+            const record: IEvidenceBenchmarkGoalRecord = current();
+            const currentOwnsReplay: boolean =
+              record.goal !== null && record.tokenUsageTurnId !== null;
+            const retained: IEvidenceBenchmarkGoalRecord | undefined =
+              currentOwnsReplay
+                ? record
+                : state.goals.find(
+                    (candidate) => candidate.index === record.index - 1,
+                  );
+            if (
+              retained === undefined ||
+              !sameUsage(usage, state.threadTokenUsage) ||
+              retained.tokenUsageTurnId !== params.turnId ||
+              (!currentOwnsReplay &&
+                (retained.goal?.status !== "complete" ||
+                  retained.terminalTurnId === null ||
+                  !retained.terminalTurnCompleted ||
+                  !retained.threadIdle ||
+                  retained.tokenUsageTurnId !== retained.terminalTurnId ||
+                  retained.tokenUsageEnd === null ||
+                  !sameUsage(retained.tokenUsageEnd, state.threadTokenUsage)))
+            )
+              throw new Error(
+                "Codex resume token replay does not match the retained checkpoint.",
+              );
+            publish();
+            return;
+          }
           state.threadTokenUsage = usage;
           current().tokenUsageTurnId = params.turnId;
         }
@@ -398,6 +437,14 @@ export namespace EvidenceBenchmarkRunner {
         await advance();
         return;
       }
+      if (
+        !resumeReconciled &&
+        resumeSnapshotPending &&
+        !(message.method === "thread/goal/updated" && params.turnId === null)
+      )
+        throw new Error(
+          "Codex emitted resume lifecycle before its Goal snapshot.",
+        );
       if (message.method === "turn/started") {
         current().threadIdle = false;
         publish();
@@ -408,6 +455,32 @@ export namespace EvidenceBenchmarkRunner {
         const goal: Record<string, unknown> = object(params.goal);
         if (state.sessionId === undefined)
           throw new Error("Codex app-server omitted the thread ID.");
+        if (!resumeReconciled && params.turnId === null) {
+          if (!resumeSnapshotPending || resumeSnapshot !== undefined)
+            throw new Error("Codex emitted duplicate resume Goal snapshots.");
+          const retained: IEvidenceBenchmarkGoalRecord | undefined =
+            record.goal !== null
+              ? record
+              : state.goals.find(
+                  (candidate) => candidate.index === record.index - 1,
+                );
+          if (
+            retained?.goal === null ||
+            retained?.goal === undefined ||
+            retained.goal.status !== goal.status
+          )
+            throw new Error(
+              "Codex resume Goal snapshot does not match an exact retained boundary.",
+            );
+          validateNativeGoal(retained, retained.goal, state.sessionId);
+          validateNativeGoal(retained, goal, state.sessionId);
+          resumeSnapshot = structuredClone(goal);
+          resumeSnapshotRecordIndex = retained.index;
+          resumeSnapshotPending = false;
+          resolveResumeSnapshot();
+          publish();
+          return;
+        }
         validateNativeGoal(record, goal, state.sessionId);
         record.goal = goal;
         const status: unknown = record.goal.status;
@@ -562,7 +635,8 @@ export namespace EvidenceBenchmarkRunner {
       const sessionId: string = thread.id;
       state.sessionId = sessionId;
       state.cliVersion = thread.cliVersion;
-      current().threadIdle = object(thread.status, false)?.type === "idle";
+      if (fresh)
+        current().threadIdle = object(thread.status, false)?.type === "idle";
       publish();
       await publication;
 
@@ -575,67 +649,115 @@ export namespace EvidenceBenchmarkRunner {
         );
         const goal: Record<string, unknown> | null =
           goalResponse.goal === null ? null : object(goalResponse.goal);
-        const record: IEvidenceBenchmarkGoalRecord = current();
-        if (record.goal === null) {
-          let exactBoundary: boolean = record.index === 0 && goal === null;
-          if (!exactBoundary && record.index > 0 && goal !== null) {
+        if (goal !== null && resumeSnapshot === undefined)
+          await Promise.race([resumeSnapshotPromise, outcomePromise]);
+        await notifications;
+        if (outcome === undefined) {
+          const record: IEvidenceBenchmarkGoalRecord = current();
+          if (goal === null) {
+            resumeSnapshotPending = false;
+            resumeReconciled = true;
+            if (
+              record.index !== 0 ||
+              record.goal !== null ||
+              resumeSnapshot !== undefined
+            )
+              finish("interrupted", {
+                name: "EvidenceBenchmarkResumeInterruption",
+                message: "Retained state has no exact empty Goal boundary.",
+                instructionIndex: record.index,
+                nativeGoal: goal,
+              });
+            else await beginGoal();
+          } else if (
+            resumeSnapshot === undefined ||
+            resumeSnapshotRecordIndex === undefined
+          )
+            finish("interrupted", {
+              name: "EvidenceBenchmarkResumeInterruption",
+              message: "Codex omitted the retained Goal snapshot.",
+              instructionIndex: record.index,
+              nativeGoal: goal,
+            });
+          else if (record.goal === null) {
             const previous: IEvidenceBenchmarkGoalRecord | undefined =
               state.goals.find(
                 (candidate) => candidate.index === record.index - 1,
               );
             if (
-              previous !== undefined &&
-              previous.goal !== null &&
-              previous.goal.status === "complete" &&
-              previous.terminalTurnId !== null &&
-              previous.terminalTurnCompleted &&
-              previous.threadIdle &&
-              previous.tokenUsageTurnId === previous.terminalTurnId &&
-              previous.tokenUsageEnd !== null &&
-              usageAdvanced(previous.tokenUsageEnd, previous.tokenUsageStart) &&
-              goal.status === "complete"
-            ) {
+              previous === undefined ||
+              previous.goal === null ||
+              previous.goal.status !== "complete" ||
+              previous.terminalTurnId === null ||
+              !previous.terminalTurnCompleted ||
+              !previous.threadIdle ||
+              previous.tokenUsageTurnId !== previous.terminalTurnId ||
+              previous.tokenUsageEnd === null ||
+              !usageAdvanced(
+                previous.tokenUsageEnd,
+                previous.tokenUsageStart,
+              ) ||
+              !sameUsage(previous.tokenUsageEnd, state.threadTokenUsage) ||
+              resumeSnapshotRecordIndex !== previous.index ||
+              resumeSnapshot.status !== "complete" ||
+              goal.status !== "complete"
+            )
+              finish("interrupted", {
+                name: "EvidenceBenchmarkResumeInterruption",
+                message:
+                  "Retained state has no exact undispatched Goal boundary.",
+                instructionIndex: record.index,
+                nativeGoal: goal,
+                nativeGoalSnapshot: resumeSnapshot,
+              });
+            else {
               validateNativeGoal(previous, previous.goal, sessionId);
+              validateNativeGoal(previous, resumeSnapshot, sessionId);
               validateNativeGoal(previous, goal, sessionId);
-              exactBoundary = true;
+              resumeReconciled = true;
+              await beginGoal();
+            }
+          } else {
+            validateNativeGoal(record, record.goal, sessionId);
+            validateNativeGoal(record, resumeSnapshot, sessionId);
+            validateNativeGoal(record, goal, sessionId);
+            if (
+              resumeSnapshotRecordIndex !== record.index ||
+              (goal.status !== "active" && goal.status !== "complete") ||
+              (record.goal.status !== "active" &&
+                record.goal.status !== "complete")
+            )
+              finish("interrupted", {
+                name: "EvidenceBenchmarkResumeInterruption",
+                message:
+                  "Codex resumed outside an exact retained Goal boundary.",
+                instructionIndex: record.index,
+                nativeGoal: goal,
+                nativeGoalSnapshot: resumeSnapshot,
+              });
+            else if (
+              resumeSnapshot.status === "complete" &&
+              (record.terminalTurnId === null ||
+                !record.terminalTurnCompleted ||
+                !record.threadIdle ||
+                record.tokenUsageTurnId !== record.terminalTurnId)
+            )
+              finish("interrupted", {
+                name: "EvidenceBenchmarkResumeInterruption",
+                message:
+                  "Completed Goal lacks exact terminal-turn, idle, and token checkpoints.",
+                instructionIndex: record.index,
+                goal,
+                terminalTurnId: record.terminalTurnId,
+                terminalTurnCompleted: record.terminalTurnCompleted,
+                threadIdle: record.threadIdle,
+                tokenUsageTurnId: record.tokenUsageTurnId,
+              });
+            else {
+              resumeReconciled = true;
+              await advance();
             }
           }
-          if (!exactBoundary)
-            finish("interrupted", {
-              name: "EvidenceBenchmarkResumeInterruption",
-              message:
-                "Retained state has no exact undispatched Goal boundary.",
-              instructionIndex: record.index,
-              nativeGoal: goal,
-            });
-          else await beginGoal();
-        } else if (goal === null) finish("interrupted", goalResponse);
-        else {
-          validateNativeGoal(record, record.goal, sessionId);
-          validateNativeGoal(record, goal, sessionId);
-          record.goal = goal;
-          publish();
-          if (
-            goal.status === "complete" &&
-            (record.terminalTurnId === null ||
-              !record.terminalTurnCompleted ||
-              !record.threadIdle ||
-              record.tokenUsageTurnId !== record.terminalTurnId)
-          )
-            finish("interrupted", {
-              name: "EvidenceBenchmarkResumeInterruption",
-              message:
-                "Completed Goal lacks exact terminal-turn, idle, and token checkpoints.",
-              instructionIndex: record.index,
-              goal,
-              terminalTurnId: record.terminalTurnId,
-              terminalTurnCompleted: record.terminalTurnCompleted,
-              threadIdle: record.threadIdle,
-              tokenUsageTurnId: record.tokenUsageTurnId,
-            });
-          else if (goal.status === "active" || goal.status === "complete")
-            await advance();
-          else finish("interrupted", goal);
         }
       }
     } catch (error) {
