@@ -67,12 +67,7 @@ export namespace EvidenceBenchmarkWorkspace {
       }
       const environment: NodeJS.ProcessEnv = { ...process.env };
       delete environment.EVIDENCE_BENCHMARK_ARCHIVE;
-      await pnpm(
-        ["install", "--lockfile-only", "--no-frozen-lockfile"],
-        workspace,
-        environment,
-      );
-      await pnpm(["install", "--frozen-lockfile"], workspace, environment);
+      await pnpm(["install", "--no-frozen-lockfile"], workspace, environment);
       await run("git", ["init", "-b", "benchmark"], workspace, environment);
       await run("git", ["add", "-A"], workspace, environment);
       await run(
