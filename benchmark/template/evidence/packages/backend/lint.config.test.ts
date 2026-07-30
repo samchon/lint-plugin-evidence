@@ -4,10 +4,6 @@ import {
 } from "@samchon/lint-plugin-evidence";
 import type { ITtscLintConfig } from "@ttsc/lint";
 
-declare const process: {
-  env: Record<string, string | undefined>;
-};
-
 /**
  * Immutable Evidence Graph projection for the backend test Program.
  *
@@ -79,9 +75,6 @@ const graph: IEvidenceGraphConfig = {
   ],
 };
 
-const isNestiaConfigLoader: boolean =
-  process.env.NESTIA_SDK_TRANSFORM === "1";
-
 export default {
   extends: "../../config/lint.config.ts",
   ignores: ["src/prisma/**/*.ts"],
@@ -89,6 +82,6 @@ export default {
     evidence,
   },
   rules: {
-    "evidence/graph": isNestiaConfigLoader ? "off" : ["error", graph],
+    "evidence/graph": ["error", graph],
   },
 } satisfies ITtscLintConfig;

@@ -50,7 +50,9 @@ The benchmark activates only `evidence/graph`. Do not add `evidence/todo`: the E
 
 `packages/backend/lint.config.ts` is the sole canonical owner of all five backend-phase claims and every temporary deferral. Its no-emit `tsconfig.lint.json` explicitly includes `packages/api/src/structures`, so the rooted `dto-types` and `dto-properties` populations remain inside `ttsc`'s supplied source roots rather than being discovered from imports or the filesystem.
 
-`packages/backend/lint.config.main.ts` and `packages/backend/lint.config.test.ts` are immutable projections for emission Programs. The main projection contains `schema-models` and `api-operations`; the test projection adds `backend-tests`. Neither repeats the DTO claims, because adding API source roots to either emission Program would duplicate API output. Do not edit or defer either projection.
+`packages/backend/lint.config.main.ts` and `packages/backend/lint.config.test.ts` are immutable projections for emission Programs. The main projection contains `schema-models` and `api-operations`; the test projection adds `backend-tests`. Neither repeats the DTO claims, because adding API source roots to either emission Program would duplicate API output.
+
+Only the main projection may disable its graph for Nestia's temporary config-loader Program. The canonical no-emit lint configuration and the test projection always run their graphs at `error` severity. Do not edit or defer either projection.
 
 The template starts with all seven claims active and `evidence/graph` at `error` severity. Keep claims for the layer under active development enabled. Claims for a later layer that has not started may be deferred as described below; they are not evidence of unfinished work in the current layer.
 
