@@ -98,6 +98,51 @@ const main = async (): Promise<void> => {
       completed.instructions.map((instruction) => instruction.objectiveText),
     );
 
+    if (process.platform === "win32") {
+      const shimDirectory: string = path.join(root, "command shims");
+      const shim: string = path.join(shimDirectory, "claude.cmd");
+      fs.mkdirSync(shimDirectory);
+      fs.writeFileSync(
+        shim,
+        [
+          "@echo off",
+          'if "%~1"=="--version" (',
+          "  echo fixture-cli",
+          "  exit /b 0",
+          ")",
+          `"${process.execPath}" --experimental-transform-types "${import.meta.filename}" --fake-claude %*`,
+          "",
+        ].join("\r\n"),
+      );
+      const pathName: string =
+        Object.keys(process.env).find(
+          (name) => name.toUpperCase() === "PATH",
+        ) ?? "Path";
+      const environment: NodeJS.ProcessEnv = {
+        ...process.env,
+        [pathName]: `${shimDirectory}${path.delimiter}${process.env[pathName] ?? ""}`,
+      };
+      const spacedCommand = await EvidenceBenchmarkClaudeRunner.run({
+        state: EvidenceBenchmarkClaudeRunner.create("evidence"),
+        cwd: root,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        environment,
+        onOutput: () => undefined,
+      });
+      assert.equal(spacedCommand.status, "completed");
+      assert.deepEqual(spacedCommand.processes[0]?.arguments.slice(0, 3), [
+        "/d",
+        "/s",
+        "/c",
+      ]);
+      assert.match(
+        spacedCommand.processes[0]?.arguments[3] ?? "",
+        /claude\.cmd/,
+      );
+    }
+
     const interrupted = await EvidenceBenchmarkClaudeRunner.run({
       state: EvidenceBenchmarkClaudeRunner.create("evidence"),
       cwd: root,

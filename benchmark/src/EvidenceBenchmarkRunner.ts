@@ -81,6 +81,12 @@ export namespace EvidenceBenchmarkRunner {
     onState?: (state: IEvidenceBenchmarkRunState) => void | Promise<void>;
   }
 
+  export interface IEvidenceBenchmarkExecutable {
+    command: string;
+    composeArguments: (arguments_: readonly string[]) => string[];
+    windowsVerbatimArguments: boolean;
+  }
+
   export function create(
     arm: EvidenceBenchmarkArm,
   ): IEvidenceBenchmarkRunState {
@@ -165,18 +171,21 @@ export namespace EvidenceBenchmarkRunner {
     state.status = "running";
     delete state.interruption;
 
-    const executable = resolveExecutable(props);
+    const executable = resolveExecutable({
+      name: "codex",
+      environment: props.environment ?? process.env,
+      command: props.command,
+      commandPrefixArguments: props.commandPrefixArguments,
+    });
     const command: string = executable.command;
-    const prefix: readonly string[] = executable.prefix;
-    const arguments_: string[] = [
-      ...prefix,
+    const arguments_: string[] = executable.composeArguments([
       "app-server",
       "--stdio",
       "--enable",
       "goals",
       "--config",
       `model_reasoning_effort="${props.effort}"`,
-    ];
+    ]);
     const processIndex: number = state.processes.length;
     const processRecord: IEvidenceBenchmarkProcessRecord = {
       command,
@@ -228,6 +237,7 @@ export namespace EvidenceBenchmarkRunner {
       cwd: props.cwd,
       env: props.environment ?? process.env,
       shell: false,
+      windowsVerbatimArguments: executable.windowsVerbatimArguments,
       windowsHide: true,
       stdio: "pipe",
     });
@@ -712,29 +722,52 @@ export namespace EvidenceBenchmarkRunner {
       throw new Error("Codex retained an invalid terminal process.");
   }
 
-  function resolveExecutable(props: IEvidenceBenchmarkRunProps): {
-    command: string;
-    prefix: readonly string[];
-  } {
-    if (props.command !== undefined)
+  export function resolveExecutable(props: {
+    name: "codex" | "claude";
+    environment: NodeJS.ProcessEnv;
+    command?: string;
+    commandPrefixArguments?: readonly string[];
+  }): IEvidenceBenchmarkExecutable {
+    if (props.command !== undefined) {
+      const prefix: readonly string[] = props.commandPrefixArguments ?? [];
       return {
         command: props.command,
-        prefix: props.commandPrefixArguments ?? [],
+        composeArguments: (arguments_) => [...prefix, ...arguments_],
+        windowsVerbatimArguments: false,
       };
-    if (process.platform !== "win32") return { command: "codex", prefix: [] };
-    const environment: NodeJS.ProcessEnv = props.environment ?? process.env;
+    }
+    if (process.platform !== "win32")
+      return {
+        command: props.name,
+        composeArguments: (arguments_) => [...arguments_],
+        windowsVerbatimArguments: false,
+      };
     const executable: string | undefined = locateWindowsCommand(
-      "codex",
-      environment,
+      props.name,
+      props.environment,
     );
     if (executable === undefined)
-      throw new Error("Codex was not found on PATH.");
+      throw new Error(`${props.name} was not found on PATH.`);
     if (path.extname(executable).toLowerCase() === ".exe")
-      return { command: executable, prefix: [] };
-    const command: string | undefined = environment.ComSpec;
+      return {
+        command: executable,
+        composeArguments: (arguments_) => [...arguments_],
+        windowsVerbatimArguments: false,
+      };
+    const command: string | undefined = props.environment.ComSpec;
     if (command === undefined)
       throw new Error("Windows command processor was not found.");
-    return { command, prefix: ["/d", "/s", "/c", executable] };
+    return {
+      command,
+      composeArguments: (arguments_) => {
+        const shellCommand: string = [
+          escapeWindowsCommand(executable),
+          ...arguments_.map(escapeWindowsArgument),
+        ].join(" ");
+        return ["/d", "/s", "/c", `"${shellCommand}"`];
+      },
+      windowsVerbatimArguments: true,
+    };
   }
 
   function validateNativeGoal(
@@ -763,6 +796,19 @@ export namespace EvidenceBenchmarkRunner {
       const extension: string = path.extname(candidate).toLowerCase();
       return extension === ".exe" || extension === ".cmd";
     });
+  }
+
+  function escapeWindowsCommand(value: string): string {
+    return value.replace(/([()\][%!^"`<>&|;, *?])/g, "^$1");
+  }
+
+  function escapeWindowsArgument(value: string): string {
+    let output: string = value
+      .replace(/(?=(\\+?)?)\1"/g, '$1$1\\"')
+      .replace(/(?=(\\+?)?)\1$/g, "$1$1");
+    output = `"${output}"`;
+    output = escapeWindowsCommand(output);
+    return escapeWindowsCommand(output);
   }
 
   function tokenUsage(

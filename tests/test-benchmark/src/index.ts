@@ -135,6 +135,47 @@ const main = async (): Promise<void> => {
     });
     assert.equal(snapshots.at(-1)?.status, "completed");
 
+    if (process.platform === "win32") {
+      const shimDirectory: string = path.join(root, "command shims");
+      const shim: string = path.join(shimDirectory, "codex.cmd");
+      fs.mkdirSync(shimDirectory);
+      fs.writeFileSync(
+        shim,
+        [
+          "@echo off",
+          `"${process.execPath}" --experimental-transform-types "${import.meta.filename}" --fake-app-server %*`,
+          "",
+        ].join("\r\n"),
+      );
+      const pathName: string =
+        Object.keys(process.env).find(
+          (name) => name.toUpperCase() === "PATH",
+        ) ?? "Path";
+      const environment: NodeJS.ProcessEnv = {
+        ...process.env,
+        [pathName]: `${shimDirectory}${path.delimiter}${process.env[pathName] ?? ""}`,
+      };
+      const spacedCommand = await EvidenceBenchmarkRunner.run({
+        state: EvidenceBenchmarkRunner.create("evidence"),
+        cwd: root,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        environment,
+        onOutput: () => undefined,
+      });
+      assert.equal(spacedCommand.status, "completed");
+      assert.deepEqual(spacedCommand.processes[0]?.arguments.slice(0, 3), [
+        "/d",
+        "/s",
+        "/c",
+      ]);
+      assert.match(
+        spacedCommand.processes[0]?.arguments[3] ?? "",
+        /codex\.cmd/,
+      );
+    }
+
     const lateProtocolError = await EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("evidence"),
       cwd: root,

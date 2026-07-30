@@ -96,14 +96,15 @@ export namespace EvidenceBenchmarkClaudeRunner {
         await publish(props, state);
         return state;
       }
-      const executable = resolveExecutable(props);
+      const executable = EvidenceBenchmarkRunner.resolveExecutable({
+        name: "claude",
+        environment: props.environment ?? process.env,
+        command: props.command,
+        commandPrefixArguments: props.commandPrefixArguments,
+      });
       const cliVersion: string =
         props.cliVersion ??
-        readVersion(
-          executable.command,
-          executable.prefix,
-          props.environment ?? process.env,
-        );
+        readVersion(executable, props.environment ?? process.env);
       if (state.cliVersion !== undefined && state.cliVersion !== cliVersion)
         throw new Error(
           "Retained benchmark cell uses a different Claude Code version.",
@@ -192,14 +193,13 @@ export namespace EvidenceBenchmarkClaudeRunner {
     props: IEvidenceBenchmarkRunProps,
     state: IEvidenceBenchmarkRunState,
     instruction: IEvidenceBenchmarkInstructionRecord,
-    executable: { command: string; prefix: readonly string[] },
+    executable: EvidenceBenchmarkRunner.IEvidenceBenchmarkExecutable,
     cliVersion: string,
   ): Promise<void> {
     const fresh: boolean = !state.instructions.some(
       (candidate) => candidate.completed,
     );
-    const arguments_: string[] = [
-      ...executable.prefix,
+    const arguments_: string[] = executable.composeArguments([
       "-p",
       "--input-format",
       "text",
@@ -232,7 +232,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
       "false",
       fresh ? "--session-id" : "--resume",
       state.sessionId,
-    ];
+    ]);
     const processIndex: number = state.processes.length;
     const processRecord: EvidenceBenchmarkRunner.IEvidenceBenchmarkProcessRecord =
       {
@@ -274,6 +274,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
       cwd: props.cwd,
       env: environment,
       shell: false,
+      windowsVerbatimArguments: executable.windowsVerbatimArguments,
       windowsHide: true,
       stdio: "pipe",
     });
@@ -619,59 +620,21 @@ export namespace EvidenceBenchmarkClaudeRunner {
     return value;
   }
 
-  function resolveExecutable(props: IEvidenceBenchmarkRunProps): {
-    command: string;
-    prefix: readonly string[];
-  } {
-    if (props.command !== undefined)
-      return {
-        command: props.command,
-        prefix: props.commandPrefixArguments ?? [],
-      };
-    if (process.platform !== "win32") return { command: "claude", prefix: [] };
-    const environment: NodeJS.ProcessEnv = props.environment ?? process.env;
-    const executable: string | undefined = locateWindowsCommand(
-      "claude",
-      environment,
-    );
-    if (executable === undefined)
-      throw new Error("Claude Code was not found on PATH.");
-    if (path.extname(executable).toLowerCase() === ".exe")
-      return { command: executable, prefix: [] };
-    const command: string | undefined = environment.ComSpec;
-    if (command === undefined)
-      throw new Error("Windows command processor was not found.");
-    return { command, prefix: ["/d", "/s", "/c", executable] };
-  }
-
-  function locateWindowsCommand(
-    name: string,
-    environment: NodeJS.ProcessEnv,
-  ): string | undefined {
-    const result = spawnSync("where.exe", [name], {
-      encoding: "utf8",
-      env: environment,
-      shell: false,
-      windowsHide: true,
-    });
-    if (result.status !== 0) return undefined;
-    return (result.stdout ?? "").split(/\r?\n/).find((candidate) => {
-      const extension: string = path.extname(candidate).toLowerCase();
-      return extension === ".exe" || extension === ".cmd";
-    });
-  }
-
   function readVersion(
-    command: string,
-    prefix: readonly string[],
+    executable: EvidenceBenchmarkRunner.IEvidenceBenchmarkExecutable,
     environment: NodeJS.ProcessEnv,
   ): string {
-    const result = spawnSync(command, [...prefix, "--version"], {
-      encoding: "utf8",
-      env: environment,
-      shell: false,
-      windowsHide: true,
-    });
+    const result = spawnSync(
+      executable.command,
+      executable.composeArguments(["--version"]),
+      {
+        encoding: "utf8",
+        env: environment,
+        shell: false,
+        windowsVerbatimArguments: executable.windowsVerbatimArguments,
+        windowsHide: true,
+      },
+    );
     const version: string = (result.stdout ?? "").trim();
     if (result.status !== 0 || version.length === 0)
       throw new Error(
