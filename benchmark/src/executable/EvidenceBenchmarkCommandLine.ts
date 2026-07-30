@@ -82,6 +82,9 @@ const main = async (): Promise<void> => {
       : (JSON.parse(
           fs.readFileSync(path.join(output, "state.json"), "utf8"),
         ) as IEvidenceBenchmarkStateFile);
+  const records: IEvidenceBenchmarkRecordPaths = recordPaths(output);
+  if (retained !== undefined && !sameRecordPaths(retained.records, records))
+    throw new Error("Retained benchmark record paths do not match the run.");
   const cell: IEvidenceBenchmarkCell = retained?.cell ?? requestedCell;
   if (
     cell.engine !== requestedCell.engine ||
@@ -93,9 +96,19 @@ const main = async (): Promise<void> => {
     cell.runId !== requestedCell.runId
   )
     throw new Error("Retained benchmark cell does not match the invocation.");
+  if (
+    retained !== undefined &&
+    ((cell.arm === "evidence" &&
+      !/^[0-9a-f]{64}$/i.test(cell.evidenceArtifactSha256 ?? "")) ||
+      (cell.arm === "plain" && cell.evidenceArtifactSha256 !== undefined))
+  )
+    throw new Error(
+      "Retained benchmark cell has an invalid artifact identity.",
+    );
 
   if (retained !== undefined) {
-    await runBenchmark(cell, retained.records, retained.state);
+    assertRegularFile(records.state);
+    await runBenchmark(cell, records, retained.state);
     return;
   }
 
@@ -146,13 +159,8 @@ const main = async (): Promise<void> => {
       fs.rmSync(temporary, { recursive: true, force: true });
   }
 
-  const records: IEvidenceBenchmarkRecordPaths = {
-    root: prepared.root,
-    workspace: prepared.workspace,
-    state: path.join(prepared.root, "state.json"),
-    events: path.join(prepared.root, "events.jsonl"),
-    raw: path.join(prepared.root, "raw.log"),
-  };
+  if (!sameRecordPaths(records, recordPaths(prepared.root)))
+    throw new Error("Prepared benchmark workspace has an invalid path.");
   initializeAppendOnly(records.events);
   initializeAppendOnly(records.raw);
   await runBenchmark(
@@ -171,9 +179,25 @@ const runBenchmark = async (
 ): Promise<void> => {
   if (initialState.arm !== cell.arm)
     throw new Error("Retained benchmark state uses a different arm.");
+  assertDirectory(records.root);
+  assertDirectory(records.workspace);
+  assertRegularFile(records.events);
+  assertRegularFile(records.raw);
+  if (cell.arm === "evidence") {
+    const archive: string = path.join(
+      records.workspace,
+      ".benchmark-deps",
+      "evidence.tgz",
+    );
+    assertRegularFile(archive);
+    if (sha256(archive) !== cell.evidenceArtifactSha256)
+      throw new Error("Evidence benchmark artifact no longer matches its SHA.");
+  }
   const repository: string = path.resolve(import.meta.dirname, "../../..");
   const environment: NodeJS.ProcessEnv = { ...process.env };
-  delete environment.EVIDENCE_BENCHMARK_ARCHIVE;
+  for (const name of Object.keys(environment))
+    if (name.toUpperCase() === "EVIDENCE_BENCHMARK_ARCHIVE")
+      delete environment[name];
   const eventDescriptor: number = fs.openSync(records.events, "a");
   const rawDescriptor: number = fs.openSync(records.raw, "a");
   try {
@@ -378,6 +402,41 @@ const packEvidence = async (
 const initializeAppendOnly = (file: string): void => {
   const descriptor: number = fs.openSync(file, "wx");
   fs.closeSync(descriptor);
+};
+
+const recordPaths = (root: string): IEvidenceBenchmarkRecordPaths => ({
+  root: path.resolve(root),
+  workspace: path.join(path.resolve(root), "workspace"),
+  state: path.join(path.resolve(root), "state.json"),
+  events: path.join(path.resolve(root), "events.jsonl"),
+  raw: path.join(path.resolve(root), "raw.log"),
+});
+
+const sameRecordPaths = (
+  left: IEvidenceBenchmarkRecordPaths,
+  right: IEvidenceBenchmarkRecordPaths,
+): boolean => {
+  const normalize = (value: string): string => {
+    const resolved: string = path.resolve(value);
+    return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+  };
+  return (
+    normalize(left.root) === normalize(right.root) &&
+    normalize(left.workspace) === normalize(right.workspace) &&
+    normalize(left.state) === normalize(right.state) &&
+    normalize(left.events) === normalize(right.events) &&
+    normalize(left.raw) === normalize(right.raw)
+  );
+};
+
+const assertDirectory = (location: string): void => {
+  if (!fs.lstatSync(location).isDirectory())
+    throw new Error(`Benchmark path is not a directory: ${location}.`);
+};
+
+const assertRegularFile = (location: string): void => {
+  if (!fs.lstatSync(location).isFile())
+    throw new Error(`Benchmark path is not a regular file: ${location}.`);
 };
 
 const replaceDurably = (file: string, content: string): void => {

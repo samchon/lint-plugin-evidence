@@ -86,9 +86,13 @@ export namespace EvidenceBenchmarkClaudeRunner {
     const entries = EvidenceBenchmarkRunner.instructionEntries(state.arm);
     try {
       if (state.nextInstructionIndex >= entries.length) {
+        if (state.interruption !== undefined) {
+          state.status = "interrupted";
+          await publish(props, state);
+          return state;
+        }
         validateCompletedState(state, entries);
         state.status = "completed";
-        delete state.interruption;
         await publish(props, state);
         return state;
       }
@@ -359,7 +363,6 @@ export namespace EvidenceBenchmarkClaudeRunner {
       );
       instruction.costUsd = costUsd;
       state.costUsd += costUsd;
-      await publish(props, state);
       validateInitializations(events, state, props, cliVersion);
     }
     if (outputError !== undefined) throw outputError;
@@ -466,9 +469,18 @@ export namespace EvidenceBenchmarkClaudeRunner {
   ): void {
     if (
       state.nextInstructionIndex !== entries.length ||
-      state.instructions.length !== entries.length
+      state.instructions.length !== entries.length ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        state.sessionId,
+      ) ||
+      state.cliVersion === undefined ||
+      state.cliVersion.length === 0 ||
+      state.nativeModel === undefined ||
+      state.nativeModel.length === 0
     )
-      throw new Error("Claude Code retained an invalid completed cursor.");
+      throw new Error("Claude Code retained an invalid completed identity.");
+    let retainedUsage: IEvidenceBenchmarkTokenUsage = zeroUsage();
+    let retainedCost = 0;
     entries.forEach((entry, index) => {
       const instruction: IEvidenceBenchmarkInstructionRecord | undefined =
         state.instructions.find((candidate) => candidate.index === index);
@@ -478,13 +490,31 @@ export namespace EvidenceBenchmarkClaudeRunner {
         instruction.relativePath !== entry[1] ||
         instruction.objectiveText !==
           `${instruction.prescribedText}\n\n${instruction.continuationText}` ||
+        !instruction.inputDispatched ||
         !instruction.completed ||
-        instruction.terminalResult === null
+        instruction.terminalResult === null ||
+        instruction.terminalResult.session_id !== state.sessionId
       )
         throw new Error(
           "Claude Code retained an invalid completed instruction.",
         );
       validateSuccessfulResult(instruction.terminalResult);
+      const usage: IEvidenceBenchmarkTokenUsage = readUsage(
+        instruction.terminalResult.usage,
+      );
+      const cost: number = nonnegativeNumber(
+        instruction.terminalResult.total_cost_usd,
+        "Claude Code total cost",
+      );
+      if (
+        !sameUsage(instruction.tokenUsage, usage) ||
+        instruction.costUsd !== cost
+      )
+        throw new Error(
+          "Claude Code retained invalid instruction measurements.",
+        );
+      retainedUsage = addUsage(retainedUsage, usage);
+      retainedCost += cost;
       const processIndex: number | undefined =
         instruction.processIndexes.at(-1);
       const processRecord:
@@ -497,6 +527,11 @@ export namespace EvidenceBenchmarkClaudeRunner {
       )
         throw new Error("Claude Code retained an invalid terminal process.");
     });
+    if (
+      !sameUsage(state.tokenUsage, retainedUsage) ||
+      state.costUsd !== retainedCost
+    )
+      throw new Error("Claude Code retained invalid total measurements.");
   }
 
   function collectEvent(
@@ -547,6 +582,19 @@ export namespace EvidenceBenchmarkClaudeRunner {
         left.cacheWriteInputTokens + right.cacheWriteInputTokens,
       outputTokens: left.outputTokens + right.outputTokens,
     };
+  }
+
+  function sameUsage(
+    left: IEvidenceBenchmarkTokenUsage,
+    right: IEvidenceBenchmarkTokenUsage,
+  ): boolean {
+    return (
+      left.totalTokens === right.totalTokens &&
+      left.inputTokens === right.inputTokens &&
+      left.cachedInputTokens === right.cachedInputTokens &&
+      left.cacheWriteInputTokens === right.cacheWriteInputTokens &&
+      left.outputTokens === right.outputTokens
+    );
   }
 
   function zeroUsage(): IEvidenceBenchmarkTokenUsage {
@@ -607,12 +655,10 @@ export namespace EvidenceBenchmarkClaudeRunner {
       windowsHide: true,
     });
     if (result.status !== 0) return undefined;
-    return (result.stdout ?? "")
-      .split(/\r?\n/)
-      .find((candidate) => {
-        const extension: string = path.extname(candidate).toLowerCase();
-        return extension === ".exe" || extension === ".cmd";
-      });
+    return (result.stdout ?? "").split(/\r?\n/).find((candidate) => {
+      const extension: string = path.extname(candidate).toLowerCase();
+      return extension === ".exe" || extension === ".cmd";
+    });
   }
 
   function readVersion(

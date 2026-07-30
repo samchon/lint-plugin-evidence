@@ -150,6 +150,37 @@ const main = async (): Promise<void> => {
       lateProtocolError.interruption?.message ?? "",
       /fixture\/late-error/,
     );
+    const retainedLateProtocolError = await EvidenceBenchmarkRunner.run({
+      state: lateProtocolError,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(retainedLateProtocolError.status, "interrupted");
+    assert.match(
+      retainedLateProtocolError.interruption?.message ?? "",
+      /fixture\/late-error/,
+    );
+
+    const wrongGoal = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--wrong-goal"],
+      onOutput: () => undefined,
+    });
+    assert.equal(wrongGoal.status, "interrupted");
+    assert.match(
+      wrongGoal.interruption?.message ?? "",
+      /retained thread and objective/,
+    );
 
     const invalidCursor = structuredClone(completed);
     invalidCursor.status = "interrupted";
@@ -170,6 +201,25 @@ const main = async (): Promise<void> => {
       /invalid terminal process/,
     );
     assert.equal(rejectedCursor.processes.length, 1);
+
+    const invalidMeasurements = structuredClone(completed);
+    invalidMeasurements.status = "interrupted";
+    invalidMeasurements.goals.at(-1)!.tokenUsage.outputTokens++;
+    const rejectedMeasurements = await EvidenceBenchmarkRunner.run({
+      state: invalidMeasurements,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(rejectedMeasurements.status, "interrupted");
+    assert.match(
+      rejectedMeasurements.interruption?.message ?? "",
+      /invalid completed Goal/,
+    );
 
     const interruptedOutput: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] =
       [];
@@ -196,6 +246,70 @@ const main = async (): Promise<void> => {
       /fixture interruption/,
     );
 
+    const wrongThread = await EvidenceBenchmarkRunner.run({
+      state: interrupted,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--wrong-thread"],
+      onOutput: () => undefined,
+    });
+    assert.equal(wrongThread.status, "interrupted");
+    assert.match(
+      wrongThread.interruption?.message ?? "",
+      /different retained thread/,
+    );
+
+    const blockedThenComplete = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--blocked-then-complete"],
+      onOutput: () => undefined,
+    });
+    assert.equal(blockedThenComplete.status, "interrupted");
+    assert.equal(blockedThenComplete.nextInstructionIndex, 0);
+    assert.equal(blockedThenComplete.goals.length, 1);
+
+    const missingToken = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--omit-token"],
+      onOutput: () => undefined,
+    });
+    assert.equal(missingToken.status, "interrupted");
+    assert.equal(missingToken.nextInstructionIndex, 0);
+    assert.match(
+      missingToken.interruption?.message ?? "",
+      /native token checkpoint/,
+    );
+
+    const missingNotificationThread = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--missing-thread-id"],
+      onOutput: () => undefined,
+    });
+    assert.equal(missingNotificationThread.status, "interrupted");
+    assert.equal(missingNotificationThread.nextInstructionIndex, 0);
+    assert.match(
+      missingNotificationThread.interruption?.message ?? "",
+      /notification omitted its thread ID/,
+    );
+
     const stateFailureOutput: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] =
       [];
     let stateCheckpointCount = 0;
@@ -211,10 +325,7 @@ const main = async (): Promise<void> => {
         stateFailureOutput.push(output);
       },
       onState: (state) => {
-        if (
-          state.sessionId !== undefined &&
-          state.goals[0]?.goal === null
-        ) {
+        if (state.sessionId !== undefined && state.goals[0]?.goal === null) {
           stateCheckpointCount++;
           if (stateCheckpointCount !== 2) return;
           throw new Error("fixture durable state failure");
@@ -232,6 +343,51 @@ const main = async (): Promise<void> => {
         .map((output) => JSON.parse(output.text) as Record<string, unknown>)
         .filter((request) => request.method === "thread/goal/set").length,
       0,
+    );
+    const firstBoundaryResume = await EvidenceBenchmarkRunner.run({
+      state: stateFailure,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--empty-goal"],
+      onOutput: () => undefined,
+    });
+    assert.equal(firstBoundaryResume.status, "completed");
+
+    const nextBoundary = structuredClone(completed);
+    nextBoundary.status = "interrupted";
+    nextBoundary.nextInstructionIndex = 1;
+    nextBoundary.goals = nextBoundary.goals.slice(0, 1);
+    nextBoundary.threadTokenUsage = structuredClone(
+      nextBoundary.goals[0]!.tokenUsageEnd!,
+    );
+    const nextBoundaryResume = await EvidenceBenchmarkRunner.run({
+      state: nextBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--previous-goal"],
+      onOutput: () => undefined,
+    });
+    assert.equal(nextBoundaryResume.status, "completed");
+    const activePreviousBoundary = await EvidenceBenchmarkRunner.run({
+      state: nextBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--previous-active"],
+      onOutput: () => undefined,
+    });
+    assert.equal(activePreviousBoundary.status, "interrupted");
+    assert.match(
+      activePreviousBoundary.interruption?.message ?? "",
+      /undispatched Goal boundary/,
     );
 
     const outputFailure = await EvidenceBenchmarkRunner.run({
@@ -283,12 +439,26 @@ const writeInstructions = (root: string): Map<string, Buffer> => {
 const fakeAppServer = (): void => {
   const fail: boolean = process.argv.includes("--fail");
   const lateError: boolean = process.argv.includes("--late-error");
-  let goalIndex = 0;
+  const blockedThenComplete: boolean = process.argv.includes(
+    "--blocked-then-complete",
+  );
+  const emptyGoal: boolean = process.argv.includes("--empty-goal");
+  const omitToken: boolean = process.argv.includes("--omit-token");
+  const missingThreadId: boolean = process.argv.includes("--missing-thread-id");
+  const previousActive: boolean = process.argv.includes("--previous-active");
+  const previousGoal: boolean =
+    previousActive || process.argv.includes("--previous-goal");
+  const wrongGoal: boolean = process.argv.includes("--wrong-goal");
+  const wrongThread: boolean = process.argv.includes("--wrong-thread");
+  let goalIndex = previousGoal ? 1 : 0;
   let waitingForIdle = false;
   const send = (value: unknown, callback?: () => void): void => {
     process.stdout.write(`${JSON.stringify(value)}\n`, callback);
   };
-  const goal = (objective: string, status: "active" | "complete") => ({
+  const goal = (
+    objective: string,
+    status: "active" | "blocked" | "complete",
+  ) => ({
     threadId: "fixture-thread",
     objective,
     status,
@@ -298,100 +468,146 @@ const fakeAppServer = (): void => {
     createdAt: 1,
     updatedAt: goalIndex + 1,
   });
-  readline
-    .createInterface({ input: process.stdin })
-    .on("line", (line: string) => {
-      const request = JSON.parse(line) as {
-        id?: number;
-        method: string;
-        params?: Record<string, unknown>;
-      };
-      if (request.id === undefined) return;
-      if (request.method === "initialize")
-        return send({ id: request.id, result: {} });
-      if (request.method === "thread/start")
-        return send({
-          id: request.id,
-          result: {
-            thread: {
-              id: "fixture-thread",
-              cliVersion: "fixture-cli",
-              status: { type: "idle" },
-            },
+  const input = readline.createInterface({ input: process.stdin });
+  const firstObjective = (): string => {
+    const relativePath: string = ENTRIES[0]![1];
+    return `${fs.readFileSync(
+      path.join(process.cwd(), ...relativePath.split("/")),
+      "utf8",
+    )}\n\n${fs.readFileSync(path.join(process.cwd(), "continue.md"), "utf8")}`;
+  };
+  input.on("line", (line: string) => {
+    const request = JSON.parse(line) as {
+      id?: number;
+      method: string;
+      params?: Record<string, unknown>;
+    };
+    if (request.id === undefined) return;
+    if (request.method === "initialize")
+      return send({ id: request.id, result: {} });
+    if (request.method === "thread/start")
+      return send({
+        id: request.id,
+        result: {
+          thread: {
+            id: "fixture-thread",
+            cliVersion: "fixture-cli",
+            status: { type: "idle" },
           },
-        });
-      if (
-        request.method !== "thread/goal/set" ||
-        request.params?.status !== "active" ||
-        typeof request.params.objective !== "string" ||
-        waitingForIdle
-      )
-        return send({
-          id: request.id,
-          error: { message: `Unexpected request: ${request.method}` },
-        });
-      const objective: string = request.params.objective;
-      goalIndex++;
-      if (fail) {
-        process.stderr.write("fixture interruption\n");
-        return send(
-          { id: request.id, result: { goal: goal(objective, "active") } },
-          () => process.exit(7),
-        );
-      }
-      const turnId: string = `turn-${goalIndex}`;
-      const total = {
-        totalTokens: goalIndex * 10,
-        inputTokens: goalIndex * 6,
-        cachedInputTokens: 0,
-        cacheWriteInputTokens: 0,
-        outputTokens: goalIndex * 4,
-        reasoningOutputTokens: 0,
-      };
-      send({ id: request.id, result: { goal: goal(objective, "active") } });
-      send({
-        method: "turn/started",
-        params: {
-          threadId: "fixture-thread",
-          turn: { id: turnId },
         },
       });
-      send({
-        method: "thread/tokenUsage/updated",
-        params: {
-          threadId: "fixture-thread",
-          tokenUsage: { total },
+    if (request.method === "thread/resume")
+      return send({
+        id: request.id,
+        result: {
+          thread: {
+            id: wrongThread ? "fixture-other-thread" : "fixture-thread",
+            cliVersion: "fixture-cli",
+            status: { type: "idle" },
+          },
         },
       });
+    if (request.method === "thread/goal/get")
+      return send({
+        id: request.id,
+        result: {
+          goal: emptyGoal
+            ? null
+            : previousGoal
+              ? goal(firstObjective(), previousActive ? "active" : "complete")
+              : null,
+        },
+      });
+    if (
+      request.method !== "thread/goal/set" ||
+      request.params?.status !== "active" ||
+      typeof request.params.objective !== "string" ||
+      waitingForIdle
+    )
+      return send({
+        id: request.id,
+        error: { message: `Unexpected request: ${request.method}` },
+      });
+    const objective: string = request.params.objective;
+    goalIndex++;
+    if (fail) {
+      process.stderr.write("fixture interruption\n");
+      return send(
+        { id: request.id, result: { goal: goal(objective, "active") } },
+        () => process.exit(7),
+      );
+    }
+    const turnId: string = `turn-${goalIndex}`;
+    const total = {
+      totalTokens: goalIndex * 10,
+      inputTokens: goalIndex * 6,
+      cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
+      outputTokens: goalIndex * 4,
+      reasoningOutputTokens: 0,
+    };
+    send({
+      id: request.id,
+      result: {
+        goal: goal(
+          wrongGoal ? `${objective}\nwrong objective` : objective,
+          "active",
+        ),
+      },
+    });
+    if (blockedThenComplete)
       send({
         method: "thread/goal/updated",
         params: {
           threadId: "fixture-thread",
-          goal: goal(objective, "complete"),
-          turnId,
+          goal: goal(objective, "blocked"),
         },
       });
+    send({
+      method: "turn/started",
+      params: {
+        threadId: "fixture-thread",
+        turn: { id: turnId },
+      },
+    });
+    if (!omitToken)
       send({
-        method: "turn/completed",
+        method: "thread/tokenUsage/updated",
+        params: {
+          ...(missingThreadId ? {} : { threadId: "fixture-thread" }),
+          tokenUsage: { total },
+        },
+      });
+    send({
+      method: "thread/goal/updated",
+      params: {
+        threadId: "fixture-thread",
+        goal: goal(objective, "complete"),
+        turnId,
+      },
+    });
+    send({
+      method: "turn/completed",
+      params: {
+        threadId: "fixture-thread",
+        turn: { id: turnId, status: "completed", durationMs: 1 },
+      },
+    });
+    waitingForIdle = true;
+    setTimeout(() => {
+      waitingForIdle = false;
+      send({
+        method: "thread/status/changed",
         params: {
           threadId: "fixture-thread",
-          turn: { id: turnId, status: "completed", durationMs: 1 },
+          status: { type: "idle" },
         },
       });
-      waitingForIdle = true;
-      setTimeout(() => {
-        waitingForIdle = false;
-        send({
-          method: "thread/status/changed",
-          params: {
-            threadId: "fixture-thread",
-            status: { type: "idle" },
-          },
-        });
-        if (lateError && goalIndex === ENTRIES.length)
-          send({ id: -1, method: "fixture/late-error" });
-      }, 10);
-    });
+    }, 10);
+  });
+  input.on("close", () => {
+    if (lateError) send({ id: -1, method: "fixture/late-error" });
+  });
 };
 
 if (process.argv.includes("--fake-app-server")) fakeAppServer();

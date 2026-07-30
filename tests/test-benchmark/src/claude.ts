@@ -185,12 +185,41 @@ const main = async (): Promise<void> => {
     });
     assert.equal(outputFailureResume.status, "completed");
 
+    let completionCheckpointFailed = false;
+    const completionCheckpointFailure = await EvidenceBenchmarkClaudeRunner.run(
+      {
+        state: EvidenceBenchmarkClaudeRunner.create("evidence"),
+        cwd: root,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        command: process.execPath,
+        commandPrefixArguments: prefix,
+        onOutput: () => undefined,
+        onState: (state) => {
+          if (!completionCheckpointFailed && state.instructions[0]?.completed) {
+            completionCheckpointFailed = true;
+            throw new Error("fixture completion checkpoint failure");
+          }
+        },
+      },
+    );
+    assert.equal(completionCheckpointFailure.status, "interrupted");
+    assert.equal(completionCheckpointFailure.instructions[0]?.completed, true);
+    const completionCheckpointResume = await EvidenceBenchmarkClaudeRunner.run({
+      state: completionCheckpointFailure,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(completionCheckpointResume.status, "completed");
+
     const closedCursor = structuredClone(completed);
     closedCursor.status = "interrupted";
-    closedCursor.interruption = {
-      name: "FixtureInterruption",
-      message: "state publication failed after cursor advance",
-    };
     const closed = await EvidenceBenchmarkClaudeRunner.run({
       state: closedCursor,
       cwd: root,
@@ -204,6 +233,28 @@ const main = async (): Promise<void> => {
     assert.equal(closed.status, "completed");
     assert.equal(closed.interruption, undefined);
     assert.equal(closed.processes.length, entries.length);
+
+    const interruptedCursor = structuredClone(completed);
+    interruptedCursor.status = "interrupted";
+    interruptedCursor.interruption = {
+      name: "FixtureInterruption",
+      message: "fixture terminal interruption",
+    };
+    const retainedInterruption = await EvidenceBenchmarkClaudeRunner.run({
+      state: interruptedCursor,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(retainedInterruption.status, "interrupted");
+    assert.equal(
+      retainedInterruption.interruption?.message,
+      "fixture terminal interruption",
+    );
 
     const invalidCursor = structuredClone(completed);
     invalidCursor.status = "interrupted";
@@ -224,6 +275,64 @@ const main = async (): Promise<void> => {
       /invalid completed instruction/,
     );
     assert.equal(rejectedCursor.processes.length, entries.length);
+
+    const wrongSession = structuredClone(completed);
+    wrongSession.status = "interrupted";
+    wrongSession.instructions.at(-1)!.terminalResult!.session_id =
+      "fixture-other-session";
+    const rejectedSession = await EvidenceBenchmarkClaudeRunner.run({
+      state: wrongSession,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(rejectedSession.status, "interrupted");
+    assert.match(
+      rejectedSession.interruption?.message ?? "",
+      /invalid completed instruction/,
+    );
+
+    const undispatched = structuredClone(completed);
+    undispatched.status = "interrupted";
+    undispatched.instructions.at(-1)!.inputDispatched = false;
+    const rejectedUndispatched = await EvidenceBenchmarkClaudeRunner.run({
+      state: undispatched,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(rejectedUndispatched.status, "interrupted");
+    assert.match(
+      rejectedUndispatched.interruption?.message ?? "",
+      /invalid completed instruction/,
+    );
+
+    const invalidMeasurements = structuredClone(completed);
+    invalidMeasurements.status = "interrupted";
+    invalidMeasurements.instructions.at(-1)!.tokenUsage.outputTokens++;
+    const rejectedMeasurements = await EvidenceBenchmarkClaudeRunner.run({
+      state: invalidMeasurements,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(rejectedMeasurements.status, "interrupted");
+    assert.match(
+      rejectedMeasurements.interruption?.message ?? "",
+      /invalid instruction measurements/,
+    );
 
     for (const [relativePath, source] of sources)
       assert.deepEqual(

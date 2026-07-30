@@ -66,7 +66,9 @@ export namespace EvidenceBenchmarkWorkspace {
         injectEvidence(workspace, request.artifact);
       }
       const environment: NodeJS.ProcessEnv = { ...process.env };
-      delete environment.EVIDENCE_BENCHMARK_ARCHIVE;
+      for (const name of Object.keys(environment))
+        if (name.toUpperCase() === "EVIDENCE_BENCHMARK_ARCHIVE")
+          delete environment[name];
       await pnpm(["install", "--no-frozen-lockfile"], workspace, environment);
       await run("git", ["init", "-b", "benchmark"], workspace, environment);
       await run("git", ["add", "-A"], workspace, environment);

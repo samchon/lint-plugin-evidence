@@ -100,10 +100,14 @@ export namespace EvidenceBenchmarkRunner {
     const state: IEvidenceBenchmarkRunState = structuredClone(props.state);
     const entries = instructionEntries(state.arm);
     if (state.nextInstructionIndex >= entries.length) {
+      if (state.interruption !== undefined) {
+        state.status = "interrupted";
+        await props.onState?.(structuredClone(state));
+        return state;
+      }
       try {
         validateCompletedState(state, entries);
         state.status = "completed";
-        delete state.interruption;
       } catch (error) {
         state.status = "interrupted";
         state.interruption = normalizeInterruption(error);
@@ -282,6 +286,9 @@ export namespace EvidenceBenchmarkRunner {
     let advancing = false;
     const beginGoal = async (): Promise<void> => {
       const record: IEvidenceBenchmarkGoalRecord = prepare();
+      const threadId: string | undefined = state.sessionId;
+      if (threadId === undefined)
+        throw new Error("Codex app-server omitted the thread ID.");
       record.terminalTurnId = null;
       record.terminalTurnCompleted = false;
       record.threadIdle = false;
@@ -289,22 +296,26 @@ export namespace EvidenceBenchmarkRunner {
       await publication;
       if (outcome !== undefined) return;
       const response: unknown = await request("thread/goal/set", {
-        threadId: state.sessionId,
+        threadId,
         objective: record.objectiveText,
         status: "active",
       });
       const value: Record<string, unknown> = object(response);
-      record.goal = object(value.goal);
+      const goal: Record<string, unknown> = object(value.goal);
+      validateNativeGoal(record, goal, threadId);
+      record.goal = goal;
       publish();
     };
     const advance = async (): Promise<void> => {
+      if (outcome !== undefined) return;
       const record: IEvidenceBenchmarkGoalRecord = current();
       if (
         advancing ||
         record.goal?.status !== "complete" ||
         record.terminalTurnId === null ||
         !record.terminalTurnCompleted ||
-        !record.threadIdle
+        !record.threadIdle ||
+        !usageAdvanced(state.threadTokenUsage, record.tokenUsageStart)
       )
         return;
       advancing = true;
@@ -325,19 +336,27 @@ export namespace EvidenceBenchmarkRunner {
     };
 
     const notify = async (message: Record<string, unknown>): Promise<void> => {
-      const params: Record<string, unknown> = object(message.params);
       if (
-        typeof params.threadId === "string" &&
-        state.sessionId !== undefined &&
-        params.threadId !== state.sessionId
+        message.method !== "thread/tokenUsage/updated" &&
+        message.method !== "turn/started" &&
+        message.method !== "thread/goal/updated" &&
+        message.method !== "turn/completed" &&
+        message.method !== "thread/status/changed"
       )
         return;
+      const params: Record<string, unknown> = object(message.params);
+      if (typeof params.threadId !== "string")
+        throw new Error("Codex app-server notification omitted its thread ID.");
+      if (state.sessionId === undefined)
+        throw new Error("Codex app-server omitted the thread ID.");
+      if (params.threadId !== state.sessionId) return;
 
       if (message.method === "thread/tokenUsage/updated") {
         const usage: IEvidenceBenchmarkTokenUsage | undefined =
           tokenUsage(params);
         if (usage !== undefined) state.threadTokenUsage = usage;
         publish();
+        await advance();
         return;
       }
       if (message.method === "turn/started") {
@@ -347,7 +366,11 @@ export namespace EvidenceBenchmarkRunner {
       }
       if (message.method === "thread/goal/updated") {
         const record: IEvidenceBenchmarkGoalRecord = current();
-        record.goal = object(params.goal);
+        const goal: Record<string, unknown> = object(params.goal);
+        if (state.sessionId === undefined)
+          throw new Error("Codex app-server omitted the thread ID.");
+        validateNativeGoal(record, goal, state.sessionId);
+        record.goal = goal;
         const status: unknown = record.goal.status;
         if (status === "complete") {
           if (typeof params.turnId !== "string") {
@@ -388,7 +411,17 @@ export namespace EvidenceBenchmarkRunner {
         record.threadIdle =
           status.type === "idle" && record.terminalTurnCompleted;
         publish();
-        if (status.type === "systemError" || status.type === "notLoaded")
+        if (
+          record.threadIdle &&
+          !usageAdvanced(state.threadTokenUsage, record.tokenUsageStart)
+        )
+          finish("interrupted", {
+            name: "EvidenceBenchmarkTokenCheckpointError",
+            message:
+              "Codex Goal completed without an exact native token checkpoint.",
+            instructionIndex: record.index,
+          });
+        else if (status.type === "systemError" || status.type === "notLoaded")
           finish("interrupted", message);
         else await advance();
       }
@@ -464,6 +497,7 @@ export namespace EvidenceBenchmarkRunner {
         capabilities: {},
       });
       send({ method: "initialized" });
+      const retainedSessionId: string | undefined = state.sessionId;
       const response: Record<string, unknown> = object(
         fresh
           ? await request("thread/start", {
@@ -484,6 +518,10 @@ export namespace EvidenceBenchmarkRunner {
       const thread: Record<string, unknown> = object(response.thread);
       if (typeof thread.id !== "string")
         throw new Error("Codex app-server omitted the thread ID.");
+      if (!fresh && thread.id !== retainedSessionId)
+        throw new Error(
+          "Codex app-server resumed a different retained thread.",
+        );
       if (typeof thread.cliVersion !== "string")
         throw new Error("Codex app-server omitted the CLI version.");
       if (
@@ -493,7 +531,8 @@ export namespace EvidenceBenchmarkRunner {
         throw new Error(
           "Retained benchmark cell uses a different CLI version.",
         );
-      state.sessionId = thread.id;
+      const sessionId: string = thread.id;
+      state.sessionId = sessionId;
       state.cliVersion = thread.cliVersion;
       current().threadIdle = object(thread.status, false)?.type === "idle";
       publish();
@@ -503,54 +542,69 @@ export namespace EvidenceBenchmarkRunner {
       else if (outcome === undefined) {
         const goalResponse: Record<string, unknown> = object(
           await request("thread/goal/get", {
-            threadId: state.sessionId,
+            threadId: sessionId,
           }),
         );
-        if (goalResponse.goal === null) finish("interrupted", goalResponse);
-        else {
-          const goal: Record<string, unknown> = object(goalResponse.goal);
-          const record: IEvidenceBenchmarkGoalRecord = current();
-          if (record.goal === null)
+        const goal: Record<string, unknown> | null =
+          goalResponse.goal === null ? null : object(goalResponse.goal);
+        const record: IEvidenceBenchmarkGoalRecord = current();
+        if (record.goal === null) {
+          let exactBoundary: boolean = record.index === 0 && goal === null;
+          if (!exactBoundary && record.index > 0 && goal !== null) {
+            const previous: IEvidenceBenchmarkGoalRecord | undefined =
+              state.goals.find(
+                (candidate) => candidate.index === record.index - 1,
+              );
+            if (
+              previous !== undefined &&
+              previous.goal !== null &&
+              previous.goal.status === "complete" &&
+              previous.terminalTurnId !== null &&
+              previous.terminalTurnCompleted &&
+              previous.threadIdle &&
+              previous.tokenUsageEnd !== null &&
+              usageAdvanced(previous.tokenUsageEnd, previous.tokenUsageStart) &&
+              goal.status === "complete"
+            ) {
+              validateNativeGoal(previous, previous.goal, sessionId);
+              validateNativeGoal(previous, goal, sessionId);
+              exactBoundary = true;
+            }
+          }
+          if (!exactBoundary)
             finish("interrupted", {
               name: "EvidenceBenchmarkResumeInterruption",
-              message: "Retained state has no exact current Goal checkpoint.",
+              message:
+                "Retained state has no exact undispatched Goal boundary.",
               instructionIndex: record.index,
               nativeGoal: goal,
             });
-          else if (
-            record.goal.objective !== record.objectiveText ||
-            goal.objective !== record.objectiveText
+          else await beginGoal();
+        } else if (goal === null) finish("interrupted", goalResponse);
+        else {
+          validateNativeGoal(record, record.goal, sessionId);
+          validateNativeGoal(record, goal, sessionId);
+          record.goal = goal;
+          publish();
+          if (
+            goal.status === "complete" &&
+            (record.terminalTurnId === null ||
+              !record.terminalTurnCompleted ||
+              !record.threadIdle)
           )
             finish("interrupted", {
               name: "EvidenceBenchmarkResumeInterruption",
-              message: "Native Goal does not match the retained current Goal.",
+              message:
+                "Completed Goal lacks an exact terminal-turn and idle checkpoint.",
               instructionIndex: record.index,
-              retainedGoal: record.goal,
-              nativeGoal: goal,
+              goal,
+              terminalTurnId: record.terminalTurnId,
+              terminalTurnCompleted: record.terminalTurnCompleted,
+              threadIdle: record.threadIdle,
             });
-          else {
-            record.goal = goal;
-            publish();
-            if (
-              goal.status === "complete" &&
-              (record.terminalTurnId === null ||
-                !record.terminalTurnCompleted ||
-                !record.threadIdle)
-            )
-              finish("interrupted", {
-                name: "EvidenceBenchmarkResumeInterruption",
-                message:
-                  "Completed Goal lacks an exact terminal-turn and idle checkpoint.",
-                instructionIndex: record.index,
-                goal,
-                terminalTurnId: record.terminalTurnId,
-                terminalTurnCompleted: record.terminalTurnCompleted,
-                threadIdle: record.threadIdle,
-              });
-            else if (goal.status === "active" || goal.status === "complete")
-              await advance();
-            else finish("interrupted", goal);
-          }
+          else if (goal.status === "active" || goal.status === "complete")
+            await advance();
+          else finish("interrupted", goal);
         }
       }
     } catch (error) {
@@ -609,20 +663,45 @@ export namespace EvidenceBenchmarkRunner {
       const record: IEvidenceBenchmarkGoalRecord | undefined = state.goals.find(
         (candidate) => candidate.index === index,
       );
+      const previous: IEvidenceBenchmarkGoalRecord | undefined =
+        index === 0
+          ? undefined
+          : state.goals.find((candidate) => candidate.index === index - 1);
       if (
         record === undefined ||
         record.name !== entry[0] ||
         record.relativePath !== entry[1] ||
         record.objectiveText !==
           `${record.prescribedText}\n\n${record.continuationText}` ||
+        record.goal?.threadId !== state.sessionId ||
+        record.goal?.objective !== record.objectiveText ||
         record.goal?.status !== "complete" ||
         record.terminalTurnId === null ||
         !record.terminalTurnCompleted ||
         !record.threadIdle ||
-        record.tokenUsageEnd === null
+        record.tokenUsageEnd === null ||
+        !usageAdvanced(record.tokenUsageEnd, record.tokenUsageStart) ||
+        !sameUsage(
+          record.tokenUsage,
+          subtract(record.tokenUsageEnd, record.tokenUsageStart),
+        ) ||
+        (index === 0
+          ? !sameUsage(record.tokenUsageStart, zeroUsage())
+          : previous?.tokenUsageEnd === null ||
+            previous?.tokenUsageEnd === undefined ||
+            !sameUsage(record.tokenUsageStart, previous.tokenUsageEnd))
       )
         throw new Error("Codex retained an invalid completed Goal.");
     });
+    const last: IEvidenceBenchmarkGoalRecord | undefined = state.goals.find(
+      (candidate) => candidate.index === entries.length - 1,
+    );
+    if (
+      last?.tokenUsageEnd === null ||
+      last?.tokenUsageEnd === undefined ||
+      !sameUsage(state.threadTokenUsage, last.tokenUsageEnd)
+    )
+      throw new Error("Codex retained invalid total measurements.");
     const terminal: IEvidenceBenchmarkProcessRecord | undefined =
       state.processes.at(-1);
     if (
@@ -658,6 +737,17 @@ export namespace EvidenceBenchmarkRunner {
     return { command, prefix: ["/d", "/s", "/c", executable] };
   }
 
+  function validateNativeGoal(
+    record: IEvidenceBenchmarkGoalRecord,
+    goal: Record<string, unknown>,
+    threadId: string,
+  ): void {
+    if (goal.threadId !== threadId || goal.objective !== record.objectiveText)
+      throw new Error(
+        "Native Goal does not match the retained thread and objective.",
+      );
+  }
+
   function locateWindowsCommand(
     name: string,
     environment: NodeJS.ProcessEnv,
@@ -669,12 +759,10 @@ export namespace EvidenceBenchmarkRunner {
       windowsHide: true,
     });
     if (result.status !== 0) return undefined;
-    return (result.stdout ?? "")
-      .split(/\r?\n/)
-      .find((candidate) => {
-        const extension: string = path.extname(candidate).toLowerCase();
-        return extension === ".exe" || extension === ".cmd";
-      });
+    return (result.stdout ?? "").split(/\r?\n/).find((candidate) => {
+      const extension: string = path.extname(candidate).toLowerCase();
+      return extension === ".exe" || extension === ".cmd";
+    });
   }
 
   function tokenUsage(
@@ -717,6 +805,38 @@ export namespace EvidenceBenchmarkRunner {
       reasoningOutputTokens:
         endpoint.reasoningOutputTokens - baseline.reasoningOutputTokens,
     };
+  }
+
+  function usageAdvanced(
+    endpoint: IEvidenceBenchmarkTokenUsage,
+    baseline: IEvidenceBenchmarkTokenUsage,
+  ): boolean {
+    const fields: readonly (keyof IEvidenceBenchmarkTokenUsage)[] = [
+      "totalTokens",
+      "inputTokens",
+      "cachedInputTokens",
+      "cacheWriteInputTokens",
+      "outputTokens",
+      "reasoningOutputTokens",
+    ];
+    return (
+      endpoint.totalTokens > baseline.totalTokens &&
+      fields.every((field) => endpoint[field] >= baseline[field])
+    );
+  }
+
+  function sameUsage(
+    left: IEvidenceBenchmarkTokenUsage,
+    right: IEvidenceBenchmarkTokenUsage,
+  ): boolean {
+    return (
+      left.totalTokens === right.totalTokens &&
+      left.inputTokens === right.inputTokens &&
+      left.cachedInputTokens === right.cachedInputTokens &&
+      left.cacheWriteInputTokens === right.cacheWriteInputTokens &&
+      left.outputTokens === right.outputTokens &&
+      left.reasoningOutputTokens === right.reasoningOutputTokens
+    );
   }
 
   function zeroUsage(): IEvidenceBenchmarkTokenUsage {
