@@ -24,7 +24,7 @@ const variables: IEvidenceBenchmarkMaterialization.IVariables = {
  *
  * 1. Materialize the base template with the Plain overlay.
  * 2. Install the generated workspace.
- * 3. Run `pnpm test` from its backend package.
+ * 3. Build and test from its backend package.
  */
 const main = async (): Promise<void> => {
   fs.rmSync(workspace, { recursive: true, force: true });
@@ -48,6 +48,11 @@ const main = async (): Promise<void> => {
     VITE_API_SIMULATE: "true",
   };
   await pnpm(["install"], workspace, environment);
+  await pnpm(
+    ["build"],
+    path.join(workspace, "packages", "backend"),
+    environment,
+  );
   await pnpm(
     ["test"],
     path.join(workspace, "packages", "backend"),
