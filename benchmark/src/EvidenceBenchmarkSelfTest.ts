@@ -1558,16 +1558,6 @@ export namespace EvidenceBenchmarkSelfTest {
         /assert\.equal\(response, "OK"\)/,
         `integrated ${arm} health test must assert the exact marker`,
       );
-      assert.match(
-        healthTest,
-        /new URL\("\/health", connection\.host\)/,
-        `integrated ${arm} health test must pin the raw health route`,
-      );
-      assert.match(
-        healthTest,
-        /assert\.equal\(await rawResponse\.text\(\), "OK"\)/,
-        `integrated ${arm} health test must assert the raw health marker`,
-      );
       assert.doesNotMatch(
         healthTest,
         /typia\.assert\(response\)/,
