@@ -629,6 +629,7 @@ export namespace EvidenceBenchmarkTurnLedger {
       option(args, "--settings"),
       props.repository,
       props.workspace,
+      !(path.isAbsolute(launcher) && basename === "claude.exe"),
     );
     const resumed: boolean = option(args, "--resume") !== undefined;
     if (
@@ -667,6 +668,7 @@ export namespace EvidenceBenchmarkTurnLedger {
     value: string | undefined,
     repository: string,
     workspace: string,
+    sandboxSupported: boolean,
   ): void {
     let parsed: unknown;
     try {
@@ -703,8 +705,8 @@ export namespace EvidenceBenchmarkTurnLedger {
         JSON.stringify(["Bash", "Edit(./**)", "Read(./**)", "Agent"]) ||
       JSON.stringify(permissions.deny) !==
         JSON.stringify(["WebFetch", "WebSearch"]) ||
-      sandbox.enabled !== true ||
-      sandbox.failIfUnavailable !== true ||
+      sandbox.enabled !== sandboxSupported ||
+      sandbox.failIfUnavailable !== sandboxSupported ||
       sandbox.allowUnsandboxedCommands !== false ||
       !isObject(filesystem) ||
       JSON.stringify(filesystem.denyRead) !==
@@ -741,6 +743,7 @@ export namespace EvidenceBenchmarkTurnLedger {
       !isObject(environment) ||
       environment.ANTHROPIC_DEFAULT_HAIKU_MODEL !== "claude-sonnet-5" ||
       environment.ANTHROPIC_DEFAULT_SONNET_MODEL !== "claude-sonnet-5" ||
+      environment.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS !== "0" ||
       environment.CLAUDE_CODE_SUBAGENT_MODEL !== "claude-sonnet-5" ||
       environment.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB !== "1" ||
       settings?.autoMemoryEnabled !== false ||

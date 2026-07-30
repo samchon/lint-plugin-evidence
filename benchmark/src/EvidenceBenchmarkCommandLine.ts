@@ -182,8 +182,8 @@ export namespace EvidenceBenchmarkCommandLine {
 
   /**
    * Builds the strict Claude Code settings and tool surface for one measured
-   * cell. The OS sandbox remains a launch prerequisite rather than an optional
-   * fallback.
+   * cell. POSIX hosts add Claude's OS sandbox; native Windows retains the same
+   * non-interactive tool policy around the disposable measured workspace.
    */
   export function claudeIsolationArguments(
     repository: string,
@@ -192,6 +192,7 @@ export namespace EvidenceBenchmarkCommandLine {
   ): string[] {
     const runRoot: string = path.dirname(workspace);
     const cache: string = path.join(runRoot, "cache");
+    const sandboxSupported: boolean = process.platform !== "win32";
     const protectedEnvironment: string[] = [
       ...new Set([
         "ANTHROPIC_API_KEY",
@@ -222,8 +223,8 @@ export namespace EvidenceBenchmarkCommandLine {
         deny: ["WebFetch", "WebSearch"],
       },
       sandbox: {
-        enabled: true,
-        failIfUnavailable: true,
+        enabled: sandboxSupported,
+        failIfUnavailable: sandboxSupported,
         autoAllowBashIfSandboxed: true,
         allowUnsandboxedCommands: false,
         filesystem: {
@@ -248,6 +249,7 @@ export namespace EvidenceBenchmarkCommandLine {
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-sonnet-5",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5",
         CLAUDE_CODE_SUBAGENT_MODEL: "claude-sonnet-5",
+        CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: "0",
         CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1",
       },
       attribution: {
@@ -277,27 +279,6 @@ export namespace EvidenceBenchmarkCommandLine {
       "--prompt-suggestions",
       "false",
     ];
-  }
-
-  /**
-   * Requires an explicit non-interactive credential because measured Claude
-   * cells use an isolated configuration directory rather than host login
-   * state.
-   */
-  export function assertClaudeAuthenticationEnvironment(
-    environment: NodeJS.ProcessEnv,
-  ): void {
-    if (
-      [
-        "ANTHROPIC_API_KEY",
-        "ANTHROPIC_AUTH_TOKEN",
-        "CLAUDE_CODE_OAUTH_TOKEN",
-      ].some((name) => (environment[name] ?? "").trim().length !== 0)
-    )
-      return;
-    throw new Error(
-      "Claude Code benchmark cells require ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, or CLAUDE_CODE_OAUTH_TOKEN in the controller environment because host login state is intentionally isolated.",
-    );
   }
 
   /**
@@ -403,8 +384,6 @@ export namespace EvidenceBenchmarkCommandLine {
       throw new Error(
         `Benchmark start requires a clean source tree:\n${status}`,
       );
-    assertEngineHosts();
-    assertClaudeAuthenticationEnvironment(process.env);
     const cliVersions: ReadonlyMap<EvidenceBenchmarkEngine.Name, string> =
       new Map(
         EvidenceBenchmarkEngine.MATRIX.map((engine) => [
@@ -475,9 +454,6 @@ export namespace EvidenceBenchmarkCommandLine {
       EvidenceBenchmarkEngine.definition(
         EvidenceBenchmarkEngine.parse(engineInput!),
       );
-    assertEngineHosts(engine.engine);
-    if (engine.engine === "claude-code")
-      assertClaudeAuthenticationEnvironment(process.env);
     if (!ARMS.includes(armInput as (typeof ARMS)[number]))
       throw new Error(`Unknown benchmark arm: ${armInput}.`);
     const project: IEvidenceBenchmarkMaterialization.Project =
@@ -1297,16 +1273,11 @@ export namespace EvidenceBenchmarkCommandLine {
       CLAUDE_CODE_AUTO_CONNECT_IDE: "false",
       CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+      CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: "0",
       CLAUDE_CODE_SUBAGENT_MODEL: "claude-sonnet-5",
       CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1",
-      CLAUDE_CONFIG_DIR: path.join(
-        path.dirname(cache),
-        "controller",
-        "claude-config",
-      ),
       DISABLE_AUTOUPDATER: "1",
     };
-    fs.mkdirSync(output.CLAUDE_CONFIG_DIR!, { recursive: true });
     return output;
   }
 
@@ -1563,7 +1534,7 @@ export namespace EvidenceBenchmarkCommandLine {
       if (actual[index]! > CLAUDE_MINIMUM_VERSION[index]!) break;
       if (actual[index]! < CLAUDE_MINIMUM_VERSION[index]!)
         throw new Error(
-          `Claude Code ${CLAUDE_MINIMUM_VERSION.join(".")} or newer is required for the strict benchmark sandbox; found ${version}.`,
+          `Claude Code ${CLAUDE_MINIMUM_VERSION.join(".")} or newer is required for the benchmark adapter; found ${version}.`,
         );
     }
     return version;
@@ -1571,13 +1542,6 @@ export namespace EvidenceBenchmarkCommandLine {
 
   function engineVersion(engine: EvidenceBenchmarkEngine.Name): string {
     return engine === "codex" ? codexVersion() : claudeVersion();
-  }
-
-  function assertEngineHosts(engine?: EvidenceBenchmarkEngine.Name): void {
-    if (process.platform === "win32" && engine !== "codex")
-      throw new Error(
-        "Claude Code benchmark cells require its fail-closed OS sandbox, which is unsupported on native Windows. Launch the complete eight-cell wave from macOS, Linux, or WSL2.",
-      );
   }
 
   async function initializeWorkspace(

@@ -236,8 +236,11 @@ export namespace EvidenceBenchmarkSelfTest {
       };
       env: Record<string, string>;
     };
-    assert.equal(settings.sandbox.enabled, true);
-    assert.equal(settings.sandbox.failIfUnavailable, true);
+    assert.equal(settings.sandbox.enabled, process.platform !== "win32");
+    assert.equal(
+      settings.sandbox.failIfUnavailable,
+      process.platform !== "win32",
+    );
     assert.equal(settings.sandbox.allowUnsandboxedCommands, false);
     assert.deepEqual(settings.sandbox.filesystem.denyRead, [
       "~/",
@@ -257,15 +260,10 @@ export namespace EvidenceBenchmarkSelfTest {
       "127.0.0.1",
     ]);
     assert.equal(settings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, "1");
-    assert.throws(
-      () =>
-        EvidenceBenchmarkCommandLine.assertClaudeAuthenticationEnvironment({}),
-      /require ANTHROPIC_API_KEY/,
-    );
-    assert.doesNotThrow(() =>
-      EvidenceBenchmarkCommandLine.assertClaudeAuthenticationEnvironment({
-        CLAUDE_CODE_OAUTH_TOKEN: "fixture-token",
-      }),
+    assert.equal(
+      settings.env.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS,
+      "0",
+      "Claude Code must wait for measured background agents without a ceiling",
     );
   }
 

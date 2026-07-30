@@ -44,7 +44,7 @@ Launch only from a clean pushed commit. The repository suites and the consumer-s
 
 Schedule pressure, an absent user, or a nearly finished branch does not weaken this gate. Settle every deterministic template, package, configuration, build, port, and CI defect before model use.
 
-Claude Code measured launches require its sandbox on macOS, Linux, or WSL2 and an explicit non-interactive `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, or `CLAUDE_CODE_OAUTH_TOKEN` in the controller environment. The runner isolates host login state between cells. Reject a native Windows Claude Code launch rather than weakening or bypassing the sandbox.
+Claude Code measured launches use the installed local CLI and its existing authenticated account. On macOS, Linux, and WSL2, enable Claude's OS sandbox; on native Windows, retain the same frozen inputs, workspace boundary, tool allowlist, secret-denying child environment, and loopback-only task contract without inventing a container requirement that the generated SQLite application does not have.
 
 ## Subject Order
 
