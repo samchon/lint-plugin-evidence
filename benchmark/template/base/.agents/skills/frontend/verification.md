@@ -47,7 +47,7 @@ The export is the point. A journey that exists only inside a `test()` callback c
 
 The exported journey is lexically outside Playwright's registered `test()` callback, so `playwright/no-standalone-expect` rejects `expect()` inside it. Keep the complete interaction in the exported function and use web-first locator waits or explicit throwing checks for the conditions it owns; keep Playwright `expect()` assertions inside the wrapping `test()` callback. Do not remove a check to satisfy the rule—the helper and wrapper together must still fail when the named behavior disappears.
 
-The e2e mode runs the same specs under `journeys/` twice. Run `pnpm test:e2e` with `VITE_API_SIMULATE=true` during development, then run the same command with `VITE_API_SIMULATE=false` against the prepared, separately running backend to close.
+Run the same specs under `journeys/` twice: invoke `pnpm test:e2e` with `VITE_API_SIMULATE=true` during development, then invoke it again with `VITE_API_SIMULATE=false` against the prepared, separately running backend to close.
 
 ## Two Meanings, Recorded Apart
 
@@ -63,7 +63,9 @@ Development happens against the simulation program and closes with the live one.
 
 Simulation returns valid random data, so the states that matter most never appear on demand: the empty list, the rejection, the longest name, the zero price. Waiting to meet them in the wild means shipping them unseen.
 
-Build one dev-only route gated by Vite's `import.meta.env.DEV` signal and absent from production navigation. It renders each screen's presentational components against fixture view models, one row per state a screen owes. The ui-review program walks it at the three widths, which turns "every screen handles every state" from a claim into something a browser run visits.
+Build one dev-only route gated by Vite's `import.meta.env.DEV` signal and absent from production navigation. It renders each screen's presentational components against fixture view models, one row per state a screen owes. Visit it through the interactive browser while developing each screen, at all three widths.
+
+The production `ui:review` program cannot reach a DEV-only route. It reviews the real shipping screens at the same widths after the production build; the gallery supplies deterministic state inspection during development, while `ui:review` verifies the built presentation.
 
 When a defect arrives from the wild, its fixture joins the gallery, so the state that escaped once cannot escape silently again.
 
