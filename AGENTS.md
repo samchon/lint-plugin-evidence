@@ -49,9 +49,9 @@ README, guide, and agent-instruction authoring rules, `.agents/skills/documentat
 
 Branch, commit, pull request, check, and merge flow, `.agents/skills/pull-request/SKILL.md`. Read when the user explicitly asks to open, submit, update, or merge a pull request, or when a standing autonomous mandate authorizes end-to-end delivery.
 
-### Benchmark Measurement
+### Benchmark Operation
 
-Benchmark authorization, launch gates, frozen inputs, measurement integrity, active supervision, recovery, publication, and reporting, `.agents/skills/benchmark/SKILL.md`. Read before launching, observing, resuming, repairing, publishing, or reporting a run, or before editing anything a run reads.
+Benchmark authorization, frozen inputs, launch, native Goal operation, interruption recovery, retained measurement, acceptance, comparison, publication boundaries, and truthful reporting, `.agents/skills/benchmark/SKILL.md`. Read before preparing, launching, observing, resuming, accepting, comparing, publishing, or reporting a run.
 
 ## Maintenance
 
