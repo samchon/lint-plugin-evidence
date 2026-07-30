@@ -3,12 +3,13 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkProject } from "./EvidenceBenchmarkProject.ts";
+import { EvidenceBenchmarkState } from "./EvidenceBenchmarkState.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 
 /** Applies one recorded common patch to every paused arm in a benchmark wave. */
 export namespace EvidenceBenchmarkRepair {
   const ARMS = ["evidence", "plain"] as const;
-  const PROJECTS = ["todo", "reddit", "shopping", "erp"] as const;
   const MAXIMUM_PATCH_BYTES = 1024 * 1024;
 
   /** Common workspace repair selected by one run identity and subject set. */
@@ -77,15 +78,10 @@ export namespace EvidenceBenchmarkRepair {
       )
     )
       throw new Error(`Invalid benchmark run ID: ${runId ?? ""}.`);
-    for (const project of projectInputs)
-      if (!PROJECTS.includes(project as (typeof PROJECTS)[number]))
-        throw new Error(`Unknown benchmark project: ${project}.`);
     return {
       runId,
       patch,
-      projects: [
-        ...new Set(projectInputs),
-      ] as IEvidenceBenchmarkMaterialization.Project[],
+      projects: [...new Set(projectInputs.map(EvidenceBenchmarkProject.parse))],
     };
   }
 
@@ -98,6 +94,9 @@ export namespace EvidenceBenchmarkRepair {
     request: IRequest,
   ): Promise<IResult> {
     const started: bigint = process.hrtime.bigint();
+    const projects: IEvidenceBenchmarkMaterialization.Project[] = [
+      ...new Set(request.projects.map(EvidenceBenchmarkProject.parse)),
+    ];
     const repositoryRoot: string = path.resolve(repository);
     const repairRoot: string = path.resolve(
       repositoryRoot,
@@ -135,7 +134,7 @@ export namespace EvidenceBenchmarkRepair {
       "benchmark",
       "result",
     );
-    const cells: ICell[] = request.projects.flatMap((project) =>
+    const cells: ICell[] = projects.flatMap((project) =>
       ARMS.map((arm) =>
         readCell(resultsRoot, request.runId, project, arm, patchSha256),
       ),
@@ -254,16 +253,13 @@ export namespace EvidenceBenchmarkRepair {
   ): ICell {
     const root: string = path.resolve(resultsRoot, project, arm, "runs", runId);
     assertInside(resultsRoot, root, "repair cell");
-    const statePath: string = path.join(root, "run.json");
-    if (!fs.existsSync(statePath))
-      throw new Error(`Repair state was not found: ${statePath}.`);
-    const state = JSON.parse(fs.readFileSync(statePath, "utf8")) as {
+    const state = EvidenceBenchmarkState.read<{
       project?: unknown;
       arm?: unknown;
       status?: unknown;
       sourceCommit?: unknown;
       turns?: unknown[];
-    };
+    }>(root, "Repair state");
     if (
       state.project !== project ||
       state.arm !== arm ||

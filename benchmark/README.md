@@ -21,7 +21,7 @@ Assign a dedicated read-only reporting subagent to edit the pull-request body in
 | Project | Mode | Progress | Quality | Cost | Time |
 | ------- | ---- | -------- | ------: | ---: | ---: |
 
-`Progress` gives the current retained instruction, state, and estimated completion. `Quality` is provisional until final audit. `Cost` contains native token categories and API-equivalent cost. `Time` is cumulative elapsed duration without timestamps. Keep a compact per-phase token, cost, and duration breakdown for all eight retained instructions, then report database-table, API-operation, DTO-type, DTO-property, and test-function counts for each cell. Report counts, not names.
+`Progress` gives the current retained instruction, state, and estimated completion. `Quality` is provisional until final audit. `Cost` contains native token categories and API-equivalent cost. `Time` is cumulative elapsed duration without timestamps. Keep a compact per-phase token, cost, and duration breakdown for all nine retained instructions, then report database-table, API-operation, DTO-type, DTO-property, and test-function counts for each cell. Report counts, not names.
 
 The reporting subagent reads retained state, logs, usage, and workspace inventories. It never edits a measured workspace, frozen input, campaign source, or result ledger. The separate liveness supervisor still inspects every active cell at least once every 30 seconds and handles failures immediately.
 
@@ -49,16 +49,18 @@ pnpm install --frozen-lockfile
 pnpm --filter @samchon/evidence-benchmark check
 pnpm --filter @samchon/evidence-benchmark test:unit
 pnpm --filter @samchon/evidence-benchmark test:package
-pnpm --filter test-benchmark test:build
+pnpm --filter test-benchmark start
 ```
 
-The consumer-shaped template proof composes both overlays, copies the complete Todo requirements into an isolated plain workspace, generates a lockfile, performs a frozen install, and builds the full scaffold. `.github/workflows/benchmark.yml` runs the same proof for relevant pull-request changes.
+The package smoke installs the locally packed product into a materialized Evidence workspace. The consumer-shaped template proof materializes the Plain workspace, installs its declared dependencies, and runs the backend build followed by the backend test. `.github/workflows/benchmark.yml` runs that Plain proof on Ubuntu and Windows for relevant pull-request changes.
 
 The evidence overlay additionally installs the locally packed product during benchmark materialization. Plain records the same package identity without receiving the package.
 
 ## Plan and start
 
 Run Todo and Reddit first, with evidence and plain arms concurrent within each subject wave. Run Shopping and ERP only after the cheaper subjects complete successfully.
+
+Those four directories are the current campaign corpus, not an execution allow-list. Any 1-63 character lowercase subject slug made from letters, digits, and hyphens, except Windows device names, enters the same plan, materialization, runtime, recovery, repair, and publication paths when it owns a complete `benchmark/requirements/<subject>/` Markdown corpus. The runner assigns ports from the selected wave order, never from a subject-name table.
 
 Inspect the exact wave without a model call, then launch it from the same clean, validated, pushed commit:
 
@@ -73,9 +75,9 @@ Use `--port-base` to move the complete disjoint port allocation when the default
 pnpm --filter @samchon/evidence-benchmark start -- --port-base 50000 todo reddit
 ```
 
-`start` packs and verifies the product once, materializes and installs every selected evidence/plain cell, then starts them concurrently. It freezes the instruction bytes before the first turn and updates `run.json` after each attempt.
+`start` packs and verifies the product once, materializes and installs every selected evidence/plain cell, then starts them concurrently. It freezes the requirement and instruction bytes before the first turn, records the rendered workspace and package identities, captures the four canonical lint configurations, creates and installs a frozen pnpm lockfile, and journals `run.json` after each attempt. Evidence final turns must restore the exact lint bytes and literal claim populations selected for their phase before the runner accepts them. Build, lint, database, backend-test, frontend-test, runtime, coverage, and quality acceptance remains an operator audit; the runner does not infer those results from a zero Codex exit status.
 
-The runner assigns each subject and arm distinct API, Swagger, Vite development, and Playwright ports. It checks every selected port before packaging or model use, exports the assignments to agent child processes, persists them in package-local `.env` files, and records them in `run.json`. Pnpm, ttsc, Go, and Playwright caches are cell-local.
+The runner assigns each subject and arm distinct API, Swagger, Vite development, and Playwright ports. It checks every selected port before packaging or model use, exports the assignments to agent child processes, persists their fixed values in package-local `.env` files, and records them in `run.json`. Pnpm, ttsc, Go build/module/workspace, Playwright, and operating-system temporary caches are cell-local below the writable run root and excluded from results. A deny-by-default Codex permission profile gives model tools write access only to the measured workspace and its run-owned cache tree, minimal runtime reads, loopback network access, and a credential-free allowlisted child environment. The deterministic harness tests the serialized profile and rejects dangerous sandbox bypasses, inherited secret environments, and upstream proxy credentials.
 
 ## Observe and resume
 
@@ -99,10 +101,11 @@ Do not delete requirement corpora, templates, instructions, shared caches, sourc
 
 ## Instruction sequence
 
-The backend-first workflow uses eight user turns on one Codex thread.
+The backend-first workflow uses nine user turns on one Codex thread.
 
 | Step            | Evidence                     | Plain                     |
 | --------------- | ---------------------------- | ------------------------- |
+| Skills contract | `skills-contract.md`         | `skills-contract.md`      |
 | Backend start   | `backend/start.md`           | `backend/start.md`        |
 | Backend review  | `backend/review.md`          | `backend/review.md`       |
 | Backend final   | `backend/evidence-final.md`  | `backend/plain-final.md`  |
@@ -132,7 +135,7 @@ A repair applied after measured work is an operator intervention, even when both
 
 ## Accept a result
 
-`status: completed` is provisional. Before accepting a cell, verify all eight prescribed turns, build, lint, database preparation, backend tests, frontend tests, runtime behavior, requirement coverage, test coverage, enabled evidence claims, residual placeholders, and semantic quality. Failed capacity attempts remain in cumulative cost and time; setup and repair overhead remain separate.
+`status: completed` is provisional. Before accepting a cell, verify all nine prescribed turns, build, lint, database preparation, backend tests, frontend tests, runtime behavior, requirement coverage, test coverage, enabled evidence claims, residual placeholders, and semantic quality. The runner records every attempt and accepts only successful turns in canonical order; Evidence final turns additionally carry exact lint-restoration seals. A rejected turn interrupts the cell. Failed capacity attempts remain in cumulative cost and time; setup and repair overhead remain separate.
 
 Do not record absolute start or completion timestamps. Preserve total elapsed duration, native token categories, standard API-equivalent cost, commands and gates, first completion claims, implementation scale, coverage, quality findings, frozen-input identities, raw streams, and the final workspace.
 
@@ -146,11 +149,75 @@ Completed and operator-accepted applications belong in one independently maintai
 
 Write the completed human-and-agent audit to `benchmark/result/<project>/<arm>/runs/<run-id>/benchmark-report.json`, then name both the public GitHub repository and its clean, up-to-date local checkout explicitly:
 
+The report schema is strict. Identity and frozen-input hashes must match the run. `totalElapsedMs`, `agentElapsedMs`, `nonAgentElapsedMs`, accepted and rejected attempt counts, all four native token categories, and API-equivalent cost must equal the retained attempt ledger; cost is recomputed by subtracting cached input from total input and applying the report's per-million uncached-input, cached-input, and output prices. Record every terminal gate as `passed`, requirement and test coverage as covered/total pairs, implementation scale, the first completion claim and its honesty, a 0–100 quality score with summary and residual defects, and the sorted SHA-256 of every retained intervention.
+
+```json
+{
+  "schemaVersion": 1,
+  "status": "accepted",
+  "project": "<project>",
+  "arm": "<evidence|plain>",
+  "runId": "<run-id>",
+  "measurement": {
+    "totalElapsedMs": 0,
+    "agentElapsedMs": 0,
+    "nonAgentElapsedMs": 0,
+    "attempts": { "total": 0, "accepted": 0, "rejected": 0 },
+    "tokens": {
+      "input_tokens": 0,
+      "cached_input_tokens": 0,
+      "output_tokens": 0,
+      "reasoning_output_tokens": 0
+    },
+    "pricingUsdPerMillion": {
+      "input": 0,
+      "cachedInput": 0,
+      "output": 0
+    },
+    "apiEquivalentCostUsd": 0
+  },
+  "gates": {
+    "build": "passed",
+    "lint": "passed",
+    "database": "passed",
+    "backendTests": "passed",
+    "frontendTests": "passed",
+    "runtime": "passed"
+  },
+  "coverage": {
+    "requirements": { "total": 0, "covered": 0 },
+    "tests": { "total": 0, "covered": 0 }
+  },
+  "implementation": {
+    "tables": 0,
+    "apiOperations": 0,
+    "dtoTypes": 0,
+    "dtoProperties": 0,
+    "testFunctions": 0
+  },
+  "completion": { "firstClaimTurn": null, "honest": false },
+  "quality": {
+    "score": 0,
+    "summary": "<audit summary>",
+    "residualDefects": []
+  },
+  "frozenInputs": {
+    "sourceCommit": "<sha-1>",
+    "instructionsTreeSha256": "<sha-256>",
+    "requirementsTreeSha256": "<sha-256>",
+    "completedWorkspaceTreeSha256": "<sha-256>"
+  },
+  "interventions": []
+}
+```
+
+Replace the zeros with measured values; standard input and output prices must be positive.
+
 ```bash
 pnpm --filter @samchon/evidence-benchmark publish:result -- --repository <owner/name> --checkout <local-path> --public todo evidence <run-id>
 ```
 
-There is no default owner, repository, or checkout. The command requires the authenticated `gh` login to equal the named repository owner; proves the repository is public; proves the checkout has the matching GitHub origin, a clean `main` or `master` branch, and no remote drift; verifies the run, frozen inputs, completed-workspace digest, report, and evidence archive; then replaces only that agent/model/project/arm leaf in one commit. It excludes private environment files, dependencies, nested Git state, and nested workflows. A pre-push failure restores the prior leaf; a successful push is verified against the remote branch.
+There is no default owner, repository, or checkout. The command requires the authenticated `gh` login to equal the named repository owner; proves the repository is public; proves the checkout has the matching GitHub origin, a clean `main` or `master` branch, and no remote drift; revalidates the retained JSONL terminal events and token usage, thread identity, model and isolation invocation, lint-restoration proofs, current workspace digest, strict report ledger, frozen inputs, intervention records, and evidence archive; then replaces only that agent/model/project/arm leaf in one commit. The report carries the operator's terminal-gate and quality audit; publication validates its schema and retained-ledger arithmetic but does not rerun those gates. Publication excludes private environment files, dependencies, nested Git state, and nested workflows. A pre-push failure restores the prior leaf; a successful push is verified against the remote branch.
 
 Evidence results retain `.benchmark-deps/*.tgz` because their frozen lockfile installs the exact locally packed product measured by the run. Raw logs and controller state remain in this repository.
 

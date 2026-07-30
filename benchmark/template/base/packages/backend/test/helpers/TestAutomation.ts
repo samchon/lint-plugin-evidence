@@ -3,12 +3,18 @@ import { DynamicExecutor } from "@nestia/e2e";
 
 import { MyConfiguration } from "../../src/MyConfiguration";
 
+/** Runs dynamically discovered backend feature tests against a live server. */
 export namespace TestAutomation {
+  /** Backend lifecycle operations used by the dynamic test runner. */
   export interface IProps<T> {
+    /** Starts the backend under test. */
     open(): Promise<T>;
+
+    /** Stops the backend under test. */
     close(backend: T): Promise<void>;
   }
 
+  /** Executes every exported feature test and returns its structured report. */
   export async function execute<T>(
     props: IProps<T>,
   ): Promise<DynamicExecutor.IReport> {

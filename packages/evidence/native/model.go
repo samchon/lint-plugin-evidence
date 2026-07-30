@@ -137,15 +137,19 @@ func (unit *evidenceUnit) location() string {
 }
 
 type evidenceDeclaration struct {
-	ID       string
-	Type     artifactKind
-	Tag      tagKind
-	Target   string
-	Reason   string
-	Hosts    symbolSet
-	Path     string
-	Line     int
-	Sequence int
+	ID     string
+	Type   artifactKind
+	Tag    tagKind
+	Target string
+	Reason string
+	Hosts  symbolSet
+	// ExclusionCarrier permits only @evidenceExclude to participate without a
+	// selected host kind. File matching, target resolution, and claim-reference
+	// ownership still decide the obligations it can discharge.
+	ExclusionCarrier bool
+	Path             string
+	Line             int
+	Sequence         int
 }
 
 func (declaration *evidenceDeclaration) location() string {

@@ -631,15 +631,16 @@ func collectTypeScriptDeclarations(
 		for _, parsed := range parseDeclarations(content[entry.node.Pos():entry.node.End()]) {
 			sequence++
 			inventory.Declarations = append(inventory.Declarations, &evidenceDeclaration{
-				ID:       "typescript:" + path + ":" + decimal(baseLine+parsed.LineOffset) + ":" + decimal(sequence),
-				Type:     artifactTypeScript,
-				Tag:      parsed.Tag,
-				Target:   parsed.Target,
-				Reason:   parsed.Reason,
-				Hosts:    entry.hosts,
-				Path:     path,
-				Line:     baseLine + parsed.LineOffset,
-				Sequence: sequence,
+				ID:               "typescript:" + path + ":" + decimal(baseLine+parsed.LineOffset) + ":" + decimal(sequence),
+				Type:             artifactTypeScript,
+				Tag:              parsed.Tag,
+				Target:           parsed.Target,
+				Reason:           parsed.Reason,
+				Hosts:            entry.hosts,
+				ExclusionCarrier: len(entry.hosts) != 0,
+				Path:             path,
+				Line:             baseLine + parsed.LineOffset,
+				Sequence:         sequence,
 			})
 		}
 	}

@@ -2,6 +2,8 @@
 
 Use goal mode for this whole-project Plain final stage. Resume the same unfinished stage goal after an interruption; otherwise create it now. Mark it complete only when the full-project Loop Until Dry, every requirement, every test, and every canonical gate below are green.
 
+The skills-contract turn remains binding. Re-read `AGENTS.md` and every applicable project, layer, and Review instruction in full before any final-stage action.
+
 Complete final verification with a full-project Loop Until Dry. Each complete round must:
 
 1. re-read every requirement and review every database, API, backend, frontend, integration, test, generated output, mapping, negative path, state transition, and deliberate omission;

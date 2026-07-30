@@ -6,9 +6,12 @@ import path from "node:path";
 import { MyGlobal } from "./MyGlobal";
 import { PrismaErrorUtil } from "./utils/PrismaErrorUtil";
 
+/** Reads runtime paths and validated environment-backed settings. */
 export namespace MyConfiguration {
+  /** Returns the configured HTTP port. */
   export const API_PORT = (): number => Number(MyGlobal.env.API_PORT);
 
+  /** Absolute workspace package root for source and compiled execution. */
   export const ROOT = (() => {
     const split: string[] = __dirname.split(path.sep);
     return (

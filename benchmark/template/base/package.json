@@ -5,20 +5,20 @@
   "description": "Benchmark full-stack application for {{name}}",
   "packageManager": "pnpm@10.10.0",
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.15"
   },
   "scripts": {
-    "build": "pnpm --filter {{backendPackageName}} build:prisma && pnpm --filter {{apiPackageName}} build && pnpm --filter {{backendPackageName}} build:main && pnpm --filter {{backendPackageName}} build:sdk && pnpm --filter {{backendPackageName}} build:test && pnpm --filter {{frontendPackageName}} build",
-    "build:frontend": "pnpm --filter {{frontendPackageName}} build",
-    "build:prisma": "pnpm --filter {{backendPackageName}} build:prisma",
-    "dev:frontend": "pnpm --filter {{frontendPackageName}} dev",
+    "build": "pnpm --filter {{backendPackageName}} --fail-if-no-match build:prisma && pnpm --filter {{apiPackageName}} --fail-if-no-match build && pnpm --filter {{backendPackageName}} --fail-if-no-match build:main && pnpm --filter {{backendPackageName}} --fail-if-no-match build:sdk && pnpm --filter {{backendPackageName}} --fail-if-no-match build:test && pnpm --filter {{frontendPackageName}} --fail-if-no-match build",
+    "build:frontend": "pnpm --filter {{frontendPackageName}} --fail-if-no-match build",
+    "build:prisma": "pnpm --filter {{backendPackageName}} --fail-if-no-match build:prisma",
+    "dev:frontend": "pnpm --filter {{frontendPackageName}} --fail-if-no-match dev",
     "format": "pnpm -r --if-present format",
-    "lint": "pnpm --filter {{backendPackageName}} build:prisma && pnpm -r --if-present lint",
-    "prepare:database": "pnpm --filter {{backendPackageName}} prepare",
-    "start": "pnpm --filter {{backendPackageName}} start",
+    "lint": "pnpm --filter {{backendPackageName}} --fail-if-no-match build:prisma && pnpm -r --if-present lint",
+    "prepare:database": "pnpm --filter {{backendPackageName}} --fail-if-no-match prepare",
+    "start": "pnpm --filter {{backendPackageName}} --fail-if-no-match start",
     "test": "pnpm test:backend && pnpm test:frontend",
-    "test:backend": "pnpm --filter {{backendPackageName}} test",
-    "test:frontend": "pnpm --filter {{frontendPackageName}} test:e2e"
+    "test:backend": "pnpm --filter {{backendPackageName}} --fail-if-no-match test",
+    "test:frontend": "pnpm --filter {{frontendPackageName}} --fail-if-no-match test:e2e"
   },
   "devDependencies": {
     "@ttsc/lint": "catalog:typescript",

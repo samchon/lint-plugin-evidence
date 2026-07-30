@@ -32,6 +32,8 @@ Nestia's configuration lives in `packages/backend/nestia.config.ts` and its outp
 
 An edit to a generated path survives until the next generation and then disappears without a message. The disappearance looks like someone else's bug, and the change that caused it was committed long before.
 
+`src/index.ts` is the stable public facade. It re-exports authored structures and typings directly as well as Nestia's generated `module.ts`, so a raw `nestia sdk`, `swagger`, or `all` run cannot erase an authored package export by replacing the generated barrel. Export a new authored folder from this facade; never make its reachability depend only on an edit to `module.ts`.
+
 To change what an operation exposes, change the controller signature, its DTO, or its JSDoc, then run the SDK generation. The backend skill's operations and wiring topics own those conventions.
 
 **Everything published from here carries JSDoc, down to each property.** This package is the API reference: its types reach consumers who never open this repository, and a property documented only by its name tells them nothing about what value belongs there. That holds for the authored paths in the table above and for the controller JSDoc the generated ones are built from.

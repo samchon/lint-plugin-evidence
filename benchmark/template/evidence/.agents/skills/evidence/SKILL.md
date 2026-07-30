@@ -21,6 +21,20 @@ Use the owning layer document for tag placement and examples:
 - [verification.md](../frontend/verification.md) for `frontend-journeys`; and
 - [providers.md](../backend/providers.md) for the residual provider edge, where neither evidence tag belongs.
 
+## Acknowledgement Placement
+
+Ownership and non-applicability have different homes. Keep every `@evidence` on the actual declaration selected by the claim: a model or field, DTO type or property, controller method, test function, screen, or journey. Never move ownership evidence into a central ledger.
+
+TypeScript exclusions may be collected on the public const in the matching claim population:
+
+- `packages/backend/src/controllers/CONTROLLER_EVIDENCE_EXCLUDE.ts` for `api-operations`;
+- `packages/api/src/structures/DTO_EVIDENCE_EXCLUDE.ts` for `dto-types` and `dto-properties`; and
+- `packages/backend/test/features/TEST_EVIDENCE_EXCLUDE.ts` for `backend-tests`.
+
+The const's property symbol need not match the claim's ownership selector. The file still must match that claim, the export must remain public, and every target remains claim-local and reference-local. The same carrier tag may participate in multiple matching claim-reference pairs: in particular, a Prisma model on `DTO_EVIDENCE_EXCLUDE` is both a `dto-types` model target and an ancestor of that model's selected `dto-properties` columns. Use an exact column target when only the property obligation is excluded.
+
+Schema exclusions may be collected as unattached top-level `/// @evidenceExclude` lines in `packages/backend/prisma/schema/exclude.schema`. That lint-only file is an explicit input of `schema-models` and is not a Prisma generate, migration, or ERD input. Only exclusions belong there; `@evidence` remains directly above its model or field.
+
 ## Configuration Ownership
 
 The complete graph is declared in three package-local files. Open the file that owns the affected population; there is no root graph configuration that replaces them.
@@ -31,25 +45,33 @@ The complete graph is declared in three package-local files. Open the file that 
 | `packages/api/lint.config.ts` | `dto-types`, `dto-properties` |
 | `packages/frontend/lint.config.ts` | `frontend-screens`, `frontend-journeys` |
 
+`packages/backend/lint.config.main.ts` is an immutable projection for the source-only `tsconfig.json` Program. It repeats only `schema-models` and `api-operations`, the claims whose hosts can exist under `src`. Do not edit or defer that projection. The backend test and lint Programs explicitly load the canonical `packages/backend/lint.config.ts`, which remains the sole owner of all three backend claims and every temporary deferral.
+
 The template starts with all seven claims active and every evidence rule at its final severity. Keep claims for the layer under active development enabled. Claims for a later layer that has not started may be deferred as described below; they are not evidence of unfinished work in the current layer.
 
 ## Temporary Claim Deferral
 
-During active development, prefer deferring a later-layer claim that has not started when its expected diagnostics would bury the current work. Comment out only the affected whole claim object. Do not edit the deferred object, disable `evidence/graph`, lower a severity, add an environment bypass, or narrow a population.
+During active development, a later-layer claim that has not started may be deferred when its expected diagnostics would bury the current work. Diagnostic volume never permits deferring the claim for the layer under active development. Comment out only the affected whole claim object.
 
-Use the backend claims in dependency order:
+This matrix is the canonical claim-state contract:
 
-1. While designing the schema, keep `schema-models` active. You may defer the not-yet-started `api-operations`, `backend-tests`, `dto-types`, and `dto-properties` claims.
-2. When DTO work starts, restore `dto-types` and `dto-properties`. Build the authored API package until the DTO contract holds.
-3. When controller work starts, restore `api-operations`. Compile the backend source until every operation and DTO is settled.
-4. Only then run `build:sdk`.
-5. When feature-test work starts, restore `backend-tests`, write the tests against that SDK, and run `build:test`.
-6. Before the Backend Phase report, restore and validate all five backend-phase claims.
+| Gate | Must be active | May be deferred only if not started |
+| --- | --- | --- |
+| Schema authoring | `schema-models` | `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys` |
+| DTO authoring | `schema-models`, `dto-types`, `dto-properties` | `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys` |
+| Controller authoring | `schema-models`, `dto-types`, `dto-properties`, `api-operations` | `backend-tests`, `frontend-screens`, `frontend-journeys` |
+| SDK generation | `schema-models`, `dto-types`, `dto-properties`, `api-operations` | `backend-tests`, `frontend-screens`, `frontend-journeys` |
+| Backend test | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests` | `frontend-screens`, `frontend-journeys` |
+| Backend report | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests` | `frontend-screens`, `frontend-journeys` |
+| Frontend screen | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens` | `frontend-journeys` |
+| Frontend journey/report | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys` | None |
+| Overall final | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys` | None |
 
-Use the same rule in the frontend: `frontend-screens` and `frontend-journeys` may remain deferred only until work on their respective populations begins. Both must be restored before the Frontend Phase report.
+Before `build:sdk`, the schema, DTO, and API-operation claims must all be active and healthy. Backend, Frontend, and Overall reports require every claim shown as active for that matrix gate to be restored. If frontend work proves a named backend defect, restore and revalidate every affected backend claim, regenerate affected output, and re-pass the Backend Phase gate before resuming frontend work.
 
 For example, this is a valid temporary deferral of `api-operations` in `packages/backend/lint.config.ts`:
 
+<!-- claim-deferral-example: packages/backend/lint.config.ts#api-operations -->
 ```ts
 claims: [
   // {
@@ -74,11 +96,51 @@ claims: [
 ],
 ```
 
-Comment every line of the existing object. Remove only those line-comment markers to reactivate it. Apply the same whole-object operation to claims in the other two package configurations. The purpose is to postpone feedback for work that has not started, not to hide feedback for the layer currently being built.
+This is the same operation for `dto-properties` in `packages/api/lint.config.ts`:
+
+<!-- claim-deferral-example: packages/api/lint.config.ts#dto-properties -->
+```ts
+claims: [
+  // {
+  //   name: "dto-properties",
+  //   type: "typescript",
+  //   files: ["src/structures/**/*.ts"],
+  //   symbol: "property",
+  //   reference: {
+  //     type: "prisma",
+  //     root: "../backend",
+  //     files: ["prisma/schema/**/*.prisma"],
+  //     symbol: ["column"],
+  //   },
+  // },
+],
+```
+
+This is the same operation for `frontend-screens` in `packages/frontend/lint.config.ts`:
+
+<!-- claim-deferral-example: packages/frontend/lint.config.ts#frontend-screens -->
+```ts
+claims: [
+  // {
+  //   name: "frontend-screens",
+  //   type: "typescript",
+  //   files: ["src/components/*/*-page.tsx", "!src/components/dev/**"],
+  //   symbol: "function",
+  //   reference: {
+  //     type: "markdown",
+  //     root: "../..",
+  //     files: ["docs/analysis/**/*.md"],
+  //     symbol: ["h2", "h3"],
+  //   },
+  // },
+],
+```
+
+Comment every line of the existing object and remove only those line-comment markers to restore its original text. Never edit a claim's internals, severity, rule entry, `files`, `symbol`, or `reference` population; never disable `evidence/graph` or add an environment bypass. Deferral postpones feedback only for work that has not started. It never hides an active layer's diagnostics.
 
 ## Phase Gates
 
-At the Backend Phase gate, restore and validate the five claims in `packages/backend/lint.config.ts` and `packages/api/lint.config.ts`.
+At the Backend Phase gate, restore and validate the five claims in `packages/backend/lint.config.ts` and `packages/api/lint.config.ts`. Confirm that `packages/backend/lint.config.main.ts` is unchanged and still contains exactly the `schema-models` and `api-operations` projection used by `build:main`.
 
 1. From `packages/backend`, run `pnpm build:prisma` and `pnpm prepare`.
 2. From `packages/api`, run `pnpm lint` and `pnpm build`.
@@ -89,14 +151,14 @@ At the Backend Phase gate, restore and validate the five claims in `packages/bac
 
 Do not use the backend package's aggregate `pnpm build` or the workspace-root build during this phase.
 
-At the Frontend Phase gate, restore and validate the two claims in `packages/frontend/lint.config.ts`. If frontend work changed API or backend sources, restore and revalidate the affected configurations and re-pass the Backend Phase first.
+At the Frontend Phase gate, open all three canonical `lint.config.ts` files and confirm that all seven original claim objects are active with their original populations and `error` severities. Confirm that the immutable backend main projection is unchanged. Validate the two frontend claims in `packages/frontend/lint.config.ts`. If frontend work changed API or backend sources, revalidate the affected configurations and re-pass the Backend Phase first.
 
 At the Overall Phase gate:
 
-1. Open all three `lint.config.ts` files and restore every temporarily commented claim.
+1. Open all three canonical `lint.config.ts` files and restore every temporarily commented claim; confirm the immutable backend main projection is unchanged.
 2. Confirm the active claim names are exactly the seven names in the configuration table.
 3. Confirm every configured evidence rule retains its original `error` severity and every claim retains its original population.
-4. Run the complete workspace lint, build, and test gates with no staged configuration override.
+4. Verify restoration from the three canonical configuration files and the immutable backend main projection, then run the complete workspace lint, build, and test gates with no staged configuration override. An agent's prose report is not restoration evidence.
 5. Read and execute [Review](../review/SKILL.md) against the fully active graph.
 
 A green phase subset is not whole-project completion. Any claim missing from its active phase, narrowed population, disabled rule, remaining phase-owned `@todo`, or unreviewed phase edge blocks that phase report.

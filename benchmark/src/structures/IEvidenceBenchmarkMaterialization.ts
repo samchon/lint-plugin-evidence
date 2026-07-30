@@ -17,6 +17,9 @@ export interface IEvidenceBenchmarkMaterialization {
   /** SHA-256 identity of the final workspace path and byte relation. */
   workspaceTreeSha256: string;
 
+  /** Frozen lint configuration identities copied into the retained run state. */
+  lintBaselines: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[];
+
   /** Environment inherited by setup and the measured cell for local caches. */
   environment: NodeJS.ProcessEnv;
 }
@@ -26,8 +29,8 @@ export namespace IEvidenceBenchmarkMaterialization {
   /** Benchmark mechanisms whose necessary setup differs by construction. */
   export type Arm = "evidence" | "plain";
 
-  /** Supported requirement corpora in ascending benchmark cost order. */
-  export type Project = "todo" | "reddit" | "shopping" | "erp";
+  /** Portable subject slug backed by a benchmark/requirements directory. */
+  export type Project = string;
 
   /** Complete input needed to materialize one cell before any agent starts. */
   export interface IRequest {
@@ -62,6 +65,42 @@ export namespace IEvidenceBenchmarkMaterialization {
     sha256: string;
   }
 
+  /** One literal claim definition in its original configured order. */
+  export interface ILintClaimBaseline {
+    /** Stable claim name used by phase instructions and diagnostics. */
+    name: string;
+
+    /** Canonical hash of the complete literal claim object. */
+    sha256: string;
+
+    /** JSON-compatible claim population, selectors, and references. */
+    definition: Readonly<Record<string, unknown>>;
+  }
+
+  /** Semantic Evidence Graph rule inventory for one lint configuration. */
+  export interface ILintGraphBaseline {
+    /** Required active severity outside an authorized loader-only branch. */
+    severity: "error";
+
+    /** Complete claims in their configured array order. */
+    claims: readonly ILintClaimBaseline[];
+  }
+
+  /** Exact and semantic identities for one package lint configuration. */
+  export interface ILintConfigBaseline {
+    /** Workspace-relative POSIX path to the package configuration. */
+    path: string;
+
+    /** SHA-256 identity of the exact rendered configuration bytes. */
+    sha256: string;
+
+    /** Hash of the normalized graph inventory or the plain-arm null marker. */
+    semanticSha256: string;
+
+    /** Evidence graph inventory; null for a Plain arm configuration. */
+    graph: ILintGraphBaseline | null;
+  }
+
   /** Exact root and child package identities rendered into every scaffold. */
   export interface IVariables {
     /** Root workspace npm package name. */
@@ -80,7 +119,7 @@ export namespace IEvidenceBenchmarkMaterialization {
   /** Permanent pre-run record written beside the workspace and input copy. */
   export interface IManifest {
     /** Manifest schema version; readers reject unsupported future shapes. */
-    schemaVersion: 4;
+    schemaVersion: 5;
 
     /** Versioned algorithm shared by every aggregate tree identity. */
     treeAlgorithm: "sha256-posix-path-nul-bytes-v1";
@@ -117,6 +156,9 @@ export namespace IEvidenceBenchmarkMaterialization {
 
     /** Preserved requirement path and byte ledger. */
     requirementFiles: readonly ITreeEntry[];
+
+    /** Materialization-time lint populations and exact source identities. */
+    lintBaselines: readonly ILintConfigBaseline[];
 
     /** Validated Markdown requirement structure. */
     corpus: {

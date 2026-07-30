@@ -11,7 +11,7 @@ A requirement set under `docs/analysis/` realized as a running application. The 
 
 ## Where You Are Starting From
 
-The workspace is scaffolded and empty. The build chain, the lint configuration, the test harness, the server bootstrap, the `/health` infrastructure route, and the frontend shell exist and work. There is no schema, requirement-derived controller, provider, test, or screen.
+The workspace is scaffolded and empty. The build chain, the lint configuration, the test harness, the server bootstrap, the `/health` infrastructure route with its generated SDK accessor and e2e proof, and the frontend shell exist and work. There is no requirement-derived schema, controller, provider, test, or screen.
 
 Everything else in this repository is yours to write, from the documents alone. Nobody will hand you a data model or a route list.
 

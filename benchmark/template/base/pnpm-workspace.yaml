@@ -4,6 +4,8 @@ packages:
   - packages/backend
   - packages/frontend
 
+modulesCacheMaxAge: 0
+
 onlyBuiltDependencies:
   - "@prisma/engines"
   - better-sqlite3

@@ -169,24 +169,23 @@ model Sale {
 }
 
 /**
- * Verifies a citation Prisma would discard is reported rather than ignored.
+ * Verifies a discarded comment and file-level ownership evidence are reported.
  *
- * Both placements below fail quietly and differently. A `//` comment is
- * dropped by Prisma outright, so nothing downstream ever sees the tag. A `///`
- * run detached by a blank line at top level documents nothing at all, which is
- * measured behaviour that does not hold one level down inside a block.
+ * Both placements below fail differently. A `//` comment is dropped by Prisma
+ * outright, so nothing downstream ever sees the tag. A detached top-level
+ * `///` run can carry an exclusion, but it cannot claim an absent model owns
+ * evidence.
  *
  * A block comment is deliberately absent from this list: Prisma documents a
  * declaration with one, so it hosts a citation here too.
  *
- * A tag that silently does nothing is the exact failure this product exists to
- * remove, so each names the move that fixes it.
+ * Each invalid placement names the move that fixes its own boundary.
  *
- *  1. Write one citation in each unusable position.
+ *  1. Write ownership evidence in a line comment and a file-level carrier.
  *  2. Assert two problems and no declarations.
  *  3. Assert each names its own repair.
  */
-func TestPrismaReportsACitationPrismaWouldDiscard(t *testing.T) {
+func TestPrismaReportsDiscardedCommentAndFileLevelEvidence(t *testing.T) {
 	declarations, problems := prismaClaimOf(`// @evidence docs/spec.md#a Written in a line comment.
 
 /// @evidence docs/spec.md#c Detached by a blank line.
@@ -207,7 +206,7 @@ model Sale {
 		"prisma/schema.prisma:1",
 		"'//' line comment",
 		"prisma/schema.prisma:3",
-		"documents no declaration",
+		"only @evidenceExclude may be unattached at file level",
 	} {
 		if !strings.Contains(joined, expected) {
 			t.Fatalf("problems must contain %q:\n%s", expected, joined)

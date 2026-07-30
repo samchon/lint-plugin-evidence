@@ -17,20 +17,18 @@ Use leaf H3 targets by default. Use an H2 only when this one model owns every se
 
 ## Excluding A Requirement From The Schema
 
-Put `@evidenceExclude` in the `///` block of a selected Prisma model when the `schema-models` claim intentionally has no storage responsibility for one requirement. The carrier model does not become the requirement's owner; it only hosts the claim-local decision.
+Collect reviewed `schema-models` exclusions as unattached top-level `/// @evidenceExclude` lines in `packages/backend/prisma/schema/exclude.schema`. The file is a claim-local lint-only carrier rather than a schema owner; keep truthful `@evidence` directly above the selected model, field, or relation that stores the requirement.
 
 ```prisma
-/// A sale offered by one seller.
-///
 /// @evidenceExclude docs/analysis/05-user-experience.md#empty-state-copy
 ///                  CatalogPage owns this presentation-only wording; reject
 ///                  this exclusion if the requirement adds persisted choice,
 ///                  audit history, or state.
-model ShoppingSale {
-}
 ```
 
-Name the actual owner and a condition that would veto the exclusion. “Not implemented,” “future work,” and “not applicable” do not explain why the schema must omit a requirement. Excluding an H2 excludes every selected H3 descendant, so use a leaf unless the same ownership decision is true for all descendants. Keep evidence and exclusion scopes disjoint within this claim-reference obligation. The exclusion satisfies only `schema-models`; controller, test, DTO, and frontend claims still owe their own decisions.
+Keep `exclude.schema` free of models and ownership evidence. Prisma generation, migration, and ERD still read only the `.prisma` schema folder; do not widen those commands to include this lint-only file.
+
+Name the actual owner and a condition that would veto the exclusion. “Not implemented,” “future work,” and “not applicable” do not explain why the schema must omit a requirement. Excluding an H2 excludes every selected H3 descendant, so use a leaf unless the same omission decision is true for all descendants. Keep evidence and exclusion scopes disjoint within this claim-reference obligation. The exclusion satisfies only `schema-models`; controller, test, DTO, and frontend claims still owe their own decisions.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}

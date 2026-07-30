@@ -4,10 +4,32 @@ import path from "node:path";
 
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 import type { IEvidenceBenchmarkSetup } from "./structures/IEvidenceBenchmarkSetup.ts";
 
 /** Freezes and installs one cell's dependency graph with cell-local caches. */
 export namespace EvidenceBenchmarkSetup {
+  /** Applies every derived cell-local cache path to a process environment. */
+  export function configureEnvironment(
+    root: string,
+    environment: NodeJS.ProcessEnv,
+    caches: IEvidenceBenchmarkMaterialization.IManifest["caches"],
+  ): void {
+    Object.assign(environment, {
+      COREPACK_HOME: path.join(root, "cache", "corepack"),
+      GOCACHE: caches.go,
+      GOMODCACHE: path.join(root, "cache", "go-mod"),
+      GOPATH: path.join(root, "cache", "go-path"),
+      GOTMPDIR: path.join(root, "cache", "go-tmp"),
+      npm_config_cache: path.join(root, "cache", "npm"),
+      npm_config_store_dir: caches.pnpm,
+      PLAYWRIGHT_BROWSERS_PATH: caches.playwright,
+      TTSC_CACHE_DIR: caches.ttsc,
+      TTSC_GO_CACHE_DIR: caches.go,
+      XDG_CACHE_HOME: path.join(root, "cache", "xdg"),
+    });
+  }
+
   /**
    * Creates the lockfile, performs a frozen install, and records setup timing.
    *
@@ -25,11 +47,24 @@ export namespace EvidenceBenchmarkSetup {
       environment,
       path.join(request.materialization.root, "cache", "toolchain-bin"),
     );
-    fs.mkdirSync(environment.npm_config_store_dir!, { recursive: true });
-    fs.mkdirSync(environment.TTSC_CACHE_DIR!, { recursive: true });
-    fs.mkdirSync(environment.TTSC_GO_CACHE_DIR!, { recursive: true });
-    fs.mkdirSync(environment.GOTMPDIR!, { recursive: true });
-    fs.mkdirSync(environment.PLAYWRIGHT_BROWSERS_PATH!, { recursive: true });
+    for (const name of [
+      "COREPACK_HOME",
+      "GOCACHE",
+      "GOMODCACHE",
+      "GOPATH",
+      "GOTMPDIR",
+      "npm_config_cache",
+      "npm_config_store_dir",
+      "PLAYWRIGHT_BROWSERS_PATH",
+      "TTSC_CACHE_DIR",
+      "TTSC_GO_CACHE_DIR",
+      "XDG_CACHE_HOME",
+    ] as const) {
+      const location: string | undefined = environment[name];
+      if (location === undefined)
+        throw new Error(`Benchmark setup environment is missing ${name}.`);
+      fs.mkdirSync(location, { recursive: true });
+    }
 
     const pnpm = await EvidenceBenchmarkProcess.pnpm(["--version"], {
       cwd: workspace,

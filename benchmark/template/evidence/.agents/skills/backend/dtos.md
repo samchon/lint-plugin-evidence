@@ -24,36 +24,24 @@ The property tag belongs on the property, never on the nearest root type. A deri
 
 ## Excluding A Requirement, Model, Or Column From DTOs
 
-Put a `dto-types` exclusion on a selected exported root type. It may target a Markdown H2/H3 section or Prisma model because those are the claim's configured references.
+Collect reviewed `dto-types` and `dto-properties` exclusions on the exported const in `packages/api/src/structures/DTO_EVIDENCE_EXCLUDE.ts`. The const is a claim-local carrier rather than a DTO owner; keep truthful `@evidence` on selected root types and properties.
 
 ```ts
 /**
- * Customer-facing sale summary.
- *
  * @evidenceExclude docs/analysis/05-user-experience.md#empty-state-copy
  *                  CatalogPage owns this presentation-only wording; reject
  *                  this exclusion if a response must carry it.
  * @evidenceExclude prisma:LoginAttempt
  *                  AuthenticationProvider owns this internal record; reject
  *                  this exclusion if it enters a request or response body.
+ * @evidenceExclude prisma:ShoppingSale.internal_note
+ *                  ShoppingSaleProvider keeps this operator-only value
+ *                  server-side; reject this exclusion if clients may read it.
  */
-export interface IShoppingSale {}
+export const DTO_EVIDENCE_EXCLUDE = true;
 ```
 
-Put a `dto-properties` exclusion on a selected exported property, and target one Prisma column. The property is only a carrier for the claim-wide non-mapping; the reason names the real backend owner and the condition that would make the column part of the public contract.
-
-```ts
-export interface IShoppingSale {
-  /**
-   * @evidenceExclude prisma:ShoppingSale.internal_note
-   *                  ShoppingSaleProvider keeps this operator-only value
-   *                  server-side; reject this exclusion if clients may read it.
-   */
-  id: string;
-}
-```
-
-The two named claims tally independently: a model exclusion under `dto-types` does not exclude its columns under `dto-properties`, and neither affects backend or frontend claims. An H2 or Prisma model ancestor target covers every selected descendant in that obligation. Use the narrowest truthful target and keep evidence and exclusion scopes disjoint. Do not put either tag on helper typings outside `src/structures/**`; an unselected declaration is not a claim host.
+The two claims still tally independently, but the same carrier and target may participate in both when both claim-reference pairs select them. A Markdown target participates only in `dto-types`, while a Prisma column target participates only in `dto-properties`. A Prisma model target participates in `dto-types` and is also an ancestor of every selected column in `dto-properties`, so excluding `prisma:ShoppingSale` broadly excludes that model's selected columns from both obligations. Use a column target for a narrow property exclusion, use the narrowest truthful target, and keep evidence and exclusion scopes disjoint within each obligation. Neither claim affects backend or frontend claims.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}

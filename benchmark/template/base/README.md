@@ -1,6 +1,6 @@
 # {{name}}
 
-This repository is a benchmark application generated from the complete frozen subject corpus under `docs/analysis/`. The materializer copies every regular file from the selected subject directory, including Markdown requirements and machine-readable JSON or JSONL inventories. It contains an empty but runnable NestJS, Nestia, Prisma SQLite, React, Vite, and Playwright workspace. The application schema, routes, behavior, tests, and screens are intentionally left for the coding agent to implement from that corpus.
+This repository is a benchmark application generated from the complete frozen Markdown subject corpus under `docs/analysis/`. It contains a runnable NestJS, Nestia, Prisma SQLite, React, Vite, and Playwright workspace. Requirement-derived schema, routes, behavior, tests, and screens are intentionally left for the coding agent. The infrastructure-only `GET /health` probe is already wired through its Nest controller, generated typed SDK accessor, and live backend e2e assertion so the shared runtime has one verified starting contract.
 
 The scaffold was adapted from `wrtnlabs/autobe-mcp` commit `bf7d0373de9cae932c111a5b9141020f3afc1019`. AutoBE-specific MCP servers, compiler ownership guards, resident state, lint rules, Hallmark skills, PostgreSQL assets, and throughput benchmarks are deliberately excluded.
 

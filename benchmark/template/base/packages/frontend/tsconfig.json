@@ -9,6 +9,12 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
+    "plugins": [
+      {
+        "transform": "@ttsc/lint",
+        "configFile": "./lint.config.ts"
+      }
+    ],
     "paths": {
       "@/*": ["./src/*"]
     }

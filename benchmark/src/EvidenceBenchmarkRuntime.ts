@@ -2,11 +2,9 @@ import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 
-import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
-
 /** Assigns and validates process-level resources shared by one benchmark cell. */
 export namespace EvidenceBenchmarkRuntime {
-  /** Default first port in the eight-cell benchmark allocation. */
+  /** Default first port in a benchmark wave allocation. */
   export const DEFAULT_PORT_BASE = 46_000;
 
   /** Network endpoints reserved for one project and mechanism arm. */
@@ -27,31 +25,20 @@ export namespace EvidenceBenchmarkRuntime {
     apiHost: string;
   }
 
-  /** Returns a stable, disjoint port block for one benchmark cell. */
+  /** Returns a stable, disjoint port block for one wave-local cell slot. */
   export function assign(
-    project: IEvidenceBenchmarkMaterialization.Project,
-    arm: IEvidenceBenchmarkMaterialization.Arm,
+    slot: number,
     portBase: number = DEFAULT_PORT_BASE,
   ): IAssignment {
-    const projects: readonly IEvidenceBenchmarkMaterialization.Project[] = [
-      "todo",
-      "reddit",
-      "shopping",
-      "erp",
-    ];
-    const arms: readonly IEvidenceBenchmarkMaterialization.Arm[] = [
-      "evidence",
-      "plain",
-    ];
-    const slot: number =
-      projects.indexOf(project) * arms.length + arms.indexOf(arm);
     if (
+      !Number.isInteger(slot) ||
+      slot < 0 ||
       !Number.isInteger(portBase) ||
       portBase < 1 ||
-      portBase + (projects.length * arms.length - 1) * 10 + 3 > 65_535
+      portBase + slot * 10 + 3 > 65_535
     )
       throw new Error(
-        `Benchmark port base must be an integer between 1 and 65462: ${String(portBase)}.`,
+        `Benchmark cell slot and port base must identify ports between 1 and 65535: slot ${String(slot)}, base ${String(portBase)}.`,
       );
     const base: number = portBase + slot * 10;
     return {

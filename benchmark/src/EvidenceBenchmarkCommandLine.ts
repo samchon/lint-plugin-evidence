@@ -4,13 +4,17 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkProject } from "./EvidenceBenchmarkProject.ts";
 import { EvidenceBenchmarkPublication } from "./EvidenceBenchmarkPublication.ts";
 import { EvidenceBenchmarkRepair } from "./EvidenceBenchmarkRepair.ts";
 import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
 import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
+import { EvidenceBenchmarkState } from "./EvidenceBenchmarkState.ts";
+import { EvidenceBenchmarkTurnLedger } from "./EvidenceBenchmarkTurnLedger.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 import type { IEvidenceBenchmarkPackageArtifact } from "./structures/IEvidenceBenchmarkPackageArtifact.ts";
 
@@ -19,18 +23,10 @@ export namespace EvidenceBenchmarkCommandLine {
   const ENGINE = "codex" as const;
   const MODEL = "gpt-5.6-terra";
   const EFFORT = "high" as const;
-  const WORKFLOW = "backend-first-gated-v1" as const;
+  const WORKFLOW = "backend-first-gated-v2" as const;
   const ARMS = ["evidence", "plain"] as const;
 
-  type TurnName =
-    | "backend-start"
-    | "backend-review"
-    | "backend-final"
-    | "frontend-start"
-    | "frontend-review"
-    | "frontend-final"
-    | "overall-review"
-    | "overall-final";
+  type TurnName = EvidenceBenchmarkTurnLedger.Name;
 
   interface ITurn {
     name: TurnName;
@@ -39,6 +35,8 @@ export namespace EvidenceBenchmarkCommandLine {
     stdout: string;
     stderr: string;
     invocation: string[];
+    accepted?: boolean;
+    lintRestorationSha256?: string;
   }
 
   interface IInstruction {
@@ -47,8 +45,13 @@ export namespace EvidenceBenchmarkCommandLine {
     content: string;
   }
 
+  interface IInstructionSet {
+    entries: readonly IInstruction[];
+    sha256: string;
+  }
+
   interface IState {
-    schemaVersion: 5;
+    schemaVersion: 6;
     workflow: typeof WORKFLOW;
     instructionsTreeSha256: string;
     project: IEvidenceBenchmarkMaterialization.Project;
@@ -58,6 +61,7 @@ export namespace EvidenceBenchmarkCommandLine {
     effort: typeof EFFORT;
     cliVersion: string;
     sourceCommit: string;
+    lintBaselines: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[];
     runtime: EvidenceBenchmarkRuntime.IAssignment;
     elapsedMs: number;
     status: "running" | "interrupted" | "completed";
@@ -69,6 +73,90 @@ export namespace EvidenceBenchmarkCommandLine {
   interface IOptions {
     projects: IEvidenceBenchmarkMaterialization.Project[];
     portBase: number;
+  }
+
+  /**
+   * Builds the exact least-privilege Codex configuration for one measured cell.
+   *
+   * The Codex process retains its own authentication, while model-launched
+   * commands can read only the minimal runtime and can write only the measured
+   * workspace plus its run-owned cache tree.
+   */
+  export function codexIsolationArguments(
+    workspace: string,
+    environment: NodeJS.ProcessEnv,
+  ): string[] {
+    const cache: string = path.join(path.dirname(workspace), "cache");
+    const home: string = path.join(cache, "agent-home");
+    const temporary: string = path.join(cache, "os-temp");
+    const explicit: Record<string, string> = {
+      CI: "1",
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
+      GOTOOLCHAIN: "local",
+      HOME: home,
+      USERPROFILE: home,
+      TEMP: temporary,
+      TMP: temporary,
+      TMPDIR: temporary,
+      XDG_CACHE_HOME: path.join(cache, "xdg"),
+    };
+    for (const name of [
+      "API_PORT",
+      "COREPACK_HOME",
+      "GOCACHE",
+      "GOMODCACHE",
+      "GOPATH",
+      "GOTMPDIR",
+      "npm_config_cache",
+      "npm_config_store_dir",
+      "PLAYWRIGHT_BROWSERS_PATH",
+      "PLAYWRIGHT_TEST_PORT",
+      "SWAGGER_PORT",
+      "TTSC_CACHE_DIR",
+      "TTSC_GO_CACHE_DIR",
+      "VITE_API_HOST",
+      "VITE_DEV_PORT",
+    ] as const) {
+      const value: string | undefined = environment[name];
+      if (value !== undefined) explicit[name] = value;
+    }
+    return [
+      "--ignore-user-config",
+      "--ignore-rules",
+      "--strict-config",
+      "--config",
+      'approval_policy="never"',
+      "--config",
+      'default_permissions="benchmark"',
+      "--config",
+      'permissions.benchmark.extends=":workspace"',
+      "--config",
+      'permissions.benchmark.filesystem.":root"="deny"',
+      "--config",
+      'permissions.benchmark.filesystem.":minimal"="read"',
+      "--config",
+      'permissions.benchmark.filesystem.":tmpdir"="deny"',
+      "--config",
+      'permissions.benchmark.filesystem.":slash_tmp"="deny"',
+      "--config",
+      `permissions.benchmark.workspace_roots={${tomlString(cache)}=true}`,
+      "--config",
+      'permissions.benchmark.filesystem.":workspace_roots"."."="write"',
+      "--config",
+      "permissions.benchmark.network.enabled=true",
+      "--config",
+      "permissions.benchmark.network.allow_upstream_proxy=false",
+      "--config",
+      'permissions.benchmark.network.domains={localhost="allow","127.0.0.1"="allow"}',
+      "--config",
+      'shell_environment_policy.inherit="core"',
+      "--config",
+      "shell_environment_policy.ignore_default_excludes=false",
+      "--config",
+      'shell_environment_policy.exclude=["*_PROXY","OPENAI_*","AZURE_*","AWS_*","GITHUB_TOKEN","GH_TOKEN","*KEY*","*SECRET*","*TOKEN*"]',
+      "--config",
+      `shell_environment_policy.set=${tomlStringMap(explicit)}`,
+    ];
   }
 
   /**
@@ -112,15 +200,17 @@ export namespace EvidenceBenchmarkCommandLine {
       );
       return;
     }
-    const options: IOptions = parseOptions(arguments_);
-    const cells = options.projects.flatMap((project) =>
-      ARMS.map((arm) => ({
+    const options: IOptions = parseOptions(repository, arguments_);
+    const instructionSets: Readonly<
+      Record<IEvidenceBenchmarkMaterialization.Arm, IInstructionSet>
+    > = readInstructionSets(repository);
+    const cells = options.projects.flatMap((project, projectIndex) =>
+      ARMS.map((arm, armIndex) => ({
         project,
         arm,
-        instructions: readInstructions(repository, arm),
+        instructions: instructionSets[arm],
         runtime: EvidenceBenchmarkRuntime.assign(
-          project,
-          arm,
+          projectIndex * ARMS.length + armIndex,
           options.portBase,
         ),
       })),
@@ -136,7 +226,7 @@ export namespace EvidenceBenchmarkCommandLine {
             portBase: options.portBase,
             cells: cells.map(({ instructions, ...cell }) => ({
               ...cell,
-              instructions: instructions.map(
+              instructions: instructions.entries.map(
                 ({ content: _content, ...entry }) => entry,
               ),
             })),
@@ -199,15 +289,13 @@ export namespace EvidenceBenchmarkCommandLine {
   ): Promise<void> {
     if (arguments_.length !== 3)
       throw new Error(
-        "Usage: benchmark resume <todo|reddit|shopping|erp> <evidence|plain> <run-id>",
+        "Usage: benchmark resume <project> <evidence|plain> <run-id>",
       );
     const [projectInput, armInput, runId] = arguments_;
-    const projects = new Set(["todo", "reddit", "shopping", "erp"]);
-    if (!projects.has(projectInput!))
-      throw new Error(`Unknown benchmark project: ${projectInput}.`);
     if (!ARMS.includes(armInput as (typeof ARMS)[number]))
       throw new Error(`Unknown benchmark arm: ${armInput}.`);
-    const project = projectInput as IEvidenceBenchmarkMaterialization.Project;
+    const project: IEvidenceBenchmarkMaterialization.Project =
+      EvidenceBenchmarkProject.parse(projectInput!);
     const arm = armInput as IEvidenceBenchmarkMaterialization.Arm;
     const resultsRoot: string = path.resolve(repository, "benchmark", "result");
     const root: string = path.resolve(
@@ -218,17 +306,16 @@ export namespace EvidenceBenchmarkCommandLine {
       runId!,
     );
     assertInside(resultsRoot, root, "resume root");
-    const statePath: string = path.join(root, "run.json");
-    if (!fs.existsSync(statePath))
-      throw new Error(`Resumable state was not found: ${statePath}.`);
-    const state: IState = JSON.parse(fs.readFileSync(statePath, "utf8"));
+    const state: IState = EvidenceBenchmarkState.read(root, "Resumable state");
     if (
-      state.schemaVersion !== 5 ||
+      state.schemaVersion !== 6 ||
       state.workflow !== WORKFLOW ||
       state.engine !== ENGINE ||
       state.model !== MODEL ||
       state.effort !== EFFORT ||
-      state.cliVersion !== codexVersion()
+      state.cliVersion !== codexVersion() ||
+      !Array.isArray(state.lintBaselines) ||
+      !Array.isArray(state.turns)
     )
       throw new Error(
         `Run ${runId} does not use the resumable ${WORKFLOW} state schema.`,
@@ -246,7 +333,9 @@ export namespace EvidenceBenchmarkCommandLine {
     const logs: string = path.join(root, "logs");
     if (!fs.existsSync(workspace) || !fs.existsSync(logs))
       throw new Error(`Run ${runId} has no resumable workspace and logs.`);
+    assertStateBaselines(root, state);
     const instructions: IInstruction[] = readFrozenInstructions(root, arm);
+    EvidenceBenchmarkTurnLedger.assertAcceptedOrder(state.turns);
     const environment: NodeJS.ProcessEnv = resumeEnvironment(root);
     EvidenceBenchmarkRuntime.apply(environment, state.runtime);
     state.threadId ??= recoverThreadId(logs);
@@ -264,12 +353,44 @@ export namespace EvidenceBenchmarkCommandLine {
     try {
       await EvidenceBenchmarkRuntime.assertAvailable([state.runtime]);
       for (const entry of instructions) {
-        if (
-          state.turns.some(
-            (turn) => turn.name === entry.name && turn.status === 0,
+        const accepted: ITurn | undefined = state.turns.findLast(
+          (turn) =>
+            turn.name === entry.name &&
+            turn.status === 0 &&
+            turn.accepted === true,
+        );
+        if (accepted !== undefined) {
+          let restoration: string | undefined;
+          let restorationVerified: boolean = false;
+          try {
+            restoration = verifyLintRestoration({
+              workspace,
+              arm,
+              name: entry.name,
+              baselines: state.lintBaselines,
+            });
+            restorationVerified = true;
+          } catch {}
+          if (
+            restorationVerified &&
+            restoration === accepted.lintRestorationSha256
           )
-        )
-          continue;
+            continue;
+          const index: number = instructions.findIndex(
+            (instruction) => instruction.name === entry.name,
+          );
+          for (const turn of state.turns)
+            if (
+              turn.accepted === true &&
+              instructions.findIndex(
+                (instruction) => instruction.name === turn.name,
+              ) >= index
+            ) {
+              turn.accepted = false;
+              delete turn.lintRestorationSha256;
+            }
+          writeState(root, state);
+        }
         state.status = "running";
         state.elapsedMs = baseElapsedMs + elapsed(resumed);
         writeState(root, state);
@@ -283,8 +404,10 @@ export namespace EvidenceBenchmarkCommandLine {
           threadId: state.threadId,
         });
         state.threadId ??= turn.threadId;
+        turn.accepted = false;
         state.turns.push(turn);
         state.elapsedMs = baseElapsedMs + elapsed(resumed);
+        writeState(root, state);
         if (turn.status !== 0) {
           state.status = "interrupted";
           writeState(root, state);
@@ -292,11 +415,19 @@ export namespace EvidenceBenchmarkCommandLine {
             `${entry.name} resume attempt exited with status ${String(turn.status)}.`,
           );
         }
+        turn.lintRestorationSha256 = verifyLintRestoration({
+          workspace,
+          arm,
+          name: entry.name,
+          baselines: state.lintBaselines,
+        });
+        turn.accepted = true;
         writeState(root, state);
       }
       state.elapsedMs = baseElapsedMs + elapsed(resumed);
       state.completedWorkspaceTreeSha256 =
         EvidenceBenchmarkPublication.workspaceSha256(workspace);
+      EvidenceBenchmarkTurnLedger.assertAcceptedOrder(state.turns, true);
       promoteWorkspace(repository, project, arm, workspace);
       state.status = "completed";
       writeState(root, state);
@@ -326,7 +457,7 @@ export namespace EvidenceBenchmarkCommandLine {
     project: IEvidenceBenchmarkMaterialization.Project;
     arm: IEvidenceBenchmarkMaterialization.Arm;
     runtime: EvidenceBenchmarkRuntime.IAssignment;
-    instructions: readonly IInstruction[];
+    instructions: IInstructionSet;
     artifact: IEvidenceBenchmarkPackageArtifact;
   }): Promise<void> {
     const started: bigint = process.hrtime.bigint();
@@ -379,7 +510,7 @@ export namespace EvidenceBenchmarkCommandLine {
       const logs: string = path.join(root, "logs");
       fs.mkdirSync(logs, { recursive: false });
       state = {
-        schemaVersion: 5,
+        schemaVersion: 6,
         workflow: WORKFLOW,
         instructionsTreeSha256: freezeInstructions(root, props.instructions),
         project: props.project,
@@ -389,13 +520,14 @@ export namespace EvidenceBenchmarkCommandLine {
         effort: EFFORT,
         cliVersion: codexVersion(),
         sourceCommit: props.sourceCommit,
+        lintBaselines: materialization.lintBaselines,
         runtime: props.runtime,
         elapsedMs: elapsed(started),
         status: "running",
         turns: [],
       };
       writeState(root, state);
-      for (const entry of props.instructions) {
+      for (const entry of props.instructions.entries) {
         phase = entry.name;
         const turn: ITurn & { threadId?: string } = await runTurn({
           workspace: materialization.workspace,
@@ -406,6 +538,7 @@ export namespace EvidenceBenchmarkCommandLine {
           threadId: state.threadId,
         });
         state.threadId ??= turn.threadId;
+        turn.accepted = false;
         state.turns.push(turn);
         state.elapsedMs = elapsed(started);
         writeState(root, state);
@@ -413,10 +546,19 @@ export namespace EvidenceBenchmarkCommandLine {
           throw new Error(
             `${entry.name} turn exited with status ${String(turn.status)}.`,
           );
+        turn.lintRestorationSha256 = verifyLintRestoration({
+          workspace: materialization.workspace,
+          arm: props.arm,
+          name: entry.name,
+          baselines: state.lintBaselines,
+        });
+        turn.accepted = true;
+        writeState(root, state);
       }
       state.elapsedMs = elapsed(started);
       state.completedWorkspaceTreeSha256 =
         EvidenceBenchmarkPublication.workspaceSha256(materialization.workspace);
+      EvidenceBenchmarkTurnLedger.assertAcceptedOrder(state.turns, true);
       promoteWorkspace(
         props.repository,
         props.project,
@@ -468,6 +610,9 @@ export namespace EvidenceBenchmarkCommandLine {
     prompt: string;
     threadId?: string;
   }): Promise<ITurn & { threadId?: string }> {
+    const cache: string = path.join(path.dirname(props.workspace), "cache");
+    fs.mkdirSync(path.join(cache, "agent-home"), { recursive: true });
+    fs.mkdirSync(path.join(cache, "os-temp"), { recursive: true });
     const stem: string = logStem(props.logs, props.name);
     const stdoutPath: string = path.join(props.logs, `${stem}.stdout.jsonl`);
     const stderrPath: string = path.join(props.logs, `${stem}.stderr.log`);
@@ -481,10 +626,8 @@ export namespace EvidenceBenchmarkCommandLine {
       MODEL,
       "--config",
       `model_reasoning_effort=${EFFORT}`,
-      "--dangerously-bypass-approvals-and-sandbox",
+      ...codexIsolationArguments(props.workspace, props.environment),
       "--skip-git-repo-check",
-      "--config",
-      "shell_environment_policy.inherit=all",
     ];
     const args: string[] =
       props.threadId === undefined
@@ -543,23 +686,56 @@ export namespace EvidenceBenchmarkCommandLine {
     };
   }
 
-  function readInstructions(
+  function readInstructionSets(
     repository: string,
-    arm: IEvidenceBenchmarkMaterialization.Arm,
-  ): IInstruction[] {
-    const entries: readonly Omit<IInstruction, "content">[] =
-      instructionEntries(arm);
+  ): Readonly<Record<IEvidenceBenchmarkMaterialization.Arm, IInstructionSet>> {
     const root: string = path.join(repository, "benchmark", "instructions");
-    return entries.map((entry) => ({
-      ...entry,
-      content: fs.readFileSync(path.join(root, entry.relative), "utf8"),
-    }));
+    const inventory: ReadonlyMap<string, string> = new Map(
+      [
+        ...new Set(
+          ARMS.flatMap((arm) =>
+            instructionEntries(arm).map((entry) => entry.relative),
+          ),
+        ),
+      ].map((relative) => [
+        relative,
+        fs.readFileSync(path.join(root, relative), "utf8"),
+      ]),
+    );
+    const create = (
+      arm: IEvidenceBenchmarkMaterialization.Arm,
+    ): IInstructionSet => {
+      const entries: readonly IInstruction[] = Object.freeze(
+        instructionEntries(arm).map((entry) =>
+          Object.freeze({
+            ...entry,
+            content: inventory.get(entry.relative)!,
+          }),
+        ),
+      );
+      return Object.freeze({
+        entries,
+        sha256: EvidenceBenchmarkHash.tree(
+          new Map(
+            entries.map((entry) => [
+              entry.relative,
+              Buffer.from(entry.content, "utf8"),
+            ]),
+          ),
+        ),
+      });
+    };
+    return Object.freeze({
+      evidence: create("evidence"),
+      plain: create("plain"),
+    });
   }
 
   function instructionEntries(
     arm: IEvidenceBenchmarkMaterialization.Arm,
   ): readonly Omit<IInstruction, "content">[] {
     return [
+      { name: "skills-contract", relative: "skills-contract.md" },
       { name: "backend-start", relative: "backend/start.md" },
       { name: "backend-review", relative: "backend/review.md" },
       { name: "backend-final", relative: `backend/${arm}-final.md` },
@@ -573,14 +749,17 @@ export namespace EvidenceBenchmarkCommandLine {
 
   function freezeInstructions(
     root: string,
-    instructions: readonly IInstruction[],
+    instructions: IInstructionSet,
   ): string {
     const files: Map<string, Uint8Array> = new Map(
-      instructions.map((entry) => [
+      instructions.entries.map((entry) => [
         entry.relative,
         Buffer.from(entry.content, "utf8"),
       ]),
     );
+    const sha256: string = EvidenceBenchmarkHash.tree(files);
+    if (sha256 !== instructions.sha256)
+      throw new Error("Shared benchmark instruction snapshot drifted.");
     const destination: string = path.join(root, "inputs", "instructions");
     fs.mkdirSync(destination, { recursive: false });
     for (const [relative, content] of files) {
@@ -588,10 +767,10 @@ export namespace EvidenceBenchmarkCommandLine {
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.writeFileSync(target, content, { flag: "wx" });
     }
-    return EvidenceBenchmarkHash.tree(files);
+    return sha256;
   }
 
-  function parseOptions(arguments_: string[]): IOptions {
+  function parseOptions(repository: string, arguments_: string[]): IOptions {
     const values: string[] = arguments_.slice(1);
     const projects: string[] = [];
     let portBase: number = EvidenceBenchmarkRuntime.DEFAULT_PORT_BASE;
@@ -618,15 +797,19 @@ export namespace EvidenceBenchmarkCommandLine {
     }
     if (projects.length === 0)
       throw new Error("At least one benchmark project is required.");
-    const allowed = new Set(["todo", "reddit", "shopping", "erp"]);
-    for (const value of projects)
-      if (!allowed.has(value))
-        throw new Error(`Unknown benchmark project: ${value}.`);
-    EvidenceBenchmarkRuntime.assign("erp", "plain", portBase);
+    const selected: IEvidenceBenchmarkMaterialization.Project[] = [
+      ...new Set(
+        projects.map((project) =>
+          EvidenceBenchmarkProject.requireCorpus(repository, project),
+        ),
+      ),
+    ];
+    EvidenceBenchmarkRuntime.assign(
+      selected.length * ARMS.length - 1,
+      portBase,
+    );
     return {
-      projects: [
-        ...new Set(projects),
-      ] as IEvidenceBenchmarkMaterialization.Project[],
+      projects: selected,
       portBase,
     };
   }
@@ -650,12 +833,46 @@ export namespace EvidenceBenchmarkCommandLine {
     };
   }
 
+  function verifyLintRestoration(props: {
+    workspace: string;
+    arm: IEvidenceBenchmarkMaterialization.Arm;
+    name: TurnName;
+    baselines: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[];
+  }): string | undefined {
+    if (props.arm !== "evidence") return undefined;
+    const selected: readonly string[] | undefined =
+      props.name === "backend-final"
+        ? EvidenceBenchmarkLintBaseline.BACKEND_PATHS
+        : props.name === "frontend-final" || props.name === "overall-final"
+          ? EvidenceBenchmarkLintBaseline.PATHS
+          : undefined;
+    if (selected === undefined) return undefined;
+    return EvidenceBenchmarkLintBaseline.assertRestored(
+      props.workspace,
+      props.arm,
+      props.baselines,
+      selected,
+    );
+  }
+
+  function assertStateBaselines(root: string, state: IState): void {
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(root, "materialization.json"), "utf8"),
+    ) as Omit<IEvidenceBenchmarkMaterialization.IManifest, "schemaVersion"> & {
+      schemaVersion: unknown;
+    };
+    if (
+      manifest.schemaVersion !== 5 ||
+      EvidenceBenchmarkHash.object(manifest.lintBaselines) !==
+        EvidenceBenchmarkHash.object(state.lintBaselines)
+    )
+      throw new Error(
+        `Run ${path.basename(root)} does not retain its materialized lint baselines.`,
+      );
+  }
+
   function writeState(root: string, state: IState): void {
-    const target: string = path.join(root, "run.json");
-    const temporary: string = `${target}.${process.pid}.tmp`;
-    fs.writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`, "utf8");
-    fs.rmSync(target, { force: true });
-    fs.renameSync(temporary, target);
+    EvidenceBenchmarkState.write(root, state);
   }
 
   function assertInside(parent: string, target: string, label: string): void {
@@ -688,8 +905,9 @@ export namespace EvidenceBenchmarkCommandLine {
         ]),
       ),
     );
-    const state: IState = JSON.parse(
-      fs.readFileSync(path.join(root, "run.json"), "utf8"),
+    const state: IState = EvidenceBenchmarkState.read(
+      root,
+      "Frozen instruction state",
     );
     if (actual !== state.instructionsTreeSha256)
       throw new Error(`Frozen instruction tree drifted for ${root}.`);
@@ -702,13 +920,12 @@ export namespace EvidenceBenchmarkCommandLine {
     ) as IEvidenceBenchmarkMaterialization.IManifest;
     const environment: NodeJS.ProcessEnv = {
       ...process.env,
-      npm_config_store_dir: manifest.caches.pnpm,
-      TTSC_CACHE_DIR: manifest.caches.ttsc,
-      TTSC_GO_CACHE_DIR: manifest.caches.go,
-      GOCACHE: manifest.caches.go,
-      GOTMPDIR: path.join(root, "cache", "go-tmp"),
-      PLAYWRIGHT_BROWSERS_PATH: manifest.caches.playwright,
     };
+    EvidenceBenchmarkSetup.configureEnvironment(
+      root,
+      environment,
+      manifest.caches,
+    );
     EvidenceBenchmarkProcess.pinEnvironment(
       environment,
       manifest.caches.toolchain,
@@ -738,6 +955,17 @@ export namespace EvidenceBenchmarkCommandLine {
         } catch {}
     }
     return undefined;
+  }
+
+  function tomlString(value: string): string {
+    return JSON.stringify(value);
+  }
+
+  function tomlStringMap(values: Readonly<Record<string, string>>): string {
+    return `{${Object.entries(values)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => `${tomlString(key)}=${tomlString(value)}`)
+      .join(",")}}`;
   }
 
   function logStem(logs: string, name: TurnName): string {
@@ -792,10 +1020,12 @@ export namespace EvidenceBenchmarkCommandLine {
         if (!fs.statSync(location).isFile()) continue;
         tails[file] = readTail(location, 16_384);
       }
-    const statePath: string = path.join(props.root, "run.json");
-    const state: unknown = fs.existsSync(statePath)
-      ? JSON.parse(fs.readFileSync(statePath, "utf8"))
-      : undefined;
+    let state: unknown;
+    try {
+      state = EvidenceBenchmarkState.read(props.root, "Failure state");
+    } catch {
+      state = undefined;
+    }
     const target: string = path.join(
       failures,
       `${props.project}-${props.arm}-attempt-${attempts + 1}.json`,

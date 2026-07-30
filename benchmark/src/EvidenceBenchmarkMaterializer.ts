@@ -5,7 +5,10 @@ import path from "node:path";
 import { EvidenceBenchmarkAtomic } from "./EvidenceBenchmarkAtomic.ts";
 import { EvidenceBenchmarkCorpus } from "./EvidenceBenchmarkCorpus.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkProject } from "./EvidenceBenchmarkProject.ts";
+import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 
@@ -23,6 +26,8 @@ export namespace EvidenceBenchmarkMaterializer {
   ): Promise<IEvidenceBenchmarkMaterialization> {
     const started: bigint = process.hrtime.bigint();
     const repository: string = path.resolve(request.repository);
+    const project: IEvidenceBenchmarkMaterialization.Project =
+      EvidenceBenchmarkProject.requireCorpus(repository, request.project);
     const output: string = path.resolve(request.output);
     const parent: string = path.dirname(output);
     if (output === path.parse(output).root)
@@ -51,7 +56,7 @@ export namespace EvidenceBenchmarkMaterializer {
       );
       const corpus: EvidenceBenchmarkCorpus.IResult =
         EvidenceBenchmarkCorpus.read(
-          path.join(repository, "benchmark", "requirements", request.project),
+          path.join(repository, "benchmark", "requirements", project),
         );
       const requirementFiles: ReadonlyMap<string, Uint8Array> = corpus.files;
       for (const [relative, content] of requirementFiles) {
@@ -85,6 +90,8 @@ export namespace EvidenceBenchmarkMaterializer {
         );
       }
       EvidenceBenchmarkTemplate.validate(workspaceFiles);
+      const lintBaselines: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[] =
+        EvidenceBenchmarkLintBaseline.capture(workspaceFiles, request.arm);
 
       const workspaceTreeSha256: string =
         EvidenceBenchmarkHash.tree(workspaceFiles);
@@ -98,9 +105,9 @@ export namespace EvidenceBenchmarkMaterializer {
         toolchain: path.join(output, "cache", "toolchain-bin"),
       };
       const manifestRecord: IEvidenceBenchmarkMaterialization.IManifest = {
-        schemaVersion: 4,
+        schemaVersion: 5,
         treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
-        project: request.project,
+        project,
         arm: request.arm,
         elapsedMs: 0,
         variables: Object.fromEntries(
@@ -114,7 +121,7 @@ export namespace EvidenceBenchmarkMaterializer {
         workspaceTreeSha256,
         inputSha256: EvidenceBenchmarkHash.object({
           treeAlgorithm: EvidenceBenchmarkHash.TREE_ALGORITHM,
-          project: request.project,
+          project,
           arm: request.arm,
           variables: request.variables,
           base: composition.baseTreeSha256,
@@ -122,9 +129,11 @@ export namespace EvidenceBenchmarkMaterializer {
           requirements: requirementsTreeSha256,
           product: request.artifact.sha256,
           workspace: workspaceTreeSha256,
+          lintBaselines,
         }),
         workspaceFiles: EvidenceBenchmarkHash.entries(workspaceFiles),
         requirementFiles: EvidenceBenchmarkHash.entries(requirementFiles),
+        lintBaselines,
         corpus: {
           documents: corpus.documents,
           h2: corpus.h2,
@@ -142,13 +151,8 @@ export namespace EvidenceBenchmarkMaterializer {
       };
       const environment: NodeJS.ProcessEnv = {
         ...process.env,
-        npm_config_store_dir: caches.pnpm,
-        TTSC_CACHE_DIR: caches.ttsc,
-        TTSC_GO_CACHE_DIR: caches.go,
-        GOCACHE: caches.go,
-        GOTMPDIR: path.join(output, "cache", "go-tmp"),
-        PLAYWRIGHT_BROWSERS_PATH: caches.playwright,
       };
+      EvidenceBenchmarkSetup.configureEnvironment(output, environment, caches);
       const stageToolchain: string = path.join(stage, "cache", "toolchain-bin");
       EvidenceBenchmarkProcess.pinEnvironment(environment, stageToolchain);
 
@@ -172,6 +176,7 @@ export namespace EvidenceBenchmarkMaterializer {
         immutableInputs: path.join(output, "inputs", "requirements"),
         manifest: path.join(output, "materialization.json"),
         workspaceTreeSha256,
+        lintBaselines,
         environment,
       };
     } catch (error) {

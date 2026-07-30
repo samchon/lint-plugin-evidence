@@ -1,5 +1,10 @@
-export type { IConnection } from "@nestia/fetcher";
+export type * from "./IConnection";
+export type * from "./Primitive";
+export type * from "./Resolved";
+export * from "./HttpError";
+
+export * as functional from "./functional/index";
 
 export * from "./structures";
+
 export * from "./typings";
-export * as functional from "./functional";

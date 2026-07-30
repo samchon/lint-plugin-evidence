@@ -426,8 +426,7 @@ func evaluateEvidenceGraph(
 				if len(covered) == 0 {
 					continue
 				}
-				hosts := declaration.Hosts
-				if !state.Spec.Symbols.intersects(hosts) {
+				if !declarationEligibleForClaim(declaration, state.Spec) {
 					outOfScope[declaration.ID] = appendUniqueString(
 						outOfScope[declaration.ID],
 						claimLabel(state.Spec)+" "+referenceLabel(reference.Spec),
@@ -477,7 +476,7 @@ func evaluateEvidenceGraph(
 				}
 				problems = append(
 					problems,
-					"Missing acknowledgement for '"+unit.Target+"' ("+unit.Readable+" at "+unit.location()+") in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+". Add '@evidence "+acknowledgementForm(unit, state.Spec)+" <reason>' to a selected "+string(state.Spec.Type)+" host of this claim, or '@evidenceExclude "+acknowledgementForm(unit, state.Spec)+" <reason>' when this claim intentionally does not use it.",
+					"Missing acknowledgement for '"+unit.Target+"' ("+unit.Readable+" at "+unit.location()+") in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+". Add '@evidence "+acknowledgementForm(unit, state.Spec)+" <reason>' to a selected "+string(state.Spec.Type)+" host of this claim, or add '@evidenceExclude "+acknowledgementForm(unit, state.Spec)+" <reason>' to an eligible exclusion carrier in a matching claim file when this claim intentionally does not use it.",
 				)
 			}
 		}
@@ -493,6 +492,13 @@ func evaluateEvidenceGraph(
 			if len(declaration.Hosts) == 0 {
 				host = "unsupported or non-exported declaration"
 			}
+			if declaration.Tag == tagExclude {
+				problems = append(
+					problems,
+					"Out-of-scope @evidenceExclude carrier at "+declaration.location()+" for "+strings.Join(obligations, "; ")+", target '"+displayTarget(declaration.Target)+"': '"+host+"' is not an eligible exclusion carrier in these matching claim files. Move the exclusion to a supported public export or selected declaration host, or use a top-level unattached Prisma documentation comment.",
+				)
+				continue
+			}
 			problems = append(
 				problems,
 				"Out-of-scope @"+string(declaration.Tag)+" host at "+declaration.location()+" for "+strings.Join(obligations, "; ")+", target '"+displayTarget(declaration.Target)+"': host kind '"+host+"' is not selected ("+outOfScopeSelections[id].names()+") by any of these claim obligations. Move the declaration to a selected host, or widen only the claim symbol selector that genuinely owns this target.",
@@ -507,10 +513,22 @@ func evaluateEvidenceGraph(
 		}
 		problems = append(
 			problems,
-			"Non-participating @"+string(declaration.Tag)+" target '"+displayTarget(declaration.Target)+"' at "+declaration.location()+" for "+context+": the target resolves, but none of this declaration's configured references selects it. Correct the target or reference, or move the tag to a selected host in the claim that owes it; a resolving tag must discharge at least one obligation.",
+			"Non-participating @"+string(declaration.Tag)+" target '"+displayTarget(declaration.Target)+"' at "+declaration.location()+" for "+context+": the target resolves, but none of this declaration's configured references selects it. Correct the target or reference, or move the tag to an eligible host or exclusion carrier in the claim that owes it; a resolving tag must discharge at least one obligation.",
 		)
 	}
 	return problems
+}
+
+// declarationEligibleForClaim keeps ownership evidence on the selected host
+// while allowing an intentional exclusion to live on a claim-file carrier.
+func declarationEligibleForClaim(
+	declaration *evidenceDeclaration,
+	claim claimSpec,
+) bool {
+	if claim.Symbols.intersects(declaration.Hosts) {
+		return true
+	}
+	return declaration.Tag == tagExclude && declaration.ExclusionCarrier
 }
 
 func declarationResolutionUncertain(owners []claimState) bool {

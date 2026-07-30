@@ -1,5 +1,6 @@
 # Dependencies and compiler state
 node_modules/
+.benchmark-cache/
 *.tsbuildinfo
 
 # Local environment

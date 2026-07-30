@@ -5,7 +5,13 @@
     "rootDir": "src",
     "declaration": false,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "emitDecoratorMetadata": true,
+    "plugins": [
+      {
+        "transform": "@ttsc/lint",
+        "configFile": "./lint.config.main.ts"
+      }
+    ]
   },
   "include": ["src"]
 }

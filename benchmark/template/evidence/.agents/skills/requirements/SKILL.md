@@ -16,13 +16,13 @@ The build reports a selected section no claim acknowledges. It does not report a
 
 For every H2/H3 section, extract actor or concept, circumstance, required behavior, observable result, named values, negative cases, and cross-references. Read through the next heading of equal or higher level.
 
-Prefer leaf H3 targets. An H2 target is valid only when the host or exclusion genuinely owns every selected H3 descendant and the integrity review records that descendant audit. The graph's hierarchical coverage is a capability, not permission to compress unrelated obligations.
+Prefer leaf H3 targets. An H2 target is valid only when ownership evidence is true for every selected H3 descendant or one exclusion decision truthfully omits all of them, and the integrity review records that descendant audit. The graph's hierarchical coverage is a capability, not permission to compress unrelated obligations.
 
 When a citation reason only repeats the heading, do not write it. Re-read until the reason names the exact responsibility implemented by the host.
 
 ## Exclusions Are Reviewed Decisions
 
-Use `@evidenceExclude <target> <reason>` only when the current named claim intentionally has no responsibility for the target. Put it on a declaration selected by that claim, name the actual owner or observable alternative, and state a condition that would veto the decision. “Not applicable,” “internal,” “future work,” and “not implemented” are conclusions rather than reasons.
+Use `@evidenceExclude <target> <reason>` only when the current named claim intentionally has no responsibility for the target. Put it on an eligible exclusion carrier in a matching claim file, name the actual owner or observable alternative, and state a condition that would veto the decision. “Not applicable,” “internal,” “future work,” and “not implemented” are conclusions rather than reasons.
 
 Exclusions are claim-local. The same requirement may need independent decisions from `schema-models`, `api-operations`, `dto-types`, `dto-properties`, `backend-tests`, `frontend-screens`, and `frontend-journeys`. A parent target covers all selected descendants, and overlapping `@evidence` and `@evidenceExclude` scopes within one claim-reference obligation are contradictory. Prefer an H3 exclusion; use an H2 only after checking every selected descendant.
 

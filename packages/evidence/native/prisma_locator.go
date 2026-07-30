@@ -13,7 +13,8 @@ type prismaLocation struct {
 }
 
 // prismaCommentForm distinguishes the three comment syntaxes Prisma's grammar
-// accepts, because only one of them may carry a citation.
+// accepts: line comments carry no citation, and only triple-slash documentation
+// can become an unattached file-level exclusion carrier.
 type prismaCommentForm string
 
 const (
@@ -28,13 +29,15 @@ const (
 // Body preserves the run's own line spacing — a line the run skipped is empty
 // rather than absent — so a tag's offset inside the body is still its offset in
 // the file. Key is the declaration the run documents, empty when it documents
-// nothing.
+// nothing unless FileLevel identifies a top-level triple-slash exclusion
+// carrier.
 type prismaCommentRun struct {
-	Form prismaCommentForm
-	Path string
-	Line int
-	Body string
-	Key  string
+	Form      prismaCommentForm
+	Path      string
+	Line      int
+	Body      string
+	Key       string
+	FileLevel bool
 }
 
 // prismaFileScan is everything one schema file yields to the native side.
@@ -162,6 +165,7 @@ func scanPrismaFile(
 				Line:     index + 1,
 				Text:     comment,
 				Trailing: trimmed != "",
+				TopLevel: depth == 0,
 			})
 		}
 		if trimmed == "" {
@@ -222,6 +226,10 @@ type prismaPendingComment struct {
 	// such a comment as the field's trailing comment rather than as
 	// documentation, so it can never document the declaration below it.
 	Trailing bool
+	// TopLevel marks a comment written outside every Prisma block. A detached
+	// documentation run there may carry claim-local exclusions for the file
+	// without becoming part of Prisma's generated schema documentation.
+	TopLevel bool
 }
 
 // prismaCommentRuns groups pending comment lines into one run per form.
@@ -260,15 +268,21 @@ func prismaCommentRuns(
 	if len(documenting) != 0 {
 		first := documenting[0].Line
 		body := make([]string, documenting[len(documenting)-1].Line-first+1)
+		fileLevel := key == ""
 		for _, comment := range documenting {
 			body[comment.Line-first] = comment.Text
+			fileLevel =
+				fileLevel &&
+					comment.TopLevel &&
+					comment.Form == prismaDocComment
 		}
 		runs = append(runs, prismaCommentRun{
-			Form: prismaDocComment,
-			Path: source,
-			Line: first,
-			Body: strings.Join(body, "\n"),
-			Key:  key,
+			Form:      prismaDocComment,
+			Path:      source,
+			Line:      first,
+			Body:      strings.Join(body, "\n"),
+			Key:       key,
+			FileLevel: fileLevel,
 		})
 	}
 	return runs

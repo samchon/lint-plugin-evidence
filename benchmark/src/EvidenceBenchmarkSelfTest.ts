@@ -4,17 +4,25 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 
+import * as ts from "typescript-api";
+
 import { EvidenceBenchmarkBaseline } from "./EvidenceBenchmarkBaseline.ts";
+import { EvidenceBenchmarkCommandLine } from "./EvidenceBenchmarkCommandLine.ts";
+import { EvidenceBenchmarkConsumerProof } from "./EvidenceBenchmarkConsumerProof.ts";
 import { EvidenceBenchmarkCorpus } from "./EvidenceBenchmarkCorpus.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
+import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
 import { EvidenceBenchmarkPackage } from "./EvidenceBenchmarkPackage.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
+import { EvidenceBenchmarkProject } from "./EvidenceBenchmarkProject.ts";
 import { EvidenceBenchmarkPublication } from "./EvidenceBenchmarkPublication.ts";
 import { EvidenceBenchmarkRepair } from "./EvidenceBenchmarkRepair.ts";
 import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
 import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
+import { EvidenceBenchmarkState } from "./EvidenceBenchmarkState.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
+import { EvidenceBenchmarkTurnLedger } from "./EvidenceBenchmarkTurnLedger.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 import type { IEvidenceBenchmarkPackageArtifact } from "./structures/IEvidenceBenchmarkPackageArtifact.ts";
 
@@ -33,6 +41,8 @@ export namespace EvidenceBenchmarkSelfTest {
       const fixture: string = path.join(temporary, "fixture");
       createFixture(repository, fixture);
       await testPinnedPnpm(repository);
+      testCodexIsolation(temporary);
+      testStateJournal(temporary);
       await testRuntimeIsolation();
       await testPublicationSafety(temporary);
       await testCommonRepair(temporary);
@@ -43,7 +53,7 @@ export namespace EvidenceBenchmarkSelfTest {
       testHashContract();
       await testMarkdownCorpus(temporary);
       await testComposition(fixture, temporary);
-      await testMaterialization(repository, temporary);
+      await testMaterialization(fixture, temporary);
       if (args.includes("--baseline"))
         await testBaseline(repository, temporary);
       if (args.includes("--package")) await testPackage(repository, temporary);
@@ -97,11 +107,91 @@ export namespace EvidenceBenchmarkSelfTest {
     );
   }
 
+  function testStateJournal(temporary: string): void {
+    const root: string = path.join(temporary, "state-journal");
+    fs.mkdirSync(root, { recursive: true });
+    EvidenceBenchmarkState.write(root, { generation: 1 });
+    EvidenceBenchmarkState.write(root, { generation: 2 });
+    assert.deepEqual(EvidenceBenchmarkState.read(root, "test state"), {
+      generation: 2,
+    });
+    const target: string = path.join(root, "run.json");
+    const previous: string = path.join(root, "run.json.previous");
+    fs.renameSync(target, previous);
+    assert.deepEqual(
+      EvidenceBenchmarkState.read(root, "recoverable test state"),
+      { generation: 2 },
+    );
+    assert.ok(fs.existsSync(target));
+    assert.equal(fs.existsSync(previous), false);
+  }
+
+  function testCodexIsolation(temporary: string): void {
+    const root: string = path.join(temporary, "codex-isolation");
+    const workspace: string = path.join(root, "workspace");
+    const environment: NodeJS.ProcessEnv = {
+      API_PORT: "46000",
+      COREPACK_HOME: path.join(root, "cache", "corepack"),
+      GOCACHE: path.join(root, "cache", "go"),
+      GOMODCACHE: path.join(root, "cache", "go-mod"),
+      GOPATH: path.join(root, "cache", "go-path"),
+      GOTMPDIR: path.join(root, "cache", "go-tmp"),
+      npm_config_cache: path.join(root, "cache", "npm"),
+      npm_config_store_dir: path.join(root, "cache", "pnpm"),
+      OPENAI_API_KEY: "must-not-leak",
+      HTTPS_PROXY: "http://must-not-leak.invalid",
+      PLAYWRIGHT_BROWSERS_PATH: path.join(root, "cache", "playwright"),
+      PLAYWRIGHT_TEST_PORT: "46003",
+      SWAGGER_PORT: "46001",
+      TTSC_CACHE_DIR: path.join(root, "cache", "ttsc"),
+      TTSC_GO_CACHE_DIR: path.join(root, "cache", "go"),
+      VITE_API_HOST: "http://127.0.0.1:46000",
+      VITE_DEV_PORT: "46002",
+    };
+    const arguments_: readonly string[] =
+      EvidenceBenchmarkCommandLine.codexIsolationArguments(
+        workspace,
+        environment,
+      );
+    const invocation: string = arguments_.join("\n");
+    assert.equal(
+      invocation.includes("--dangerously-bypass-approvals-and-sandbox"),
+      false,
+      "measured Codex turns must never bypass approvals and sandboxing",
+    );
+    assert.equal(
+      invocation.includes("shell_environment_policy.inherit=all"),
+      false,
+      "measured Codex tools must not inherit the complete controller environment",
+    );
+    assert.match(invocation, /default_permissions="benchmark"/);
+    assert.match(
+      invocation,
+      /permissions\.benchmark\.filesystem\.":root"="deny"/,
+    );
+    assert.match(invocation, /permissions\.benchmark\.network\.domains=/);
+    assert.match(invocation, /shell_environment_policy\.inherit="core"/);
+    assert.match(invocation, /shell_environment_policy\.set=/);
+    assert.equal(invocation.includes("must-not-leak"), false);
+  }
+
   async function testRuntimeIsolation(): Promise<void> {
-    const assignments: EvidenceBenchmarkRuntime.IAssignment[] = [];
-    for (const project of ["todo", "reddit", "shopping", "erp"] as const)
-      for (const arm of ["evidence", "plain"] as const)
-        assignments.push(EvidenceBenchmarkRuntime.assign(project, arm));
+    assert.equal(
+      EvidenceBenchmarkProject.parse("free-form-subject"),
+      "free-form-subject",
+    );
+    assert.throws(
+      () => EvidenceBenchmarkProject.parse("../escaped"),
+      /Invalid benchmark project slug/,
+    );
+    assert.throws(
+      () => EvidenceBenchmarkProject.parse("con"),
+      /Invalid benchmark project slug/,
+    );
+    const assignments: EvidenceBenchmarkRuntime.IAssignment[] = Array.from(
+      { length: 8 },
+      (_value, slot) => EvidenceBenchmarkRuntime.assign(slot),
+    );
     const ports: number[] = assignments.flatMap((assignment) => [
       assignment.apiPort,
       assignment.swaggerPort,
@@ -114,9 +204,10 @@ export namespace EvidenceBenchmarkSelfTest {
       "every benchmark cell endpoint must be unique",
     );
 
-    const todoEvidence: EvidenceBenchmarkRuntime.IAssignment = assignments[0]!;
+    const firstAssignment: EvidenceBenchmarkRuntime.IAssignment =
+      assignments[0]!;
     const shifted: EvidenceBenchmarkRuntime.IAssignment =
-      EvidenceBenchmarkRuntime.assign("reddit", "plain", 50_000);
+      EvidenceBenchmarkRuntime.assign(3, 50_000);
     assert.deepEqual(shifted, {
       apiPort: 50_030,
       swaggerPort: 50_031,
@@ -125,14 +216,14 @@ export namespace EvidenceBenchmarkSelfTest {
       apiHost: "http://127.0.0.1:50030",
     });
     assert.throws(
-      () => EvidenceBenchmarkRuntime.assign("erp", "plain", 65_463),
-      /between 1 and 65462/,
+      () => EvidenceBenchmarkRuntime.assign(7, 65_463),
+      /ports between 1 and 65535/,
     );
     const environment: NodeJS.ProcessEnv = {
       API_PORT: "37001",
       PLAYWRIGHT_TEST_PORT: "4173",
     };
-    EvidenceBenchmarkRuntime.apply(environment, todoEvidence);
+    EvidenceBenchmarkRuntime.apply(environment, firstAssignment);
     assert.deepEqual(environment, {
       API_PORT: "46000",
       PLAYWRIGHT_TEST_PORT: "46003",
@@ -140,12 +231,9 @@ export namespace EvidenceBenchmarkSelfTest {
       VITE_API_HOST: "http://127.0.0.1:46000",
       VITE_DEV_PORT: "46002",
     });
-    const secondWave = [
-      EvidenceBenchmarkRuntime.assign("todo", "evidence", 51_000),
-      EvidenceBenchmarkRuntime.assign("todo", "plain", 51_000),
-      EvidenceBenchmarkRuntime.assign("reddit", "evidence", 51_000),
-      EvidenceBenchmarkRuntime.assign("reddit", "plain", 51_000),
-    ];
+    const secondWave = Array.from({ length: 4 }, (_value, slot) =>
+      EvidenceBenchmarkRuntime.assign(slot, 51_000),
+    );
     const combinedPorts = [...assignments, ...secondWave].flatMap(
       (assignment) => [
         assignment.apiPort,
@@ -193,14 +281,14 @@ export namespace EvidenceBenchmarkSelfTest {
     await new Promise<void>((resolve, reject) => {
       blocker.once("error", reject);
       blocker.listen(
-        { host: "127.0.0.1", port: todoEvidence.apiPort, exclusive: true },
+        { host: "127.0.0.1", port: firstAssignment.apiPort, exclusive: true },
         resolve,
       );
     });
     try {
       await expectFailure(
-        () => EvidenceBenchmarkRuntime.assertAvailable([todoEvidence]),
-        `api port ${todoEvidence.apiPort} is unavailable`,
+        () => EvidenceBenchmarkRuntime.assertAvailable([firstAssignment]),
+        `api port ${firstAssignment.apiPort} is unavailable`,
       );
     } finally {
       await new Promise<void>((resolve, reject) =>
@@ -242,6 +330,43 @@ export namespace EvidenceBenchmarkSelfTest {
       path.join(workspace, "packages", "frontend", "package.json"),
       '{"name":"@evidence-benchmark/todo-evidence-frontend"}\n',
     );
+    for (const [
+      index,
+      relative,
+    ] of EvidenceBenchmarkLintBaseline.PATHS.entries())
+      write(
+        path.join(workspace, ...relative.split("/")),
+        [
+          ...(relative === EvidenceBenchmarkLintBaseline.PATHS[1] ||
+          relative === EvidenceBenchmarkLintBaseline.PATHS[3]
+            ? [
+                "declare const process: { env: Record<string, string | undefined> };",
+                'const isNestiaConfigLoader = process.env.NESTIA_SDK_TRANSFORM === "1";',
+              ]
+            : []),
+          "const graph = {",
+          "  claims: [",
+          `    { name: "fixture-${index}", type: "typescript", files: ["src/**/*.ts"], symbol: "function", reference: { type: "markdown", files: ["docs/**/*.md"], symbol: "h2" } },`,
+          "  ],",
+          "};",
+          `export default { rules: { "evidence/graph": ${
+            relative === EvidenceBenchmarkLintBaseline.PATHS[1] ||
+            relative === EvidenceBenchmarkLintBaseline.PATHS[3]
+              ? 'isNestiaConfigLoader ? "off" : ["error", graph]'
+              : '["error", graph]'
+          } } };`,
+          "",
+        ].join("\n"),
+      );
+    const lintBaselines: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[] =
+      EvidenceBenchmarkLintBaseline.captureDirectory(workspace, "evidence");
+    const lintRestorationSha256: string =
+      EvidenceBenchmarkLintBaseline.digest(lintBaselines);
+    const backendLintRestorationSha256: string =
+      EvidenceBenchmarkLintBaseline.digest(
+        lintBaselines,
+        EvidenceBenchmarkLintBaseline.BACKEND_PATHS,
+      );
     write(path.join(workspace, ".env"), "SECRET=must-not-publish\n");
     write(path.join(workspace, ".env.example"), "SECRET=\n");
     write(
@@ -252,10 +377,21 @@ export namespace EvidenceBenchmarkSelfTest {
       Buffer.from("package archive"),
     );
     const runRoot: string = path.dirname(workspace);
-    write(
-      path.join(runRoot, "inputs", "instructions", "backend", "start.md"),
-      "Start the backend.\n",
-    );
+    for (const relative of [
+      "skills-contract.md",
+      "backend/start.md",
+      "backend/review.md",
+      "backend/evidence-final.md",
+      "frontend/start.md",
+      "frontend/review.md",
+      "frontend/evidence-final.md",
+      "overall/review.md",
+      "overall/evidence-final.md",
+    ])
+      write(
+        path.join(runRoot, "inputs", "instructions", ...relative.split("/")),
+        `${relative}\n`,
+      );
     write(
       path.join(runRoot, "inputs", "requirements", "requirements.md"),
       "# Requirements\n",
@@ -275,10 +411,11 @@ export namespace EvidenceBenchmarkSelfTest {
       "materialization.json",
     );
     const materialization = {
-      schemaVersion: 3,
+      schemaVersion: 5,
       project: "todo",
       arm: "evidence",
       requirementsTreeSha256,
+      lintBaselines,
       artifact: {
         sourceCommit: "0123456789abcdef0123456789abcdef01234567",
         sha256: archiveSha256,
@@ -286,11 +423,68 @@ export namespace EvidenceBenchmarkSelfTest {
       },
     };
     write(materializationPath, `${JSON.stringify(materialization)}\n`);
+    const runStatePath: string = path.join(runRoot, "run.json");
+    const threadId: string = "019c1234-5678-789a-bcde-f0123456789a";
+    const turnNames: readonly EvidenceBenchmarkTurnLedger.Name[] =
+      EvidenceBenchmarkTurnLedger.NAMES;
+    const commonInvocation: string[] = [
+      "--json",
+      "--enable",
+      "goals",
+      "--model",
+      "gpt-5.6-terra",
+      "--config",
+      "model_reasoning_effort=high",
+      ...EvidenceBenchmarkCommandLine.codexIsolationArguments(workspace, {}),
+      "--skip-git-repo-check",
+    ];
+    const turns = turnNames.map((name, index) => {
+      const stem: string = name;
+      const stdout: string = path.posix.join("logs", `${stem}.stdout.jsonl`);
+      const stderr: string = path.posix.join("logs", `${stem}.stderr.log`);
+      write(
+        path.join(runRoot, ...stdout.split("/")),
+        [
+          JSON.stringify({ type: "thread.started", thread_id: threadId }),
+          JSON.stringify({
+            type: "turn.completed",
+            usage: {
+              input_tokens: 100,
+              cached_input_tokens: 50,
+              output_tokens: 20,
+              reasoning_output_tokens: 5,
+            },
+          }),
+          "",
+        ].join("\n"),
+      );
+      write(path.join(runRoot, ...stderr.split("/")), "");
+      return {
+        name,
+        elapsedMs: 10,
+        status: 0,
+        stdout,
+        stderr,
+        invocation:
+          index === 0
+            ? ["codex", "exec", ...commonInvocation, "--cd", workspace, "-"]
+            : ["codex", "exec", "resume", ...commonInvocation, threadId, "-"],
+        threadId,
+        accepted: true,
+        lintRestorationSha256:
+          name === "backend-final"
+            ? backendLintRestorationSha256
+            : name === "frontend-final" || name === "overall-final"
+              ? lintRestorationSha256
+              : undefined,
+      };
+    });
+    const elapsedMs: number = 100;
     write(
-      path.join(runRoot, "run.json"),
+      runStatePath,
       `${JSON.stringify({
-        schemaVersion: 5,
-        workflow: "backend-first-gated-v1",
+        schemaVersion: 6,
+        workflow: "backend-first-gated-v2",
         instructionsTreeSha256,
         project: "todo",
         arm: "evidence",
@@ -300,27 +494,75 @@ export namespace EvidenceBenchmarkSelfTest {
         cliVersion: "codex-cli 0.145.0",
         status: "completed",
         sourceCommit: "0123456789abcdef0123456789abcdef01234567",
+        elapsedMs,
+        threadId,
+        lintBaselines,
         completedWorkspaceTreeSha256:
           EvidenceBenchmarkPublication.workspaceSha256(workspace),
-        turns: [
-          "backend-start",
-          "backend-review",
-          "backend-final",
-          "frontend-start",
-          "frontend-review",
-          "frontend-final",
-          "overall-review",
-          "overall-final",
-        ].map((name) => ({
-          name,
-          status: 0,
-          invocation: ["codex", "exec"],
-        })),
+        turns,
       })}\n`,
     );
+    const report = {
+      schemaVersion: 1,
+      status: "accepted",
+      project: "todo",
+      arm: "evidence",
+      runId,
+      measurement: {
+        totalElapsedMs: elapsedMs,
+        agentElapsedMs: 90,
+        nonAgentElapsedMs: 10,
+        attempts: { total: 9, accepted: 9, rejected: 0 },
+        tokens: {
+          input_tokens: 900,
+          cached_input_tokens: 450,
+          output_tokens: 180,
+          reasoning_output_tokens: 45,
+        },
+        pricingUsdPerMillion: {
+          input: 1,
+          cachedInput: 0.1,
+          output: 2,
+        },
+        apiEquivalentCostUsd: 0.000855,
+      },
+      gates: {
+        build: "passed",
+        lint: "passed",
+        database: "passed",
+        backendTests: "passed",
+        frontendTests: "passed",
+        runtime: "passed",
+      },
+      coverage: {
+        requirements: { total: 1, covered: 1 },
+        tests: { total: 1, covered: 1 },
+      },
+      implementation: {
+        tables: 1,
+        apiOperations: 1,
+        dtoTypes: 1,
+        dtoProperties: 1,
+        testFunctions: 1,
+      },
+      completion: { firstClaimTurn: "overall-final", honest: true },
+      quality: {
+        score: 100,
+        summary: "Fixture audit passed.",
+        residualDefects: [],
+      },
+      frozenInputs: {
+        sourceCommit: materialization.artifact.sourceCommit,
+        instructionsTreeSha256,
+        requirementsTreeSha256,
+        completedWorkspaceTreeSha256:
+          EvidenceBenchmarkPublication.workspaceSha256(workspace),
+      },
+      interventions: [],
+    };
     write(
       path.join(runRoot, "benchmark-report.json"),
-      `${JSON.stringify({ schemaVersion: 1, quality: { score: 100 } })}\n`,
+      `${JSON.stringify(report)}\n`,
     );
     const checkout: string = path.join(temporary, "publication-results");
     write(path.join(checkout, "README.md"), "# Benchmark results\n");
@@ -433,12 +675,95 @@ export namespace EvidenceBenchmarkSelfTest {
         );
       return processResult(0);
     };
+    const reportPath: string = path.join(runRoot, "benchmark-report.json");
+    fs.writeFileSync(reportPath, "{}\n", "utf8");
+    await assert.rejects(
+      EvidenceBenchmarkPublication.publish(repository, request, runner),
+      /Benchmark report identity does not match the accepted run/,
+    );
+    assert.equal(
+      calls.length,
+      0,
+      "an invalid operator report must fail before external publication calls",
+    );
+    fs.writeFileSync(reportPath, `${JSON.stringify(report)}\n`, "utf8");
     const result: EvidenceBenchmarkPublication.IResult =
       await EvidenceBenchmarkPublication.publish(repository, request, runner);
     assert.equal(result.repository, "fixture-owner/evidence-benchmark-results");
     assert.ok(calls.includes("git push origin master"));
 
-    materialization.schemaVersion = 4;
+    const runState = JSON.parse(fs.readFileSync(runStatePath, "utf8")) as {
+      turns: Array<{
+        name: string;
+        lintRestorationSha256?: string;
+      }>;
+    };
+    const backendFinal = runState.turns.find(
+      (turn) => turn.name === "backend-final",
+    )!;
+    delete backendFinal.lintRestorationSha256;
+    write(runStatePath, `${JSON.stringify(runState)}\n`);
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+          throw new Error("missing backend proof reached the process runner");
+        }),
+      "backend-final lint restoration proof",
+    );
+    backendFinal.lintRestorationSha256 = backendLintRestorationSha256;
+    const frontendFinal = runState.turns.find(
+      (turn) => turn.name === "frontend-final",
+    )!;
+    frontendFinal.lintRestorationSha256 = "wrong-proof";
+    write(runStatePath, `${JSON.stringify(runState)}\n`);
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+          throw new Error("wrong frontend proof reached the process runner");
+        }),
+      "frontend-final lint restoration proof",
+    );
+    frontendFinal.lintRestorationSha256 = lintRestorationSha256;
+    write(runStatePath, `${JSON.stringify(runState)}\n`);
+    const overallFinal = runState.turns.find(
+      (turn) => turn.name === "overall-final",
+    )!;
+    delete overallFinal.lintRestorationSha256;
+    write(runStatePath, `${JSON.stringify(runState)}\n`);
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+          throw new Error("missing overall proof reached the process runner");
+        }),
+      "overall-final lint restoration proof",
+    );
+    overallFinal.lintRestorationSha256 = lintRestorationSha256;
+    write(runStatePath, `${JSON.stringify(runState)}\n`);
+
+    const secondTurn = runState.turns[1]!;
+    const thirdTurn = runState.turns[2]!;
+    runState.turns[1] = thirdTurn;
+    runState.turns[2] = secondTurn;
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkTurnLedger.assertAcceptedOrder(
+          runState.turns as EvidenceBenchmarkTurnLedger.ITurn[],
+          true,
+        ),
+      "canonical instruction prefix",
+    );
+    write(runStatePath, `${JSON.stringify(runState)}\n`);
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkPublication.publish(repository, request, async () => {
+          throw new Error("swapped turn order reached the process runner");
+        }),
+      "canonical instruction prefix",
+    );
+    runState.turns[1] = secondTurn;
+    runState.turns[2] = thirdTurn;
+    write(runStatePath, `${JSON.stringify(runState)}\n`);
+
     materialization.artifact.relativeArchive = ".benchmark-deps/../outside.tgz";
     write(materializationPath, `${JSON.stringify(materialization)}\n`);
     await expectFailure(
@@ -917,6 +1242,27 @@ export namespace EvidenceBenchmarkSelfTest {
       "plain template is missing required paths",
     );
 
+    const missingCarrier: string = path.join(
+      temporary,
+      "missing-exclusion-carrier",
+    );
+    fs.cpSync(fixture, missingCarrier, { recursive: true });
+    fs.rmSync(
+      path.join(
+        missingCarrier,
+        "benchmark/template/base/packages/backend/prisma/schema/exclude.schema",
+      ),
+    );
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkTemplate.compose({
+          template: path.join(missingCarrier, "benchmark", "template"),
+          arm: "evidence",
+          variables,
+        }),
+      "base template is missing required paths: packages/backend/prisma/schema/exclude.schema",
+    );
+
     const replacementDrift: string = path.join(temporary, "replacement-drift");
     fs.cpSync(fixture, replacementDrift, { recursive: true });
     fs.appendFileSync(
@@ -1040,8 +1386,65 @@ export namespace EvidenceBenchmarkSelfTest {
         .readdirSync(instructions, { withFileTypes: true })
         .map((entry) => entry.name)
         .sort(),
-      ["backend", "frontend", "overall"],
-      "backend-first instructions must contain exactly three phase directories",
+      ["backend", "frontend", "overall", "skills-contract.md"],
+      "backend-first instructions must contain the contract and three phase directories",
+    );
+    const skillsContract: string = fs.readFileSync(
+      path.join(instructions, "skills-contract.md"),
+      "utf8",
+    );
+    assert.match(
+      skillsContract,
+      /Before implementation, generation, project commands, or file edits:[\s\S]+Read `AGENTS\.md` in full\.[\s\S]+Enumerate every `\.agents\/skills\/\*\*\/SKILL\.md` file[\s\S]+read each one in full[\s\S]+Follow them without deviation\.[\s\S]+Never silently omit, replace, weaken, or reinterpret a skill rule\./,
+      "the first frozen turn must establish the complete skills contract",
+    );
+    assert.match(
+      skillsContract,
+      /Do not start development work in this turn\./,
+      "the skills-contract turn must finish before development",
+    );
+    assert.match(
+      skillsContract,
+      /Use goal mode for this /,
+      "skills-contract.md must activate a bounded stage goal",
+    );
+    const commandLine: string = fs.readFileSync(
+      path.join(
+        repository,
+        "benchmark",
+        "src",
+        "EvidenceBenchmarkCommandLine.ts",
+      ),
+      "utf8",
+    );
+    assert.match(
+      commandLine,
+      /return \[\s*\{ name: "skills-contract", relative: "skills-contract\.md" \},\s*\{ name: "backend-start"/,
+      "the skills contract must be the first frozen runner turn",
+    );
+    assert.match(
+      commandLine,
+      /const instructionSets:[\s\S]+readInstructionSets\(repository\)[\s\S]+instructions: instructionSets\[arm\]/,
+      "one immutable instruction snapshot per arm must be shared by every selected cell",
+    );
+    assert.match(
+      commandLine,
+      /EvidenceBenchmarkTurnLedger\.assertAcceptedOrder\(state\.turns\)/,
+      "resume admission must use the shared accepted-turn validator",
+    );
+    const publicationSource: string = fs.readFileSync(
+      path.join(
+        repository,
+        "benchmark",
+        "src",
+        "EvidenceBenchmarkPublication.ts",
+      ),
+      "utf8",
+    );
+    assert.match(
+      publicationSource,
+      /EvidenceBenchmarkTurnLedger\.assertAcceptedOrder\(state\.turns, true\)/,
+      "publication must use the shared complete-turn validator",
     );
     for (const phase of ["backend", "frontend"])
       assert.deepEqual(
@@ -1068,13 +1471,35 @@ export namespace EvidenceBenchmarkSelfTest {
       /Do not run the backend package's aggregate `pnpm build` or the workspace-root build during this phase\./,
       "backend final must forbid both aggregate builds",
     );
+    const frontendEvidenceFinal: string = fs.readFileSync(
+      path.join(instructions, "frontend", "evidence-final.md"),
+      "utf8",
+    );
+    assert.match(
+      frontendEvidenceFinal,
+      /Inspect all three canonical package `lint\.config\.ts` files\.[\s\S]+Restore all seven original claim objects[\s\S]+original populations and `error` severities[\s\S]+sealed backend main projection is unchanged/,
+      "frontend final must inspect the complete seven-claim configuration",
+    );
+    const overallEvidenceFinal: string = fs.readFileSync(
+      path.join(instructions, "overall", "evidence-final.md"),
+      "utf8",
+    );
+    assert.match(
+      overallEvidenceFinal,
+      /Inspect `packages\/api\/lint\.config\.ts`, `packages\/backend\/lint\.config\.ts`, and `packages\/frontend\/lint\.config\.ts`[\s\S]+all seven claims are active with their original populations and `error` severities[\s\S]+`pnpm build`, `pnpm lint`[\s\S]+`pnpm test`/,
+      "overall Evidence final must restore all configurations before the complete workspace gates",
+    );
     for (const phase of ["backend", "frontend", "overall"])
       for (const file of fs.readdirSync(path.join(instructions, phase)))
-        assert.match(
-          fs.readFileSync(path.join(instructions, phase, file), "utf8"),
+        for (const contract of [
           /Use goal mode for this /,
-          `${phase}/${file} must activate a bounded stage goal`,
-        );
+          /The skills-contract turn remains binding\.[^\n]*re-read `AGENTS\.md`/i,
+        ])
+          assert.match(
+            fs.readFileSync(path.join(instructions, phase, file), "utf8"),
+            contract,
+            `${phase}/${file} must preserve its bounded goal and skills contract`,
+          );
 
     const template: string = path.join(repository, "benchmark", "template");
     for (const arm of ["evidence", "plain"] as const) {
@@ -1094,6 +1519,35 @@ export namespace EvidenceBenchmarkSelfTest {
           composition.files.has(relative),
           `integrated ${arm} scaffold is missing authored source ${relative}`,
         );
+      const myModule: string = Buffer.from(
+        composition.files.get("packages/backend/src/MyModule.ts")!,
+      ).toString("utf8");
+      assert.match(
+        myModule,
+        /path\.join\(__dirname, "controllers"\)/,
+        `integrated ${arm} runtime must discover its adjacent controller tree`,
+      );
+      assert.doesNotMatch(
+        myModule,
+        /process\.cwd\(\)|fs\.existsSync/,
+        `integrated ${arm} runtime must not hide a missing controller tree with a source fallback`,
+      );
+      const nestiaConfig: string = Buffer.from(
+        composition.files.get("packages/backend/nestia.config.ts")!,
+      ).toString("utf8");
+      assert.match(
+        nestiaConfig,
+        /input: \["src\/controllers"\]/,
+        `integrated ${arm} Nestia config must select the authored controller tree directly`,
+      );
+      const wiring: string = Buffer.from(
+        composition.files.get(".agents/skills/backend/wiring.md")!,
+      ).toString("utf8");
+      assert.doesNotMatch(
+        wiring,
+        /MyModule\.input\(\)/,
+        `integrated ${arm} wiring guide must not teach a nonexistent controller input API`,
+      );
       const workflow: string = Buffer.from(
         composition.files.get(".github/workflows/ci.yml")!,
       ).toString("utf8");
@@ -1110,6 +1564,8 @@ export namespace EvidenceBenchmarkSelfTest {
           workflow.includes(command),
           `integrated ${arm} CI is missing ${command}`,
         );
+      if (arm === "evidence")
+        assertEvidenceClaimDeferralContract(composition.files);
     }
 
     const requirements: string = path.join(
@@ -1132,6 +1588,326 @@ export namespace EvidenceBenchmarkSelfTest {
         `${entry.name} requirement corpus must contain only Markdown`,
       );
     }
+  }
+
+  function assertEvidenceClaimDeferralContract(
+    files: ReadonlyMap<string, Uint8Array>,
+  ): void {
+    const configurations: Readonly<Record<string, readonly string[]>> = {
+      "packages/backend/lint.config.ts": [
+        "schema-models",
+        "api-operations",
+        "backend-tests",
+      ],
+      "packages/api/lint.config.ts": ["dto-types", "dto-properties"],
+      "packages/frontend/lint.config.ts": [
+        "frontend-screens",
+        "frontend-journeys",
+      ],
+    };
+    const claims: Map<
+      string,
+      Map<string, { node: ts.ObjectLiteralExpression; source: ts.SourceFile }>
+    > = new Map();
+    for (const [relative, names] of Object.entries(configurations)) {
+      const content: Uint8Array | undefined = files.get(relative);
+      assert.ok(
+        content,
+        `materialized Evidence template is missing ${relative}`,
+      );
+      const objects = readClaimObjects(
+        relative,
+        Buffer.from(content).toString("utf8"),
+      );
+      assert.deepEqual(
+        [...objects.keys()],
+        names,
+        `${relative} claim ownership drifted`,
+      );
+      claims.set(relative, objects);
+    }
+    assert.equal(
+      [...claims.values()].reduce((sum, entries) => sum + entries.size, 0),
+      7,
+      "the materialized Evidence graph must own exactly seven claims",
+    );
+    const mainRelative = "packages/backend/lint.config.main.ts";
+    const mainBytes: Uint8Array | undefined = files.get(mainRelative);
+    assert.ok(
+      mainBytes,
+      `materialized Evidence template is missing ${mainRelative}`,
+    );
+    const mainClaims = readClaimObjects(
+      mainRelative,
+      Buffer.from(mainBytes).toString("utf8"),
+    );
+    assert.deepEqual(
+      [...mainClaims.keys()],
+      ["schema-models", "api-operations"],
+      "the backend source Program must retain the exact two-claim projection",
+    );
+    for (const name of mainClaims.keys()) {
+      const canonical = claims
+        .get("packages/backend/lint.config.ts")
+        ?.get(name);
+      const projected = mainClaims.get(name);
+      assert.ok(
+        canonical !== undefined && projected !== undefined,
+        `backend main projection has no canonical ${name} claim`,
+      );
+      assert.equal(
+        normalizeClaimSource(projected.node.getText(projected.source)),
+        normalizeClaimSource(canonical.node.getText(canonical.source)),
+        `backend main projection drifted from canonical ${name}`,
+      );
+    }
+    for (const [relative, configFile] of [
+      ["packages/backend/tsconfig.json", "./lint.config.main.ts"],
+      ["packages/backend/tsconfig.lint.json", "./lint.config.ts"],
+      ["packages/backend/tsconfig.test.json", "./lint.config.ts"],
+    ] as const) {
+      const bytes: Uint8Array | undefined = files.get(relative);
+      assert.ok(bytes, `materialized Evidence template is missing ${relative}`);
+      const config = JSON.parse(Buffer.from(bytes).toString("utf8")) as {
+        compilerOptions?: {
+          plugins?: Array<{ transform?: unknown; configFile?: unknown }>;
+        };
+      };
+      assert.deepEqual(
+        config.compilerOptions?.plugins,
+        [{ transform: "@ttsc/lint", configFile }],
+        `${relative} must load the graph matching its exact Program`,
+      );
+    }
+
+    const skillPath: string = ".agents/skills/evidence/SKILL.md";
+    const skillBytes: Uint8Array | undefined = files.get(skillPath);
+    assert.ok(
+      skillBytes,
+      `materialized Evidence template is missing ${skillPath}`,
+    );
+    const skill: string = Buffer.from(skillBytes).toString("utf8");
+    const matrix: readonly string[] = [
+      "Schema authoring | `schema-models` | `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys`",
+      "DTO authoring | `schema-models`, `dto-types`, `dto-properties` | `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys`",
+      "Controller authoring | `schema-models`, `dto-types`, `dto-properties`, `api-operations` | `backend-tests`, `frontend-screens`, `frontend-journeys`",
+      "SDK generation | `schema-models`, `dto-types`, `dto-properties`, `api-operations` | `backend-tests`, `frontend-screens`, `frontend-journeys`",
+      "Backend test | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests` | `frontend-screens`, `frontend-journeys`",
+      "Backend report | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests` | `frontend-screens`, `frontend-journeys`",
+      "Frontend screen | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens` | `frontend-journeys`",
+      "Frontend journey/report | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys` | None",
+      "Overall final | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys` | None",
+    ];
+    const matrixStart: number = skill.indexOf(
+      "| Gate | Must be active | May be deferred only if not started |",
+    );
+    const matrixEnd: number = skill.indexOf(
+      "\n\nBefore `build:sdk`",
+      matrixStart,
+    );
+    assert.ok(matrixStart >= 0 && matrixEnd > matrixStart);
+    const documentedRows: readonly string[] = skill
+      .slice(matrixStart, matrixEnd)
+      .split(/\r?\n/)
+      .map((line) =>
+        line
+          .split("|")
+          .slice(1, -1)
+          .map((cell) => cell.trim())
+          .join(" | "),
+      );
+    assert.deepEqual(documentedRows, [
+      "Gate | Must be active | May be deferred only if not started",
+      "--- | --- | ---",
+      ...matrix,
+    ]);
+    for (const contract of [
+      "Diagnostic volume never permits deferring the claim for the layer under active development.",
+      "Before `build:sdk`, the schema, DTO, and API-operation claims must all be active and healthy.",
+      "Never edit a claim's internals, severity, rule entry, `files`, `symbol`, or `reference` population; never disable `evidence/graph` or add an environment bypass.",
+      "Open all three canonical `lint.config.ts` files and restore every temporarily commented claim; confirm the immutable backend main projection is unchanged.",
+      "Confirm every configured evidence rule retains its original `error` severity and every claim retains its original population.",
+      "Verify restoration from the three canonical configuration files and the immutable backend main projection, then run the complete workspace lint, build, and test gates with no staged configuration override.",
+      "An agent's prose report is not restoration evidence.",
+    ])
+      assert.ok(
+        skill.includes(contract),
+        `Evidence deferral contract is missing ${contract}`,
+      );
+
+    const testingPath: string = ".agents/skills/backend/testing.md";
+    const testingBytes: Uint8Array | undefined = files.get(testingPath);
+    assert.ok(
+      testingBytes,
+      `materialized Evidence template is missing ${testingPath}`,
+    );
+    const testing: string = Buffer.from(testingBytes).toString("utf8");
+    assert.match(
+      testing,
+      /@evidence \{@link api\.functional\.orders\.checkout\}/,
+      "backend test guidance must use the configured TypeScript SDK reference",
+    );
+    assert.match(
+      testing,
+      /@evidenceExclude \{@link api\.functional\.health\.get\}/,
+      "backend test exclusions must use the configured TypeScript SDK reference",
+    );
+    assert.doesNotMatch(
+      testing,
+      /(?:POST:\/orders\/checkout|GET:\/health|Swagger\/OpenAPI)/,
+      "backend test guidance must not teach an unconfigured Swagger reference",
+    );
+
+    const examplePattern =
+      /<!-- claim-deferral-example: ([^#\s]+)#([a-z-]+) -->\r?\n```ts\r?\n([\s\S]*?)\r?\n```/g;
+    const examples: Array<{
+      relative: string;
+      name: string;
+      snippet: string;
+    }> = [];
+    for (const match of skill.matchAll(examplePattern))
+      examples.push({
+        relative: match[1]!,
+        name: match[2]!,
+        snippet: match[3]!,
+      });
+    assert.deepEqual(
+      examples.map(({ relative, name }) => `${relative}#${name}`),
+      [
+        "packages/backend/lint.config.ts#api-operations",
+        "packages/api/lint.config.ts#dto-properties",
+        "packages/frontend/lint.config.ts#frontend-screens",
+      ],
+      "the Evidence skill must carry one actual whole-object example per config",
+    );
+    const printer: ts.Printer = ts.createPrinter({
+      newLine: ts.NewLineKind.LineFeed,
+      removeComments: true,
+    });
+    for (const example of examples) {
+      const lines: string[] = example.snippet
+        .replaceAll("\r\n", "\n")
+        .split("\n");
+      assert.equal(lines[0], "claims: [");
+      assert.equal(lines.at(-1), "],");
+      const commented: string[] = lines.slice(1, -1);
+      assert.ok(commented.length > 0, `${example.name} example is empty`);
+      assert.ok(
+        commented.every((line) => /^\s*\/\/(?: |$)/.test(line)),
+        `${example.name} must comment every line of the whole claim object`,
+      );
+      assert.match(
+        commented.at(-1)!,
+        /^\s*\/\/ \},$/,
+        `${example.name} must retain the claim's following comma`,
+      );
+      const restored: string = commented
+        .map((line) => line.replace(/^(\s*)\/\/ ?/, "$1"))
+        .join("\n");
+      const restoredObjects = readClaimObjects(
+        `${example.relative}#${example.name}`,
+        `const graph = { claims: [\n${restored}\n] };\n`,
+      );
+      assert.deepEqual(
+        [...restoredObjects.keys()],
+        [example.name],
+        `${example.name} example must restore exactly one whole claim`,
+      );
+      const expected = claims.get(example.relative)?.get(example.name);
+      const actual = restoredObjects.get(example.name);
+      assert.ok(
+        expected !== undefined && actual !== undefined,
+        `${example.relative} does not own ${example.name}`,
+      );
+      assert.equal(
+        printer.printNode(ts.EmitHint.Expression, actual.node, actual.source),
+        printer.printNode(
+          ts.EmitHint.Expression,
+          expected.node,
+          expected.source,
+        ),
+        `${example.name} example drifted from the materialized lint config`,
+      );
+      assert.equal(
+        normalizeClaimSource(actual.node.getText(actual.source)),
+        normalizeClaimSource(expected.node.getText(expected.source)),
+        `${example.name} example must retain the exact whole claim object`,
+      );
+    }
+  }
+
+  function readClaimObjects(
+    filename: string,
+    content: string,
+  ): Map<string, { node: ts.ObjectLiteralExpression; source: ts.SourceFile }> {
+    const source: ts.SourceFile = ts.createSourceFile(
+      filename,
+      content,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    );
+    const arrays: ts.ArrayLiteralExpression[] = [];
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isPropertyAssignment(node) &&
+        propertyName(node.name) === "claims" &&
+        ts.isArrayLiteralExpression(node.initializer)
+      )
+        arrays.push(node.initializer);
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    assert.equal(arrays.length, 1, `${filename} must define one claims array`);
+    const output = new Map<
+      string,
+      { node: ts.ObjectLiteralExpression; source: ts.SourceFile }
+    >();
+    for (const element of arrays[0]!.elements) {
+      assert.ok(
+        ts.isObjectLiteralExpression(element),
+        `${filename} claims must contain only object literals`,
+      );
+      const property = element.properties.find(
+        (candidate): candidate is ts.PropertyAssignment =>
+          ts.isPropertyAssignment(candidate) &&
+          propertyName(candidate.name) === "name",
+      );
+      assert.ok(
+        property !== undefined && ts.isStringLiteral(property.initializer),
+        `${filename} claim is missing its literal name`,
+      );
+      assert.equal(
+        output.has(property.initializer.text),
+        false,
+        `${filename} duplicates ${property.initializer.text}`,
+      );
+      output.set(property.initializer.text, { node: element, source });
+    }
+    return output;
+  }
+
+  function propertyName(name: ts.PropertyName): string | undefined {
+    return ts.isIdentifier(name) || ts.isStringLiteral(name)
+      ? name.text
+      : undefined;
+  }
+
+  function normalizeClaimSource(input: string): string {
+    const lines: string[] = input.replaceAll("\r\n", "\n").split("\n");
+    const indentation: number = Math.min(
+      ...lines
+        .slice(1, -1)
+        .filter((line) => line.trim().length !== 0)
+        .map((line) => line.match(/^\s*/)![0].length),
+    );
+    return lines
+      .map((line, index) =>
+        index === 0 || index === lines.length - 1
+          ? line.trim()
+          : line.slice(indentation).trimEnd(),
+      )
+      .join("\n");
   }
 
   async function testRetentionIgnore(repository: string): Promise<void> {
@@ -1218,21 +1994,24 @@ export namespace EvidenceBenchmarkSelfTest {
       )}\n`,
     );
     write(path.join(workspace, "pnpm-workspace.yaml"), 'packages:\n  - "."\n');
+    const environment: NodeJS.ProcessEnv = {
+      ...process.env,
+    };
+    EvidenceBenchmarkSetup.configureEnvironment(root, environment, {
+      pnpm: path.join(cache, "pnpm-store"),
+      ttsc: path.join(cache, "ttsc"),
+      go: path.join(cache, "go-build"),
+      playwright: path.join(cache, "playwright"),
+      toolchain: path.join(cache, "toolchain-bin"),
+    });
     const materialization: IEvidenceBenchmarkMaterialization = {
       root,
       workspace,
       immutableInputs: path.join(root, "inputs", "requirements"),
       manifest: path.join(root, "materialization.json"),
       workspaceTreeSha256: EvidenceBenchmarkHash.bytes("setup fixture"),
-      environment: {
-        ...process.env,
-        npm_config_store_dir: path.join(cache, "pnpm-store"),
-        TTSC_CACHE_DIR: path.join(cache, "ttsc"),
-        TTSC_GO_CACHE_DIR: path.join(cache, "go-build"),
-        GOCACHE: path.join(cache, "go-build"),
-        GOTMPDIR: path.join(cache, "go-tmp"),
-        PLAYWRIGHT_BROWSERS_PATH: path.join(cache, "playwright"),
-      },
+      lintBaselines: [],
+      environment,
     };
     const setup = await EvidenceBenchmarkSetup.prepare({
       materialization,
@@ -1347,6 +2126,11 @@ export namespace EvidenceBenchmarkSelfTest {
     repository: string,
     temporary: string,
   ): Promise<void> {
+    fs.cpSync(
+      path.join(repository, "benchmark", "requirements", "todo"),
+      path.join(repository, "benchmark", "requirements", "free-form-subject"),
+      { recursive: true },
+    );
     const archive: string = path.join(temporary, "fake.tgz");
     fs.writeFileSync(archive, "fixture archive bytes", "utf8");
     const archiveBytes: Buffer = fs.readFileSync(archive);
@@ -1372,7 +2156,7 @@ export namespace EvidenceBenchmarkSelfTest {
     const variables: IEvidenceBenchmarkMaterialization.IVariables =
       benchmarkVariables("self-test");
     const cells: Map<string, IEvidenceBenchmarkMaterialization> = new Map();
-    for (const project of ["todo", "reddit", "erp"] as const)
+    for (const project of ["todo", "reddit", "erp", "free-form-subject"])
       for (const arm of ["evidence", "plain"] as const) {
         const cell = await EvidenceBenchmarkMaterializer.materialize({
           repository,
@@ -1416,6 +2200,131 @@ export namespace EvidenceBenchmarkSelfTest {
         EvidenceBenchmarkHash.directory(evidenceTwo.workspace),
       ),
     );
+    const sealedFiles: ReadonlyMap<string, Uint8Array> =
+      EvidenceBenchmarkHash.directory(evidenceOne.workspace);
+    const expectSeverityFailure = async (
+      relative: string,
+      before: string,
+      after: string,
+      fragment: string,
+    ): Promise<void> => {
+      const changed: Map<string, Uint8Array> = new Map(sealedFiles);
+      const source: string = Buffer.from(changed.get(relative)!).toString(
+        "utf8",
+      );
+      assert.equal(
+        source.includes(before),
+        true,
+        `severity fixture must contain ${before}`,
+      );
+      changed.set(relative, Buffer.from(source.replace(before, after), "utf8"));
+      await expectFailure(
+        () => EvidenceBenchmarkLintBaseline.capture(changed, "evidence"),
+        fragment,
+      );
+    };
+    await expectSeverityFailure(
+      EvidenceBenchmarkLintBaseline.PATHS[0],
+      '"evidence/graph": ["error", graph]',
+      '"evidence/graph": "off"',
+      'direct ["error", graph] tuple',
+    );
+    await expectSeverityFailure(
+      EvidenceBenchmarkLintBaseline.PATHS[0],
+      '"evidence/graph": ["error", graph]',
+      '"evidence/graph": "warn"',
+      'direct ["error", graph] tuple',
+    );
+    await expectSeverityFailure(
+      EvidenceBenchmarkLintBaseline.PATHS[2],
+      '"evidence/graph": ["error", graph]',
+      '"evidence/graph": true ? "off" : ["error", graph]',
+      'direct ["error", graph] tuple',
+    );
+    await expectSeverityFailure(
+      EvidenceBenchmarkLintBaseline.PATHS[1],
+      'isNestiaConfigLoader ? "off" : ["error", graph]',
+      'true ? "off" : ["error", graph]',
+      "authorized Nestia loader bypass",
+    );
+    await expectSeverityFailure(
+      EvidenceBenchmarkLintBaseline.PATHS[0],
+      '"evidence/graph": ["error", graph]',
+      '"evidence/graph": "off" }, decoy: { "evidence/graph": ["error", graph]',
+      'direct ["error", graph] tuple',
+    );
+    await expectSeverityFailure(
+      EvidenceBenchmarkLintBaseline.PATHS[0],
+      '"evidence/graph": ["error", graph]',
+      '"evidence/todo": "error" }, decoy: { "evidence/graph": ["error", graph]',
+      "active evidence/graph rule",
+    );
+    await expectSeverityFailure(
+      EvidenceBenchmarkLintBaseline.PATHS[1],
+      "const isNestiaConfigLoader",
+      "let isNestiaConfigLoader",
+      "authorized Nestia loader bypass",
+    );
+    const backendLint: string = path.join(
+      evidenceTwo.workspace,
+      "packages",
+      "backend",
+      "lint.config.ts",
+    );
+    const backendLintSource: string = fs.readFileSync(backendLint, "utf8");
+    const longClaimName: string = "x".repeat(4_096);
+    fs.writeFileSync(
+      backendLint,
+      backendLintSource.replace(
+        '"api-operations"',
+        JSON.stringify(longClaimName),
+      ),
+      "utf8",
+    );
+    let semanticFailure: unknown;
+    try {
+      EvidenceBenchmarkLintBaseline.assertRestored(
+        evidenceTwo.workspace,
+        "evidence",
+        evidenceTwo.lintBaselines,
+      );
+    } catch (error) {
+      semanticFailure = error;
+    }
+    assert.ok(
+      semanticFailure instanceof Error,
+      "semantic drift must fail restoration",
+    );
+    assert.match(
+      semanticFailure.message,
+      /Lint graph semantics were not restored/,
+    );
+    assert.ok(
+      semanticFailure.message.length < 1_024,
+      "semantic drift diagnostics must remain bounded",
+    );
+    assert.equal(
+      semanticFailure.message.includes(longClaimName),
+      false,
+      "semantic drift diagnostics must truncate individual claim names",
+    );
+    assert.doesNotMatch(
+      semanticFailure.message,
+      /"definition"/,
+      "semantic drift diagnostics must not dump complete claim objects",
+    );
+    fs.writeFileSync(backendLint, backendLintSource, "utf8");
+    fs.appendFileSync(backendLint, "// unauthorized bypass\n", "utf8");
+    await expectFailure(
+      () =>
+        EvidenceBenchmarkLintBaseline.assertRestored(
+          evidenceTwo.workspace,
+          "evidence",
+          evidenceTwo.lintBaselines,
+        ),
+      "Lint configuration bytes were not restored",
+    );
+    fs.writeFileSync(backendLint, backendLintSource, "utf8");
     assert.equal(
       fs.readdirSync(temporary).some((entry) => entry.includes(".tmp")),
       false,
@@ -1499,7 +2408,7 @@ export namespace EvidenceBenchmarkSelfTest {
     const manifest = JSON.parse(
       fs.readFileSync(props.cell.manifest, "utf8"),
     ) as IEvidenceBenchmarkMaterialization.IManifest;
-    assert.equal(manifest.schemaVersion, 4);
+    assert.equal(manifest.schemaVersion, 5);
     assert.ok(manifest.elapsedMs >= 0);
     assert.equal("materializedAt" in manifest, false);
     assert.equal(
@@ -1512,6 +2421,49 @@ export namespace EvidenceBenchmarkSelfTest {
       h2: corpus.h2,
       h3: corpus.h3,
     });
+    assert.deepEqual(manifest.lintBaselines, props.cell.lintBaselines);
+    assert.equal(
+      EvidenceBenchmarkLintBaseline.assertRestored(
+        props.cell.workspace,
+        props.arm,
+        props.cell.lintBaselines,
+      ),
+      EvidenceBenchmarkLintBaseline.digest(props.cell.lintBaselines),
+    );
+    assert.deepEqual(
+      props.cell.lintBaselines.map((entry) => ({
+        path: entry.path,
+        claims: entry.graph?.claims.map((claim) => claim.name) ?? null,
+      })),
+      [
+        {
+          path: "packages/api/lint.config.ts",
+          claims:
+            props.arm === "evidence" ? ["dto-types", "dto-properties"] : null,
+        },
+        {
+          path: "packages/backend/lint.config.ts",
+          claims:
+            props.arm === "evidence"
+              ? ["schema-models", "api-operations", "backend-tests"]
+              : null,
+        },
+        {
+          path: "packages/frontend/lint.config.ts",
+          claims:
+            props.arm === "evidence"
+              ? ["frontend-screens", "frontend-journeys"]
+              : null,
+        },
+        {
+          path: "packages/backend/lint.config.main.ts",
+          claims:
+            props.arm === "evidence"
+              ? ["schema-models", "api-operations"]
+              : null,
+        },
+      ],
+    );
     const archiveRelative: string = `.benchmark-deps/e-${props.artifact.sha256.slice(0, 12)}.tgz`;
     const packageManifest = JSON.parse(
       fs.readFileSync(path.join(props.cell.workspace, "package.json"), "utf8"),
@@ -1579,6 +2531,10 @@ export namespace EvidenceBenchmarkSelfTest {
         `${props.project}/${props.arm} retained a package placeholder in ${relative}`,
       );
     }
+    if (props.arm === "evidence")
+      assertEvidenceClaimDeferralContract(
+        EvidenceBenchmarkHash.directory(props.cell.workspace),
+      );
   }
 
   function renderFixtureVariables(
@@ -1633,24 +2589,62 @@ export namespace EvidenceBenchmarkSelfTest {
       artifact: first,
     });
     const runtime: EvidenceBenchmarkRuntime.IAssignment =
-      EvidenceBenchmarkRuntime.assign("todo", "evidence", 52_000);
+      EvidenceBenchmarkRuntime.assign(0, 52_000);
     EvidenceBenchmarkRuntime.apply(cell.environment, runtime);
     EvidenceBenchmarkRuntime.persist(cell.workspace, runtime);
     await EvidenceBenchmarkSetup.prepare({
       materialization: cell,
       arm: "evidence",
     });
+    await EvidenceBenchmarkConsumerProof.verifyPrismaIsolation(cell);
     await EvidenceBenchmarkProcess.pnpm(["exec", "nestia", "all"], {
       cwd: path.join(cell.workspace, "packages", "backend"),
       env: cell.environment,
       label: "Nestia evidence config-loader smoke",
     });
+    const build: EvidenceBenchmarkProcess.IResult =
+      await EvidenceBenchmarkProcess.pnpm(["run", "build"], {
+        cwd: cell.workspace,
+        env: cell.environment,
+        label: "packaged Evidence template graph gate",
+        allowFailure: true,
+      });
+    assert.notEqual(
+      build.status,
+      0,
+      "the pristine Evidence template must stop at its unimplemented graph",
+    );
+    const buildOutput: string = `${build.stdout}\n${build.stderr}`.replace(
+      /\u001b\[[0-9;]*m/g,
+      "",
+    );
+    assert.match(
+      buildOutput,
+      /evidence\/graph/,
+      "the packaged Evidence build must reach the active graph",
+    );
+    const compilerDiagnostics: string[] = buildOutput
+      .split(/\r?\n/)
+      .filter((line) => /\berror TS\d+:/.test(line));
+    assert.ok(
+      compilerDiagnostics.length !== 0,
+      "the packaged Evidence build must retain compiler diagnostics",
+    );
+    assert.deepEqual(
+      compilerDiagnostics.filter((line) => !line.includes("[evidence/graph]")),
+      [],
+      "the packaged Evidence build must not hide a non-graph compiler failure",
+    );
     assert.equal(
       fs.existsSync(
         path.join(cell.workspace, "packages", "api", "swagger.json"),
       ),
       true,
       "Nestia evidence smoke must generate the OpenAPI contract",
+    );
+    await EvidenceBenchmarkConsumerProof.verifyActiveGraph(
+      cell,
+      benchmarkVariables("nestia-evidence-smoke"),
     );
   }
 

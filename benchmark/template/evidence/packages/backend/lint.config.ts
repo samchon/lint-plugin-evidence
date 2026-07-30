@@ -13,7 +13,7 @@ declare const process: {
  *
  * The schema answers to the requirements, every controller operation answers to
  * the requirement it realizes and the model it exposes, and the e2e suite
- * answers to the requirements, the published accessors, and the contract
+ * answers to the requirements, the published operations, and the contract
  * shapes. Cross-package TypeScript populations are read from the installed API
  * package, because that is the artifact a test actually imports.
  */
@@ -23,7 +23,10 @@ const graph: IEvidenceGraphConfig = {
     {
       name: "schema-models",
       type: "prisma",
-      files: ["prisma/schema/**/*.prisma"],
+      files: [
+        "prisma/schema/**/*.prisma",
+        "prisma/schema/exclude.schema",
+      ],
       symbol: "model",
       reference: {
         type: "markdown",
@@ -70,11 +73,13 @@ const graph: IEvidenceGraphConfig = {
         {
           type: "typescript",
           package: "{{apiPackageName}}",
+          file: "src/functional/index.ts",
           symbol: ["function"],
         },
         {
           type: "typescript",
           package: "{{apiPackageName}}",
+          file: "src/structures/index.ts",
           symbol: ["type"],
         },
       ],

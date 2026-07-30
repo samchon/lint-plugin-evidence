@@ -1,44 +1,29 @@
 # Wiring
 
-This document owns everything between "the code exists" and "the server answers": module registration, the global singleton, the bootstrap, the environment, and the generation commands.
+This document owns everything between "the code exists" and "the server answers": controller discovery, shared module metadata, the global singleton, the bootstrap, the environment, and the generation commands.
 
-Nothing here is optional. A controller that compiles and is not registered produces a route that does not exist, and no test you write will tell you why.
+Nothing here is optional. Runtime and Nestia generation must discover the same authored controller directory, and every generated population must be checked before downstream work accepts it.
 
-## Every Controller Reaches The Root Module
+## The Controller Directory Is The Module
 
-The module tree has three levels, and a controller that is not connected to all three is invisible.
+Every controller lives below `packages/backend/src/controllers/`. `MyModule.mount()` recursively discovers that directory with Nestia `DynamicModule`, filters exports by Nest controller metadata, and rejects an empty or duplicate population. Adding a controller is one edit: write its defining file below that root.
 
-A leaf module declares its controllers:
+Do not create leaf, actor, or root modules only to list controllers. Do not add a static controller import to `MyModule`, and do not re-export a controller from another file inside the discovery root. The loader reads every file independently; a barrel re-export would present the same controller twice and `MyModule.mount()` rejects it.
 
-```ts
-import { Module } from "@nestjs/common";
-import { AdminAuthenticateController } from "./AdminAuthenticateController";
-
-@Module({
-  controllers: [AdminAuthenticateController],
-})
-export class AdminAuthenticateModule {}
-```
-
-An actor module imports the leaf modules under it, and the root module imports the actor modules:
+Common Nest metadata remains central without bringing back a controller list:
 
 ```ts
-import { Module } from "@nestjs/common";
-import { AdminModule } from "./controllers/admins/AdminModule";
-import { CustomerModule } from "./controllers/customers/CustomerModule";
-import { SellerModule } from "./controllers/sellers/SellerModule";
+import { MyModule } from "./MyModule";
+import { MyProvider } from "./providers/MyProvider";
 
-@Module({
-  imports: [AdminModule, CustomerModule, SellerModule],
-})
-export class MyModule {}
+const module = await MyModule.mount({
+  providers: [MyProvider],
+});
 ```
 
-**Adding a controller is two edits, not one.** Write the controller, then register it in the module beside it, and if that module is new, import it from its parent. Forgetting the second edit is the most common way a finished endpoint turns out not to exist.
+Runtime discovery uses `__dirname/controllers`, which resolves to `src/controllers` under `ttsx` and `lib/controllers` after `ttsc`. Nestia generation reads the authored source directly with `input: ["src/controllers"]`; this working-directory-relative input is stable even though Nestia compiles its configuration under a temporary loader directory. These are two views of the same relative tree.
 
-The root `MyModule` starts with `HealController` registered for `/health`. Preserve that controller when adding domain modules; replacing the `controllers` array with `imports` alone silently removes the process probe.
-
-The module file sits beside the controllers it declares, named for the same group.
+After generation, inspect the actual controller count, Swagger paths, and SDK accessors. An exported const, helper function, ordinary class, or central evidence-exclusion carrier has no Nest controller metadata and must not appear in any of those outputs. The scaffold's health controller is discovered by its defining file exactly like every product controller.
 
 ## The Global Singleton
 
@@ -96,7 +81,7 @@ Its `schema` points at the folder rather than a file, which is what makes the sp
 
 Three of its settings matter beyond the paths.
 
-- **`input` builds the real application.** The generator reads the same module tree the server runs, which is why an unregistered controller is missing from the SDK too.
+- **`input` selects the authored controller directory.** The literal `["src/controllers"]` names the source tree corresponding to runtime's adjacent `controllers` directory, without depending on Nestia's temporary config-loader directory.
 - **`security`** is what puts the bearer scheme into the published document, so a consumer knows a token is needed.
 - **`simulate: true`** is what gives the SDK its simulation mode, which the frontend develops against.
 
@@ -137,9 +122,9 @@ This is the loop everything else depends on, and getting it wrong produces failu
 
 **3. The authored contract is compiled before generation.** Finish every DTO and controller signature, build `packages/api`, and run backend `build:main`. Keep changing the authored contract until both packages agree; do not repeatedly generate an SDK from a contract that is still being designed.
 
-**4. The settled controllers generate the SDK.** `build:sdk` builds the real application in memory, walks its module tree, emits `packages/api/src/functional/**` and `swagger.json`, and compiles the complete API package. Two consequences follow directly:
+**4. The settled controllers generate the SDK.** `build:sdk` reads the authored `src/controllers` directory from `nestia.config.ts`, emits `packages/api/src/functional/**` and `swagger.json`, and compiles the complete API package. Two consequences follow directly:
 
-- **A controller not registered in a module is absent from the SDK**, for the same reason it is absent from the running server. Both read the same tree.
+- **A controller outside the owned directory is absent from runtime and the SDK.** A controller inside it needs no second registration edit, and the generated population must match runtime discovery.
 - **The JSDoc on each method becomes the SDK function's documentation and the OpenAPI description.** A documentation edit is a contract change, so it needs this step too.
 
 **5. Everything downstream consumes the regenerated SDK.** Run `build:test` after generation. The e2e tests import their accessors from the SDK, and the frontend later imports the same accessors and types.
@@ -186,7 +171,7 @@ Given only the requirement documents and an empty repository, this is the sequen
 1. Read every document under `docs/analysis/`.
 2. Write the schema under `packages/backend/prisma/schema/`, then `build:prisma` and `prepare`.
 3. Finish the DTOs under `packages/api/src/structures/`, then run `pnpm build` from `packages/api`.
-4. Finish every controller stub, its contract JSDoc, and its module registration under `packages/backend/src/controllers/`, then run `build:main`.
+4. Finish every controller stub and its contract JSDoc under `packages/backend/src/controllers/`, then run `build:main` and confirm discovery sees the expected population.
 5. Once the DTO and operation contract is settled, run `build:sdk`, then write the tests under `packages/backend/test/features/` and run `build:test`.
 6. Write the transformers under `packages/backend/src/transformers/` and the collectors under `packages/backend/src/collectors/`, one per DTO that needs each.
 7. Realize: swap each stub body for its call into a provider under `packages/backend/src/providers/` and drop the `@todo`, then `build:main` and run the tests.
