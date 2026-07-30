@@ -530,7 +530,11 @@ export namespace EvidenceBenchmarkAgentProcess {
     const listing: string = await new Promise((resolve, reject) => {
       let child: cp.ChildProcessWithoutNullStreams;
       try {
-        child = cp.spawn("ps", ["eww", "-eo", "pid=,args="], {
+        const arguments_: string[] =
+          process.platform === "darwin"
+            ? ["-A", "-E", "-ww", "-o", "pid=,command="]
+            : ["eww", "-eo", "pid=,args="];
+        child = cp.spawn("ps", arguments_, {
           stdio: "pipe",
         });
       } catch (error) {
@@ -546,7 +550,7 @@ export namespace EvidenceBenchmarkAgentProcess {
         if (status !== 0) {
           reject(
             new Error(
-              `Unable to inspect benchmark POSIX descendants: ${Buffer.concat(stderr).toString("utf8").trim()}`,
+              `Unable to inspect benchmark POSIX descendants with status ${String(status)}: ${Buffer.concat(stderr).toString("utf8").trim()}`,
             ),
           );
           return;
