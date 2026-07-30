@@ -10,7 +10,7 @@ Nothing upstream can report a section you missed. Every downstream relationship 
 
 ## The Population
 
-The population is exactly the H2 and H3 sections in `docs/analysis/**/*.md`. Identify each as `<workspace-relative-path>#<canonical-anchor>`: an explicit `{#anchor}` wins, otherwise use the renderer's canonical lowercase slug. H1, H4+, generated `docs/ERD.md`, and non-analysis Markdown are not units.
+The population is exactly the H2 and H3 sections defined by the [Requirements skill](../requirements/SKILL.md). That skill alone owns anchor derivation, collisions, and excluded heading levels.
 
 Read every document, not only those that seem relevant to the current implementation area. Concerns are distributed across actor, domain, function, rule, and non-functional sections, and each statement is accepted as written.
 
