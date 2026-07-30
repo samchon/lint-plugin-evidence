@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -161,19 +161,9 @@ export namespace EvidenceBenchmarkRunner {
     state.status = "running";
     delete state.interruption;
 
-    const command: string =
-      props.command ??
-      (process.platform === "win32" ? process.execPath : "codex");
-    const prefix: readonly string[] =
-      props.commandPrefixArguments ??
-      (process.platform === "win32"
-        ? [
-            path.join(
-              process.env.APPDATA ?? "",
-              "npm/node_modules/@openai/codex/bin/codex.js",
-            ),
-          ]
-        : []);
+    const executable = resolveExecutable(props);
+    const command: string = executable.command;
+    const prefix: readonly string[] = executable.prefix;
     const arguments_: string[] = [
       ...prefix,
       "app-server",
@@ -635,6 +625,48 @@ export namespace EvidenceBenchmarkRunner {
       terminal.signal !== null
     )
       throw new Error("Codex retained an invalid terminal process.");
+  }
+
+  function resolveExecutable(props: IEvidenceBenchmarkRunProps): {
+    command: string;
+    prefix: readonly string[];
+  } {
+    if (props.command !== undefined)
+      return {
+        command: props.command,
+        prefix: props.commandPrefixArguments ?? [],
+      };
+    if (process.platform !== "win32") return { command: "codex", prefix: [] };
+    const environment: NodeJS.ProcessEnv = props.environment ?? process.env;
+    const executable: string | undefined = locateWindowsCommand(
+      "codex.exe",
+      environment,
+    );
+    if (executable !== undefined) return { command: executable, prefix: [] };
+    const shim: string | undefined = locateWindowsCommand(
+      "codex.cmd",
+      environment,
+    );
+    const command: string | undefined = environment.ComSpec;
+    if (shim === undefined || command === undefined)
+      throw new Error("Codex was not found on PATH.");
+    return { command, prefix: ["/d", "/s", "/c", shim] };
+  }
+
+  function locateWindowsCommand(
+    name: string,
+    environment: NodeJS.ProcessEnv,
+  ): string | undefined {
+    const result = spawnSync("where.exe", [name], {
+      encoding: "utf8",
+      env: environment,
+      shell: false,
+      windowsHide: true,
+    });
+    if (result.status !== 0) return undefined;
+    return (result.stdout ?? "")
+      .split(/\r?\n/)
+      .find((candidate) => candidate.length !== 0);
   }
 
   function tokenUsage(
