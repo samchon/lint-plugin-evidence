@@ -44,7 +44,7 @@ Launch only from a clean pushed commit. The repository suites and the consumer-s
 
 Schedule pressure, an absent user, or a nearly finished branch does not weaken this gate. Settle every deterministic template, package, configuration, build, port, and CI defect before model use.
 
-Claude Code measured launches use the installed local CLI and its existing authenticated account. On macOS, Linux, and WSL2, enable Claude's OS sandbox; on native Windows, retain the same frozen inputs, workspace boundary, tool allowlist, secret-denying child environment, and loopback-only task contract without inventing a container requirement that the generated SQLite application does not have.
+Claude Code measured launches use the installed local CLI and its existing authenticated account. On macOS, Linux, and WSL2, enable Claude's OS sandbox. On native Windows, run locally with the same frozen inputs, workspace-scoped built-in tools, secret-denying child environment, and local-task instructions; record the absence of Claude's OS-level filesystem and network enforcement as a platform qualification instead of inventing a container requirement that the generated SQLite application does not have.
 
 ## Subject Order
 

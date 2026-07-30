@@ -759,7 +759,7 @@ export namespace EvidenceBenchmarkTurnLedger {
           network.allowAllUnixSockets === true))
     )
       throw new Error(
-        "Benchmark Claude Code attempt does not retain the strict sandbox and loopback network allowlist.",
+        "Benchmark Claude Code attempt does not retain the required local policy and supported-host sandbox settings.",
       );
   }
 
