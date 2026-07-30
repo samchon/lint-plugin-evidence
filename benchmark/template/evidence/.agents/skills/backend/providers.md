@@ -2,7 +2,7 @@
 
 Providers carry neither `@evidence` nor `@evidenceExclude`. No configured claim selects `src/providers/**`, so a provider is not a declaration host and a tag there cannot satisfy `schema-models`, `api-operations`, `dto-types`, `dto-properties`, or `backend-tests`.
 
-The base Providers and Testing skills own provider correctness. Evidence review does not invent a provider claim or a second manual coverage campaign. When an exclusion names a provider as the actual owner, keep the tag on an eligible exclusion carrier in a matching claim file; never move the tag into the provider.
+The base Providers and Testing skills own the complete provider review shared by both benchmark arms. Perform that review over its full current population. Evidence review does not invent a provider claim or repeat the same population as a second Evidence-only campaign. When an exclusion names a provider as the actual owner, keep the tag on an eligible exclusion carrier in a matching claim file; never move the tag into the provider.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}

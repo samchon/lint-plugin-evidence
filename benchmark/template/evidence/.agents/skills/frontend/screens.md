@@ -37,4 +37,4 @@ export const SCREEN_EVIDENCE_EXCLUDE = true;
 
 ## SDK Consumption
 
-No claim mechanically binds SDK accessors to screens. The base Frontend skill and omission log own complete product consumption; Evidence review does not add a second unconfigured SDK-to-screen census. Never edit generated accessors or add an ad hoc transport path.
+No claim mechanically binds SDK accessors to screens. Perform the base Frontend skill's complete SDK-to-screen review shared by both benchmark arms; Evidence review does not repeat that population as a second unconfigured census. Never edit generated accessors or add an ad hoc transport path.

@@ -396,4 +396,10 @@ After any substantial piece of work, ask four questions against the requirement'
 
 ## Verification
 
+Review the complete current provider population, not a sample or only the files that produced diagnostics. Use three forward denominators: every public operation, every requirement that imposes behavior, and every schema invariant maintained through application logic. Trace each applicable unit to the provider branch, query, write, transaction, or explicit non-provider owner that realizes it.
+
+Then walk backward through every provider branch and database access. Each one must trace to an operation contract, requirement, or schema invariant; otherwise it is invented behavior. Confirm that every response property has a real selected source, every stated effect and refusal is implemented everywhere it applies, every read observes applicable visibility and deletion rules, and every materialized or retained value is maintained at the event the contract names.
+
+Enumerate from the current requirements, contract, schema, and provider files rather than memory. A checklist may index the traversal but does not replace reading either side. A finding in an upstream owner invalidates the affected downstream review; correct that owner, propagate the change, and repeat this complete provider review on the resulting source state.
+
 Run the build and the lint stage, then the tests, and read the output. A build proves the shapes line up; only the tests prove the behavior. When something fails, decide which layer owns it before editing.

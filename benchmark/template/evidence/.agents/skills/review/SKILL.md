@@ -10,12 +10,12 @@ description: Defines integrity review for active evidence claims: restoring thei
 Read [Evidence Lint](../evidence/SKILL.md) before reviewing and apply the phase named by the current user turn.
 
 - **Backend Phase.** Restore and review `schema-models`, `api-operations`, `backend-tests`, `dto-types`, and `dto-properties` in `packages/backend/lint.config.ts`. Confirm the immutable main and test Program projections are unchanged. Frontend claims remain pending.
-- **Frontend Phase.** Restore and review `frontend-screens` and `frontend-journeys` in `packages/frontend/lint.config.ts`. If frontend work changed API or backend sources, restore the affected claims and re-pass the Backend Phase gates first.
+- **Frontend Phase.** Restore all seven claims in the two canonical configurations, then review `frontend-screens` and `frontend-journeys`. If frontend work changed API or backend sources, re-pass the affected Backend Phase gates first; otherwise retain the current-digest backend verdict while keeping all five backend claims active.
 - **Overall Phase.** Restore both canonical configurations, confirm both backend Program projections are unchanged, and review all seven claims.
 
 Reject a phase report when an active-phase claim remains commented, a population was narrowed, `evidence/graph` was disabled, an evidence rule severity was lowered, an immutable Program projection changed, or a configuration-only environment bypass replaced an ordinary gate.
 
-The base layer skills and executable tests own general implementation correctness. This review owns the configured Evidence Graph and the truth of the declarations used to satisfy it. Do not add a Plain-style census of every unselected artifact, provider branch, database access, SDK consumer, or residual edge.
+The base layer skills and executable tests own general implementation correctness, including their complete provider and SDK-consumption populations. Perform those common reviews in both benchmark arms. This review owns the configured Evidence Graph and the truth of the declarations used to satisfy it; do not expand the graph to unselected artifacts or repeat a common population as a second Evidence-only census.
 
 ## Coverage Is Not Integrity
 
