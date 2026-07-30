@@ -1993,6 +1993,26 @@ export namespace EvidenceBenchmarkSelfTest {
           arm,
           "interrupted",
         );
+    for (const engine of EvidenceBenchmarkEngine.MATRIX)
+      for (const arm of ["evidence", "plain"] as const) {
+        const workspace: string = path.join(
+          repository,
+          "benchmark",
+          "result",
+          "todo",
+          engine.engine,
+          arm,
+          "runs",
+          runId,
+          "workspace",
+        );
+        write(path.join(workspace, "agent-staged.txt"), "staged agent work\n");
+        write(path.join(workspace, "agent-untracked.txt"), "agent work\n");
+        await EvidenceBenchmarkProcess.run("git", ["add", "agent-staged.txt"], {
+          cwd: workspace,
+          label: "repair fixture staged agent work",
+        });
+      }
     const result: EvidenceBenchmarkRepair.IResult =
       await EvidenceBenchmarkRepair.apply(
         repository,
@@ -2034,6 +2054,38 @@ export namespace EvidenceBenchmarkSelfTest {
             path.join(root, "interventions", `${result.patchSha256}.json`),
           ),
         );
+        const workspace: string = path.join(root, "workspace");
+        assert.equal(
+          (
+            await EvidenceBenchmarkProcess.run(
+              "git",
+              ["status", "--short", "--", "shared.txt"],
+              {
+                cwd: workspace,
+                label: "committed repair target status",
+              },
+            )
+          ).stdout,
+          "",
+        );
+        const status: string = (
+          await EvidenceBenchmarkProcess.run(
+            "git",
+            [
+              "status",
+              "--short",
+              "--",
+              "agent-staged.txt",
+              "agent-untracked.txt",
+            ],
+            {
+              cwd: workspace,
+              label: "preserved agent work status",
+            },
+          )
+        ).stdout.replaceAll("\\", "/");
+        assert.match(status, /^A  agent-staged\.txt\r?\n/);
+        assert.match(status, /\?\? agent-untracked\.txt\r?\n$/);
       }
     await expectFailure(
       () =>
@@ -2046,7 +2098,7 @@ export namespace EvidenceBenchmarkSelfTest {
             "todo",
           ]),
         ),
-      "already applied",
+      "patch state disagrees",
     );
 
     const forbiddenPatch: string = path.join(
@@ -2177,6 +2229,26 @@ export namespace EvidenceBenchmarkSelfTest {
       cwd: workspace,
       label: `${project}/${arm} repair fixture initialization`,
     });
+    await EvidenceBenchmarkProcess.run("git", ["add", "-A"], {
+      cwd: workspace,
+      label: `${project}/${arm} repair fixture baseline stage`,
+    });
+    await EvidenceBenchmarkProcess.run(
+      "git",
+      [
+        "-c",
+        "user.name=Evidence Benchmark",
+        "-c",
+        "user.email=evidence-benchmark@localhost",
+        "commit",
+        "-m",
+        "Freeze benchmark starting point",
+      ],
+      {
+        cwd: workspace,
+        label: `${project}/${arm} repair fixture baseline commit`,
+      },
+    );
   }
 
   function processResult(

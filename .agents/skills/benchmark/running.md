@@ -68,7 +68,7 @@ Apply the same patch to both engines and both arms of every selected subject:
 pnpm --filter @samchon/evidence-benchmark repair -- --patch benchmark/.work/repairs/<fix>.patch <run-id> todo reddit
 ```
 
-The repair command admits every cell before changing any, rejects requirement, package-archive, Git, dependency-directory, binary, deletion, rename, and symlink targets, records the exact patch and SHA-256 under each run's `interventions/`, separates repair time from agent time, and rolls back already changed cells if the transaction fails.
+The repair command admits every cell before changing any, rejects requirement, package-archive, Git, dependency-directory, binary, deletion, rename, and symlink targets, commits only the common patch targets as a nested-workspace operator commit while preserving unrelated agent work, records the exact patch and SHA-256 under each run's `interventions/`, separates repair time from agent time, and rolls back already changed cells if the transaction fails.
 
 A patch applied before any model turn is a frozen-input hotfix. A patch applied after measured work is an operator intervention and qualifies the comparison even when both engines and both arms receive identical bytes. Report that qualification in the pull request and final result. If the patch changes requirements, arm semantics, task difficulty, or cannot apply equally, invalidate the affected cells and launch a new run identity.
 
