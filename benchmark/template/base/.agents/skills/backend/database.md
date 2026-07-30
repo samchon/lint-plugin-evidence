@@ -17,12 +17,6 @@ The numeric prefix orders domains from foundational to dependent, so a reader me
 
 `main.prisma` holds the datasource and both generators, and nothing else. **It declares the provider and not the connection**, which lives in `prisma.config.ts` beside the package and is owned by [wiring.md](wiring.md). It declares the SQLite provider, the client generator with its output path, and `prisma-markdown`, which is why schema comments are published documentation rather than internal notes: they become `docs/ERD.md`, which a reader sees without opening the schema.
 
-## Evidence Placement
-
-Put `@evidence` directly above the model, column, or relation that stores the cited requirement. That declaration is the owner, and moving its evidence elsewhere makes the claim false.
-
-Reviewed `schema-models` exclusions may instead be collected as unattached top-level `/// @evidenceExclude` lines in `packages/backend/prisma/schema/exclude.schema`. The `.schema` file is a lint-only claim input: Prisma generation, migration, and ERD continue to read only the `.prisma` schema folder. Do not put `@evidence` there, add models there, or widen a Prisma command to include it.
-
 ## Field Types
 
 The vocabulary is closed. There is no JSON, object, or array type, and structure that needs querying is normalized into a child table instead.

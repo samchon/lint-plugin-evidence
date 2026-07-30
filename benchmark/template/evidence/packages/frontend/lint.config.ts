@@ -24,10 +24,6 @@ import type { ITtscLintConfig } from "@ttsc/lint";
  * Both benchmark arms instead run the same residual review: every
  * product-facing operation maps to a screen/journey or to a requirement-backed
  * decision in `packages/frontend/wiki/omissions.md`.
- *
- * `evidence/singular` is deliberately absent: a domain folder holds a page
- * beside the sub-components only it uses, so one-public-identity-per-file would
- * fight the layout the architecture prescribes.
  */
 const graph: IEvidenceGraphConfig = {
   claims: [
@@ -36,7 +32,11 @@ const graph: IEvidenceGraphConfig = {
     {
       name: "frontend-screens",
       type: "typescript",
-      files: ["src/components/*/*-page.tsx", "!src/components/dev/**"],
+      files: [
+        "src/components/*/*-page.tsx",
+        "src/components/SCREEN_EVIDENCE_EXCLUDE.ts",
+        "!src/components/dev/**",
+      ],
       symbol: "function",
       reference: {
         type: "markdown",
@@ -76,9 +76,5 @@ export default {
   },
   rules: {
     "evidence/graph": ["error", graph],
-    // Package-wide: every exported function, type, and property carries a
-    // JSDoc block, which the stub-first order supplies from birth.
-    "evidence/documented": "error",
-    "evidence/todo": "error",
   },
 } satisfies ITtscLintConfig;

@@ -106,11 +106,5 @@ export default {
     // exist in that private loader pass; the normal build and lint Programs
     // retain every rule at error severity.
     "evidence/graph": isNestiaConfigLoader ? "off" : ["error", graph],
-    // Package-wide: every exported type, function, and property carries the
-    // JSDoc block a citation is read from, and one public identity per file
-    // keeps citation addresses stable.
-    "evidence/documented": isNestiaConfigLoader ? "off" : "error",
-    "evidence/singular": isNestiaConfigLoader ? "off" : "error",
-    "evidence/todo": isNestiaConfigLoader ? "off" : "error",
   },
 } satisfies ITtscLintConfig;

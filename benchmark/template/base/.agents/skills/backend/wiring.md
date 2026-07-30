@@ -23,7 +23,7 @@ const module = await MyModule.mount({
 
 Runtime discovery uses `__dirname/controllers`, which resolves to `src/controllers` under `ttsx` and `lib/controllers` after `ttsc`. Nestia generation reads the authored source directly with `input: ["src/controllers"]`; this working-directory-relative input is stable even though Nestia compiles its configuration under a temporary loader directory. These are two views of the same relative tree.
 
-After generation, inspect the actual controller count, Swagger paths, and SDK accessors. An exported const, helper function, ordinary class, or central evidence-exclusion carrier has no Nest controller metadata and must not appear in any of those outputs. The scaffold's health controller is discovered by its defining file exactly like every product controller.
+After generation, inspect the actual controller count, Swagger paths, and SDK accessors. An exported const, helper function, or ordinary class has no Nest controller metadata and must not appear in any of those outputs. The scaffold's health controller is discovered by its defining file exactly like every product controller.
 
 ## The Global Singleton
 

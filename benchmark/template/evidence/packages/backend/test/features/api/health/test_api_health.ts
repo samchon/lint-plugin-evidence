@@ -14,6 +14,7 @@ import typia from "typia";
  * 3. Validate the response against its generated type.
  *
  * @param connection Base connection supplied by the dynamic e2e runner.
+ * @evidence {@link api.functional.health.get} Exercises the generated health operation.
  */
 export async function test_api_health(
   connection: api.IConnection,

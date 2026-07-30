@@ -64,11 +64,5 @@ export default {
   },
   rules: {
     "evidence/graph": ["error", graph],
-    // Package-wide: every exported type, function, and property carries the
-    // JSDoc block a citation is read from, and one public identity per file
-    // keeps citation addresses stable.
-    "evidence/documented": "error",
-    "evidence/singular": "error",
-    "evidence/todo": "error",
   },
 } satisfies ITtscLintConfig;

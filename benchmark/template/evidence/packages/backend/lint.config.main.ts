@@ -66,8 +66,5 @@ export default {
   },
   rules: {
     "evidence/graph": isNestiaConfigLoader ? "off" : ["error", graph],
-    "evidence/documented": isNestiaConfigLoader ? "off" : "error",
-    "evidence/singular": isNestiaConfigLoader ? "off" : "error",
-    "evidence/todo": isNestiaConfigLoader ? "off" : "error",
   },
 } satisfies ITtscLintConfig;

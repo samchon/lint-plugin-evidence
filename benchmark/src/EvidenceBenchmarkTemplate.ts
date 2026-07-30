@@ -22,15 +22,36 @@ export namespace EvidenceBenchmarkTemplate {
     "packages/backend/lint.config.ts",
     "packages/frontend/lint.config.ts",
   ]);
+  const EVIDENCE_ONLY_FULL_REPLACEMENTS: ReadonlySet<string> = new Set([
+    "packages/api/src/structures/index.ts",
+    "packages/backend/test/features/api/health/test_api_health.ts",
+  ]);
   const EVIDENCE_ONLY_PATHS: ReadonlySet<string> = new Set([
     ".agents/skills/evidence/SKILL.md",
+    "packages/api/src/structures/DTO_EVIDENCE_EXCLUDE.ts",
+    "packages/backend/prisma/schema/exclude.schema",
+    "packages/backend/src/controllers/CONTROLLER_EVIDENCE_EXCLUDE.ts",
+    "packages/backend/test/features/TEST_EVIDENCE_EXCLUDE.ts",
+    "packages/frontend/src/components/SCREEN_EVIDENCE_EXCLUDE.ts",
+    "packages/frontend/tests/journeys/JOURNEY_EVIDENCE_EXCLUDE.ts",
   ]);
+  const EVIDENCE_TREATMENT_PATTERNS: readonly RegExp[] = [
+    /@samchon\/lint-plugin-evidence/,
+    /@evidence(?:Exclude)?(?=\s|$)/,
+    /\bevidence\/(?:graph|documented|singular|todo)\b/,
+    /\bEVIDENCE_EXCLUDE\b/,
+    /\.agents\/skills\/evidence\/SKILL\.md/,
+    /\bEvidence (?:Graph|Lint|claim|claims|rule|rules|singularity)\b/,
+    /\bclaim[- ]deferrals?\b/i,
+    /\bgraph diagnostics?\b/i,
+  ];
   const BASE_REQUIRED_PATHS: readonly string[] = [
     ".agents/skills/api/SKILL.md",
     ".agents/skills/backend/SKILL.md",
     ".agents/skills/frontend/SKILL.md",
     ".agents/skills/project/SKILL.md",
     ".agents/skills/requirements/SKILL.md",
+    ".agents/skills/review/SKILL.md",
     "AGENTS.md",
     "CLAUDE.md",
     "config/lint.config.frontend.ts",
@@ -49,7 +70,6 @@ export namespace EvidenceBenchmarkTemplate {
     "packages/api/src/functional/index.ts",
     "packages/api/src/index.ts",
     "packages/api/src/module.ts",
-    "packages/api/src/structures/DTO_EVIDENCE_EXCLUDE.ts",
     "packages/api/src/structures/index.ts",
     "packages/api/src/typings/IDiagnosis.ts",
     "packages/api/src/typings/IEntity.ts",
@@ -62,15 +82,12 @@ export namespace EvidenceBenchmarkTemplate {
     "packages/backend/nestia.config.ts",
     "packages/backend/package.json",
     "packages/backend/prisma.config.ts",
-    "packages/backend/prisma/schema/exclude.schema",
     "packages/backend/prisma/schema/main.prisma",
     "packages/backend/src/MyBackend.ts",
     "packages/backend/src/MyModule.ts",
-    "packages/backend/src/controllers/CONTROLLER_EVIDENCE_EXCLUDE.ts",
     "packages/backend/src/controllers/HealthController.ts",
     "packages/backend/src/executable/server.ts",
     "packages/backend/src/executable/swagger.ts",
-    "packages/backend/test/features/TEST_EVIDENCE_EXCLUDE.ts",
     "packages/backend/test/features/api/health/test_api_health.ts",
     "packages/backend/test/index.ts",
     "packages/backend/tsconfig.test.json",
@@ -99,9 +116,17 @@ export namespace EvidenceBenchmarkTemplate {
       ".agents/skills/review/SKILL.md",
       "AGENTS.md",
       "packages/api/lint.config.ts",
+      "packages/api/src/structures/DTO_EVIDENCE_EXCLUDE.ts",
+      "packages/api/src/structures/index.ts",
       "packages/backend/lint.config.main.ts",
       "packages/backend/lint.config.ts",
+      "packages/backend/prisma/schema/exclude.schema",
+      "packages/backend/src/controllers/CONTROLLER_EVIDENCE_EXCLUDE.ts",
+      "packages/backend/test/features/TEST_EVIDENCE_EXCLUDE.ts",
+      "packages/backend/test/features/api/health/test_api_health.ts",
       "packages/frontend/lint.config.ts",
+      "packages/frontend/src/components/SCREEN_EVIDENCE_EXCLUDE.ts",
+      "packages/frontend/tests/journeys/JOURNEY_EVIDENCE_EXCLUDE.ts",
     ],
     plain: [
       ".agents/skills/review/SKILL.md",
@@ -160,6 +185,7 @@ export namespace EvidenceBenchmarkTemplate {
     validateRequiredPaths("base", base, BASE_REQUIRED_PATHS);
     validatePortablePaths("base", base);
     validateOverlayContract(base, overlays);
+    assertNoEvidenceTreatment("base template", base);
     const rendered: Map<string, Uint8Array> = new Map();
     for (const [relative, content] of base)
       rendered.set(
@@ -178,9 +204,8 @@ export namespace EvidenceBenchmarkTemplate {
    * Composes one template in base, arm order and validates the resulting tree.
    *
    * An existing path is accepted only through the explicit Markdown body-splice
-   * marker or the evidence lint-config replacement set. This makes an added
-   * collision a reviewed contract change rather than last-writer-wins
-   * behavior.
+   * marker or the full-replacement set. This makes an added collision a
+   * reviewed contract change rather than last-writer-wins behavior.
    */
   export function compose(props: {
     /** Absolute benchmark/template directory containing base and both arms. */
@@ -207,6 +232,7 @@ export namespace EvidenceBenchmarkTemplate {
     validateRequiredPaths("base", base, BASE_REQUIRED_PATHS);
     validatePortablePaths("base", base);
     validateOverlayContract(base, overlays);
+    assertNoEvidenceTreatment("base template", base);
 
     const composed: Map<string, Uint8Array> = new Map(base);
     for (const [relative, overlayBytes] of sortedEntries(arm)) {
@@ -226,7 +252,7 @@ export namespace EvidenceBenchmarkTemplate {
           base: decode(original, relative),
           overlay,
         });
-      } else if (FULL_REPLACEMENT_COLLISIONS.has(relative)) {
+      } else if (isFullReplacement(props.arm, relative)) {
         if (overlay.includes(SPLICE_TOKEN))
           throw new Error(
             `Template overlay ${props.arm}/${relative} contains ${SPLICE_TOKEN} without its splice contract comment.`,
@@ -249,6 +275,8 @@ export namespace EvidenceBenchmarkTemplate {
     }
     validatePortablePaths("rendered workspace", composed);
     validateMarkdown(composed);
+    if (props.arm === "plain")
+      assertNoEvidenceTreatment("rendered plain workspace", composed);
     return {
       files: composed,
       baseTreeSha256: EvidenceBenchmarkHash.tree(base),
@@ -265,6 +293,24 @@ export namespace EvidenceBenchmarkTemplate {
   export function validate(files: ReadonlyMap<string, Uint8Array>): void {
     validatePortablePaths("rendered workspace", files);
     validateMarkdown(files);
+  }
+
+  /** Rejects product-specific treatment from a neutral or Plain file set. */
+  export function assertNoEvidenceTreatment(
+    label: string,
+    files: ReadonlyMap<string, Uint8Array>,
+  ): void {
+    for (const [relative, content] of files) {
+      const source: string = decode(content, relative);
+      const inspected: string = `${relative}\n${source}`;
+      const pattern: RegExp | undefined = EVIDENCE_TREATMENT_PATTERNS.find(
+        (candidate) => candidate.test(inspected),
+      );
+      if (pattern !== undefined)
+        throw new Error(
+          `Benchmark ${label} contains Evidence-specific treatment: ${relative} matches ${pattern}.`,
+        );
+    }
   }
 
   function validateOverlayContract(
@@ -284,7 +330,9 @@ export namespace EvidenceBenchmarkTemplate {
       "evidence and plain overlay",
       new Map(
         [...overlays.evidence].filter(
-          ([relative]) => !EVIDENCE_ONLY_PATHS.has(relative),
+          ([relative]) =>
+            !EVIDENCE_ONLY_PATHS.has(relative) &&
+            !EVIDENCE_ONLY_FULL_REPLACEMENTS.has(relative),
         ),
       ),
       overlays.plain,
@@ -312,13 +360,22 @@ export namespace EvidenceBenchmarkTemplate {
     };
     requireEqualPathSets(
       "evidence and plain base-collision",
-      collisions.evidence,
+      new Set(
+        [...collisions.evidence].filter(
+          (relative) => !EVIDENCE_ONLY_FULL_REPLACEMENTS.has(relative),
+        ),
+      ),
       collisions.plain,
     );
     for (const relative of FULL_REPLACEMENT_COLLISIONS)
-      if (!collisions.evidence.has(relative))
+      if (!collisions.evidence.has(relative) || !collisions.plain.has(relative))
         throw new Error(
           `Template full-replacement policy names a path that both arms do not collide with: ${relative}.`,
+        );
+    for (const relative of EVIDENCE_ONLY_FULL_REPLACEMENTS)
+      if (!collisions.evidence.has(relative) || collisions.plain.has(relative))
+        throw new Error(
+          `Template Evidence-only full-replacement policy must collide only in the evidence arm: ${relative}.`,
         );
     for (const arm of ["evidence", "plain"] as const)
       for (const [relative, bytes] of overlays[arm]) {
@@ -334,7 +391,7 @@ export namespace EvidenceBenchmarkTemplate {
             );
           continue;
         }
-        if (FULL_REPLACEMENT_COLLISIONS.has(relative)) {
+        if (isFullReplacement(arm, relative)) {
           if (
             overlay.includes(SPLICE_COMMENT) ||
             overlay.includes(SPLICE_TOKEN)
@@ -351,6 +408,16 @@ export namespace EvidenceBenchmarkTemplate {
           overlay,
         });
       }
+  }
+
+  function isFullReplacement(
+    arm: IEvidenceBenchmarkMaterialization.Arm,
+    relative: string,
+  ): boolean {
+    return (
+      FULL_REPLACEMENT_COLLISIONS.has(relative) ||
+      (arm === "evidence" && EVIDENCE_ONLY_FULL_REPLACEMENTS.has(relative))
+    );
   }
 
   function spliceBody(props: {

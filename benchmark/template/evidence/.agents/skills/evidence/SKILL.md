@@ -29,7 +29,9 @@ TypeScript exclusions may be collected on the public const in the matching claim
 
 - `packages/backend/src/controllers/CONTROLLER_EVIDENCE_EXCLUDE.ts` for `api-operations`;
 - `packages/api/src/structures/DTO_EVIDENCE_EXCLUDE.ts` for `dto-types` and `dto-properties`; and
-- `packages/backend/test/features/TEST_EVIDENCE_EXCLUDE.ts` for `backend-tests`.
+- `packages/backend/test/features/TEST_EVIDENCE_EXCLUDE.ts` for `backend-tests`;
+- `packages/frontend/src/components/SCREEN_EVIDENCE_EXCLUDE.ts` for `frontend-screens`; and
+- `packages/frontend/tests/journeys/JOURNEY_EVIDENCE_EXCLUDE.ts` for `frontend-journeys`.
 
 The const's property symbol need not match the claim's ownership selector. The file still must match that claim, the export must remain public, and every target remains claim-local and reference-local. The same carrier tag may participate in multiple matching claim-reference pairs: in particular, a Prisma model on `DTO_EVIDENCE_EXCLUDE` is both a `dto-types` model target and an ancestor of that model's selected `dto-properties` columns. Use an exact column target when only the property obligation is excluded.
 
@@ -47,7 +49,7 @@ The complete graph is declared in three package-local files. Open the file that 
 
 `packages/backend/lint.config.main.ts` is an immutable projection for the source-only `tsconfig.json` Program. It repeats only `schema-models` and `api-operations`, the claims whose hosts can exist under `src`. Do not edit or defer that projection. The backend test and lint Programs explicitly load the canonical `packages/backend/lint.config.ts`, which remains the sole owner of all three backend claims and every temporary deferral.
 
-The template starts with all seven claims active and every evidence rule at its final severity. Keep claims for the layer under active development enabled. Claims for a later layer that has not started may be deferred as described below; they are not evidence of unfinished work in the current layer.
+The template starts with all seven claims active and `evidence/graph` at `error` severity. Keep claims for the layer under active development enabled. Claims for a later layer that has not started may be deferred as described below; they are not evidence of unfinished work in the current layer.
 
 ## Temporary Claim Deferral
 
@@ -157,7 +159,7 @@ At the Overall Phase gate:
 
 1. Open all three canonical `lint.config.ts` files and restore every temporarily commented claim; confirm the immutable backend main projection is unchanged.
 2. Confirm the active claim names are exactly the seven names in the configuration table.
-3. Confirm every configured evidence rule retains its original `error` severity and every claim retains its original population.
+3. Confirm `evidence/graph` retains its original `error` severity and every claim retains its original population.
 4. Verify restoration from the three canonical configuration files and the immutable backend main projection, then run the complete workspace lint, build, and test gates with no staged configuration override. An agent's prose report is not restoration evidence.
 5. Read and execute [Review](../review/SKILL.md) against the fully active graph.
 

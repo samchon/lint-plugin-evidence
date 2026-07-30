@@ -4,7 +4,7 @@ Treat this backend implementation stage as one bounded objective. Preserve the s
 
 Build the complete API and backend required by every file under `docs/analysis/`.
 
-The skills-contract turn remains binding. Before editing, re-read `AGENTS.md` and every applicable Requirements, API, Backend, Evidence, and Review instruction in full. Treat every normative sentence, table row, state transition, authorization rule, error case, non-functional requirement, and atomic acceptance criterion as binding.
+The skills-contract turn remains binding. Before editing, re-read `AGENTS.md` and every applicable Requirements, API, Backend, and Review instruction in full. Treat every normative sentence, table row, state transition, authorization rule, error case, non-functional requirement, and atomic acceptance criterion as binding.
 
 Complete this phase in dependency order:
 
@@ -16,8 +16,6 @@ Complete this phase in dependency order:
 6. write requirement-derived backend tests;
 7. implement transformers and collectors, realize the providers and controllers, and remove every completed backend `@todo`;
 8. from `packages/backend`, rerun `pnpm build:main`, then run `pnpm build:test`, `pnpm lint`, `pnpm test`, and the live-server checks.
-
-In the Evidence arm, keep the claim for the layer under active development enabled. Prefer commenting out only the whole claim objects for later layers that have not started when their diagnostics would bury the current work. Restore each claim when its layer starts and restore all five backend-phase claims before the phase report.
 
 Do not implement or redesign `packages/frontend` during this phase. Read frontend-facing requirements as API constraints, but leave frontend realization for its later phase. Generated SDK output under `packages/api` is part of the backend contract and is allowed.
 

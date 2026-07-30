@@ -36,3 +36,9 @@ The stack, how the generated SDK is consumed, screen structure, required interfa
 ### API Contract And SDK
 
 Which paths under `packages/api` are authored contract sources, which are generated SDK output, who owns regeneration, and how consumers use it, `.agents/skills/api/SKILL.md`. Read before editing or importing from the package or tracing where a contract comes from.
+
+### Review
+
+How to review every mapping as a claim, claiming artifact, and named source; how source changes invalidate prior verdicts; and how to repeat full-scope rounds until one current-digest round finds no defect, `.agents/skills/review/SKILL.md`.
+
+Read it in full and follow the scope named by each backend, frontend, and overall review turn.

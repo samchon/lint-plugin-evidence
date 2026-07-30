@@ -14,7 +14,7 @@ State what a user can do, not merely what data renders. Prefer leaf H3 targets; 
 
 ## Excluding A Requirement From Screens
 
-Put `@evidenceExclude` on a selected exported page function when `frontend-screens` intentionally has no screen responsibility for a Markdown H2/H3 requirement. The page is a carrier for the claim-local decision, not the owner of the excluded requirement.
+Put `@evidenceExclude` on `packages/frontend/src/components/SCREEN_EVIDENCE_EXCLUDE.ts` when `frontend-screens` intentionally has no screen responsibility for a Markdown H2/H3 requirement.
 
 ```tsx
 /**
@@ -23,7 +23,7 @@ Put `@evidenceExclude` on a selected exported page function when `frontend-scree
  *                  invariant; reject this exclusion if users can observe or
  *                  control retry state.
  */
-export function CheckoutPage() {}
+export const SCREEN_EVIDENCE_EXCLUDE = true;
 ```
 
 Name the actual owner and a condition that would veto the exclusion. “Backend-only” without naming the enforcing owner and observable boundary is insufficient. An H2 exclusion covers every selected H3 descendant, so use a leaf unless one omission decision is true for all descendants. Keep evidence and exclusion scopes disjoint within this claim-reference obligation. The exclusion says nothing about `frontend-journeys` or any backend claim.
@@ -33,4 +33,4 @@ Name the actual owner and a condition that would veto the exclusion. “Backend-
 
 ## SDK Consumption
 
-No claim mechanically binds SDK accessors to screens. The base Frontend skill and omission log own complete product consumption; Evidence review does not add a second unconfigured SDK-to-screen census. Never edit generated accessors or add an ad hoc transport path.
+No claim mechanically binds SDK accessors to screens. The common Review skill still requires the complete SDK-to-screen population in both arms. Never edit generated accessors or add an ad hoc transport path.
