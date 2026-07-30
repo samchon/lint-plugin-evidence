@@ -3,6 +3,6 @@
  *
  * Keep real ownership evidence on the DTO declaration that represents it.
  * Add only reviewed non-applicability decisions here, for example:
- * `@evidenceExclude prisma:example_models.example_field No DTO transports this internal field.`
+ * `@evidenceExclude prisma:example_models.internal_note The provider keeps this operator-only value server-side; reject this exclusion if a request or response carries it.`
  */
 export const DTO_EVIDENCE_EXCLUDE = true;

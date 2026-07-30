@@ -5,4 +5,4 @@
 /// reviewed exclusions here in the form shown below without the `Example:`
 /// prefix.
 ///
-/// Example: @evidenceExclude docs/analysis/example.md#section The schema intentionally stores no state for this requirement.
+/// Example: @evidenceExclude docs/analysis/example.md#section Frontend owns this presentation-only requirement; reject this exclusion if it gains persisted state.

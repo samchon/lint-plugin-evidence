@@ -3,6 +3,6 @@
  *
  * Keep real ownership evidence on the controller method that implements it.
  * Add only reviewed non-applicability decisions here, for example:
- * `@evidenceExclude docs/analysis/example.md#section The API intentionally does not expose this requirement.`
+ * `@evidenceExclude docs/analysis/example.md#section Frontend owns this presentation-only requirement; reject this exclusion if the API gains a related response or refusal.`
  */
 export const CONTROLLER_EVIDENCE_EXCLUDE = true;
