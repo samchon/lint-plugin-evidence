@@ -49,10 +49,10 @@ pnpm install --frozen-lockfile
 pnpm --filter @samchon/evidence-benchmark check
 pnpm --filter @samchon/evidence-benchmark test:unit
 pnpm --filter @samchon/evidence-benchmark test:package
-pnpm --filter test-benchmark test:build
+pnpm --filter test-benchmark start
 ```
 
-The consumer-shaped template proof composes both overlays and confirms that their shared health assets are byte-identical. The package smoke installs the locally packed product, passes a complete synthetic graph, materializes the pristine Evidence arm, runs Nestia, and proves its intentionally unfinished workspace stops only on active graph diagnostics. The plain proof copies the complete Todo requirements into an isolated workspace, generates a lockfile, performs a frozen install, and verifies the committed `/health` SDK against a fresh Nestia generation. It adds a nested controller without module wiring, runs `nestia sdk`, `nestia swagger`, and `nestia all` independently, builds the full scaffold, and verifies source plus compiled runtime discovery. Both arms execute the health e2e in source and compiled modes and require raw HTTP plus typed SDK calls to return `OK`. Negative probes prove route or return drift changes the generated SDK, a wrong runtime marker fails the typed assertion, and duplicate controller discovery is rejected. `.github/workflows/benchmark.yml` runs these gates on Ubuntu and Windows for relevant pull-request changes.
+The package smoke installs the locally packed product into a materialized Evidence workspace. The consumer-shaped template proof materializes the Plain workspace, installs its declared dependencies, and runs the backend build followed by the backend test. `.github/workflows/benchmark.yml` runs that Plain proof on Ubuntu and Windows for relevant pull-request changes.
 
 The evidence overlay additionally installs the locally packed product during benchmark materialization. Plain records the same package identity without receiving the package.
 

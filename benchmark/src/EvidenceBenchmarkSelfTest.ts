@@ -1456,7 +1456,7 @@ export namespace EvidenceBenchmarkSelfTest {
     for (const [relative, configFile] of [
       ["packages/backend/tsconfig.json", "./lint.config.main.ts"],
       ["packages/backend/tsconfig.lint.json", "./lint.config.ts"],
-      ["packages/backend/test/tsconfig.json", "../lint.config.ts"],
+      ["packages/backend/tsconfig.test.json", "./lint.config.ts"],
     ] as const) {
       const bytes: Uint8Array | undefined = files.get(relative);
       assert.ok(bytes, `materialized Evidence template is missing ${relative}`);
