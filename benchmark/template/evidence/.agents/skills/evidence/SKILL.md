@@ -149,9 +149,10 @@ At the Backend Phase gate, restore and validate the five claims in `packages/bac
 
 1. From `packages/backend`, run `pnpm build:prisma` and `pnpm prepare`.
 2. From `packages/backend`, run `pnpm build:api` and `pnpm build:main`.
-3. Confirm every operation and DTO is settled, then run `pnpm build:sdk`.
-4. Run `pnpm build:test`, `pnpm lint`, and `pnpm test`.
-5. Run the required live-server checks.
+3. Restore the active backend claims and run `pnpm lint`.
+4. Confirm every operation and DTO is settled, then run `pnpm build:sdk`.
+5. Run `pnpm build:test`, `pnpm lint`, and `pnpm test`.
+6. Run the required live-server checks.
 
 Do not use the backend package's aggregate `pnpm build` or the workspace-root build during this phase.
 

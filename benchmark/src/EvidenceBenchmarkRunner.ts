@@ -482,11 +482,52 @@ export namespace EvidenceBenchmarkRunner {
         if (goalResponse.goal === null) finish("interrupted", goalResponse);
         else {
           const goal: Record<string, unknown> = object(goalResponse.goal);
-          current().goal = goal;
-          publish();
-          if (goal.status === "active" || goal.status === "complete")
-            await advance();
-          else finish("interrupted", goal);
+          const record: IEvidenceBenchmarkGoalRecord = current();
+          const previous: IEvidenceBenchmarkGoalRecord | undefined =
+            state.goals.find(
+              (candidate) => candidate.index === state.nextInstructionIndex - 1,
+            );
+          const previousGoalId: unknown = previous?.goal?.id;
+          const nativeGoalId: unknown = goal.id;
+          const nativeObjective: unknown = goal.objective;
+          if (
+            record.goal === null &&
+            goal.status === "complete" &&
+            previous?.goal?.status === "complete" &&
+            ((typeof previousGoalId === "string" &&
+              nativeGoalId === previousGoalId) ||
+              nativeObjective === previous.objectiveText)
+          )
+            await beginGoal();
+          else {
+            record.goal = goal;
+            if (
+              goal.status === "complete" &&
+              (!record.terminalTurnCompleted || record.terminalTurnId === null)
+            ) {
+              const turns: unknown = thread.turns;
+              const terminal: Record<string, unknown> | undefined =
+                Array.isArray(turns)
+                  ? turns
+                      .toReversed()
+                      .map((turn) => object(turn, false))
+                      .find((turn) => turn?.status === "completed")
+                  : undefined;
+              if (typeof terminal?.id === "string") {
+                record.terminalTurnId = terminal.id;
+                record.terminalTurnCompleted = true;
+              }
+            }
+            publish();
+            if (
+              goal.status === "complete" &&
+              (record.terminalTurnId === null || !record.terminalTurnCompleted)
+            )
+              finish("interrupted", goalResponse);
+            else if (goal.status === "active" || goal.status === "complete")
+              await advance();
+            else finish("interrupted", goal);
+          }
         }
       }
     } catch (error) {
@@ -498,6 +539,7 @@ export namespace EvidenceBenchmarkRunner {
     await publication;
     child.stdin.end();
     await closed;
+    await notifications;
     await publication;
     state.status =
       result === "completed" &&

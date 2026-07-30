@@ -17,8 +17,9 @@ Finish the backend phase with the same complete Loop Until Dry over the API and 
 3. Fix every finding.
 4. From `packages/backend`, run `pnpm build:prisma` and `pnpm prepare`.
 5. From `packages/backend`, run `pnpm build:api` and `pnpm build:main`.
-6. Confirm every operation and DTO is settled, then run `pnpm build:sdk`.
-7. Run `pnpm build:test`, `pnpm lint`, `pnpm test`, and the live-server checks.
+6. Run `pnpm lint` with all five backend claims active.
+7. Confirm every operation and DTO is settled, then run `pnpm build:sdk`.
+8. Run `pnpm build:test`, `pnpm lint`, `pnpm test`, and the live-server checks.
 
 From the workspace root, run `rg --hidden -n -F '@todo' packages/api packages/backend --glob '*.ts'` and require no matches. This source-scoped search excludes the Evidence instruction files that teach the tag.
 

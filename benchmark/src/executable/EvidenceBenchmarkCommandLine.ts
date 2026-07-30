@@ -141,7 +141,7 @@ const runBenchmark = async (
   const cursors: number[] = initialState.processes.map(
     (processRecord) => processRecord.output.length,
   );
-  await EvidenceBenchmarkRunner.run({
+  const result = await EvidenceBenchmarkRunner.run({
     state: initialState,
     cwd: records.workspace,
     instructionsRoot: path.join(repository, "benchmark", "instructions"),
@@ -181,6 +181,8 @@ const runBenchmark = async (
       );
     },
   });
+  if (result.status !== "completed")
+    throw new Error("Benchmark run was interrupted; resume the retained run.");
 };
 
 const parseArguments = (
