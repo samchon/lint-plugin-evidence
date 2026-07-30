@@ -110,6 +110,52 @@ const main = async (): Promise<void> => {
       /exact resume is unavailable/,
     );
 
+    const outputFailure = await EvidenceBenchmarkClaudeRunner.run({
+      state: EvidenceBenchmarkClaudeRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => {
+        throw new Error("fixture durable output failure");
+      },
+    });
+    assert.equal(outputFailure.status, "interrupted");
+    assert.equal(outputFailure.instructions[0]?.inputDispatched, false);
+    const outputFailureResume = await EvidenceBenchmarkClaudeRunner.run({
+      state: outputFailure,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(outputFailureResume.status, "completed");
+
+    const closedCursor = structuredClone(completed);
+    closedCursor.status = "interrupted";
+    closedCursor.interruption = {
+      name: "FixtureInterruption",
+      message: "state publication failed after cursor advance",
+    };
+    const closed = await EvidenceBenchmarkClaudeRunner.run({
+      state: closedCursor,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(closed.status, "completed");
+    assert.equal(closed.interruption, undefined);
+    assert.equal(closed.processes.length, entries.length);
+
     for (const [relativePath, source] of sources)
       assert.deepEqual(
         fs.readFileSync(path.join(root, ...relativePath.split("/"))),
