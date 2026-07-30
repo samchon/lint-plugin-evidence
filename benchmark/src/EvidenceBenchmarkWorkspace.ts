@@ -25,7 +25,6 @@ export namespace EvidenceBenchmarkWorkspace {
   export interface IEvidenceBenchmarkWorkspaceResult {
     root: string;
     workspace: string;
-    environment: NodeJS.ProcessEnv;
   }
   export async function prepareWorkspace(
     request: IEvidenceBenchmarkWorkspaceRequest,
@@ -67,6 +66,7 @@ export namespace EvidenceBenchmarkWorkspace {
         injectEvidence(workspace, request.artifact);
       }
       const environment: NodeJS.ProcessEnv = { ...process.env };
+      delete environment.EVIDENCE_BENCHMARK_ARCHIVE;
       await pnpm(
         ["install", "--lockfile-only", "--no-frozen-lockfile"],
         workspace,
@@ -93,7 +93,6 @@ export namespace EvidenceBenchmarkWorkspace {
       return {
         root: output,
         workspace: path.join(output, "workspace"),
-        environment,
       };
     } catch (error) {
       fs.rmSync(stage, { recursive: true, force: true });

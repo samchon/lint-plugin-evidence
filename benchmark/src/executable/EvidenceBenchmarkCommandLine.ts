@@ -170,6 +170,8 @@ const runBenchmark = async (
   initialState: EvidenceBenchmarkState,
 ): Promise<void> => {
   const repository: string = path.resolve(import.meta.dirname, "../../..");
+  const environment: NodeJS.ProcessEnv = { ...process.env };
+  delete environment.EVIDENCE_BENCHMARK_ARCHIVE;
   const eventDescriptor: number = fs.openSync(records.events, "a");
   const rawDescriptor: number = fs.openSync(records.raw, "a");
   try {
@@ -209,7 +211,7 @@ const runBenchmark = async (
             ),
             model: cell.model,
             effort: cell.effort,
-            environment: process.env,
+            environment,
             onOutput,
             onState,
           })
@@ -223,7 +225,7 @@ const runBenchmark = async (
             ),
             model: cell.model,
             effort: claudeEffort(cell.effort),
-            environment: process.env,
+            environment,
             onOutput,
             onState,
           });
