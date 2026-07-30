@@ -20,6 +20,7 @@ import { EvidenceBenchmarkPublication } from "./EvidenceBenchmarkPublication.ts"
 import { EvidenceBenchmarkRepair } from "./EvidenceBenchmarkRepair.ts";
 import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
 import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
+import { EvidenceBenchmarkState } from "./EvidenceBenchmarkState.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
 import { EvidenceBenchmarkTurnLedger } from "./EvidenceBenchmarkTurnLedger.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
@@ -41,6 +42,7 @@ export namespace EvidenceBenchmarkSelfTest {
       createFixture(repository, fixture);
       await testPinnedPnpm(repository);
       testCodexIsolation(temporary);
+      testStateJournal(temporary);
       await testRuntimeIsolation();
       await testPublicationSafety(temporary);
       await testCommonRepair(temporary);
@@ -103,6 +105,25 @@ export namespace EvidenceBenchmarkSelfTest {
         ),
       /NFC POSIX relative path/,
     );
+  }
+
+  function testStateJournal(temporary: string): void {
+    const root: string = path.join(temporary, "state-journal");
+    fs.mkdirSync(root, { recursive: true });
+    EvidenceBenchmarkState.write(root, { generation: 1 });
+    EvidenceBenchmarkState.write(root, { generation: 2 });
+    assert.deepEqual(EvidenceBenchmarkState.read(root, "test state"), {
+      generation: 2,
+    });
+    const target: string = path.join(root, "run.json");
+    const previous: string = path.join(root, "run.json.previous");
+    fs.renameSync(target, previous);
+    assert.deepEqual(
+      EvidenceBenchmarkState.read(root, "recoverable test state"),
+      { generation: 2 },
+    );
+    assert.ok(fs.existsSync(target));
+    assert.equal(fs.existsSync(previous), false);
   }
 
   function testCodexIsolation(temporary: string): void {

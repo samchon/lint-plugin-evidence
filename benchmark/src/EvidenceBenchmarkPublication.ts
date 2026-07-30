@@ -5,6 +5,7 @@ import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 import { EvidenceBenchmarkProject } from "./EvidenceBenchmarkProject.ts";
+import { EvidenceBenchmarkState } from "./EvidenceBenchmarkState.ts";
 import { EvidenceBenchmarkTurnLedger } from "./EvidenceBenchmarkTurnLedger.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 
@@ -164,10 +165,7 @@ export namespace EvidenceBenchmarkPublication {
       request.runId,
     );
     assertInside(resultsRoot, runRoot, "publication run");
-    const statePath: string = path.join(runRoot, "run.json");
-    if (!fs.existsSync(statePath))
-      throw new Error(`Completed benchmark state was not found: ${statePath}.`);
-    const state = JSON.parse(fs.readFileSync(statePath, "utf8")) as {
+    const state = EvidenceBenchmarkState.read<{
       schemaVersion?: unknown;
       workflow?: unknown;
       project?: unknown;
@@ -188,7 +186,7 @@ export namespace EvidenceBenchmarkPublication {
         accepted?: unknown;
         lintRestorationSha256?: unknown;
       }>;
-    };
+    }>(runRoot, "Completed benchmark state");
     if (
       state.schemaVersion !== 6 ||
       state.workflow !== "backend-first-gated-v2" ||

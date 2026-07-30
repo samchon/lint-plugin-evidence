@@ -13,6 +13,7 @@ import { EvidenceBenchmarkPublication } from "./EvidenceBenchmarkPublication.ts"
 import { EvidenceBenchmarkRepair } from "./EvidenceBenchmarkRepair.ts";
 import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
 import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
+import { EvidenceBenchmarkState } from "./EvidenceBenchmarkState.ts";
 import { EvidenceBenchmarkTurnLedger } from "./EvidenceBenchmarkTurnLedger.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 import type { IEvidenceBenchmarkPackageArtifact } from "./structures/IEvidenceBenchmarkPackageArtifact.ts";
@@ -305,10 +306,7 @@ export namespace EvidenceBenchmarkCommandLine {
       runId!,
     );
     assertInside(resultsRoot, root, "resume root");
-    const statePath: string = path.join(root, "run.json");
-    if (!fs.existsSync(statePath))
-      throw new Error(`Resumable state was not found: ${statePath}.`);
-    const state: IState = JSON.parse(fs.readFileSync(statePath, "utf8"));
+    const state: IState = EvidenceBenchmarkState.read(root, "Resumable state");
     if (
       state.schemaVersion !== 6 ||
       state.workflow !== WORKFLOW ||
@@ -874,11 +872,7 @@ export namespace EvidenceBenchmarkCommandLine {
   }
 
   function writeState(root: string, state: IState): void {
-    const target: string = path.join(root, "run.json");
-    const temporary: string = `${target}.${process.pid}.tmp`;
-    fs.writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`, "utf8");
-    fs.rmSync(target, { force: true });
-    fs.renameSync(temporary, target);
+    EvidenceBenchmarkState.write(root, state);
   }
 
   function assertInside(parent: string, target: string, label: string): void {
@@ -911,8 +905,9 @@ export namespace EvidenceBenchmarkCommandLine {
         ]),
       ),
     );
-    const state: IState = JSON.parse(
-      fs.readFileSync(path.join(root, "run.json"), "utf8"),
+    const state: IState = EvidenceBenchmarkState.read(
+      root,
+      "Frozen instruction state",
     );
     if (actual !== state.instructionsTreeSha256)
       throw new Error(`Frozen instruction tree drifted for ${root}.`);
@@ -1025,10 +1020,12 @@ export namespace EvidenceBenchmarkCommandLine {
         if (!fs.statSync(location).isFile()) continue;
         tails[file] = readTail(location, 16_384);
       }
-    const statePath: string = path.join(props.root, "run.json");
-    const state: unknown = fs.existsSync(statePath)
-      ? JSON.parse(fs.readFileSync(statePath, "utf8"))
-      : undefined;
+    let state: unknown;
+    try {
+      state = EvidenceBenchmarkState.read(props.root, "Failure state");
+    } catch {
+      state = undefined;
+    }
     const target: string = path.join(
       failures,
       `${props.project}-${props.arm}-attempt-${attempts + 1}.json`,
