@@ -29,6 +29,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
     arm: EvidenceBenchmarkRunner.EvidenceBenchmarkArm;
     sessionId: string;
     cliVersion?: string;
+    nativeModel?: string;
     nextInstructionIndex: number;
     status: "ready" | "running" | "interrupted" | "completed";
     tokenUsage: EvidenceBenchmarkRunner.IEvidenceBenchmarkTokenUsage;
@@ -357,8 +358,13 @@ export namespace EvidenceBenchmarkClaudeRunner {
         throw new Error(
           "Claude Code initialization used a different CLI version.",
         );
-      if (event.model !== props.model)
-        throw new Error("Claude Code initialization used a different model.");
+      if (typeof event.model !== "string" || event.model.length === 0)
+        throw new Error("Claude Code initialization omitted its native model.");
+      if (state.nativeModel !== undefined && state.nativeModel !== event.model)
+        throw new Error(
+          "Claude Code initialization used a different native model.",
+        );
+      state.nativeModel ??= event.model;
       if (
         typeof event.cwd !== "string" ||
         path.resolve(event.cwd) !== path.resolve(props.cwd)

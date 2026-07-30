@@ -34,6 +34,7 @@ const main = async (): Promise<void> => {
     const entries = EvidenceBenchmarkRunner.instructionEntries("evidence");
     assert.equal(completed.status, "completed");
     assert.equal(completed.cliVersion, "fixture-cli");
+    assert.equal(completed.nativeModel, "fixture-resolved-model");
     assert.equal(completed.nextInstructionIndex, entries.length);
     assert.equal(completed.instructions.length, entries.length);
     assert.equal(completed.processes.length, entries.length);
@@ -43,6 +44,10 @@ const main = async (): Promise<void> => {
       assert.equal(process.exitCode, 0);
       assert.equal(process.signal, null);
       const sessionFlag: string = index === 0 ? "--session-id" : "--resume";
+      assert.equal(
+        process.arguments[process.arguments.indexOf("--model") + 1],
+        "fixture-model",
+      );
       assert.equal(
         process.arguments[process.arguments.indexOf(sessionFlag) + 1],
         completed.sessionId,
@@ -211,7 +216,7 @@ const fakeClaude = (): void => {
         subtype: "init",
         session_id: sessionId,
         claude_code_version: "fixture-cli",
-        model: value("--model"),
+        model: "fixture-resolved-model",
         cwd: process.cwd(),
         permissionMode: "bypassPermissions",
       })}\n`,

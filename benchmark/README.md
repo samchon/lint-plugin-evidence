@@ -57,7 +57,7 @@ The runner retains facts in delivery order:
 
 - the exact prescribed, continuation, and combined user text;
 - complete native stdin, stdout, and stderr in `events.jsonl` and `raw.log`;
-- project, engine, arm, model, effort, CLI version, session, instruction, and process identity;
+- project, engine, arm, requested and resolved native model, effort, CLI version, session, instruction, and process identity;
 - the current instruction cursor and engine-specific terminal checkpoints;
 - native token categories, process elapsed time, exit code, and signal; and
 - Claude Code's reported client-side cost estimate.
