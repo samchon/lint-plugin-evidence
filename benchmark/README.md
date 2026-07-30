@@ -1,35 +1,35 @@
 # Evidence benchmark
 
-This benchmark compares the same coding agent building the same application with and without `@samchon/lint-plugin-evidence`. Both arms receive the same requirements, shared template, instruction order, model, and effort. Only the Evidence arm receives the package, Evidence template overlay, and Evidence-specific guidance.
+This benchmark compares the same coding engine building the same application with and without `@samchon/lint-plugin-evidence`. Both arms receive the same requirements, shared template, instruction order, engine, model, and effort. Only the Evidence arm receives the package, Evidence overlay, and Evidence-specific guidance.
 
-The runner prepares an isolated workspace, drives the prescribed Goals in one native session, and retains the native execution record. It does not validate requirements, judge the generated application, or repair a measured workspace.
+The runner prepares an isolated workspace, drives the prescribed instructions in one native session, and retains the native execution record. It does not validate requirements, judge the generated application, or repair a measured workspace.
 
 ## Workspace preparation
 
-Each benchmark cell uses a new ignored workspace.
+Each cell uses a new ignored workspace.
 
 1. Copy the shared base template into the workspace.
-2. For the Evidence arm, apply the Evidence overlay after the base template. The Plain arm receives no Evidence overlay, package, tag, rule, carrier, or guidance.
+2. Apply the Evidence overlay only for the Evidence arm. Plain receives no Evidence package, tag, rule, carrier, or guidance.
 3. Copy the selected `benchmark/requirements/<project>/` directory exactly into `docs/analysis/`. Treat its paths and bytes as opaque input.
-4. For the Evidence arm only, add the locally packed Evidence `.tgz` as a dependency.
+4. Add the locally packed Evidence `.tgz` only for the Evidence arm.
 5. Run `pnpm install`.
 6. Initialize the workspace as a Git repository and commit the prepared baseline.
 
-Instructions remain in the benchmark repository. The runner reads each Markdown file when starting its Goal and records the exact text it sends; it does not copy instructions into the generated workspace.
+Instructions remain in the benchmark repository. The runner reads each Markdown file when starting its objective and records the exact text it sends; it does not copy instructions into the generated workspace.
 
 ## Run
 
 Start a new cell from the repository root:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark start -- <project> <evidence|plain> [model] [effort] [run-id]
+pnpm --filter @samchon/evidence-benchmark start -- <codex|claude-code> <project> <evidence|plain> <model> <effort> [run-id]
 ```
 
-Omit `run-id` to create a new cell. After an abnormal interruption, pass that cell's existing `run-id` with the same project, arm, model, and effort to resume its retained workspace and native session.
+Omit `run-id` to create a cell under `benchmark/result/<project>/<engine>/<arm>/runs/<run-id>/`. Pass an existing run ID only to resume that exact engine, project, arm, model, effort, workspace, and session.
 
-## Goal sequence
+## Instruction sequence
 
-One native session receives these nine instructions as Goals in order:
+One native session receives these nine instructions in order:
 
 | Step | Evidence | Plain |
 | --- | --- | --- |
@@ -43,23 +43,31 @@ One native session receives these nine instructions as Goals in order:
 | Overall review | `instructions/overall/review.md` | `instructions/overall/review.md` |
 | Overall final | `instructions/overall/evidence-final.md` | `instructions/overall/plain-final.md` |
 
-The runner starts one Goal at a time. It combines the exact prescribed instruction and `instructions/continue.md` once as that Goal's objective, then leaves continued turns to the native Goal runtime. It never injects a second continuation turn. When the measured agent marks the Goal complete, the runner starts the next prescribed Goal. The measured agent's completion status is recorded behavior, not a quality verdict from the runner.
+For each step, the runner combines the prescribed instruction and `instructions/continue.md` once as the objective.
+
+Codex receives each objective as a native Goal in one app-server thread. It advances after Goal completion, terminal-turn completion, and an idle thread.
+
+Claude Code receives each objective as one noninteractive agent loop. The first loop creates the session and later loops resume it. It advances after one successful terminal result for the retained session. Claude Code does not expose the Codex native Goal primitive.
+
+Engine completion is recorded execution behavior, not a quality verdict.
 
 ## Retained record
 
 The runner retains facts in delivery order:
 
-- the exact prescribed and continuation user text;
-- the complete native event stream and raw stdout and stderr;
-- project, engine, arm, model, effort, CLI version, session, turn, and Goal identity;
-- Goal state transitions and the current instruction position;
-- native token categories, tool and command events, and model-process elapsed time;
-- process exit code and signal.
+- the exact prescribed, continuation, and combined user text;
+- complete native stdin, stdout, and stderr in `events.jsonl` and `raw.log`;
+- project, engine, arm, model, effort, CLI version, session, instruction, and process identity;
+- the current instruction cursor and engine-specific terminal checkpoints;
+- native token categories, process elapsed time, exit code, and signal; and
+- Claude Code's reported client-side cost estimate.
 
 Setup time remains separate from model-process time. The retained record does not add build, lint, requirement, graph, quality, publication, or completion verdicts.
 
-## Operator boundary
+## Interruption and review
 
-The native Goal runtime handles ordinary questions, partial reports, and pauses under the shared continuation text already present in the Goal objective. The operator does not add prose or implementation advice to those turns.
+The operator does not add prose or implementation advice during a cell. The shared continuation text already instructs the measured agent to finish autonomously.
 
-The operator reacts only to an abnormal interruption such as a failed native turn, non-zero process exit, or signal. It preserves the retained state and resumes the same native session when authorized. It does not mutate the measured workspace, add hints, retry automatically, or replace the measured agent's Goal status with an external completion judgment.
+After an abnormal interruption, preserve the run and inspect its retained state. Codex may continue an exact retained Goal. Claude Code may continue from a completed instruction boundary, but an instruction that was dispatched without a successful terminal result cannot be resent as an exact continuation; keep that cell incomplete.
+
+Review every completed workspace without changing it. Record application defects separately from evidence that a template, instruction, or runner misdirected the agent. Do not change frozen inputs while any cell in the same comparison cohort is active.

@@ -98,17 +98,7 @@ export namespace EvidenceBenchmarkRunner {
     props: IEvidenceBenchmarkRunProps,
   ): Promise<IEvidenceBenchmarkRunState> {
     const state: IEvidenceBenchmarkRunState = structuredClone(props.state);
-    const entries: readonly (readonly [string, string])[] = [
-      ["skills-contract", "skills-contract.md"],
-      ["backend-start", "backend/start.md"],
-      ["backend-review", "backend/review.md"],
-      ["backend-final", `backend/${state.arm}-final.md`],
-      ["frontend-start", "frontend/start.md"],
-      ["frontend-review", "frontend/review.md"],
-      ["frontend-final", `frontend/${state.arm}-final.md`],
-      ["overall-review", "overall/review.md"],
-      ["overall-final", `overall/${state.arm}-final.md`],
-    ];
+    const entries = instructionEntries(state.arm);
     if (state.nextInstructionIndex >= entries.length) {
       state.status = "completed";
       await props.onState?.(structuredClone(state));
@@ -585,6 +575,22 @@ export namespace EvidenceBenchmarkRunner {
     await publication;
     if (publicationFailed) state.status = "interrupted";
     return state;
+  }
+
+  export function instructionEntries(
+    arm: EvidenceBenchmarkArm,
+  ): readonly (readonly [string, string])[] {
+    return [
+      ["skills-contract", "skills-contract.md"],
+      ["backend-start", "backend/start.md"],
+      ["backend-review", "backend/review.md"],
+      ["backend-final", `backend/${arm}-final.md`],
+      ["frontend-start", "frontend/start.md"],
+      ["frontend-review", "frontend/review.md"],
+      ["frontend-final", `frontend/${arm}-final.md`],
+      ["overall-review", "overall/review.md"],
+      ["overall-final", `overall/${arm}-final.md`],
+    ];
   }
 
   function tokenUsage(

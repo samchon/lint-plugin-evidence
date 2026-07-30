@@ -4,13 +4,19 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { EvidenceBenchmarkClaudeRunner } from "../EvidenceBenchmarkClaudeRunner.ts";
 import { EvidenceBenchmarkRunner } from "../EvidenceBenchmarkRunner.ts";
 import { EvidenceBenchmarkWorkspace } from "../EvidenceBenchmarkWorkspace.ts";
 
 type EvidenceBenchmarkEffort =
   EvidenceBenchmarkRunner.IEvidenceBenchmarkRunProps["effort"];
+type EvidenceBenchmarkEngine = "codex" | "claude-code";
+type EvidenceBenchmarkState =
+  | EvidenceBenchmarkRunner.IEvidenceBenchmarkRunState
+  | EvidenceBenchmarkClaudeRunner.IEvidenceBenchmarkRunState;
 
 interface IEvidenceBenchmarkArguments {
+  engine: EvidenceBenchmarkEngine;
   subject: string;
   arm: EvidenceBenchmarkRunner.EvidenceBenchmarkArm;
   model: string;
@@ -19,7 +25,7 @@ interface IEvidenceBenchmarkArguments {
 }
 
 interface IEvidenceBenchmarkCell {
-  engine: "codex";
+  engine: EvidenceBenchmarkEngine;
   subject: string;
   arm: EvidenceBenchmarkRunner.EvidenceBenchmarkArm;
   runId: string;
@@ -38,7 +44,7 @@ interface IEvidenceBenchmarkRecordPaths {
 interface IEvidenceBenchmarkStateFile {
   cell: IEvidenceBenchmarkCell;
   records: IEvidenceBenchmarkRecordPaths;
-  state: EvidenceBenchmarkRunner.IEvidenceBenchmarkRunState;
+  state: EvidenceBenchmarkState;
 }
 
 const EVIDENCE_BENCHMARK_PACKAGE_NAME = "@samchon/lint-plugin-evidence";
@@ -49,7 +55,7 @@ const main = async (): Promise<void> => {
     process.argv.slice(2),
   );
   const requestedCell: IEvidenceBenchmarkCell = {
-    engine: "codex",
+    engine: options.engine,
     subject: options.subject,
     arm: options.arm,
     runId: options.runId ?? crypto.randomUUID(),
@@ -74,6 +80,7 @@ const main = async (): Promise<void> => {
         ) as IEvidenceBenchmarkStateFile);
   const cell: IEvidenceBenchmarkCell = retained?.cell ?? requestedCell;
   if (
+    cell.engine !== requestedCell.engine ||
     cell.subject !== requestedCell.subject ||
     cell.arm !== requestedCell.arm ||
     cell.model !== requestedCell.model ||
@@ -129,36 +136,59 @@ const main = async (): Promise<void> => {
   };
   initializeAppendOnly(records.events);
   initializeAppendOnly(records.raw);
-  await runBenchmark(cell, records, EvidenceBenchmarkRunner.create(cell.arm));
+  await runBenchmark(
+    cell,
+    records,
+    cell.engine === "codex"
+      ? EvidenceBenchmarkRunner.create(cell.arm)
+      : EvidenceBenchmarkClaudeRunner.create(cell.arm),
+  );
 };
 
 const runBenchmark = async (
   cell: IEvidenceBenchmarkCell,
   records: IEvidenceBenchmarkRecordPaths,
-  initialState: EvidenceBenchmarkRunner.IEvidenceBenchmarkRunState,
+  initialState: EvidenceBenchmarkState,
 ): Promise<void> => {
   const repository: string = path.resolve(import.meta.dirname, "../../..");
-  const result = await EvidenceBenchmarkRunner.run({
-    state: initialState,
-    cwd: records.workspace,
-    instructionsRoot: path.join(repository, "benchmark", "instructions"),
-    model: cell.model,
-    effort: cell.effort,
-    environment: process.env,
-    onOutput: (processIndex, output): void => {
-      appendDurably(
-        records.events,
-        `${JSON.stringify({ processIndex, ...output })}\n`,
-      );
-      appendDurably(records.raw, output.text);
-    },
-    onState: (state): void => {
-      replaceDurably(
-        records.state,
-        `${JSON.stringify({ cell, records, state }, null, 2)}\n`,
-      );
-    },
-  });
+  const onOutput = (
+    processIndex: number,
+    output: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput,
+  ): void => {
+    appendDurably(
+      records.events,
+      `${JSON.stringify({ processIndex, ...output })}\n`,
+    );
+    appendDurably(records.raw, output.text);
+  };
+  const onState = (state: EvidenceBenchmarkState): void => {
+    replaceDurably(
+      records.state,
+      `${JSON.stringify({ cell, records, state }, null, 2)}\n`,
+    );
+  };
+  const result =
+    cell.engine === "codex"
+      ? await EvidenceBenchmarkRunner.run({
+          state: codexState(initialState),
+          cwd: records.workspace,
+          instructionsRoot: path.join(repository, "benchmark", "instructions"),
+          model: cell.model,
+          effort: cell.effort,
+          environment: process.env,
+          onOutput,
+          onState,
+        })
+      : await EvidenceBenchmarkClaudeRunner.run({
+          state: claudeState(initialState),
+          cwd: records.workspace,
+          instructionsRoot: path.join(repository, "benchmark", "instructions"),
+          model: cell.model,
+          effort: claudeEffort(cell.effort),
+          environment: process.env,
+          onOutput,
+          onState,
+        });
   if (result.status !== "completed")
     throw new Error("Benchmark run was interrupted; resume the retained run.");
 };
@@ -166,19 +196,22 @@ const runBenchmark = async (
 const parseArguments = (
   input: readonly string[],
 ): IEvidenceBenchmarkArguments => {
-  if (input.length < 2 || input.length > 5)
+  if (input.length < 5 || input.length > 6)
     throw new Error(
-      "Usage: pnpm start -- <subject> <evidence|plain> [model] [effort] [run-id]",
+      "Usage: pnpm start -- <codex|claude-code> <subject> <evidence|plain> <model> <effort> [run-id]",
     );
-  const subject: string = input[0]!;
+  const engine: string = input[0]!;
+  if (engine !== "codex" && engine !== "claude-code")
+    throw new Error(`Invalid benchmark engine: ${engine}.`);
+  const subject: string = input[1]!;
   if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(subject))
     throw new Error(`Invalid benchmark subject: ${subject}.`);
-  const arm: string = input[1]!;
+  const arm: string = input[2]!;
   if (arm !== "evidence" && arm !== "plain")
     throw new Error(`Invalid benchmark arm: ${arm}.`);
-  const model: string = input[2] ?? "gpt-5.6-terra";
+  const model: string = input[3]!;
   if (model.length === 0) throw new Error("Benchmark model cannot be empty.");
-  const effort: string = input[3] ?? "high";
+  const effort: string = input[4]!;
   if (
     effort !== "low" &&
     effort !== "medium" &&
@@ -188,7 +221,9 @@ const parseArguments = (
     effort !== "ultra"
   )
     throw new Error(`Invalid benchmark effort: ${effort}.`);
-  const runId: string | undefined = input[4];
+  if (engine === "claude-code" && effort === "ultra")
+    throw new Error("Claude Code does not support ultra effort.");
+  const runId: string | undefined = input[5];
   if (
     runId !== undefined &&
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -196,7 +231,31 @@ const parseArguments = (
     )
   )
     throw new Error(`Invalid benchmark run ID: ${runId}.`);
-  return { subject, arm, model, effort, runId };
+  return { engine, subject, arm, model, effort, runId };
+};
+
+const codexState = (
+  state: EvidenceBenchmarkState,
+): EvidenceBenchmarkRunner.IEvidenceBenchmarkRunState => {
+  if (!("threadTokenUsage" in state))
+    throw new Error("Retained benchmark state does not belong to Codex.");
+  return state;
+};
+
+const claudeState = (
+  state: EvidenceBenchmarkState,
+): EvidenceBenchmarkClaudeRunner.IEvidenceBenchmarkRunState => {
+  if ("threadTokenUsage" in state)
+    throw new Error("Retained benchmark state does not belong to Claude Code.");
+  return state;
+};
+
+const claudeEffort = (
+  effort: EvidenceBenchmarkEffort,
+): EvidenceBenchmarkClaudeRunner.EvidenceBenchmarkEffort => {
+  if (effort === "ultra")
+    throw new Error("Claude Code does not support ultra effort.");
+  return effort;
 };
 
 const packEvidence = async (
