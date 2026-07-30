@@ -46,7 +46,7 @@ const main = async (): Promise<void> => {
       assert.equal(process.signal, null);
       assert.equal(
         process.arguments.includes("--disable-slash-commands"),
-        false,
+        true,
       );
       const sessionFlag: string = index === 0 ? "--session-id" : "--resume";
       assert.equal(

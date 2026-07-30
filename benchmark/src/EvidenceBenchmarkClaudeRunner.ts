@@ -221,6 +221,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
       "--strict-mcp-config",
       "--mcp-config",
       '{"mcpServers":{}}',
+      "--disable-slash-commands",
       "--no-chrome",
       "--prompt-suggestions",
       "false",
