@@ -272,7 +272,7 @@ const parseArguments = (
 ): IEvidenceBenchmarkArguments => {
   if (input.length < 5 || input.length > 6)
     throw new Error(
-      "Usage: pnpm start -- <codex|claude-code> <subject> <evidence|plain> <model> <effort> [run-id]",
+      "Usage: pnpm start <codex|claude-code> <subject> <evidence|plain> <model> <effort> [run-id]",
     );
   const engine: string = input[0]!;
   if (engine !== "codex" && engine !== "claude-code")

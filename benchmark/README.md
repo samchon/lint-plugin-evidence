@@ -22,7 +22,7 @@ Instructions remain in the benchmark repository. The runner reads each Markdown 
 Start a new cell from the repository root:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark start -- <codex|claude-code> <project> <evidence|plain> <model> <effort> [run-id]
+pnpm --filter @samchon/evidence-benchmark start <codex|claude-code> <project> <evidence|plain> <model> <effort> [run-id]
 ```
 
 Omit `run-id` to create a cell under `benchmark/result/<project>/<engine>/<arm>/runs/<run-id>/`. Pass an existing run ID only to resume that exact engine, project, arm, model, effort, workspace, and session.

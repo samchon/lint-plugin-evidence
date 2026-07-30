@@ -36,7 +36,7 @@ Run at most one command for a run ID. Concurrent launch or resume processes can 
 Pass the engine, model, and effort explicitly:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark start -- <codex|claude-code> <subject> <evidence|plain> <model> <effort>
+pnpm --filter @samchon/evidence-benchmark start <codex|claude-code> <subject> <evidence|plain> <model> <effort>
 ```
 
 Omitting the run ID creates a new run under `benchmark/result/<subject>/<engine>/<arm>/runs/<run-id>/`. Before paid agent work, the runner prepares a new ignored workspace:
@@ -116,7 +116,7 @@ If the user cancels, stop the active command, preserve its run directory, and re
 Resume with the original engine, subject, arm, model, effort, and retained run ID:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark start -- <codex|claude-code> <subject> <evidence|plain> <model> <effort> <run-id>
+pnpm --filter @samchon/evidence-benchmark start <codex|claude-code> <subject> <evidence|plain> <model> <effort> <run-id>
 ```
 
 The runner verifies the retained cell and preserves earlier objectives, token usage, elapsed durations, process records, and raw events.
