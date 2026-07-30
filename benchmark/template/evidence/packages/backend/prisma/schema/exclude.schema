@@ -1,7 +1,7 @@
 /// Lint-only carrier for schema evidence exclusions.
 ///
 /// Prisma generation, migration, and ERD inputs do not include this `.schema`
-/// file. Keep real `@evidence` directly above its owning model or field. Add
+/// file. Keep real `@evidence` directly above its owning model. Add
 /// reviewed exclusions here in the form shown below without the `Example:`
 /// prefix.
 ///
