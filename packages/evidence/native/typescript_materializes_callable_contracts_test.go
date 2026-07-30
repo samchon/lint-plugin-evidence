@@ -438,10 +438,16 @@ func TestTypeScriptInventoryExcludesJavaScriptProgramFiles(t *testing.T) {
 			kind,
 		)
 	}
-	inventories := loadTypeScriptInventories(root, []*shimast.SourceFile{
-		parse("api.ts", shimcore.ScriptKindTS),
-		parse("api.js", shimcore.ScriptKindJS),
-	})
+	inventories := loadTypeScriptInventories(
+		root,
+		[]*shimast.SourceFile{
+			parse("api.ts", shimcore.ScriptKindTS),
+			parse("api.js", shimcore.ScriptKindJS),
+		},
+		anchoredGraph(root, graphConfig{Claims: []claimSpec{{
+			Type: artifactTypeScript,
+		}}}),
+	)
 	if inventories["api.ts"] == nil {
 		t.Fatal("TypeScript Program file was not indexed")
 	}
@@ -471,7 +477,13 @@ func TestTypeScriptInventoryIncludesTSXProgramFiles(t *testing.T) {
 		"export const View = () => <div />;",
 		shimcore.ScriptKindTSX,
 	)
-	inventory := loadTypeScriptInventories(root, []*shimast.SourceFile{file})["view.tsx"]
+	inventory := loadTypeScriptInventories(
+		root,
+		[]*shimast.SourceFile{file},
+		anchoredGraph(root, graphConfig{Claims: []claimSpec{{
+			Type: artifactTypeScript,
+		}}}),
+	)["view.tsx"]
 	if inventory == nil {
 		t.Fatal("TSX Program file was not indexed")
 	}

@@ -79,6 +79,8 @@ A model name is unique across the whole schema folder, so a target never names t
 
 Selectors classify public contracts semantically.
 
+A TypeScript claim may declare `root` to move the base its `files` globs resolve against. This changes only population addressing: the claim still materializes exclusively from `ctx.Sources`, and the root never scans a directory, follows arbitrary imports, or admits `node_modules`. A sibling package must therefore be an explicit root of the active tsconfig Program. Targets remain symbol identities, while file matching is root-relative and diagnostics retain project-relative locations.
+
 - `"type"` selects exported interfaces, type aliases, and namespaces. Classes and enums are not type units.
 - `"function"` selects exported function declarations, function-valued exported `const` declarations, public class callables, and namespace variants of those forms.
 - `"property"` selects direct properties of exported interfaces and object-shaped type aliases plus exported `const`, `let`, or `var` declarations at module or namespace scope. A `const` initialized with an arrow or function expression remains a function; every other variable, including a function-typed declaration or function-valued `let` or `var`, remains a property.

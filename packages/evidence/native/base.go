@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// populationBase is the directory one Markdown or Prisma population resolves
+// populationBase is the directory one rooted artifact population resolves
 // against.
 //
 // Every population had exactly one base before `root` existed — the ttsc

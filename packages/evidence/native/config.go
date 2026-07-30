@@ -68,7 +68,7 @@ func decodeClaim(raw json.RawMessage, index int) (claimSpec, []string) {
 			problems = append(problems, "Invalid evidence/graph configuration at "+path+".name: expected a diagnostic-only string label.")
 		}
 	}
-	root, rootProblems := decodeRoot(object["root"], kind, path+".root")
+	root, rootProblems := decodeClaimRoot(object["root"], kind, path+".root")
 	problems = append(problems, rootProblems...)
 	files, fileProblems := decodeFiles(object["files"], path+".files")
 	problems = append(problems, fileProblems...)
@@ -400,6 +400,26 @@ func decodeArtifactKind(
 	}
 }
 
+// decodeClaimRoot admits a Program-backed TypeScript population without
+// widening the Program itself.
+//
+// The root changes the address space and glob base only. The inventory still
+// consists exclusively of ctx.Sources, so a sibling package must be an explicit
+// tsconfig root and no configured directory becomes a filesystem scan.
+func decodeClaimRoot(
+	raw json.RawMessage,
+	kind artifactKind,
+	configPath string,
+) (string, []string) {
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return "", nil
+	}
+	if kind != artifactTypeScript {
+		return decodeRoot(raw, kind, configPath)
+	}
+	return decodePopulationRoot(raw, configPath)
+}
+
 // decodeRoot reads the directory a Markdown or Prisma population resolves
 // against.
 //
@@ -421,7 +441,7 @@ func decodeRoot(
 	case artifactMarkdown, artifactPrisma:
 	case artifactTypeScript:
 		return "", []string{
-			"Invalid evidence/graph configuration at " + configPath + ": a TypeScript population is materialized from the ttsc program, so no directory outside the project contains a file it can reach. Select an installed package with 'package', or add the directory to the program.",
+			"Invalid evidence/graph configuration at " + configPath + ": a TypeScript reference selects the active ttsc program with 'file' or 'files', or an installed package with 'package'; only a TypeScript claim accepts 'root'.",
 		}
 	case artifactSwagger:
 		return "", []string{
@@ -432,6 +452,13 @@ func decodeRoot(
 		// property of an unknown artifact kind would only add noise.
 		return "", nil
 	}
+	return decodePopulationRoot(raw, configPath)
+}
+
+func decodePopulationRoot(
+	raw json.RawMessage,
+	configPath string,
+) (string, []string) {
 	var value string
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return "", []string{

@@ -49,7 +49,7 @@ func (graphRule) Check(ctx *rule.ProjectContext) {
 	markdown, markdownProblems := loadMarkdownInventories(root, config)
 	prisma, prismaProblems := loadPrismaInventories(root, config)
 	swagger, swaggerProblems := loadSwaggerInventories(root, config)
-	typescript := loadTypeScriptInventories(root, ctx.Sources)
+	typescript := loadTypeScriptInventories(root, ctx.Sources, config)
 	problems = append(problems, markdownProblems...)
 	problems = append(problems, prismaProblems...)
 	problems = append(problems, swaggerProblems...)

@@ -28,10 +28,24 @@ export interface IEvidenceGraphTypeScriptClaim {
   name?: string;
 
   /**
-   * Project-relative glob patterns for TypeScript files in the active `ttsc`
-   * project that must cite the referenced evidence. A matching file outside the
-   * project's `tsconfig` program is not available to the rule and does not
-   * count as a match.
+   * Directory whose TypeScript population {@link files} select.
+   *
+   * Omit it to select from the active `ttsc` project root. A relative root
+   * resolves from that project root, so a monorepo package can select an
+   * explicitly included sibling with `../api`.
+   *
+   * This property does not add files to the TypeScript Program and never scans
+   * the directory. Only source files already supplied by `ttsc` can match, so
+   * the owning `tsconfig` must include the rooted population explicitly. File
+   * matching is relative to this root, symbol targets remain unchanged, and
+   * diagnostics retain a project-relative location.
+   */
+  root?: string;
+
+  /**
+   * Root-relative glob patterns for TypeScript files in the active `ttsc`
+   * Program that must cite the referenced evidence. A matching file outside the
+   * Program is not available to the rule and does not count as a match.
    *
    * These are globs, not regular expressions. `*` matches within one path
    * segment, `**` crosses any number of path segments, and `?` matches one

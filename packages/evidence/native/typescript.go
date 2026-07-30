@@ -11,20 +11,22 @@ import (
 func loadTypeScriptInventories(
 	root string,
 	sources []*shimast.SourceFile,
+	config graphConfig,
 ) map[string]*artifactInventory {
 	inventories := map[string]*artifactInventory{}
+	bases := configuredBases(config, artifactTypeScript)
 	for _, file := range sources {
-		if file == nil {
+		if file == nil || !isTypeScriptPath(file.FileName()) {
 			continue
 		}
-		relative, ok := relativeProjectPath(root, file.FileName())
-		if !ok || !isTypeScriptPath(relative) {
-			continue
+		for _, base := range bases {
+			relative, ok := relativeProjectPath(base.Absolute, file.FileName())
+			if !ok || !isTypeScriptPath(relative) {
+				continue
+			}
+			address := base.addressOf(relative)
+			inventories[address.Key] = scanTypeScriptInventoryAt(address, file)
 		}
-		// A TypeScript population always sits at the default base: its files come
-		// from the ttsc Program, and no directory outside the project contributes
-		// one. Its key is therefore the project-relative path, unchanged.
-		inventories[relative] = scanTypeScriptInventory(relative, file)
 	}
 	return inventories
 }
@@ -58,8 +60,21 @@ func scanTypeScriptInventory(
 	path string,
 	file *shimast.SourceFile,
 ) *artifactInventory {
+	return scanTypeScriptInventoryAt(artifactAddress{
+		Base:     populationBase{Default: true},
+		Relative: path,
+		Display:  path,
+		Key:      path,
+	}, file)
+}
+
+func scanTypeScriptInventoryAt(
+	address artifactAddress,
+	file *shimast.SourceFile,
+) *artifactInventory {
 	inventory := &artifactInventory{
-		Path:    path,
+		Address: address.Key,
+		Path:    address.Display,
 		Type:    artifactTypeScript,
 		Imports: collectImportBindings(file),
 		Exports: collectModuleExports(file),
@@ -77,7 +92,13 @@ func scanTypeScriptInventory(
 		false,
 		false,
 	)
-	collectTypeScriptDeclarations(file, path, inventory, supportedHosts)
+	collectTypeScriptDeclarations(
+		file,
+		address.Key,
+		address.Display,
+		inventory,
+		supportedHosts,
+	)
 	sort.Slice(inventory.Units, func(left int, right int) bool {
 		if inventory.Units[left].Target != inventory.Units[right].Target {
 			return inventory.Units[left].Target < inventory.Units[right].Target
@@ -524,7 +545,11 @@ func addTypeScriptUnit(
 	parentID string,
 ) *evidenceUnit {
 	target := strings.Join(identity, ".")
-	id := "typescript:" + inventory.Path + ":" + symbol + ":" + encodeTypeScriptIdentity(identity)
+	address := inventory.Address
+	if address == "" {
+		address = inventory.Path
+	}
+	id := "typescript:" + address + ":" + symbol + ":" + encodeTypeScriptIdentity(identity)
 	// Recorded before the dedupe below, so a merged identity keeps every
 	// declaration that spells it. `interface I` beside `namespace I` is one
 	// unit and two nodes, and a rule asking where that unit's JSDoc may live
@@ -578,7 +603,8 @@ func lineAtNode(_ string, node *shimast.Node) int {
 
 func collectTypeScriptDeclarations(
 	file *shimast.SourceFile,
-	path string,
+	address string,
+	location string,
 	inventory *artifactInventory,
 	supportedHosts map[*shimast.Node]symbolSet,
 ) {
@@ -631,14 +657,14 @@ func collectTypeScriptDeclarations(
 		for _, parsed := range parseDeclarations(content[entry.node.Pos():entry.node.End()]) {
 			sequence++
 			inventory.Declarations = append(inventory.Declarations, &evidenceDeclaration{
-				ID:               "typescript:" + path + ":" + decimal(baseLine+parsed.LineOffset) + ":" + decimal(sequence),
+				ID:               "typescript:" + address + ":" + decimal(baseLine+parsed.LineOffset) + ":" + decimal(sequence),
 				Type:             artifactTypeScript,
 				Tag:              parsed.Tag,
 				Target:           parsed.Target,
 				Reason:           parsed.Reason,
 				Hosts:            entry.hosts,
 				ExclusionCarrier: len(entry.hosts) != 0,
-				Path:             path,
+				Path:             location,
 				Line:             baseLine + parsed.LineOffset,
 				Sequence:         sequence,
 			})

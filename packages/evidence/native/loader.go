@@ -32,13 +32,25 @@ func newTypeScriptLoader(
 	root string,
 	program map[string]*artifactInventory,
 ) *typeScriptLoader {
-	return &typeScriptLoader{
+	loader := &typeScriptLoader{
 		root:     strings.ReplaceAll(root, "\\", "/"),
-		program:  program,
+		program:  map[string]*artifactInventory{},
 		parsed:   map[string]*artifactInventory{},
 		resolved: map[string]string{},
 		failures: map[string]string{},
 	}
+	for _, inventory := range program {
+		if inventory == nil || inventory.Path == "" {
+			continue
+		}
+		location := loader.projectPath(inventory.Path)
+		current := loader.program[location]
+		if current == nil ||
+			current.Address != current.Path && inventory.Address == inventory.Path {
+			loader.program[location] = inventory
+		}
+	}
+	return loader
 }
 
 // inventory returns the scanned form of a project-relative TypeScript file.
@@ -49,6 +61,7 @@ func (loader *typeScriptLoader) inventory(relative string) *artifactInventory {
 	if relative == "" {
 		return nil
 	}
+	relative = loader.projectPath(relative)
 	if inventory := loader.program[relative]; inventory != nil {
 		return inventory
 	}
@@ -60,6 +73,7 @@ func (loader *typeScriptLoader) inventory(relative string) *artifactInventory {
 }
 
 func (loader *typeScriptLoader) parse(relative string) *artifactInventory {
+	relative = loader.projectPath(relative)
 	content, err := os.ReadFile(path.Join(loader.root, relative))
 	if err != nil {
 		loader.failures[relative] = err.Error()
@@ -93,6 +107,7 @@ func (loader *typeScriptLoader) failure(relative string) string {
 // exists reports whether a project-relative TypeScript file can be read at all,
 // without paying to scan it.
 func (loader *typeScriptLoader) exists(relative string) bool {
+	relative = loader.projectPath(relative)
 	if loader.program[relative] != nil {
 		return true
 	}
@@ -118,8 +133,9 @@ func (loader *typeScriptLoader) resolveUncached(
 	if strings.HasPrefix(specifier, "./") || strings.HasPrefix(specifier, "../") {
 		base := path.Clean(path.Join(path.Dir(from), specifier))
 		for _, candidate := range moduleCandidates(base) {
-			if loader.exists(candidate) {
-				return candidate
+			normalized := loader.projectPath(candidate)
+			if loader.exists(normalized) {
+				return normalized
 			}
 		}
 		return ""
@@ -128,6 +144,30 @@ func (loader *typeScriptLoader) resolveUncached(
 		return ""
 	}
 	return loader.resolvePackage(specifier)
+}
+
+// projectPath gives every Program source and module candidate one identity
+// relative to the ttsc project. A rooted claim may name the same physical file
+// through `../api`, while an import can arrive there through a different
+// sequence of sibling segments; resolving both through the project root keeps
+// Windows and POSIX separators from creating distinct module identities.
+func (loader *typeScriptLoader) projectPath(relative string) string {
+	if loader == nil || relative == "" {
+		return relative
+	}
+	local := filepath.FromSlash(relative)
+	absolute := local
+	if !filepath.IsAbs(local) {
+		absolute = filepath.Join(filepath.FromSlash(loader.root), local)
+	}
+	projectRelative, err := filepath.Rel(
+		filepath.FromSlash(loader.root),
+		filepath.Clean(absolute),
+	)
+	if err != nil {
+		return filepath.ToSlash(filepath.Clean(absolute))
+	}
+	return strings.TrimPrefix(filepath.ToSlash(projectRelative), "./")
 }
 
 // resolvePackage finds the declaration entry of an installed package.

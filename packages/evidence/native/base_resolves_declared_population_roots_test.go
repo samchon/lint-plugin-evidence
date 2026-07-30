@@ -321,28 +321,30 @@ func TestRootedPrismaPopulationsCollectAcrossBasesWithoutDuplicating(t *testing.
 }
 
 /**
- * Verifies `root` is refused where it would describe a population that cannot
- * have one.
+ * Verifies `root` is refused on references whose existing selectors already
+ * own their location.
  *
- * Both refusals name the channel the artifact does have, because an author who
- * reaches for `root` on either has a real out-of-project population in mind. A
- * TypeScript population comes from the ttsc program, so no outside directory
- * contributes a file to it at all; a Swagger reference already carries its
- * location in `file`, where the escape is visible without a second property.
+ * A TypeScript claim may change the base of source files already supplied by
+ * ttsc, but a TypeScript reference selects a Program entry, Program globs, or
+ * an installed package. A Swagger reference already carries its location in
+ * `file`, where the escape is visible without a second property.
  *
- *  1. Declare `root` on a TypeScript claim and on a Swagger reference.
+ *  1. Declare `root` on TypeScript and Swagger references.
  *  2. Decode each configuration.
  *  3. Assert each diagnostic points at the channel that works instead.
  */
-func TestRootIsRefusedOnTypeScriptAndSwaggerPopulations(t *testing.T) {
+func TestRootIsRefusedOnTypeScriptAndSwaggerReferences(t *testing.T) {
 	_, problems := decodeGraphConfig(json.RawMessage(`{"claims":[{
 		"type":"typescript",
-		"root":"../shared",
 		"files":["src/**"],
-		"reference":{"type":"markdown","files":["docs/**"]}
+		"reference":{
+			"type":"typescript",
+			"root":"../shared",
+			"files":["src/**"]
+		}
 	}]}`))
-	if !strings.Contains(strings.Join(problems, "\n"), "Select an installed package with 'package'") {
-		t.Fatalf("a TypeScript root must name the package channel, got %v", problems)
+	if !strings.Contains(strings.Join(problems, "\n"), "only a TypeScript claim accepts 'root'") {
+		t.Fatalf("a TypeScript reference root must name the supported claim boundary, got %v", problems)
 	}
 
 	_, problems = decodeGraphConfig(json.RawMessage(`{"claims":[{
