@@ -1750,6 +1750,29 @@ export namespace EvidenceBenchmarkSelfTest {
         `Evidence deferral contract is missing ${contract}`,
       );
 
+    const testingPath: string = ".agents/skills/backend/testing.md";
+    const testingBytes: Uint8Array | undefined = files.get(testingPath);
+    assert.ok(
+      testingBytes,
+      `materialized Evidence template is missing ${testingPath}`,
+    );
+    const testing: string = Buffer.from(testingBytes).toString("utf8");
+    assert.match(
+      testing,
+      /@evidence \{@link api\.functional\.orders\.checkout\}/,
+      "backend test guidance must use the configured TypeScript SDK reference",
+    );
+    assert.match(
+      testing,
+      /@evidenceExclude \{@link api\.functional\.health\.get\}/,
+      "backend test exclusions must use the configured TypeScript SDK reference",
+    );
+    assert.doesNotMatch(
+      testing,
+      /(?:POST:\/orders\/checkout|GET:\/health|Swagger\/OpenAPI)/,
+      "backend test guidance must not teach an unconfigured Swagger reference",
+    );
+
     const examplePattern =
       /<!-- claim-deferral-example: ([^#\s]+)#([a-z-]+) -->\r?\n```ts\r?\n([\s\S]*?)\r?\n```/g;
     const examples: Array<{
