@@ -119,164 +119,28 @@ export namespace EvidenceBenchmarkCommandLine {
     state: IState;
   }
 
-  /**
-   * Builds the exact least-privilege Codex configuration for one measured cell.
-   *
-   * The Codex process retains its own authentication, while model-launched
-   * commands can read only the minimal runtime and can write only the measured
-   * workspace plus its run-owned cache tree.
-   */
-  export function codexIsolationArguments(
-    workspace: string,
-    environment: NodeJS.ProcessEnv,
-  ): string[] {
-    const cache: string = path.join(path.dirname(workspace), "cache");
-    const home: string = path.join(cache, "agent-home");
-    const temporary: string = path.join(cache, "os-temp");
-    const explicit: Record<string, string> = {
-      CI: "1",
-      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
-      GOTOOLCHAIN: "local",
-      HOME: home,
-      USERPROFILE: home,
-      TEMP: temporary,
-      TMP: temporary,
-      TMPDIR: temporary,
-      XDG_CACHE_HOME: path.join(cache, "xdg"),
-    };
-    for (const name of [
-      "API_PORT",
-      "COREPACK_HOME",
-      "GOCACHE",
-      "GOMODCACHE",
-      "GOPATH",
-      "GOTMPDIR",
-      "npm_config_cache",
-      "npm_config_store_dir",
-      "PLAYWRIGHT_BROWSERS_PATH",
-      "PLAYWRIGHT_TEST_PORT",
-      "SWAGGER_PORT",
-      "TTSC_CACHE_DIR",
-      "TTSC_GO_CACHE_DIR",
-      "VITE_API_HOST",
-      "VITE_DEV_PORT",
-    ] as const) {
-      const value: string | undefined = environment[name];
-      if (value !== undefined) explicit[name] = value;
-    }
+  /** Selects Codex's native non-interactive YOLO mode for a disposable cell. */
+  export function codexYoloArguments(): string[] {
     return [
       "--ignore-user-config",
       "--ignore-rules",
       "--strict-config",
-      "--config",
-      'approval_policy="never"',
-      "--config",
-      'default_permissions="benchmark"',
-      "--config",
-      'permissions.benchmark.extends=":workspace"',
-      "--config",
-      'permissions.benchmark.filesystem.:root="deny"',
-      "--config",
-      'permissions.benchmark.filesystem.:minimal="read"',
-      "--config",
-      'permissions.benchmark.filesystem.:tmpdir="deny"',
-      "--config",
-      'permissions.benchmark.filesystem.:slash_tmp="deny"',
-      "--config",
-      `permissions.benchmark.workspace_roots=${EvidenceBenchmarkTurnLedger.codexWorkspaceRootsConfig(workspace)}`,
-      "--config",
-      'permissions.benchmark.filesystem.:workspace_roots={"."="write"}',
-      "--config",
-      "permissions.benchmark.network.enabled=true",
-      "--config",
-      "permissions.benchmark.network.allow_upstream_proxy=false",
-      "--config",
-      'permissions.benchmark.network.domains={localhost="allow","127.0.0.1"="allow"}',
-      "--config",
-      'shell_environment_policy.inherit="core"',
-      "--config",
-      "shell_environment_policy.ignore_default_excludes=false",
-      "--config",
-      'shell_environment_policy.exclude=["*_PROXY","OPENAI_*","AZURE_*","AWS_*","GITHUB_TOKEN","GH_TOKEN","*KEY*","*SECRET*","*TOKEN*"]',
-      "--config",
-      `shell_environment_policy.set=${tomlStringMap(explicit)}`,
+      "--dangerously-bypass-approvals-and-sandbox",
     ];
   }
 
   /**
-   * Builds the strict Claude Code settings and tool surface for one measured
-   * cell. POSIX hosts add Claude's OS sandbox; native Windows retains the same
-   * non-interactive tool policy around the disposable measured workspace.
+   * Selects Claude Code's native non-interactive YOLO mode for a disposable
+   * cell.
    */
-  export function claudeIsolationArguments(
-    repository: string,
-    workspace: string,
-    environment: NodeJS.ProcessEnv,
-  ): string[] {
-    const runRoot: string = path.dirname(workspace);
-    const cache: string = path.join(runRoot, "cache");
-    const sandboxSupported: boolean = process.platform !== "win32";
-    const protectedEnvironment: string[] = [
-      ...new Set([
-        "ANTHROPIC_API_KEY",
-        "ANTHROPIC_AUTH_TOKEN",
-        "AWS_ACCESS_KEY_ID",
-        "AWS_SECRET_ACCESS_KEY",
-        "AWS_SESSION_TOKEN",
-        "AZURE_API_KEY",
-        "CLAUDE_CODE_OAUTH_TOKEN",
-        "GH_TOKEN",
-        "GITHUB_TOKEN",
-        "OPENAI_API_KEY",
-        ...Object.keys(environment).filter((name) =>
-          /(?:^|_)(?:KEY|SECRET|TOKEN|PASSWORD|PROXY)(?:_|$)/i.test(name),
-        ),
-      ]),
-    ].sort();
-    const tools: string = "Bash,Edit,Write,Read,Glob,Grep,Agent";
-    const workspaceGlob: string =
-      EvidenceBenchmarkTurnLedger.claudeWorkspaceGlob(workspace);
-    const allowedTools: string[] = [
-      "Bash",
-      `Edit(${workspaceGlob})`,
-      `Write(${workspaceGlob})`,
-      `Read(${workspaceGlob})`,
-      "Agent",
-    ];
+  export function claudeYoloArguments(): string[] {
     const settings = {
-      permissions: {
-        allow: allowedTools,
-        deny: ["WebFetch", "WebSearch"],
-      },
-      sandbox: {
-        enabled: sandboxSupported,
-        failIfUnavailable: sandboxSupported,
-        autoAllowBashIfSandboxed: true,
-        allowUnsandboxedCommands: false,
-        filesystem: {
-          denyRead: ["~/", path.resolve(repository), runRoot],
-          allowRead: [workspace, cache],
-          allowWrite: [cache],
-        },
-        credentials: {
-          envVars: protectedEnvironment.map((name) => ({
-            name,
-            mode: "deny",
-          })),
-        },
-        network: {
-          allowedDomains: ["localhost", "127.0.0.1"],
-          strictAllowlist: true,
-          allowLocalBinding: true,
-        },
-      },
       autoMemoryEnabled: false,
       env: {
         ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-sonnet-5",
         ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5",
         CLAUDE_CODE_SUBAGENT_MODEL: "claude-sonnet-5",
         CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: "0",
-        CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1",
       },
       attribution: {
         commit: "",
@@ -285,12 +149,9 @@ export namespace EvidenceBenchmarkCommandLine {
       },
     };
     return [
-      "--permission-mode",
-      "dontAsk",
+      "--dangerously-skip-permissions",
       "--tools",
-      tools,
-      "--allowedTools",
-      allowedTools.join(","),
+      "Bash,Edit,Write,Read,Glob,Grep,Agent",
       "--disallowedTools",
       "WebFetch,WebSearch",
       "--setting-sources",
@@ -305,6 +166,19 @@ export namespace EvidenceBenchmarkCommandLine {
       "--prompt-suggestions",
       "false",
     ];
+  }
+
+  /** Refuses native YOLO when a model-launched shell could inherit a secret. */
+  export function assertYoloEnvironment(environment: NodeJS.ProcessEnv): void {
+    const sensitive: string[] = Object.keys(environment)
+      .filter((name) =>
+        /(?:^|_)(?:KEY|SECRET|TOKEN|PASSWORD|PROXY)(?:_|$)/i.test(name),
+      )
+      .sort();
+    if (sensitive.length !== 0)
+      throw new Error(
+        `Benchmark native YOLO requires local CLI authentication and a credential-free controller environment; unset: ${sensitive.join(", ")}.`,
+      );
   }
 
   /**
@@ -410,6 +284,7 @@ export namespace EvidenceBenchmarkCommandLine {
       throw new Error(
         `Benchmark start requires a clean source tree:\n${status}`,
       );
+    assertYoloEnvironment(process.env);
     const cliVersions: ReadonlyMap<EvidenceBenchmarkEngine.Name, string> =
       new Map(
         EvidenceBenchmarkEngine.MATRIX.map((engine) => [
@@ -418,6 +293,7 @@ export namespace EvidenceBenchmarkCommandLine {
         ]),
       );
     proveCodexAdapter(repository);
+    proveClaudeAdapter(repository);
     await EvidenceBenchmarkRuntime.assertAvailable(
       cells.map((cell) => cell.runtime),
     );
@@ -528,6 +404,9 @@ export namespace EvidenceBenchmarkCommandLine {
           ? `Run ${runId} is already complete.`
           : `Run ${runId} is still running; refusing a parallel resume controller.`,
       );
+    assertYoloEnvironment(process.env);
+    if (engine.engine === "codex") proveCodexAdapter(repository);
+    else proveClaudeAdapter(repository);
     const state: IState =
       retainedState.schemaVersion === 7
         ? normalizeLegacyTiming(root, retainedState)
@@ -756,34 +635,34 @@ export namespace EvidenceBenchmarkCommandLine {
       if (inspection.sessionLinked) sessionEstablished = true;
     });
     if (
-      invalidIndex === undefined ||
-      invalidName === undefined ||
-      invalidReason === undefined ||
-      invalidCode === undefined ||
-      invalidOccurrenceCount === undefined ||
-      invalidTurn === undefined
-    )
-      return sessionEstablished;
-    for (const turn of props.state.turns)
-      if (
-        turn.accepted === true &&
-        props.instructions.findIndex(
-          (instruction) => instruction.name === turn.name,
-        ) >= invalidIndex
-      ) {
-        turn.accepted = false;
-        delete turn.lintRestorationSha256;
-      }
-    invalidTurn.acceptanceInvalidation = {
-      code: invalidCode,
-      occurrenceCount: invalidOccurrenceCount,
-      stdout: invalidTurn.stdout,
-    };
-    EvidenceBenchmarkTurnLedger.assertAcceptedOrder(props.state.turns);
-    writeState(props.root, props.state);
-    process.stderr.write(
-      `Invalidated accepted ${invalidName} turn before resume: ${invalidReason}\n`,
-    );
+      invalidIndex !== undefined &&
+      invalidName !== undefined &&
+      invalidReason !== undefined &&
+      invalidCode !== undefined &&
+      invalidOccurrenceCount !== undefined &&
+      invalidTurn !== undefined
+    ) {
+      for (const turn of props.state.turns)
+        if (
+          turn.accepted === true &&
+          props.instructions.findIndex(
+            (instruction) => instruction.name === turn.name,
+          ) >= invalidIndex
+        ) {
+          turn.accepted = false;
+          delete turn.lintRestorationSha256;
+        }
+      invalidTurn.acceptanceInvalidation = {
+        code: invalidCode,
+        occurrenceCount: invalidOccurrenceCount,
+        stdout: invalidTurn.stdout,
+      };
+      EvidenceBenchmarkTurnLedger.assertAcceptedOrder(props.state.turns);
+      writeState(props.root, props.state);
+      process.stderr.write(
+        `Invalidated accepted ${invalidName} turn before resume: ${invalidReason}\n`,
+      );
+    }
     return sessionEstablished;
   }
 
@@ -1011,9 +890,6 @@ export namespace EvidenceBenchmarkCommandLine {
     sessionId?: string;
     resume: boolean;
   }): Promise<ITurn> {
-    const cache: string = path.join(path.dirname(props.workspace), "cache");
-    fs.mkdirSync(path.join(cache, "agent-home"), { recursive: true });
-    fs.mkdirSync(path.join(cache, "os-temp"), { recursive: true });
     const outputSchema: string =
       EvidenceBenchmarkTurnLedger.turnOutputSchemaPath(props.workspace);
     const outputSchemaBytes: string = `${EvidenceBenchmarkTurnLedger.turnOutputSchemaJson()}\n`;
@@ -1043,7 +919,7 @@ export namespace EvidenceBenchmarkCommandLine {
     const environment: NodeJS.ProcessEnv =
       props.engine.engine === "codex"
         ? props.environment
-        : claudeEnvironment(cache, props.environment);
+        : claudeEnvironment(props.environment);
     const result: EvidenceBenchmarkAgentProcess.IResult =
       await EvidenceBenchmarkAgentProcess.run({
         command: executable.command,
@@ -1088,7 +964,7 @@ export namespace EvidenceBenchmarkCommandLine {
       props.engine.model,
       "--config",
       `model_reasoning_effort=${props.engine.effort}`,
-      ...codexIsolationArguments(props.workspace, props.environment),
+      ...codexYoloArguments(),
       "--output-schema",
       props.outputSchema,
       "--skip-git-repo-check",
@@ -1124,11 +1000,7 @@ export namespace EvidenceBenchmarkCommandLine {
       props.engine.model,
       "--effort",
       props.engine.effort,
-      ...claudeIsolationArguments(
-        props.repository,
-        props.workspace,
-        props.environment,
-      ),
+      ...claudeYoloArguments(),
       props.resume ? "--resume" : "--session-id",
       props.sessionId,
     ];
@@ -1476,7 +1348,6 @@ export namespace EvidenceBenchmarkCommandLine {
   }
 
   function claudeEnvironment(
-    cache: string,
     environment: NodeJS.ProcessEnv,
   ): NodeJS.ProcessEnv {
     const output: NodeJS.ProcessEnv = {
@@ -1488,21 +1359,9 @@ export namespace EvidenceBenchmarkCommandLine {
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
       CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: "0",
       CLAUDE_CODE_SUBAGENT_MODEL: "claude-sonnet-5",
-      CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1",
       DISABLE_AUTOUPDATER: "1",
     };
     return output;
-  }
-
-  function tomlString(value: string): string {
-    return JSON.stringify(value);
-  }
-
-  function tomlStringMap(values: Readonly<Record<string, string>>): string {
-    return `{${Object.entries(values)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, value]) => `${tomlString(key)}=${tomlString(value)}`)
-      .join(",")}}`;
   }
 
   function logStem(logs: string, name: TurnName): string {
@@ -1695,97 +1554,61 @@ export namespace EvidenceBenchmarkCommandLine {
     return version;
   }
 
-  /**
-   * Proves the exact Codex permission profile before any paid model work.
-   *
-   * The proof writes only inside a disposable run-owned root. It requires both
-   * configured roots to be writable and an adjacent path to remain denied.
-   */
+  /** Proves that fresh and resumed Codex turns expose native YOLO and schemas. */
   export function proveCodexAdapter(repository: string): void {
-    const workRoot: string = path.resolve(repository, "benchmark", ".work");
-    fs.mkdirSync(workRoot, { recursive: true });
-    const root: string = path.join(
-      workRoot,
-      `codex-adapter-proof-${crypto.randomUUID()}`,
-    );
-    assertInside(workRoot, root, "Codex adapter proof root");
-    const workspace: string = path.join(root, "workspace");
-    const cache: string = path.join(root, "cache");
-    const outside: string = path.join(root, "outside.txt");
-    const workspaceProof: string = path.join(workspace, "proof.txt");
-    const cacheProof: string = path.join(cache, "proof.txt");
-    fs.mkdirSync(workspace, { recursive: true });
-    fs.mkdirSync(cache, { recursive: true });
-    try {
-      const executable: { command: string; prefix: string[] } =
-        codexExecutable();
-      const isolation: readonly string[] = codexIsolationArguments(
-        workspace,
-        {},
-      );
-      const configs: string[] = isolation.flatMap((value, index) =>
-        value === "--config" ? ["--config", isolation[index + 1]!] : [],
-      );
-      const platform: string[] =
-        process.platform === "win32"
-          ? []
-          : [process.platform === "darwin" ? "macos" : "linux"];
-      const common: string[] = [
-        ...executable.prefix,
-        "sandbox",
-        ...platform,
-        "-P",
-        "benchmark",
-        "-C",
-        workspace,
-        ...configs,
-        "--",
-        process.execPath,
-        "-e",
-      ];
-      const writeScript: string =
-        'for (const target of process.argv.slice(1)) require("node:fs").writeFileSync(target, "proof")';
-      const allowed = spawnSync(
-        executable.command,
-        [...common, writeScript, workspaceProof, cacheProof],
-        {
-          cwd: workspace,
-          encoding: "utf8",
-          shell: false,
-          windowsHide: true,
-        },
-      );
+    const executable: { command: string; prefix: string[] } = codexExecutable();
+    for (const args of [
+      [...executable.prefix, "exec", "--help"],
+      [...executable.prefix, "exec", "resume", "--help"],
+    ]) {
+      const result = spawnSync(executable.command, args, {
+        cwd: repository,
+        encoding: "utf8",
+        shell: false,
+        windowsHide: true,
+      });
+      const output: string = result.stdout ?? "";
       if (
-        allowed.error !== undefined ||
-        allowed.status !== 0 ||
-        !fs.existsSync(workspaceProof) ||
-        !fs.existsSync(cacheProof)
+        result.error !== undefined ||
+        result.status !== 0 ||
+        !output.includes("--dangerously-bypass-approvals-and-sandbox") ||
+        !output.includes("--output-schema")
       )
         throw new Error(
-          `Codex adapter could not write its measured workspace and cache: ${(allowed.stderr ?? "").trim()}`,
+          `Codex CLI does not expose the required native YOLO and structured-output modes: ${(result.stderr ?? "").trim()}`,
         );
-      const denied = spawnSync(
-        executable.command,
-        [...common, writeScript, outside],
-        {
-          cwd: workspace,
-          encoding: "utf8",
-          shell: false,
-          windowsHide: true,
-        },
-      );
-      if (
-        denied.error !== undefined ||
-        denied.status === 0 ||
-        fs.existsSync(outside)
-      )
-        throw new Error(
-          "Codex adapter did not deny a write outside its measured workspace and cache.",
-        );
-    } finally {
-      assertInside(workRoot, root, "Codex adapter proof cleanup");
-      fs.rmSync(root, { recursive: true, force: true });
     }
+  }
+
+  /** Proves that Claude exposes native YOLO, structured output, and sessions. */
+  export function proveClaudeAdapter(repository: string): void {
+    const executable: { command: string; prefix: string[] } =
+      claudeExecutable();
+    const result = spawnSync(
+      executable.command,
+      [...executable.prefix, "--help"],
+      {
+        cwd: repository,
+        encoding: "utf8",
+        shell: false,
+        windowsHide: true,
+      },
+    );
+    const output: string = result.stdout ?? "";
+    for (const option of [
+      "--dangerously-skip-permissions",
+      "--json-schema",
+      "--resume",
+      "--session-id",
+    ])
+      if (
+        result.error !== undefined ||
+        result.status !== 0 ||
+        !output.includes(option)
+      )
+        throw new Error(
+          `Claude Code CLI does not expose the required native YOLO, structured-output, and session modes: ${(result.stderr ?? "").trim()}`,
+        );
   }
 
   function claudeExecutable(): { command: string; prefix: string[] } {

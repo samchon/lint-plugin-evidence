@@ -45,9 +45,9 @@ export namespace EvidenceBenchmarkSelfTest {
       createFixture(repository, fixture);
       await testPinnedPnpm(repository);
       await testAgentProcessLifecycle(temporary);
-      testCodexIsolation(temporary);
+      testCodexYolo();
       testCodexTurnLedger(temporary);
-      testClaudeIsolation(temporary);
+      testClaudeYolo();
       testEngineMatrix();
       testClaudeTurnLedger(temporary);
       testStateJournal(temporary);
@@ -345,80 +345,29 @@ export namespace EvidenceBenchmarkSelfTest {
     }
   }
 
-  function testCodexIsolation(temporary: string): void {
-    const root: string = path.join(temporary, "codex-isolation");
-    const workspace: string = path.join(root, "workspace");
-    const environment: NodeJS.ProcessEnv = {
-      API_PORT: "46000",
-      COREPACK_HOME: path.join(root, "cache", "corepack"),
-      GOCACHE: path.join(root, "cache", "go"),
-      GOMODCACHE: path.join(root, "cache", "go-mod"),
-      GOPATH: path.join(root, "cache", "go-path"),
-      GOTMPDIR: path.join(root, "cache", "go-tmp"),
-      npm_config_cache: path.join(root, "cache", "npm"),
-      npm_config_store_dir: path.join(root, "cache", "pnpm"),
-      OPENAI_API_KEY: "must-not-leak",
-      HTTPS_PROXY: "http://must-not-leak.invalid",
-      PLAYWRIGHT_BROWSERS_PATH: path.join(root, "cache", "playwright"),
-      PLAYWRIGHT_TEST_PORT: "46003",
-      SWAGGER_PORT: "46001",
-      TTSC_CACHE_DIR: path.join(root, "cache", "ttsc"),
-      TTSC_GO_CACHE_DIR: path.join(root, "cache", "go"),
-      VITE_API_HOST: "http://127.0.0.1:46000",
-      VITE_DEV_PORT: "46002",
-    };
+  function testCodexYolo(): void {
     const arguments_: readonly string[] =
-      EvidenceBenchmarkCommandLine.codexIsolationArguments(
-        workspace,
-        environment,
-      );
-    const invocation: string = arguments_.join("\n");
-    assert.equal(
-      invocation.includes("--dangerously-bypass-approvals-and-sandbox"),
-      false,
-      "measured Codex turns must never bypass approvals and sandboxing",
+      EvidenceBenchmarkCommandLine.codexYoloArguments();
+    assert.deepEqual(arguments_, [
+      "--ignore-user-config",
+      "--ignore-rules",
+      "--strict-config",
+      "--dangerously-bypass-approvals-and-sandbox",
+    ]);
+    assert.doesNotThrow(() =>
+      EvidenceBenchmarkCommandLine.assertYoloEnvironment({
+        API_PORT: "46000",
+      }),
     );
-    assert.equal(
-      invocation.includes("shell_environment_policy.inherit=all"),
-      false,
-      "measured Codex tools must not inherit the complete controller environment",
+    assert.throws(
+      () =>
+        EvidenceBenchmarkCommandLine.assertYoloEnvironment({
+          OPENAI_API_KEY: "must-not-leak",
+          HTTPS_PROXY: "http://must-not-leak.invalid",
+        }),
+      /unset: HTTPS_PROXY, OPENAI_API_KEY/,
+      "native YOLO admission must reject inherited credentials and proxies before model launch",
     );
-    assert.match(invocation, /default_permissions="benchmark"/);
-    assert.match(
-      invocation,
-      /permissions\.benchmark\.filesystem\.:root="deny"/,
-    );
-    assert.match(
-      invocation,
-      /permissions\.benchmark\.filesystem\.:workspace_roots=\{"\."="write"\}/,
-    );
-    const workspaceRoots: string =
-      EvidenceBenchmarkTurnLedger.codexWorkspaceRootsConfig(workspace);
-    assert.equal(
-      arguments_.includes(
-        `permissions.benchmark.workspace_roots=${workspaceRoots}`,
-      ),
-      true,
-      "Codex permissions must name both the measured workspace and its run-owned cache",
-    );
-    assert.equal(
-      workspaceRoots,
-      `{${[workspace, path.join(root, "cache")]
-        .map((entry) => path.resolve(entry))
-        .sort((left, right) => left.localeCompare(right))
-        .map((entry) => `${JSON.stringify(entry)}=true`)
-        .join(",")}}`,
-      "Codex workspace roots must be absolute and deterministic on every platform",
-    );
-    assert.equal(
-      invocation.includes('filesystem.":'),
-      false,
-      "Codex CLI dotted overrides must not quote special filesystem tokens",
-    );
-    assert.match(invocation, /permissions\.benchmark\.network\.domains=/);
-    assert.match(invocation, /shell_environment_policy\.inherit="core"/);
-    assert.match(invocation, /shell_environment_policy\.set=/);
-    assert.equal(invocation.includes("must-not-leak"), false);
   }
 
   function testCodexTurnLedger(temporary: string): void {
@@ -473,7 +422,7 @@ export namespace EvidenceBenchmarkSelfTest {
       "gpt-5.6-terra",
       "--config",
       "model_reasoning_effort=high",
-      ...EvidenceBenchmarkCommandLine.codexIsolationArguments(workspace, {}),
+      ...EvidenceBenchmarkCommandLine.codexYoloArguments(),
       "--output-schema",
       outputSchema,
       "--skip-git-repo-check",
@@ -518,18 +467,15 @@ export namespace EvidenceBenchmarkSelfTest {
     turn.signal = null;
     inspectCurrent();
     const invocation: string[] = [...(turn.invocation as string[])];
-    const rootsIndex: number = invocation.findIndex((value) =>
-      value.startsWith("permissions.benchmark.workspace_roots="),
+    invocation.splice(
+      invocation.indexOf("--dangerously-bypass-approvals-and-sandbox"),
+      1,
     );
-    assert.notEqual(rootsIndex, -1);
-    invocation[rootsIndex] =
-      `permissions.benchmark.workspace_roots={` +
-      `${JSON.stringify(path.join(runRoot, "cache"))}=true}`;
     turn.invocation = invocation;
     assert.throws(
       inspectCurrent,
-      /required model, effort, goal, and isolation invocation/,
-      "current Codex admission must reject a profile that omits the measured workspace",
+      /required model, effort, goal, and native YOLO invocation/,
+      "current Codex admission must reject an invocation without native YOLO mode",
     );
     turn.invocation = [
       "codex",
@@ -539,6 +485,51 @@ export namespace EvidenceBenchmarkSelfTest {
       workspace,
       "-",
     ];
+    const currentInvocation: string[] = [...(turn.invocation as string[])];
+    const retainedInvocation: string[] = [...currentInvocation];
+    retainedInvocation.splice(
+      retainedInvocation.indexOf("--dangerously-bypass-approvals-and-sandbox"),
+      1,
+    );
+    retainedInvocation.splice(
+      retainedInvocation.indexOf("--output-schema"),
+      0,
+      "--config",
+      'approval_policy="never"',
+      "--config",
+      'default_permissions="benchmark"',
+      "--config",
+      'permissions.benchmark.extends=":workspace"',
+      "--config",
+      'permissions.benchmark.filesystem.:root="deny"',
+      "--config",
+      `permissions.benchmark.workspace_roots=${EvidenceBenchmarkTurnLedger.codexWorkspaceRootsConfig(workspace)}`,
+      "--config",
+      'permissions.benchmark.filesystem.:workspace_roots={"."="write"}',
+    );
+    turn.invocation = retainedInvocation;
+    assert.equal(
+      EvidenceBenchmarkTurnLedger.inspectAttempt({
+        repository,
+        runRoot,
+        workspace,
+        engine: "codex",
+        sessionId,
+        model: "gpt-5.6-terra",
+        effort: "high",
+        sessionEstablished: false,
+        invocationPolicy: "retained",
+        turn,
+      }).verdict,
+      "acceptable",
+      "retained custom-profile attempts must remain auditable during native YOLO recovery",
+    );
+    assert.throws(
+      inspectCurrent,
+      /required model, effort, goal, and native YOLO invocation/,
+      "retained custom profiles must never admit a new Codex attempt",
+    );
+    turn.invocation = currentInvocation;
     write(
       path.join(runRoot, ...stdout.split("/")),
       [
@@ -606,6 +597,26 @@ export namespace EvidenceBenchmarkSelfTest {
       EvidenceBenchmarkTurnLedger.PolicyDeniedError,
       "a zero-exit Codex turn with a declined command must not be accepted",
     );
+    write(
+      path.join(runRoot, ...stderr.split("/")),
+      "ERROR codex_core::tools::router: rejected: blocked by policy\n",
+    );
+    assert.equal(
+      EvidenceBenchmarkTurnLedger.inspectAttempt({
+        repository,
+        runRoot,
+        workspace,
+        engine: "codex",
+        sessionId,
+        model: "gpt-5.6-terra",
+        effort: "high",
+        sessionEstablished: false,
+        invocationPolicy: "current",
+        turn,
+      }).denialCount,
+      1,
+      "one Codex denial emitted in JSONL and stderr must count once",
+    );
     write(path.join(runRoot, ...stdout.split("/")), successfulLog);
     write(
       path.join(runRoot, ...stderr.split("/")),
@@ -653,107 +664,34 @@ export namespace EvidenceBenchmarkSelfTest {
     write(path.join(runRoot, ...stdout.split("/")), successfulLog);
   }
 
-  function testClaudeIsolation(temporary: string): void {
-    const root: string = path.join(temporary, "claude-isolation");
-    const repository: string = path.join(temporary, "source-repository");
-    const workspace: string = path.join(root, "workspace");
-    const workspaceGlob: string =
-      EvidenceBenchmarkTurnLedger.claudeWorkspaceGlob(workspace);
-    const allowedTools: string[] = [
-      "Bash",
-      `Edit(${workspaceGlob})`,
-      `Write(${workspaceGlob})`,
-      `Read(${workspaceGlob})`,
-      "Agent",
-    ];
+  function testClaudeYolo(): void {
     const arguments_: readonly string[] =
-      EvidenceBenchmarkCommandLine.claudeIsolationArguments(
-        repository,
-        workspace,
-        {
-          ANTHROPIC_API_KEY: "must-not-leak",
-          HTTPS_PROXY: "http://must-not-leak.invalid",
-        },
-      );
+      EvidenceBenchmarkCommandLine.claudeYoloArguments();
     const invocation: string = arguments_.join("\n");
     assert.equal(
       invocation.includes("--dangerously-skip-permissions"),
-      false,
-      "measured Claude Code turns must never bypass permissions",
+      true,
+      "measured Claude Code turns must use the requested native YOLO mode",
     );
-    assert.equal(
-      invocation.includes("must-not-leak"),
-      false,
-      "Claude Code settings must retain protected names without secret values",
-    );
-    assert.equal(
-      arguments_[arguments_.indexOf("--permission-mode") + 1],
-      "dontAsk",
-    );
+    assert.equal(arguments_.includes("--permission-mode"), false);
     assert.equal(
       arguments_[arguments_.indexOf("--setting-sources") + 1],
       "",
       "measured Claude Code turns must not load mutable filesystem settings",
     );
-    assert.equal(
-      arguments_[arguments_.indexOf("--allowedTools") + 1],
-      allowedTools.join(","),
-      "Claude built-in file permissions must remain scoped to the workspace",
-    );
+    assert.equal(arguments_.includes("--allowedTools"), false);
     const settings = JSON.parse(
       arguments_[arguments_.indexOf("--settings") + 1]!,
     ) as {
-      sandbox: {
-        enabled: boolean;
-        failIfUnavailable: boolean;
-        allowUnsandboxedCommands: boolean;
-        filesystem: {
-          denyRead: string[];
-          allowRead: string[];
-          allowWrite: string[];
-        };
-        network: {
-          allowedDomains: string[];
-          strictAllowlist: boolean;
-        };
-      };
-      permissions: {
-        allow: string[];
-        deny: string[];
-      };
+      autoMemoryEnabled: boolean;
       env: Record<string, string>;
+      permissions?: unknown;
+      sandbox?: unknown;
     };
-    assert.deepEqual(settings.permissions.allow, allowedTools);
-    assert.deepEqual(settings.permissions.deny, ["WebFetch", "WebSearch"]);
-    assert.equal(
-      settings.permissions.allow.some((rule) => rule.includes("./**")),
-      false,
-      "Claude file permissions must not rely on project-relative matching",
-    );
-    assert.equal(settings.sandbox.enabled, process.platform !== "win32");
-    assert.equal(
-      settings.sandbox.failIfUnavailable,
-      process.platform !== "win32",
-    );
-    assert.equal(settings.sandbox.allowUnsandboxedCommands, false);
-    assert.deepEqual(settings.sandbox.filesystem.denyRead, [
-      "~/",
-      path.resolve(repository),
-      root,
-    ]);
-    assert.deepEqual(settings.sandbox.filesystem.allowRead, [
-      workspace,
-      path.join(root, "cache"),
-    ]);
-    assert.deepEqual(settings.sandbox.filesystem.allowWrite, [
-      path.join(root, "cache"),
-    ]);
-    assert.equal(settings.sandbox.network.strictAllowlist, true);
-    assert.deepEqual(settings.sandbox.network.allowedDomains, [
-      "localhost",
-      "127.0.0.1",
-    ]);
-    assert.equal(settings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, "1");
+    assert.equal(settings.permissions, undefined);
+    assert.equal(settings.sandbox, undefined);
+    assert.equal(settings.autoMemoryEnabled, false);
+    assert.equal(settings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, undefined);
     assert.equal(
       settings.env.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS,
       "0",
@@ -818,11 +756,7 @@ export namespace EvidenceBenchmarkSelfTest {
       model,
       "--effort",
       "high",
-      ...EvidenceBenchmarkCommandLine.claudeIsolationArguments(
-        repository,
-        workspace,
-        {},
-      ),
+      ...EvidenceBenchmarkCommandLine.claudeYoloArguments(),
     ];
     const turns: EvidenceBenchmarkTurnLedger.ITurn[] =
       EvidenceBenchmarkTurnLedger.NAMES.map((name, index) => {
@@ -842,7 +776,7 @@ export namespace EvidenceBenchmarkSelfTest {
               subtype: "success",
               is_error: false,
               terminal_reason: "completed",
-              stop_reason: "end_turn",
+              stop_reason: "tool_use",
               api_error_status: null,
               permission_denials: [],
               structured_output: {
@@ -923,12 +857,12 @@ export namespace EvidenceBenchmarkSelfTest {
     ];
     const tamperedBackendInvocation: string[] = [...currentBackendInvocation];
     tamperedBackendInvocation[
-      tamperedBackendInvocation.indexOf("--allowedTools") + 1
+      tamperedBackendInvocation.indexOf("--tools") + 1
     ] = "Bash";
     turns[1]!.invocation = tamperedBackendInvocation;
     assert.throws(
       retainedInspection,
-      /required model, effort, tools, and isolation invocation/,
+      /required model, effort, tools, and native YOLO invocation/,
       "a downstream invocation defect must abort the complete retained audit",
     );
     assert.equal(
@@ -955,32 +889,18 @@ export namespace EvidenceBenchmarkSelfTest {
     const currentFirstInvocation: string[] = [
       ...(turns[0]!.invocation as string[]),
     ];
-    const legacyAllowedTools: string[] = [
-      "Bash",
-      "Edit(./**)",
-      "Read(./**)",
-      "Agent",
-    ];
-    const legacyInvocation: string[] = [...currentFirstInvocation];
-    legacyInvocation[legacyInvocation.indexOf("--allowedTools") + 1] =
-      legacyAllowedTools.join(",");
-    const settingsIndex: number = legacyInvocation.indexOf("--settings") + 1;
-    const legacySettings = JSON.parse(legacyInvocation[settingsIndex]!) as {
-      permissions: { allow: string[] };
-    };
-    legacySettings.permissions.allow = legacyAllowedTools;
-    legacyInvocation[settingsIndex] = JSON.stringify(legacySettings);
-    turns[0]!.invocation = legacyInvocation;
-    EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
-      repository,
-      runRoot,
-      workspace,
-      engine: "claude-code",
-      sessionId,
-      model,
-      effort: "high",
-      turns,
-    });
+    write(
+      firstStdout,
+      successfulFirstLog
+        .split(/\r?\n/)
+        .map((line) => {
+          if (line.length === 0) return line;
+          const event = JSON.parse(line) as Record<string, unknown>;
+          if (event.type === "result") delete event.structured_output;
+          return JSON.stringify(event);
+        })
+        .join("\n"),
+    );
     assert.throws(
       () =>
         EvidenceBenchmarkTurnLedger.assertSuccessfulAttempt({
@@ -994,7 +914,155 @@ export namespace EvidenceBenchmarkSelfTest {
           sessionEstablished: false,
           turn: turns[0]!,
         }),
-      /required model, effort, tools, and isolation invocation/,
+      /no complete native terminal evidence/,
+      "Claude tool_use is terminal only when the requested structured output is retained",
+    );
+    write(
+      firstStdout,
+      successfulFirstLog.replace(
+        '"stop_reason":"tool_use"',
+        '"stop_reason":"end_turn"',
+      ),
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkTurnLedger.assertSuccessfulAttempt({
+          repository,
+          runRoot,
+          workspace,
+          engine: "claude-code",
+          sessionId,
+          model,
+          effort: "high",
+          sessionEstablished: false,
+          turn: turns[0]!,
+        }),
+      /no complete native terminal evidence/,
+      "a structured Claude invocation must end through its StructuredOutput tool",
+    );
+    write(firstStdout, successfulFirstLog);
+    const retainedAllowedTools: string[] = [
+      "Bash",
+      `Edit(${EvidenceBenchmarkTurnLedger.claudeWorkspaceGlob(workspace)})`,
+      `Write(${EvidenceBenchmarkTurnLedger.claudeWorkspaceGlob(workspace)})`,
+      `Read(${EvidenceBenchmarkTurnLedger.claudeWorkspaceGlob(workspace)})`,
+      "Agent",
+    ];
+    const legacyInvocation: string[] = [...currentFirstInvocation];
+    legacyInvocation.splice(
+      legacyInvocation.indexOf("--dangerously-skip-permissions"),
+      1,
+      "--permission-mode",
+      "dontAsk",
+      "--allowedTools",
+      retainedAllowedTools.join(","),
+    );
+    const settingsIndex: number = legacyInvocation.indexOf("--settings") + 1;
+    const protectedEnvironment: string[] = [
+      "ANTHROPIC_API_KEY",
+      "ANTHROPIC_AUTH_TOKEN",
+      "CLAUDE_CODE_OAUTH_TOKEN",
+      "GH_TOKEN",
+      "GITHUB_TOKEN",
+      "OPENAI_API_KEY",
+    ];
+    const legacySettings = {
+      permissions: {
+        allow: retainedAllowedTools,
+        deny: ["WebFetch", "WebSearch"],
+      },
+      sandbox: {
+        enabled: process.platform !== "win32",
+        failIfUnavailable: process.platform !== "win32",
+        autoAllowBashIfSandboxed: true,
+        allowUnsandboxedCommands: false,
+        filesystem: {
+          denyRead: ["~/", path.resolve(repository), runRoot],
+          allowRead: [workspace, path.join(runRoot, "cache")],
+          allowWrite: [path.join(runRoot, "cache")],
+        },
+        credentials: {
+          envVars: protectedEnvironment.map((name) => ({
+            name,
+            mode: "deny",
+          })),
+        },
+        network: {
+          allowedDomains: ["localhost", "127.0.0.1"],
+          strictAllowlist: true,
+          allowLocalBinding: true,
+        },
+      },
+      autoMemoryEnabled: false,
+      env: {
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
+        ANTHROPIC_DEFAULT_SONNET_MODEL: model,
+        CLAUDE_CODE_SUBAGENT_MODEL: model,
+        CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: "0",
+        CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1",
+      },
+      attribution: {
+        commit: "",
+        pr: "",
+        sessionUrl: false,
+      },
+    };
+    legacyInvocation[settingsIndex] = JSON.stringify(legacySettings);
+    turns[0]!.invocation = legacyInvocation;
+    EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
+      repository,
+      runRoot,
+      workspace,
+      engine: "claude-code",
+      sessionId,
+      model,
+      effort: "high",
+      turns,
+    });
+    const preSchemaInvocation: string[] = [...legacyInvocation];
+    preSchemaInvocation.splice(preSchemaInvocation.indexOf("--json-schema"), 2);
+    turns[0]!.invocation = preSchemaInvocation;
+    write(
+      firstStdout,
+      successfulFirstLog
+        .split(/\r?\n/)
+        .map((line) => {
+          if (line.length === 0) return line;
+          const event = JSON.parse(line) as Record<string, unknown>;
+          if (event.type === "result") {
+            event.stop_reason = "end_turn";
+            delete event.structured_output;
+          }
+          return JSON.stringify(event);
+        })
+        .join("\n"),
+    );
+    EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
+      repository,
+      runRoot,
+      workspace,
+      engine: "claude-code",
+      sessionId,
+      model,
+      effort: "high",
+      turns,
+    });
+    write(firstStdout, successfulFirstLog);
+    turns[0]!.invocation = legacyInvocation;
+    assert.throws(
+      () =>
+        EvidenceBenchmarkTurnLedger.assertSuccessfulAttempt({
+          repository,
+          runRoot,
+          workspace,
+          engine: "claude-code",
+          sessionId,
+          model,
+          effort: "high",
+          sessionEstablished: false,
+          turn: turns[0]!,
+        }),
+      /required model, effort, tools, and native YOLO invocation/,
       "legacy retained permissions must never admit a new attempt",
     );
     turns[0]!.invocation = currentFirstInvocation;
@@ -1009,7 +1077,30 @@ export namespace EvidenceBenchmarkSelfTest {
       "logs",
       "skills-contract.attempt-2.stderr.log",
     );
-    write(retryStdout, successfulFirstLog);
+    const taskNotificationResult = {
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      duration_api_ms: 0,
+      num_turns: 0,
+      stop_reason: null,
+      session_id: sessionId,
+      total_cost_usd: 0,
+      usage: {
+        input_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+        output_tokens: 0,
+      },
+      modelUsage: {},
+      permission_denials: [],
+      origin: {
+        kind: "task-notification",
+      },
+      result: "",
+    };
+    const resumedLog: string = `${JSON.stringify(taskNotificationResult)}\n${successfulFirstLog}`;
+    write(retryStdout, resumedLog);
     write(retryStderr, "");
     write(
       firstStdout,
@@ -1069,6 +1160,86 @@ export namespace EvidenceBenchmarkSelfTest {
         reasoning_output_tokens: 0,
       },
     });
+    const tenthStdout: string = path.join(
+      runRoot,
+      "logs",
+      "skills-contract.attempt-10.stdout.jsonl",
+    );
+    const tenthStderr: string = path.join(
+      runRoot,
+      "logs",
+      "skills-contract.attempt-10.stderr.log",
+    );
+    fs.renameSync(retryStdout, tenthStdout);
+    fs.renameSync(retryStderr, tenthStderr);
+    try {
+      const acceptedTenthTurn: EvidenceBenchmarkTurnLedger.ITurn = {
+        ...acceptedRetryTurn,
+        stdout: path.posix.join(
+          "logs",
+          "skills-contract.attempt-10.stdout.jsonl",
+        ),
+        stderr: path.posix.join(
+          "logs",
+          "skills-contract.attempt-10.stderr.log",
+        ),
+      };
+      EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
+        repository,
+        runRoot,
+        workspace,
+        engine: "claude-code",
+        sessionId,
+        model,
+        effort: "high",
+        turns: [rejectedPermissionTurn, acceptedTenthTurn, ...turns.slice(1)],
+      });
+    } finally {
+      fs.renameSync(tenthStdout, retryStdout);
+      fs.renameSync(tenthStderr, retryStderr);
+    }
+    write(
+      retryStdout,
+      resumedLog.replace('"output_tokens":0', '"output_tokens":1'),
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
+          repository,
+          runRoot,
+          workspace,
+          engine: "claude-code",
+          sessionId,
+          model,
+          effort: "high",
+          turns: [rejectedPermissionTurn, acceptedRetryTurn, ...turns.slice(1)],
+        }),
+      /multiple terminal events/,
+      "a task-notification result carrying usage must fail closed as an extra terminal candidate",
+    );
+    write(
+      retryStdout,
+      resumedLog.replace(
+        '"permission_denials":[]',
+        '"permission_denials":[],"errors":["background failure"]',
+      ),
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
+          repository,
+          runRoot,
+          workspace,
+          engine: "claude-code",
+          sessionId,
+          model,
+          effort: "high",
+          turns: [rejectedPermissionTurn, acceptedRetryTurn, ...turns.slice(1)],
+        }),
+      /multiple terminal events/,
+      "a task-notification result carrying errors must fail closed as an extra terminal candidate",
+    );
+    write(retryStdout, resumedLog);
     write(firstStdout, successfulFirstLog);
     write(
       firstStdout,
@@ -1360,7 +1531,7 @@ export namespace EvidenceBenchmarkSelfTest {
       "gpt-5.6-terra",
       "--config",
       "model_reasoning_effort=high",
-      ...EvidenceBenchmarkCommandLine.codexIsolationArguments(workspace, {}),
+      ...EvidenceBenchmarkCommandLine.codexYoloArguments(),
       "--output-schema",
       outputSchema,
       "--skip-git-repo-check",
@@ -1860,6 +2031,26 @@ export namespace EvidenceBenchmarkSelfTest {
           arm,
           "interrupted",
         );
+    for (const engine of EvidenceBenchmarkEngine.MATRIX)
+      for (const arm of ["evidence", "plain"] as const) {
+        const workspace: string = path.join(
+          repository,
+          "benchmark",
+          "result",
+          "todo",
+          engine.engine,
+          arm,
+          "runs",
+          runId,
+          "workspace",
+        );
+        write(path.join(workspace, "agent-staged.txt"), "staged agent work\n");
+        write(path.join(workspace, "agent-untracked.txt"), "agent work\n");
+        await EvidenceBenchmarkProcess.run("git", ["add", "agent-staged.txt"], {
+          cwd: workspace,
+          label: "repair fixture staged agent work",
+        });
+      }
     const result: EvidenceBenchmarkRepair.IResult =
       await EvidenceBenchmarkRepair.apply(
         repository,
@@ -1901,6 +2092,38 @@ export namespace EvidenceBenchmarkSelfTest {
             path.join(root, "interventions", `${result.patchSha256}.json`),
           ),
         );
+        const workspace: string = path.join(root, "workspace");
+        assert.equal(
+          (
+            await EvidenceBenchmarkProcess.run(
+              "git",
+              ["status", "--short", "--", "shared.txt"],
+              {
+                cwd: workspace,
+                label: "committed repair target status",
+              },
+            )
+          ).stdout,
+          "",
+        );
+        const status: string = (
+          await EvidenceBenchmarkProcess.run(
+            "git",
+            [
+              "status",
+              "--short",
+              "--",
+              "agent-staged.txt",
+              "agent-untracked.txt",
+            ],
+            {
+              cwd: workspace,
+              label: "preserved agent work status",
+            },
+          )
+        ).stdout.replaceAll("\\", "/");
+        assert.match(status, /^A  agent-staged\.txt\r?\n/);
+        assert.match(status, /\?\? agent-untracked\.txt\r?\n$/);
       }
     await expectFailure(
       () =>
@@ -1913,7 +2136,7 @@ export namespace EvidenceBenchmarkSelfTest {
             "todo",
           ]),
         ),
-      "already applied",
+      "patch state disagrees",
     );
 
     const forbiddenPatch: string = path.join(
@@ -2044,6 +2267,26 @@ export namespace EvidenceBenchmarkSelfTest {
       cwd: workspace,
       label: `${project}/${arm} repair fixture initialization`,
     });
+    await EvidenceBenchmarkProcess.run("git", ["add", "-A"], {
+      cwd: workspace,
+      label: `${project}/${arm} repair fixture baseline stage`,
+    });
+    await EvidenceBenchmarkProcess.run(
+      "git",
+      [
+        "-c",
+        "user.name=Evidence Benchmark",
+        "-c",
+        "user.email=evidence-benchmark@localhost",
+        "commit",
+        "-m",
+        "Freeze benchmark starting point",
+      ],
+      {
+        cwd: workspace,
+        label: `${project}/${arm} repair fixture baseline commit`,
+      },
+    );
   }
 
   function processResult(
@@ -2524,6 +2767,57 @@ export namespace EvidenceBenchmarkSelfTest {
         /input: \["src\/controllers"\]/,
         `integrated ${arm} Nestia config must select the authored controller tree directly`,
       );
+      const backendPackage: string = Buffer.from(
+        composition.files.get("packages/backend/package.json")!,
+      ).toString("utf8");
+      assert.match(
+        backendPackage,
+        /ttsc -p tsconfig\.tools\.json --noEmit && ttsc -p tsconfig\.lint\.json --noEmit/,
+        `integrated ${arm} backend lint must preserve generic tool-module checks before the authored-program gate`,
+      );
+      assert.equal(
+        (
+          JSON.parse(backendPackage) as {
+            scripts: Record<string, string>;
+          }
+        ).scripts["build:sdk"],
+        "nestia all && node ../api/scripts/ensure-nestia-exports.cjs && pnpm --dir ../api build",
+        `integrated ${arm} SDK generation must preserve the stable API facade while Nestia analyzes the controller graph`,
+      );
+      const backendLintProject: string = Buffer.from(
+        composition.files.get("packages/backend/tsconfig.lint.json")!,
+      ).toString("utf8");
+      assert.doesNotMatch(
+        backendLintProject,
+        /nestia\.config\.ts|prisma\.config\.ts/,
+        `integrated ${arm} authored-program lint must not apply identity naming to tool-mandated dotted modules`,
+      );
+      const backendToolsProject: string = Buffer.from(
+        composition.files.get("packages/backend/tsconfig.tools.json")!,
+      ).toString("utf8");
+      assert.match(
+        backendToolsProject,
+        /"include": \["nestia\.config\.ts", "prisma\.config\.ts"\]/,
+        `integrated ${arm} tool-module lint must compile both mandatory configuration modules`,
+      );
+      assert.match(
+        backendToolsProject,
+        /"configFile": "\.\/lint\.config\.tools\.ts"/,
+        `integrated ${arm} tool-module lint must use its shared generic rule projection`,
+      );
+      const backendToolsLint: string = Buffer.from(
+        composition.files.get("packages/backend/lint.config.tools.ts")!,
+      ).toString("utf8");
+      assert.match(
+        backendToolsLint,
+        /extends: "\.\.\/\.\.\/config\/lint\.config\.ts"/,
+        `integrated ${arm} tool modules must retain the complete shared lint contract`,
+      );
+      assert.doesNotMatch(
+        backendToolsLint,
+        /@samchon\/lint-plugin-evidence|evidence\//,
+        `integrated ${arm} tool-module projection must not pretend dotted filenames satisfy identity rules`,
+      );
       const wiring: string = Buffer.from(
         composition.files.get(".agents/skills/backend/wiring.md")!,
       ).toString("utf8");
@@ -2531,6 +2825,29 @@ export namespace EvidenceBenchmarkSelfTest {
         wiring,
         /MyModule\.input\(\)/,
         `integrated ${arm} wiring guide must not teach a nonexistent controller input API`,
+      );
+      const frontendVerification: string = Buffer.from(
+        composition.files.get(".agents/skills/frontend/verification.md")!,
+      ).toString("utf8");
+      assert.match(
+        frontendVerification,
+        /playwright\/no-standalone-expect[\s\S]+web-first locator waits[\s\S]+wrapping `test\(\)` callback/,
+        `integrated ${arm} frontend verification must preserve assertions without putting Playwright expect outside a registered test`,
+      );
+      const healthTest: string = Buffer.from(
+        composition.files.get(
+          "packages/backend/test/features/api/health/test_api_health.ts",
+        )!,
+      ).toString("utf8");
+      assert.match(
+        healthTest,
+        /import \* as api from "@integrated-self-test\/api";/,
+        `integrated ${arm} health test must import the SDK namespace that its inline-link citation resolves through`,
+      );
+      assert.doesNotMatch(
+        healthTest,
+        /import api from "@integrated-self-test\/api";/,
+        `integrated ${arm} health test must not cite through the package default alias`,
       );
       const workflow: string = Buffer.from(
         composition.files.get(".github/workflows/ci.yml")!,
@@ -2610,6 +2927,31 @@ export namespace EvidenceBenchmarkSelfTest {
       );
       claims.set(relative, objects);
     }
+    const backendTests = claims
+      .get("packages/backend/lint.config.ts")
+      ?.get("backend-tests");
+    assert.ok(backendTests, "the canonical backend config lost backend-tests");
+    const backendTestsSource: string = backendTests.node.getText(
+      backendTests.source,
+    );
+    assert.match(
+      backendTestsSource,
+      /package:\s*"@[^"]+\/api",\s*symbol:\s*\["function"\]/,
+      "backend-tests must use the package's declared type entry so namespace-import citations and the coverage population share one public address root",
+    );
+    const testingGuide: string = Buffer.from(
+      files.get(".agents/skills/backend/testing.md")!,
+    ).toString("utf8");
+    assert.match(
+      testingGuide,
+      /import \* as api from "@[^"]+\/api";/,
+      "the backend testing guide must teach namespace-import SDK citations",
+    );
+    assert.doesNotMatch(
+      testingGuide,
+      /import api(?:,|\s+from)/,
+      "the backend testing guide must not teach default-import SDK citations",
+    );
     assert.equal(
       [...claims.values()].reduce((sum, entries) => sum + entries.size, 0),
       7,

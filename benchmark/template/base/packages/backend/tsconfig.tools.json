@@ -1,14 +1,14 @@
 {
-  "extends": "./tsconfig.json",
+  "extends": "../../config/tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
     "rootDir": ".",
     "plugins": [
       {
         "transform": "@ttsc/lint",
-        "configFile": "./lint.config.ts"
+        "configFile": "./lint.config.tools.ts"
       }
     ]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
+  "include": ["nestia.config.ts", "prisma.config.ts"]
 }

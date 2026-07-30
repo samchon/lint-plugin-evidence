@@ -80,7 +80,7 @@ Only the most recent unused and unexpired proof for an active account can author
 
 An authenticated user may permanently delete their own account after confirming the current password. Failed confirmation leaves the account and all related state unchanged.
 
-Successful deletion revokes every session and removes the profile and every post and comment authored by the user. Votes cast by the user are removed, with affected content scores and author karma adjusted. Active subscriptions, including residual subscriptions to archived communities, moderator assignments, active bans, and unresolved reports belonging to the account are also removed. Unified moderation-history entries remain available under REQ-DOM-MODERATION-HISTORY without exposing the deleted user's former username, email, account identifier, or content.
+Successful deletion revokes every session and removes the profile and every post and comment authored by the user. Votes cast by the user are removed, with affected content scores and author karma adjusted. Subscriptions, moderator assignments, active bans, and unresolved reports belonging to the account are also removed. Resolved moderation history remains available without identifying the deleted user.
 
 Each community owned by the user follows the succession and archival outcomes in REQ-DOM-COMMUNITY-LIFE. Deletion is one complete outcome: if its required authorship, aggregate, or ownership effects cannot finish together, the account remains active.
 

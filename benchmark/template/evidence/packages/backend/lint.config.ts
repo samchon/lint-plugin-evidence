@@ -73,7 +73,6 @@ const graph: IEvidenceGraphConfig = {
         {
           type: "typescript",
           package: "{{apiPackageName}}",
-          file: "src/functional/index.ts",
           symbol: ["function"],
         },
         {

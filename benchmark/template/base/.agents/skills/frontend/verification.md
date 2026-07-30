@@ -46,6 +46,8 @@ test("customer checkout", ({ page }) => journey_customer_checkout(page));
 
 The export is the point. A journey that exists only inside a `test()` callback cannot be named, counted, or pointed at, and the walk from the requirement documents to the specs needs something to land on. **Every journey the documents give an actor has a spec, and every spec names the journey it walks**: both directions, with the same discipline the backend suite gets.
 
+The exported journey is lexically outside Playwright's registered `test()` callback, so `playwright/no-standalone-expect` rejects `expect()` inside it. Keep the complete interaction in the exported function and use web-first locator waits or explicit throwing checks for the conditions it owns; keep Playwright `expect()` assertions inside the wrapping `test()` callback. Do not remove a check to satisfy the rule—the helper and wrapper together must still fail when the named behavior disappears.
+
 The e2e mode runs everything under `journeys/`, first against simulation during development, then against the live backend to close.
 
 ## Two Meanings, Named Apart

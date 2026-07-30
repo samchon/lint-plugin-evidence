@@ -44,7 +44,7 @@ Launch only from a clean pushed commit. The repository suites and the consumer-s
 
 Schedule pressure, an absent user, or a nearly finished branch does not weaken this gate. Settle every deterministic template, package, configuration, build, port, and CI defect before model use.
 
-Claude Code measured launches use the installed local CLI and its existing authenticated account. On macOS, Linux, and WSL2, enable Claude's OS sandbox. On native Windows, run locally with the same frozen inputs, workspace-scoped built-in tools, secret-denying child environment, and local-task instructions; record the absence of Claude's OS-level filesystem and network enforcement as a platform qualification instead of inventing a container requirement that the generated SQLite application does not have.
+Codex and Claude Code measured launches use the installed local CLIs, their existing authenticated accounts, and each CLI's native non-interactive YOLO flag. Do not add a second permission profile or OS-sandbox policy inside the adapter. Launch only disposable measured workspaces, reject controller environments whose variable names identify credentials or proxies, freeze and audit the exact invocation, and report that model-launched shell commands are not filesystem- or network-isolated. The generated SQLite application requires no container runtime.
 
 ## Subject Order
 

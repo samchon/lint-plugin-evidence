@@ -1,4 +1,4 @@
-import api from "{{apiPackageName}}";
+import * as api from "{{apiPackageName}}";
 import typia from "typia";
 
 /**
