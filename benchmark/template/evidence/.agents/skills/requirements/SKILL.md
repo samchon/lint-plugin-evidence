@@ -5,7 +5,7 @@ description: Defines the immutable documents under docs/analysis, the exact H2/H
 
 # Requirements
 
-The graph's Markdown denominator is exactly the H2 and H3 headings selected from `docs/analysis/**/*.md`. Identify each as `<workspace-relative-path>#<anchor>`. An explicit `{#anchor}` wins and must begin with an ASCII letter or digit; later characters may also include `.`, `_`, `:`, and `-`. Otherwise lowercase the heading, keep letters, numbers, and `_`, collapse whitespace and `-` to one `-`, and remove other punctuation. Give headings that would collide distinct explicit anchors. H1, H4+, generated `docs/ERD.md`, and non-analysis Markdown are not denominator units.
+The graph's Markdown denominator is exactly the H2 and H3 headings selected from `docs/analysis/**/*.md`. Identify each as `<workspace-relative-path>#<anchor>`. An explicit `{#anchor}` wins and must begin with an ASCII letter or digit; later characters may also include `.`, `_`, `:`, and `-`. Otherwise lowercase the heading, keep letters, numbers, and `_`, collapse whitespace and `-` to one `-`, and remove other punctuation. Existing explicit anchors distinguish headings that would otherwise collide; never add, edit, or normalize one. H1, H4+, generated `docs/ERD.md`, and non-analysis Markdown are not denominator units.
 
 The build reports a selected section no claim acknowledges. It does not report a cited section you misunderstood, a detail hidden in its tables or examples, or an unselected file.
 

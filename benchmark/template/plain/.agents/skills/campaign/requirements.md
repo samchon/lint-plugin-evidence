@@ -4,7 +4,7 @@ Read [SKILL.md](SKILL.md) first. This mandatory dimension is the root of the ind
 
 ## What This Dimension Is
 
-`docs/analysis/` is given to you. You did not write it and you do not change, challenge, validate, reconcile, or repair it. Read it to exhaustion and maintain a complete written inventory of what it states.
+`docs/analysis/` is given to you. You did not write it and you do not change, challenge, validate, resolve, choose among, or rewrite apparent tensions in it. Read it to exhaustion, preserve every source statement, and maintain a complete written inventory of what it states.
 
 Nothing upstream can report a section you missed. Every downstream relationship silently inherits omissions from this inventory.
 
