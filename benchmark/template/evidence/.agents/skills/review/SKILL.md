@@ -55,6 +55,14 @@ Keep a concise review record in `wiki/review.md`: the source digest, confirmed f
 
 ## Completion
 
+Before a phase report, run the source-scoped search for that phase and require no matches:
+
+- **Backend:** `rg --hidden -n -F '@todo' packages/api packages/backend --glob '*.ts'`
+- **Frontend:** `rg --hidden -n -F '@todo' packages/frontend --glob '*.ts' --glob '*.tsx'`
+- **Overall:** `rg --hidden -n -F '@todo' packages --glob '*.ts' --glob '*.tsx'`
+
+These searches exclude the Evidence instruction files that teach the tag.
+
 An Evidence phase is complete when:
 
 - every phase claim is restored with its original population and `error` severity;
