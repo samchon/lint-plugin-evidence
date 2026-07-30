@@ -68,7 +68,7 @@ Another seller's owner view, or access by a banned or deleted seller, is refused
 
 An eligible seller may replace the shop name, description, or logo. Later customer views show the new live values, and a complete immutable seller-profile snapshot records time, changed fields, and before-and-after values across the profile.
 
-Purchase-time seller snapshots on existing order items remain unchanged. Another seller, or a banned or deleted seller, cannot perform the edit. A suspended seller retains profile-edit authority because suspension restricts catalog mutation rather than the public shop profile.
+Purchase-time seller snapshots on existing order items remain unchanged. Another seller, or a suspended, banned, or deleted seller, cannot perform the edit.
 
 ### REQ-SELLER-PROFILE-FUNCTIONS-3 View a public seller profile
 
@@ -180,7 +180,7 @@ Every successful edit creates a complete product snapshot containing all product
 
 ### REQ-PRODUCT-FUNCTIONS-3 Delete an owned product
 
-The owner may delete a product only when no unresolved payment attempt holds stock for any variant, none of its variants has a `paid` or `shipped` item, and none has a pending cancellation or refund request. An explicit payment failure whose holds were released is not a blocker. Eligibility is rechecked when deletion commits; otherwise, deletion is refused.
+The owner may delete a product only when none of its variants has a `paid` or `shipped` item and none has a pending cancellation or refund request. Otherwise, deletion is refused.
 
 Successful deletion removes the product, variants, images, and inventory records from the live catalog, removes wishlist entries, and makes cart references unavailable. Order items and immutable snapshots remain preserved.
 
@@ -250,7 +250,7 @@ Stock and inventory history do not change, and existing order items keep purchas
 
 ### REQ-VARIANT-FUNCTIONS-3 Delete a product variant
 
-The owner may delete a variant only when no unresolved payment attempt holds its stock, it has no `paid` or `shipped` item, and it has no pending cancellation or refund request. An explicit payment failure whose hold was released is not a blocker. Eligibility is rechecked when deletion commits. Successful deletion removes the live SKU and inventory history, and saved cart references become unavailable.
+The owner may delete a variant only when it has no `paid` or `shipped` item and no pending cancellation or refund request. Successful deletion removes the live SKU and inventory history, and saved cart references become unavailable.
 
 Order and snapshot evidence remains. If it was the final variant, the product remains visible as unavailable. A nonowner, banned or deleted seller, missing target, or active blocker is refused.
 
@@ -352,7 +352,7 @@ A positive resulting quantity above stock is retained with a shortage warning. N
 
 The platform returns every owned line with product name, option values, current effective unit price, requested quantity, subtotal, and live status. Subtotal is unit price times quantity, and cart total sums all saved line subtotals.
 
-Selected coupons are shown separately with current eligibility, per-line allocation preview, total discount, and net payable preview. Stock below quantity produces a shortage warning. A deleted or zero-stock variant, or a deleted, suspended, or banned product owner, produces an unavailable marker. Another customer's cart or unavailable identity is refused.
+Stock below quantity produces a shortage warning. A deleted or zero-stock variant, or a deleted, suspended, or banned product owner, produces an unavailable marker. Another customer's cart or unavailable identity is refused.
 
 ### REQ-CART-FUNCTIONS-3 Change cart quantity
 
@@ -380,35 +380,35 @@ The customer selects a retained owned address or uses the existing default. No o
 
 ### REQ-CHECKOUT-JOURNEY-2 Review the order summary
 
-The summary shows every eligible product and variant, quantity, current effective unit price, gross subtotal, complete selected shipping address, selected coupons, per-line allocations, gross total, discount total, and net charge.
+The summary shows every eligible product and variant, quantity, current effective unit price, subtotal, complete selected shipping address, and total. Total is the sum of item subtotals.
 
-The shown address and coupon allocation become immutable only if the order succeeds. A price, stock, product or seller eligibility, cart quantity, address, coupon term, coupon eligibility, or coupon quota change before confirmation invalidates the summary and requires a refreshed review. Unavailable lines remain outside it.
+The shown address becomes immutable only if the order succeeds. A price, stock, product/seller eligibility, cart quantity, or address change before confirmation invalidates the summary and requires a refreshed review. Unavailable lines remain outside it.
 
 ### REQ-CHECKOUT-JOURNEY-3 Confirm and initiate payment
 
-Confirmation revalidates every reviewed price, quantity, stock balance, product, seller, address, coupon, published revision, eligibility boundary, stacking rule, allocation, and quota. Any change refuses payment initiation and returns a refreshed summary.
+Confirmation revalidates every reviewed price, quantity, stock balance, product, seller, and address. Any change refuses payment initiation and returns a refreshed summary.
 
-When all facts still match, the platform atomically places a temporary stock hold and one-use reservation for every selected coupon, then starts one external payment attempt for the reviewed net charge. A hold is not an inventory movement and a reservation is not a redemption. One payment-attempt identifier can create at most one all-or-nothing order across every selected item, seller, and coupon.
+When all facts still match, the platform places a temporary hold against each variant's available-to-purchase quantity and starts one external payment attempt for the reviewed total. A hold is not an inventory movement. One payment-attempt identifier can create at most one all-or-nothing order across every selected item and seller.
 
 ### REQ-CHECKOUT-JOURNEY-4 Recover from payment failure
 
-If the gateway reports failure, the platform creates no order, item, purchase snapshot, coupon redemption, or inventory movement. It releases every temporary stock hold and coupon reservation and preserves the cart and coupon selections.
+If the gateway reports failure, the platform creates no order, item, purchase snapshot, or inventory movement. It releases every temporary hold and preserves the cart.
 
 The customer can refresh the summary and retry with a new payment-attempt identifier. The failed identifier is final and cannot later create an order.
 
 ### REQ-CHECKOUT-JOURNEY-5 Create the paid order
 
-For a successful current held attempt, the platform atomically creates one order and one `paid` item per distinct purchased variant. The order records unique number, purchase time, gross total, discount total, net charge, customer, immutable address, coupons, and each item's seller.
+For a successful current held attempt, the platform atomically creates one order and one `paid` item per distinct purchased variant. The order records unique number, purchase time, total, customer, immutable address, and each item's seller.
 
-Each item fixes quantity, gross effective unit price, per-coupon allocations, total discount, and net refundable amount. Its product copy preserves name and description, its variant copy preserves options and price, and its seller-profile copy preserves shop name and logo. Repeated success notification for the same attempt returns the already-created outcome and cannot duplicate the order or redemption.
+Each item fixes quantity and effective unit price. Its product copy preserves name and description, its variant copy preserves options and price, and its seller-profile copy preserves shop name and logo. Repeated success notification for the same attempt returns the already-created outcome and cannot duplicate the order.
 
 An unknown, released, or otherwise finalized attempt cannot create another order.
 
 ### REQ-CHECKOUT-JOURNEY-6 Commit stock and cart effects
 
-Successful order creation consumes the temporary stock holds and coupon reservations, creates one redemption per applied coupon, posts one negative purchase inventory movement per item's quantity, and removes only the purchased cart lines. Unavailable or otherwise unpurchased lines remain.
+Successful order creation consumes the temporary holds, posts one negative purchase inventory movement per item's quantity, and removes only the purchased cart lines. Unavailable or otherwise unpurchased lines remain.
 
-The order, items, address, coupon and purchase snapshots, redemptions, allocations, inventory movements, and cart removals commit together. If any part cannot commit, none of these records or changes becomes visible and the paid result enters reconciliation.
+The order, items, address and purchase snapshots, inventory movements, and cart removals commit together. If any part cannot commit, none of these records or changes becomes visible.
 
 ## REQ-ORDER-HISTORY-FUNCTIONS Customer order history
 
@@ -416,13 +416,13 @@ Order history combines immutable purchase facts with current derived fulfillment
 
 ### REQ-ORDER-HISTORY-FUNCTIONS-1 List customer orders
 
-The platform returns every order owned by the acting customer in paginated newest-purchase-first order, with order number breaking equal purchase times. Each row shows order number, date, gross total, discount total, net charge, and current derived overall status.
+The platform returns every order owned by the acting customer in paginated newest-purchase-first order, with order number breaking equal purchase times. Each row shows order number, date, total price, and current derived overall status.
 
 All retained orders are reachable through pagination. Another customer's order or an unavailable customer identity is refused.
 
 ### REQ-ORDER-HISTORY-FUNCTIONS-2 View order details
 
-The customer can view every order item with purchase-time product name, selected variant options, quantity, fixed gross unit price, coupon allocations, net refundable amount, and current item status, plus the complete immutable shipping address. Order gross total, discount total, net charge, applied coupons, and current derived overall status are included.
+The customer can view every order item with purchase-time product name, selected variant options, quantity, fixed unit price, and current item status, plus the complete immutable shipping address. Order total and current derived overall status are included.
 
 Product, variant, and seller values come from purchase snapshots, so live deletion does not remove them. Cancellation and refund history remains linked. A foreign order or unavailable customer identity is refused.
 
@@ -498,7 +498,7 @@ No refund or inventory movement occurs, the customer can view the result, and th
 
 ### REQ-CANCELLATION-FUNCTIONS-5 Commit approved cancellation effects
 
-Approval returns only the target item's preserved net refundable amount and posts a positive cancellation-restoration movement equal to its purchased quantity. Gross price and coupon allocations remain preserved. Other order items remain unchanged, and the derived overall order status recalculates.
+Approval refunds only the target item and posts a positive cancellation-restoration movement equal to its purchased quantity. Other order items remain unchanged, and the derived overall order status recalculates.
 
 Request/item transitions, decision snapshot, refund, inventory movement, and derived state commit together. If any part fails, none becomes visible.
 
@@ -554,7 +554,7 @@ No refund or inventory movement occurs, the customer can view the result, and sh
 
 ### REQ-REFUND-FUNCTIONS-5 Commit approved refund effects
 
-Approval returns only the target item's preserved net refundable amount and posts a positive refund-restoration movement equal to its purchased quantity. Gross price and coupon allocations remain preserved. Other order items remain unchanged, and the derived overall order status recalculates.
+Approval refunds only the target item and posts a positive refund-restoration movement equal to its purchased quantity. Other order items remain unchanged, and the derived overall order status recalculates.
 
 Request/item transitions, decision snapshot, refund, inventory movement, and derived state commit together. If any part fails, none becomes visible.
 
@@ -693,13 +693,13 @@ Forced cancellation and refund remain item-based even when initiated for an orde
 
 An administrator can page through all orders newest creation first. Optional filters are derived overall status, customer identity, seller participation, and inclusive creation date range; supplied filters intersect.
 
-Each row shows order identifier and number, customer identifier or deleted-user marker, creation time, gross total, discount total, net charge, derived status, item count, and participating-seller count. A seller matches when at least one retained order item carries that seller's snapshot. Order identifier breaks equal times, and later customer or seller deletion does not remove a row.
+Each row shows order identifier and number, customer identifier or deleted-user marker, creation time, fixed total, derived status, item count, and participating-seller count. A seller matches when at least one retained order item carries that seller's snapshot. Order identifier breaks equal times, and later customer or seller deletion does not remove a row.
 
 An unsupported status, inverted date range, or actor without an administrator grade is refused.
 
 ### REQ-ORDER-OVERSIGHT-2 View a platform order
 
-An administrator can open any order and see its immutable shipping address, gross total, discount total, net charge, applied coupons, derived status, and every item. Each item includes purchase-time product, variant, seller, gross unit price, quantity, coupon allocations, net refundable amount, current status, cancellation or refund history, and any associated stock restoration.
+An administrator can open any order and see its immutable shipping address, fixed total, derived status, and every item. Each item includes purchase-time product, variant, seller, unit price, quantity, current status, cancellation or refund history, and any associated stock restoration.
 
 Every shipment shows seller, carrier, tracking number, shipping and delivery times, and included items. Deleted customer, seller, product, and variant facts come from retained identifiers or snapshots rather than removed live profiles.
 
@@ -707,7 +707,7 @@ Forced-action history identifies administrator, policy reason, time, affected it
 
 ### REQ-ORDER-OVERSIGHT-3 Force-cancel one order item
 
-An administrator supplies a nonempty policy reason for one item currently `paid` or `shipped`. The item becomes `cancelled`, the customer receives its preserved net refundable amount, and a positive inventory record restores the purchased quantity. Gross price and coupon allocations remain unchanged. Other items do not change, and the overall status recalculates.
+An administrator supplies a nonempty policy reason for one item currently `paid` or `shipped`. The item becomes `cancelled`, the customer is refunded for that line, and a positive inventory record restores the purchased quantity. Other items do not change, and the overall status recalculates.
 
 If that item has a pending cancellation request, the request becomes `approved` with an immutable decision snapshot attributed to the administrator; no request is invented when none exists. Prior shipment tracking stays as history.
 
@@ -715,7 +715,7 @@ The action records actor, reason, time, prior state, and resulting state. Transi
 
 ### REQ-ORDER-OVERSIGHT-4 Force-cancel an order's eligible items
 
-An administrator supplies one nonempty policy reason for an order. Every item currently `paid` or `shipped` is selected; the administrator cannot choose a smaller subset through this command. Each selected item becomes `cancelled`, returns its preserved net refundable amount, and posts a quantity-matching stock restoration.
+An administrator supplies one nonempty policy reason for an order. Every item currently `paid` or `shipped` is selected; the administrator cannot choose a smaller subset through this command. Each selected item becomes `cancelled`, receives its line refund, and posts a quantity-matching stock restoration.
 
 Any pending cancellation for a selected item becomes `approved` with its own decision snapshot. `delivered`, already `cancelled`, and already `refunded` lines remain unchanged. The same actor, reason, and time are recorded for every affected line.
 
@@ -723,7 +723,7 @@ At least one item must qualify. All item and request transitions, customer refun
 
 ### REQ-ORDER-OVERSIGHT-5 Force-refund one order item
 
-An administrator supplies a nonempty policy reason for one item currently `paid`, `shipped`, or `delivered`. The item becomes `refunded`, the customer receives its preserved net refundable amount, a positive inventory record restores purchased quantity, and overall order status recalculates. Gross price and coupon allocations remain unchanged.
+An administrator supplies a nonempty policy reason for one item currently `paid`, `shipped`, or `delivered`. The item becomes `refunded`, the customer receives its line amount, a positive inventory record restores purchased quantity, and overall order status recalculates.
 
 A pending refund request becomes `approved` with an immutable administrator-attributed decision snapshot; no request is invented otherwise. Shipment, delivery, purchase snapshots, and published review history remain intact.
 
@@ -731,178 +731,8 @@ Transition, request decision, refund, inventory movement, and recalculation comm
 
 ### REQ-ORDER-OVERSIGHT-6 Force-refund an order's eligible items
 
-An administrator supplies one nonempty policy reason for an order. Every `paid`, `shipped`, or `delivered` item is selected and becomes `refunded`; each returns its preserved net refundable amount and receives matching stock restoration. `cancelled` and already `refunded` lines remain unchanged.
+An administrator supplies one nonempty policy reason for an order. Every `paid`, `shipped`, or `delivered` item is selected and becomes `refunded`; each receives its line refund and matching stock restoration. `cancelled` and already `refunded` lines remain unchanged.
 
 Pending refund requests for selected items become `approved` with separate decision snapshots. The same actor, reason, and time are recorded across the affected set. At least one item must qualify, and any eligible item with a pending cancellation blocks the whole command.
 
 All item and request transitions, refunds, inventory records, and derived-status recalculation commit together or none does. Missing reason, absent order, no eligible line, a pending cancellation conflict, any failed refund, or non-administrator is refused.
-
-## REQ-SELLER-COUPON-FUNCTIONS Seller coupon operations
-
-Approved sellers manage discount policies for their own merchandise. Definition work is separate from operational pause and immutable redemption history.
-
-### REQ-SELLER-COUPON-FUNCTIONS-1 Create a seller coupon draft
-
-An approved, nonsuspended, nonbanned seller may create a draft seller coupon with a new canonical code, presentation, fixed or percentage discount terms, target sets limited to owned merchandise, customer audience, validity window, minimum subtotal, per-customer and total limits, and stacking mode.
-
-The draft belongs permanently to the acting seller and is not discoverable. Invalid or foreign targets, duplicate code, incomplete terms, or ineligible seller state is refused.
-
-### REQ-SELLER-COUPON-FUNCTIONS-2 Edit a seller coupon draft
-
-The owning eligible seller may replace any draft term before publication. The platform validates the complete resulting definition and creates an immutable before-and-after revision.
-
-Published or retired coupons and coupons owned by another seller cannot be edited. A refused edit changes no definition or revision history.
-
-### REQ-SELLER-COUPON-FUNCTIONS-3 Publish a seller coupon
-
-The owning eligible seller may publish a valid draft. Publication freezes its terms revision and returns scheduled or active state from the authoritative current time.
-
-Publication is refused when the code or targets are no longer valid, the window or quota is invalid, or the seller is unapproved, suspended, banned, or deleted. No partial published state remains.
-
-### REQ-SELLER-COUPON-FUNCTIONS-4 Pause and resume a seller coupon
-
-The owning seller may pause a scheduled or active coupon, including while suspended. The owner may resume it only while approved, nonsuspended, nonbanned, before expiry, with quota remaining.
-
-Pause and resume record actor, time, prior state, and resulting state. They change no published term, reservation, redemption, or order allocation.
-
-### REQ-SELLER-COUPON-FUNCTIONS-5 Retire a seller coupon
-
-The owning seller may permanently retire a coupon in any retained lifecycle state. A suspended seller retains this risk-reducing command; a banned or deleted seller cannot authenticate to use it.
-
-Retirement blocks new reservations and records actor and time. Existing reservations reconcile and retained orders remain unchanged.
-
-### REQ-SELLER-COUPON-FUNCTIONS-6 List seller coupons and redemptions
-
-The seller can page through owned coupons by newest creation time with coupon identifier breaking ties and filter by lifecycle state. Each row reports code, presentation, published revision, time window, quota summary, operational state, and realized discount total.
-
-An owned coupon detail pages through that coupon's redemptions and item allocations newest first without exposing unrelated seller lines or the customer's private allowlist. Another seller, banned seller, or deleted seller is refused.
-
-## REQ-PLATFORM-COUPON-FUNCTIONS Platform coupon administration
-
-Regular and super administrators manage platform-owned discount policies. Platform coupons can span sellers, while mutation history preserves the acting administrator.
-
-### REQ-PLATFORM-COUPON-FUNCTIONS-1 Create a platform coupon draft
-
-An administrator may create a draft platform coupon with a new canonical code, presentation, discount terms, optional seller, product, and category targets, customer audience, validity window, minimum subtotal, quotas, and stacking mode.
-
-The coupon has no seller owner and is not discoverable before publication. Invalid target combinations, duplicate code, incomplete terms, or non-administrator actor is refused.
-
-### REQ-PLATFORM-COUPON-FUNCTIONS-2 Edit a platform coupon draft
-
-An administrator may replace any term of a platform draft. The complete resulting definition is validated and an immutable before-and-after revision records actor and time.
-
-Published, retired, or seller-owned coupons cannot be edited through this command. A refused edit leaves no changed definition or revision.
-
-### REQ-PLATFORM-COUPON-FUNCTIONS-3 Publish a platform coupon
-
-An administrator may publish a valid platform draft. Publication freezes its terms and derives scheduled or active state from the authoritative current time.
-
-Invalid code, targets, window, quota, or actor is refused. Publication changes no seller ownership, product price, cart, reservation, or order.
-
-### REQ-PLATFORM-COUPON-FUNCTIONS-4 Pause and resume a platform coupon
-
-An administrator may pause a scheduled or active platform coupon and may resume it before expiry when quota remains. Pause and resume record actor, time, prior state, and resulting state.
-
-The commands change no terms, reservation, redemption, or order allocation. A non-administrator or ineligible lifecycle transition is refused.
-
-### REQ-PLATFORM-COUPON-FUNCTIONS-5 Retire a platform coupon or moderate a seller coupon
-
-An administrator may retire a platform-owned coupon under platform authority. For a seller coupon, an administrator may pause or retire it only as a moderation action with a nonblank policy reason; the administrator cannot edit its terms, publish it, or resume it for the seller. Moderation records actor, reason, time, owner, prior state, and resulting state.
-
-Pause or retirement blocks new reservations but preserves held attempts and history. A blank reason for seller-coupon moderation, nonexistent target, transition unavailable from the current state, attempt to exercise seller ownership authority, or non-administrator is refused.
-
-### REQ-PLATFORM-COUPON-FUNCTIONS-6 Inspect all coupons and redemptions
-
-An administrator can page through every retained seller and platform coupon and filter by authority layer, owner, state, code, and validity range. Each detail includes immutable revisions, operational events, reservations, quota counts, redemptions, orders, item allocations, and moderation history.
-
-Canonical code and coupon identifier break equal sort keys. A non-administrator cannot use this platform-wide inspection.
-
-## REQ-CUSTOMER-COUPON-FUNCTIONS Customer coupon discovery and selection
-
-Customers see only coupon choices relevant to their identity and current merchandise. Selection and preview remain reversible and nonreserving until payment confirmation.
-
-### REQ-CUSTOMER-COUPON-FUNCTIONS-1 List available coupons for a cart
-
-The customer can list published, operationally enabled, time-valid coupons whose audience includes that customer and whose authority and target scope intersects current live cart lines. Results show code, name, description, discount presentation, minimum, validity end, stacking mode, and current applicability.
-
-The list does not expose allowlist members, global or another customer's use counts, reservations, or hidden coupons. A foreign cart or unavailable customer identity is refused.
-
-### REQ-CUSTOMER-COUPON-FUNCTIONS-2 Enter a coupon code
-
-The customer may submit a code for the owned cart. Canonical lookup returns the same eligibility and presentation as discovery when the coupon is visible and applicable.
-
-An unknown, retired, paused, expired, not-yet-valid, exhausted, audience-ineligible, target-ineligible, or foreign-cart code returns one safe inapplicable result without revealing private policy details and creates no selection or reservation.
-
-### REQ-CUSTOMER-COUPON-FUNCTIONS-3 Select coupons for checkout
-
-The customer may select at most one platform coupon and at most one seller coupon per participating seller, or one exclusive coupon alone. Every selected coupon must currently apply to at least one cart line and satisfy its customer, time, subtotal, and quota preview.
-
-Selection stores coupon identities on the owned cart without consuming quota. A stacking conflict or ineligible coupon refuses the new selection and preserves the previous valid selection.
-
-### REQ-CUSTOMER-COUPON-FUNCTIONS-4 Remove a selected coupon
-
-The customer may remove one selected coupon from the owned cart. Later cart and checkout previews omit it and recalculate discounts without altering coupon quota, product price, stock, or prior orders.
-
-A missing selection, foreign cart, or unavailable customer identity is refused.
-
-### REQ-CUSTOMER-COUPON-FUNCTIONS-5 View the current discount preview
-
-Cart view reports gross amount, each selected coupon's current eligibility and realized discount, every affected line allocation, total discount, and net payable amount. Invalid selections identify a safe reason category and contribute zero to payable discount.
-
-The preview uses current prices, quantities, catalog targets, customer, time, published terms, and quota facts. It is informative and nonreserving.
-
-## REQ-COUPON-CHECKOUT-JOURNEY Coupon-aware checkout and payment
-
-Coupon review joins the existing stock-and-price checkout snapshot. Confirmation acquires all stock holds and coupon quota reservations before charge, and payment reconciliation owns both.
-
-### REQ-COUPON-CHECKOUT-JOURNEY-1 Build the coupon-aware order summary
-
-Checkout revalidates every selected coupon and computes seller-layer discounts before the platform layer. The summary shows gross line and order amounts, each coupon and its eligible lines, per-line allocations, total discount, net line amounts, and final charge.
-
-An ineligible coupon, conflict, exhausted limit, or nonpositive eligible remainder refuses the summary until the customer changes the selection. Unselected eligible coupons are never applied automatically.
-
-### REQ-COUPON-CHECKOUT-JOURNEY-2 Revalidate and reserve every coupon
-
-Confirmation rechecks code identity, published revision, operational state, validity boundary, audience, targets, minimum, stacking, and per-customer and total quotas at one authoritative commit instant. It atomically reserves one use for every selected coupon together with all stock holds.
-
-If any coupon or stock reservation loses a concurrent race, the platform starts no payment and acquires none of the requested reservations or holds. The customer receives a refreshed review.
-
-### REQ-COUPON-CHECKOUT-JOURNEY-3 Reconcile payment failure and uncertainty
-
-Explicit gateway failure releases each coupon reservation and stock hold exactly once and preserves cart selections. An unknown result keeps every reservation and hold under the same payment-attempt identifier and blocks a replacement attempt.
-
-Reconciliation applies the terminal result to the complete reservation set. Process restart, callback replay, coupon pause, coupon expiry, or coupon retirement does not split the attempt.
-
-### REQ-COUPON-CHECKOUT-JOURNEY-4 Create coupon order evidence on success
-
-Confirmed success consumes every coupon reservation and stock hold and creates the order, items, coupon redemptions, published terms snapshots, per-item allocations, inventory movements, and purchased-cart removal together.
-
-The charge equals preserved net amount. Repeated success for the payment attempt returns the same order and duplicates no use, redemption, discount, movement, or removal.
-
-### REQ-COUPON-CHECKOUT-JOURNEY-5 Reject stale or inconsistent discount settlement
-
-Gateway success with an amount or coupon set different from the held review enters payment reconciliation and creates no ordinary order. A local commit failure after correct gateway success retains quota and stock protection until the paid outcome is finalized.
-
-No retry can release, replace, or reprice that attempt from current coupon terms. Reconciliation uses the published revisions and allocation captured by the held review.
-
-## REQ-COUPON-ORDER-HISTORY Coupon order and reversal presentation
-
-Customers, sellers, and administrators inspect preserved coupon facts from the purchase rather than current coupon definitions. Later item resolution returns net money and leaves redemption history stable.
-
-### REQ-COUPON-ORDER-HISTORY-1 Show customer discount evidence
-
-Customer order details show gross total, every applied coupon code and authority layer, realized discount, total discount, net charge, and each item's gross subtotal, coupon allocations, and net refundable amount.
-
-Later coupon pause, expiry, retirement, seller deletion, or catalog change does not rewrite the display. Another customer cannot inspect it.
-
-### REQ-COUPON-ORDER-HISTORY-2 Show seller-attributed discount evidence
-
-Each seller sees gross, seller-coupon allocation, platform-coupon allocation, total discount, and net amount only for items attributed to that seller. A seller coupon redemption report includes only its owner's coupon and lines.
-
-One seller cannot inspect another seller's gross lines, seller coupon, customer allowlist, quota, or redemption detail. Platform-wide totals remain administrator-only.
-
-### REQ-COUPON-ORDER-HISTORY-3 Preserve discount effects through cancellation and refund
-
-Cancellation, refund, and force resolution return the target item's preserved net refundable amount and retain its gross and coupon allocations as history. A reversal does not recalculate discounts against the remaining order or increase another item's net amount.
-
-Consumed total and per-customer coupon uses are not restored after an order succeeds, including full-order cancellation or refund. Stock restoration remains equal to item quantity and independent of money allocation.

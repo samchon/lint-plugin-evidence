@@ -42,7 +42,7 @@ Each customer may have zero or one default. Selecting a default transfers the de
 
 Adding or editing an address requires nonempty recipient name, phone number, street address, city, state or province, postal code, and country. Whitespace-only input is missing, and one field cannot stand in for another.
 
-All seven values belong to the same saved address. State or province remains required even where local terminology differs; the platform does not impose an unstated universal phone or postal-code format.
+All eight values belong to the same saved address. State or province remains required even where local terminology differs; the platform does not impose an unstated universal phone or postal-code format.
 
 ### REQ-ADDRESS-POLICIES-2 Enforce address ownership
 
@@ -102,15 +102,9 @@ Seller deletion requires zero retained seller-attributed items in `paid` or `shi
 
 ### REQ-SELLER-ACCOUNT-POLICIES-5 Block seller deletion during unresolved requests
 
-Seller deletion also requires zero `pending` cancellation or refund requests for seller-attributed order items. A pending cancellation blocks while its item is paid, and a pending refund blocks while its item is delivered. A delivered item whose seven-day refund-request deadline has not passed also blocks closure, even when it has no current request, so account deletion cannot remove the only ordinary decision maker during a customer's open refund opportunity.
+Seller deletion also requires zero `pending` cancellation or refund requests for seller-attributed order items. A pending cancellation blocks while its item is paid, and a pending refund blocks while its item is delivered.
 
-Approved and rejected requests do not block through request state alone. A delivered item stops blocking after its deadline only when no pending refund request remains. Eligibility is rechecked at closure commit across retained order-item attribution, including items whose live product was deleted. Any matching unresolved request or open refund opportunity refuses deletion and leaves account and listings unchanged.
-
-### REQ-SELLER-ACCOUNT-POLICIES-6 Block seller deletion during unresolved checkout
-
-Seller deletion requires no unresolved payment attempt that holds stock for a seller-owned variant or reserves quota from a seller-owned coupon. An immediate or later explicit payment failure stops blocking only after every matching hold and reservation is released; confirmed success stops blocking through checkout state only after its order, redemption, and inventory effects commit.
-
-The platform checks retained seller ownership captured by the attempt rather than only current catalog links. Eligibility is rechecked when closure commits. An unknown or paid-but-not-finalized attempt refuses deletion, preserving the seller, catalog or coupon evidence, holds, and reservations for deterministic reconciliation.
+Approved and rejected requests do not block through request state alone. Eligibility is rechecked at closure commit across retained order-item attribution, including items whose live product was deleted. Any matching pending request refuses deletion and leaves account and listings unchanged.
 
 ## REQ-CATEGORY-POLICIES Category hierarchy and curation policies
 
@@ -190,12 +184,6 @@ Existing order items, shipments, snapshots, and requests remain usable from purc
 
 A later valid cancellation or refund restoration remains historical evidence and never recreates merchandise. Blank reason, non-administrator, absent product, or repeat deletion is refused.
 
-### REQ-PRODUCT-POLICIES-7 Block seller product deletion during active checkout
-
-Ordinary seller deletion requires no unresolved payment attempt holding stock for any variant of the product. An immediate or later explicit payment failure stops blocking only after every product hold is released; confirmed success stops blocking through checkout state only after its order and inventory effects commit.
-
-The check uses variant identities captured by the attempt and is repeated when deletion commits. An unknown or paid-but-not-finalized attempt refuses deletion and leaves the complete product aggregate, holds, coupon reservations, and reconciliation evidence unchanged. Administrator policy deletion remains the explicit moderation exception and preserves attempt snapshots needed for later reconciliation.
-
 ## REQ-VARIANT-POLICIES Variant identity, price, availability, and retirement policies
 
 The SKU is the durable identity, price-selection point, and stock unit beneath a product. A concrete option combination distinguishes it for customers, while a globally unique code keeps operational and historical references unambiguous.
@@ -234,12 +222,6 @@ Ordinary deletion also requires no `pending` cancellation or refund request for 
 
 Eligibility is repeated at commit. A matching pending request refuses deletion. If blocker-free deletion preceded a later valid delivered-item refund, the restoration uses retained retired-variant evidence and does not recreate the SKU.
 
-### REQ-VARIANT-POLICIES-6 Block variant deletion during active checkout
-
-Ordinary deletion requires no unresolved payment attempt holding stock for the variant. An immediate or later explicit payment failure stops blocking only after the hold is released; confirmed success stops blocking through checkout state only after its order and inventory effects commit.
-
-The check uses the variant identity captured by the attempt and is repeated when deletion commits. An unknown or paid-but-not-finalized attempt refuses deletion and leaves the variant, inventory history, hold, coupon reservations, and reconciliation evidence unchanged.
-
 ## REQ-INVENTORY-POLICIES Inventory movement and stock policies
 
 Every stock change is a signed ledger event tied to one SKU identity. Seller commands state their business direction; purchases and returns are emitted only by the journey that owns the money and item transition.
@@ -268,9 +250,7 @@ A successful purchase consumes its own matching hold and is not blocked by that 
 
 Successful order creation posts one negative `purchase` movement for each distinct purchased variant, equal to its order-item quantity. Three units consolidated into one item produce one movement of `-3`; different variants receive separate records.
 
-The matching hold is consumed. Order, paid items, purchase snapshots, cart removal, hold consumption, and movements commit together. An explicit gateway failure writes no purchase movement and releases every hold for that attempt.
-
-An order-commit failure after confirmed gateway success writes no partial purchase effect but retains or reacquires the attempt's protected quantities while the paid result is reconciled. The platform does not release those quantities or permit a replacement attempt merely because its own commit failed.
+The matching hold is consumed. Order, paid items, purchase snapshots, cart removal, hold consumption, and movements commit together. Payment or order-commit failure writes no purchase movement and releases every hold for that attempt.
 
 ### REQ-INVENTORY-POLICIES-5 Restore returned item quantity exactly once
 
@@ -450,13 +430,13 @@ A payment attempt owns its stock holds and terminal outcome. Failure leaves a cl
 
 Checkout requires at least one fully eligible line and a retained shipping address owned by the customer. All eligible cart lines enter the review; unavailable and short-stock lines stay in the cart. An explicit address selection takes precedence over an existing default.
 
-The review shows selected items and current gross prices, the full shipping address, selected coupons, per-line allocations, gross total, discount total, and net charge. It does not change the address record or consume coupon quota. No eligible line, no selected or existing default address, a deleted address, or another customer's address is refused.
+The review shows the selected items and current prices, the full shipping address, and total price. It does not change the address record. No eligible line, no selected or existing default address, a deleted address, or another customer's address is refused.
 
 ### REQ-CHECKOUT-POLICIES-2 Refresh material purchase facts before charge
 
-When the customer confirms, the platform revalidates current effective prices, full requested stock, cart quantities, variant and product liveness, seller eligibility, address ownership, coupon published revisions, eligibility, stacking, allocation, and quota. A price, stock, quantity, product, variant, seller, address, coupon, or quota change invalidates the previous summary and requires the customer to review the refreshed values.
+When the customer confirms, the platform revalidates current effective prices, full requested stock, cart quantities, variant and product liveness, seller eligibility, and address ownership. A price, stock, quantity, product, variant, seller, or address change invalidates the previous summary and requires the customer to review the refreshed values.
 
-A valid confirmation places temporary stock holds and coupon quota reservations for the attempt before calling the gateway. They cover full quantities and one use per coupon, prevent another checkout from consuming them, and do not yet create inventory movements or redemptions. Payment is not started if a reviewed fact fails or the complete stock-and-coupon set cannot be reserved.
+A valid confirmation places temporary stock holds for the attempt before calling the gateway. The holds cover the full quantities, prevent another checkout from consuming them, and do not yet create inventory movements. Payment is not started if a reviewed fact fails or the quantities cannot be held.
 
 ### REQ-CHECKOUT-POLICIES-3 Fix the purchase shipping address
 
@@ -466,13 +446,13 @@ No customer, seller, or administrator may change the address of a placed order. 
 
 ### REQ-CHECKOUT-POLICIES-4 Recover cleanly from unsuccessful payment
 
-An explicit gateway failure releases the attempt's stock holds and coupon reservations and creates no order, coupon redemption, inventory movement, or cart removal. Every selected line and coupon selection remains available for correction or a new retry.
+An explicit gateway failure releases the attempt's stock holds and creates no order, inventory movement, or cart removal. Every selected line remains available for correction or a new retry.
 
 If the immediate result is unknown, the platform reconciles the same payment-attempt identifier before permitting a distinct retry. A later confirmed success follows the success path exactly once. A later confirmed failure releases the holds and permits a new attempt; starting another attempt while the first remains unresolved is refused.
 
 ### REQ-CHECKOUT-POLICIES-5 Make gateway success idempotent
 
-A confirmed gateway success is bound to its payment-attempt identifier and creates exactly one order. Repeated success notifications return that same outcome. The charged amount must equal the confirmed reviewed net charge, the coupon set and allocations must equal the held review, and the order receives one generated unique immutable order number.
+A confirmed gateway success is bound to its payment-attempt identifier and creates exactly one order. Repeated success notifications return that same outcome. The charged amount must equal the confirmed reviewed total, and the order receives one generated unique immutable order number.
 
 A success for an unknown attempt, a mismatched amount, or a result incompatible with an already recorded terminal outcome does not enter ordinary order creation. It is retained for payment reconciliation so no paid event is lost or turned into an untracked duplicate order.
 
@@ -481,266 +461,21 @@ A success for an unknown attempt, a mismatched amount, or a result incompatible 
 A valid unreconciled success atomically:
 
 - creates the order and one paid item for each purchased variant with its full quantity;
-- captures product, variant, gross effective price, seller profile, shipping-address, coupon terms, and allocation evidence;
-- consumes each coupon reservation and creates one redemption per applied coupon;
+- captures product, variant, effective price, seller profile, and shipping-address evidence;
 - posts one exact negative inventory movement per order item, linked by its reason; and
 - removes only the purchased lines from the cart.
 
 Excluded or newly added cart lines remain. If current facts no longer match the held attempt, or any required effect cannot be persisted, none of these effects becomes visible; the paid result enters reconciliation before any retry.
 
-## REQ-COUPON-DEFINITION-POLICIES Coupon identity, ownership, and lifecycle policies
-
-Coupon publication turns an editable draft into immutable commercial terms. Code identity, authority layer, owner, discount, targets, audience, time, quota, and stacking rules are validated as one definition.
-
-### REQ-COUPON-DEFINITION-POLICIES-1 Canonicalize and reserve coupon codes
-
-Canonical code comparison trims surrounding whitespace, applies Unicode normalization, and compares uppercase text. The submitted code must contain at least one non-whitespace character and may not contain a control character.
-
-One canonical code identifies one coupon globally across seller and platform layers. A duplicate current or historical code is refused, and retirement never releases the code for reuse.
-
-### REQ-COUPON-DEFINITION-POLICIES-2 Require a complete coupon definition
-
-Creation requires nonblank name and description, fixed or percentage discount terms, audience mode, start and end instants, nonnegative minimum, positive per-customer and total limits, and stacking mode. Fixed amount and percentage rate are mutually exclusive.
-
-Missing, conflicting, nonfinite, fractional minor-unit, out-of-range, or whitespace-only terms are refused. The coupon remains absent or keeps its prior complete draft.
-
-### REQ-COUPON-DEFINITION-POLICIES-3 Enforce immutable authority ownership
-
-Seller creation assigns the acting seller as permanent owner and `seller` authority layer. Administrator platform creation assigns no seller and `platform` layer.
-
-A seller cannot create or edit a platform coupon, target another seller's product, or transfer ownership. An administrator may moderate a seller coupon but cannot convert it to platform ownership.
-
-### REQ-COUPON-DEFINITION-POLICIES-4 Validate one half-open validity window
-
-Start and end are UTC instants and start must be earlier than end. Eligibility includes the exact start instant and excludes the exact end instant.
-
-Publishing after the end is refused. Publishing at or after start is allowed only when the end remains future and creates active state.
-
-### REQ-COUPON-DEFINITION-POLICIES-5 Validate limits and minimum
-
-Minimum eligible subtotal is a nonnegative integer minor-unit value. Per-customer and total redemption limits are positive whole numbers, and per-customer limit cannot exceed total limit.
-
-Draft edits that would violate these relations are refused. Published limits cannot be increased, decreased, or reset.
-
-### REQ-COUPON-DEFINITION-POLICIES-6 Freeze commercial terms on publication
-
-Publication revalidates the complete definition and code uniqueness in the same commit that creates the published revision. Draft terms become immutable after that commit.
-
-An edit, code change, target change, audience change, window extension, quota reset, stacking change, or discount change against a published coupon is refused. Correction requires retirement and a new coupon with a different canonical code.
-
-### REQ-COUPON-DEFINITION-POLICIES-7 Separate pause from retirement
-
-Pause is reversible and blocks new reservations while preserving published terms, active reservations, and redemptions. Resume is permitted only before end, with remaining quota, and under usable owner authority.
-
-Retirement is irreversible and blocks every new reservation. Neither pause nor retirement releases a reservation owned by an unresolved payment attempt.
-
-### REQ-COUPON-DEFINITION-POLICIES-8 Record coupon moderation
-
-An administrator may pause or retire a seller coupon only with a nonblank policy reason. The event records actor, coupon, seller owner, reason, prior state, resulting state, and time.
-
-Moderation changes no prior order, redemption, allocation, or consumed quota. Missing reason, non-administrator, missing target, or redundant terminal transition is refused.
-
-## REQ-COUPON-ELIGIBILITY-POLICIES Coupon audience, target, time, and quota eligibility
-
-Eligibility is evaluated for one customer and current checkout candidate at one authoritative instant. Every selected coupon must pass operational, audience, subject, subtotal, and quota rules independently before stacking is evaluated.
-
-### REQ-COUPON-ELIGIBILITY-POLICIES-1 Require an enabled published coupon
-
-A coupon can enter a new checkout only when published, not paused, not retired, at or after start, before end, and not exhausted for total or acting-customer quota. Draft, scheduled-before-start, paused, expired, retired, or exhausted coupons are ineligible.
-
-An existing unresolved payment reservation continues under its captured published revision even if the coupon later becomes paused, expired, exhausted, or retired.
-
-### REQ-COUPON-ELIGIBILITY-POLICIES-2 Enforce private customer audience
-
-An all-customer coupon accepts any active authenticated customer. An allowlist coupon accepts only a customer identity present in its published audience.
-
-Another customer cannot discover membership or distinguish an absent code from private ineligibility. Account deletion and email reuse never transfer allowlist membership, but a newly registered identity with the same normalized verified email continues the nonpublic coupon-quota lineage so recreation cannot reset consumed-use counts.
-
-### REQ-COUPON-ELIGIBILITY-POLICIES-3 Intersect target dimensions
-
-When a coupon defines more than one nonempty target dimension, an order item must satisfy every defined dimension. A seller target, product target, and category target therefore intersect rather than union.
-
-An empty target dimension adds no restriction. At least one current cart line must satisfy the complete target predicate.
-
-### REQ-COUPON-ELIGIBILITY-POLICIES-4 Confine seller coupons to owner items
-
-The eligible set of a seller coupon begins with only items whose seller is the coupon owner. Product and category targets can narrow that set but never widen it to another seller.
-
-A multi-seller cart may apply different seller coupons to different seller partitions. One seller coupon contributes zero discount to every foreign partition.
-
-### REQ-COUPON-ELIGIBILITY-POLICIES-5 Use current live catalog targets
-
-Product and category targets are evaluated against live products and their direct current category assignment when checkout confirmation commits. A deleted product, deleted variant, deleted category, uncategorized mismatch, or ineligible seller state cannot satisfy a new coupon use.
-
-Later catalog changes do not alter a held review or completed order allocation. A stale review is refused before payment.
-
-### REQ-COUPON-ELIGIBILITY-POLICIES-6 Compare minimum against coupon-eligible gross
-
-The minimum subtotal uses the sum of gross purchase-time candidate subtotals for lines satisfying that coupon before the coupon's own discount. Lines outside its owner, target, or current checkout candidate do not contribute.
-
-An amount exactly equal to the minimum qualifies. Seller-layer discounts do not reduce the platform coupon's minimum test, although the platform discount is applied to remaining net amounts.
-
-### REQ-COUPON-ELIGIBILITY-POLICIES-7 Count reservations against quotas
-
-Total eligibility requires consumed redemptions plus active reservations to be below total limit. Customer eligibility requires consumed redemptions plus active reservations for the acting customer's coupon-quota lineage to be below per-customer limit.
-
-Each payment attempt contributes at most one reservation per coupon. Released reservations stop counting, while consumed redemptions continue counting permanently.
-
-### REQ-COUPON-ELIGIBILITY-POLICIES-8 Refuse ineligibility without policy disclosure
-
-An ineligible selected coupon contributes no discount and cannot initiate payment. The customer receives a safe reason category such as unavailable, conflict, minimum not met, or limit reached without receiving allowlist contents, exact global quota, another customer's count, or hidden target policy.
-
-The refusal creates no reservation, redemption, order, inventory movement, or cart removal. Seller and administrator authorized views retain the detailed reason needed for support.
-
-## REQ-DISCOUNT-STACKING-POLICIES Coupon combination order and discount formulas
-
-Customers select coupons explicitly. The platform never searches for a best combination, silently substitutes another coupon, or changes layer order; identical reviewed facts produce identical money.
-
-### REQ-DISCOUNT-STACKING-POLICIES-1 Apply only explicitly selected coupons
-
-Only coupons present in the customer's checkout selection participate. An available but unselected coupon contributes zero and consumes no use.
-
-The same coupon identifier may appear at most once in a selection. Duplicate selection is refused rather than multiplying its effect.
-
-### REQ-DISCOUNT-STACKING-POLICIES-2 Enforce exclusive coupon isolation
-
-An exclusive coupon is valid only when it is the sole selected coupon. Selecting another coupon with it, whether seller or platform owned, refuses the combination.
-
-An exclusive seller coupon still discounts only that seller's eligible items. Exclusivity prevents stacking but never widens target scope.
-
-### REQ-DISCOUNT-STACKING-POLICIES-3 Limit stackable coupons by authority layer
-
-A stackable selection contains at most one seller coupon for each seller partition and at most one platform coupon for the complete checkout. Two seller coupons owned by the same seller conflict even when their target products do not overlap.
-
-Seller coupons owned by different sellers can coexist. More than one platform coupon conflicts.
-
-### REQ-DISCOUNT-STACKING-POLICIES-4 Apply seller coupons before the platform coupon
-
-Each seller coupon calculates and allocates against eligible gross lines in its owner partition. Seller partitions are independent and may be processed in seller identifier order without changing money.
-
-After every seller allocation, the one platform coupon calculates against eligible remaining line amounts. Reversing this layer order is not permitted.
-
-### REQ-DISCOUNT-STACKING-POLICIES-5 Calculate a fixed coupon once
-
-A fixed coupon's realized discount is the lesser of its published fixed amount and the sum of eligible remaining line amounts at its layer. It is applied once across the complete eligible set.
-
-The fixed amount is not repeated per item, quantity, product, category, seller, or shipment. An empty or zero remaining eligible set makes the coupon ineligible.
-
-### REQ-DISCOUNT-STACKING-POLICIES-6 Calculate percentage discount by basis points
-
-A percentage coupon's raw discount is the floor of eligible remaining amount multiplied by published basis points divided by `10000`. Integer arithmetic is used throughout.
-
-If a cap exists, realized discount is the lesser of raw discount and cap. Realized discount is also limited to eligible remaining amount.
-
-### REQ-DISCOUNT-STACKING-POLICIES-7 Preserve zero-price and nonnegative boundaries
-
-A zero-priced line remains zero and receives no positive allocation. Discounts cannot make any line, seller partition, or order net amount negative.
-
-A coupon whose realized discount is zero is ineligible for payment and consumes no quota. Existing product price validation remains independent.
-
-### REQ-DISCOUNT-STACKING-POLICIES-8 Refuse conflicts without partial selection
-
-Stacking validation evaluates the complete selected set. Exclusive conflict, duplicate coupon, same-seller duplicate, multiple platform coupons, ineligible target, or zero realized discount refuses the reviewed combination.
-
-No subset is applied automatically. The prior cart selection remains available for customer correction, and no reservation or payment begins.
-
-## REQ-DISCOUNT-ALLOCATION-POLICIES Per-item allocation and multi-seller reconciliation
-
-Every realized coupon discount is allocated to order-item candidates in integer minor units. Allocation preserves exact coupon, item, seller, and order totals so later line-level money returns never recalculate a historical stack.
-
-### REQ-DISCOUNT-ALLOCATION-POLICIES-1 Allocate in proportion to the current layer basis
-
-For one coupon, each eligible line's exact share is realized coupon discount multiplied by that line's eligible remaining amount divided by the complete eligible remaining amount. The line basis for a seller coupon is gross amount; the line basis for a platform coupon is amount remaining after seller allocation.
-
-Ineligible lines receive zero. Allocation uses consolidated variant lines and never splits one minor unit.
-
-### REQ-DISCOUNT-ALLOCATION-POLICIES-2 Floor provisional line shares
-
-Each exact proportional share is floored to an integer minor-unit provisional allocation. The sum of provisional allocations cannot exceed realized coupon discount.
-
-The unallocated remainder is realized discount minus that sum. Floating-point rounding is not permitted.
-
-### REQ-DISCOUNT-ALLOCATION-POLICIES-3 Distribute remainder deterministically
-
-Remainder minor units are assigned one at a time to eligible lines in descending order of fractional remainder. Equal fractional remainders are ordered by immutable variant identifier ascending.
-
-No line receives a remainder unit beyond its remaining amount. The process ends when allocated line amounts sum exactly to realized coupon discount.
-
-### REQ-DISCOUNT-ALLOCATION-POLICIES-4 Carry seller allocations into platform basis
-
-Each line's platform-coupon basis is gross line amount minus its seller-coupon allocation. A line without a seller coupon uses gross amount.
-
-The platform coupon never discounts money already removed by a seller coupon. Seller allocation remains visible separately on the item.
-
-### REQ-DISCOUNT-ALLOCATION-POLICIES-5 Preserve per-coupon item components
-
-Each candidate and order item records zero or one seller-coupon allocation and zero or one platform-coupon allocation with coupon identifiers and published revisions. Item total discount is their sum.
-
-Item net equals gross subtotal minus item total discount. Quantity and gross unit price remain unchanged.
-
-### REQ-DISCOUNT-ALLOCATION-POLICIES-6 Reconcile coupon and order totals
-
-For each coupon, the sum of its item allocations equals its realized discount. Order total discount equals the sum of realized coupon discounts and also the sum of item total discounts.
-
-Order net equals gross minus total discount and equals the sum of item nets. The gateway amount must equal that same net.
-
-### REQ-DISCOUNT-ALLOCATION-POLICIES-7 Preserve seller boundaries in multi-seller orders
-
-A seller coupon allocation appears only on items attributed to its owner. A platform coupon may allocate across eligible items from multiple sellers under one deterministic calculation.
-
-Each seller view sums only that seller's item gross, coupon components, and net. Cross-seller platform allocation never transfers fulfillment or refund authority.
-
-### REQ-DISCOUNT-ALLOCATION-POLICIES-8 Reject nonreconciling allocation
-
-Checkout is refused when any allocation is negative, exceeds its line basis, loses a remainder unit, uses an ineligible line, or fails coupon, item, seller, order, or gateway reconciliation.
-
-The platform starts no payment and stores no partial redemption or order evidence. The customer receives a refreshed deterministic summary.
-
-## REQ-COUPON-RESOLUTION-POLICIES Reservation, idempotency, cancellation, and refund policies
-
-Coupon quotas become scarce resources at payment initiation. Later money returns honor the purchase-time per-item net and never create coupon-use arbitrage.
-
-### REQ-COUPON-RESOLUTION-POLICIES-1 Reserve quota atomically with stock
-
-Confirmation serializes total and per-customer coupon quota checks with creation of one reservation per selected coupon. Every coupon reservation and stock hold shares the payment-attempt identifier.
-
-The attempt acquires the complete set or none. Concurrent attempts for the last total or customer use yield one winner.
-
-### REQ-COUPON-RESOLUTION-POLICIES-2 Consume quota and redemption once
-
-Confirmed payment success changes each reservation to consumed and creates one redemption for that coupon, customer, and order. Callback replay returns the existing redemption.
-
-The payment attempt cannot consume a coupon twice or create two orders. Consumption uses the published revision and allocations captured by its held review.
-
-### REQ-COUPON-RESOLUTION-POLICIES-3 Release only on confirmed payment failure
-
-Explicit gateway failure releases each reservation exactly once and permits a new attempt from freshly validated facts. Unknown gateway result retains reservations and blocks replacement until reconciliation.
-
-Pause, expiry, exhaustion, retirement, process restart, or local commit failure does not release an unresolved attempt. Confirmed success after uncertainty consumes the retained reservations.
-
-### REQ-COUPON-RESOLUTION-POLICIES-4 Return the preserved item net
-
-Approved cancellation, approved refund, and administrator force resolution return exactly the target item's preserved net refundable amount. They do not return gross amount or recompute the order's historical coupon stack.
-
-An order item is the indivisible reversal unit. Partial-quantity or partial-amount cancellation and refund requests are unsupported and refused rather than inventing a new discount allocation.
-
-Other items keep gross, allocations, and net unchanged. A whole-order action returns the sum of all selected item nets.
-
-### REQ-COUPON-RESOLUTION-POLICIES-5 Never restore consumed coupon uses
-
-After successful order creation, cancellation, refund, force action, customer deletion, seller deletion, product deletion, coupon pause, expiry, or retirement does not restore total or per-customer coupon quota.
-
-Stock restoration still follows purchased quantity. Retained redemption and allocation evidence explains the discount even when every item is later cancelled or refunded.
-
 ## REQ-ORDER-POLICIES Order composition, pricing, and status policies
 
 An order is one purchase container whose lines may belong to different sellers and progress independently. Purchase-time values determine money and historical presentation, while current item and shipment states determine fulfillment and the derived overall status.
 
-### REQ-ORDER-POLICIES-1 Calculate fixed gross, discount, and net totals
+### REQ-ORDER-POLICIES-1 Calculate the fixed purchase total
 
-The order gross total is the sum, over every order item, of purchase-time gross unit price multiplied by purchased quantity. Each gross subtotal uses the captured effective variant price, including a zero override. An order always contains at least one item.
+The order total is the sum, over every order item, of purchase-time unit price multiplied by purchased quantity. Each subtotal uses the captured effective variant price, including a zero override. An order always contains at least one item.
 
-Order discount total is the sum of preserved coupon allocations. Net charge equals gross total minus discount total and equals the gateway charge. Later product, variant, or coupon changes never alter these values.
+Later product or variant price edits never change an item subtotal or the order total.
 
 ### REQ-ORDER-POLICIES-2 Consolidate purchased units by variant
 
@@ -849,7 +584,7 @@ Rejection leaves the item paid and creates no refund or inventory movement. A mi
 
 ### REQ-CANCELLATION-POLICIES-5 Apply an approved cancellation atomically
 
-Approval atomically changes the request to `approved`, changes the target item to `cancelled`, returns that line's preserved net refundable amount, restores its full purchased quantity with one positive inventory record, captures the response snapshot, and recalculates overall order status. Money return and restoration occur exactly once.
+Approval atomically changes the request to `approved`, changes the target item to `cancelled`, refunds that line's paid amount, restores its full purchased quantity with one positive inventory record, captures the response snapshot, and recalculates overall order status. Refund and restoration occur exactly once.
 
 For a retired SKU, the positive restoration evidence remains attached to its retained SKU identity without recreating a live variant or saleable stock. Every other order item, shipment, and request remains unchanged.
 
@@ -891,7 +626,7 @@ Rejection leaves the item delivered and creates no refund or inventory movement.
 
 ### REQ-REFUND-POLICIES-6 Apply an approved refund atomically
 
-Approval atomically changes the request to `approved`, changes the target item to `refunded`, returns that line's preserved net refundable amount, restores its full purchased quantity with one positive inventory record, captures the response snapshot, and recalculates overall order status. Money return and restoration occur exactly once.
+Approval atomically changes the request to `approved`, changes the target item to `refunded`, refunds that line's paid amount, restores its full purchased quantity with one positive inventory record, captures the response snapshot, and recalculates overall order status. Refund and restoration occur exactly once.
 
 For a retired SKU, the positive restoration evidence remains attached to its retained SKU identity without recreating a live variant or saleable stock. Every other order item, shipment, and request remains unchanged.
 
@@ -959,13 +694,13 @@ A wrong password, stale or foreign session, banned or deleted customer, attempt 
 
 ### REQ-CUSTOMER-ACCOUNT-POLICIES-2 Remove working personal customer state
 
-Closure terminates every customer session on every device and removes credentials, display name, phone number, live normalized email, all saved addresses and their default designation, wishlist entries, cart lines, and coupon selections. None of these removed values remains available through customer access.
+Closure terminates every customer session on every device and removes credentials, display name, phone number, all saved addresses and their default designation, wishlist entries, and cart lines. None of these removed values remains available through customer access.
 
-A platform-secret equality token retains only the normalized verified-email relationship needed for coupon quota abuse prevention. A later registration may reuse the former email, but it creates a distinct identity and inherits neither the removed collections nor retained commercial history, allowlist membership, or redemption detail; only per-customer coupon counts continue through the nonpublic quota lineage.
+A later registration may reuse the former email, but it creates a distinct identity and inherits neither the removed collections nor retained commercial history.
 
 ### REQ-CUSTOMER-ACCOUNT-POLICIES-3 Retain the commercial order graph
 
-Orders, order items, immutable shipping-address values, shipments, cancellation and refund requests, inventory evidence, purchase snapshots, coupon redemptions, and the minimal coupon-quota lineage remain retained. Sellers retain access to their own items and requests, and administrators retain oversight access.
+Orders, order items, immutable shipping-address values, shipments, cancellation and refund requests, inventory evidence, and purchase snapshots remain retained. Sellers retain access to their own items and requests, and administrators retain oversight access.
 
 The deleted customer no longer has authenticated order-history access. Retained participant evidence supports the record without restoring the removed profile or exposing it to unrelated actors.
 
@@ -980,12 +715,6 @@ Review snapshots remain immutable. The deleted author can no longer edit or dele
 A deleted customer identity cannot log in, renew a session, recover a password, or be reactivated. Previously issued sessions stay invalid, and email recovery cannot target the deleted credential.
 
 Re-registration with a formerly used email creates a new customer identity. Retained orders and reviews never transfer to that new identity; every attempt to authenticate, recover, or reactivate the deleted identity is refused.
-
-### REQ-CUSTOMER-ACCOUNT-POLICIES-6 Block customer closure during unresolved checkout
-
-Customer closure requires no unresolved payment attempt owned by that customer. An immediate or later explicit payment failure stops blocking only after every stock hold and coupon reservation is released; confirmed success stops blocking through checkout state only after its order, redemption, and inventory effects commit.
-
-Eligibility is rechecked when closure commits. An unknown or paid-but-not-finalized attempt refuses closure and preserves the customer identity, reviewed address, cart and coupon selections, holds, reservations, and reconciliation evidence. A refused closure terminates no session and removes no personal state.
 
 ## REQ-ADMIN-GOVERNANCE-POLICIES Administrator application and grade policies
 
@@ -1086,7 +815,7 @@ A later valid positive restoration record stays attached to retired SKU evidence
 
 ### REQ-ADMIN-OVERSIGHT-POLICIES-5 Force-cancel an eligible order item
 
-For a nonblank policy reason, an administrator may change a `paid` or `shipped` item to `cancelled`, return its preserved net refundable amount, restore its purchased quantity with one positive inventory record, and recalculate order status. These effects commit atomically and occur exactly once.
+For a nonblank policy reason, an administrator may change a `paid` or `shipped` item to `cancelled`, refund its line amount, restore its purchased quantity with one positive inventory record, and recalculate order status. These effects commit atomically and occur exactly once.
 
 A matching pending cancellation request becomes `approved` with immutable administrator-attributed decision evidence; no request is invented when none exists. Prior tracking remains historical evidence, other items remain unchanged, and retired-SKU restoration remains evidence without recreating merchandise.
 
@@ -1094,7 +823,7 @@ A missing, delivered, cancelled, or refunded item, blank reason, non-administrat
 
 ### REQ-ADMIN-OVERSIGHT-POLICIES-6 Force-refund an eligible order item
 
-For a nonblank policy reason, an administrator may change a `paid`, `shipped`, or `delivered` item to `refunded`, return its preserved net refundable amount, restore its purchased quantity with one positive inventory record, and recalculate order status. These effects commit atomically and occur exactly once.
+For a nonblank policy reason, an administrator may change a `paid`, `shipped`, or `delivered` item to `refunded`, refund its line amount, restore its purchased quantity with one positive inventory record, and recalculate order status. These effects commit atomically and occur exactly once.
 
 A matching pending refund request becomes `approved` with immutable administrator-attributed decision evidence; no request is invented when none exists. Shipment, delivery, purchase snapshots, and published review history remain intact, other items remain unchanged, and retired-SKU restoration does not recreate merchandise.
 

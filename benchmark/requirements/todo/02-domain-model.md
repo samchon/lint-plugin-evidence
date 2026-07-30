@@ -20,7 +20,7 @@ The relationship cannot be transferred, shared, or detached. Another account can
 
 ## REQ-DOM-TODO Todo Meaning and Ownership
 
-A todo is one private task belonging to an account. It has an opaque stable identity and a content revision, combines a required title with an independently optional description, start date, and due date, and carries product-observed creation and completion facts. Whether the task is active or in trash is a separate lifecycle dimension and does not create a different task.
+A todo is one private task belonging to an account. It combines a required title with an independently optional description, start date, and due date, plus product-observed creation and completion facts. Whether the task is active or in trash is a separate lifecycle dimension and does not create a different task.
 
 The todo remains inside the same account boundary for its entire recoverable lifetime. That ownership also contains its edit history and determines the complete data removed when the account is permanently deleted.
 
@@ -30,26 +30,20 @@ Every todo has the following information:
 
 | Attribute | Meaning |
 | --- | --- |
-| Todo ID | An opaque stable identifier assigned once at creation. |
 | Title | The required short name of the task. |
 | Description | Optional details; it may be empty. |
 | Start date | An optional calendar date for when work is intended to begin; it may be empty. |
 | Due date | An optional calendar date for when the task is intended to be due; it may be empty. |
 | Completion status | Exactly one of `incomplete` or `complete`. |
 | Creation date | When the todo was first created. |
-| Content revision | A positive integer identifying the accepted content version. |
 
 Description, start date, and due date are independent optional values, so leaving one empty does not require the others to be empty. Start and due values are calendar dates without a time-of-day component. The creation date remains the original creation fact when content, completion, or trash state changes.
-
-Every new todo begins at content revision 1. Each successful content edit increases it by exactly one. Completion changes, soft deletion, restoration, and viewing preserve it because they do not change title, description, start date, or due date.
-
-The Todo ID never changes, is unique across retained Todos, and carries no user-authored or security-sensitive meaning. The product never reissues a deleted Todo's ID to another task. Every list and detail result carries the ID so later owner-scoped operations can select the exact task even when several todos have identical visible values.
 
 The full description is part of the todo's details. The normal and trash lists use the smaller summary projection defined by their browsing requirements rather than replacing or truncating the stored task meaning.
 
 ### REQ-DOM-TODO-2 Bind Each Todo to One Account
 
-Every todo belongs to exactly one user account: the authenticated account that created it. Ownership and Todo ID are permanent while the todo exists and do not change through editing, completion, soft deletion, or restoration.
+Every todo belongs to exactly one user account: the authenticated account that created it. Ownership is permanent while the todo exists and does not change through editing, completion, soft deletion, or restoration.
 
 A todo cannot be transferred, shared, reassigned, or detached. Every edit history entry remains inside the same account boundary through its owning todo.
 
@@ -59,7 +53,7 @@ Permanent account deletion removes every todo owned by the account, whether acti
 
 Todo lifecycle uses two independent dimensions. Completion answers whether the task is marked done; availability answers whether the task is active in normal work or retained in trash. A complete todo can be active or trashed, just as an incomplete todo can.
 
-Creation begins with an incomplete, active todo at content revision 1. Soft deletion and restoration change only availability and preserve the same task for recovery. Permanent deletion is terminal and removes both the todo and its edit history.
+Creation begins with an incomplete, active todo. Soft deletion and restoration change only availability and preserve the same task for recovery. Permanent deletion is terminal and removes both the todo and its edit history.
 
 ### REQ-DOM-TODO-LIFE-1 Define Completion States
 
@@ -68,7 +62,7 @@ A todo always has exactly one of two completion values while it exists:
 - `incomplete` means the task is not marked complete.
 - `complete` means the task is marked complete.
 
-Every new todo begins `incomplete`. The two values are mutually exclusive, and content edits, soft deletion, and restoration preserve the current value. Completion does not determine whether the todo is active or in trash and does not change the content revision.
+Every new todo begins `incomplete`. The two values are mutually exclusive, and content edits, soft deletion, and restoration preserve the current value. Completion does not determine whether the todo is active or in trash.
 
 ### REQ-DOM-TODO-LIFE-2 Define Active and Trashed Availability
 
@@ -83,7 +77,7 @@ New and restored todos are active; soft-deleted todos are trashed. Availability 
 
 When the owner soft-deletes an active todo, its availability changes from `active` to `trashed`. It records the date and time of that most recent move into trash, disappears from the normal list, and becomes discoverable in the owner's trash.
 
-The transition preserves the todo's ID, title, description, start date, due date, creation date, content revision, completion status, owner, and every existing edit history entry. It does not create a content-edit history entry because no editable content field changes.
+The transition preserves the todo's title, description, start date, due date, creation date, completion status, owner, and every existing edit history entry. It does not create a content-edit history entry because no editable content field changes.
 
 A todo already in trash cannot repeat the active-to-trashed transition. A permanently deleted todo no longer exists to make that transition.
 
@@ -91,7 +85,7 @@ A todo already in trash cannot repeat the active-to-trashed transition. A perman
 
 When the owner restores a trashed todo, its availability changes from `trashed` to `active`. The same todo leaves trash and reappears in the normal list rather than being replaced by a new task.
 
-Restoration preserves the Todo ID, title, description, start date, due date, creation date, content revision, completion status, owner, and every edit history entry. It creates no content-edit history entry because no editable content field changes.
+Restoration preserves the title, description, start date, due date, creation date, completion status, owner, and every edit history entry. It creates no content-edit history entry because no editable content field changes.
 
 An active todo cannot perform the trashed-to-active transition. A permanently deleted todo cannot be restored.
 
@@ -99,29 +93,28 @@ An active todo cannot perform the trashed-to-active transition. A permanently de
 
 When the owner permanently deletes a trashed todo, the todo and every edit history entry associated with it cease to exist. The task appears in neither the active list nor trash, and no history for it remains viewable.
 
-Its ID, title, description, start date, due date, content revision, completion status, creation date, and ownership relationship are no longer available. This terminal outcome cannot be restored, reversed, or repeated as another lifecycle transition.
+Its title, description, start date, due date, completion status, creation date, and ownership relationship are no longer available. This terminal outcome cannot be restored, reversed, or repeated as another lifecycle transition.
 
 Permanent deletion through the trash lifecycle is unavailable for an active todo. An already absent todo has no remaining lifecycle command.
 
 ## REQ-DOM-HISTORY Edit History Meaning and Relationship
 
-Todo edit history is the private chronology of changes to editable task content. It does not stand for completion or trash events. Each successful content edit contributes one immutable entry that records the accepted content revision, when the edit occurred, and only the new values involved in that edit. Clearing an optional field is recorded explicitly rather than being confused with that field not changing.
+Todo edit history is the private chronology of changes to editable task content. It does not stand for completion or trash events. Each successful content edit contributes one immutable entry that records when the edit occurred and only the new values involved in that edit. Clearing an optional field is recorded explicitly rather than being confused with that field not changing.
 
 History is not an independent account resource. Every entry belongs to one todo, derives the same owner, follows that todo through trash and restoration, and ends when the todo or its account is permanently deleted.
 
 ### REQ-DOM-HISTORY-1 Define an Edit History Entry
 
-Each edit history entry has an accepted content revision, an edit time, and may carry any of these changed-to values:
+Each edit history entry has an edit time and may carry any of these changed-to values:
 
 | Changed-to value | Present when |
 | --- | --- |
-| Content revision | Always; it is the Todo revision produced by this edit. |
 | Title | The edit changed the todo's title. |
 | Description | The edit changed the todo's description. |
 | Start date | The edit changed the todo's start date. |
 | Due date | The edit changed the todo's due date. |
 
-One entry can carry several changed-to values when one edit changes several fields. A changed-to value is absent when that field did not participate in the edit. The content revision is present on every entry, is unique within its Todo, and orders accepted edits without relying on equal timestamps.
+One entry can carry several changed-to values when one edit changes several fields. A changed-to value is absent when that field did not participate in the edit.
 
 Clearing an optional description, start date, or due date is recorded explicitly as a change to empty; it is distinguishable from the changed-to value being absent because the field did not change. Completion changes, soft deletion, and restoration are not members of this content-edit catalog.
 

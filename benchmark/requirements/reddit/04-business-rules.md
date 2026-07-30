@@ -16,7 +16,7 @@ Comparison ignores letter case, while the selected username casing remains visib
 
 Registration accepts only:
 
-- a nonblank, well-formed email address of at most 254 characters;
+- a nonblank, well-formed email address;
 - a username of 3 through 30 letters, digits, or underscores; and
 - a password of 8 through 128 characters.
 
@@ -28,25 +28,15 @@ Permanent deletion keeps the former normalized email and username unavailable. T
 
 A new account may be created only with a different available email and username. Attempting either reserved value is refused as an identity conflict.
 
-### REQ-RULE-IDENTITY-004 Keep Public and Moderation Identifiers Opaque
-
-Post, comment, report, and moderation-history identifiers are case-sensitive opaque values. A client may compare one only for exact equality and pass it back to the corresponding product journey; its characters, length, or relative order carry no product meaning.
-
-No identifier embeds or reveals a database sequence, author or reporter identity, community, parent, target, creation time, rank, or lifecycle state. Unknown and well-formed-but-nonexistent values receive the same unavailable outcome appropriate to that journey.
-
-Whenever an exact ordered tie remains after every named business field, post, comment, report, and moderation-history lists use the corresponding opaque identifier descending. The direction is part of the order contract even though the identifier's internal form is not.
-
 ## REQ-RULE-PROFILE Profile Validation Rules
 
 Profile editing validates the three public fields as one atomic change. Display name remains visible text, bio may be empty, and avatar may be absent or a valid upload. Account identity, credentials, karma, and authorship cannot be rewritten through this surface.
 
 ### REQ-RULE-PROFILE-001 Validate Profile Field Changes
 
-A supplied display name must contain 1 through 100 visible characters after leading and trailing whitespace is removed. Bio may contain 0 through 10,000 characters. Avatar may be a valid image under REQ-RULE-MEDIA or may be explicitly removed.
+A supplied display name must contain visible non-whitespace text. Bio may contain text or be empty. Avatar may be a valid image under REQ-RULE-MEDIA or may be explicitly removed.
 
-Username, email, password, account status, karma, and authored relationships are not profile-edit fields. A valid partial edit preserves omitted values. The observed edit revision must equal the current profile revision before any supplied value is applied.
-
-If any supplied field is invalid, unsupported, or stale, the entire edit is refused and the current profile remains unchanged. A current-revision request whose normalized values equal the current values is a no-change success and does not advance the revision or any timestamp.
+Username, email, password, account status, karma, and authored relationships are not profile-edit fields. A valid partial edit preserves omitted values. If any supplied field is invalid or unsupported, the entire edit is refused and the current profile remains unchanged.
 
 ## REQ-RULE-COMMUNITY Community Validation and Discovery Rules
 
@@ -64,12 +54,6 @@ The trimmed query matches a community when its name contains that text without r
 
 An empty query matches the complete active-and-archived catalog. Results are ordered by normalized community name and then stable community identity for an exact tie. No matches yields an empty result.
 
-### REQ-RULE-COMMUNITY-003 Restrict Permanent Community Archival to the Owner
-
-Only the current owner of an active community may accept the permanent archive transition. The decision is refused when the caller's owner authority is absent or stale, the community is already archived, or the caller attempts to preserve active owner or moderator powers after archival.
-
-Success is one atomic outcome: status becomes archived, all owner and moderator assignments end, every current subscription becomes residual, and one unified moderation-history event is appended. Failure leaves status, roles, subscriptions, content, and history unchanged.
-
 ## REQ-RULE-POST Post Content Rules
 
 Post validation preserves the required title and exact text, link, or image distinction. Each type has a concrete valid payload, and edits remain within the originally selected type. Multi-field creation and editing are atomic: one invalid supplied value leaves no partial post change.
@@ -80,23 +64,21 @@ A title contains 1 through 300 visible characters after leading and trailing whi
 
 - text post: 1 through 40,000 characters and not all whitespace;
 - link post: one URL and no text or image payload; or
-- image post: one uploaded image with 1 through 1,000 visible characters of alternative text and no text or URL payload.
+- image post: one uploaded image and no text or URL payload.
 
 A blank or oversized title or text, absent payload, extra payload, or type-payload mismatch refuses creation or editing.
 
 ### REQ-RULE-POST-002 Validate Link and Image Payloads
 
-A link URL is absolute, uses HTTP or HTTPS, contains a parseable host, contains no embedded username or password, and has at most 2,048 characters. Its host supplies the feed-card domain. Relative URLs, credential-bearing URLs, and other schemes are refused.
+A link URL is absolute, uses HTTP or HTTPS, contains a parseable host, and has at most 2,048 characters. Its host supplies the feed-card domain. Relative URLs and other schemes are refused.
 
 An image post owns one image accepted under REQ-RULE-MEDIA and its thumbnail. Failed link or image validation creates no post and leaves an edited post entirely unchanged.
 
 ### REQ-RULE-POST-003 Restrict Post Editing to Title and Same-Type Content
 
-The author may replace the title, the current type's payload, or both; omitted editable values remain unchanged. Text remains text, link remains link, and image remains image. An image payload edit validates its image and alternative text together.
+The author may replace the title, the current type's payload, or both; omitted editable values remain unchanged. Text remains text, link remains link, and image remains image.
 
-Author, community, original creation time, and every field outside title and current payload are immutable through editing. The observed edit revision must equal the current post revision before values are applied. Any attempted type, identity, community, unsupported-field, or stale-revision change is refused.
-
-All supplied values validate together, so one invalid value preserves the complete current post. A current-revision request whose normalized title and payload equal the current values is a no-change success and advances no revision or timestamp. Two material edits using one revision cannot both succeed.
+Author, community, original creation time, and every field outside title and current payload are immutable through editing. Any attempted type, identity, community, or unsupported-field change is refused. All supplied values validate together, so one invalid value preserves the complete current post.
 
 ## REQ-RULE-PARTICIPATION Community Participation Rules
 
@@ -132,7 +114,7 @@ All three feed scopes use the same four orders. New follows original creation ti
 
 ### REQ-RULE-FEED-001 Order Feeds by New
 
-New orders original creation time from newest to oldest. An exact time tie uses opaque post identifier descending.
+New orders original creation time from newest to oldest. An exact time tie uses stable post identity descending.
 
 Editing does not move a post because original creation time is unchanged. Deletion removes the post without changing surviving items' relative New order. Home, Popular, and Community use the same rule after applying their own scope.
 
@@ -148,7 +130,7 @@ Top first selects posts by original creation time:
 | This year | Prior 365 days |
 | All time | No age cutoff |
 
-A post exactly at the cutoff is included. Within the selected population, vote score orders highest first, then creation time newest first, then opaque post identifier descending. A fresh traversal reflects current scores.
+A post exactly at the cutoff is included. Within the selected population, vote score orders highest first, then creation time newest first, then stable post identity. A fresh traversal reflects current scores.
 
 ### REQ-RULE-FEED-003 Order Feeds by Hot
 
@@ -156,7 +138,7 @@ Hot ranks highest to lowest by:
 
 `log10(max(vote score, 1)) − age in hours / 12.5`
 
-Age runs from original creation time to the traversal snapshot. A score of zero or below receives no positive score boost and continues to decay. Exact rank ties use newer creation time and then opaque post identifier descending. A fresh traversal reflects current score and age.
+Age runs from original creation time to the traversal snapshot. A score of zero or below receives no positive score boost and continues to decay. Exact rank ties use newer creation time and then stable post identity. A fresh traversal reflects current score and age.
 
 ### REQ-RULE-FEED-004 Order Feeds by Controversial
 
@@ -164,15 +146,13 @@ Controversial ranks highest to lowest by:
 
 `(active upvotes + active downvotes) / (absolute vote score + 1)`
 
-Balanced positive and negative voting therefore ranks above one-sided voting with the same total. Exact ratio ties use greater total votes, then newer creation time, then opaque post identifier descending. A post with no votes has value zero.
+Balanced positive and negative voting therefore ranks above one-sided voting with the same total. Exact ratio ties use greater total votes, then newer creation time, then stable post identity. A post with no votes has value zero.
 
 ### REQ-RULE-FEED-005 Apply Deterministic Pagination Boundaries
 
 A feed continuation binds the ranked values and tie fields to feed scope, sort, Top range, and traversal snapshot. Equal-ranked posts are neither duplicated nor skipped.
 
 Votes and new posts after the snapshot appear only in a fresh traversal. A deleted post may disappear from a later page without changing surviving snapshot order. Page size and invalid continuation follow REQ-RULE-PAGINATION and REQ-NFR-CONTINUITY.
-
-For Home, the traversal snapshot also binds the exact subscribed-community identities. A subscription created or ended later does not invalidate or rewrite that continuation; a fresh Home traversal reflects the new membership. Account deletion still makes the continuation unusable because its viewer no longer exists.
 
 ## REQ-RULE-VOTE Voting and Aggregate Rules
 
@@ -229,13 +209,13 @@ Every accepted reply remains reachable from its top-level ancestor. Sorting appl
 
 ### REQ-RULE-COMMENT-003 Order Comments by Best
 
-Best orders vote score highest first within each sibling set. An equal score uses original creation time oldest first, then opaque comment identifier descending.
+Best orders vote score highest first within each sibling set. An equal score uses original creation time oldest first, then stable comment identity.
 
 Older time preserves an established discussion position. A deleted marker takes the Best position of its highest-ranked surviving direct reply. A fresh traversal reflects current scores.
 
 ### REQ-RULE-COMMENT-004 Order Comments by New
 
-New orders creation time newest first within each sibling set and uses opaque comment identifier descending for an exact time tie. Editing does not affect position.
+New orders creation time newest first within each sibling set and uses stable comment identity descending for an exact time tie. Editing does not affect position.
 
 A deleted marker takes the New position of its newest surviving direct reply.
 
@@ -245,25 +225,7 @@ Controversial orders highest to lowest by:
 
 `(active upvotes + active downvotes) / (absolute vote score + 1)`
 
-An exact ratio tie uses greater total votes, then newer creation time, then opaque comment identifier descending. No votes yields zero. A deleted marker takes the Controversial position of its highest-ranked surviving direct reply.
-
-### REQ-RULE-COMMENT-006 Validate Comment Text and Edit Revisions
-
-Top-level comments and replies contain 1 through 10,000 visible characters after leading and trailing whitespace is removed. Blank, whitespace-only, or oversized text creates no comment and changes no post count.
-
-An edit supplies the currently observed edit revision. A stale revision is refused before text is changed. A current-revision edit that repeats the normalized current text is a no-change success and advances no revision or timestamp; a material edit advances the revision once, so concurrent material edits using one revision cannot both succeed.
-
-### REQ-RULE-COMMENT-007 Traverse Descendants Without a Product Limit
-
-Top-level roots and each immediate-child set use bounded pages independently. A child continuation binds post, immediate parent, selected sort, page size, and traversal snapshot; it cannot be reused for another branch or sibling sort.
-
-No page or branch may claim completion while an available child remains unreachable. Repeated continuation reaches every finite available descendant at any depth without a maximum-depth refusal, fixed total-descendant cap, recursion truncation, or promotion to a different parent.
-
-### REQ-RULE-COMMENT-008 Project and Prune Deleted Markers
-
-A deleted marker exists only while at least one available descendant depends on its parent position. It takes the selected sibling-sort position of its highest-ranked direct surviving child, applying the same rule recursively through a chain of markers. When its last available descendant disappears, that marker and each newly empty ancestor marker are pruned.
-
-The projection contains no former author, text, score, viewer vote, report state, revision, timestamp, deletion reason, or moderation actor. It contributes nothing to profile authorship or post comment count and refuses vote, report, reply, edit, and delete-content commands.
+An exact ratio tie uses greater total votes, then newer creation time, then stable comment identity. No votes yields zero. A deleted marker takes the Controversial position of its highest-ranked surviving direct reply.
 
 ## REQ-RULE-REPORT Reporting Rules
 
@@ -293,34 +255,6 @@ Approval or dismissal applies only while the report is unresolved and its target
 
 A sibling report removed with deleted content cannot later be decided. Concurrent attempts produce one terminal outcome; each later attempt is refused without changing content, queue, or moderation history.
 
-## REQ-RULE-MODERATION-HISTORY Unified History Rules
-
-Unified history has one event vocabulary, one permission boundary, one stable order, and one de-identification policy across report, content-deletion, ban, role, ownership, and archive outcomes.
-
-### REQ-RULE-MODERATION-HISTORY-001 Append Exactly One Event per Completed Outcome
-
-A completed moderator assignment, moderator removal, moderator post deletion, moderator comment deletion, report approval, report dismissal, ban activation, ban end, ownership succession, owner-initiated archive, or automatic ownerless archive appends exactly one event of the corresponding kind.
-
-A report approval records the report outcome rather than an additional direct-content-deletion event. An archive records one archive event rather than one event per ended role. A refusal, duplicate assignment, absent removal, duplicate ban, absent unban, repeated report decision, or failed archive appends no event. Retrying a completed command cannot create a second history event for the same state transition.
-
-### REQ-RULE-MODERATION-HISTORY-002 Enforce Current Community Authority on Every Page
-
-Only a current owner or moderator of the exact active community may view its history. Permission is evaluated for the first page and every continuation. Authority in another community, former authority, public access, and archived-community state disclose no history item.
-
-When permission is absent, an invalid or stale continuation is refused rather than reset, so recovery cannot become an oracle for private history existence.
-
-### REQ-RULE-MODERATION-HISTORY-003 Order and Snapshot Unified History
-
-History orders occurrence time newest first and opaque event identifier descending for an exact tie. The first page snapshots the ordered event identities; later events appear only in a fresh traversal.
-
-Later account or content deletion may de-identify a retained event in place but cannot reveal a former value, change its order, duplicate it, or remove the fact that the moderation outcome occurred.
-
-### REQ-RULE-MODERATION-HISTORY-004 Apply One De-identification Projection
-
-Deleted actors, affected users, and reporters become the same non-identifying deleted-user marker. No former username, email, account identifier, profile field, or authored content survives in a history response.
-
-Deleted targets retain target kind and outcome context but expose no former title, text, media, author, opaque target identifier, or direct link. Available report targets may expose their current public description and opaque identifier only while the viewer remains authorized and the target remains available.
-
 ## REQ-RULE-MODERATION Moderation Authority Rules
 
 Moderation authority is current, community-scoped, and inactive in archives. The owner-only revoke edge protects owner and peer roles from moderators. The current owner is also protected from a community ban so lower-order authority cannot disable the community's highest authority.
@@ -349,28 +283,28 @@ Avatar, community-icon, and image-post uploads share one accepted media boundary
 
 ### REQ-RULE-MEDIA-001 Validate Uploaded Image Format and Size
 
-An upload must decode successfully as JPEG, PNG, or WebP, contain no more than 10 MiB, have width and height each from 1 through 8,192 pixels, and contain no more than 40,000,000 decoded pixels. Its declared media type, filename extension when supplied, detected signature, and decoded content must agree.
+An upload must decode successfully as JPEG, PNG, or WebP and contain no more than 10 MiB. Its declared format and decoded content must agree.
 
-Empty, corrupt, unsupported, mismatched, animated, dimensionless, oversized, or excessive-pixel input is refused. Embedded executable content and active metadata are not part of the accepted image. A failed replacement leaves the current avatar, community icon, or post image unchanged.
+Empty, corrupt, unsupported, mismatched, or oversized input is refused. A failed replacement leaves the current avatar, community icon, or post image unchanged.
 
 ### REQ-RULE-MEDIA-002 Present Uploaded Images and Post Thumbnails
 
-An accepted image remains viewable with its owning profile, community, or post. An image-post thumbnail fits inside a 400-by-400-pixel box without cropping, stretching, or enlarging a smaller image. Opening the post keeps the full image and its required alternative text available.
+An accepted image remains viewable with its owning profile, community, or post. An image-post thumbnail fits inside a 400-by-400-pixel box without cropping, stretching, or enlarging a smaller image. Opening the post keeps the full image available.
 
 Avatars remain accompanied by username and display name, community icons by community name, and post images by post title. Replacing or deleting the owning image removes the obsolete public presentation.
 
 ## REQ-RULE-PAGINATION Shared Pagination Rules
 
-Feeds, communities, subscriptions, profile authorship, top-level comments, comment child branches, ban lists, report queues, and moderation history share one page-size and continuation contract. A traversal keeps its scope, filters, ordering, page size, and snapshot. Invalid continuation recovers through a clearly marked fresh first page rather than an ambiguous partial result, except that a private-history caller who has lost permission receives a refusal with no result.
+Feeds, communities, subscriptions, profile authorship, ban lists, and report queues share one page-size and continuation contract. A traversal keeps its scope, filters, ordering, page size, and snapshot. Invalid continuation recovers through a clearly marked fresh first page rather than an ambiguous partial result.
 
 ### REQ-RULE-PAGINATION-001 Validate Requested Page Size
 
 An omitted size selects 25 items. A supplied size is an integer from 1 through 100 and remains fixed for every continuation in that traversal. Zero, negative, fractional, or greater-than-100 values are refused.
 
-The final page may contain fewer items. Feed, community, subscription, profile post/comment, top-level comment, immediate-child comment, ban, report, and moderation-history lists share this boundary. A root page and every child page apply the size independently; neither silently includes unbounded descendants outside its own count.
+The final page may contain fewer items. Feed, community, subscription, profile post/comment, ban, and report lists share this boundary. Top-level comment page size does not count the nested descendants included beneath those roots.
 
 ### REQ-RULE-PAGINATION-002 Validate Continuation Scope and Recover From Stale State
 
-A continuation is valid only for the unchanged current user where relevant, community, list kind, parent comment where relevant, filters, sort, time range, page size, and traversal snapshot that created it. A Home continuation additionally binds the subscription identities captured at its snapshot and remains valid when current subscription membership later changes.
+A continuation is valid only for the unchanged current user where relevant, community, list kind, filters, sort, time range, page size, and traversal snapshot that created it.
 
-An unknown, stale, or mismatched continuation returns a fresh first page under the caller's current inputs and a visible reset indicator. The reset begins a new snapshot. Unified moderation history first rechecks current authority and refuses an unauthorized caller instead of returning a reset page. A final or empty page has no next continuation.
+An unknown, stale, or mismatched continuation returns a fresh first page under the caller's current inputs and a visible reset indicator. The reset begins a new snapshot. A final or empty page has no next continuation.

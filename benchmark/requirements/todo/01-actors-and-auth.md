@@ -4,19 +4,19 @@
 
 The product has one credentialed actor: a user who enters through an email-and-password account and then works inside a private profile and Todo collection. Open registration creates that account and profile before authenticated work begins. Returning users enter through login, which proves control of an existing account without creating new business information.
 
-Registration and login share the same canonical email identity but have different effects and refusals. Registration resolves duplicate current identity while creating the initial profile; login creates only a new authenticated session and gives invalid attempts no clue about whether an email is registered. Permanent deletion releases the canonical email for a later, entirely new account rather than reactivating the deleted one.
+Registration and login share the same canonical email identity but have different effects and refusals. Registration resolves duplicate identity while creating the initial profile; login creates only a new authenticated session and gives invalid attempts no clue about whether an email is registered.
 
 ### REQ-AUTH-PROVISION-1 Register a Private Account
 
 Anyone may register an account by providing an email address, password, and initial display name. The email and password must satisfy the credential rules in REQ-RULE-CREDENTIAL, and the display name must satisfy REQ-RULE-PROFILE.
 
-A successful registration creates one active account with a new opaque account identity, exactly one private profile carrying the supplied display name, and an empty Todo collection owned by that account. Successful registration also signs the new user in immediately, so the account's private capabilities are available without a separate login step.
+A successful registration creates one active account, exactly one private profile carrying the supplied display name, and an empty Todo collection owned by that account. Successful registration also signs the new user in immediately, so the account's private capabilities are available without a separate login step.
 
-If the canonical form of the email already belongs to an active account, registration is refused. An email released by completed permanent deletion is available under REQ-RULE-CREDENTIAL-6, but registration with it creates a new account identity and no relationship to the deleted account. Invalid credentials or an invalid display name are also refused. A refused attempt creates no account, profile, Todo collection, or authenticated session.
+If the canonical form of the email already belongs to an account, registration is refused. Invalid credentials or an invalid display name are also refused. A refused attempt creates no account, profile, Todo collection, or authenticated session.
 
 ### REQ-AUTH-PROVISION-2 Log In with Email and Password
 
-A registered user may log in by submitting their email address and password. When both values authenticate the account, the product creates a new authenticated session that can access only that account's profile, todos, histories, and trash. The session receives the absolute and inactivity expirations in REQ-NFR-SECURITY-3.
+A registered user may log in by submitting their email address and password. When both values authenticate the account, the product creates a new authenticated session that can access only that account's profile, todos, histories, and trash.
 
 Login does not require profile or Todo input, and it does not replace other valid sessions for the same account. This allows the user to remain signed in on more than one device until a session is explicitly ended or invalidated by an account-security action.
 
@@ -26,15 +26,15 @@ If the email does not identify an account or the password is incorrect, login cr
 
 Once authenticated, a user can continue private Todo work through the same valid session without presenting the password for every interaction. The session always retains the same account identity and owner-scoped authority; continuation does not change profile or Todo information.
 
-The product permits several valid sessions for one account so the user can stay signed in on more than one device. It therefore separates leaving the current device from ending access everywhere. Each session also ends at its own absolute or inactivity expiration. Credential replacement and permanent account deletion end session continuity through their own account-management effects.
+The product permits several valid sessions for one account so the user can stay signed in on more than one device. It therefore separates leaving the current device from ending access everywhere. Credential replacement and permanent account deletion also end session continuity through their own account-management effects.
 
 ### REQ-AUTH-SESSION-1 Continue an Authenticated Session
 
-A user may renew authenticated continuity for the same account by presenting a valid, unexpired session. Continuation does not require the account password again and cannot switch the session to another user's identity or expand its owner-scoped authority.
+A user may renew authenticated continuity for the same account by presenting a valid session. Continuation does not require the account password again and cannot switch the session to another user's identity or expand its owner-scoped authority.
 
-Continuation changes no profile, Todo, trash, or history information. It renews only the session's inactivity deadline and never extends its absolute deadline, as defined by REQ-NFR-SECURITY-3.
+Continuation changes no profile, Todo, trash, or history information. It remains available while the session is valid under the account's current security state.
 
-A missing, unknown, expired, logged-out, or invalidated session cannot be continued. In particular, a session ended by current-session logout, all-session logout, password change, password recovery, or account deletion restores no authenticated authority.
+A missing, unknown, logged-out, or invalidated session cannot be continued. In particular, a session ended by current-session logout, all-session logout, password change, password recovery, or account deletion restores no authenticated authority.
 
 ### REQ-AUTH-SESSION-2 Log Out the Current Session
 
@@ -50,7 +50,7 @@ Afterward, none of those sessions can continue or authorize a private operation;
 
 ## REQ-AUTH-MANAGE Account Management
 
-Account management gives the user three distinct security outcomes: changing a known password, recovering when the current password is unavailable, and permanently closing the account. Password change proves authority with the existing secret; recovery uses a time-bounded one-time proof delivered to the registered email identity instead. Both replace the credential and end older authenticated access.
+Account management gives the user three distinct security outcomes: changing a known password, recovering when the current password is unavailable, and permanently closing the account. Password change proves authority with the existing secret; recovery proves control of the registered email identity instead. Both replace the credential and end older authenticated access.
 
 Account deletion is different from credential maintenance. It is a terminal, irreversible action that ends all authority and removes the profile, every active Todo, every Todo currently recoverable in trash, and every associated edit history entry. Nothing in that deleted account has a reactivation path.
 
@@ -64,29 +64,19 @@ An incorrect current password, a reused current password, or a new password outs
 
 ### REQ-AUTH-MANAGE-2 Recover a Forgotten Password
 
-A person who cannot provide the current password may request recovery for a submitted email address. The public request returns the same neutral outcome whether the canonical email belongs to an active account, belongs to no account, or was released by account deletion.
+A user who cannot provide the current password may recover the account by proving control of its registered email identity. Recovery then permits an accepted replacement password without requiring the old password.
 
-For an active account, the request issues a fresh unpredictable proof and delivers it only through the registered email channel. The raw proof is never returned by the public request. Issuing a fresh proof immediately supersedes every earlier unused proof for that account.
+The recovery journey does not disclose whether a submitted email belongs to an account before control is proven. The replacement password must satisfy REQ-RULE-CREDENTIAL.
 
-Only the most recent unused proof may authorize recovery, and only before 30 minutes have elapsed from its issue time. The proof must satisfy REQ-RULE-CREDENTIAL-5, and the replacement password must satisfy REQ-RULE-CREDENTIAL-2. A missing, malformed, used, expired, or superseded proof is refused without revealing which condition applied.
-
-Successful recovery consumes the proof, makes the replacement password the only password accepted for future login, and ends every session previously issued for the account as one outcome. A consumed proof cannot be replayed. A refused recovery changes no proof, credential, session, account, profile, Todo, trash, or history state.
+Successful recovery makes the replacement password the only password accepted for future login and ends every session previously issued for the account. If email-identity control is not proven or the replacement password is invalid, no credential or session state changes.
 
 ### REQ-AUTH-MANAGE-3 Permanently Delete the Account
 
 An authenticated user may permanently delete their own account after confirming authority with the correct current password. A wrong password refuses the action and leaves the account, its sessions, and all owned information unchanged.
 
-Successful deletion removes the account and profile; every active todo; every todo already in trash; every edit history entry owned through those todos; every outstanding recovery proof; and every session belonging to the account. These removals form one terminal outcome, so no part of the account remains usable after another part has been removed.
+Successful deletion removes the account and profile; every active todo; every todo already in trash; every edit history entry owned through those todos; and every session belonging to the account. These removals form one terminal outcome, so no part of the account remains usable after another part has been removed.
 
-All account sessions lose authority immediately, and the deleted email and password no longer log in. The deleted account, profile, todos, and histories have no restoration or reactivation path. Completed deletion releases the canonical email only for the new-account outcome in REQ-AUTH-MANAGE-4.
-
-### REQ-AUTH-MANAGE-4 Reuse a Released Email Only for a New Account
-
-After permanent deletion completes, the former canonical email is no longer reserved by the removed account. A later registration may use that email if no active account currently owns it.
-
-Successful registration with a released email creates a new opaque account identity, a new profile, an empty Todo collection, and a new session. It restores no deleted profile, Todo, history, credential, recovery proof, or session and inherits no authority from the removed account.
-
-An old password, recovery proof, or session remains unusable against the new account. Email reuse changes no data owned by any other active account.
+All account sessions lose authority immediately, and the deleted email and password no longer log in. The deleted account, profile, todos, and histories have no restoration or reactivation path.
 
 ## REQ-AUTH-BOUNDARY Private Account Authority
 
@@ -100,7 +90,7 @@ A valid user session is required to manage an account, view or edit its profile,
 
 Registration, login, and the non-disclosing start of password recovery remain available without an authenticated session. These entry journeys do not provide private account information until their own proof succeeds.
 
-An absent, unknown, expired, logged-out, or invalidated session has no private authority. A request made without valid authentication returns no protected information and changes no profile, Todo, history, trash, credential, or account state.
+An absent, unknown, logged-out, or invalidated session has no private authority. A request made without valid authentication returns no protected information and changes no profile, Todo, history, trash, credential, or account state.
 
 ### REQ-AUTH-BOUNDARY-2 Limit Authority to Owned Private Information
 
