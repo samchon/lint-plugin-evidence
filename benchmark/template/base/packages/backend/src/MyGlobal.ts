@@ -9,6 +9,9 @@ import { PrismaClient } from "./prisma/client";
 
 /** Provides validated process state shared by backend providers. */
 export class MyGlobal {
+  /** Allows destructive schema setup only in an explicit setup process. */
+  public static testing: boolean = false;
+
   /** Returns the validated runtime environment. */
   public static get env(): MyGlobal.IEnvironments {
     return environments.get();

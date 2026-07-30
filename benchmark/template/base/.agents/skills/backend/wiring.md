@@ -53,7 +53,7 @@ The frontend already has working defaults. Copy `packages/frontend/.env.example`
 
 The executable imports one class and calls one method. Parsing, orchestration, and setup live in the class, never in the entry point.
 
-Database preparation is a separate explicit step. `pnpm prepare` pushes the Prisma schema to the SQLite file; `MyBackend.open()` neither prepares nor seeds the database.
+Database preparation is a separate explicit step. `pnpm prepare` pushes the Prisma schema to the SQLite file without resetting existing data. `pnpm schema` enters the guarded `MySetupWizard` path and force-resets the local database. `MyBackend.open()` does neither.
 
 ## Database Errors Are Mapped At The Boundary, Once
 
