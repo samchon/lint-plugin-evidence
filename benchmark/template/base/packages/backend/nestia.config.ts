@@ -4,8 +4,7 @@ import { NestFactory } from "@nestjs/core";
 import { MyModule } from "./src/MyModule";
 
 export default {
-  input: async () =>
-    NestFactory.create(await MyModule.mount(), { logger: false }),
+  input: ["src/controllers"],
   output: "../api/src",
   swagger: {
     output: "../api/swagger.json",
