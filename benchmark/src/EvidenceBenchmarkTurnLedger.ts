@@ -48,9 +48,16 @@ export namespace EvidenceBenchmarkTurnLedger {
 
   /** Retained attempt totals bound into the operator report. */
   export interface ISummary {
+    /** Sum of every measured model-process attempt. */
     elapsedMs: number;
+
+    /** Number of retained attempts, including rejected work. */
     attempts: number;
+
+    /** Number of machine-gate accepted attempts. */
     accepted: number;
+
+    /** Native Codex token categories summed from terminal events. */
     tokens: {
       input_tokens: number;
       cached_input_tokens: number;
