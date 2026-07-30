@@ -79,9 +79,9 @@ export namespace EvidenceBenchmarkWorkspace {
         "git",
         [
           "-c",
-          "user.name=Evidence Benchmark",
+          "user.name=Benchmark Runner",
           "-c",
-          "user.email=evidence-benchmark@localhost",
+          "user.email=benchmark-runner@localhost",
           "commit",
           "-m",
           "Prepare benchmark workspace",
