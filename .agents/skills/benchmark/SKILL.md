@@ -116,7 +116,7 @@ Each run keeps:
 - `events.jsonl`: every native stdin, stdout, and stderr chunk with process index, sequence, stream, and process-relative elapsed time; and
 - `raw.log`: the same raw chunks concatenated in delivery order.
 
-Codex records the native Goal, terminal-turn and idle checkpoints, starting and ending token totals, token delta, and accumulated native turn duration. Claude Code records input dispatch, its resolved native model, terminal result, native usage categories, client-estimated cost, and process duration. Both retain the requested model, exact prescribed text, continuation text, combined objective, command, arguments, exit code, signal, and raw events.
+Codex records the native Goal, terminal-turn and idle checkpoints, starting and ending token totals, token delta, and accumulated native turn duration. Claude Code records input dispatch, its resolved native model, terminal result, native usage categories, client-estimated cost, and process duration; it does not report a separate reasoning-token category, so none is invented. Both retain the requested model, exact prescribed text, continuation text, combined objective, command, arguments, exit code, signal, and raw events.
 
 Do not reconstruct missing measurements. Report native token categories separately, keep setup outside process and instruction time, and label any derived price, estimate, or later quality assessment.
 

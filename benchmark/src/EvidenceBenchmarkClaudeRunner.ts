@@ -9,6 +9,14 @@ export namespace EvidenceBenchmarkClaudeRunner {
   export type EvidenceBenchmarkEffort =
     "low" | "medium" | "high" | "xhigh" | "max";
 
+  export interface IEvidenceBenchmarkTokenUsage {
+    totalTokens: number;
+    inputTokens: number;
+    cachedInputTokens: number;
+    cacheWriteInputTokens: number;
+    outputTokens: number;
+  }
+
   export interface IEvidenceBenchmarkInstructionRecord {
     index: number;
     name: string;
@@ -20,7 +28,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
     completed: boolean;
     processIndexes: number[];
     terminalResult: Record<string, unknown> | null;
-    tokenUsage: EvidenceBenchmarkRunner.IEvidenceBenchmarkTokenUsage;
+    tokenUsage: IEvidenceBenchmarkTokenUsage;
     costUsd: number;
     elapsedMs: number;
   }
@@ -32,7 +40,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
     nativeModel?: string;
     nextInstructionIndex: number;
     status: "ready" | "running" | "interrupted" | "completed";
-    tokenUsage: EvidenceBenchmarkRunner.IEvidenceBenchmarkTokenUsage;
+    tokenUsage: IEvidenceBenchmarkTokenUsage;
     costUsd: number;
     instructions: IEvidenceBenchmarkInstructionRecord[];
     processes: EvidenceBenchmarkRunner.IEvidenceBenchmarkProcessRecord[];
@@ -85,7 +93,12 @@ export namespace EvidenceBenchmarkClaudeRunner {
       }
       const executable = resolveExecutable(props);
       const cliVersion: string =
-        props.cliVersion ?? readVersion(executable.command, executable.prefix);
+        props.cliVersion ??
+        readVersion(
+          executable.command,
+          executable.prefix,
+          props.environment ?? process.env,
+        );
       if (state.cliVersion !== undefined && state.cliVersion !== cliVersion)
         throw new Error(
           "Retained benchmark cell uses a different Claude Code version.",
@@ -208,7 +221,6 @@ export namespace EvidenceBenchmarkClaudeRunner {
       "--strict-mcp-config",
       "--mcp-config",
       '{"mcpServers":{}}',
-      "--disable-slash-commands",
       "--no-chrome",
       "--prompt-suggestions",
       "false",
@@ -311,30 +323,34 @@ export namespace EvidenceBenchmarkClaudeRunner {
     processRecord.signal = terminal.signal;
     instruction.elapsedMs += processRecord.elapsedMs;
 
+    const events: Record<string, unknown>[] = parseEvents(stdout);
+    const result: Record<string, unknown> | undefined = terminalResult(
+      events,
+      state.sessionId,
+    );
+    if (result !== undefined) {
+      instruction.terminalResult = structuredClone(result);
+      const usage: IEvidenceBenchmarkTokenUsage = readUsage(result.usage);
+      instruction.tokenUsage = usage;
+      state.tokenUsage = addUsage(state.tokenUsage, usage);
+      const costUsd: number = nonnegativeNumber(
+        result.total_cost_usd,
+        "Claude Code total cost",
+      );
+      instruction.costUsd = costUsd;
+      state.costUsd += costUsd;
+      await publish(props, state);
+      validateInitializations(events, state, props, cliVersion);
+    }
     if (outputError !== undefined) throw outputError;
     if (processError !== undefined) throw processError;
     if (terminal.exitCode !== 0 || terminal.signal !== null)
       throw new Error(
         `Claude Code exited with code ${String(terminal.exitCode)} and signal ${String(terminal.signal)}.`,
       );
-
-    const events: Record<string, unknown>[] = parseEvents(stdout);
-    validateInitializations(events, state, props, cliVersion);
-    const result: Record<string, unknown> = terminalResult(
-      events,
-      state.sessionId,
-    );
-    const usage: EvidenceBenchmarkRunner.IEvidenceBenchmarkTokenUsage =
-      readUsage(result.usage);
-    const costUsd: number = nonnegativeNumber(
-      result.total_cost_usd,
-      "Claude Code total cost",
-    );
-    instruction.terminalResult = structuredClone(result);
-    instruction.tokenUsage = usage;
-    instruction.costUsd = costUsd;
-    state.tokenUsage = addUsage(state.tokenUsage, usage);
-    state.costUsd += costUsd;
+    if (result === undefined)
+      throw new Error("Claude Code omitted its terminal result.");
+    validateSuccessfulResult(result);
     instruction.completed = true;
     await publish(props, state);
   }
@@ -387,19 +403,25 @@ export namespace EvidenceBenchmarkClaudeRunner {
   function terminalResult(
     events: readonly Record<string, unknown>[],
     sessionId: string,
-  ): Record<string, unknown> {
+  ): Record<string, unknown> | undefined {
     const results = events.filter(
       (event) =>
         event.type === "result" &&
         object(event.origin, false)?.kind !== "task-notification",
     );
-    if (results.length !== 1)
+    if (results.length > 1)
       throw new Error(
         "Claude Code emitted an invalid number of terminal results.",
       );
+    if (results.length === 0) return undefined;
     const result: Record<string, unknown> = results[0]!;
+    if (result.session_id !== sessionId)
+      throw new Error("Claude Code result used a different session.");
+    return result;
+  }
+
+  function validateSuccessfulResult(result: Record<string, unknown>): void {
     if (
-      result.session_id !== sessionId ||
       result.subtype !== "success" ||
       result.is_error !== false ||
       (result.terminal_reason !== undefined &&
@@ -416,7 +438,6 @@ export namespace EvidenceBenchmarkClaudeRunner {
       throw new Error(
         "Claude Code completed with a permission denial or native error.",
       );
-    return result;
   }
 
   function parseEvents(stdout: string): Record<string, unknown>[] {
@@ -426,9 +447,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
       .map((line) => object(JSON.parse(line) as unknown));
   }
 
-  function readUsage(
-    value: unknown,
-  ): EvidenceBenchmarkRunner.IEvidenceBenchmarkTokenUsage {
+  function readUsage(value: unknown): IEvidenceBenchmarkTokenUsage {
     const usage: Record<string, unknown> = object(value);
     const inputTokens: number = tokenCount(usage.input_tokens);
     const cachedInputTokens: number = tokenCount(usage.cache_read_input_tokens);
@@ -443,14 +462,13 @@ export namespace EvidenceBenchmarkClaudeRunner {
       cachedInputTokens,
       cacheWriteInputTokens,
       outputTokens,
-      reasoningOutputTokens: 0,
     };
   }
 
   function addUsage(
-    left: EvidenceBenchmarkRunner.IEvidenceBenchmarkTokenUsage,
-    right: EvidenceBenchmarkRunner.IEvidenceBenchmarkTokenUsage,
-  ): EvidenceBenchmarkRunner.IEvidenceBenchmarkTokenUsage {
+    left: IEvidenceBenchmarkTokenUsage,
+    right: IEvidenceBenchmarkTokenUsage,
+  ): IEvidenceBenchmarkTokenUsage {
     return {
       totalTokens: left.totalTokens + right.totalTokens,
       inputTokens: left.inputTokens + right.inputTokens,
@@ -458,19 +476,16 @@ export namespace EvidenceBenchmarkClaudeRunner {
       cacheWriteInputTokens:
         left.cacheWriteInputTokens + right.cacheWriteInputTokens,
       outputTokens: left.outputTokens + right.outputTokens,
-      reasoningOutputTokens:
-        left.reasoningOutputTokens + right.reasoningOutputTokens,
     };
   }
 
-  function zeroUsage(): EvidenceBenchmarkRunner.IEvidenceBenchmarkTokenUsage {
+  function zeroUsage(): IEvidenceBenchmarkTokenUsage {
     return {
       totalTokens: 0,
       inputTokens: 0,
       cachedInputTokens: 0,
       cacheWriteInputTokens: 0,
       outputTokens: 0,
-      reasoningOutputTokens: 0,
     };
   }
 
@@ -496,26 +511,46 @@ export namespace EvidenceBenchmarkClaudeRunner {
         prefix: props.commandPrefixArguments ?? [],
       };
     if (process.platform !== "win32") return { command: "claude", prefix: [] };
-    const appData: string | undefined = process.env.APPDATA;
-    if (appData === undefined)
-      throw new Error("Claude Code launch on Windows requires APPDATA.");
-    const command: string = path.join(
-      appData,
-      "npm",
-      "node_modules",
-      "@anthropic-ai",
-      "claude-code",
-      "bin",
+    const environment: NodeJS.ProcessEnv = props.environment ?? process.env;
+    const executable: string | undefined = locateWindowsCommand(
       "claude.exe",
+      environment,
     );
-    if (!fs.existsSync(command))
-      throw new Error(`Claude Code executable was not found: ${command}.`);
-    return { command, prefix: [] };
+    if (executable !== undefined) return { command: executable, prefix: [] };
+    const shim: string | undefined = locateWindowsCommand(
+      "claude.cmd",
+      environment,
+    );
+    const command: string | undefined = environment.ComSpec;
+    if (shim === undefined || command === undefined)
+      throw new Error("Claude Code was not found on PATH.");
+    return { command, prefix: ["/d", "/s", "/c", shim] };
   }
 
-  function readVersion(command: string, prefix: readonly string[]): string {
+  function locateWindowsCommand(
+    name: string,
+    environment: NodeJS.ProcessEnv,
+  ): string | undefined {
+    const result = spawnSync("where.exe", [name], {
+      encoding: "utf8",
+      env: environment,
+      shell: false,
+      windowsHide: true,
+    });
+    if (result.status !== 0) return undefined;
+    return (result.stdout ?? "")
+      .split(/\r?\n/)
+      .find((candidate) => candidate.length !== 0);
+  }
+
+  function readVersion(
+    command: string,
+    prefix: readonly string[],
+    environment: NodeJS.ProcessEnv,
+  ): string {
     const result = spawnSync(command, [...prefix, "--version"], {
       encoding: "utf8",
+      env: environment,
       shell: false,
       windowsHide: true,
     });

@@ -39,10 +39,15 @@ const main = async (): Promise<void> => {
     assert.equal(completed.instructions.length, entries.length);
     assert.equal(completed.processes.length, entries.length);
     assert.equal(completed.tokenUsage.totalTokens, entries.length * 10);
+    assert.equal("reasoningOutputTokens" in completed.tokenUsage, false);
     assert.equal(completed.costUsd, entries.length * 0.01);
     completed.processes.forEach((process, index) => {
       assert.equal(process.exitCode, 0);
       assert.equal(process.signal, null);
+      assert.equal(
+        process.arguments.includes("--disable-slash-commands"),
+        false,
+      );
       const sessionFlag: string = index === 0 ? "--session-id" : "--resume";
       assert.equal(
         process.arguments[process.arguments.indexOf("--model") + 1],
@@ -97,6 +102,28 @@ const main = async (): Promise<void> => {
     assert.equal(interrupted.instructions[0]?.inputDispatched, true);
     assert.equal(interrupted.instructions[0]?.completed, false);
     assert.equal(interrupted.processes[0]?.exitCode, 7);
+
+    const errorResult = await EvidenceBenchmarkClaudeRunner.run({
+      state: EvidenceBenchmarkClaudeRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--error-result"],
+      onOutput: () => undefined,
+    });
+    assert.equal(errorResult.status, "interrupted");
+    assert.equal(errorResult.instructions[0]?.completed, false);
+    assert.equal(
+      errorResult.instructions[0]?.terminalResult?.subtype,
+      "error_during_execution",
+    );
+    assert.equal(errorResult.instructions[0]?.tokenUsage.totalTokens, 5);
+    assert.equal(errorResult.tokenUsage.totalTokens, 5);
+    assert.equal(errorResult.instructions[0]?.costUsd, 0.02);
+    assert.equal(errorResult.costUsd, 0.02);
+    assert.equal(errorResult.processes[0]?.exitCode, 1);
 
     const resumed = await EvidenceBenchmarkClaudeRunner.run({
       state: interrupted,
@@ -224,6 +251,25 @@ const fakeClaude = (): void => {
     if (process.argv.includes("--fail")) {
       process.stderr.write("fixture interruption\n");
       process.exitCode = 7;
+      return;
+    }
+    if (process.argv.includes("--error-result")) {
+      process.stdout.write(
+        `${JSON.stringify({
+          type: "result",
+          subtype: "error_during_execution",
+          is_error: true,
+          session_id: sessionId,
+          usage: {
+            input_tokens: 3,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+            output_tokens: 2,
+          },
+          total_cost_usd: 0.02,
+        })}\n`,
+      );
+      process.exitCode = 1;
       return;
     }
     process.stdout.write(

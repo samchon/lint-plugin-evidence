@@ -59,7 +59,7 @@ The runner retains facts in delivery order:
 - complete native stdin, stdout, and stderr in `events.jsonl` and `raw.log`;
 - project, engine, arm, requested and resolved native model, effort, CLI version, session, instruction, and process identity;
 - the current instruction cursor and engine-specific terminal checkpoints;
-- native token categories, process elapsed time, exit code, and signal; and
+- native token categories, process elapsed time, exit code, and signal; Claude Code does not expose a separate reasoning-token category; and
 - Claude Code's reported client-side cost estimate.
 
 Setup time remains separate from model-process time. The retained record does not add build, lint, requirement, graph, quality, publication, or completion verdicts.
