@@ -5,6 +5,9 @@ import { EvidenceBenchmarkEngine } from "./EvidenceBenchmarkEngine.ts";
 
 /** Validates the retained order and native evidence of benchmark turns. */
 export namespace EvidenceBenchmarkTurnLedger {
+  /** Native reason that prevents a zero-exit attempt from being accepted. */
+  export type RetryableReason = "permission-denied" | "policy-denied";
+
   /** Serializes the exact workspace and cache roots of one Codex cell. */
   export function codexWorkspaceRootsConfig(workspace: string): string {
     const roots: readonly string[] = [
@@ -20,6 +23,18 @@ export namespace EvidenceBenchmarkTurnLedger {
     public constructor(public readonly denialCount: number) {
       super(
         `Benchmark attempt retained ${denialCount} native permission denial${
+          denialCount === 1 ? "" : "s"
+        }.`,
+      );
+    }
+  }
+
+  /** Reports a Codex policy denial retained inside a zero-exit turn. */
+  export class PolicyDeniedError extends Error {
+    /** Captures the exact native denial count retained by the attempt. */
+    public constructor(public readonly denialCount: number) {
+      super(
+        `Benchmark attempt retained ${denialCount} native policy denial${
           denialCount === 1 ? "" : "s"
         }.`,
       );
@@ -66,7 +81,7 @@ export namespace EvidenceBenchmarkTurnLedger {
     verdict: "acceptable" | "retryable-incomplete" | "process-failed";
 
     /** Structured retry cause, present only for a retryable incomplete turn. */
-    reason?: "permission-denied";
+    reason?: RetryableReason;
 
     /** Number of native permission denials retained by the terminal event. */
     denialCount?: number;
@@ -238,8 +253,11 @@ export namespace EvidenceBenchmarkTurnLedger {
       ...props,
       invocationPolicy: "current",
     });
-    if (inspection.verdict === "retryable-incomplete")
-      throw new PermissionDeniedError(inspection.denialCount!);
+    if (inspection.verdict === "retryable-incomplete") {
+      if (inspection.reason === "permission-denied")
+        throw new PermissionDeniedError(inspection.denialCount!);
+      throw new PolicyDeniedError(inspection.denialCount!);
+    }
     if (inspection.verdict !== "acceptable")
       throw new Error(
         `Benchmark attempt ${String(props.turn.name)} did not exit successfully.`,
@@ -292,7 +310,7 @@ export namespace EvidenceBenchmarkTurnLedger {
       throw new Error(
         `Benchmark attempt ${props.turn.name} retained another instruction's log.`,
       );
-    retainedLog(
+    const stderr: string = retainedLog(
       props.runRoot,
       props.turn.stderr,
       ".stderr.log",
@@ -302,7 +320,11 @@ export namespace EvidenceBenchmarkTurnLedger {
     const events: Record<string, unknown>[] = readEvents(stdout, props.turn);
     const evidence: IAttemptEvidence =
       props.engine === "codex"
-        ? codexEvidence(events, props.sessionId)
+        ? codexEvidence(
+            events,
+            props.sessionId,
+            fs.readFileSync(stderr, "utf8"),
+          )
         : claudeEvidence(events, props.sessionId, props.model);
     if (
       !Array.isArray(props.turn.invocation) ||
@@ -339,12 +361,12 @@ export namespace EvidenceBenchmarkTurnLedger {
       throw new Error(
         `Benchmark attempt ${String(props.turn.name)} has no complete native terminal evidence.`,
       );
-    if (evidence.permissionDenialCount !== undefined)
+    if (evidence.denial !== undefined)
       return {
         sessionLinked: true,
         verdict: "retryable-incomplete",
-        reason: "permission-denied",
-        denialCount: evidence.permissionDenialCount,
+        reason: evidence.denial.reason,
+        denialCount: evidence.denial.count,
         ...(evidence.usage === undefined ? {} : { usage: evidence.usage }),
       };
     if (!evidence.acceptable)
@@ -444,7 +466,10 @@ export namespace EvidenceBenchmarkTurnLedger {
     linked: boolean;
     terminal: boolean;
     acceptable: boolean;
-    permissionDenialCount?: number;
+    denial?: {
+      reason: RetryableReason;
+      count: number;
+    };
     usage?: ISummary["tokens"];
   }
 
@@ -478,6 +503,7 @@ export namespace EvidenceBenchmarkTurnLedger {
   function codexEvidence(
     events: readonly Record<string, unknown>[],
     sessionId: string,
+    stderr: string,
   ): IAttemptEvidence {
     const starts: readonly Record<string, unknown>[] = events.filter(
       (event) => event.type === "thread.started",
@@ -495,10 +521,32 @@ export namespace EvidenceBenchmarkTurnLedger {
         ? undefined
         : readCodexUsage(completed[0].usage);
     const terminal: boolean = completed.length === 1 && usage !== undefined;
+    const structuredDenials: number = events.filter(
+      (event) =>
+        event.type === "item.completed" &&
+        isObject(event.item) &&
+        event.item.status === "declined",
+    ).length;
+    const stderrDenials: number = stderr
+      .split(/\r?\n/)
+      .filter((line) =>
+        /(?:rejected by user approval settings|rejected:\s*blocked by policy)/i.test(
+          line,
+        ),
+      ).length;
+    const denialCount: number = structuredDenials + stderrDenials;
     return {
       linked,
       terminal,
-      acceptable: terminal,
+      acceptable: terminal && denialCount === 0,
+      ...(denialCount === 0
+        ? {}
+        : {
+            denial: {
+              reason: "policy-denied" as const,
+              count: denialCount,
+            },
+          }),
       ...(usage === undefined ? {} : { usage }),
     };
   }
@@ -572,7 +620,14 @@ export namespace EvidenceBenchmarkTurnLedger {
       terminal,
       acceptable:
         terminal && noErrors && denialList!.length === 0 && usage !== undefined,
-      ...(permissionDenialCount === undefined ? {} : { permissionDenialCount }),
+      ...(permissionDenialCount === undefined
+        ? {}
+        : {
+            denial: {
+              reason: "permission-denied" as const,
+              count: permissionDenialCount,
+            },
+          }),
       ...(usage === undefined ? {} : { usage }),
     };
   }

@@ -216,22 +216,20 @@ export namespace EvidenceBenchmarkSelfTest {
     fs.mkdirSync(logs, { recursive: true });
     const stdout: string = "logs/skills-contract.stdout.jsonl";
     const stderr: string = "logs/skills-contract.stderr.log";
-    write(
-      path.join(runRoot, ...stdout.split("/")),
-      [
-        JSON.stringify({ type: "thread.started", thread_id: sessionId }),
-        JSON.stringify({
-          type: "turn.completed",
-          usage: {
-            input_tokens: 10,
-            cached_input_tokens: 5,
-            output_tokens: 4,
-            reasoning_output_tokens: 2,
-          },
-        }),
-        "",
-      ].join("\n"),
-    );
+    const successfulLog: string = [
+      JSON.stringify({ type: "thread.started", thread_id: sessionId }),
+      JSON.stringify({
+        type: "turn.completed",
+        usage: {
+          input_tokens: 10,
+          cached_input_tokens: 5,
+          output_tokens: 4,
+          reasoning_output_tokens: 2,
+        },
+      }),
+      "",
+    ].join("\n");
+    write(path.join(runRoot, ...stdout.split("/")), successfulLog);
     write(path.join(runRoot, ...stderr.split("/")), "");
     const commonInvocation: string[] = [
       "--json",
@@ -289,6 +287,84 @@ export namespace EvidenceBenchmarkSelfTest {
       /required model, effort, goal, and isolation invocation/,
       "current Codex admission must reject a profile that omits the measured workspace",
     );
+    turn.invocation = [
+      "codex",
+      "exec",
+      ...commonInvocation,
+      "--cd",
+      workspace,
+      "-",
+    ];
+    write(
+      path.join(runRoot, ...stdout.split("/")),
+      [
+        JSON.stringify({ type: "thread.started", thread_id: sessionId }),
+        JSON.stringify({
+          type: "item.completed",
+          item: {
+            id: "item-1",
+            type: "command_execution",
+            status: "declined",
+            exit_code: -1,
+            aggregated_output: "rejected: blocked by policy",
+          },
+        }),
+        JSON.stringify({
+          type: "turn.completed",
+          usage: {
+            input_tokens: 10,
+            cached_input_tokens: 5,
+            output_tokens: 4,
+            reasoning_output_tokens: 2,
+          },
+        }),
+        "",
+      ].join("\n"),
+    );
+    assert.deepEqual(
+      EvidenceBenchmarkTurnLedger.inspectAttempt({
+        repository,
+        runRoot,
+        workspace,
+        engine: "codex",
+        sessionId,
+        model: "gpt-5.6-terra",
+        effort: "high",
+        sessionEstablished: false,
+        invocationPolicy: "current",
+        turn,
+      }),
+      {
+        sessionLinked: true,
+        verdict: "retryable-incomplete",
+        reason: "policy-denied",
+        denialCount: 1,
+        usage: {
+          input_tokens: 10,
+          cached_input_tokens: 5,
+          cache_creation_input_tokens: 0,
+          output_tokens: 4,
+          reasoning_output_tokens: 2,
+        },
+      },
+      "a zero-exit Codex turn must retain usage but reject a structured policy denial",
+    );
+    assert.throws(
+      inspectCurrent,
+      EvidenceBenchmarkTurnLedger.PolicyDeniedError,
+      "a zero-exit Codex turn with a declined command must not be accepted",
+    );
+    write(path.join(runRoot, ...stdout.split("/")), successfulLog);
+    write(
+      path.join(runRoot, ...stderr.split("/")),
+      "ERROR codex_core::tools::router: error=patch rejected: writing outside of the project; rejected by user approval settings\n",
+    );
+    assert.throws(
+      inspectCurrent,
+      EvidenceBenchmarkTurnLedger.PolicyDeniedError,
+      "a Codex patch denial omitted from stdout must still prevent acceptance",
+    );
+    write(path.join(runRoot, ...stderr.split("/")), "");
   }
 
   function testClaudeIsolation(temporary: string): void {

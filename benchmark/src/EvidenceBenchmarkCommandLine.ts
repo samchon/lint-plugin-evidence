@@ -42,7 +42,7 @@ export namespace EvidenceBenchmarkCommandLine {
     lintRestorationSha256?: string;
     sessionId?: string;
     acceptanceInvalidation?: {
-      code: "permission-denied";
+      code: EvidenceBenchmarkTurnLedger.RetryableReason;
       denialCount: number;
       stdout: string;
     };
@@ -698,6 +698,7 @@ export namespace EvidenceBenchmarkCommandLine {
     let invalidIndex: number | undefined;
     let invalidName: TurnName | undefined;
     let invalidReason: string | undefined;
+    let invalidCode: EvidenceBenchmarkTurnLedger.RetryableReason | undefined;
     let invalidDenialCount: number | undefined;
     let invalidTurn: ITurn | undefined;
     const inspections: readonly EvidenceBenchmarkTurnLedger.IAttemptInspection[] =
@@ -729,10 +730,11 @@ export namespace EvidenceBenchmarkCommandLine {
         if (invalidIndex === undefined || index < invalidIndex) {
           invalidIndex = index;
           invalidName = turn.name;
+          invalidCode = inspection.reason;
           invalidDenialCount = inspection.denialCount;
-          invalidReason = `retained ${String(inspection.denialCount)} native permission denial${
-            inspection.denialCount === 1 ? "" : "s"
-          }`;
+          invalidReason = `retained ${String(inspection.denialCount)} native ${
+            inspection.reason === "permission-denied" ? "permission" : "policy"
+          } denial${inspection.denialCount === 1 ? "" : "s"}`;
           invalidTurn = turn;
         }
       } else if (
@@ -749,6 +751,7 @@ export namespace EvidenceBenchmarkCommandLine {
       invalidIndex === undefined ||
       invalidName === undefined ||
       invalidReason === undefined ||
+      invalidCode === undefined ||
       invalidDenialCount === undefined ||
       invalidTurn === undefined
     )
@@ -764,7 +767,7 @@ export namespace EvidenceBenchmarkCommandLine {
         delete turn.lintRestorationSha256;
       }
     invalidTurn.acceptanceInvalidation = {
-      code: "permission-denied",
+      code: invalidCode,
       denialCount: invalidDenialCount,
       stdout: invalidTurn.stdout,
     };
