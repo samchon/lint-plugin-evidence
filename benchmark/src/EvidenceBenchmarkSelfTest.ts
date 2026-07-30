@@ -1814,6 +1814,16 @@ export namespace EvidenceBenchmarkSelfTest {
       )}\n`,
     );
     write(path.join(workspace, "pnpm-workspace.yaml"), 'packages:\n  - "."\n');
+    const environment: NodeJS.ProcessEnv = {
+      ...process.env,
+    };
+    EvidenceBenchmarkSetup.configureEnvironment(root, environment, {
+      pnpm: path.join(cache, "pnpm-store"),
+      ttsc: path.join(cache, "ttsc"),
+      go: path.join(cache, "go-build"),
+      playwright: path.join(cache, "playwright"),
+      toolchain: path.join(cache, "toolchain-bin"),
+    });
     const materialization: IEvidenceBenchmarkMaterialization = {
       root,
       workspace,
@@ -1821,15 +1831,7 @@ export namespace EvidenceBenchmarkSelfTest {
       manifest: path.join(root, "materialization.json"),
       workspaceTreeSha256: EvidenceBenchmarkHash.bytes("setup fixture"),
       lintBaselines: [],
-      environment: {
-        ...process.env,
-        npm_config_store_dir: path.join(cache, "pnpm-store"),
-        TTSC_CACHE_DIR: path.join(cache, "ttsc"),
-        TTSC_GO_CACHE_DIR: path.join(cache, "go-build"),
-        GOCACHE: path.join(cache, "go-build"),
-        GOTMPDIR: path.join(cache, "go-tmp"),
-        PLAYWRIGHT_BROWSERS_PATH: path.join(cache, "playwright"),
-      },
+      environment,
     };
     const setup = await EvidenceBenchmarkSetup.prepare({
       materialization,

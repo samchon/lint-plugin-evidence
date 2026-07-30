@@ -8,6 +8,7 @@ import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 import { EvidenceBenchmarkProject } from "./EvidenceBenchmarkProject.ts";
+import { EvidenceBenchmarkSetup } from "./EvidenceBenchmarkSetup.ts";
 import { EvidenceBenchmarkTemplate } from "./EvidenceBenchmarkTemplate.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 
@@ -150,18 +151,8 @@ export namespace EvidenceBenchmarkMaterializer {
       };
       const environment: NodeJS.ProcessEnv = {
         ...process.env,
-        COREPACK_HOME: path.join(output, "cache", "corepack"),
-        GOMODCACHE: path.join(output, "cache", "go-mod"),
-        GOPATH: path.join(output, "cache", "go-path"),
-        npm_config_store_dir: caches.pnpm,
-        npm_config_cache: path.join(output, "cache", "npm"),
-        TTSC_CACHE_DIR: caches.ttsc,
-        TTSC_GO_CACHE_DIR: caches.go,
-        GOCACHE: caches.go,
-        GOTMPDIR: path.join(output, "cache", "go-tmp"),
-        PLAYWRIGHT_BROWSERS_PATH: caches.playwright,
-        XDG_CACHE_HOME: path.join(output, "cache", "xdg"),
       };
+      EvidenceBenchmarkSetup.configureEnvironment(output, environment, caches);
       const stageToolchain: string = path.join(stage, "cache", "toolchain-bin");
       EvidenceBenchmarkProcess.pinEnvironment(environment, stageToolchain);
 

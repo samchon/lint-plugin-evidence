@@ -925,18 +925,12 @@ export namespace EvidenceBenchmarkCommandLine {
     ) as IEvidenceBenchmarkMaterialization.IManifest;
     const environment: NodeJS.ProcessEnv = {
       ...process.env,
-      COREPACK_HOME: path.join(root, "cache", "corepack"),
-      GOMODCACHE: path.join(root, "cache", "go-mod"),
-      GOPATH: path.join(root, "cache", "go-path"),
-      npm_config_store_dir: manifest.caches.pnpm,
-      npm_config_cache: path.join(root, "cache", "npm"),
-      TTSC_CACHE_DIR: manifest.caches.ttsc,
-      TTSC_GO_CACHE_DIR: manifest.caches.go,
-      GOCACHE: manifest.caches.go,
-      GOTMPDIR: path.join(root, "cache", "go-tmp"),
-      PLAYWRIGHT_BROWSERS_PATH: manifest.caches.playwright,
-      XDG_CACHE_HOME: path.join(root, "cache", "xdg"),
     };
+    EvidenceBenchmarkSetup.configureEnvironment(
+      root,
+      environment,
+      manifest.caches,
+    );
     EvidenceBenchmarkProcess.pinEnvironment(
       environment,
       manifest.caches.toolchain,
