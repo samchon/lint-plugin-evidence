@@ -6,6 +6,17 @@ import path from "node:path";
 import { EvidenceBenchmarkClaudeRunner } from "../../../benchmark/src/EvidenceBenchmarkClaudeRunner.ts";
 import { EvidenceBenchmarkRunner } from "../../../benchmark/src/EvidenceBenchmarkRunner.ts";
 
+/**
+ * Verifies the Claude Code adapter against a free stream-JSON fixture.
+ *
+ * The adapter must preserve nine exact instructions in one native session
+ * without inventing Codex Goal semantics or losing paid failure measurements.
+ *
+ * 1. Complete the sequence with one created session and eight resumes.
+ * 2. Retain requested and resolved models, tokens, cost, and raw output.
+ * 3. Preserve error-result usage and refuse an inexact dispatched retry.
+ * 4. Resume failures before dispatch and reject invalid completed state.
+ */
 const main = async (): Promise<void> => {
   const root: string = fs.mkdtempSync(
     path.join(os.tmpdir(), "evidence-benchmark-claude-"),

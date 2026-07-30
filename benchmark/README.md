@@ -27,7 +27,7 @@ pnpm --filter @samchon/evidence-benchmark start -- <codex|claude-code> <project>
 
 Omit `run-id` to create a cell under `benchmark/result/<project>/<engine>/<arm>/runs/<run-id>/`. Pass an existing run ID only to resume that exact engine, project, arm, model, effort, workspace, and session.
 
-When launching Evidence cells concurrently, pack the plugin once into an ignored path and set `EVIDENCE_BENCHMARK_ARCHIVE` to that file for the cohort. Every Evidence cell copies the same archive and records its SHA-256. Without the variable, a standalone Evidence cell packs its own archive.
+When launching Evidence cells concurrently, follow the Benchmark skill's shared-archive procedure. Every Evidence cell copies that archive and records its SHA-256. Without `EVIDENCE_BENCHMARK_ARCHIVE`, a standalone Evidence cell packs its own archive.
 
 ## Instruction sequence
 
@@ -59,7 +59,7 @@ The runner retains facts in delivery order:
 
 - the exact prescribed, continuation, and combined user text;
 - complete native stdin, stdout, and stderr in `events.jsonl` and `raw.log`, with observation and process-relative times;
-- project, engine, arm, benchmark Git revision, Evidence artifact SHA-256 when applicable, requested and resolved native model, effort, CLI version, session, instruction, and process identity;
+- project, engine, arm, benchmark Git revision, Evidence artifact SHA-256 when applicable, requested model and Claude Code's resolved native model, effort, CLI version, session, instruction, and process identity;
 - the current instruction cursor and engine-specific terminal checkpoints;
 - native token categories, process elapsed time, exit code, and signal; Claude Code does not expose a separate reasoning-token category; and
 - Claude Code's reported client-side cost estimate.

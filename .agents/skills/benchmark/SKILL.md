@@ -50,7 +50,25 @@ Omitting the run ID creates a new run under `benchmark/result/<subject>/<engine>
 
 A preparation failure before the native session starts is not a measured result. Correct the external prerequisite without changing frozen benchmark meaning, then launch under the existing authorization. Stop for user direction if correction would change an input or cell identity.
 
-Parallel Evidence cells must share one immutable package archive instead of running the package's destructive `prepack` concurrently. From the clean frozen revision, pack once into an ignored path, set `EVIDENCE_BENCHMARK_ARCHIVE` to that archive for the cohort, and launch every Evidence cell with the same environment value. Each cell copies the archive and records its SHA-256; Plain never reads it.
+Parallel Evidence cells must share one immutable package archive instead of running the package's destructive `prepack` concurrently. From the clean frozen revision, prepare the ignored archive and environment once.
+
+PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Force benchmark/result | Out-Null
+pnpm --dir packages/evidence pack --out ../../benchmark/result/evidence.tgz
+$env:EVIDENCE_BENCHMARK_ARCHIVE = (Resolve-Path benchmark/result/evidence.tgz).Path
+```
+
+POSIX shell:
+
+```bash
+mkdir -p benchmark/result
+pnpm --dir packages/evidence pack --out ../../benchmark/result/evidence.tgz
+export EVIDENCE_BENCHMARK_ARCHIVE="$(pwd)/benchmark/result/evidence.tgz"
+```
+
+Launch every Evidence cell in that cohort with the same inherited value. Each cell copies the archive and records its SHA-256; Plain never reads it.
 
 ## Instruction Sequence
 
