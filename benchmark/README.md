@@ -16,12 +16,21 @@ A provider capacity response is a transient model-server availability failure, n
 
 Treat the benchmark as an issue campaign. Keep one campaign pull request open until every authorized wave finishes. Push deterministic runner, template, instruction, and plugin corrections to that pull request, and record detailed findings, interruptions, recoveries, interventions, and completed phases as formal `COMMENT` reviews.
 
-Assign a dedicated read-only reporting subagent to edit the pull-request body in place every 10 minutes. Keep only this dashboard in the body:
+Assign a dedicated read-only reporting subagent to edit the pull-request body in place every 10 minutes. Keep separate engine sections in the body:
 
-| Engine | Project | Mode | Progress | Quality | Cost | Time |
-| ------ | ------- | ---- | -------- | ------: | ---: | ---: |
+```markdown
+## Codex
 
-`Progress` gives the current retained instruction, state, and estimated completion. `Quality` is provisional until final audit. `Cost` contains native token categories and API-equivalent cost. `Time` is cumulative elapsed duration without timestamps. Keep a compact per-phase token, cost, and duration breakdown for all nine retained instructions, then report database-table, API-operation, DTO-type, DTO-property, and test-function counts for each cell. Report counts, not names.
+| Project | Mode | Progress | Quality | Cost | Time |
+| ------- | ---- | -------- | ------: | ---: | ---: |
+
+## Claude Code
+
+| Project | Mode | Progress | Quality | Cost | Time |
+| ------- | ---- | -------- | ------: | ---: | ---: |
+```
+
+`Progress` gives the current retained instruction, state, and estimated completion without unexplained abbreviations. `Quality` is `—` until final audit. `Cost` uses whole-million native tokens and whole-dollar API-equivalent cost; `Time` uses whole-second model-process duration and excludes setup. Keep a compact per-phase breakdown for all nine retained instructions, then report database-table, API-operation, DTO-type, DTO-property, and test-function counts for each cell. Report counts, not names.
 
 The reporting subagent reads retained state, logs, usage, and workspace inventories. It never edits a measured workspace, frozen input, campaign source, or result ledger. The separate liveness supervisor still inspects every active cell at least once every 30 seconds and handles failures immediately.
 
