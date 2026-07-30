@@ -313,6 +313,7 @@ export namespace EvidenceBenchmarkRunner {
       state.nextInstructionIndex++;
       publish();
       await publication;
+      if (outcome !== undefined) return;
       if (state.nextInstructionIndex === entries.length) finish("completed");
       else {
         await beginGoal();
@@ -493,9 +494,10 @@ export namespace EvidenceBenchmarkRunner {
       state.cliVersion = thread.cliVersion;
       current().threadIdle = object(thread.status, false)?.type === "idle";
       publish();
+      await publication;
 
-      if (fresh) await beginGoal();
-      else {
+      if (outcome === undefined && fresh) await beginGoal();
+      else if (outcome === undefined) {
         const goalResponse: Record<string, unknown> = object(
           await request("thread/goal/get", {
             threadId: state.sessionId,

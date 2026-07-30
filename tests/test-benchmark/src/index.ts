@@ -44,7 +44,16 @@ const main = async (): Promise<void> => {
     const snapshots: EvidenceBenchmarkRunner.IEvidenceBenchmarkRunState[] = [];
     const completedOutput: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] =
       [];
-    const completed = await EvidenceBenchmarkRunner.run({
+    let enterSessionCheckpoint!: () => void;
+    const sessionCheckpointEntered = new Promise<void>((resolve) => {
+      enterSessionCheckpoint = resolve;
+    });
+    let releaseSessionCheckpoint!: () => void;
+    const sessionCheckpointReleased = new Promise<void>((resolve) => {
+      releaseSessionCheckpoint = resolve;
+    });
+    let sessionCheckpointBlocked = false;
+    const completedPromise = EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("evidence"),
       cwd: root,
       instructionsRoot: root,
@@ -55,10 +64,30 @@ const main = async (): Promise<void> => {
       onOutput: (_processIndex, output) => {
         completedOutput.push(output);
       },
-      onState: (state) => {
+      onState: async (state) => {
         snapshots.push(state);
+        if (
+          !sessionCheckpointBlocked &&
+          state.sessionId !== undefined &&
+          state.goals[0]?.goal === null
+        ) {
+          sessionCheckpointBlocked = true;
+          enterSessionCheckpoint();
+          await sessionCheckpointReleased;
+        }
       },
     });
+    await sessionCheckpointEntered;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(
+      completedOutput
+        .filter((output) => output.stream === "stdin")
+        .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+        .filter((request) => request.method === "thread/goal/set").length,
+      0,
+    );
+    releaseSessionCheckpoint();
+    const completed = await completedPromise;
 
     assert.equal(completed.status, "completed");
     assert.equal(completed.cliVersion, "fixture-cli");
@@ -148,6 +177,40 @@ const main = async (): Promise<void> => {
         .map((output) => output.text)
         .join(""),
       /fixture interruption/,
+    );
+
+    const stateFailureOutput: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] =
+      [];
+    const stateFailure = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: (_processIndex, output) => {
+        stateFailureOutput.push(output);
+      },
+      onState: (state) => {
+        if (
+          state.sessionId !== undefined &&
+          state.goals[0]?.goal === null
+        )
+          throw new Error("fixture durable state failure");
+      },
+    });
+    assert.equal(stateFailure.status, "interrupted");
+    assert.equal(
+      stateFailure.interruption?.message,
+      "fixture durable state failure",
+    );
+    assert.equal(
+      stateFailureOutput
+        .filter((output) => output.stream === "stdin")
+        .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+        .filter((request) => request.method === "thread/goal/set").length,
+      0,
     );
 
     const outputFailure = await EvidenceBenchmarkRunner.run({
