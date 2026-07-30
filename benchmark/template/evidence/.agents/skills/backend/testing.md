@@ -24,7 +24,8 @@ SDK operation and DTO targets are `{@link}` references resolved through imports 
 Collect `backend-tests` exclusions on the exported const in `packages/backend/test/features/TEST_EVIDENCE_EXCLUDE.ts`. The const is a claim-local carrier rather than a test owner; keep truthful `@evidence` on selected feature-test functions. Use the path target for Markdown and the braced inline-link target for TypeScript. The linked symbol must be imported into the carrier file; the braces are required.
 
 ```ts
-import api, { type IShoppingSale } from "{{apiPackageName}}";
+import * as api from "{{apiPackageName}}";
+import type { IShoppingSale } from "{{apiPackageName}}";
 
 /**
  * @evidenceExclude docs/analysis/05-user-experience.md#responsive-grid

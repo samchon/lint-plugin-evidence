@@ -2532,6 +2532,21 @@ export namespace EvidenceBenchmarkSelfTest {
         /MyModule\.input\(\)/,
         `integrated ${arm} wiring guide must not teach a nonexistent controller input API`,
       );
+      const healthTest: string = Buffer.from(
+        composition.files.get(
+          "packages/backend/test/features/api/health/test_api_health.ts",
+        )!,
+      ).toString("utf8");
+      assert.match(
+        healthTest,
+        /import \* as api from "@integrated-self-test\/api";/,
+        `integrated ${arm} health test must import the SDK namespace that its inline-link citation resolves through`,
+      );
+      assert.doesNotMatch(
+        healthTest,
+        /import api from "@integrated-self-test\/api";/,
+        `integrated ${arm} health test must not cite through the package default alias`,
+      );
       const workflow: string = Buffer.from(
         composition.files.get(".github/workflows/ci.yml")!,
       ).toString("utf8");
@@ -2610,6 +2625,31 @@ export namespace EvidenceBenchmarkSelfTest {
       );
       claims.set(relative, objects);
     }
+    const backendTests = claims
+      .get("packages/backend/lint.config.ts")
+      ?.get("backend-tests");
+    assert.ok(backendTests, "the canonical backend config lost backend-tests");
+    const backendTestsSource: string = backendTests.node.getText(
+      backendTests.source,
+    );
+    assert.match(
+      backendTestsSource,
+      /package:\s*"@[^"]+\/api",\s*symbol:\s*\["function"\]/,
+      "backend-tests must use the package's declared type entry so namespace-import citations and the coverage population share one public address root",
+    );
+    const testingGuide: string = Buffer.from(
+      files.get(".agents/skills/backend/testing.md")!,
+    ).toString("utf8");
+    assert.match(
+      testingGuide,
+      /import \* as api from "@[^"]+\/api";/,
+      "the backend testing guide must teach namespace-import SDK citations",
+    );
+    assert.doesNotMatch(
+      testingGuide,
+      /import api(?:,|\s+from)/,
+      "the backend testing guide must not teach default-import SDK citations",
+    );
     assert.equal(
       [...claims.values()].reduce((sum, entries) => sum + entries.size, 0),
       7,
