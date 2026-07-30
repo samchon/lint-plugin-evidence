@@ -679,8 +679,11 @@ export namespace EvidenceBenchmarkTurnLedger {
       throw new Error(
         "Benchmark Claude Code attempt has a mismatched session or model initialization.",
       );
-    const results: readonly Record<string, unknown>[] = events.filter(
+    const emittedResults: readonly Record<string, unknown>[] = events.filter(
       (event) => event.type === "result",
+    );
+    const results: readonly Record<string, unknown>[] = emittedResults.filter(
+      (event) => !isClaudeTaskNotificationResult(event, sessionId),
     );
     if (results.length > 1)
       throw new Error(
@@ -753,6 +756,49 @@ export namespace EvidenceBenchmarkTurnLedger {
       ...(incomplete === undefined ? {} : { incomplete }),
       ...(usage === undefined ? {} : { usage }),
     };
+  }
+
+  /**
+   * Recognizes Claude's zero-usage task-notification envelope.
+   *
+   * A resumed print session can flush this non-terminal result before the
+   * actual turn. Anything carrying usage, output, a terminal reason, or a
+   * different session remains a terminal candidate and fails closed.
+   */
+  function isClaudeTaskNotificationResult(
+    event: Readonly<Record<string, unknown>>,
+    sessionId: string,
+  ): boolean {
+    const origin: unknown = event.origin;
+    const usage: unknown = event.usage;
+    const modelUsage: unknown = event.modelUsage;
+    const permissionDenials: unknown = event.permission_denials;
+    const errors: unknown = event.errors;
+    return (
+      isObject(origin) &&
+      origin.kind === "task-notification" &&
+      event.session_id === sessionId &&
+      event.subtype === "success" &&
+      event.is_error === false &&
+      event.duration_api_ms === 0 &&
+      event.num_turns === 0 &&
+      event.stop_reason === null &&
+      event.total_cost_usd === 0 &&
+      event.result === "" &&
+      event.terminal_reason === undefined &&
+      event.api_error_status === undefined &&
+      event.structured_output === undefined &&
+      isObject(usage) &&
+      usage.input_tokens === 0 &&
+      usage.cache_creation_input_tokens === 0 &&
+      usage.cache_read_input_tokens === 0 &&
+      usage.output_tokens === 0 &&
+      isObject(modelUsage) &&
+      Object.keys(modelUsage).length === 0 &&
+      Array.isArray(permissionDenials) &&
+      permissionDenials.length === 0 &&
+      (errors === undefined || (Array.isArray(errors) && errors.length === 0))
+    );
   }
 
   function readStructuredOutcome(

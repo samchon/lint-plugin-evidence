@@ -1077,7 +1077,30 @@ export namespace EvidenceBenchmarkSelfTest {
       "logs",
       "skills-contract.attempt-2.stderr.log",
     );
-    write(retryStdout, successfulFirstLog);
+    const taskNotificationResult = {
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      duration_api_ms: 0,
+      num_turns: 0,
+      stop_reason: null,
+      session_id: sessionId,
+      total_cost_usd: 0,
+      usage: {
+        input_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+        output_tokens: 0,
+      },
+      modelUsage: {},
+      permission_denials: [],
+      origin: {
+        kind: "task-notification",
+      },
+      result: "",
+    };
+    const resumedLog: string = `${JSON.stringify(taskNotificationResult)}\n${successfulFirstLog}`;
+    write(retryStdout, resumedLog);
     write(retryStderr, "");
     write(
       firstStdout,
@@ -1137,6 +1160,48 @@ export namespace EvidenceBenchmarkSelfTest {
         reasoning_output_tokens: 0,
       },
     });
+    write(
+      retryStdout,
+      resumedLog.replace('"output_tokens":0', '"output_tokens":1'),
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
+          repository,
+          runRoot,
+          workspace,
+          engine: "claude-code",
+          sessionId,
+          model,
+          effort: "high",
+          turns: [rejectedPermissionTurn, acceptedRetryTurn, ...turns.slice(1)],
+        }),
+      /multiple terminal events/,
+      "a task-notification result carrying usage must fail closed as an extra terminal candidate",
+    );
+    write(
+      retryStdout,
+      resumedLog.replace(
+        '"permission_denials":[]',
+        '"permission_denials":[],"errors":["background failure"]',
+      ),
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
+          repository,
+          runRoot,
+          workspace,
+          engine: "claude-code",
+          sessionId,
+          model,
+          effort: "high",
+          turns: [rejectedPermissionTurn, acceptedRetryTurn, ...turns.slice(1)],
+        }),
+      /multiple terminal events/,
+      "a task-notification result carrying errors must fail closed as an extra terminal candidate",
+    );
+    write(retryStdout, resumedLog);
     write(firstStdout, successfulFirstLog);
     write(
       firstStdout,
