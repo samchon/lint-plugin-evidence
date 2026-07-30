@@ -10,11 +10,11 @@ Complete this phase in dependency order:
 
 1. read and inventory the entire requirement corpus;
 2. design the database schema, then run `pnpm build:prisma` and `pnpm prepare` from `packages/backend`;
-3. finish the flat exported DTOs, then run `pnpm build` from `packages/api`;
+3. finish the flat exported DTOs, then run `pnpm build:api` from `packages/backend`;
 4. finish every controller operation and contract, then run `pnpm build:main` from `packages/backend`;
 5. only after every operation and DTO is settled, run `pnpm build:sdk`;
 6. write requirement-derived backend tests;
-7. implement transformers and collectors, realize the providers and controllers, and remove every completed backend `@todo`;
+7. implement transformers and collectors, realize the providers and controllers, and clear every backend implementation-pending marker as its stub is completed;
 8. from `packages/backend`, rerun `pnpm build:main`, then run `pnpm build:test`, `pnpm lint`, `pnpm test`, and the live-server checks.
 
 Do not implement or redesign `packages/frontend` during this phase. Read frontend-facing requirements as API constraints, but leave frontend realization for its later phase. Generated SDK output under `packages/api` is part of the backend contract and is allowed.

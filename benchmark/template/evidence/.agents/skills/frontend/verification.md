@@ -13,6 +13,8 @@ export async function journey_customer_checkout(page: Page): Promise<void> {}
 
 The page `{@link}` resolves through an import in the journey file. Presentation-only specs and fixtures are outside this claim; do not use them to acknowledge functional requirements.
 
+After the last screen is realized, run `rg --hidden -n -F '@todo' packages/frontend --glob '*.ts' --glob '*.tsx'` from the workspace root and require no matches before the closing browser modes. This source-scoped search excludes the Evidence instruction files that teach the tag.
+
 ## Excluding A Requirement Or Page From Journeys
 
 Put `@evidenceExclude` on `packages/frontend/tests/journeys/JOURNEY_EVIDENCE_EXCLUDE.ts` when `frontend-journeys` intentionally does not verify a configured requirement or traverse a selected page. Use a path target for Markdown and a braced `{@link PageName}` target for a page imported into the carrier file.

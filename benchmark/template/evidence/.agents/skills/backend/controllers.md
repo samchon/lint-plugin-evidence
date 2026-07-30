@@ -18,6 +18,10 @@ public async index(): Promise<IPage<IShoppingSale.ISummary>> {
 }
 ```
 
+## Evidence Stub Marker
+
+In the Evidence arm, write `@todo <remaining implementation>` in place of the base controller guide's general implementation-pending sentence. Keep the tag on every random-answer operation stub, make its text name the provider work still owed, and remove it only when the stub body becomes its real provider delegation.
+
 ## Excluding A Requirement Or Model From Operations
 
 Collect `api-operations` exclusions on the exported const in `packages/backend/src/controllers/CONTROLLER_EVIDENCE_EXCLUDE.ts`. The const is a claim-local carrier rather than an operation owner; keep truthful `@evidence` on selected controller methods.

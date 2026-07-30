@@ -22,7 +22,8 @@ An operation is declared before anything can implement it, and the declaration i
 /**
  * ...the full consumer contract, written now, not later...
  *
- * @todo Realize with ShoppingSaleProvider.index once the read side exists.
+ * Implementation pending: realize with ShoppingSaleProvider.index once the
+ * read side exists.
  */
 @core.TypedRoute.Patch()
 public async index(
@@ -35,7 +36,7 @@ public async index(
 }
 ```
 
-The body simply enumerates each parameter once as a bare statement and returns `typia.random<T>()`; the mentions keep the parameters from reading as unused while nothing consumes them, and the `@todo` names what realize owes. The random return satisfies the contract type, so `build:sdk` works before any provider exists, the tests and the frontend consume the real contract immediately, and simulation mode answers from the same shape.
+The body simply enumerates each parameter once as a bare statement and returns `typia.random<T>()`; the mentions keep the parameters from reading as unused while nothing consumes them, and the implementation-pending sentence names what realize owes. The random return satisfies the contract type, so `build:sdk` works before any provider exists, the tests and the frontend consume the real contract immediately, and simulation mode answers from the same shape.
 
 Design regressions are normal in this phase. An operation that turns out to need a column goes back to the schema, and the stub costs nothing to revise because nothing implements it yet.
 
@@ -45,13 +46,13 @@ Realize begins only when the suite under `packages/backend/test/features/` is co
 
 The swap itself is bound by three principles:
 
-**The body becomes one provider call, and nothing else changes.** The bare parameter mentions and the random return give way to `return ShoppingSaleProvider.index({ actor: seller, input });`, and the `@todo` goes. The route, the signature, and the JSDoc stay exactly as published: the contract shipped to the tests and the frontend on day one, and realize implements it rather than renegotiating it.
+**The body becomes one provider call, and nothing else changes.** The bare parameter mentions and the random return give way to `return ShoppingSaleProvider.index({ actor: seller, input });`, and the implementation-pending sentence goes. The route, the signature, and the rest of the JSDoc stay exactly as published: the contract shipped to the tests and the frontend on day one, and realize implements it rather than renegotiating it.
 
 **A contract the provider cannot satisfy is a design regression, not a controller problem.** Go back to the layer that owns the gap, the schema for a missing column or the DTO for a wrong shape; revise the stub, rebuild the SDK, and let the tests follow. Never bend the controller body around the gap, and never adjust a response to whatever the provider found convenient.
 
 **Business logic stays out.** After realize a controller method is still routing, authorization, and delegation; [providers.md](providers.md) owns everything the call performs. A branch or a computation appearing here is a piece of the provider that leaked.
 
-Realize is finished when no operation carries a `@todo` and the suite that ran red against random answers holds green.
+Realize is finished when no operation remains a random-answer stub or carries an implementation-pending sentence and the suite that ran red against random answers holds green.
 
 ## Operation Shape
 

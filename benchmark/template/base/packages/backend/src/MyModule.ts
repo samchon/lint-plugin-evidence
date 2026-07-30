@@ -21,9 +21,6 @@ export namespace MyModule {
       metadata,
       __filename.endsWith(".ts"),
     );
-    // const controllers: unknown = Reflect.getMetadata("controllers", module);
-    // if (Array.isArray(controllers) === false || controllers.length === 0)
-    //   throw new Error(`No Nest controllers were discovered under ${directory}.`);
     return module;
   };
 }

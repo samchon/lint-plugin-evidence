@@ -37,7 +37,7 @@ export namespace ErrorUtil {
     ): HttpException => {
       const diagnoses: IDiagnosis[] =
         typeof reason === "string"
-          ? [{ message: reason, accessor: "unknown" }]
+          ? [{ message: reason, accessor: "" }]
           : Array.isArray(reason)
             ? reason
             : [reason];

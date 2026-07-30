@@ -6,8 +6,8 @@ The skills-contract turn remains binding. Re-read `AGENTS.md` and the applicable
 
 Restore the backend Evidence configuration before the closing review:
 
-1. Inspect `packages/api/lint.config.ts` and `packages/backend/lint.config.ts`; confirm the sealed `packages/backend/lint.config.main.ts` source-program projection is unchanged.
-2. Restore every deferred claim in those files.
+1. Inspect `packages/backend/lint.config.ts`; confirm the sealed `packages/backend/lint.config.main.ts` and `packages/backend/lint.config.test.ts` Program projections are unchanged.
+2. Restore every deferred claim in the canonical backend file.
 3. Confirm the active backend-phase inventory is `schema-models`, `api-operations`, `backend-tests`, `dto-types`, and `dto-properties`, with original populations and `error` severities.
 
 Finish the backend phase with the same complete Loop Until Dry over the API and backend scope. Each complete review round must include these gates:
@@ -16,10 +16,11 @@ Finish the backend phase with the same complete Loop Until Dry over the API and 
 2. Review every current schema unit, DTO, controller operation, provider branch, database access, backend test assertion, negative path, authorization rule, and generated SDK contract.
 3. Fix every finding.
 4. From `packages/backend`, run `pnpm build:prisma` and `pnpm prepare`.
-5. From `packages/api`, run `pnpm lint` and `pnpm build`.
-6. Return to `packages/backend` and run `pnpm build:main`.
-7. Confirm every operation and DTO is settled, then run `pnpm build:sdk`.
-8. Run `pnpm build:test`, `pnpm lint`, `pnpm test`, and the live-server checks.
+5. From `packages/backend`, run `pnpm build:api` and `pnpm build:main`.
+6. Confirm every operation and DTO is settled, then run `pnpm build:sdk`.
+7. Run `pnpm build:test`, `pnpm lint`, `pnpm test`, and the live-server checks.
+
+From the workspace root, run `rg --hidden -n -F '@todo' packages/api packages/backend --glob '*.ts'` and require no matches. This source-scoped search excludes the Evidence instruction files that teach the tag.
 
 Any finding, correction, generated-output change, or failed gate makes the round non-dry. Restart the complete backend-scoped round at the resulting source digest. Stop after one entire current-digest round finds zero actionable defect and leaves every gate current and green; one dry round is sufficient.
 

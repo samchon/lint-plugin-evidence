@@ -32,15 +32,15 @@ Read this file first, then the topic document for what you are about to touch.
 Each step consumes the previous one, which is why the order is not a preference. Every path below sits inside `packages/frontend/`; [architecture.md](architecture.md) owns the full folder layout.
 
 1. Read the SDK and the requirement journeys, write the screen plan in `wiki/screen-plan.md`, and set the [design dials](design.md).
-2. Pre-design the screens as stubs in `src/components/<domain>/`: each page component and its sub-components with their props enumerated, the contract JSDoc, an `@todo` tag naming what the screen still owes, and a placeholder body. The whole surface is declared before any screen works.
+2. Pre-design the screens as stubs in `src/components/<domain>/`: each page component and its sub-components with their props enumerated, the contract JSDoc, an implementation-pending sentence naming what the screen still owes, and a placeholder body. The whole surface is declared before any screen works.
 3. Build the primitives under `src/components/ui/`, the layout chrome in `src/components/app-frame.tsx`, and the composed providers in `src/components/providers/app-providers.tsx`.
-4. Build `src/lib/<domain>/`: the connection, the view-model types, the fixtures, and the hooks with their keys.
+4. Keep the scaffold's shared connection in `src/lib/client.ts`, then build each domain's view-model types, fixtures, and hooks with their keys under `src/lib/<domain>/`.
 5. Lay the route table in `src/App.tsx` with its guarded layouts, over the stubs, so the whole surface navigates from the start of the frontend phase.
-6. Crack the screens one by one against simulation, every state from the start, adding each screen's gallery rows as it lands and removing its `@todo` as it realizes. [screens.md](screens.md) owns the cracking discipline.
+6. Crack the screens one by one against simulation, every state from the start, adding each screen's gallery rows as it lands and removing its implementation-pending sentence as it realizes. [screens.md](screens.md) owns the cracking discipline.
 7. Write the journey specs under `tests/journeys/` mirroring the requirement journeys, still against simulation.
 8. Close against the live backend: sessions, persistence, authorization, and the verification record in `wiki/verification.md`.
 
-The gated SDK makes step 1 deterministic: the frontend starts from a realized and tested backend contract rather than an unfinished stub contract. Cracking a screen is experimental work: run the app with simulation on and drive it through the Playwright MCP browser while you build, against the SDK's mockup simulator, so every state is provoked and seen rather than imagined. What simulation cannot prove, the closing pass owns, and [verification.md](verification.md) says what that requires.
+The gated SDK fixes the contract before frontend work begins: the frontend starts from a realized and tested backend contract rather than an unfinished stub contract. Cracking a screen is experimental work: run the app with simulation on for contract-generated success responses, use gallery fixtures for named UI states, and drive both through the Playwright MCP browser while you build. What simulation cannot prove, the closing pass owns, and [verification.md](verification.md) says what that requires.
 
 ## Stack
 

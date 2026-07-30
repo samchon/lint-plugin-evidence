@@ -116,6 +116,8 @@ export namespace UniqueDiagnoser {
 
 `IDiagnosis` is the return shape, declared in `src/typings/IDiagnosis.ts` and used by the server's error responses too. It is a shared transport primitive rather than a requirement-derived DTO. One vocabulary for a client-side check and a server-side rejection means a screen renders either without branching, and its `accessor` path is what lands a field error on its field.
 
+An empty `accessor` means the rejection applies to the whole operation rather than one field.
+
 Writing the rule twice guarantees the two drift, and the drift surfaces as a form that accepts what the server then rejects.
 
 **Entity to input mappers.** Turning a fetched entity back into the body that would recreate it. An edit form needs exactly this, and so does a server-side duplicate feature.
@@ -201,10 +203,10 @@ So a screen built against simulation is built against the real contract. If it r
 
 **What it does not do.** No provider runs. Nothing is stored, no session exists, no authorization is evaluated, no side effect occurs. Two calls to the same accessor return unrelated values, and a create followed by a read does not return what you created.
 
-That last part is the trap. Values are random per call, so anything that needs stable data across a run needs the randomness seeded. A screenshot program or a browser test that depends on a particular product name will otherwise pass locally and fail in the next run for no reason anyone can see.
+That last part is the trap. Values are random per call, so a browser assertion must target contract-stable behavior rather than a generated value. Screenshots and named edge states use explicit fixture view models instead of pretending the simulator is deterministic.
 
 **How to use it.** After the Backend Layer Gate passes, use simulation inside the frontend phase for screens, navigation, forms, loading, empty and error states, and browser programs that cover the main flows. Then close against the already gated live backend, because persistence, sessions, authorization, refresh, and side effects are exactly what simulation does not prove. Simulation is a frontend implementation technique, not permission to begin frontend work before backend realization.
 
-Label the evidence accordingly. A run in simulation is shape-and-flow evidence, never integration evidence, and a program named for live integration must never be pointed at the simulated path.
+Label the evidence accordingly. A run in simulation is shape-and-flow evidence, never integration evidence, and a run with simulation enabled must never be recorded as live integration.
 
 The flag is turned on by `simulate: true` in the Nestia configuration when the SDK is generated. If an accessor has no `simulate` branch, the SDK was generated without it.

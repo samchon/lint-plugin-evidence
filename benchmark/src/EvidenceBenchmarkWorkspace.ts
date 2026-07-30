@@ -1,0 +1,222 @@
+import { spawn } from "node:child_process";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+export namespace EvidenceBenchmarkWorkspace {
+  export type EvidenceBenchmarkArm = "evidence" | "plain";
+  export interface IEvidenceBenchmarkWorkspaceVariables {
+    name: string;
+    apiPackageName: string;
+    backendPackageName: string;
+    frontendPackageName: string;
+  }
+  export interface IEvidenceBenchmarkWorkspaceArtifact {
+    name: string;
+    archive: string;
+  }
+  export interface IEvidenceBenchmarkWorkspaceRequest {
+    repository: string;
+    output: string;
+    project: string;
+    arm: EvidenceBenchmarkArm;
+    variables: IEvidenceBenchmarkWorkspaceVariables;
+    artifact?: IEvidenceBenchmarkWorkspaceArtifact;
+  }
+  export interface IEvidenceBenchmarkWorkspaceResult {
+    root: string;
+    workspace: string;
+    environment: NodeJS.ProcessEnv;
+  }
+  export async function prepareWorkspace(
+    request: IEvidenceBenchmarkWorkspaceRequest,
+  ): Promise<IEvidenceBenchmarkWorkspaceResult> {
+    const output: string = path.resolve(request.output);
+    if (fs.existsSync(output))
+      throw new Error(`Benchmark workspace already exists: ${output}.`);
+    const parent: string = path.dirname(output);
+    fs.mkdirSync(parent, { recursive: true });
+    const stage: string = path.join(
+      parent,
+      `.${path.basename(output)}.${process.pid}.${crypto.randomUUID()}.tmp`,
+    );
+    const workspace: string = path.join(stage, "workspace");
+    fs.mkdirSync(stage);
+    try {
+      const template: string = path.resolve(
+        request.repository,
+        "benchmark/template",
+      );
+      fs.cpSync(path.join(template, "base"), workspace, { recursive: true });
+      renderBase(workspace, request.variables);
+      applyOverlay(
+        path.join(template, request.arm),
+        workspace,
+        request.variables,
+      );
+      const requirements: string = path.resolve(
+        request.repository,
+        "benchmark/requirements",
+        request.project,
+      );
+      const analysis: string = path.join(workspace, "docs", "analysis");
+      fs.mkdirSync(path.dirname(analysis), { recursive: true });
+      fs.cpSync(requirements, analysis, { recursive: true });
+      if (request.arm === "evidence") {
+        if (request.artifact === undefined)
+          throw new Error("Evidence workspace requires a package artifact.");
+        injectEvidence(workspace, request.artifact);
+      }
+      const environment: NodeJS.ProcessEnv = { ...process.env };
+      await pnpm(
+        ["install", "--lockfile-only", "--no-frozen-lockfile"],
+        workspace,
+        environment,
+      );
+      await pnpm(["install", "--frozen-lockfile"], workspace, environment);
+      await run("git", ["init", "-b", "benchmark"], workspace, environment);
+      await run("git", ["add", "-A"], workspace, environment);
+      await run(
+        "git",
+        [
+          "-c",
+          "user.name=Evidence Benchmark",
+          "-c",
+          "user.email=evidence-benchmark@localhost",
+          "commit",
+          "-m",
+          "Prepare benchmark workspace",
+        ],
+        workspace,
+        environment,
+      );
+      fs.renameSync(stage, output);
+      return {
+        root: output,
+        workspace: path.join(output, "workspace"),
+        environment,
+      };
+    } catch (error) {
+      fs.rmSync(stage, { recursive: true, force: true });
+      throw error;
+    }
+  }
+  function renderBase(
+    root: string,
+    variables: IEvidenceBenchmarkWorkspaceVariables,
+  ): void {
+    visitFiles(root, (file) => {
+      const source: string = fs.readFileSync(file, "utf8");
+      fs.writeFileSync(file, render(source, variables));
+    });
+  }
+  function applyOverlay(
+    overlay: string,
+    workspace: string,
+    variables: IEvidenceBenchmarkWorkspaceVariables,
+  ): void {
+    if (!fs.existsSync(overlay)) return;
+    visitFiles(overlay, (source, relative) => {
+      const target: string = path.join(workspace, ...relative.split("/"));
+      let content: string = fs.readFileSync(source, "utf8");
+      if (content.includes("{{base}}")) {
+        if (path.extname(source).toLowerCase() !== ".md")
+          throw new Error(
+            `Only Markdown overlays may splice {{base}}: ${relative}.`,
+          );
+        const body: string = markdownBody(fs.readFileSync(target, "utf8"));
+        const marker = "<!-- benchmark-template-splice: base-body -->";
+        content = content
+          .replaceAll(`${marker}\n{{base}}`, () => body)
+          .replaceAll(`${marker}\r\n{{base}}`, () => body);
+      }
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, render(content, variables));
+    });
+  }
+  function markdownBody(source: string): string {
+    const withoutFrontmatter: string = source.replace(
+      /^(?:\uFEFF)?---\r?\n[\s\S]*?\r?\n---\r?\n/,
+      "",
+    );
+    return withoutFrontmatter.replace(/^# [^\r\n]*(?:\r?\n){1,2}/, "");
+  }
+  function render(
+    source: string,
+    variables: IEvidenceBenchmarkWorkspaceVariables,
+  ): string {
+    let output: string = source;
+    for (const [name, value] of Object.entries(variables))
+      output = output.replaceAll(`{{${name}}}`, () => value);
+    return output;
+  }
+  function injectEvidence(
+    workspace: string,
+    artifact: IEvidenceBenchmarkWorkspaceArtifact,
+  ): void {
+    const dependency: string = ".benchmark-deps/evidence.tgz";
+    const target: string = path.join(workspace, ...dependency.split("/"));
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.copyFileSync(path.resolve(artifact.archive), target);
+    const location: string = path.join(workspace, "package.json");
+    const manifest = JSON.parse(fs.readFileSync(location, "utf8")) as {
+      devDependencies?: Record<string, string>;
+    };
+    manifest.devDependencies ??= {};
+    manifest.devDependencies[artifact.name] = `file:${dependency}`;
+    fs.writeFileSync(location, `${JSON.stringify(manifest, null, 2)}\n`);
+  }
+  function visitFiles(
+    root: string,
+    closure: (file: string, relative: string) => void,
+  ): void {
+    const visit = (directory: string, relative: string): void => {
+      for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+        const child: string = path.posix.join(relative, entry.name);
+        const location: string = path.join(root, ...child.split("/"));
+        if (entry.isDirectory()) visit(location, child);
+        else if (entry.isFile()) closure(location, child);
+        else throw new Error(`Template entry is not a regular file: ${child}.`);
+      }
+    };
+    visit(root, "");
+  }
+  async function pnpm(
+    arguments_: readonly string[],
+    workspace: string,
+    environment: NodeJS.ProcessEnv,
+  ): Promise<void> {
+    const entrypoint: string | undefined = process.env.npm_execpath;
+    if (entrypoint === undefined)
+      throw new Error("prepareWorkspace must be launched through pnpm.");
+    return run(
+      process.execPath,
+      [entrypoint, ...arguments_],
+      workspace,
+      environment,
+    );
+  }
+  async function run(
+    command: string,
+    arguments_: readonly string[],
+    cwd: string,
+    environment: NodeJS.ProcessEnv,
+  ): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(command, arguments_, {
+        cwd,
+        env: environment,
+        shell: false,
+        windowsHide: true,
+        stdio: "inherit",
+      });
+      child.once("error", reject);
+      child.once("close", (status) =>
+        status === 0
+          ? resolve()
+          : reject(
+              new Error(`${command} exited with status ${String(status)}.`),
+            ),
+      );
+    });
+  }
+}

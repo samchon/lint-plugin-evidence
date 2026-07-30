@@ -43,7 +43,7 @@ packages/
 
 ### `docs/`
 
-`docs/analysis/` holds the requirement documents. They are the specification and they are read-only: never edit a document so that it agrees with code you already wrote. If a document is wrong, say so and stop, rather than silently making the contradiction disappear.
+`docs/analysis/` holds the requirement documents. They are the authoritative specification and they are read-only. Implement them as written; never edit a document so that it agrees with code you already wrote.
 
 `docs/ERD.md` is generated from the Prisma schema by `prisma-markdown`. Do not hand-edit it.
 
@@ -80,7 +80,8 @@ The backend imports its own DTOs from this package. That direction is deliberate
 The Vite and React application. It consumes `packages/api` and declares no API types of its own.
 
 - `src/components/` the screens and shared pieces, split by domain: `ui/` primitives, `providers/` the composed app providers, `<domain>/` a route's page beside the sub-components only it uses.
-- `src/lib/<domain>/` the interface's own vocabulary: view-model types, hooks with their query keys, fixtures, and the shared connection.
+- `src/lib/client.ts` owns the one shared SDK connection used by the browser's current session.
+- `src/lib/<domain>/` holds the interface's domain vocabulary: view-model types, hooks with their query keys, and fixtures.
 - `tests/journeys/` the browser journey specs; the presentation specs sit beside the folder, not in it.
 - `wiki/` the project's own records: architecture, omissions, verification.
 
@@ -97,7 +98,7 @@ Never substitute stock `tsc`, `ts-node`, or a separate ESLint invocation. A gree
 Each step consumes the previous step's output, so the order is not a preference.
 
 1. Backend `build:prisma` generates the Prisma client from `prisma/schema`. Nothing that imports the client compiles before this runs.
-2. API `pnpm build` compiles the authored DTO contract while it is still changing.
+2. Backend `pnpm build:api` compiles the authored DTO contract while it is still changing.
 3. Backend `build:main` compiles the complete controller contract and server against those DTOs.
 4. After every operation and DTO is settled, backend `build:sdk` regenerates `src/functional` and `swagger.json`, then compiles the complete API package.
 5. Backend `build:test` compiles tests against that fixed SDK.

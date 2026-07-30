@@ -26,10 +26,10 @@ packages/frontend/
 "test:e2e": "node scripts/run-playwright.mjs e2e",
 "ui:review": "node scripts/run-playwright.mjs ui-review",
 "readme:screens": "node scripts/run-playwright.mjs readme",
-"playwright:install": "pnpm exec playwright install chromium"
+"playwright:install": "playwright install chromium"
 ```
 
-The runner serves the production build on a fixed local port and points the browser at it, so every closing mode tests what actually ships rather than the development server. Drive interim per-screen and gallery passes through the dev server, then require a production build, a repository-wide zero-`@todo` search, and the closing browser modes after the last screen is cracked. The `@todo` tags are a common textual ledger in both benchmark arms, not an arm-specific lint diagnostic. Take the port from the environment with a validated default, and fail loudly on a bad value rather than silently binding somewhere else.
+The runner serves the production build on a fixed local port and points the browser at it, so every closing mode tests what actually ships rather than the development server. Drive interim per-screen and gallery passes through the dev server, then require a production build, a repository-wide search proving that no implementation-pending sentence or unfinished stub remains, and the closing browser modes after the last screen is cracked. Take the port from the environment with a validated default, and fail loudly on a bad value rather than silently binding somewhere else.
 
 Install the browser before the first run. In Linux CI the install needs its system dependencies explicitly, run from the frontend package directory.
 
@@ -48,15 +48,15 @@ The export is the point. A journey that exists only inside a `test()` callback c
 
 The exported journey is lexically outside Playwright's registered `test()` callback, so `playwright/no-standalone-expect` rejects `expect()` inside it. Keep the complete interaction in the exported function and use web-first locator waits or explicit throwing checks for the conditions it owns; keep Playwright `expect()` assertions inside the wrapping `test()` callback. Do not remove a check to satisfy the rule—the helper and wrapper together must still fail when the named behavior disappears.
 
-The e2e mode runs everything under `journeys/`, first against simulation during development, then against the live backend to close.
+The e2e mode runs the same specs under `journeys/` twice. Run `pnpm test:e2e` with `VITE_API_SIMULATE=true` during development, then run the same command with `VITE_API_SIMULATE=false` against the prepared, separately running backend to close.
 
-## Two Meanings, Named Apart
+## Two Meanings, Recorded Apart
 
-**The simulation program** runs against the SDK's simulation mode with no server. It proves that accessors bundle, that typed responses render, that navigation works, and that screen states appear. It is deterministic, which is why browser tests and screenshots run against it without depending on backend uptime or random data.
+**The simulation program** runs against the SDK's simulation mode with no server. It proves that accessors bundle, that typed success responses render, and that navigation works. It is isolated from backend uptime, but generated response values are random; assertions must target contract-stable behavior, while screenshots and named edge states use the fixture gallery.
 
 **The live program** runs with simulation off, against the real host, with a prepared backend and real authentication. It is the only thing that proves persistence, sessions, authorization, refresh, and side effects.
 
-Never point the live program at the simulated path. The name is what a later reader trusts, and a live-named program that quietly simulates is worse than having no live program.
+Never record a run as live while `VITE_API_SIMULATE` is `true`. The environment and verification record are what a later reader trusts, and a run that quietly simulates while claiming integration is worse than having no live result.
 
 Development happens against the simulation program and closes with the live one. Neither replaces the other.
 
@@ -101,12 +101,13 @@ Keep `packages/frontend/wiki/verification.md` with the date, what was running, t
 ## Date
 
 - Verified on April 14, 2026
-- Ran against the production build served locally in deterministic simulation mode
+- Ran against the production build served locally in simulation mode
 
 ## Automated Checks
 
 - `pnpm lint`
-- `pnpm test:e2e`
+- `pnpm test:e2e` with `VITE_API_SIMULATE=true`
+- `pnpm test:e2e` with `VITE_API_SIMULATE=false`
 - `pnpm ui:review`
 
 ## Browser Flows

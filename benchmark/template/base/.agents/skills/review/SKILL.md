@@ -1,6 +1,6 @@
 ---
 name: review
-description: Defines whole-population integrity review, including full-scope rounds repeated until one round finds no defect. Use during implementation and before every completion report.
+description: Defines whole-population integrity review, including full-scope rounds repeated until one round finds no defect. Use after the first implementation pass and before every completion report.
 ---
 
 # Review
@@ -79,11 +79,11 @@ A verdict belongs to one meaning at one digest. Changing a requirement interpret
 
 Record the finding before repair, identify every dependent claim as stale, fix the owning layer, regenerate outputs, rerun validation, and review the complete affected population. Never retain a dry or green verdict from the previous source.
 
-Keep the review inventory in `.wiki/review.md`. For every row record the exact source identity, claiming artifact and member, falsifiable reason, current source digest, and `pending`, `accepted`, or `stale` verdict. Record findings before repair and retain stale rows until their replacements pass a later full round.
+Keep the review inventory in `wiki/review.md`. For every row record the exact source identity, claiming artifact and member, falsifiable reason, current source digest, and `pending`, `accepted`, or `stale` verdict. Record findings before repair and retain stale rows until their replacements pass a later full round.
 
 ## Current Digest And Handoff
 
-Review may begin during implementation. A complete dry round remains valid when the later review turn sees the same source digest, the same active-phase population, and current green gates. Verify that record and reuse it; do not repeat a proven current-digest round merely because the user turn changed.
+Review begins after the current phase's first implementation pass is complete. Development checks do not count as a review round. A complete dry review round remains valid when a later review turn sees the same source digest, the same full phase population, and current green gates. Verify that record and reuse it; do not repeat a proven current-digest round merely because the user turn changed.
 
 A partial round, a round from an older digest, a summary with no full population record, or a dry claim contradicted by the current source is not reusable. Continue from the current complete scope rather than accepting the claim.
 
@@ -91,7 +91,7 @@ A partial round, a round from an older digest, a summary with no full population
 
 Run complete review rounds over the active phase scope until one entire round is dry. This loop has no maximum round count.
 
-Every round is an independent full review of the whole active phase scope. Reread every H2 and H3 and walk each one through every layer applicable to that phase. Then enumerate and reverse-walk every authored artifact and every cross-layer relationship in that phase. Recheck every state, permission, negative path, named boundary, generated output, `@todo`, and required phase gate.
+Every round is an independent full review of the whole active phase scope. Reread every H2 and H3 and walk each one through every layer applicable to that phase. Then enumerate and reverse-walk every authored artifact and every cross-layer relationship in that phase. Recheck every state, permission, negative path, named boundary, generated output, implementation-pending marker, unfinished stub, and required phase gate.
 
 Never divide a round below the prescribed phase boundary. Never carry a partial round forward as if its untouched remainder had passed. Every round starts from the complete current requirements and the complete current artifact population for that phase.
 
@@ -99,4 +99,4 @@ If a round finds even one missing, invented, stale, false, partial, or unverifie
 
 The successful stopping condition is one full round at the current digest that inspects the entire active phase scope, finds zero actionable defects or omissions, and leaves every required phase gate current and green. One such dry round is sufficient; do not require two consecutive dry rounds. An external interruption ends the loop only as an explicitly unfinished report, never as completion.
 
-Complete this loop before every phase report, either in the current turn or through a reusable current-digest dry round from an earlier turn. The Overall Phase repeats it over the whole project. Do not edit frozen instructions or lint configuration files.
+Complete this loop before every phase report, either in the current turn or through a reusable current-digest dry round from an earlier turn. The Overall Phase repeats it over the whole project. Do not edit frozen instructions.

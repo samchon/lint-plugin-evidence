@@ -56,12 +56,12 @@ packages/frontend/
         order-detail-page.tsx
     lib/
       config.ts                    the environment dials: apiHost, simulate
+      client.ts                    the shared SDK connection for the browser session
       utils.ts                     cn, formatCurrency, formatDateTime
       <domain>/
         types.ts                   view models the interface consumes
         hooks.ts                   queries, mutations, and the query keys
         fixtures.ts                view-model fixtures for the state gallery
-        client.ts                  the shared connection and request helper
   tests/
     journeys/
       *.spec.ts                    one exported journey function per flow
@@ -86,7 +86,7 @@ Three things sit outside the domain folders:
 
 **`lib/<domain>` is the interface's own vocabulary.** `types.ts` names view models for what a screen needs rather than what a table holds: `ProductCardView`, `CategoryTreeNode`, `OrderDetailView`. `hooks.ts` exposes the queries and mutations and owns the query keys.
 
-`client.ts` holds **the connection object and nothing else**: built once from the configured host and simulation flag, authenticated by the lifecycle accessors, and exported for the hooks to pass. It is not a place to wrap a call. A function there named `get`, `post`, `request`, or `fetchProduct` is the hand-written layer [sdk.md](sdk.md) rules out, and it breaks silently where the accessor would have broken at compile time.
+`src/lib/client.ts` holds **the one shared connection object and nothing else**: built once from the configured host and simulation flag, authenticated by the lifecycle accessors, and exported as `apiConnection` for every domain hook to pass. It is not a place to wrap a call. A function there named `get`, `post`, `request`, or `fetchProduct` is the hand-written layer [sdk.md](sdk.md) rules out, and it breaks silently where the accessor would have broken at compile time.
 
 **Files are kebab-case**, exports are PascalCase. `catalog-page.tsx` exports `CatalogPage`.
 
@@ -234,14 +234,14 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 ```json
 {
   "dev": "vite --host 0.0.0.0",
-  "build": "rimraf dist && pnpm run lint && vite build",
-  "preview": "vite preview",
+  "build": "rimraf dist && pnpm lint && vite build",
+  "preview": "vite preview --host 0.0.0.0",
   "lint": "ttsc -p tsconfig.json --noEmit",
   "format": "ttsc format -p tsconfig.json",
   "test:e2e": "node scripts/run-playwright.mjs e2e",
   "ui:review": "node scripts/run-playwright.mjs ui-review",
   "readme:screens": "node scripts/run-playwright.mjs readme",
-  "playwright:install": "pnpm exec playwright install chromium"
+  "playwright:install": "playwright install chromium"
 }
 ```
 

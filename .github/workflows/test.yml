@@ -36,8 +36,8 @@ jobs:
       - name: Check Benchmark Harness
         run: pnpm --filter @samchon/evidence-benchmark check
 
-      - name: Test Benchmark Harness
-        run: pnpm --filter @samchon/evidence-benchmark test:unit
+      - name: Check Benchmark Runner Test
+        run: pnpm --filter test-benchmark check
 
       - name: Run Tests
         run: pnpm test

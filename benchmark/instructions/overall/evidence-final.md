@@ -6,8 +6,8 @@ The skills-contract turn remains binding. Re-read `AGENTS.md` and every applicab
 
 Restore the complete Evidence configuration before the closing review:
 
-1. Inspect `packages/api/lint.config.ts`, `packages/backend/lint.config.ts`, and `packages/frontend/lint.config.ts`.
-2. Restore every deferred claim and confirm the sealed `packages/backend/lint.config.main.ts` source-program projection is unchanged.
+1. Inspect `packages/backend/lint.config.ts` and `packages/frontend/lint.config.ts`.
+2. Restore every deferred claim and confirm the sealed `packages/backend/lint.config.main.ts` and `packages/backend/lint.config.test.ts` Program projections are unchanged.
 3. Confirm all seven claims are active with their original populations and `error` severities: `schema-models`, `api-operations`, `backend-tests`, `dto-types`, `dto-properties`, `frontend-screens`, and `frontend-journeys`.
 
 Complete final verification with the same full-project Loop Until Dry. Each complete round must:
@@ -17,6 +17,8 @@ Complete final verification with the same full-project Loop Until Dry. Each comp
 3. fix every finding and regenerate affected outputs;
 4. from the workspace root, run `pnpm format`, `pnpm build`, `pnpm lint`, `pnpm prepare:database`, and `pnpm test`; and
 5. from `packages/frontend`, run `pnpm ui:review`, then complete the required live backend and browser verification.
+
+From the workspace root, run `rg --hidden -n -F '@todo' packages --glob '*.ts' --glob '*.tsx'` and require no matches. This source-scoped search excludes the Evidence instruction files that teach the tag.
 
 Any finding, correction, generated-output change, formatting change, or failed gate makes the round non-dry. Restart the complete overall round at the resulting source digest. Stop after one entire current-digest round finds zero actionable defect and leaves every gate current and green; one dry round is sufficient.
 

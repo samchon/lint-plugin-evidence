@@ -8,11 +8,14 @@ The scaffold was adapted from `wrtnlabs/autobe-mcp` commit `bf7d0373de9cae932c11
 
 ```bash
 pnpm install
+cp packages/backend/.env.example packages/backend/.env
 pnpm build
 pnpm lint
 pnpm test
 pnpm format
 ```
+
+The backend `.env` is required for local server and test processes. The frontend already has working defaults; copy `packages/frontend/.env.example` to `packages/frontend/.env` only when overriding them.
 
 Run `pnpm prepare:database` after changing the Prisma schema. Install Chromium once with `pnpm --filter {{frontendPackageName}} playwright:install` before running the browser suite.
 

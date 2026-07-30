@@ -6,9 +6,9 @@ The skills-contract turn remains binding. Re-read `AGENTS.md` and the applicable
 
 Restore the complete Evidence configuration before the closing review:
 
-1. Inspect all three canonical package `lint.config.ts` files.
+1. Inspect both canonical package `lint.config.ts` files.
 2. Restore all seven original claim objects and confirm their original populations and `error` severities.
-3. Confirm the sealed backend main projection is unchanged.
+3. Confirm the sealed backend main and test Program projections are unchanged.
 4. If this phase changed API or backend sources, re-pass the complete backend gate first.
 
 Finish the frontend phase with the same complete Loop Until Dry over the frontend and live-integration scope. Each complete round must:
@@ -19,6 +19,8 @@ Finish the frontend phase with the same complete Loop Until Dry over the fronten
 4. repair any proven backend defect through the named backtracking rule and re-pass the complete backend gate;
 5. fix every frontend finding; and
 6. from `packages/frontend`, run `pnpm build`, `pnpm test:e2e`, and `pnpm ui:review`.
+
+From the workspace root, run `rg --hidden -n -F '@todo' packages/frontend --glob '*.ts' --glob '*.tsx'` and require no matches. This source-scoped search excludes the Evidence instruction files that teach the tag.
 
 Any finding, correction, generated-output change, or failed gate makes the round non-dry. Restart the complete frontend-scoped round at the resulting source digest. Stop after one entire current-digest round finds zero actionable defect and leaves every gate current and green; one dry round is sufficient.
 

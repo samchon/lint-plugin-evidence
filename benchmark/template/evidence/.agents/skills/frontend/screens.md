@@ -12,6 +12,10 @@ export function CatalogPage() {}
 
 State what a user can do, not merely what data renders. Prefer leaf H3 targets; a broad H2 requires an audit of every selected descendant.
 
+## Evidence Stub Marker
+
+In the Evidence arm, write `@todo <remaining implementation>` in place of the base screen guide's general implementation-pending sentence. Keep the tag while the page returns its placeholder body, make its text enumerate the states and integration still owed, and remove it only after the screen is complete against simulation with its gallery rows.
+
 ## Excluding A Requirement From Screens
 
 Put `@evidenceExclude` on `packages/frontend/src/components/SCREEN_EVIDENCE_EXCLUDE.ts` when `frontend-screens` intentionally has no screen responsibility for a Markdown H2/H3 requirement.

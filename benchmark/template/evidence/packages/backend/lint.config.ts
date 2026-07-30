@@ -14,8 +14,9 @@ declare const process: {
  * The schema answers to the requirements, every controller operation answers to
  * the requirement it realizes and the model it exposes, and the e2e suite
  * answers to the requirements, the published operations, and the contract
- * shapes. Cross-package TypeScript populations are read from the installed API
- * package, because that is the artifact a test actually imports.
+ * shapes. DTO claims select the explicitly included sibling API source through
+ * a rooted Program population; package references remain the published
+ * contract a test actually imports.
  */
 const graph: IEvidenceGraphConfig = {
   claims: [
@@ -33,6 +34,42 @@ const graph: IEvidenceGraphConfig = {
         root: "../..",
         files: ["docs/analysis/**/*.md"],
         symbol: ["h2", "h3"],
+      },
+    },
+    // A DTO type answers to the requirement it serves and the table it
+    // represents. The rooted claim changes only the population base; the
+    // backend lint tsconfig explicitly supplies the API source files.
+    {
+      name: "dto-types",
+      type: "typescript",
+      root: "../api",
+      files: ["src/structures/**/*.ts"],
+      symbol: "type",
+      reference: [
+        {
+          type: "markdown",
+          root: "../..",
+          files: ["docs/analysis/**/*.md"],
+          symbol: ["h2", "h3"],
+        },
+        {
+          type: "prisma",
+          files: ["prisma/schema/**/*.prisma"],
+          symbol: ["model"],
+        },
+      ],
+    },
+    // A DTO property answers to the schema column it carries.
+    {
+      name: "dto-properties",
+      type: "typescript",
+      root: "../api",
+      files: ["src/structures/**/*.ts"],
+      symbol: "property",
+      reference: {
+        type: "prisma",
+        files: ["prisma/schema/**/*.prisma"],
+        symbol: ["column"],
       },
     },
     // The operations realize the requirements and expose the schema.

@@ -44,12 +44,12 @@ Work the layers in order, and let each one read everything the earlier ones deci
 
 1. Read every requirement document under `docs/analysis/`.
 2. Design the schema under `packages/backend/prisma/schema/`, split by domain, and generate the client from it.
-3. Declare and finish the operations under `packages/backend/src/controllers/` and their DTOs under `packages/api/src/structures/` as stubs: the full contract JSDoc, a body that enumerates each parameter once and returns `typia.random<T>()`, and an `@todo` tag on each operation naming what realize owes. Compile the authored DTO package and backend source while this contract is still changing.
+3. Declare and finish the operations under `packages/backend/src/controllers/` and their DTOs under `packages/api/src/structures/` as stubs: the full contract JSDoc, a body that enumerates each parameter once and returns `typia.random<T>()`, and an implementation-pending sentence on each operation naming what realize owes. From the backend package, compile the authored DTO package with `pnpm build:api` and the backend source with `pnpm build:main` while this contract is still changing.
 4. Once every operation and DTO is settled, build the SDK into `packages/api/src/functional/`, then write the tests under `packages/backend/test/features/` from the requirements and that fixed contract.
 5. Write the transformers under `packages/backend/src/transformers/` and the collectors under `packages/backend/src/collectors/`, one namespace per DTO that needs each.
-6. Realize: replace each stub body with its call into a provider under `packages/backend/src/providers/`, remove the `@todo`, and run the tests until they hold.
+6. Realize: replace each stub body with its call into a provider under `packages/backend/src/providers/`, remove the implementation-pending sentence, and run the tests until they hold.
 
-**The stub is what makes this order executable.** The SDK generates from controllers, so without stubs the backend tests cannot start until the providers exist; with them, the contract reaches the tests before realization, and the `@todo` tags are the exact ledger of what realize still owes. A suite written at step 4 runs red against random stub answers, and that is the point: realize turns it green. The frontend consumes the generated SDK only after the Backend Layer Gate passes.
+**The stub is what makes this order executable.** The SDK generates from controllers, so without stubs the backend tests cannot start until the providers exist; with them, the contract reaches the tests before realization, and the implementation-pending sentences are the exact ledger of what realize still owes. A suite written at step 4 runs red against random stub answers, and that is the point: realize turns it green. The frontend consumes the generated SDK only after the Backend Layer Gate passes.
 
 The read side and the write side come before the provider that composes them. A provider written first inlines a selection and a mapping, and that copy is what the transformer then has to be reconciled with. [wiring.md](wiring.md) has the same sequence with the commands each step runs.
 
@@ -85,7 +85,7 @@ Passing this gate means the backend layer is internally validated at the current
 
 Apply the active arm's Review skill to the API and backend scope. That skill owns the review population, repetition, and stopping condition. Frontend obligations remain pending rather than accepted.
 
-From `packages/backend`, run `pnpm build:prisma` and prepare the database. From `packages/api`, run `pnpm lint` and `pnpm build` for the authored DTO contract. Return to `packages/backend`, run `pnpm build:main`, and, only after every operation and DTO is settled, run `pnpm build:sdk` followed by `pnpm build:test`. Then run `pnpm lint`, `pnpm test`, launch `pnpm dev`, and exercise `/health` and representative requirement-backed operations.
+From `packages/backend`, run `pnpm build:prisma`, prepare the database, run `pnpm build:api`, and run `pnpm build:main`. Only after every operation and DTO is settled, run `pnpm build:sdk` followed by `pnpm build:test`. Then run `pnpm lint`, `pnpm test`, launch `pnpm dev`, and exercise `/health` and representative requirement-backed operations.
 
 Do not use either the backend package's aggregate `pnpm build` or the workspace-root build to judge this gate. The aggregate package build obscures which layer is invalid, and the root build compiles the unfinished frontend. Fix every finding, regenerate only after its authored inputs are settled, rerun the invalidated package command, and apply the active Review skill's stopping condition. Do not begin frontend implementation before this gate passes.
 
