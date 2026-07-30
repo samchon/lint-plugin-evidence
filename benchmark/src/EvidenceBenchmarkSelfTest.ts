@@ -2524,6 +2524,48 @@ export namespace EvidenceBenchmarkSelfTest {
         /input: \["src\/controllers"\]/,
         `integrated ${arm} Nestia config must select the authored controller tree directly`,
       );
+      const backendPackage: string = Buffer.from(
+        composition.files.get("packages/backend/package.json")!,
+      ).toString("utf8");
+      assert.match(
+        backendPackage,
+        /ttsc -p tsconfig\.tools\.json --noEmit && ttsc -p tsconfig\.lint\.json --noEmit/,
+        `integrated ${arm} backend lint must preserve generic tool-module checks before the authored-program gate`,
+      );
+      const backendLintProject: string = Buffer.from(
+        composition.files.get("packages/backend/tsconfig.lint.json")!,
+      ).toString("utf8");
+      assert.doesNotMatch(
+        backendLintProject,
+        /nestia\.config\.ts|prisma\.config\.ts/,
+        `integrated ${arm} authored-program lint must not apply identity naming to tool-mandated dotted modules`,
+      );
+      const backendToolsProject: string = Buffer.from(
+        composition.files.get("packages/backend/tsconfig.tools.json")!,
+      ).toString("utf8");
+      assert.match(
+        backendToolsProject,
+        /"include": \["nestia\.config\.ts", "prisma\.config\.ts"\]/,
+        `integrated ${arm} tool-module lint must compile both mandatory configuration modules`,
+      );
+      assert.match(
+        backendToolsProject,
+        /"configFile": "\.\/lint\.config\.tools\.ts"/,
+        `integrated ${arm} tool-module lint must use its shared generic rule projection`,
+      );
+      const backendToolsLint: string = Buffer.from(
+        composition.files.get("packages/backend/lint.config.tools.ts")!,
+      ).toString("utf8");
+      assert.match(
+        backendToolsLint,
+        /extends: "\.\.\/\.\.\/config\/lint\.config\.ts"/,
+        `integrated ${arm} tool modules must retain the complete shared lint contract`,
+      );
+      assert.doesNotMatch(
+        backendToolsLint,
+        /@samchon\/lint-plugin-evidence|evidence\//,
+        `integrated ${arm} tool-module projection must not pretend dotted filenames satisfy identity rules`,
+      );
       const wiring: string = Buffer.from(
         composition.files.get(".agents/skills/backend/wiring.md")!,
       ).toString("utf8");

@@ -128,6 +128,6 @@ Know what the host absorbs and what it cannot.
 
 Do not reimplement these.
 
-- `// ttsc-lint-disable-next-line <rule>` and its siblings, handled by the host.
+- `// lint-disable-next-line <rule>` and its `eslint-disable` / `lint-disable` siblings, handled by the host.
 - Unified diagnostics: lint findings render alongside type errors and the exit code sums both, which is what makes an evidence violation a real compile error.
 - Severity resolution per file at dispatch time, so `files:` scoping already works.

@@ -11,7 +11,7 @@
     "build:test": "rimraf bin && ttsc -p tsconfig.test.json",
     "dev": "ttsx src/executable/server.ts",
     "format": "ttsc format -p tsconfig.json && ttsc format -p tsconfig.test.json",
-    "lint": "ttsc -p tsconfig.lint.json --noEmit",
+    "lint": "ttsc -p tsconfig.tools.json --noEmit && ttsc -p tsconfig.lint.json --noEmit",
     "prepare": "prisma db push --schema=prisma/schema",
     "start": "ttsx src/executable/server.ts",
     "start:prod": "node lib/executable/server.js",
