@@ -11,11 +11,14 @@ Do not add a server tier, an API route layer, a backend-for-frontend, or a serve
 ## Domain Hooks Call The SDK For Their Screens
 
 ```ts
-import api, { IShoppingSale, IPage } from "{{apiPackageName}}";
+import { useQuery } from "@tanstack/react-query";
+import api from "{{apiPackageName}}";
+
+import { apiConnection } from "@/lib/client";
 
 export function useSales() {
   return useQuery({
-    queryKey: keys.sales,
+    queryKey: ["shopping", "sales"] as const,
     queryFn: () =>
       api.functional.shopping.customer.sale.index(apiConnection, {
         limit: 20,
