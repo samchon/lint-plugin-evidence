@@ -4,6 +4,8 @@
 
 The benchmark is executed by coding agents and supervised by an operator agent. Starting controller processes is the beginning of the work, not the hand-off point.
 
+Before any measured agent turn starts, verify that every engine, subject, and arm cell in the selected wave passed preparation. A failed or incomplete preparation stops the complete wave before model use.
+
 Observe every active cell at least once every 30 seconds throughout the run. At each pass, read `run.json`, controller and model-process liveness, the latest raw stdout and stderr, recent commands, and the generated workspace. A status label without its process and stream evidence is not an observation.
 
 The 30-second observation interval is an operational recovery requirement, not a pull-request reporting interval. Refresh the campaign pull-request body every 15 minutes, but handle an interruption, question, suspicious completion, stalled stream, failed gate, or newly discovered shared defect immediately.
@@ -17,7 +19,7 @@ The reporting subagent never edits a measured workspace, frozen input, campaign 
 
 ## What The Raw Stream Means
 
-Codex writes one JSON event per line to `logs/*.stdout.jsonl`. These JSONL files are execution evidence, not requirement documents: they retain thread creation, tool and command activity, file changes, completion claims, token usage, and provider errors.
+Each engine writes its native JSON events one per line to `logs/*.stdout.jsonl`. These JSONL files are execution evidence, not requirement documents: they retain session creation, tool and command activity, file changes, completion claims, native token usage, and provider errors.
 
 `Selected model is at capacity` is a provider availability failure. It does not mean the task was too difficult, the agent chose to stop, or the workspace failed. Preserve the attempt and resume it when capacity returns.
 
@@ -36,19 +38,21 @@ An agent asking whether to continue, proposing to split the authorized work, or 
 
 ## Resuming A Cell
 
-Resume an interrupted cell with its exact subject, arm, and run ID:
+Resume an interrupted cell with its exact engine, subject, arm, and run ID:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark resume -- todo evidence <run-id>
+pnpm --filter @samchon/evidence-benchmark resume -- <engine> todo evidence <run-id>
 ```
 
-Resume reuses the retained workspace, nested Git history, frozen instructions, runtime assignment, Codex thread, logs, elapsed time, and token ledger. It skips only the accepted canonical prefix. A final turn is retained only while its current lint-restoration seal still matches; otherwise that turn and every accepted successor are invalidated, and execution restarts from that boundary.
+Resume reuses the retained workspace, nested Git history, frozen instructions, runtime assignment, engine session, logs, elapsed time, and token ledger. It skips only the accepted canonical prefix. A final turn is retained only while its current lint-restoration seal still matches; otherwise that turn and every accepted successor are invalidated, and execution restarts from that boundary.
+
+Claude Code measured launches and resumes require its sandbox on macOS, Linux, or WSL2 and the same explicit non-interactive controller credential used at launch. Reject native Windows rather than enabling an unsandboxed Claude Code session.
 
 A launched command is not proof of recovery. Verify all three:
 
 - the new controller is alive;
 - `run.json` returned to `running`; and
-- the new attempt JSONL shows thread or command activity.
+- the new attempt JSONL shows session or command activity.
 
 Provider capacity may interrupt the same turn repeatedly. A run-scoped watcher may check every 30 seconds and retry only when the latest retained failure proves the same capacity error. It must not retry setup, build, test, tool-policy, unknown, or product failures, and every retry remains part of cumulative accounting.
 
@@ -56,9 +60,9 @@ Provider capacity may interrupt the same turn repeatedly. A run-scoped watcher m
 
 Prefer a new clean run after discovering a shared input defect. When the user explicitly chooses to salvage an expensive active wave for a small common template defect, use a recorded common repair instead of editing workspaces by hand.
 
-First stop the affected model processes and verify every selected evidence and plain cell is `interrupted`. Disable any capacity auto-resumer during the repair. Correct and validate the source template for future runs, then create one workspace-relative unified text patch below `benchmark/.work/repairs/`.
+First stop the affected model processes and verify every selected Codex and Claude Code evidence and plain cell is `interrupted`. Disable any capacity auto-resumer during the repair. Correct and validate the source template for future runs, then create one workspace-relative unified text patch below `benchmark/.work/repairs/`.
 
-Apply the same patch to both arms of every selected subject:
+Apply the same patch to both engines and both arms of every selected subject:
 
 ```bash
 pnpm --filter @samchon/evidence-benchmark repair -- --patch benchmark/.work/repairs/<fix>.patch <run-id> todo reddit
@@ -66,7 +70,7 @@ pnpm --filter @samchon/evidence-benchmark repair -- --patch benchmark/.work/repa
 
 The repair command admits every cell before changing any, rejects requirement, package-archive, Git, dependency-directory, binary, deletion, rename, and symlink targets, records the exact patch and SHA-256 under each run's `interventions/`, separates repair time from agent time, and rolls back already changed cells if the transaction fails.
 
-A patch applied before any model turn is a frozen-input hotfix. A patch applied after measured work is an operator intervention and qualifies the comparison even when both arms receive identical bytes. Report that qualification in the pull request and final result. If the patch changes requirements, arm semantics, task difficulty, or cannot apply equally, invalidate the affected cells and launch a new run identity.
+A patch applied before any model turn is a frozen-input hotfix. A patch applied after measured work is an operator intervention and qualifies the comparison even when both engines and both arms receive identical bytes. Report that qualification in the pull request and final result. If the patch changes requirements, arm semantics, task difficulty, or cannot apply equally, invalidate the affected cells and launch a new run identity.
 
 ## Accepting Completion
 
@@ -85,8 +89,8 @@ Failed capacity attempts remain in the token and time totals. Setup and operator
 
 Keep the pull-request body small:
 
-| Project | Mode | Progress | Quality | Cost | Time |
-| ------- | ---- | -------- | ------: | ---: | ---: |
+| Engine | Project | Mode | Progress | Quality | Cost | Time |
+| ------ | ------- | ---- | -------- | ------: | ---: | ---: |
 
 `Progress` names the current retained instruction, estimated completion, and state. `Quality` is explicitly provisional until the final audit. `Cost` uses native token categories and the selected model's standard API-equivalent price. `Time` is cumulative elapsed duration without absolute timestamps.
 
@@ -121,7 +125,7 @@ Publish only an operator-accepted completed run. Results share one independently
 Record the final audit as `benchmark-report.json` beside the run state. Publication is always a separate explicit command naming both the public repository and its clean local checkout:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark publish:result -- --repository <owner/name> --checkout <local-path> --public todo evidence <run-id>
+pnpm --filter @samchon/evidence-benchmark publish:result -- --repository <owner/name> --checkout <local-path> --public <engine> todo evidence <run-id>
 ```
 
 There is no default owner, repository, or checkout. The command requires the authenticated `gh` login to equal the repository owner; verifies public visibility, matching GitHub origin, clean current branch, remote parity, successful turns, frozen inputs, the completed-workspace digest, report, and evidence archive; rejects symlinks and private environment files; and replaces only the selected result leaf. It pushes one commit and proves the remote commit equals it. A pre-push failure restores the prior local leaf.

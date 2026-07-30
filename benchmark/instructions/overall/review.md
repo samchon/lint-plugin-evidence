@@ -1,6 +1,6 @@
 # Overall Review
 
-Use goal mode for this whole-project review stage. Resume the same unfinished stage goal after an interruption; otherwise create it now. Mark it complete only when the active arm's Review skill says the Overall Phase is complete.
+Treat this whole-project review stage as one bounded objective. Preserve the same unfinished objective across an interruption; otherwise begin it now. Declare it complete only when the active arm's Review skill says the Overall Phase is complete.
 
 The skills-contract turn remains binding. Re-read `AGENTS.md` and the active arm's Review skill in full before any review action. Follow the Review skill's Overall Phase scope literally.
 

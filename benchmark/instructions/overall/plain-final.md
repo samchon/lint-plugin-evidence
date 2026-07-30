@@ -1,6 +1,6 @@
 # Overall Plain Final
 
-Use goal mode for this whole-project Plain final stage. Resume the same unfinished stage goal after an interruption; otherwise create it now. Mark it complete only when the full-project Loop Until Dry, every requirement, every test, and every canonical gate below are green.
+Treat this whole-project Plain final stage as one bounded objective. Preserve the same unfinished objective across an interruption; otherwise begin it now. Declare it complete only when the full-project Loop Until Dry, every requirement, every test, and every canonical gate below are green.
 
 The skills-contract turn remains binding. Re-read `AGENTS.md` and every applicable project, layer, and Review instruction in full before any final-stage action.
 

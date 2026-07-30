@@ -2,15 +2,15 @@
 
 This benchmark compares coding agents building the same application with and without `@samchon/lint-plugin-evidence`. It retains the complete generated project and measures elapsed time, native token usage, API-equivalent cost, requirement and test coverage, implementation scale, gate behavior, completion honesty, and product quality.
 
-Campaigns use Codex `gpt-5.6-terra` with `high` effort and Claude Code `sonnet-5` with `high` effort. Every run records the engine, exact model, effort, CLI version, and invocation. The current runner launches Codex cells; Claude Code cells must not start until their engine adapter and deterministic proof are implemented on the campaign revision.
+Campaigns use Codex `gpt-5.6-terra` with `high` effort and Claude Code `claude-sonnet-5` with `high` effort. Every run records the engine, exact model, effort, CLI version, and invocation. Each selected wave launches the complete engine-by-subject-by-arm matrix concurrently after every cell passes preparation.
 
 ## Active supervision is required
 
 The coding agent is the measured instrument. Starting the runner and waiting for its process to end is insufficient: an operator agent must inspect each live stream and workspace, resume recoverable interruptions, reject premature completion, run the prescribed follow-up turns, and audit the final gates and semantics.
 
-Codex writes one JSON event per line to `logs/*.stdout.jsonl`. These JSONL files are execution logs, not requirements; they retain thread IDs, commands, file changes, token usage, completion claims, and provider errors.
+Each engine writes its native JSON events one per line to `logs/*.stdout.jsonl`. These JSONL files are execution logs, not requirements; they retain session identities, commands, file changes, native token usage, completion claims, and provider errors.
 
-`Selected model is at capacity` is a transient model-server availability failure, not the coding agent giving up or the project failing. The runner retains that cell so the operator can resume the same thread, workspace, frozen inputs, logs, elapsed time, and token ledger. Repeated capacity failures may be handled by a run-scoped watcher that retries only after the latest failure proves the same provider error.
+A provider capacity response is a transient model-server availability failure, not the coding agent giving up or the project failing. The runner retains that cell so the operator can resume the same engine session, workspace, frozen inputs, logs, elapsed time, and token ledger. Repeated capacity failures may be handled by a run-scoped watcher that retries only after the latest failure proves the same provider error.
 
 ## Campaign pull request
 
@@ -18,8 +18,8 @@ Treat the benchmark as an issue campaign. Keep one campaign pull request open un
 
 Assign a dedicated read-only reporting subagent to edit the pull-request body in place every 15 minutes. Keep only this dashboard in the body:
 
-| Project | Mode | Progress | Quality | Cost | Time |
-| ------- | ---- | -------- | ------: | ---: | ---: |
+| Engine | Project | Mode | Progress | Quality | Cost | Time |
+| ------ | ------- | ---- | -------- | ------: | ---: | ---: |
 
 `Progress` gives the current retained instruction, state, and estimated completion. `Quality` is provisional until final audit. `Cost` contains native token categories and API-equivalent cost. `Time` is cumulative elapsed duration without timestamps. Keep a compact per-phase token, cost, and duration breakdown for all nine retained instructions, then report database-table, API-operation, DTO-type, DTO-property, and test-function counts for each cell. Report counts, not names.
 
@@ -38,7 +38,7 @@ benchmark/
   .work/         ignored package, controller, repair, and reporting state
 ```
 
-Each attempt lives under `benchmark/result/<subject>/<arm>/runs/<run-id>/`. A cell that reached a Codex turn remains there when interrupted so it can resume. The latest successful demo is promoted to `benchmark/result/<subject>/<arm>/workspace/`; setup failures that never entered measured work may be removed.
+Each attempt lives under `benchmark/result/<subject>/<engine>/<arm>/runs/<run-id>/`. A cell that reached a measured agent turn remains there when interrupted so it can resume. The latest successful demo is promoted to `benchmark/result/<subject>/<engine>/<arm>/workspace/`; setup failures that never entered measured work may be removed.
 
 ## Verify before model use
 
@@ -56,9 +56,11 @@ The package smoke installs the locally packed product into a materialized Eviden
 
 The evidence overlay additionally installs the locally packed product during benchmark materialization. Plain records the same package identity without receiving the package.
 
+Claude Code measured launches require its sandbox on macOS, Linux, or WSL2 and an explicit non-interactive `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, or `CLAUDE_CODE_OAUTH_TOKEN` in the controller environment. The runner uses a cell-local configuration directory, so it does not inherit host login state, and it rejects native Windows instead of weakening or bypassing the sandbox.
+
 ## Plan and start
 
-Run Todo and Reddit first, with evidence and plain arms concurrent within each subject wave. Run Shopping and ERP only after the cheaper subjects complete successfully.
+Run Todo and Reddit first. Their Codex and Claude Code evidence and plain cells form an eight-cell wave that starts concurrently only after all eight cells pass preparation. Run Shopping and ERP only after the cheaper subjects complete successfully.
 
 Those four directories are the current campaign corpus, not an execution allow-list. Any 1-63 character lowercase subject slug made from letters, digits, and hyphens, except Windows device names, enters the same plan, materialization, runtime, recovery, repair, and publication paths when it owns a complete `benchmark/requirements/<subject>/` Markdown corpus. The runner assigns ports from the selected wave order, never from a subject-name table.
 
@@ -75,18 +77,18 @@ Use `--port-base` to move the complete disjoint port allocation when the default
 pnpm --filter @samchon/evidence-benchmark start -- --port-base 50000 todo reddit
 ```
 
-`start` packs and verifies the product once, materializes and installs every selected evidence/plain cell, then starts them concurrently. It freezes the requirement and instruction bytes before the first turn, records the rendered workspace and package identities, captures the four canonical lint configurations, creates and installs a frozen pnpm lockfile, and journals `run.json` after each attempt. Evidence final turns must restore the exact lint bytes and literal claim populations selected for their phase before the runner accepts them. Build, lint, database, backend-test, frontend-test, runtime, coverage, and quality acceptance remains an operator audit; the runner does not infer those results from a zero Codex exit status.
+`start` packs and verifies the product once, materializes and installs every selected engine/subject/arm cell, and admits the complete wave before any measured agent turn starts. If one cell fails preparation, the runner launches none. After the all-cell preparation barrier passes, it starts every cell concurrently. It freezes the requirement and instruction bytes before the first turn, records the rendered workspace and package identities, captures the four canonical lint configurations, creates and installs a frozen pnpm lockfile, and journals `run.json` after each attempt. Evidence final turns must restore the exact lint bytes and literal claim populations selected for their phase before the runner accepts them. Build, lint, database, backend-test, frontend-test, runtime, coverage, and quality acceptance remains an operator audit; the runner does not infer those results from a zero agent-process exit status.
 
-The runner assigns each subject and arm distinct API, Swagger, Vite development, and Playwright ports. It checks every selected port before packaging or model use, exports the assignments to agent child processes, persists their fixed values in package-local `.env` files, and records them in `run.json`. Pnpm, ttsc, Go build/module/workspace, Playwright, and operating-system temporary caches are cell-local below the writable run root and excluded from results. A deny-by-default Codex permission profile gives model tools write access only to the measured workspace and its run-owned cache tree, minimal runtime reads, loopback network access, and a credential-free allowlisted child environment. The deterministic harness tests the serialized profile and rejects dangerous sandbox bypasses, inherited secret environments, and upstream proxy credentials.
+The runner assigns each engine, subject, and arm distinct API, Swagger, Vite development, and Playwright ports. It checks every selected port before packaging or model use, exports the assignments to agent child processes, persists their fixed values in package-local `.env` files, and records them in `run.json`. Pnpm, ttsc, Go build/module/workspace, Playwright, and operating-system temporary caches are cell-local below the writable run root and excluded from results. Each engine adapter uses a deny-by-default sandbox that gives model tools write access only to the measured workspace and its run-owned cache tree, minimal runtime reads, loopback network access, and a credential-free allowlisted child environment. The deterministic harness tests each serialized policy and rejects dangerous sandbox bypasses, inherited secret environments, upstream proxy credentials, and native Windows Claude Code launches.
 
 ## Observe and resume
 
-Inspect every active cell at least once every 30 seconds: read its `run.json`, controller liveness, newest stdout JSONL and stderr, current workspace, and active gate. Revive a recoverable interruption immediately. Separately, update the campaign pull-request body every 15 minutes with only Project, Mode, Progress, Quality, Cost, and Time; report interruptions, recoveries, defects, interventions, and completed phases as formal `COMMENT` reviews.
+Inspect every active cell at least once every 30 seconds: read its `run.json`, controller liveness, newest stdout JSONL and stderr, current workspace, and active gate. Revive a recoverable interruption immediately. Separately, update the campaign pull-request body every 15 minutes with only Engine, Project, Mode, Progress, Quality, Cost, and Time; report interruptions, recoveries, defects, interventions, and completed phases as formal `COMMENT` reviews.
 
-Resume a recoverably interrupted cell with its exact identity:
+Resume a recoverably interrupted cell with its exact engine, subject, arm, and run identity:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark resume -- todo evidence <run-id>
+pnpm --filter @samchon/evidence-benchmark resume -- <engine> todo evidence <run-id>
 ```
 
 Recovery is proven only when the controller is alive, `run.json` is `running`, and a new attempt JSONL contains activity. A successful launch command alone is not proof.
@@ -101,7 +103,7 @@ Do not delete requirement corpora, templates, instructions, shared caches, sourc
 
 ## Instruction sequence
 
-The backend-first workflow uses nine user turns on one Codex thread.
+The backend-first workflow uses nine user turns on one engine session.
 
 | Step            | Evidence                     | Plain                     |
 | --------------- | ---------------------------- | ------------------------- |
@@ -117,21 +119,21 @@ The backend-first workflow uses nine user turns on one Codex thread.
 
 Arm-specific method instructions stay inside the corresponding template overlay.
 
-Each turn explicitly enables Goal mode and treats its complete instruction as that stage's bounded objective and completion criteria. At wave launch, the runner reads every instruction once, copies the exact bytes into each cell's `inputs/instructions/`, and records their aggregate hash in `run.json`. Later source edits cannot change an active or resumed cell's remaining turns.
+Each turn defines one bounded stage objective, preserves it across interruptions, and names its completion criteria. At wave launch, the runner reads every instruction once, copies the exact bytes into each cell's `inputs/instructions/`, and records their aggregate hash in `run.json`. Later source edits cannot change an active or resumed cell's remaining turns.
 
 `benchmark/prompts/` retains the three user utterances for the legacy single-goal baseline. The current backend-first runner does not read them.
 
 ## Apply a common template repair
 
-Prefer a corrected new run. If an expensive active wave must be salvaged after a small common template defect, first stop the affected model processes, disable any capacity watcher, and verify every selected evidence and plain cell is `interrupted`. Correct and validate the source template, then create one workspace-relative unified text patch below `benchmark/.work/repairs/`.
+Prefer a corrected new run. If an expensive active wave must be salvaged after a small common template defect, first stop the affected model processes, disable any capacity watcher, and verify every selected Codex and Claude Code evidence and plain cell is `interrupted`. Correct and validate the source template, then create one workspace-relative unified text patch below `benchmark/.work/repairs/`.
 
 ```bash
 pnpm --filter @samchon/evidence-benchmark repair -- --patch benchmark/.work/repairs/<fix>.patch <run-id> todo reddit
 ```
 
-The command dry-runs every selected cell before changing any, applies the same text patch to both arms, records its bytes and SHA-256 under each run's `interventions/`, excludes repair time from agent time, and rolls back on partial failure. It rejects changes to requirements, local package archives, Git metadata, dependency directories, binary files, deletions, renames, and symbolic links.
+The command dry-runs every selected cell before changing any, applies the same text patch to both engines and both arms, records its bytes and SHA-256 under each run's `interventions/`, excludes repair time from agent time, and rolls back on partial failure. It rejects changes to requirements, local package archives, Git metadata, dependency directories, binary files, deletions, renames, and symbolic links.
 
-A repair applied after measured work is an operator intervention, even when both arms receive identical bytes. Report it as a comparison qualification. Requirement changes, arm-specific help, or unequal patches require a new run.
+A repair applied after measured work is an operator intervention, even when both engines and both arms receive identical bytes. Report it as a comparison qualification. Requirement changes, engine- or arm-specific help, or unequal patches require a new run.
 
 ## Accept a result
 
@@ -147,15 +149,18 @@ Completed and operator-accepted applications belong in one independently maintai
 <agent>/<model>/<project>/<evidence|plain>/
 ```
 
-Write the completed human-and-agent audit to `benchmark/result/<project>/<arm>/runs/<run-id>/benchmark-report.json`, then name both the public GitHub repository and its clean, up-to-date local checkout explicitly:
+Write the completed human-and-agent audit to `benchmark/result/<subject>/<engine>/<arm>/runs/<run-id>/benchmark-report.json`, then name both the public GitHub repository and its clean, up-to-date local checkout explicitly:
 
-The report schema is strict. Identity and frozen-input hashes must match the run. `totalElapsedMs`, `agentElapsedMs`, `nonAgentElapsedMs`, accepted and rejected attempt counts, all four native token categories, and API-equivalent cost must equal the retained attempt ledger; cost is recomputed by subtracting cached input from total input and applying the report's per-million uncached-input, cached-input, and output prices. Record every terminal gate as `passed`, requirement and test coverage as covered/total pairs, implementation scale, the first completion claim and its honesty, a 0–100 quality score with summary and residual defects, and the sorted SHA-256 of every retained intervention.
+The report schema is strict. Engine, model, effort, arm, run identity, and frozen-input hashes must match the run. `totalElapsedMs`, `agentElapsedMs`, `nonAgentElapsedMs`, accepted and rejected attempt counts, every normalized cross-engine token category, and API-equivalent cost must equal the retained attempt ledger. Cost is recomputed from the selected model's retained native categories and per-million prices. Record every terminal gate as `passed`, requirement and test coverage as covered/total pairs, implementation scale, the first completion claim and its honesty, a 0–100 quality score with summary and residual defects, and the sorted SHA-256 of every retained intervention.
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "status": "accepted",
   "project": "<project>",
+  "engine": "<codex|claude-code>",
+  "model": "<exact-model>",
+  "effort": "high",
   "arm": "<evidence|plain>",
   "runId": "<run-id>",
   "measurement": {
@@ -166,12 +171,14 @@ The report schema is strict. Identity and frozen-input hashes must match the run
     "tokens": {
       "input_tokens": 0,
       "cached_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
       "output_tokens": 0,
       "reasoning_output_tokens": 0
     },
     "pricingUsdPerMillion": {
       "input": 0,
       "cachedInput": 0,
+      "cacheCreationInput": 0,
       "output": 0
     },
     "apiEquivalentCostUsd": 0
@@ -211,13 +218,13 @@ The report schema is strict. Identity and frozen-input hashes must match the run
 }
 ```
 
-Replace the zeros with measured values; standard input and output prices must be positive.
+The report uses one exact token-key superset for both engines. Codex records zero `cache_creation_input_tokens`; Claude Code maps its native `cache_read_input_tokens` to `cached_input_tokens` and records zero `reasoning_output_tokens`. `cachedInput` prices Codex cached input or Claude cache reads, while `cacheCreationInput` prices Claude cache creation and is zero for Codex. Replace the zeros with measured values; standard input and output prices must be positive, and Claude Code also requires a positive cache-creation price.
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark publish:result -- --repository <owner/name> --checkout <local-path> --public todo evidence <run-id>
+pnpm --filter @samchon/evidence-benchmark publish:result -- --repository <owner/name> --checkout <local-path> --public <engine> todo evidence <run-id>
 ```
 
-There is no default owner, repository, or checkout. The command requires the authenticated `gh` login to equal the named repository owner; proves the repository is public; proves the checkout has the matching GitHub origin, a clean `main` or `master` branch, and no remote drift; revalidates the retained JSONL terminal events and token usage, thread identity, model and isolation invocation, lint-restoration proofs, current workspace digest, strict report ledger, frozen inputs, intervention records, and evidence archive; then replaces only that agent/model/project/arm leaf in one commit. The report carries the operator's terminal-gate and quality audit; publication validates its schema and retained-ledger arithmetic but does not rerun those gates. Publication excludes private environment files, dependencies, nested Git state, and nested workflows. A pre-push failure restores the prior leaf; a successful push is verified against the remote branch.
+There is no default owner, repository, or checkout. The command requires the authenticated `gh` login to equal the named repository owner; proves the repository is public; proves the checkout has the matching GitHub origin, a clean `main` or `master` branch, and no remote drift; revalidates the retained native JSONL terminal events and token usage, engine session identity, model and isolation invocation, lint-restoration proofs, current workspace digest, strict report ledger, frozen inputs, intervention records, and evidence archive; then replaces only that agent/model/project/arm leaf in one commit. The report carries the operator's terminal-gate and quality audit; publication validates its schema and retained-ledger arithmetic but does not rerun those gates. Publication excludes private environment files, dependencies, nested Git state, and nested workflows. A pre-push failure restores the prior leaf; a successful push is verified against the remote branch.
 
 Evidence results retain `.benchmark-deps/*.tgz` because their frozen lockfile installs the exact locally packed product measured by the run. Raw logs and controller state remain in this repository.
 

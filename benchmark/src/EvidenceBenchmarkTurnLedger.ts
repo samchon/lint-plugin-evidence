@@ -1,9 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 
-/** Validates the retained order of accepted benchmark turns. */
+import { EvidenceBenchmarkEngine } from "./EvidenceBenchmarkEngine.ts";
+
+/** Validates the retained order and native evidence of benchmark turns. */
 export namespace EvidenceBenchmarkTurnLedger {
-  /** Canonical measured turn order shared by both benchmark arms. */
+  /** Canonical measured turn order shared by both benchmark arms and engines. */
   export const NAMES = [
     "skills-contract",
     "backend-start",
@@ -19,7 +21,7 @@ export namespace EvidenceBenchmarkTurnLedger {
   /** One canonical benchmark instruction name. */
   export type Name = (typeof NAMES)[number];
 
-  /** Retained fields needed to admit an accepted turn. */
+  /** Retained fields needed to admit and audit one model-process attempt. */
   export interface ITurn {
     /** Reported instruction name. */
     name?: unknown;
@@ -39,11 +41,14 @@ export namespace EvidenceBenchmarkTurnLedger {
     /** Exact child-process command and arguments. */
     invocation?: unknown;
 
+    /** Exact child-process working directory. */
+    cwd?: unknown;
+
     /** Machine-gate acceptance written after the process succeeds. */
     accepted?: unknown;
 
-    /** Thread observed from this attempt's native event stream. */
-    threadId?: unknown;
+    /** Engine session observed from this attempt's native event stream. */
+    sessionId?: unknown;
   }
 
   /** Retained attempt totals bound into the operator report. */
@@ -57,11 +62,21 @@ export namespace EvidenceBenchmarkTurnLedger {
     /** Number of machine-gate accepted attempts. */
     accepted: number;
 
-    /** Native Codex token categories summed from terminal events. */
+    /** Superset of the native token categories emitted by both fixed engines. */
     tokens: {
+      /** Non-cached input tokens reported by the engine. */
       input_tokens: number;
+
+      /** Cached input reads, including Claude's cache-read category. */
       cached_input_tokens: number;
+
+      /** Claude cache-creation input tokens; zero for Codex. */
+      cache_creation_input_tokens: number;
+
+      /** Generated output tokens reported by the engine. */
       output_tokens: number;
+
+      /** Codex reasoning output tokens; zero for Claude Code. */
       reasoning_output_tokens: number;
     };
   }
@@ -97,15 +112,40 @@ export namespace EvidenceBenchmarkTurnLedger {
       );
   }
 
-  /** Verifies retained logs, terminal events, thread linkage, and invocation. */
+  /** Verifies retained logs, terminal events, session linkage, and invocation. */
   export function assertRetainedEvidence(props: {
+    /** Source repository blocked from the measured agent's file tools. */
+    repository: string;
+
+    /** Exact retained cell root containing the attempt ledger and logs. */
     runRoot: string;
+
+    /** Exact measured workspace used as every model process's working tree. */
     workspace: string;
-    threadId: string;
-    model: string;
-    effort: string;
+
+    /** Fixed coding engine whose native stream and invocation are expected. */
+    engine: EvidenceBenchmarkEngine.Name;
+
+    /** Session identifier shared by every accepted turn in this cell. */
+    sessionId: string;
+
+    /** Exact provider model selected by the fixed engine matrix. */
+    model: unknown;
+
+    /** Explicit reasoning effort selected by the fixed engine matrix. */
+    effort: unknown;
+
+    /** Complete retained attempt sequence, including rejected work. */
     turns: readonly ITurn[];
   }): ISummary {
+    const definition: EvidenceBenchmarkEngine.IDefinition =
+      EvidenceBenchmarkEngine.definition(props.engine);
+    if (props.model !== definition.model || props.effort !== definition.effort)
+      throw new Error(
+        `Benchmark ${props.engine} attempt does not use its fixed model and effort.`,
+      );
+    const model: EvidenceBenchmarkEngine.Model = definition.model;
+    const effort: EvidenceBenchmarkEngine.Effort = definition.effort;
     assertAcceptedOrder(props.turns, true);
     const retained: Set<string> = new Set();
     const summary: ISummary = {
@@ -115,11 +155,12 @@ export namespace EvidenceBenchmarkTurnLedger {
       tokens: {
         input_tokens: 0,
         cached_input_tokens: 0,
+        cache_creation_input_tokens: 0,
         output_tokens: 0,
         reasoning_output_tokens: 0,
       },
     };
-    let threadEstablished: boolean = false;
+    let sessionEstablished: boolean = false;
     for (const turn of props.turns) {
       if (
         typeof turn.name !== "string" ||
@@ -132,11 +173,14 @@ export namespace EvidenceBenchmarkTurnLedger {
             !Number.isInteger(turn.status) ||
             turn.status < 0)) ||
         typeof turn.accepted !== "boolean" ||
-        (turn.threadId !== undefined &&
-          (typeof turn.threadId !== "string" || turn.threadId.length === 0)) ||
+        (turn.sessionId !== undefined &&
+          (typeof turn.sessionId !== "string" ||
+            turn.sessionId.length === 0)) ||
         !Array.isArray(turn.invocation) ||
         turn.invocation.length === 0 ||
-        turn.invocation.some((value) => typeof value !== "string")
+        turn.invocation.some((value) => typeof value !== "string") ||
+        typeof turn.cwd !== "string" ||
+        path.resolve(turn.cwd) !== path.resolve(props.workspace)
       )
         throw new Error(
           `Benchmark attempt ${String(turn.name)} has an invalid retained ledger entry.`,
@@ -163,79 +207,47 @@ export namespace EvidenceBenchmarkTurnLedger {
           `Benchmark attempt ${turn.name} retained another instruction's log.`,
         );
       retainedLog(props.runRoot, turn.stderr, ".stderr.log", retained, stem);
-      const lines: string[] = fs
-        .readFileSync(stdout, "utf8")
-        .split(/\r?\n/)
-        .filter((line) => line.length !== 0);
-      const events: unknown[] = [];
-      lines.forEach((line, index) => {
-        try {
-          events.push(JSON.parse(line) as unknown);
-        } catch {
-          if (
-            turn.accepted === false &&
-            turn.status !== 0 &&
-            index === lines.length - 1
-          )
-            return;
-          throw new Error(
-            `Benchmark attempt ${turn.name} has malformed JSONL output.`,
-          );
-        }
-      });
-      const objects: Record<string, unknown>[] = events.filter(
-        (event): event is Record<string, unknown> =>
-          typeof event === "object" && event !== null && !Array.isArray(event),
-      );
-      const linked: boolean = objects.some(
-        (event) =>
-          event.type === "thread.started" && event.thread_id === props.threadId,
-      );
-      if ((turn.accepted === true || turn.status === 0) && !linked)
+      const objects: Record<string, unknown>[] = readEvents(stdout, turn);
+      const evidence: IAttemptEvidence =
+        props.engine === "codex"
+          ? codexEvidence(objects, props.sessionId)
+          : claudeEvidence(objects, props.sessionId, model);
+      if ((turn.accepted === true || turn.status === 0) && !evidence.linked)
         throw new Error(
-          `Benchmark attempt ${turn.name} is not linked to the retained thread.`,
+          `Benchmark attempt ${turn.name} is not linked to the retained ${props.engine} session.`,
         );
       if (
         (turn.accepted === true || turn.status === 0) &&
-        turn.threadId !== props.threadId
+        turn.sessionId !== props.sessionId
       )
         throw new Error(
-          `Benchmark attempt ${turn.name} retained the wrong thread identity.`,
+          `Benchmark attempt ${turn.name} retained the wrong session identity.`,
         );
-      const completedEvents: Record<string, unknown>[] = objects.filter(
-        (event) => event.type === "turn.completed",
-      );
-      if (completedEvents.length > 1)
+      if ((turn.accepted === true || turn.status === 0) && !evidence.completed)
         throw new Error(
-          `Benchmark attempt ${turn.name} has multiple terminal events.`,
+          `Benchmark attempt ${turn.name} has no successful terminal model-usage proof.`,
         );
-      const usage: ISummary["tokens"] | undefined =
-        completedEvents[0] === undefined
-          ? undefined
-          : readUsage(completedEvents[0].usage);
-      if ((turn.accepted === true || turn.status === 0) && usage === undefined)
-        throw new Error(
-          `Benchmark attempt ${turn.name} has no terminal model-usage proof.`,
-        );
-      if (usage !== undefined)
+      if (evidence.usage !== undefined)
         for (const category of Object.keys(summary.tokens) as Array<
           keyof ISummary["tokens"]
         >) {
-          summary.tokens[category] += usage[category];
+          summary.tokens[category] += evidence.usage[category];
           if (!Number.isSafeInteger(summary.tokens[category]))
             throw new Error(
               `Benchmark token category ${category} exceeds the safe integer range.`,
             );
         }
       assertInvocation({
+        engine: props.engine,
         invocation: turn.invocation as string[],
+        repository: props.repository,
         workspace: props.workspace,
-        threadId: props.threadId,
-        model: props.model,
-        effort: props.effort,
-        threadEstablished,
+        sessionId: props.sessionId,
+        model,
+        effort,
+        sessionEstablished,
       });
-      if (linked) threadEstablished = true;
+      if (evidence.linked) sessionEstablished = true;
     }
     const logs: string = path.resolve(props.runRoot, "logs");
     const actualLogs: string[] = fs
@@ -255,10 +267,114 @@ export namespace EvidenceBenchmarkTurnLedger {
     return summary;
   }
 
-  function readUsage(value: unknown): ISummary["tokens"] | undefined {
-    if (typeof value !== "object" || value === null || Array.isArray(value))
-      return undefined;
-    const usage = value as Record<string, unknown>;
+  interface IAttemptEvidence {
+    linked: boolean;
+    completed: boolean;
+    usage?: ISummary["tokens"];
+  }
+
+  function readEvents(stdout: string, turn: ITurn): Record<string, unknown>[] {
+    const lines: string[] = fs
+      .readFileSync(stdout, "utf8")
+      .split(/\r?\n/)
+      .filter((line) => line.length !== 0);
+    const events: unknown[] = [];
+    lines.forEach((line, index) => {
+      try {
+        events.push(JSON.parse(line) as unknown);
+      } catch {
+        if (
+          turn.accepted === false &&
+          turn.status !== 0 &&
+          index === lines.length - 1
+        )
+          return;
+        throw new Error(
+          `Benchmark attempt ${String(turn.name)} has malformed JSONL output.`,
+        );
+      }
+    });
+    return events.filter(
+      (event): event is Record<string, unknown> =>
+        typeof event === "object" && event !== null && !Array.isArray(event),
+    );
+  }
+
+  function codexEvidence(
+    events: readonly Record<string, unknown>[],
+    sessionId: string,
+  ): IAttemptEvidence {
+    const starts: readonly Record<string, unknown>[] = events.filter(
+      (event) => event.type === "thread.started",
+    );
+    if (starts.some((event) => event.thread_id !== sessionId))
+      throw new Error("Benchmark Codex attempt has the wrong thread identity.");
+    const linked: boolean = starts.length !== 0;
+    const completed: readonly Record<string, unknown>[] = events.filter(
+      (event) => event.type === "turn.completed",
+    );
+    if (completed.length > 1)
+      throw new Error("Benchmark Codex attempt has multiple terminal events.");
+    const usage: ISummary["tokens"] | undefined =
+      completed[0] === undefined
+        ? undefined
+        : readCodexUsage(completed[0].usage);
+    return {
+      linked,
+      completed: completed.length === 1 && usage !== undefined,
+      ...(usage === undefined ? {} : { usage }),
+    };
+  }
+
+  function claudeEvidence(
+    events: readonly Record<string, unknown>[],
+    sessionId: string,
+    model: string,
+  ): IAttemptEvidence {
+    const systems: readonly Record<string, unknown>[] = events.filter(
+      (event) => event.type === "system",
+    );
+    if (systems.some((event) => event.session_id !== sessionId))
+      throw new Error(
+        "Benchmark Claude Code system event has the wrong session identity.",
+      );
+    const initializations: readonly Record<string, unknown>[] = systems.filter(
+      (event) => event.type === "system" && event.subtype === "init",
+    );
+    if (
+      initializations.some(
+        (event) => event.session_id !== sessionId || event.model !== model,
+      )
+    )
+      throw new Error(
+        "Benchmark Claude Code attempt has a mismatched session or model initialization.",
+      );
+    const results: readonly Record<string, unknown>[] = events.filter(
+      (event) => event.type === "result",
+    );
+    if (results.length > 1)
+      throw new Error(
+        "Benchmark Claude Code attempt has multiple terminal events.",
+      );
+    const result: Record<string, unknown> | undefined = results[0];
+    if (result !== undefined && result.session_id !== sessionId)
+      throw new Error(
+        "Benchmark Claude Code terminal event has the wrong session identity.",
+      );
+    const usage: ISummary["tokens"] | undefined =
+      result === undefined ? undefined : readClaudeUsage(result, model);
+    return {
+      linked: initializations.length !== 0,
+      completed:
+        result?.subtype === "success" &&
+        result.is_error === false &&
+        usage !== undefined,
+      ...(usage === undefined ? {} : { usage }),
+    };
+  }
+
+  function readCodexUsage(value: unknown): ISummary["tokens"] | undefined {
+    if (!isObject(value)) return undefined;
     const categories = [
       "input_tokens",
       "cached_input_tokens",
@@ -266,20 +382,73 @@ export namespace EvidenceBenchmarkTurnLedger {
       "reasoning_output_tokens",
     ] as const;
     if (
-      categories.some(
-        (category) =>
-          typeof usage[category] !== "number" ||
-          !Number.isFinite(usage[category]) ||
-          !Number.isSafeInteger(usage[category]) ||
-          usage[category] < 0,
-      ) ||
-      Number(usage.cached_input_tokens) > Number(usage.input_tokens) ||
-      Number(usage.input_tokens) + Number(usage.output_tokens) <= 0
+      categories.some((category) => !isTokenCount(value[category])) ||
+      Number(value.cached_input_tokens) > Number(value.input_tokens) ||
+      Number(value.input_tokens) + Number(value.output_tokens) <= 0
     )
       return undefined;
-    return Object.fromEntries(
-      categories.map((category) => [category, usage[category]]),
-    ) as ISummary["tokens"];
+    return {
+      input_tokens: Number(value.input_tokens),
+      cached_input_tokens: Number(value.cached_input_tokens),
+      cache_creation_input_tokens: 0,
+      output_tokens: Number(value.output_tokens),
+      reasoning_output_tokens: Number(value.reasoning_output_tokens),
+    };
+  }
+
+  function readClaudeUsage(
+    result: Readonly<Record<string, unknown>>,
+    model: string,
+  ): ISummary["tokens"] | undefined {
+    const modelUsage: unknown = result.modelUsage;
+    if (!isObject(modelUsage))
+      throw new Error(
+        "Benchmark Claude Code terminal event has no per-model usage ledger.",
+      );
+    const models: string[] = Object.keys(modelUsage);
+    if (models.some((candidate) => candidate !== model))
+      throw new Error(
+        `Benchmark Claude Code attempt used an unselected model: ${models.join(", ")}.`,
+      );
+    const usage: unknown = result.usage;
+    if (!isObject(usage)) return undefined;
+    const categories = [
+      "input_tokens",
+      "cache_creation_input_tokens",
+      "cache_read_input_tokens",
+      "output_tokens",
+    ] as const;
+    if (
+      categories.some((category) => !isTokenCount(usage[category])) ||
+      Number(usage.input_tokens) +
+        Number(usage.cache_creation_input_tokens) +
+        Number(usage.cache_read_input_tokens) +
+        Number(usage.output_tokens) <=
+        0 ||
+      (result.subtype === "success" &&
+        (models.length !== 1 || models[0] !== model))
+    )
+      return undefined;
+    return {
+      input_tokens: Number(usage.input_tokens),
+      cached_input_tokens: Number(usage.cache_read_input_tokens),
+      cache_creation_input_tokens: Number(usage.cache_creation_input_tokens),
+      output_tokens: Number(usage.output_tokens),
+      reasoning_output_tokens: 0,
+    };
+  }
+
+  function isTokenCount(value: unknown): value is number {
+    return (
+      typeof value === "number" &&
+      Number.isFinite(value) &&
+      Number.isSafeInteger(value) &&
+      value >= 0
+    );
+  }
+
+  function isObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
   }
 
   function retainedLog(
@@ -329,12 +498,27 @@ export namespace EvidenceBenchmarkTurnLedger {
   }
 
   function assertInvocation(props: {
+    engine: EvidenceBenchmarkEngine.Name;
     invocation: readonly string[];
+    repository: string;
     workspace: string;
-    threadId: string;
+    sessionId: string;
     model: string;
     effort: string;
-    threadEstablished: boolean;
+    sessionEstablished: boolean;
+  }): void {
+    if (props.engine === "codex") assertCodexInvocation(props);
+    else assertClaudeInvocation(props);
+  }
+
+  function assertCodexInvocation(props: {
+    invocation: readonly string[];
+    repository: string;
+    workspace: string;
+    sessionId: string;
+    model: string;
+    effort: string;
+    sessionEstablished: boolean;
   }): void {
     const execIndex: number = props.invocation.indexOf("exec");
     const launcherTrusted: boolean =
@@ -350,14 +534,10 @@ export namespace EvidenceBenchmarkTurnLedger {
       throw new Error("Benchmark attempt has an untrusted Codex launcher.");
     const args: readonly string[] = props.invocation.slice(execIndex + 1);
     const resumed: boolean = args[0] === "resume";
-    const option = (name: string): string | undefined => {
-      const index: number = args.indexOf(name);
-      return index < 0 ? undefined : args[index + 1];
-    };
     if (
       !args.includes("--json") ||
-      option("--enable") !== "goals" ||
-      option("--model") !== props.model ||
+      option(args, "--enable") !== "goals" ||
+      option(args, "--model") !== props.model ||
       !args.includes(`model_reasoning_effort=${props.effort}`) ||
       !args.includes("--ignore-user-config") ||
       !args.includes("--ignore-rules") ||
@@ -369,19 +549,223 @@ export namespace EvidenceBenchmarkTurnLedger {
       )
     )
       throw new Error(
-        "Benchmark attempt does not retain the required model, effort, goal, and isolation invocation.",
+        "Benchmark Codex attempt does not retain the required model, effort, goal, and isolation invocation.",
       );
     if (
       resumed
-        ? !args.includes(props.threadId) || args.at(-1) !== "-"
-        : option("--cd") !== props.workspace || args.at(-1) !== "-"
+        ? !args.includes(props.sessionId) || args.at(-1) !== "-"
+        : option(args, "--cd") !== props.workspace || args.at(-1) !== "-"
     )
       throw new Error(
-        "Benchmark attempt does not retain its workspace or thread invocation.",
+        "Benchmark Codex attempt does not retain its workspace or session invocation.",
       );
-    if (props.threadEstablished && !resumed)
+    if (props.sessionEstablished && !resumed)
       throw new Error(
-        "Benchmark attempt started a new thread after the run thread was established.",
+        "Benchmark Codex attempt started a new session after the run session was established.",
       );
+  }
+
+  function assertClaudeInvocation(props: {
+    invocation: readonly string[];
+    repository: string;
+    workspace: string;
+    sessionId: string;
+    model: string;
+    effort: string;
+    sessionEstablished: boolean;
+  }): void {
+    const launcher: string = props.invocation[0]!;
+    const basename: string = path.basename(launcher).toLowerCase();
+    const trusted: boolean =
+      process.platform === "win32"
+        ? basename === "claude.exe" &&
+          path.isAbsolute(launcher) &&
+          launcher
+            .replaceAll("\\", "/")
+            .toLowerCase()
+            .includes("/@anthropic-ai/claude-code/bin/claude.exe")
+        : basename === "claude" || basename === "claude.exe";
+    if (!trusted)
+      throw new Error(
+        "Benchmark attempt has an untrusted Claude Code launcher.",
+      );
+    const args: readonly string[] = props.invocation.slice(1);
+    const forbidden: readonly string[] = [
+      "--allow-dangerously-skip-permissions",
+      "--bare",
+      "--continue",
+      "--dangerously-skip-permissions",
+      "--fork-session",
+      "--no-session-persistence",
+    ];
+    if (
+      !args.includes("-p") ||
+      option(args, "--output-format") !== "stream-json" ||
+      !args.includes("--verbose") ||
+      !args.includes("--forward-subagent-text") ||
+      !args.includes("--include-hook-events") ||
+      option(args, "--model") !== props.model ||
+      option(args, "--effort") !== props.effort ||
+      option(args, "--permission-mode") !== "dontAsk" ||
+      option(args, "--tools") !== "Bash,Edit,Write,Read,Glob,Grep,Agent" ||
+      option(args, "--allowedTools") !== "Bash,Edit(./**),Read(./**),Agent" ||
+      option(args, "--disallowedTools") !== "WebFetch,WebSearch" ||
+      option(args, "--setting-sources") !== "" ||
+      !args.includes("--strict-mcp-config") ||
+      !args.includes("--disable-slash-commands") ||
+      !args.includes("--no-chrome") ||
+      option(args, "--prompt-suggestions") !== "false" ||
+      forbidden.some((flag) => args.includes(flag)) ||
+      args.some(
+        (value) =>
+          value === "--fallback-model" || value.startsWith("--fallback-model="),
+      )
+    )
+      throw new Error(
+        "Benchmark Claude Code attempt does not retain the required model, effort, tools, and isolation invocation.",
+      );
+    assertClaudeMcpConfig(option(args, "--mcp-config"));
+    assertClaudeSettings(
+      option(args, "--settings"),
+      props.repository,
+      props.workspace,
+    );
+    const resumed: boolean = option(args, "--resume") !== undefined;
+    if (
+      resumed
+        ? option(args, "--resume") !== props.sessionId ||
+          option(args, "--session-id") !== undefined
+        : option(args, "--session-id") !== props.sessionId
+    )
+      throw new Error(
+        "Benchmark Claude Code attempt does not retain its exact session invocation.",
+      );
+    if (props.sessionEstablished && !resumed)
+      throw new Error(
+        "Benchmark Claude Code attempt started a new session after the run session was established.",
+      );
+  }
+
+  function assertClaudeMcpConfig(value: string | undefined): void {
+    let parsed: unknown;
+    try {
+      parsed = value === undefined ? undefined : JSON.parse(value);
+    } catch {
+      parsed = undefined;
+    }
+    if (
+      !isObject(parsed) ||
+      !isObject(parsed.mcpServers) ||
+      Object.keys(parsed.mcpServers).length !== 0
+    )
+      throw new Error(
+        "Benchmark Claude Code attempt does not retain an empty strict MCP configuration.",
+      );
+  }
+
+  function assertClaudeSettings(
+    value: string | undefined,
+    repository: string,
+    workspace: string,
+  ): void {
+    let parsed: unknown;
+    try {
+      parsed = value === undefined ? undefined : JSON.parse(value);
+    } catch {
+      parsed = undefined;
+    }
+    const settings: Record<string, unknown> | undefined = isObject(parsed)
+      ? parsed
+      : undefined;
+    const sandbox: unknown = settings?.sandbox;
+    const permissions: unknown = settings?.permissions;
+    const environment: unknown = settings?.env;
+    const filesystem: unknown = isObject(sandbox)
+      ? sandbox.filesystem
+      : undefined;
+    const credentials: unknown = isObject(sandbox)
+      ? sandbox.credentials
+      : undefined;
+    const envVariables: unknown = isObject(credentials)
+      ? credentials.envVars
+      : undefined;
+    const network: unknown = isObject(sandbox) ? sandbox.network : undefined;
+    const domains: unknown = isObject(network)
+      ? network.allowedDomains
+      : undefined;
+    const excluded: unknown = isObject(sandbox)
+      ? sandbox.excludedCommands
+      : undefined;
+    if (
+      !isObject(sandbox) ||
+      !isObject(permissions) ||
+      JSON.stringify(permissions.allow) !==
+        JSON.stringify(["Bash", "Edit(./**)", "Read(./**)", "Agent"]) ||
+      JSON.stringify(permissions.deny) !==
+        JSON.stringify(["WebFetch", "WebSearch"]) ||
+      sandbox.enabled !== true ||
+      sandbox.failIfUnavailable !== true ||
+      sandbox.allowUnsandboxedCommands !== false ||
+      !isObject(filesystem) ||
+      JSON.stringify(filesystem.denyRead) !==
+        JSON.stringify([
+          "~/",
+          path.resolve(repository),
+          path.dirname(workspace),
+        ]) ||
+      JSON.stringify(filesystem.allowRead) !==
+        JSON.stringify([
+          workspace,
+          path.join(path.dirname(workspace), "cache"),
+        ]) ||
+      JSON.stringify(filesystem.allowWrite) !==
+        JSON.stringify([path.join(path.dirname(workspace), "cache")]) ||
+      !Array.isArray(envVariables) ||
+      envVariables.some(
+        (entry) =>
+          !isObject(entry) ||
+          typeof entry.name !== "string" ||
+          !/^[A-Za-z_][A-Za-z0-9_]*$/.test(entry.name) ||
+          entry.mode !== "deny",
+      ) ||
+      ![
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_AUTH_TOKEN",
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "OPENAI_API_KEY",
+      ].every((name) =>
+        envVariables.some((entry) => isObject(entry) && entry.name === name),
+      ) ||
+      !isObject(environment) ||
+      environment.ANTHROPIC_DEFAULT_HAIKU_MODEL !== "claude-sonnet-5" ||
+      environment.ANTHROPIC_DEFAULT_SONNET_MODEL !== "claude-sonnet-5" ||
+      environment.CLAUDE_CODE_SUBAGENT_MODEL !== "claude-sonnet-5" ||
+      environment.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB !== "1" ||
+      settings?.autoMemoryEnabled !== false ||
+      (excluded !== undefined &&
+        (!Array.isArray(excluded) || excluded.length !== 0)) ||
+      !Array.isArray(domains) ||
+      domains.some((domain) => typeof domain !== "string") ||
+      JSON.stringify([...domains].sort()) !==
+        JSON.stringify(["127.0.0.1", "localhost"]) ||
+      (isObject(network) &&
+        (network.httpProxyPort !== undefined ||
+          network.socksProxyPort !== undefined ||
+          network.allowAllUnixSockets === true))
+    )
+      throw new Error(
+        "Benchmark Claude Code attempt does not retain the strict sandbox and loopback network allowlist.",
+      );
+  }
+
+  function option(args: readonly string[], name: string): string | undefined {
+    const indexes: number[] = args.flatMap((value, index) =>
+      value === name ? [index] : [],
+    );
+    if (indexes.length > 1)
+      throw new Error(`Benchmark invocation repeats option ${name}.`);
+    return indexes[0] === undefined ? undefined : args[indexes[0] + 1];
   }
 }

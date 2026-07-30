@@ -10,6 +10,7 @@ import { EvidenceBenchmarkBaseline } from "./EvidenceBenchmarkBaseline.ts";
 import { EvidenceBenchmarkCommandLine } from "./EvidenceBenchmarkCommandLine.ts";
 import { EvidenceBenchmarkConsumerProof } from "./EvidenceBenchmarkConsumerProof.ts";
 import { EvidenceBenchmarkCorpus } from "./EvidenceBenchmarkCorpus.ts";
+import { EvidenceBenchmarkEngine } from "./EvidenceBenchmarkEngine.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
@@ -42,6 +43,9 @@ export namespace EvidenceBenchmarkSelfTest {
       createFixture(repository, fixture);
       await testPinnedPnpm(repository);
       testCodexIsolation(temporary);
+      testClaudeIsolation(temporary);
+      testEngineMatrix();
+      testClaudeTurnLedger(temporary);
       testStateJournal(temporary);
       await testRuntimeIsolation();
       await testPublicationSafety(temporary);
@@ -173,6 +177,258 @@ export namespace EvidenceBenchmarkSelfTest {
     assert.match(invocation, /shell_environment_policy\.inherit="core"/);
     assert.match(invocation, /shell_environment_policy\.set=/);
     assert.equal(invocation.includes("must-not-leak"), false);
+  }
+
+  function testClaudeIsolation(temporary: string): void {
+    const root: string = path.join(temporary, "claude-isolation");
+    const repository: string = path.join(temporary, "source-repository");
+    const workspace: string = path.join(root, "workspace");
+    const arguments_: readonly string[] =
+      EvidenceBenchmarkCommandLine.claudeIsolationArguments(
+        repository,
+        workspace,
+        {
+          ANTHROPIC_API_KEY: "must-not-leak",
+          HTTPS_PROXY: "http://must-not-leak.invalid",
+        },
+      );
+    const invocation: string = arguments_.join("\n");
+    assert.equal(
+      invocation.includes("--dangerously-skip-permissions"),
+      false,
+      "measured Claude Code turns must never bypass permissions",
+    );
+    assert.equal(
+      invocation.includes("must-not-leak"),
+      false,
+      "Claude Code settings must retain protected names without secret values",
+    );
+    assert.equal(
+      arguments_[arguments_.indexOf("--permission-mode") + 1],
+      "dontAsk",
+    );
+    assert.equal(
+      arguments_[arguments_.indexOf("--setting-sources") + 1],
+      "",
+      "measured Claude Code turns must not load mutable filesystem settings",
+    );
+    assert.equal(
+      arguments_[arguments_.indexOf("--allowedTools") + 1],
+      "Bash,Edit(./**),Read(./**),Agent",
+      "Claude built-in file permissions must remain scoped to the workspace",
+    );
+    const settings = JSON.parse(
+      arguments_[arguments_.indexOf("--settings") + 1]!,
+    ) as {
+      sandbox: {
+        enabled: boolean;
+        failIfUnavailable: boolean;
+        allowUnsandboxedCommands: boolean;
+        filesystem: {
+          denyRead: string[];
+          allowRead: string[];
+          allowWrite: string[];
+        };
+        network: {
+          allowedDomains: string[];
+          strictAllowlist: boolean;
+        };
+      };
+      env: Record<string, string>;
+    };
+    assert.equal(settings.sandbox.enabled, true);
+    assert.equal(settings.sandbox.failIfUnavailable, true);
+    assert.equal(settings.sandbox.allowUnsandboxedCommands, false);
+    assert.deepEqual(settings.sandbox.filesystem.denyRead, [
+      "~/",
+      path.resolve(repository),
+      root,
+    ]);
+    assert.deepEqual(settings.sandbox.filesystem.allowRead, [
+      workspace,
+      path.join(root, "cache"),
+    ]);
+    assert.deepEqual(settings.sandbox.filesystem.allowWrite, [
+      path.join(root, "cache"),
+    ]);
+    assert.equal(settings.sandbox.network.strictAllowlist, true);
+    assert.deepEqual(settings.sandbox.network.allowedDomains, [
+      "localhost",
+      "127.0.0.1",
+    ]);
+    assert.equal(settings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, "1");
+    assert.throws(
+      () =>
+        EvidenceBenchmarkCommandLine.assertClaudeAuthenticationEnvironment({}),
+      /require ANTHROPIC_API_KEY/,
+    );
+    assert.doesNotThrow(() =>
+      EvidenceBenchmarkCommandLine.assertClaudeAuthenticationEnvironment({
+        CLAUDE_CODE_OAUTH_TOKEN: "fixture-token",
+      }),
+    );
+  }
+
+  function testEngineMatrix(): void {
+    assert.deepEqual(EvidenceBenchmarkEngine.MATRIX, [
+      {
+        engine: "codex",
+        model: "gpt-5.6-terra",
+        effort: "high",
+      },
+      {
+        engine: "claude-code",
+        model: "claude-sonnet-5",
+        effort: "high",
+      },
+    ]);
+    const identities: string[] = ["todo", "reddit"].flatMap((project) =>
+      EvidenceBenchmarkEngine.MATRIX.flatMap((engine) =>
+        ["evidence", "plain"].map(
+          (arm) => `${project}/${engine.engine}/${arm}`,
+        ),
+      ),
+    );
+    assert.equal(identities.length, 8);
+    assert.equal(new Set(identities).size, 8);
+  }
+
+  function testClaudeTurnLedger(temporary: string): void {
+    const runRoot: string = path.join(temporary, "claude-turn-ledger");
+    const repository: string = path.join(temporary, "source-repository");
+    const workspace: string = path.join(runRoot, "workspace");
+    const logs: string = path.join(runRoot, "logs");
+    const sessionId: string = "12345678-1234-4123-8123-123456789abc";
+    const model: EvidenceBenchmarkEngine.Model = "claude-sonnet-5";
+    const launcher: string =
+      process.platform === "win32"
+        ? path.resolve(
+            process.env.APPDATA ?? path.join(temporary, "AppData", "Roaming"),
+            "npm",
+            "node_modules",
+            "@anthropic-ai",
+            "claude-code",
+            "bin",
+            "claude.exe",
+          )
+        : "claude";
+    fs.mkdirSync(workspace, { recursive: true });
+    const commonInvocation: string[] = [
+      "-p",
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--forward-subagent-text",
+      "--include-hook-events",
+      "--model",
+      model,
+      "--effort",
+      "high",
+      ...EvidenceBenchmarkCommandLine.claudeIsolationArguments(
+        repository,
+        workspace,
+        {},
+      ),
+    ];
+    const turns: EvidenceBenchmarkTurnLedger.ITurn[] =
+      EvidenceBenchmarkTurnLedger.NAMES.map((name, index) => {
+        const stdout: string = path.posix.join("logs", `${name}.stdout.jsonl`);
+        const stderr: string = path.posix.join("logs", `${name}.stderr.log`);
+        write(
+          path.join(runRoot, ...stdout.split("/")),
+          [
+            JSON.stringify({
+              type: "system",
+              subtype: "init",
+              session_id: sessionId,
+              model,
+            }),
+            JSON.stringify({
+              type: "result",
+              subtype: "success",
+              is_error: false,
+              session_id: sessionId,
+              usage: {
+                input_tokens: 10,
+                cache_creation_input_tokens: 2,
+                cache_read_input_tokens: 3,
+                output_tokens: 4,
+              },
+              modelUsage: {
+                [model]: {},
+              },
+            }),
+            "",
+          ].join("\n"),
+        );
+        write(path.join(runRoot, ...stderr.split("/")), "");
+        return {
+          name,
+          elapsedMs: 10,
+          status: 0,
+          stdout,
+          stderr,
+          invocation: [
+            launcher,
+            ...commonInvocation,
+            index === 0 ? "--session-id" : "--resume",
+            sessionId,
+          ],
+          cwd: workspace,
+          accepted: true,
+          sessionId,
+        };
+      });
+    const summary: EvidenceBenchmarkTurnLedger.ISummary =
+      EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
+        repository,
+        runRoot,
+        workspace,
+        engine: "claude-code",
+        sessionId,
+        model,
+        effort: "high",
+        turns,
+      });
+    assert.deepEqual(summary, {
+      elapsedMs: 90,
+      attempts: 9,
+      accepted: 9,
+      tokens: {
+        input_tokens: 90,
+        cached_input_tokens: 27,
+        cache_creation_input_tokens: 18,
+        output_tokens: 36,
+        reasoning_output_tokens: 0,
+      },
+    });
+
+    const firstStdout: string = path.join(
+      runRoot,
+      "logs",
+      "skills-contract.stdout.jsonl",
+    );
+    write(
+      firstStdout,
+      fs
+        .readFileSync(firstStdout, "utf8")
+        .replace(`"${model}":{}`, '"claude-haiku-4-5-20251001":{}'),
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
+          repository,
+          runRoot,
+          workspace,
+          engine: "claude-code",
+          sessionId,
+          model,
+          effort: "high",
+          turns,
+        }),
+      /unselected model/,
+      "Claude native usage must reject any model outside the fixed cell model",
+    );
   }
 
   async function testRuntimeIsolation(): Promise<void> {
@@ -320,6 +576,7 @@ export namespace EvidenceBenchmarkSelfTest {
       "benchmark",
       "result",
       "todo",
+      "codex",
       "evidence",
       "runs",
       runId,
@@ -424,7 +681,7 @@ export namespace EvidenceBenchmarkSelfTest {
     };
     write(materializationPath, `${JSON.stringify(materialization)}\n`);
     const runStatePath: string = path.join(runRoot, "run.json");
-    const threadId: string = "019c1234-5678-789a-bcde-f0123456789a";
+    const sessionId: string = "019c1234-5678-789a-bcde-f0123456789a";
     const turnNames: readonly EvidenceBenchmarkTurnLedger.Name[] =
       EvidenceBenchmarkTurnLedger.NAMES;
     const commonInvocation: string[] = [
@@ -445,7 +702,7 @@ export namespace EvidenceBenchmarkSelfTest {
       write(
         path.join(runRoot, ...stdout.split("/")),
         [
-          JSON.stringify({ type: "thread.started", thread_id: threadId }),
+          JSON.stringify({ type: "thread.started", thread_id: sessionId }),
           JSON.stringify({
             type: "turn.completed",
             usage: {
@@ -468,8 +725,9 @@ export namespace EvidenceBenchmarkSelfTest {
         invocation:
           index === 0
             ? ["codex", "exec", ...commonInvocation, "--cd", workspace, "-"]
-            : ["codex", "exec", "resume", ...commonInvocation, threadId, "-"],
-        threadId,
+            : ["codex", "exec", "resume", ...commonInvocation, sessionId, "-"],
+        cwd: workspace,
+        sessionId,
         accepted: true,
         lintRestorationSha256:
           name === "backend-final"
@@ -483,7 +741,7 @@ export namespace EvidenceBenchmarkSelfTest {
     write(
       runStatePath,
       `${JSON.stringify({
-        schemaVersion: 6,
+        schemaVersion: 7,
         workflow: "backend-first-gated-v2",
         instructionsTreeSha256,
         project: "todo",
@@ -495,7 +753,7 @@ export namespace EvidenceBenchmarkSelfTest {
         status: "completed",
         sourceCommit: "0123456789abcdef0123456789abcdef01234567",
         elapsedMs,
-        threadId,
+        sessionId,
         lintBaselines,
         completedWorkspaceTreeSha256:
           EvidenceBenchmarkPublication.workspaceSha256(workspace),
@@ -503,8 +761,11 @@ export namespace EvidenceBenchmarkSelfTest {
       })}\n`,
     );
     const report = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       status: "accepted",
+      engine: "codex",
+      model: "gpt-5.6-terra",
+      effort: "high",
       project: "todo",
       arm: "evidence",
       runId,
@@ -516,12 +777,14 @@ export namespace EvidenceBenchmarkSelfTest {
         tokens: {
           input_tokens: 900,
           cached_input_tokens: 450,
+          cache_creation_input_tokens: 0,
           output_tokens: 180,
           reasoning_output_tokens: 45,
         },
         pricingUsdPerMillion: {
           input: 1,
           cachedInput: 0.1,
+          cacheCreationInput: 0,
           output: 2,
         },
         apiEquivalentCostUsd: 0.000855,
@@ -574,6 +837,7 @@ export namespace EvidenceBenchmarkSelfTest {
         "--checkout",
         checkout,
         "--public",
+        "codex",
         "todo",
         "evidence",
         runId,
@@ -902,8 +1166,16 @@ export namespace EvidenceBenchmarkSelfTest {
         "",
       ].join("\n"),
     );
-    for (const arm of ["evidence", "plain"] as const)
-      await createRepairCell(repository, runId, "todo", arm, "interrupted");
+    for (const engine of EvidenceBenchmarkEngine.MATRIX)
+      for (const arm of ["evidence", "plain"] as const)
+        await createRepairCell(
+          repository,
+          runId,
+          engine.engine,
+          "todo",
+          arm,
+          "interrupted",
+        );
     const result: EvidenceBenchmarkRepair.IResult =
       await EvidenceBenchmarkRepair.apply(
         repository,
@@ -916,29 +1188,36 @@ export namespace EvidenceBenchmarkSelfTest {
         ]),
       );
     assert.equal(result.kind, "operator-intervention");
-    assert.deepEqual(result.cells, ["todo/evidence", "todo/plain"]);
-    for (const arm of ["evidence", "plain"] as const) {
-      const root: string = path.join(
-        repository,
-        "benchmark",
-        "result",
-        "todo",
-        arm,
-        "runs",
-        runId,
-      );
-      assert.equal(
-        fs
-          .readFileSync(path.join(root, "workspace", "shared.txt"), "utf8")
-          .replaceAll("\r\n", "\n"),
-        "after\n",
-      );
-      assert.ok(
-        fs.existsSync(
-          path.join(root, "interventions", `${result.patchSha256}.json`),
-        ),
-      );
-    }
+    assert.deepEqual(result.cells, [
+      "codex/todo/evidence",
+      "codex/todo/plain",
+      "claude-code/todo/evidence",
+      "claude-code/todo/plain",
+    ]);
+    for (const engine of EvidenceBenchmarkEngine.MATRIX)
+      for (const arm of ["evidence", "plain"] as const) {
+        const root: string = path.join(
+          repository,
+          "benchmark",
+          "result",
+          "todo",
+          engine.engine,
+          arm,
+          "runs",
+          runId,
+        );
+        assert.equal(
+          fs
+            .readFileSync(path.join(root, "workspace", "shared.txt"), "utf8")
+            .replaceAll("\r\n", "\n"),
+          "after\n",
+        );
+        assert.ok(
+          fs.existsSync(
+            path.join(root, "interventions", `${result.patchSha256}.json`),
+          ),
+        );
+      }
     await expectFailure(
       () =>
         EvidenceBenchmarkRepair.apply(
@@ -1019,14 +1298,18 @@ export namespace EvidenceBenchmarkSelfTest {
       "forbidden target",
     );
 
-    for (const arm of ["evidence", "plain"] as const)
-      await createRepairCell(
-        repository,
-        runId,
-        "reddit",
-        arm,
-        arm === "evidence" ? "running" : "interrupted",
-      );
+    for (const engine of EvidenceBenchmarkEngine.MATRIX)
+      for (const arm of ["evidence", "plain"] as const)
+        await createRepairCell(
+          repository,
+          runId,
+          engine.engine,
+          "reddit",
+          arm,
+          engine.engine === "codex" && arm === "evidence"
+            ? "running"
+            : "interrupted",
+        );
     await expectFailure(
       () =>
         EvidenceBenchmarkRepair.apply(
@@ -1038,13 +1321,14 @@ export namespace EvidenceBenchmarkSelfTest {
             "reddit",
           ]),
         ),
-      "paused reddit/evidence",
+      "paused codex/reddit/evidence",
     );
   }
 
   async function createRepairCell(
     repository: string,
     runId: string,
+    engine: EvidenceBenchmarkEngine.Name,
     project: IEvidenceBenchmarkMaterialization.Project,
     arm: IEvidenceBenchmarkMaterialization.Arm,
     status: "running" | "interrupted",
@@ -1054,6 +1338,7 @@ export namespace EvidenceBenchmarkSelfTest {
       "benchmark",
       "result",
       project,
+      engine,
       arm,
       "runs",
       runId,
@@ -1065,6 +1350,7 @@ export namespace EvidenceBenchmarkSelfTest {
       `${JSON.stringify({
         project,
         arm,
+        engine,
         status,
         sourceCommit: "0123456789abcdef",
         turns: [{ name: "backend-start", status: 1 }],
@@ -1405,8 +1691,8 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     assert.match(
       skillsContract,
-      /Use goal mode for this /,
-      "skills-contract.md must activate a bounded stage goal",
+      /Treat this [^\n]+ stage as one bounded objective\./,
+      "skills-contract.md must establish a bounded stage objective",
     );
     const commandLine: string = fs.readFileSync(
       path.join(
@@ -1426,6 +1712,11 @@ export namespace EvidenceBenchmarkSelfTest {
       commandLine,
       /const instructionSets:[\s\S]+readInstructionSets\(repository\)[\s\S]+instructions: instructionSets\[arm\]/,
       "one immutable instruction snapshot per arm must be shared by every selected cell",
+    );
+    assert.match(
+      commandLine,
+      /const preparations = await Promise\.allSettled\([\s\S]+prepareCell\([\s\S]+preparationFailures[\s\S]+const executions = await Promise\.allSettled\([\s\S]+runPreparedCell\(cell\)/,
+      "all eight cells must cross one complete preparation barrier before any model execution",
     );
     assert.match(
       commandLine,
@@ -1492,13 +1783,13 @@ export namespace EvidenceBenchmarkSelfTest {
     for (const phase of ["backend", "frontend", "overall"])
       for (const file of fs.readdirSync(path.join(instructions, phase)))
         for (const contract of [
-          /Use goal mode for this /,
+          /Treat this [^\n]+ stage as one bounded objective\./,
           /The skills-contract turn remains binding\.[^\n]*re-read `AGENTS\.md`/i,
         ])
           assert.match(
             fs.readFileSync(path.join(instructions, phase, file), "utf8"),
             contract,
-            `${phase}/${file} must preserve its bounded goal and skills contract`,
+            `${phase}/${file} must preserve its bounded objective and skills contract`,
           );
 
     const template: string = path.join(repository, "benchmark", "template");
@@ -1912,8 +2203,8 @@ export namespace EvidenceBenchmarkSelfTest {
 
   async function testRetentionIgnore(repository: string): Promise<void> {
     for (const relative of [
-      "benchmark/result/todo/evidence/runs/example/logs/stderr.raw.log",
-      "benchmark/.work/todo/evidence/terminal/stderr.raw.log",
+      "benchmark/result/todo/codex/evidence/runs/example/logs/stderr.raw.log",
+      "benchmark/.work/todo/claude-code/evidence/terminal/stderr.raw.log",
     ]) {
       const result = await EvidenceBenchmarkProcess.run(
         "git",

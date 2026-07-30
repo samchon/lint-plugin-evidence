@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
+import { EvidenceBenchmarkEngine } from "./EvidenceBenchmarkEngine.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
@@ -18,13 +19,14 @@ import { EvidenceBenchmarkTurnLedger } from "./EvidenceBenchmarkTurnLedger.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 import type { IEvidenceBenchmarkPackageArtifact } from "./structures/IEvidenceBenchmarkPackageArtifact.ts";
 
-/** Prepares and launches retained Codex benchmark waves from one clean revision. */
+/**
+ * Prepares and launches retained multi-engine benchmark waves from one clean
+ * revision.
+ */
 export namespace EvidenceBenchmarkCommandLine {
-  const ENGINE = "codex" as const;
-  const MODEL = "gpt-5.6-terra";
-  const EFFORT = "high" as const;
   const WORKFLOW = "backend-first-gated-v2" as const;
   const ARMS = ["evidence", "plain"] as const;
+  const CLAUDE_MINIMUM_VERSION = [2, 1, 219] as const;
 
   type TurnName = EvidenceBenchmarkTurnLedger.Name;
 
@@ -35,8 +37,10 @@ export namespace EvidenceBenchmarkCommandLine {
     stdout: string;
     stderr: string;
     invocation: string[];
+    cwd: string;
     accepted?: boolean;
     lintRestorationSha256?: string;
+    sessionId?: string;
   }
 
   interface IInstruction {
@@ -51,28 +55,45 @@ export namespace EvidenceBenchmarkCommandLine {
   }
 
   interface IState {
-    schemaVersion: 6;
+    schemaVersion: 7;
     workflow: typeof WORKFLOW;
     instructionsTreeSha256: string;
     project: IEvidenceBenchmarkMaterialization.Project;
     arm: IEvidenceBenchmarkMaterialization.Arm;
-    engine: typeof ENGINE;
-    model: typeof MODEL;
-    effort: typeof EFFORT;
+    engine: EvidenceBenchmarkEngine.Name;
+    model: EvidenceBenchmarkEngine.IDefinition["model"];
+    effort: EvidenceBenchmarkEngine.IDefinition["effort"];
     cliVersion: string;
     sourceCommit: string;
     lintBaselines: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[];
     runtime: EvidenceBenchmarkRuntime.IAssignment;
     elapsedMs: number;
-    status: "running" | "interrupted" | "completed";
+    status: "prepared" | "running" | "interrupted" | "completed";
     completedWorkspaceTreeSha256?: string;
-    threadId?: string;
+    sessionId?: string;
     turns: ITurn[];
   }
 
   interface IOptions {
     projects: IEvidenceBenchmarkMaterialization.Project[];
     portBase: number;
+  }
+
+  interface ICell {
+    project: IEvidenceBenchmarkMaterialization.Project;
+    arm: IEvidenceBenchmarkMaterialization.Arm;
+    engine: EvidenceBenchmarkEngine.IDefinition;
+    instructions: IInstructionSet;
+    runtime: EvidenceBenchmarkRuntime.IAssignment;
+  }
+
+  interface IPreparedCell extends ICell {
+    repository: string;
+    runId: string;
+    root: string;
+    workspace: string;
+    environment: NodeJS.ProcessEnv;
+    state: IState;
   }
 
   /**
@@ -160,6 +181,126 @@ export namespace EvidenceBenchmarkCommandLine {
   }
 
   /**
+   * Builds the strict Claude Code settings and tool surface for one measured
+   * cell. The OS sandbox remains a launch prerequisite rather than an optional
+   * fallback.
+   */
+  export function claudeIsolationArguments(
+    repository: string,
+    workspace: string,
+    environment: NodeJS.ProcessEnv,
+  ): string[] {
+    const runRoot: string = path.dirname(workspace);
+    const cache: string = path.join(runRoot, "cache");
+    const protectedEnvironment: string[] = [
+      ...new Set([
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_AUTH_TOKEN",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
+        "AZURE_API_KEY",
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "OPENAI_API_KEY",
+        ...Object.keys(environment).filter((name) =>
+          /(?:^|_)(?:KEY|SECRET|TOKEN|PASSWORD|PROXY)(?:_|$)/i.test(name),
+        ),
+      ]),
+    ].sort();
+    const tools: string = "Bash,Edit,Write,Read,Glob,Grep,Agent";
+    const allowedTools: string[] = [
+      "Bash",
+      "Edit(./**)",
+      "Read(./**)",
+      "Agent",
+    ];
+    const settings = {
+      permissions: {
+        allow: allowedTools,
+        deny: ["WebFetch", "WebSearch"],
+      },
+      sandbox: {
+        enabled: true,
+        failIfUnavailable: true,
+        autoAllowBashIfSandboxed: true,
+        allowUnsandboxedCommands: false,
+        filesystem: {
+          denyRead: ["~/", path.resolve(repository), runRoot],
+          allowRead: [workspace, cache],
+          allowWrite: [cache],
+        },
+        credentials: {
+          envVars: protectedEnvironment.map((name) => ({
+            name,
+            mode: "deny",
+          })),
+        },
+        network: {
+          allowedDomains: ["localhost", "127.0.0.1"],
+          strictAllowlist: true,
+          allowLocalBinding: true,
+        },
+      },
+      autoMemoryEnabled: false,
+      env: {
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-sonnet-5",
+        ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5",
+        CLAUDE_CODE_SUBAGENT_MODEL: "claude-sonnet-5",
+        CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1",
+      },
+      attribution: {
+        commit: "",
+        pr: "",
+        sessionUrl: false,
+      },
+    };
+    return [
+      "--permission-mode",
+      "dontAsk",
+      "--tools",
+      tools,
+      "--allowedTools",
+      allowedTools.join(","),
+      "--disallowedTools",
+      "WebFetch,WebSearch",
+      "--setting-sources",
+      "",
+      "--settings",
+      JSON.stringify(settings),
+      "--strict-mcp-config",
+      "--mcp-config",
+      '{"mcpServers":{}}',
+      "--disable-slash-commands",
+      "--no-chrome",
+      "--prompt-suggestions",
+      "false",
+    ];
+  }
+
+  /**
+   * Requires an explicit non-interactive credential because measured Claude
+   * cells use an isolated configuration directory rather than host login
+   * state.
+   */
+  export function assertClaudeAuthenticationEnvironment(
+    environment: NodeJS.ProcessEnv,
+  ): void {
+    if (
+      [
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_AUTH_TOKEN",
+        "CLAUDE_CODE_OAUTH_TOKEN",
+      ].some((name) => (environment[name] ?? "").trim().length !== 0)
+    )
+      return;
+    throw new Error(
+      "Claude Code benchmark cells require ANTHROPIC_API_KEY, ANTHROPIC_AUTH_TOKEN, or CLAUDE_CODE_OAUTH_TOKEN in the controller environment because host login state is intentionally isolated.",
+    );
+  }
+
+  /**
    * Validates arguments or launches every requested subject and arm
    * concurrently.
    */
@@ -204,24 +345,28 @@ export namespace EvidenceBenchmarkCommandLine {
     const instructionSets: Readonly<
       Record<IEvidenceBenchmarkMaterialization.Arm, IInstructionSet>
     > = readInstructionSets(repository);
-    const cells = options.projects.flatMap((project, projectIndex) =>
-      ARMS.map((arm, armIndex) => ({
-        project,
-        arm,
-        instructions: instructionSets[arm],
-        runtime: EvidenceBenchmarkRuntime.assign(
-          projectIndex * ARMS.length + armIndex,
-          options.portBase,
-        ),
-      })),
+    const cells: ICell[] = options.projects.flatMap((project, projectIndex) =>
+      EvidenceBenchmarkEngine.MATRIX.flatMap((engine, engineIndex) =>
+        ARMS.map((arm, armIndex) => ({
+          project,
+          arm,
+          engine,
+          instructions: instructionSets[arm],
+          runtime: EvidenceBenchmarkRuntime.assign(
+            (projectIndex * EvidenceBenchmarkEngine.MATRIX.length +
+              engineIndex) *
+              ARMS.length +
+              armIndex,
+            options.portBase,
+          ),
+        })),
+      ),
     );
     if (arguments_[0] === "plan") {
       console.log(
         JSON.stringify(
           {
-            engine: ENGINE,
-            model: MODEL,
-            effort: EFFORT,
+            engines: EvidenceBenchmarkEngine.MATRIX,
             workflow: WORKFLOW,
             portBase: options.portBase,
             cells: cells.map(({ instructions, ...cell }) => ({
@@ -239,7 +384,7 @@ export namespace EvidenceBenchmarkCommandLine {
     }
     if (arguments_[0] !== "start")
       throw new Error(
-        "Usage: benchmark <plan|start> [--port-base <number>] <project>... | benchmark resume <project> <arm> <run-id> | benchmark repair --patch <file> <run-id> <project>... | benchmark publish --repository <owner/name> --checkout <local-path> --public <project> <arm> <run-id>",
+        "Usage: benchmark <plan|start> [--port-base <number>] <project>... | benchmark resume <engine> <project> <arm> <run-id> | benchmark repair --patch <file> <run-id> <project>... | benchmark publish --repository <owner/name> --checkout <local-path> --public <engine> <project> <arm> <run-id>",
       );
     const sourceCommit: string = (
       await EvidenceBenchmarkProcess.run("git", ["rev-parse", "HEAD"], {
@@ -258,6 +403,15 @@ export namespace EvidenceBenchmarkCommandLine {
       throw new Error(
         `Benchmark start requires a clean source tree:\n${status}`,
       );
+    assertEngineHosts();
+    assertClaudeAuthenticationEnvironment(process.env);
+    const cliVersions: ReadonlyMap<EvidenceBenchmarkEngine.Name, string> =
+      new Map(
+        EvidenceBenchmarkEngine.MATRIX.map((engine) => [
+          engine.engine,
+          engineVersion(engine.engine),
+        ]),
+      );
     await EvidenceBenchmarkRuntime.assertAvailable(
       cells.map((cell) => cell.runtime),
     );
@@ -268,18 +422,43 @@ export namespace EvidenceBenchmarkCommandLine {
         expectedCommit: sourceCommit,
         output: path.join(repository, "benchmark", ".work", runId, "artifact"),
       });
-    const results = await Promise.allSettled(
+    const preparations = await Promise.allSettled(
       cells.map((cell) =>
-        runCell({ repository, sourceCommit, runId, artifact, ...cell }),
+        prepareCell({
+          repository,
+          sourceCommit,
+          runId,
+          artifact,
+          cliVersion: cliVersions.get(cell.engine.engine)!,
+          ...cell,
+        }),
       ),
     );
-    const failures: unknown[] = results.flatMap((result) =>
+    const preparationFailures: unknown[] = preparations.flatMap((result) =>
       result.status === "rejected" ? [result.reason] : [],
     );
-    if (failures.length !== 0)
+    if (preparationFailures.length !== 0) {
+      for (const result of preparations)
+        if (result.status === "fulfilled")
+          fs.rmSync(result.value.root, { recursive: true, force: true });
       throw new AggregateError(
-        failures,
-        `${failures.length} benchmark cells failed.`,
+        preparationFailures,
+        `${preparationFailures.length} benchmark cells failed before the all-cell launch barrier.`,
+      );
+    }
+    const prepared: IPreparedCell[] = preparations.map(
+      (result) => (result as PromiseFulfilledResult<IPreparedCell>).value,
+    );
+    const executions = await Promise.allSettled(
+      prepared.map((cell) => runPreparedCell(cell)),
+    );
+    const executionFailures: unknown[] = executions.flatMap((result) =>
+      result.status === "rejected" ? [result.reason] : [],
+    );
+    if (executionFailures.length !== 0)
+      throw new AggregateError(
+        executionFailures,
+        `${executionFailures.length} benchmark cells failed after the all-cell launch barrier.`,
       );
   }
 
@@ -287,11 +466,18 @@ export namespace EvidenceBenchmarkCommandLine {
     repository: string,
     arguments_: readonly string[],
   ): Promise<void> {
-    if (arguments_.length !== 3)
+    if (arguments_.length !== 4)
       throw new Error(
-        "Usage: benchmark resume <project> <evidence|plain> <run-id>",
+        "Usage: benchmark resume <engine> <project> <evidence|plain> <run-id>",
       );
-    const [projectInput, armInput, runId] = arguments_;
+    const [engineInput, projectInput, armInput, runId] = arguments_;
+    const engine: EvidenceBenchmarkEngine.IDefinition =
+      EvidenceBenchmarkEngine.definition(
+        EvidenceBenchmarkEngine.parse(engineInput!),
+      );
+    assertEngineHosts(engine.engine);
+    if (engine.engine === "claude-code")
+      assertClaudeAuthenticationEnvironment(process.env);
     if (!ARMS.includes(armInput as (typeof ARMS)[number]))
       throw new Error(`Unknown benchmark arm: ${armInput}.`);
     const project: IEvidenceBenchmarkMaterialization.Project =
@@ -301,6 +487,7 @@ export namespace EvidenceBenchmarkCommandLine {
     const root: string = path.resolve(
       resultsRoot,
       project,
+      engine.engine,
       arm,
       "runs",
       runId!,
@@ -308,20 +495,26 @@ export namespace EvidenceBenchmarkCommandLine {
     assertInside(resultsRoot, root, "resume root");
     const state: IState = EvidenceBenchmarkState.read(root, "Resumable state");
     if (
-      state.schemaVersion !== 6 ||
+      state.schemaVersion !== 7 ||
       state.workflow !== WORKFLOW ||
-      state.engine !== ENGINE ||
-      state.model !== MODEL ||
-      state.effort !== EFFORT ||
-      state.cliVersion !== codexVersion() ||
+      state.engine !== engine.engine ||
+      state.model !== engine.model ||
+      state.effort !== engine.effort ||
+      state.cliVersion !== engineVersion(engine.engine) ||
       !Array.isArray(state.lintBaselines) ||
       !Array.isArray(state.turns)
     )
       throw new Error(
         `Run ${runId} does not use the resumable ${WORKFLOW} state schema.`,
       );
-    if (state.project !== project || state.arm !== arm)
-      throw new Error(`Run ${runId} does not belong to ${project}/${arm}.`);
+    if (
+      state.project !== project ||
+      state.arm !== arm ||
+      state.engine !== engine.engine
+    )
+      throw new Error(
+        `Run ${runId} does not belong to ${engine.engine}/${project}/${arm}.`,
+      );
     if (state.status !== "interrupted")
       throw new Error(
         state.status === "completed"
@@ -338,14 +531,18 @@ export namespace EvidenceBenchmarkCommandLine {
     EvidenceBenchmarkTurnLedger.assertAcceptedOrder(state.turns);
     const environment: NodeJS.ProcessEnv = resumeEnvironment(root);
     EvidenceBenchmarkRuntime.apply(environment, state.runtime);
-    state.threadId ??= recoverThreadId(logs);
+    state.sessionId ??= recoverSessionId(logs, engine.engine);
     if (
-      state.threadId === undefined &&
+      state.sessionId === undefined &&
       state.turns.some((turn) => turn.status === 0)
     )
       throw new Error(
-        `Run ${runId} completed a turn but has no recoverable thread ID.`,
+        `Run ${runId} completed a turn but has no recoverable session ID.`,
       );
+    let sessionEstablished: boolean = state.turns.some(
+      (turn) =>
+        turn.sessionId !== undefined && turn.sessionId === state.sessionId,
+    );
     const baseElapsedMs: number = state.elapsedMs;
     const resumed: bigint = process.hrtime.bigint();
     let phase: string = "resume-admission";
@@ -395,19 +592,33 @@ export namespace EvidenceBenchmarkCommandLine {
         state.elapsedMs = baseElapsedMs + elapsed(resumed);
         writeState(root, state);
         phase = entry.name;
-        const turn: ITurn & { threadId?: string } = await runTurn({
+        const expectedSessionId: string | undefined = state.sessionId;
+        const turn: ITurn = await runTurn({
+          repository,
+          engine,
           workspace,
           environment,
           logs,
           name: entry.name,
           prompt: entry.content,
-          threadId: state.threadId,
+          sessionId: state.sessionId,
+          resume: sessionEstablished,
         });
-        state.threadId ??= turn.threadId;
+        state.sessionId ??= turn.sessionId;
+        sessionEstablished ||= turn.sessionId === state.sessionId;
         turn.accepted = false;
         state.turns.push(turn);
         state.elapsedMs = baseElapsedMs + elapsed(resumed);
         writeState(root, state);
+        if (
+          turn.status === 0 &&
+          (turn.sessionId === undefined ||
+            (expectedSessionId !== undefined &&
+              turn.sessionId !== expectedSessionId))
+        )
+          throw new Error(
+            `${entry.name} resume attempt did not retain the expected session.`,
+          );
         if (turn.status !== 0) {
           state.status = "interrupted";
           writeState(root, state);
@@ -428,7 +639,7 @@ export namespace EvidenceBenchmarkCommandLine {
       state.completedWorkspaceTreeSha256 =
         EvidenceBenchmarkPublication.workspaceSha256(workspace);
       EvidenceBenchmarkTurnLedger.assertAcceptedOrder(state.turns, true);
-      promoteWorkspace(repository, project, arm, workspace);
+      promoteWorkspace(repository, engine.engine, project, arm, workspace);
       state.status = "completed";
       writeState(root, state);
     } catch (error) {
@@ -439,6 +650,7 @@ export namespace EvidenceBenchmarkCommandLine {
         repository,
         runId: runId!,
         root,
+        engine: engine.engine,
         project,
         arm,
         phase,
@@ -450,16 +662,15 @@ export namespace EvidenceBenchmarkCommandLine {
     }
   }
 
-  async function runCell(props: {
-    repository: string;
-    sourceCommit: string;
-    runId: string;
-    project: IEvidenceBenchmarkMaterialization.Project;
-    arm: IEvidenceBenchmarkMaterialization.Arm;
-    runtime: EvidenceBenchmarkRuntime.IAssignment;
-    instructions: IInstructionSet;
-    artifact: IEvidenceBenchmarkPackageArtifact;
-  }): Promise<void> {
+  async function prepareCell(
+    props: ICell & {
+      repository: string;
+      sourceCommit: string;
+      runId: string;
+      artifact: IEvidenceBenchmarkPackageArtifact;
+      cliVersion: string;
+    },
+  ): Promise<IPreparedCell> {
     const started: bigint = process.hrtime.bigint();
     const resultsRoot: string = path.resolve(
       props.repository,
@@ -469,6 +680,7 @@ export namespace EvidenceBenchmarkCommandLine {
     const root: string = path.resolve(
       resultsRoot,
       props.project,
+      props.engine.engine,
       props.arm,
       "runs",
       props.runId,
@@ -480,8 +692,6 @@ export namespace EvidenceBenchmarkCommandLine {
       path.isAbsolute(relativeRoot)
     )
       throw new Error(`Benchmark cell root escaped the result tree: ${root}.`);
-    let state: IState | undefined;
-    let phase: string = "setup";
     try {
       const materialization = await EvidenceBenchmarkMaterializer.materialize({
         repository: props.repository,
@@ -509,107 +719,164 @@ export namespace EvidenceBenchmarkCommandLine {
       );
       const logs: string = path.join(root, "logs");
       fs.mkdirSync(logs, { recursive: false });
-      state = {
-        schemaVersion: 6,
+      const state: IState = {
+        schemaVersion: 7,
         workflow: WORKFLOW,
         instructionsTreeSha256: freezeInstructions(root, props.instructions),
         project: props.project,
         arm: props.arm,
-        engine: ENGINE,
-        model: MODEL,
-        effort: EFFORT,
-        cliVersion: codexVersion(),
+        engine: props.engine.engine,
+        model: props.engine.model,
+        effort: props.engine.effort,
+        cliVersion: props.cliVersion,
         sourceCommit: props.sourceCommit,
         lintBaselines: materialization.lintBaselines,
         runtime: props.runtime,
         elapsedMs: elapsed(started),
-        status: "running",
+        status: "prepared",
+        sessionId:
+          props.engine.engine === "claude-code"
+            ? crypto.randomUUID()
+            : undefined,
         turns: [],
       };
       writeState(root, state);
-      for (const entry of props.instructions.entries) {
+      return {
+        repository: props.repository,
+        runId: props.runId,
+        root,
+        project: props.project,
+        arm: props.arm,
+        engine: props.engine,
+        instructions: props.instructions,
+        runtime: props.runtime,
+        workspace: materialization.workspace,
+        environment: materialization.environment,
+        state,
+      };
+    } catch (error) {
+      const elapsedMs: number = elapsed(started);
+      recordFailure({
+        repository: props.repository,
+        runId: props.runId,
+        root,
+        engine: props.engine.engine,
+        project: props.project,
+        arm: props.arm,
+        phase: "setup",
+        elapsedMs,
+        error,
+        cleanup: "cell-removed",
+      });
+      fs.rmSync(root, { recursive: true, force: true });
+      throw error;
+    }
+  }
+
+  async function runPreparedCell(cell: IPreparedCell): Promise<void> {
+    const started: bigint = process.hrtime.bigint();
+    const baseElapsedMs: number = cell.state.elapsedMs;
+    const logs: string = path.join(cell.root, "logs");
+    let phase: string = "launch";
+    let sessionEstablished: boolean = false;
+    try {
+      if (
+        cell.state.status !== "prepared" ||
+        cell.state.turns.length !== 0 ||
+        !fs.existsSync(cell.workspace) ||
+        !fs.existsSync(logs)
+      )
+        throw new Error(
+          `Benchmark launch barrier found an unprepared ${cell.engine.engine}/${cell.project}/${cell.arm} cell.`,
+        );
+      cell.state.status = "running";
+      writeState(cell.root, cell.state);
+      for (const entry of cell.instructions.entries) {
         phase = entry.name;
-        const turn: ITurn & { threadId?: string } = await runTurn({
-          workspace: materialization.workspace,
-          environment: materialization.environment,
+        const expectedSessionId: string | undefined = cell.state.sessionId;
+        const turn: ITurn = await runTurn({
+          repository: cell.repository,
+          engine: cell.engine,
+          workspace: cell.workspace,
+          environment: cell.environment,
           logs,
           name: entry.name,
           prompt: entry.content,
-          threadId: state.threadId,
+          sessionId: cell.state.sessionId,
+          resume: sessionEstablished,
         });
-        state.threadId ??= turn.threadId;
+        cell.state.sessionId ??= turn.sessionId;
+        sessionEstablished ||= turn.sessionId === cell.state.sessionId;
         turn.accepted = false;
-        state.turns.push(turn);
-        state.elapsedMs = elapsed(started);
-        writeState(root, state);
+        cell.state.turns.push(turn);
+        cell.state.elapsedMs = baseElapsedMs + elapsed(started);
+        writeState(cell.root, cell.state);
+        if (
+          turn.status === 0 &&
+          (turn.sessionId === undefined ||
+            (expectedSessionId !== undefined &&
+              turn.sessionId !== expectedSessionId))
+        )
+          throw new Error(
+            `${entry.name} turn did not retain the expected session.`,
+          );
         if (turn.status !== 0)
           throw new Error(
             `${entry.name} turn exited with status ${String(turn.status)}.`,
           );
         turn.lintRestorationSha256 = verifyLintRestoration({
-          workspace: materialization.workspace,
-          arm: props.arm,
+          workspace: cell.workspace,
+          arm: cell.arm,
           name: entry.name,
-          baselines: state.lintBaselines,
+          baselines: cell.state.lintBaselines,
         });
         turn.accepted = true;
-        writeState(root, state);
+        writeState(cell.root, cell.state);
       }
-      state.elapsedMs = elapsed(started);
-      state.completedWorkspaceTreeSha256 =
-        EvidenceBenchmarkPublication.workspaceSha256(materialization.workspace);
-      EvidenceBenchmarkTurnLedger.assertAcceptedOrder(state.turns, true);
+      cell.state.elapsedMs = baseElapsedMs + elapsed(started);
+      cell.state.completedWorkspaceTreeSha256 =
+        EvidenceBenchmarkPublication.workspaceSha256(cell.workspace);
+      EvidenceBenchmarkTurnLedger.assertAcceptedOrder(cell.state.turns, true);
       promoteWorkspace(
-        props.repository,
-        props.project,
-        props.arm,
-        materialization.workspace,
+        cell.repository,
+        cell.engine.engine,
+        cell.project,
+        cell.arm,
+        cell.workspace,
       );
-      state.status = "completed";
-      writeState(root, state);
+      cell.state.status = "completed";
+      writeState(cell.root, cell.state);
     } catch (error) {
-      const elapsedMs: number = elapsed(started);
-      if (state === undefined) {
-        recordFailure({
-          repository: props.repository,
-          runId: props.runId,
-          root,
-          project: props.project,
-          arm: props.arm,
-          phase: "setup",
-          elapsedMs,
-          error,
-          cleanup: "cell-removed",
-        });
-        fs.rmSync(root, { recursive: true, force: true });
-      } else {
-        state.status = "interrupted";
-        state.elapsedMs = elapsedMs;
-        writeState(root, state);
-        recordFailure({
-          repository: props.repository,
-          runId: props.runId,
-          root,
-          project: props.project,
-          arm: props.arm,
-          phase,
-          elapsedMs,
-          error,
-          cleanup: "retained-for-resume",
-        });
-      }
+      cell.state.status = "interrupted";
+      cell.state.elapsedMs = baseElapsedMs + elapsed(started);
+      writeState(cell.root, cell.state);
+      recordFailure({
+        repository: cell.repository,
+        runId: cell.runId,
+        root: cell.root,
+        engine: cell.engine.engine,
+        project: cell.project,
+        arm: cell.arm,
+        phase,
+        elapsedMs: cell.state.elapsedMs,
+        error,
+        cleanup: "retained-for-resume",
+      });
       throw error;
     }
   }
 
   async function runTurn(props: {
+    repository: string;
+    engine: EvidenceBenchmarkEngine.IDefinition;
     workspace: string;
     environment: NodeJS.ProcessEnv;
     logs: string;
     name: ITurn["name"];
     prompt: string;
-    threadId?: string;
-  }): Promise<ITurn & { threadId?: string }> {
+    sessionId?: string;
+    resume: boolean;
+  }): Promise<ITurn> {
     const cache: string = path.join(path.dirname(props.workspace), "cache");
     fs.mkdirSync(path.join(cache, "agent-home"), { recursive: true });
     fs.mkdirSync(path.join(cache, "os-temp"), { recursive: true });
@@ -618,31 +885,25 @@ export namespace EvidenceBenchmarkCommandLine {
     const stderrPath: string = path.join(props.logs, `${stem}.stderr.log`);
     const stdout = fs.createWriteStream(stdoutPath, { flags: "wx" });
     const stderr = fs.createWriteStream(stderrPath, { flags: "wx" });
-    const common: string[] = [
-      "--json",
-      "--enable",
-      "goals",
-      "--model",
-      MODEL,
-      "--config",
-      `model_reasoning_effort=${EFFORT}`,
-      ...codexIsolationArguments(props.workspace, props.environment),
-      "--skip-git-repo-check",
-    ];
     const args: string[] =
-      props.threadId === undefined
-        ? ["exec", ...common, "--cd", props.workspace, "-"]
-        : ["exec", "resume", ...common, props.threadId, "-"];
+      props.engine.engine === "codex"
+        ? codexTurnArguments(props)
+        : claudeTurnArguments(props);
     const started: bigint = process.hrtime.bigint();
-    const executable: { command: string; prefix: string[] } = codexExecutable();
+    const executable: { command: string; prefix: string[] } =
+      props.engine.engine === "codex" ? codexExecutable() : claudeExecutable();
+    const environment: NodeJS.ProcessEnv =
+      props.engine.engine === "codex"
+        ? props.environment
+        : claudeEnvironment(cache, props.environment);
     const child = spawn(executable.command, [...executable.prefix, ...args], {
       cwd: props.workspace,
-      env: props.environment,
+      env: environment,
       shell: false,
       windowsHide: true,
       stdio: "pipe",
     });
-    let threadId: string | undefined;
+    let sessionId: string | undefined;
     let remainder: string = "";
     child.stdout.on("data", (chunk: Buffer) => {
       stdout.write(chunk);
@@ -652,13 +913,11 @@ export namespace EvidenceBenchmarkCommandLine {
       for (const line of lines)
         try {
           const event: unknown = JSON.parse(line);
-          if (
-            typeof event === "object" &&
-            event !== null &&
-            "thread_id" in event &&
-            typeof event.thread_id === "string"
-          )
-            threadId = event.thread_id;
+          const observed: string | undefined = eventSessionId(
+            props.engine.engine,
+            event,
+          );
+          if (observed !== undefined) sessionId = observed;
         } catch {}
     });
     child.stderr.pipe(stderr);
@@ -682,8 +941,67 @@ export namespace EvidenceBenchmarkCommandLine {
       stdout: path.posix.join("logs", path.basename(stdoutPath)),
       stderr: path.posix.join("logs", path.basename(stderrPath)),
       invocation: [executable.command, ...executable.prefix, ...args],
-      threadId,
+      cwd: props.workspace,
+      sessionId,
     };
+  }
+
+  function codexTurnArguments(props: {
+    repository: string;
+    engine: EvidenceBenchmarkEngine.IDefinition;
+    workspace: string;
+    environment: NodeJS.ProcessEnv;
+    sessionId?: string;
+    resume: boolean;
+  }): string[] {
+    const common: string[] = [
+      "--json",
+      "--enable",
+      "goals",
+      "--model",
+      props.engine.model,
+      "--config",
+      `model_reasoning_effort=${props.engine.effort}`,
+      ...codexIsolationArguments(props.workspace, props.environment),
+      "--skip-git-repo-check",
+    ];
+    if (!props.resume) return ["exec", ...common, "--cd", props.workspace, "-"];
+    if (props.sessionId === undefined)
+      throw new Error("Codex resume requires a retained session ID.");
+    return ["exec", "resume", ...common, props.sessionId, "-"];
+  }
+
+  function claudeTurnArguments(props: {
+    repository: string;
+    engine: EvidenceBenchmarkEngine.IDefinition;
+    workspace: string;
+    environment: NodeJS.ProcessEnv;
+    sessionId?: string;
+    resume: boolean;
+  }): string[] {
+    if (props.sessionId === undefined)
+      throw new Error(
+        "Claude Code turns require a controller-owned session ID.",
+      );
+    return [
+      "-p",
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--forward-subagent-text",
+      "--include-hook-events",
+      "--model",
+      props.engine.model,
+      "--effort",
+      props.engine.effort,
+      ...claudeIsolationArguments(
+        props.repository,
+        props.workspace,
+        props.environment,
+      ),
+      props.resume ? "--resume" : "--session-id",
+      props.sessionId,
+    ];
   }
 
   function readInstructionSets(
@@ -805,7 +1123,7 @@ export namespace EvidenceBenchmarkCommandLine {
       ),
     ];
     EvidenceBenchmarkRuntime.assign(
-      selected.length * ARMS.length - 1,
+      selected.length * EvidenceBenchmarkEngine.MATRIX.length * ARMS.length - 1,
       portBase,
     );
     return {
@@ -933,7 +1251,10 @@ export namespace EvidenceBenchmarkCommandLine {
     return environment;
   }
 
-  function recoverThreadId(logs: string): string | undefined {
+  function recoverSessionId(
+    logs: string,
+    engine: EvidenceBenchmarkEngine.Name,
+  ): string | undefined {
     for (const file of fs
       .readdirSync(logs)
       .filter((entry) => entry.endsWith(".stdout.jsonl"))
@@ -943,18 +1264,50 @@ export namespace EvidenceBenchmarkCommandLine {
         .split(/\r?\n/);
       for (const line of lines)
         try {
-          const event = JSON.parse(line) as {
-            type?: unknown;
-            thread_id?: unknown;
-          };
-          if (
-            event.type === "thread.started" &&
-            typeof event.thread_id === "string"
-          )
-            return event.thread_id;
+          const sessionId: string | undefined = eventSessionId(
+            engine,
+            JSON.parse(line) as unknown,
+          );
+          if (sessionId !== undefined) return sessionId;
         } catch {}
     }
     return undefined;
+  }
+
+  function eventSessionId(
+    engine: EvidenceBenchmarkEngine.Name,
+    event: unknown,
+  ): string | undefined {
+    if (typeof event !== "object" || event === null || Array.isArray(event))
+      return undefined;
+    const record = event as Record<string, unknown>;
+    const value: unknown =
+      engine === "codex" ? record.thread_id : record.session_id;
+    return typeof value === "string" && value.length !== 0 ? value : undefined;
+  }
+
+  function claudeEnvironment(
+    cache: string,
+    environment: NodeJS.ProcessEnv,
+  ): NodeJS.ProcessEnv {
+    const output: NodeJS.ProcessEnv = {
+      ...environment,
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-sonnet-5",
+      ANTHROPIC_DEFAULT_SONNET_MODEL: "claude-sonnet-5",
+      CLAUDE_CODE_AUTO_CONNECT_IDE: "false",
+      CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+      CLAUDE_CODE_SUBAGENT_MODEL: "claude-sonnet-5",
+      CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1",
+      CLAUDE_CONFIG_DIR: path.join(
+        path.dirname(cache),
+        "controller",
+        "claude-config",
+      ),
+      DISABLE_AUTOUPDATER: "1",
+    };
+    fs.mkdirSync(output.CLAUDE_CONFIG_DIR!, { recursive: true });
+    return output;
   }
 
   function tomlString(value: string): string {
@@ -983,6 +1336,7 @@ export namespace EvidenceBenchmarkCommandLine {
     repository: string;
     runId: string;
     root: string;
+    engine: EvidenceBenchmarkEngine.Name;
     project: IEvidenceBenchmarkMaterialization.Project;
     arm: IEvidenceBenchmarkMaterialization.Arm;
     phase: string;
@@ -1001,7 +1355,9 @@ export namespace EvidenceBenchmarkCommandLine {
     const attempts: number = fs
       .readdirSync(failures)
       .filter((file) =>
-        file.startsWith(`${props.project}-${props.arm}-attempt-`),
+        file.startsWith(
+          `${props.engine}-${props.project}-${props.arm}-attempt-`,
+        ),
       ).length;
     const error =
       props.error instanceof Error
@@ -1028,13 +1384,14 @@ export namespace EvidenceBenchmarkCommandLine {
     }
     const target: string = path.join(
       failures,
-      `${props.project}-${props.arm}-attempt-${attempts + 1}.json`,
+      `${props.engine}-${props.project}-${props.arm}-attempt-${attempts + 1}.json`,
     );
     fs.writeFileSync(
       target,
       `${JSON.stringify(
         {
           schemaVersion: 1,
+          engine: props.engine,
           project: props.project,
           arm: props.arm,
           phase: props.phase,
@@ -1050,7 +1407,7 @@ export namespace EvidenceBenchmarkCommandLine {
       { encoding: "utf8", flag: "wx" },
     );
     console.error(
-      `Benchmark ${props.project}/${props.arm} failed during ${props.phase}; report: ${target}`,
+      `Benchmark ${props.engine}/${props.project}/${props.arm} failed during ${props.phase}; report: ${target}`,
     );
   }
 
@@ -1069,6 +1426,7 @@ export namespace EvidenceBenchmarkCommandLine {
 
   function promoteWorkspace(
     repository: string,
+    engine: EvidenceBenchmarkEngine.Name,
     project: IEvidenceBenchmarkMaterialization.Project,
     arm: IEvidenceBenchmarkMaterialization.Arm,
     workspace: string,
@@ -1078,6 +1436,7 @@ export namespace EvidenceBenchmarkCommandLine {
       "benchmark",
       "result",
       project,
+      engine,
       arm,
     );
     const target: string = path.join(parent, "workspace");
@@ -1150,6 +1509,75 @@ export namespace EvidenceBenchmarkCommandLine {
     if (version.length === 0)
       throw new Error("Codex CLI returned an empty version.");
     return version;
+  }
+
+  function claudeExecutable(): { command: string; prefix: string[] } {
+    if (process.platform !== "win32") return { command: "claude", prefix: [] };
+    const appData: string | undefined = process.env.APPDATA;
+    if (appData === undefined)
+      throw new Error("Claude Code discovery on Windows requires APPDATA.");
+    const executable: string = path.join(
+      appData,
+      "npm",
+      "node_modules",
+      "@anthropic-ai",
+      "claude-code",
+      "bin",
+      "claude.exe",
+    );
+    if (!fs.existsSync(executable))
+      throw new Error(
+        `Claude Code CLI executable was not found: ${executable}.`,
+      );
+    return { command: executable, prefix: [] };
+  }
+
+  function claudeVersion(): string {
+    const executable: { command: string; prefix: string[] } =
+      claudeExecutable();
+    const result = spawnSync(
+      executable.command,
+      [...executable.prefix, "--version"],
+      {
+        encoding: "utf8",
+        shell: false,
+        windowsHide: true,
+      },
+    );
+    if (result.status !== 0)
+      throw new Error(
+        `Unable to read Claude Code CLI version: ${(result.stderr ?? "").trim()}`,
+      );
+    const version: string = (result.stdout ?? "").trim();
+    const match: RegExpMatchArray | null = version.match(
+      /^(\d+)\.(\d+)\.(\d+)(?:\s|$)/,
+    );
+    if (match === null)
+      throw new Error(`Claude Code returned an invalid version: ${version}.`);
+    const actual: readonly number[] = match.slice(1).map(Number);
+    for (
+      let index: number = 0;
+      index < CLAUDE_MINIMUM_VERSION.length;
+      index++
+    ) {
+      if (actual[index]! > CLAUDE_MINIMUM_VERSION[index]!) break;
+      if (actual[index]! < CLAUDE_MINIMUM_VERSION[index]!)
+        throw new Error(
+          `Claude Code ${CLAUDE_MINIMUM_VERSION.join(".")} or newer is required for the strict benchmark sandbox; found ${version}.`,
+        );
+    }
+    return version;
+  }
+
+  function engineVersion(engine: EvidenceBenchmarkEngine.Name): string {
+    return engine === "codex" ? codexVersion() : claudeVersion();
+  }
+
+  function assertEngineHosts(engine?: EvidenceBenchmarkEngine.Name): void {
+    if (process.platform === "win32" && engine !== "codex")
+      throw new Error(
+        "Claude Code benchmark cells require its fail-closed OS sandbox, which is unsupported on native Windows. Launch the complete eight-cell wave from macOS, Linux, or WSL2.",
+      );
   }
 
   async function initializeWorkspace(

@@ -1,6 +1,6 @@
 # Frontend Review
 
-Use goal mode for this frontend review stage. Resume the same unfinished stage goal after an interruption; otherwise create it now. Mark it complete only when the active arm's Review skill says the Frontend Phase is complete.
+Treat this frontend review stage as one bounded objective. Preserve the same unfinished objective across an interruption; otherwise begin it now. Declare it complete only when the active arm's Review skill says the Frontend Phase is complete.
 
 The skills-contract turn remains binding. Re-read `AGENTS.md`, the Frontend Layer Gate, and the active arm's Review skill in full before any review action. Follow the Review skill's Frontend Phase scope literally.
 

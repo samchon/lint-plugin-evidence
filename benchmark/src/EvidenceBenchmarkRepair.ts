@@ -2,12 +2,13 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
+import { EvidenceBenchmarkEngine } from "./EvidenceBenchmarkEngine.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
 import { EvidenceBenchmarkProject } from "./EvidenceBenchmarkProject.ts";
 import { EvidenceBenchmarkState } from "./EvidenceBenchmarkState.ts";
 import type { IEvidenceBenchmarkMaterialization } from "./structures/IEvidenceBenchmarkMaterialization.ts";
 
-/** Applies one recorded common patch to every paused arm in a benchmark wave. */
+/** Applies one recorded common patch to every paused engine and arm in a wave. */
 export namespace EvidenceBenchmarkRepair {
   const ARMS = ["evidence", "plain"] as const;
   const MAXIMUM_PATCH_BYTES = 1024 * 1024;
@@ -20,7 +21,7 @@ export namespace EvidenceBenchmarkRepair {
     /** Patch below benchmark/.work/repairs, relative to the repository. */
     patch: string;
 
-    /** Subjects whose evidence and plain workspaces receive the same bytes. */
+    /** Subjects whose complete engine and arm matrix receives the same bytes. */
     projects: IEvidenceBenchmarkMaterialization.Project[];
   }
 
@@ -32,7 +33,7 @@ export namespace EvidenceBenchmarkRepair {
     /** SHA-256 identity of the exact applied patch bytes. */
     patchSha256: string;
 
-    /** Subject and arm cells changed atomically as one operator action. */
+    /** Engine, subject, and arm cells changed atomically as one action. */
     cells: string[];
 
     /** Harness time excluded from measured coding-agent wall time. */
@@ -135,8 +136,17 @@ export namespace EvidenceBenchmarkRepair {
       "result",
     );
     const cells: ICell[] = projects.flatMap((project) =>
-      ARMS.map((arm) =>
-        readCell(resultsRoot, request.runId, project, arm, patchSha256),
+      EvidenceBenchmarkEngine.MATRIX.flatMap((engine) =>
+        ARMS.map((arm) =>
+          readCell(
+            resultsRoot,
+            request.runId,
+            engine.engine,
+            project,
+            arm,
+            patchSha256,
+          ),
+        ),
       ),
     );
     const sourceCommits: Set<string> = new Set(
@@ -247,15 +257,24 @@ export namespace EvidenceBenchmarkRepair {
   function readCell(
     resultsRoot: string,
     runId: string,
+    engine: EvidenceBenchmarkEngine.Name,
     project: IEvidenceBenchmarkMaterialization.Project,
     arm: IEvidenceBenchmarkMaterialization.Arm,
     patchSha256: string,
   ): ICell {
-    const root: string = path.resolve(resultsRoot, project, arm, "runs", runId);
+    const root: string = path.resolve(
+      resultsRoot,
+      project,
+      engine,
+      arm,
+      "runs",
+      runId,
+    );
     assertInside(resultsRoot, root, "repair cell");
     const state = EvidenceBenchmarkState.read<{
       project?: unknown;
       arm?: unknown;
+      engine?: unknown;
       status?: unknown;
       sourceCommit?: unknown;
       turns?: unknown[];
@@ -263,12 +282,13 @@ export namespace EvidenceBenchmarkRepair {
     if (
       state.project !== project ||
       state.arm !== arm ||
+      state.engine !== engine ||
       state.status !== "interrupted" ||
       typeof state.sourceCommit !== "string" ||
       !Array.isArray(state.turns)
     )
       throw new Error(
-        `Repair requires paused ${project}/${arm} state for run ${runId}.`,
+        `Repair requires paused ${engine}/${project}/${arm} state for run ${runId}.`,
       );
     const workspace: string = path.join(root, "workspace");
     const workspaceStat: fs.Stats | undefined = fs.lstatSync(workspace, {
@@ -280,14 +300,14 @@ export namespace EvidenceBenchmarkRepair {
       !fs.existsSync(path.join(workspace, ".git"))
     )
       throw new Error(
-        `Repair requires the resumable Git workspace for ${project}/${arm}.`,
+        `Repair requires the resumable Git workspace for ${engine}/${project}/${arm}.`,
       );
     if (fs.existsSync(path.join(root, "interventions", `${patchSha256}.json`)))
       throw new Error(
-        `Repair patch ${patchSha256} was already applied to ${project}/${arm}.`,
+        `Repair patch ${patchSha256} was already applied to ${engine}/${project}/${arm}.`,
       );
     return {
-      label: `${project}/${arm}`,
+      label: `${engine}/${project}/${arm}`,
       root,
       workspace,
       sourceCommit: state.sourceCommit,

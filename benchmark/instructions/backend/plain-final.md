@@ -1,6 +1,6 @@
 # Backend Plain Final
 
-Use goal mode for this backend Plain final stage. Resume the same unfinished stage goal after an interruption; otherwise create it now. Mark it complete only when the complete backend Loop Until Dry and every package, test, and live-server gate below are green.
+Treat this backend Plain final stage as one bounded objective. Preserve the same unfinished objective across an interruption; otherwise begin it now. Declare it complete only when the complete backend Loop Until Dry and every package, test, and live-server gate below are green.
 
 The skills-contract turn remains binding. Re-read `AGENTS.md` and the applicable Backend and Review instructions in full before any final-stage action.
 
