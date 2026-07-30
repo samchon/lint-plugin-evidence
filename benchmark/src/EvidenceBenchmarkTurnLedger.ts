@@ -366,7 +366,7 @@ export namespace EvidenceBenchmarkTurnLedger {
     if (
       stem !== props.turn.name &&
       new RegExp(
-        `^${props.turn.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.attempt-[2-9][0-9]*$`,
+        `^${props.turn.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.attempt-(?:[2-9]|[1-9][0-9]+)$`,
       ).test(stem) === false
     )
       throw new Error(

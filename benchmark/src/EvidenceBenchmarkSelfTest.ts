@@ -1160,6 +1160,44 @@ export namespace EvidenceBenchmarkSelfTest {
         reasoning_output_tokens: 0,
       },
     });
+    const tenthStdout: string = path.join(
+      runRoot,
+      "logs",
+      "skills-contract.attempt-10.stdout.jsonl",
+    );
+    const tenthStderr: string = path.join(
+      runRoot,
+      "logs",
+      "skills-contract.attempt-10.stderr.log",
+    );
+    fs.renameSync(retryStdout, tenthStdout);
+    fs.renameSync(retryStderr, tenthStderr);
+    try {
+      const acceptedTenthTurn: EvidenceBenchmarkTurnLedger.ITurn = {
+        ...acceptedRetryTurn,
+        stdout: path.posix.join(
+          "logs",
+          "skills-contract.attempt-10.stdout.jsonl",
+        ),
+        stderr: path.posix.join(
+          "logs",
+          "skills-contract.attempt-10.stderr.log",
+        ),
+      };
+      EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
+        repository,
+        runRoot,
+        workspace,
+        engine: "claude-code",
+        sessionId,
+        model,
+        effort: "high",
+        turns: [rejectedPermissionTurn, acceptedTenthTurn, ...turns.slice(1)],
+      });
+    } finally {
+      fs.renameSync(tenthStdout, retryStdout);
+      fs.renameSync(tenthStderr, retryStderr);
+    }
     write(
       retryStdout,
       resumedLog.replace('"output_tokens":0', '"output_tokens":1'),
