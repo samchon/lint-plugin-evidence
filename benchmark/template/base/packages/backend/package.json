@@ -16,7 +16,7 @@
     "start": "ttsx src/executable/server.ts",
     "start:prod": "node lib/executable/server.js",
     "start:swagger": "ttsx src/executable/swagger.ts",
-    "test": "pnpm --dir ../api build && ttsx --project tsconfig.test.json test/index.ts"
+    "test": "pnpm build:prisma && pnpm --dir ../api build && ttsx --project tsconfig.test.json test/index.ts"
   },
   "dependencies": {
     "@nestia/core": "catalog:samchon",
