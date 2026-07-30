@@ -1,5 +1,6 @@
 import { DynamicModule } from "@nestia/core";
 import type { ModuleMetadata } from "@nestjs/common/interfaces";
+import fs from "node:fs";
 import path from "node:path";
 
 /**
@@ -12,10 +13,22 @@ export namespace MyModule {
    * @param metadata Shared imports, providers, exports, and module metadata.
    * @returns A Nest module containing the discovered controller population.
    */
-  export const mount = (metadata: Omit<ModuleMetadata, "controllers"> = {}) =>
-    DynamicModule.mount(
-      path.join(__dirname, "controllers"),
+  export const mount = async (
+    metadata: Omit<ModuleMetadata, "controllers"> = {},
+  ) => {
+    const adjacent: string = path.join(__dirname, "controllers");
+    const fromSource: boolean = fs.existsSync(adjacent) === false;
+    const directory: string = fromSource
+      ? path.join(process.cwd(), "src", "controllers")
+      : adjacent;
+    const module = await DynamicModule.mount(
+      directory,
       metadata,
-      __filename.endsWith(".ts"),
+      fromSource || __filename.endsWith(".ts"),
     );
+    const controllers: unknown = Reflect.getMetadata("controllers", module);
+    if (Array.isArray(controllers) === false || controllers.length === 0)
+      throw new Error(`No Nest controllers were discovered under ${directory}.`);
+    return module;
+  };
 }
