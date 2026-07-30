@@ -85,20 +85,19 @@ export const test_evidence_graph_reports_an_unreadable_population_root =
   };
 
 /**
- * Verifies `root` is refused on a TypeScript population, and that the message
- * names the channel that does work.
+ * Verifies a rooted TypeScript population with no Program source reports its
+ * empty selection.
  *
- * A TypeScript population is materialized from the ttsc program, so a directory
- * outside the project contributes no file to it — a root accepted there would
- * silently select nothing, which reads exactly like a glob that matches
- * nothing. An author reaching for it has a real out-of-project population in
- * mind, and `package` is the channel that already serves it.
+ * A TypeScript root changes the address space used to select sources already
+ * supplied by ttsc; it does not scan that directory. Reporting the unmatched
+ * rooted population distinguishes a valid root with no admitted source from an
+ * invalid configuration or an implicit filesystem scan.
  *
- * 1. Declare `root` on a TypeScript claim.
+ * 1. Declare a sibling `root` with no matching source in the Program.
  * 2. Run the real `ttsc check`.
- * 3. Assert the configuration diagnostic redirects to `package`.
+ * 3. Assert the diagnostic names the empty population and its root.
  */
-export const test_evidence_graph_refuses_a_typescript_population_root =
+export const test_evidence_graph_reports_empty_rooted_typescript_population =
   (): void => {
     const project: IEvidenceProject = createProject({
       name: "root-typescript",
@@ -137,12 +136,22 @@ export const test_evidence_graph_refuses_a_typescript_population_root =
       assertStatus(
         result,
         2,
-        "A root on a population the ttsc program owns must be a configuration error.",
+        "A rooted TypeScript population with no Program source must fail explicitly.",
       );
       assertIncludes(
         result,
+        "matched no typescript files",
+        "The diagnostic must identify the empty TypeScript population.",
+      );
+      assertIncludes(
+        result,
+        "under root '../shared'",
+        "The diagnostic must name the rooted address space the author can fix.",
+      );
+      assertExcludes(
+        result,
         "Select an installed package with 'package'",
-        "The diagnostic must send the author to the channel that reaches an out-of-project TypeScript population.",
+        "A supported TypeScript root must not be rejected as a configuration error.",
       );
     } finally {
       project.cleanup();
