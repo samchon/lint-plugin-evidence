@@ -60,7 +60,7 @@ A shared defect affects every subject, so settle deterministic failures on the c
 
 ## Frozen Inputs
 
-`benchmark/requirements/**` is user-owned source material and is read-only to every agent. Never edit, rewrite, normalize, summarize, rename, add, or delete anything in that tree, and never insert a corpus contract, evaluator instruction, evidence guidance, acceptance criterion, or other agent-authored text into it. If a requirement corpus appears incomplete, inconsistent, or unsuitable, stop before launch and report the defect; only the user may restore or replace the source material.
+`benchmark/requirements/**` is user-owned source material and is read-only to every agent. Never edit, rewrite, normalize, summarize, rename, add, or delete anything in that tree, and never insert a corpus contract, evaluator instruction, evidence guidance, acceptance criterion, or other agent-authored text into it. The benchmark accepts each selected requirement tree as opaque paths and bytes: it does not validate filenames, formats, headings, identifiers, structure, completeness, consistency, or suitability. Freeze and copy the readable tree exactly; only the user may audit, restore, or replace its content.
 
 Freeze these inputs before the first cell in a comparable wave starts:
 
