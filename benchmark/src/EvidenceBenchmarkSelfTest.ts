@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import cp from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
@@ -6,6 +7,7 @@ import path from "node:path";
 
 import * as ts from "typescript-api";
 
+import { EvidenceBenchmarkAgentProcess } from "./EvidenceBenchmarkAgentProcess.ts";
 import { EvidenceBenchmarkBaseline } from "./EvidenceBenchmarkBaseline.ts";
 import { EvidenceBenchmarkCommandLine } from "./EvidenceBenchmarkCommandLine.ts";
 import { EvidenceBenchmarkConsumerProof } from "./EvidenceBenchmarkConsumerProof.ts";
@@ -42,6 +44,7 @@ export namespace EvidenceBenchmarkSelfTest {
       const fixture: string = path.join(temporary, "fixture");
       createFixture(repository, fixture);
       await testPinnedPnpm(repository);
+      await testAgentProcessLifecycle(temporary);
       testCodexIsolation(temporary);
       testCodexTurnLedger(temporary);
       testClaudeIsolation(temporary);
@@ -129,6 +132,143 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     assert.ok(fs.existsSync(target));
     assert.equal(fs.existsSync(previous), false);
+  }
+
+  async function testAgentProcessLifecycle(temporary: string): Promise<void> {
+    const root: string = path.join(temporary, "agent-process");
+    const workspace: string = path.join(root, "workspace");
+    fs.mkdirSync(workspace, { recursive: true });
+    const sentinel: cp.ChildProcess = cp.spawn(
+      process.execPath,
+      ["-e", "setInterval(() => {}, 1000)", "outside-sentinel"],
+      { stdio: "ignore", windowsHide: true },
+    );
+    assert.notEqual(sentinel.pid, undefined);
+    const ownedPids: number[] = [];
+    try {
+      const terminal = await EvidenceBenchmarkAgentProcess.run({
+        command: process.execPath,
+        arguments: [
+          "-e",
+          [
+            'const cp = require("node:child_process");',
+            `const child = cp.spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)", ${JSON.stringify(workspace)}], { stdio: ["ignore", "inherit", "inherit"] });`,
+            "console.log(`owned-pid=${child.pid}`);",
+            "child.unref();",
+            'console.log(JSON.stringify({ type: "turn.completed", usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1, reasoning_output_tokens: 0 } }));',
+            "setInterval(() => {}, 1000);",
+          ].join(""),
+          workspace,
+        ],
+        cwd: workspace,
+        environment: process.env,
+        engine: "codex",
+        stdin: "",
+        stdout: path.join(root, "terminal.stdout.jsonl"),
+        stderr: path.join(root, "terminal.stderr.log"),
+        onStdout: () => {},
+      });
+      ownedPids.push(readOwnedPid(path.join(root, "terminal.stdout.jsonl")));
+      assert.equal(terminal.status, 0);
+      assert.equal(terminal.nativeTerminalCleanup, true);
+      assert.match(
+        fs.readFileSync(path.join(root, "terminal.stdout.jsonl"), "utf8"),
+        /"type":"turn\.completed"/,
+        "terminal cleanup must preserve the native completion event",
+      );
+      assert.equal(isProcessAlive(ownedPids.at(-1)!), false);
+      assert.equal(isProcessAlive(sentinel.pid!), true);
+
+      const natural = await EvidenceBenchmarkAgentProcess.run({
+        command: process.execPath,
+        arguments: [
+          "-e",
+          [
+            'const cp = require("node:child_process");',
+            `const child = cp.spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)", ${JSON.stringify(workspace)}], { stdio: ["ignore", "inherit", "inherit"] });`,
+            "console.log(`owned-pid=${child.pid}`);",
+            "child.unref();",
+          ].join(""),
+          workspace,
+        ],
+        cwd: workspace,
+        environment: process.env,
+        engine: "claude-code",
+        stdin: "",
+        stdout: path.join(root, "natural.stdout.jsonl"),
+        stderr: path.join(root, "natural.stderr.log"),
+        onStdout: () => {},
+      });
+      ownedPids.push(readOwnedPid(path.join(root, "natural.stdout.jsonl")));
+      assert.equal(natural.status, 0);
+      assert.equal(natural.nativeTerminalCleanup, undefined);
+      assert.equal(isProcessAlive(ownedPids.at(-1)!), false);
+      assert.equal(isProcessAlive(sentinel.pid!), true);
+
+      const detached = await EvidenceBenchmarkAgentProcess.run({
+        command: process.execPath,
+        arguments: [
+          "-e",
+          [
+            'const cp = require("node:child_process");',
+            `const child = cp.spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)", ${JSON.stringify(workspace)}], { stdio: "ignore", detached: true });`,
+            "console.log(`owned-pid=${child.pid}`);",
+            "child.unref();",
+          ].join(""),
+          workspace,
+        ],
+        cwd: workspace,
+        environment: process.env,
+        engine: "claude-code",
+        stdin: "",
+        stdout: path.join(root, "detached.stdout.jsonl"),
+        stderr: path.join(root, "detached.stderr.log"),
+        onStdout: () => {},
+      });
+      ownedPids.push(readOwnedPid(path.join(root, "detached.stdout.jsonl")));
+      assert.equal(detached.status, 0);
+      assert.equal(detached.nativeTerminalCleanup, undefined);
+      assert.equal(
+        isProcessAlive(ownedPids.at(-1)!),
+        false,
+        "natural close must still clean an ignored-stdio detached descendant",
+      );
+      assert.equal(isProcessAlive(sentinel.pid!), true);
+
+      const earlyExit = await EvidenceBenchmarkAgentProcess.run({
+        command: process.execPath,
+        arguments: ["-e", "process.exit(7)"],
+        cwd: workspace,
+        environment: process.env,
+        engine: "claude-code",
+        stdin: "x".repeat(2 * 1024 * 1024),
+        stdout: path.join(root, "epipe.stdout.jsonl"),
+        stderr: path.join(root, "epipe.stderr.log"),
+        onStdout: () => {},
+      });
+      assert.equal(earlyExit.status, 7);
+      assert.equal(isProcessAlive(sentinel.pid!), true);
+    } finally {
+      for (const pid of ownedPids)
+        if (isProcessAlive(pid)) process.kill(pid, "SIGKILL");
+      if (isProcessAlive(sentinel.pid!)) sentinel.kill("SIGKILL");
+    }
+  }
+
+  function readOwnedPid(file: string): number {
+    const text: string = fs.readFileSync(file, "utf8");
+    const match: RegExpExecArray | null = /owned-pid=(\d+)/.exec(text);
+    assert.notEqual(match, null, `owned descendant PID missing from ${file}`);
+    return Number(match![1]);
+  }
+
+  function isProcessAlive(pid: number): boolean {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function testCodexIsolation(temporary: string): void {
@@ -295,6 +435,15 @@ export namespace EvidenceBenchmarkSelfTest {
         turn,
       });
     inspectCurrent();
+    turn.nativeTerminalCleanup = true;
+    inspectCurrent();
+    turn.nativeTerminalCleanup = false;
+    assert.throws(
+      inspectCurrent,
+      /invalid retained ledger entry/,
+      "native-terminal cleanup markers must be the literal retained truth value",
+    );
+    turn.nativeTerminalCleanup = true;
     const invocation: string[] = [...(turn.invocation as string[])];
     const rootsIndex: number = invocation.findIndex((value) =>
       value.startsWith("permissions.benchmark.workspace_roots="),

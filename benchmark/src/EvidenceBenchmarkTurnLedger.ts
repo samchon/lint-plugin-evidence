@@ -166,6 +166,9 @@ export namespace EvidenceBenchmarkTurnLedger {
     /** Exact child-process working directory. */
     cwd?: unknown;
 
+    /** Whether Codex required forced tree cleanup after its native terminal. */
+    nativeTerminalCleanup?: unknown;
+
     /** Machine-gate acceptance written after the process succeeds. */
     accepted?: unknown;
 
@@ -343,6 +346,8 @@ export namespace EvidenceBenchmarkTurnLedger {
       (props.turn.sessionId !== undefined &&
         (typeof props.turn.sessionId !== "string" ||
           props.turn.sessionId.length === 0)) ||
+      (props.turn.nativeTerminalCleanup !== undefined &&
+        props.turn.nativeTerminalCleanup !== true) ||
       typeof props.turn.cwd !== "string" ||
       path.resolve(props.turn.cwd) !== path.resolve(props.workspace)
     )
@@ -411,6 +416,17 @@ export namespace EvidenceBenchmarkTurnLedger {
             props.model,
             structuredOutputRequired,
           );
+    if (
+      props.turn.nativeTerminalCleanup === true &&
+      (props.engine !== "codex" ||
+        props.turn.status !== 0 ||
+        !structuredOutputRequired ||
+        !evidence.linked ||
+        !evidence.terminal)
+    )
+      throw new Error(
+        `Benchmark attempt ${String(props.turn.name)} has an invalid native-terminal cleanup marker.`,
+      );
     if (
       (evidence.linked && props.turn.sessionId !== props.sessionId) ||
       (!evidence.linked && props.turn.sessionId !== undefined)

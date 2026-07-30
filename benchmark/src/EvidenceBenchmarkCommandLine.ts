@@ -1,8 +1,9 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
+import { EvidenceBenchmarkAgentProcess } from "./EvidenceBenchmarkAgentProcess.ts";
 import { EvidenceBenchmarkEngine } from "./EvidenceBenchmarkEngine.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
@@ -38,6 +39,7 @@ export namespace EvidenceBenchmarkCommandLine {
     stderr: string;
     invocation: string[];
     cwd: string;
+    nativeTerminalCleanup?: true;
     accepted?: boolean;
     lintRestorationSha256?: string;
     sessionId?: string;
@@ -1032,8 +1034,6 @@ export namespace EvidenceBenchmarkCommandLine {
     const stem: string = logStem(props.logs, props.name);
     const stdoutPath: string = path.join(props.logs, `${stem}.stdout.jsonl`);
     const stderrPath: string = path.join(props.logs, `${stem}.stderr.log`);
-    const stdout = fs.createWriteStream(stdoutPath, { flags: "wx" });
-    const stderr = fs.createWriteStream(stderrPath, { flags: "wx" });
     const args: string[] =
       props.engine.engine === "codex"
         ? codexTurnArguments({ ...props, outputSchema })
@@ -1044,75 +1044,45 @@ export namespace EvidenceBenchmarkCommandLine {
       props.engine.engine === "codex"
         ? props.environment
         : claudeEnvironment(cache, props.environment);
-    const child = spawn(executable.command, [...executable.prefix, ...args], {
-      cwd: props.workspace,
-      env: environment,
-      shell: false,
-      windowsHide: true,
-      stdio: "pipe",
-    });
-    const outcome = new Promise<{
-      started: bigint;
-      stopped: bigint;
-      status: number | null;
-    }>((resolve, reject) => {
-      let started: bigint | undefined;
-      child.once("spawn", () => {
-        started = process.hrtime.bigint();
-      });
-      child.once("error", reject);
-      child.once("close", (status) => {
-        if (started === undefined)
-          reject(new Error("Benchmark engine process closed before spawning."));
-        else
-          resolve({
-            started,
-            stopped: process.hrtime.bigint(),
-            status,
-          });
-      });
-    });
     let sessionId: string | undefined;
     let remainder: string = "";
-    child.stdout.on("data", (chunk: Buffer) => {
-      stdout.write(chunk);
-      remainder += chunk.toString("utf8");
-      const lines: string[] = remainder.split(/\r?\n/);
-      remainder = lines.pop() ?? "";
-      for (const line of lines)
-        try {
-          const event: unknown = JSON.parse(line);
-          const observed: string | undefined = eventSessionId(
-            props.engine.engine,
-            event,
-          );
-          if (observed !== undefined) sessionId = observed;
-        } catch {}
-    });
-    child.stderr.pipe(stderr);
-    child.stdin.end(props.prompt, "utf8");
-    let result: {
-      started: bigint;
-      stopped: bigint;
-      status: number | null;
-    };
-    try {
-      result = await outcome;
-    } finally {
-      await Promise.all([
-        new Promise<void>((resolve) => stdout.end(resolve)),
-        new Promise<void>((resolve) => stderr.end(resolve)),
-      ]);
-    }
+    const result: EvidenceBenchmarkAgentProcess.IResult =
+      await EvidenceBenchmarkAgentProcess.run({
+        command: executable.command,
+        arguments: [...executable.prefix, ...args],
+        cwd: props.workspace,
+        environment,
+        engine: props.engine.engine,
+        stdin: props.prompt,
+        stdout: stdoutPath,
+        stderr: stderrPath,
+        onStdout: (chunk: Buffer): void => {
+          remainder += chunk.toString("utf8");
+          const lines: string[] = remainder.split(/\r?\n/);
+          remainder = lines.pop() ?? "";
+          for (const line of lines)
+            try {
+              const event: unknown = JSON.parse(line);
+              const observed: string | undefined = eventSessionId(
+                props.engine.engine,
+                event,
+              );
+              if (observed !== undefined) sessionId = observed;
+            } catch {}
+        },
+      });
     return {
       name: props.name,
-      elapsedMs: Number(result.stopped - result.started) / 1_000_000,
+      elapsedMs: result.elapsedMs,
       status: result.status,
       stdout: path.posix.join("logs", path.basename(stdoutPath)),
       stderr: path.posix.join("logs", path.basename(stderrPath)),
       invocation: [executable.command, ...executable.prefix, ...args],
       cwd: props.workspace,
       sessionId,
+      ...(result.nativeTerminalCleanup === true
+        ? { nativeTerminalCleanup: true }
+        : {}),
     };
   }
 
