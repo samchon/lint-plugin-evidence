@@ -55,7 +55,7 @@ A preparation failure before the native session starts is not a measured result.
 One native session receives exactly nine Goals in this order:
 
 | Step | Goal | Evidence instruction | Plain instruction |
-| ---: | --- | --- | --- |
+| --: | --- | --- | --- |
 | 1 | Skills contract | `instructions/skills-contract.md` | `instructions/skills-contract.md` |
 | 2 | Backend start | `instructions/backend/start.md` | `instructions/backend/start.md` |
 | 3 | Backend review | `instructions/backend/review.md` | `instructions/backend/review.md` |
