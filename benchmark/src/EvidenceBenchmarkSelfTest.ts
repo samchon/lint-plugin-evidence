@@ -213,11 +213,31 @@ export namespace EvidenceBenchmarkSelfTest {
     const workspace: string = path.join(runRoot, "workspace");
     const logs: string = path.join(runRoot, "logs");
     const sessionId: string = "12345678-1234-4123-8123-123456789abc";
+    fs.mkdirSync(workspace, { recursive: true });
     fs.mkdirSync(logs, { recursive: true });
+    const outputSchema: string =
+      EvidenceBenchmarkTurnLedger.turnOutputSchemaPath(workspace);
+    write(
+      outputSchema,
+      `${EvidenceBenchmarkTurnLedger.turnOutputSchemaJson()}\n`,
+    );
     const stdout: string = "logs/skills-contract.stdout.jsonl";
     const stderr: string = "logs/skills-contract.stderr.log";
+    const completedOutcome: string = JSON.stringify({
+      status: "completed",
+      summary: "The assigned turn and its gates completed.",
+      blockers: [],
+    });
     const successfulLog: string = [
       JSON.stringify({ type: "thread.started", thread_id: sessionId }),
+      JSON.stringify({
+        type: "item.completed",
+        item: {
+          id: "message-1",
+          type: "agent_message",
+          text: completedOutcome,
+        },
+      }),
       JSON.stringify({
         type: "turn.completed",
         usage: {
@@ -240,6 +260,8 @@ export namespace EvidenceBenchmarkSelfTest {
       "--config",
       "model_reasoning_effort=high",
       ...EvidenceBenchmarkCommandLine.codexIsolationArguments(workspace, {}),
+      "--output-schema",
+      outputSchema,
       "--skip-git-repo-check",
     ];
     const turn: EvidenceBenchmarkTurnLedger.ITurn = {
@@ -310,6 +332,14 @@ export namespace EvidenceBenchmarkSelfTest {
           },
         }),
         JSON.stringify({
+          type: "item.completed",
+          item: {
+            id: "message-1",
+            type: "agent_message",
+            text: completedOutcome,
+          },
+        }),
+        JSON.stringify({
           type: "turn.completed",
           usage: {
             input_tokens: 10,
@@ -365,6 +395,40 @@ export namespace EvidenceBenchmarkSelfTest {
       "a Codex patch denial omitted from stdout must still prevent acceptance",
     );
     write(path.join(runRoot, ...stderr.split("/")), "");
+    write(
+      path.join(runRoot, ...stdout.split("/")),
+      [
+        JSON.stringify({ type: "thread.started", thread_id: sessionId }),
+        JSON.stringify({
+          type: "item.completed",
+          item: {
+            id: "message-1",
+            type: "agent_message",
+            text: JSON.stringify({
+              status: "blocked",
+              summary: "The required build could not run.",
+              blockers: ["The required build was unavailable."],
+            }),
+          },
+        }),
+        JSON.stringify({
+          type: "turn.completed",
+          usage: {
+            input_tokens: 10,
+            cached_input_tokens: 5,
+            output_tokens: 4,
+            reasoning_output_tokens: 2,
+          },
+        }),
+        "",
+      ].join("\n"),
+    );
+    assert.throws(
+      inspectCurrent,
+      EvidenceBenchmarkTurnLedger.AgentBlockedError,
+      "a truthful structured blocker must not be accepted as completion",
+    );
+    write(path.join(runRoot, ...stdout.split("/")), successfulLog);
   }
 
   function testClaudeIsolation(temporary: string): void {
@@ -526,6 +590,8 @@ export namespace EvidenceBenchmarkSelfTest {
       "--verbose",
       "--forward-subagent-text",
       "--include-hook-events",
+      "--json-schema",
+      EvidenceBenchmarkTurnLedger.turnOutputSchemaJson(),
       "--model",
       model,
       "--effort",
@@ -557,6 +623,11 @@ export namespace EvidenceBenchmarkSelfTest {
               stop_reason: "end_turn",
               api_error_status: null,
               permission_denials: [],
+              structured_output: {
+                status: "completed",
+                summary: "The assigned turn and its gates completed.",
+                blockers: [],
+              },
               session_id: sessionId,
               usage: {
                 input_tokens: 10,
@@ -1053,6 +1124,12 @@ export namespace EvidenceBenchmarkSelfTest {
     const sessionId: string = "019c1234-5678-789a-bcde-f0123456789a";
     const turnNames: readonly EvidenceBenchmarkTurnLedger.Name[] =
       EvidenceBenchmarkTurnLedger.NAMES;
+    const outputSchema: string =
+      EvidenceBenchmarkTurnLedger.turnOutputSchemaPath(workspace);
+    write(
+      outputSchema,
+      `${EvidenceBenchmarkTurnLedger.turnOutputSchemaJson()}\n`,
+    );
     const commonInvocation: string[] = [
       "--json",
       "--enable",
@@ -1062,6 +1139,8 @@ export namespace EvidenceBenchmarkSelfTest {
       "--config",
       "model_reasoning_effort=high",
       ...EvidenceBenchmarkCommandLine.codexIsolationArguments(workspace, {}),
+      "--output-schema",
+      outputSchema,
       "--skip-git-repo-check",
     ];
     const turns = turnNames.map((name, index) => {
@@ -1072,6 +1151,18 @@ export namespace EvidenceBenchmarkSelfTest {
         path.join(runRoot, ...stdout.split("/")),
         [
           JSON.stringify({ type: "thread.started", thread_id: sessionId }),
+          JSON.stringify({
+            type: "item.completed",
+            item: {
+              id: "message-1",
+              type: "agent_message",
+              text: JSON.stringify({
+                status: "completed",
+                summary: "The assigned turn and its gates completed.",
+                blockers: [],
+              }),
+            },
+          }),
           JSON.stringify({
             type: "turn.completed",
             usage: {

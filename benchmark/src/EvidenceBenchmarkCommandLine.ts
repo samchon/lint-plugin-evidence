@@ -43,7 +43,7 @@ export namespace EvidenceBenchmarkCommandLine {
     sessionId?: string;
     acceptanceInvalidation?: {
       code: EvidenceBenchmarkTurnLedger.RetryableReason;
-      denialCount: number;
+      occurrenceCount: number;
       stdout: string;
     };
   }
@@ -699,7 +699,7 @@ export namespace EvidenceBenchmarkCommandLine {
     let invalidName: TurnName | undefined;
     let invalidReason: string | undefined;
     let invalidCode: EvidenceBenchmarkTurnLedger.RetryableReason | undefined;
-    let invalidDenialCount: number | undefined;
+    let invalidOccurrenceCount: number | undefined;
     let invalidTurn: ITurn | undefined;
     const inspections: readonly EvidenceBenchmarkTurnLedger.IAttemptInspection[] =
       EvidenceBenchmarkTurnLedger.inspectAttempts({
@@ -731,10 +731,16 @@ export namespace EvidenceBenchmarkCommandLine {
           invalidIndex = index;
           invalidName = turn.name;
           invalidCode = inspection.reason;
-          invalidDenialCount = inspection.denialCount;
+          invalidOccurrenceCount = inspection.denialCount;
           invalidReason = `retained ${String(inspection.denialCount)} native ${
-            inspection.reason === "permission-denied" ? "permission" : "policy"
-          } denial${inspection.denialCount === 1 ? "" : "s"}`;
+            inspection.reason === "agent-blocked"
+              ? "agent blocker"
+              : `${
+                  inspection.reason === "permission-denied"
+                    ? "permission"
+                    : "policy"
+                } denial`
+          }${inspection.denialCount === 1 ? "" : "s"}`;
           invalidTurn = turn;
         }
       } else if (
@@ -752,7 +758,7 @@ export namespace EvidenceBenchmarkCommandLine {
       invalidName === undefined ||
       invalidReason === undefined ||
       invalidCode === undefined ||
-      invalidDenialCount === undefined ||
+      invalidOccurrenceCount === undefined ||
       invalidTurn === undefined
     )
       return sessionEstablished;
@@ -768,7 +774,7 @@ export namespace EvidenceBenchmarkCommandLine {
       }
     invalidTurn.acceptanceInvalidation = {
       code: invalidCode,
-      denialCount: invalidDenialCount,
+      occurrenceCount: invalidOccurrenceCount,
       stdout: invalidTurn.stdout,
     };
     EvidenceBenchmarkTurnLedger.assertAcceptedOrder(props.state.turns);
@@ -1006,6 +1012,23 @@ export namespace EvidenceBenchmarkCommandLine {
     const cache: string = path.join(path.dirname(props.workspace), "cache");
     fs.mkdirSync(path.join(cache, "agent-home"), { recursive: true });
     fs.mkdirSync(path.join(cache, "os-temp"), { recursive: true });
+    const outputSchema: string =
+      EvidenceBenchmarkTurnLedger.turnOutputSchemaPath(props.workspace);
+    const outputSchemaBytes: string = `${EvidenceBenchmarkTurnLedger.turnOutputSchemaJson()}\n`;
+    const outputSchemaStat: fs.Stats | undefined = fs.lstatSync(outputSchema, {
+      throwIfNoEntry: false,
+    });
+    if (outputSchemaStat === undefined)
+      fs.writeFileSync(outputSchema, outputSchemaBytes, {
+        encoding: "utf8",
+        flag: "wx",
+      });
+    else if (
+      !outputSchemaStat.isFile() ||
+      outputSchemaStat.isSymbolicLink() ||
+      fs.readFileSync(outputSchema, "utf8") !== outputSchemaBytes
+    )
+      throw new Error("Benchmark turn output schema is not the retained one.");
     const stem: string = logStem(props.logs, props.name);
     const stdoutPath: string = path.join(props.logs, `${stem}.stdout.jsonl`);
     const stderrPath: string = path.join(props.logs, `${stem}.stderr.log`);
@@ -1013,7 +1036,7 @@ export namespace EvidenceBenchmarkCommandLine {
     const stderr = fs.createWriteStream(stderrPath, { flags: "wx" });
     const args: string[] =
       props.engine.engine === "codex"
-        ? codexTurnArguments(props)
+        ? codexTurnArguments({ ...props, outputSchema })
         : claudeTurnArguments(props);
     const executable: { command: string; prefix: string[] } =
       props.engine.engine === "codex" ? codexExecutable() : claudeExecutable();
@@ -1100,6 +1123,7 @@ export namespace EvidenceBenchmarkCommandLine {
     environment: NodeJS.ProcessEnv;
     sessionId?: string;
     resume: boolean;
+    outputSchema: string;
   }): string[] {
     const common: string[] = [
       "--json",
@@ -1110,6 +1134,8 @@ export namespace EvidenceBenchmarkCommandLine {
       "--config",
       `model_reasoning_effort=${props.engine.effort}`,
       ...codexIsolationArguments(props.workspace, props.environment),
+      "--output-schema",
+      props.outputSchema,
       "--skip-git-repo-check",
     ];
     if (!props.resume) return ["exec", ...common, "--cd", props.workspace, "-"];
@@ -1137,6 +1163,8 @@ export namespace EvidenceBenchmarkCommandLine {
       "--verbose",
       "--forward-subagent-text",
       "--include-hook-events",
+      "--json-schema",
+      EvidenceBenchmarkTurnLedger.turnOutputSchemaJson(),
       "--model",
       props.engine.model,
       "--effort",

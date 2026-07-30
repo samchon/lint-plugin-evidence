@@ -6,7 +6,48 @@ import { EvidenceBenchmarkEngine } from "./EvidenceBenchmarkEngine.ts";
 /** Validates the retained order and native evidence of benchmark turns. */
 export namespace EvidenceBenchmarkTurnLedger {
   /** Native reason that prevents a zero-exit attempt from being accepted. */
-  export type RetryableReason = "permission-denied" | "policy-denied";
+  export type RetryableReason =
+    "permission-denied" | "policy-denied" | "agent-blocked";
+
+  /** Exact structured terminal contract shared by both coding engines. */
+  export const TURN_OUTPUT_SCHEMA = Object.freeze({
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      status: {
+        type: "string",
+        enum: ["completed", "blocked"],
+        description:
+          "Use completed only after the complete assigned turn and every named gate succeeds; otherwise use blocked.",
+      },
+      summary: {
+        type: "string",
+        minLength: 1,
+        description: "Concise factual outcome of the assigned turn.",
+      },
+      blockers: {
+        type: "array",
+        items: { type: "string", minLength: 1 },
+        description:
+          "Empty only for completed; list every unresolved blocker when blocked.",
+      },
+    },
+    required: ["status", "summary", "blockers"],
+  });
+
+  /** Serializes the shared terminal contract for CLI invocation and audit. */
+  export function turnOutputSchemaJson(): string {
+    return JSON.stringify(TURN_OUTPUT_SCHEMA);
+  }
+
+  /** Resolves the run-owned schema file consumed by Codex structured output. */
+  export function turnOutputSchemaPath(workspace: string): string {
+    return path.resolve(
+      path.dirname(workspace),
+      "cache",
+      "turn-output.schema.json",
+    );
+  }
 
   /** Serializes the exact workspace and cache roots of one Codex cell. */
   export function codexWorkspaceRootsConfig(workspace: string): string {
@@ -36,6 +77,18 @@ export namespace EvidenceBenchmarkTurnLedger {
       super(
         `Benchmark attempt retained ${denialCount} native policy denial${
           denialCount === 1 ? "" : "s"
+        }.`,
+      );
+    }
+  }
+
+  /** Reports an agent that truthfully ended without completing its turn. */
+  export class AgentBlockedError extends Error {
+    /** Captures the number of structured blockers retained by the attempt. */
+    public constructor(public readonly blockerCount: number) {
+      super(
+        `Benchmark attempt retained ${blockerCount} unresolved blocker${
+          blockerCount === 1 ? "" : "s"
         }.`,
       );
     }
@@ -256,7 +309,9 @@ export namespace EvidenceBenchmarkTurnLedger {
     if (inspection.verdict === "retryable-incomplete") {
       if (inspection.reason === "permission-denied")
         throw new PermissionDeniedError(inspection.denialCount!);
-      throw new PolicyDeniedError(inspection.denialCount!);
+      if (inspection.reason === "policy-denied")
+        throw new PolicyDeniedError(inspection.denialCount!);
+      throw new AgentBlockedError(inspection.denialCount!);
     }
     if (inspection.verdict !== "acceptable")
       throw new Error(
@@ -317,15 +372,6 @@ export namespace EvidenceBenchmarkTurnLedger {
       retained,
       stem,
     );
-    const events: Record<string, unknown>[] = readEvents(stdout, props.turn);
-    const evidence: IAttemptEvidence =
-      props.engine === "codex"
-        ? codexEvidence(
-            events,
-            props.sessionId,
-            fs.readFileSync(stderr, "utf8"),
-          )
-        : claudeEvidence(events, props.sessionId, props.model);
     if (
       !Array.isArray(props.turn.invocation) ||
       props.turn.invocation.some((value) => typeof value !== "string")
@@ -344,6 +390,27 @@ export namespace EvidenceBenchmarkTurnLedger {
       sessionEstablished: props.sessionEstablished,
       invocationPolicy: props.invocationPolicy,
     });
+    const structuredOutputRequired: boolean =
+      props.invocationPolicy === "current" ||
+      invocationUsesStructuredOutput(
+        props.engine,
+        props.turn.invocation as string[],
+      );
+    const events: Record<string, unknown>[] = readEvents(stdout, props.turn);
+    const evidence: IAttemptEvidence =
+      props.engine === "codex"
+        ? codexEvidence(
+            events,
+            props.sessionId,
+            fs.readFileSync(stderr, "utf8"),
+            structuredOutputRequired,
+          )
+        : claudeEvidence(
+            events,
+            props.sessionId,
+            props.model,
+            structuredOutputRequired,
+          );
     if (
       (evidence.linked && props.turn.sessionId !== props.sessionId) ||
       (!evidence.linked && props.turn.sessionId !== undefined)
@@ -361,12 +428,12 @@ export namespace EvidenceBenchmarkTurnLedger {
       throw new Error(
         `Benchmark attempt ${String(props.turn.name)} has no complete native terminal evidence.`,
       );
-    if (evidence.denial !== undefined)
+    if (evidence.incomplete !== undefined)
       return {
         sessionLinked: true,
         verdict: "retryable-incomplete",
-        reason: evidence.denial.reason,
-        denialCount: evidence.denial.count,
+        reason: evidence.incomplete.reason,
+        denialCount: evidence.incomplete.count,
         ...(evidence.usage === undefined ? {} : { usage: evidence.usage }),
       };
     if (!evidence.acceptable)
@@ -466,11 +533,17 @@ export namespace EvidenceBenchmarkTurnLedger {
     linked: boolean;
     terminal: boolean;
     acceptable: boolean;
-    denial?: {
+    incomplete?: {
       reason: RetryableReason;
       count: number;
     };
     usage?: ISummary["tokens"];
+  }
+
+  interface IStructuredOutcome {
+    status: "completed" | "blocked";
+    summary: string;
+    blockers: string[];
   }
 
   function readEvents(stdout: string, turn: ITurn): Record<string, unknown>[] {
@@ -504,6 +577,7 @@ export namespace EvidenceBenchmarkTurnLedger {
     events: readonly Record<string, unknown>[],
     sessionId: string,
     stderr: string,
+    structuredOutputRequired: boolean,
   ): IAttemptEvidence {
     const starts: readonly Record<string, unknown>[] = events.filter(
       (event) => event.type === "thread.started",
@@ -520,7 +594,19 @@ export namespace EvidenceBenchmarkTurnLedger {
       completed[0] === undefined
         ? undefined
         : readCodexUsage(completed[0].usage);
-    const terminal: boolean = completed.length === 1 && usage !== undefined;
+    const agentMessages: unknown[] = events.flatMap((event) =>
+      event.type === "item.completed" &&
+      isObject(event.item) &&
+      event.item.type === "agent_message"
+        ? [event.item.text]
+        : [],
+    );
+    const structuredOutcome: IStructuredOutcome | undefined =
+      readStructuredOutcome(agentMessages.at(-1));
+    const terminal: boolean =
+      completed.length === 1 &&
+      usage !== undefined &&
+      (!structuredOutputRequired || structuredOutcome !== undefined);
     const structuredDenials: number = events.filter(
       (event) =>
         event.type === "item.completed" &&
@@ -535,18 +621,25 @@ export namespace EvidenceBenchmarkTurnLedger {
         ),
       ).length;
     const denialCount: number = structuredDenials + stderrDenials;
+    const blockerCount: number =
+      structuredOutcome?.status === "blocked"
+        ? structuredOutcome.blockers.length
+        : 0;
+    const incomplete: IAttemptEvidence["incomplete"] =
+      denialCount !== 0
+        ? { reason: "policy-denied", count: denialCount }
+        : blockerCount !== 0
+          ? { reason: "agent-blocked", count: blockerCount }
+          : undefined;
     return {
       linked,
       terminal,
-      acceptable: terminal && denialCount === 0,
-      ...(denialCount === 0
-        ? {}
-        : {
-            denial: {
-              reason: "policy-denied" as const,
-              count: denialCount,
-            },
-          }),
+      acceptable:
+        terminal &&
+        incomplete === undefined &&
+        (!structuredOutputRequired ||
+          structuredOutcome?.status === "completed"),
+      ...(incomplete === undefined ? {} : { incomplete }),
       ...(usage === undefined ? {} : { usage }),
     };
   }
@@ -555,6 +648,7 @@ export namespace EvidenceBenchmarkTurnLedger {
     events: readonly Record<string, unknown>[],
     sessionId: string,
     model: string,
+    structuredOutputRequired: boolean,
   ): IAttemptEvidence {
     const systems: readonly Record<string, unknown>[] = events.filter(
       (event) => event.type === "system",
@@ -603,6 +697,8 @@ export namespace EvidenceBenchmarkTurnLedger {
           typeof denial.tool_name === "string" &&
           denial.tool_name.length !== 0,
       );
+    const structuredOutcome: IStructuredOutcome | undefined =
+      readStructuredOutcome(result?.structured_output);
     const terminal: boolean =
       result?.subtype === "success" &&
       result.is_error === false &&
@@ -610,25 +706,67 @@ export namespace EvidenceBenchmarkTurnLedger {
       result.stop_reason === "end_turn" &&
       result.api_error_status === null &&
       denialList !== undefined &&
-      usage !== undefined;
+      usage !== undefined &&
+      (!structuredOutputRequired || structuredOutcome !== undefined);
     const permissionDenialCount: number | undefined =
       terminal && noErrors && structuredDenials && denialList!.length !== 0
         ? denialList!.length
         : undefined;
+    const blockerCount: number =
+      structuredOutcome?.status === "blocked"
+        ? structuredOutcome.blockers.length
+        : 0;
+    const incomplete: IAttemptEvidence["incomplete"] =
+      permissionDenialCount !== undefined
+        ? {
+            reason: "permission-denied",
+            count: permissionDenialCount,
+          }
+        : blockerCount !== 0
+          ? { reason: "agent-blocked", count: blockerCount }
+          : undefined;
     return {
       linked: initializations.length !== 0,
       terminal,
       acceptable:
-        terminal && noErrors && denialList!.length === 0 && usage !== undefined,
-      ...(permissionDenialCount === undefined
-        ? {}
-        : {
-            denial: {
-              reason: "permission-denied" as const,
-              count: permissionDenialCount,
-            },
-          }),
+        terminal &&
+        noErrors &&
+        denialList!.length === 0 &&
+        incomplete === undefined &&
+        (!structuredOutputRequired ||
+          structuredOutcome?.status === "completed"),
+      ...(incomplete === undefined ? {} : { incomplete }),
       ...(usage === undefined ? {} : { usage }),
+    };
+  }
+
+  function readStructuredOutcome(
+    value: unknown,
+  ): IStructuredOutcome | undefined {
+    let parsed: unknown = value;
+    if (typeof value === "string")
+      try {
+        parsed = JSON.parse(value) as unknown;
+      } catch {
+        return undefined;
+      }
+    if (
+      !isObject(parsed) ||
+      (parsed.status !== "completed" && parsed.status !== "blocked") ||
+      typeof parsed.summary !== "string" ||
+      parsed.summary.length === 0 ||
+      !Array.isArray(parsed.blockers) ||
+      parsed.blockers.some(
+        (blocker) => typeof blocker !== "string" || blocker.length === 0,
+      ) ||
+      (parsed.status === "completed" && parsed.blockers.length !== 0) ||
+      (parsed.status === "blocked" && parsed.blockers.length === 0)
+    )
+      return undefined;
+    return {
+      status: parsed.status,
+      summary: parsed.summary,
+      blockers: parsed.blockers as string[],
     };
   }
 
@@ -792,6 +930,19 @@ export namespace EvidenceBenchmarkTurnLedger {
     else assertClaudeInvocation(props);
   }
 
+  function invocationUsesStructuredOutput(
+    engine: EvidenceBenchmarkEngine.Name,
+    invocation: readonly string[],
+  ): boolean {
+    if (engine === "codex") {
+      const execIndex: number = invocation.indexOf("exec");
+      return (
+        option(invocation.slice(execIndex + 1), "--output-schema") !== undefined
+      );
+    }
+    return option(invocation.slice(1), "--json-schema") !== undefined;
+  }
+
   function assertCodexInvocation(props: {
     invocation: readonly string[];
     repository: string;
@@ -824,6 +975,14 @@ export namespace EvidenceBenchmarkTurnLedger {
       args,
       "permissions.benchmark.workspace_roots",
     );
+    const expectedOutputSchema: string = turnOutputSchemaPath(props.workspace);
+    const retainedOutputSchema: string | undefined = option(
+      args,
+      "--output-schema",
+    );
+    const outputSchemaValid: boolean =
+      retainedOutputSchema === expectedOutputSchema &&
+      retainedTurnOutputSchema(expectedOutputSchema);
     if (
       !args.includes("--json") ||
       option(args, "--enable") !== "goals" ||
@@ -841,7 +1000,10 @@ export namespace EvidenceBenchmarkTurnLedger {
         '{"."="write"}' ||
       (props.invocationPolicy === "current"
         ? retainedRoots !== expectedRoots
-        : retainedRoots !== expectedRoots && retainedRoots !== legacyRoots)
+        : retainedRoots !== expectedRoots && retainedRoots !== legacyRoots) ||
+      (props.invocationPolicy === "current"
+        ? !outputSchemaValid
+        : retainedOutputSchema !== undefined && !outputSchemaValid)
     )
       throw new Error(
         "Benchmark Codex attempt does not retain the required model, effort, goal, and isolation invocation.",
@@ -919,6 +1081,12 @@ export namespace EvidenceBenchmarkTurnLedger {
       "--fork-session",
       "--no-session-persistence",
     ];
+    const retainedOutputSchema: string | undefined = option(
+      args,
+      "--json-schema",
+    );
+    const outputSchemaValid: boolean =
+      retainedOutputSchema === turnOutputSchemaJson();
     if (
       !args.includes("-p") ||
       option(args, "--output-format") !== "stream-json" ||
@@ -940,7 +1108,10 @@ export namespace EvidenceBenchmarkTurnLedger {
       args.some(
         (value) =>
           value === "--fallback-model" || value.startsWith("--fallback-model="),
-      )
+      ) ||
+      (props.invocationPolicy === "current"
+        ? !outputSchemaValid
+        : retainedOutputSchema !== undefined && !outputSchemaValid)
     )
       throw new Error(
         "Benchmark Claude Code attempt does not retain the required model, effort, tools, and isolation invocation.",
@@ -1083,6 +1254,17 @@ export namespace EvidenceBenchmarkTurnLedger {
       throw new Error(
         "Benchmark Claude Code attempt does not retain the required local policy and supported-host sandbox settings.",
       );
+  }
+
+  function retainedTurnOutputSchema(location: string): boolean {
+    const stat: fs.Stats | undefined = fs.lstatSync(location, {
+      throwIfNoEntry: false,
+    });
+    return (
+      stat?.isFile() === true &&
+      stat.isSymbolicLink() === false &&
+      fs.readFileSync(location, "utf8") === `${turnOutputSchemaJson()}\n`
+    );
   }
 
   function option(args: readonly string[], name: string): string | undefined {
