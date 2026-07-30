@@ -9,7 +9,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
   export type EvidenceBenchmarkEffort =
     "low" | "medium" | "high" | "xhigh" | "max";
 
-  export interface IEvidenceBenchmarkGoalRecord {
+  export interface IEvidenceBenchmarkInstructionRecord {
     index: number;
     name: string;
     relativePath: string;
@@ -33,7 +33,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
     status: "ready" | "running" | "interrupted" | "completed";
     tokenUsage: EvidenceBenchmarkRunner.IEvidenceBenchmarkTokenUsage;
     costUsd: number;
-    goals: IEvidenceBenchmarkGoalRecord[];
+    instructions: IEvidenceBenchmarkInstructionRecord[];
     processes: EvidenceBenchmarkRunner.IEvidenceBenchmarkProcessRecord[];
     interruption?: EvidenceBenchmarkRunner.IEvidenceBenchmarkInterruption;
   }
@@ -65,7 +65,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
       status: "ready",
       tokenUsage: zeroUsage(),
       costUsd: 0,
-      goals: [],
+      instructions: [],
       processes: [],
     };
   }
@@ -87,23 +87,26 @@ export namespace EvidenceBenchmarkClaudeRunner {
       delete state.interruption;
 
       while (state.nextInstructionIndex < entries.length) {
-        const goal: IEvidenceBenchmarkGoalRecord = prepareGoal(
-          state,
-          props.instructionsRoot,
-          entries,
-        );
-        if (goal.completed) {
+        const instruction: IEvidenceBenchmarkInstructionRecord =
+          prepareInstruction(state, props.instructionsRoot, entries);
+        if (instruction.completed) {
           state.nextInstructionIndex++;
           await publish(props, state);
           continue;
         }
-        if (goal.inputDispatched && !goal.completed)
+        if (instruction.inputDispatched && !instruction.completed)
           throw new Error(
             "Claude Code interrupted after the current instruction was dispatched; exact resume is unavailable.",
           );
         state.status = "running";
         await publish(props, state);
-        await executeGoal(props, state, goal, executable, cliVersion);
+        await executeInstruction(
+          props,
+          state,
+          instruction,
+          executable,
+          cliVersion,
+        );
         state.nextInstructionIndex++;
         state.status =
           state.nextInstructionIndex === entries.length
@@ -121,14 +124,15 @@ export namespace EvidenceBenchmarkClaudeRunner {
     return state;
   }
 
-  function prepareGoal(
+  function prepareInstruction(
     state: IEvidenceBenchmarkRunState,
     instructionsRoot: string,
     entries: readonly (readonly [string, string])[],
-  ): IEvidenceBenchmarkGoalRecord {
-    const retained: IEvidenceBenchmarkGoalRecord | undefined = state.goals.find(
-      (goal) => goal.index === state.nextInstructionIndex,
-    );
+  ): IEvidenceBenchmarkInstructionRecord {
+    const retained: IEvidenceBenchmarkInstructionRecord | undefined =
+      state.instructions.find(
+        (instruction) => instruction.index === state.nextInstructionIndex,
+      );
     if (retained !== undefined) return retained;
     const entry = entries[state.nextInstructionIndex];
     if (entry === undefined) throw new Error("Instruction cursor is invalid.");
@@ -140,7 +144,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
       path.join(instructionsRoot, "continue.md"),
       "utf8",
     );
-    const goal: IEvidenceBenchmarkGoalRecord = {
+    const instruction: IEvidenceBenchmarkInstructionRecord = {
       index: state.nextInstructionIndex,
       name: entry[0],
       relativePath: entry[1],
@@ -155,18 +159,18 @@ export namespace EvidenceBenchmarkClaudeRunner {
       costUsd: 0,
       elapsedMs: 0,
     };
-    state.goals.push(goal);
-    return goal;
+    state.instructions.push(instruction);
+    return instruction;
   }
 
-  async function executeGoal(
+  async function executeInstruction(
     props: IEvidenceBenchmarkRunProps,
     state: IEvidenceBenchmarkRunState,
-    goal: IEvidenceBenchmarkGoalRecord,
+    instruction: IEvidenceBenchmarkInstructionRecord,
     executable: { command: string; prefix: readonly string[] },
     cliVersion: string,
   ): Promise<void> {
-    const fresh: boolean = !state.goals.some(
+    const fresh: boolean = !state.instructions.some(
       (candidate) => candidate.completed,
     );
     const arguments_: string[] = [
@@ -214,7 +218,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
         signal: null,
       };
     state.processes.push(processRecord);
-    goal.processIndexes.push(processIndex);
+    instruction.processIndexes.push(processIndex);
     await publish(props, state);
 
     const started: bigint = process.hrtime.bigint();
@@ -284,10 +288,10 @@ export namespace EvidenceBenchmarkClaudeRunner {
       processError ??= error;
     });
     try {
-      goal.inputDispatched = true;
+      instruction.inputDispatched = true;
       await publish(props, state);
-      await emit("stdin", goal.objectiveText);
-      child.stdin.end(goal.objectiveText, "utf8");
+      await emit("stdin", instruction.objectiveText);
+      child.stdin.end(instruction.objectiveText, "utf8");
     } catch (error) {
       child.stdin.destroy();
       child.kill();
@@ -299,7 +303,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
     processRecord.elapsedMs = elapsed(started);
     processRecord.exitCode = terminal.exitCode;
     processRecord.signal = terminal.signal;
-    goal.elapsedMs += processRecord.elapsedMs;
+    instruction.elapsedMs += processRecord.elapsedMs;
 
     if (outputError !== undefined) throw outputError;
     if (processError !== undefined) throw processError;
@@ -320,12 +324,12 @@ export namespace EvidenceBenchmarkClaudeRunner {
       result.total_cost_usd,
       "Claude Code total cost",
     );
-    goal.terminalResult = structuredClone(result);
-    goal.tokenUsage = usage;
-    goal.costUsd = costUsd;
+    instruction.terminalResult = structuredClone(result);
+    instruction.tokenUsage = usage;
+    instruction.costUsd = costUsd;
     state.tokenUsage = addUsage(state.tokenUsage, usage);
     state.costUsd += costUsd;
-    goal.completed = true;
+    instruction.completed = true;
     await publish(props, state);
   }
 

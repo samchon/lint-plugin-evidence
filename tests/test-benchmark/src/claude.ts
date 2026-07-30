@@ -35,7 +35,7 @@ const main = async (): Promise<void> => {
     assert.equal(completed.status, "completed");
     assert.equal(completed.cliVersion, "fixture-cli");
     assert.equal(completed.nextInstructionIndex, entries.length);
-    assert.equal(completed.goals.length, entries.length);
+    assert.equal(completed.instructions.length, entries.length);
     assert.equal(completed.processes.length, entries.length);
     assert.equal(completed.tokenUsage.totalTokens, entries.length * 10);
     assert.equal(completed.costUsd, entries.length * 0.01);
@@ -48,7 +48,7 @@ const main = async (): Promise<void> => {
         completed.sessionId,
       );
     });
-    completed.goals.forEach((goal, index) => {
+    completed.instructions.forEach((instruction, index) => {
       const [name, relativePath] = entries[index]!;
       const prescribedText: string = sources
         .get(relativePath)!
@@ -56,25 +56,25 @@ const main = async (): Promise<void> => {
       const continuationText: string = sources
         .get("continue.md")!
         .toString("utf8");
-      assert.equal(goal.name, name);
-      assert.equal(goal.relativePath, relativePath);
-      assert.equal(goal.prescribedText, prescribedText);
-      assert.equal(goal.continuationText, continuationText);
+      assert.equal(instruction.name, name);
+      assert.equal(instruction.relativePath, relativePath);
+      assert.equal(instruction.prescribedText, prescribedText);
+      assert.equal(instruction.continuationText, continuationText);
       assert.equal(
-        goal.objectiveText,
+        instruction.objectiveText,
         `${prescribedText}\n\n${continuationText}`,
       );
-      assert.equal(goal.inputDispatched, true);
-      assert.equal(goal.completed, true);
-      assert.equal(goal.processIndexes.length, 1);
-      assert.equal(goal.tokenUsage.totalTokens, 10);
-      assert.equal(goal.costUsd, 0.01);
+      assert.equal(instruction.inputDispatched, true);
+      assert.equal(instruction.completed, true);
+      assert.equal(instruction.processIndexes.length, 1);
+      assert.equal(instruction.tokenUsage.totalTokens, 10);
+      assert.equal(instruction.costUsd, 0.01);
     });
     assert.deepEqual(
       output
         .filter((event) => event.stream === "stdin")
         .map((event) => event.text),
-      completed.goals.map((goal) => goal.objectiveText),
+      completed.instructions.map((instruction) => instruction.objectiveText),
     );
 
     const interrupted = await EvidenceBenchmarkClaudeRunner.run({
@@ -89,8 +89,8 @@ const main = async (): Promise<void> => {
     });
     assert.equal(interrupted.status, "interrupted");
     assert.equal(interrupted.nextInstructionIndex, 0);
-    assert.equal(interrupted.goals[0]?.inputDispatched, true);
-    assert.equal(interrupted.goals[0]?.completed, false);
+    assert.equal(interrupted.instructions[0]?.inputDispatched, true);
+    assert.equal(interrupted.instructions[0]?.completed, false);
     assert.equal(interrupted.processes[0]?.exitCode, 7);
 
     const resumed = await EvidenceBenchmarkClaudeRunner.run({
