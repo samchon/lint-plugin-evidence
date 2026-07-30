@@ -16,7 +16,7 @@ A provider capacity response is a transient model-server availability failure, n
 
 Treat the benchmark as an issue campaign. Keep one campaign pull request open until every authorized wave finishes. Push deterministic runner, template, instruction, and plugin corrections to that pull request, and record detailed findings, interruptions, recoveries, interventions, and completed phases as formal `COMMENT` reviews.
 
-Assign a dedicated read-only reporting subagent to edit the pull-request body in place every 15 minutes. Keep only this dashboard in the body:
+Assign a dedicated read-only reporting subagent to edit the pull-request body in place every 10 minutes. Keep only this dashboard in the body:
 
 | Engine | Project | Mode | Progress | Quality | Cost | Time |
 | ------ | ------- | ---- | -------- | ------: | ---: | ---: |
@@ -83,7 +83,7 @@ The runner assigns each engine, subject, and arm distinct API, Swagger, Vite dev
 
 ## Observe and resume
 
-Inspect every active cell at least once every 30 seconds: read its `run.json`, controller liveness, newest stdout JSONL and stderr, current workspace, and active gate. Revive a recoverable interruption immediately. Separately, update the campaign pull-request body every 15 minutes with only Engine, Project, Mode, Progress, Quality, Cost, and Time; report interruptions, recoveries, defects, interventions, and completed phases as formal `COMMENT` reviews.
+Inspect every active cell at least once every 30 seconds: read its `run.json`, controller liveness, newest stdout JSONL and stderr, current workspace, and active gate. Revive a recoverable interruption immediately. Separately, update the campaign pull-request body every 10 minutes with only Engine, Project, Mode, Progress, Quality, Cost, and Time; report interruptions, recoveries, defects, interventions, and completed phases as formal `COMMENT` reviews.
 
 Resume a recoverably interrupted cell with its exact engine, subject, arm, and run identity:
 
@@ -97,7 +97,7 @@ The complete operator procedure, including stalled streams, questions, premature
 
 ## Cancel a campaign
 
-When the user cancels a campaign and rejects its partial results, first stop the 15-minute reporting subagent, 30-second supervisor, capacity watchers, cell controllers, model processes, servers, and their owned descendants. Verify that no process references the canceled run roots. Then delete the exact ignored `benchmark/.work/` and `benchmark/result/` trees inside the campaign worktree.
+When the user cancels a campaign and rejects its partial results, first stop the 10-minute reporting subagent, 30-second supervisor, capacity watchers, cell controllers, model processes, servers, and their owned descendants. Verify that no process references the canceled run roots. Then delete the exact ignored `benchmark/.work/` and `benchmark/result/` trees inside the campaign worktree.
 
 Do not delete requirement corpora, templates, instructions, shared caches, source changes, or the independently maintained result repository. Deleted local run data cannot be resumed.
 

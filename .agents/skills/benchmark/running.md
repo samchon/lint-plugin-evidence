@@ -8,12 +8,12 @@ Before any measured agent turn starts, verify that every engine, subject, and ar
 
 Observe every active cell at least once every 30 seconds throughout the run. At each pass, read `run.json`, controller and model-process liveness, the latest raw stdout and stderr, recent commands, and the generated workspace. A status label without its process and stream evidence is not an observation.
 
-The 30-second observation interval is an operational recovery requirement, not a pull-request reporting interval. Refresh the campaign pull-request body every 15 minutes, but handle an interruption, question, suspicious completion, stalled stream, failed gate, or newly discovered shared defect immediately.
+The 30-second observation interval is an operational recovery requirement, not a pull-request reporting interval. Refresh the campaign pull-request body every 10 minutes, but handle an interruption, question, suspicious completion, stalled stream, failed gate, or newly discovered shared defect immediately.
 
 Use two separate agents when the campaign is large enough to justify delegation:
 
 - a liveness supervisor that checks every active cell at least once every 30 seconds and immediately resumes or escalates it; and
-- a read-only reporting subagent that refreshes the pull-request body every 15 minutes from retained state, usage, logs, and workspace inventories.
+- a read-only reporting subagent that refreshes the pull-request body every 10 minutes from retained state, usage, logs, and workspace inventories.
 
 The reporting subagent never edits a measured workspace, frozen input, campaign source, or result ledger. Stop both agents when the campaign ends.
 
@@ -103,19 +103,19 @@ Keep the pull-request body small. After its fixed intent and one campaign-status
 
 `Progress` names the current retained instruction, estimated completion, and state without unexplained abbreviations. `Quality` is `—` until the final audit and becomes only the short final score or verdict; diagnostic prose belongs in a formal review. `Cost` shows total native token usage in whole millions and the selected model's standard API-equivalent price in whole dollars, using `<1M` below one million and never writing a decimal token or dollar value. `Time` is the sum of actual model-process turn durations rounded to whole seconds. Setup, materialization, installation, the launch barrier, controller admission, reporting, and other pre-agent time are reported separately and never enter this table.
 
-Record causes, recoveries, interventions, completed phases, scoring evidence, and clean self-review rounds as formal `COMMENT` pull-request reviews. Do not add that narrative to either engine dashboard. Update the body immediately when a visible state is wrong; do not wait for the next 15-minute pass.
+Record causes, recoveries, interventions, completed phases, scoring evidence, and clean self-review rounds as formal `COMMENT` pull-request reviews. Do not add that narrative to either engine dashboard. Update the body immediately when a visible state is wrong; do not wait for the next 10-minute pass.
 
 Within each engine section, keep a compact turn breakdown for that engine's cells across `skills-contract`, `backend/start`, `backend/review`, `backend/final`, `frontend/start`, `frontend/review`, `frontend/final`, `overall/review`, and `overall/final`. The skills contract becomes measured work only when the engine child process starts; a CLI or configuration failure before model activity is a launch failure, not a completed skills-contract turn. Every completed or active turn reports cumulative whole-million native tokens, whole-dollar API-equivalent cost, and whole-second model-process duration.
 
 Below each engine's turn breakdown, report that engine's implementation scale as counts rather than names. Count database tables, API operations, DTO types and properties, and test functions for each cell. Do not enumerate table or operation names in the pull-request body; detailed inventories belong in a formal review.
 
-The reporting subagent edits the existing body in place every 15 minutes. It updates values inside the two fixed engine sections without changing their structure, appending a new status comment, or replacing detailed formal reviews with dashboard prose.
+The reporting subagent edits the existing body in place every 10 minutes. It updates values inside the two fixed engine sections without changing their structure, appending a new status comment, or replacing detailed formal reviews with dashboard prose.
 
 ## Canceling A Campaign
 
 When the user explicitly cancels the benchmark and rejects its partial results:
 
-1. stop the 15-minute reporting subagent and any 30-second liveness or capacity watcher;
+1. stop the 10-minute reporting subagent and any 30-second liveness or capacity watcher;
 2. stop every selected cell controller, model process, server, and owned descendant;
 3. verify no process still references the canceled run roots;
 4. resolve the exact ignored `benchmark/.work/` and `benchmark/result/` paths inside the campaign worktree; and

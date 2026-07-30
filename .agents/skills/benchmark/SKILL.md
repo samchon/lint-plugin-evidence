@@ -36,7 +36,7 @@ Use this fixed engine matrix unless the user explicitly replaces it:
 
 Launch the complete authorized engine-by-subject-by-arm matrix concurrently. For the first wave, Todo and Reddit across both engines and both arms form eight cells. Record the engine, exact model, effort, CLI version, and invocation in every run. Do not substitute a model after launch or silently inherit an effort setting. Do not launch an engine until its adapter and deterministic proof pass on the exact campaign revision.
 
-Assign a dedicated read-only reporting subagent to refresh the campaign pull-request body every 15 minutes. The live dashboard uses separate `## Codex` and `## Claude Code` sections rather than one combined engine table. That subagent reads retained state, logs, usage, and workspace inventories; it never edits a measured workspace, frozen input, or source branch. The 30-second liveness supervisor is a separate responsibility and must act immediately rather than waiting for the reporting interval.
+Assign a dedicated read-only reporting subagent to refresh the campaign pull-request body every 10 minutes. The live dashboard uses separate `## Codex` and `## Claude Code` sections rather than one combined engine table. That subagent reads retained state, logs, usage, and workspace inventories; it never edits a measured workspace, frozen input, or source branch. The 30-second liveness supervisor is a separate responsibility and must act immediately rather than waiting for the reporting interval.
 
 ## Launch Gate
 
