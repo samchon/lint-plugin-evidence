@@ -155,47 +155,73 @@ const runBenchmark = async (
   initialState: EvidenceBenchmarkState,
 ): Promise<void> => {
   const repository: string = path.resolve(import.meta.dirname, "../../..");
-  const onOutput = (
-    processIndex: number,
-    output: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput,
-  ): void => {
-    appendDurably(
-      records.events,
-      `${JSON.stringify({ processIndex, ...output })}\n`,
-    );
-    appendDurably(records.raw, output.text);
-  };
-  const onState = (state: EvidenceBenchmarkState): void => {
-    replaceDurably(
-      records.state,
-      `${JSON.stringify({ cell, records, state }, null, 2)}\n`,
-    );
-  };
-  onState(initialState);
-  const result =
-    cell.engine === "codex"
-      ? await EvidenceBenchmarkRunner.run({
-          state: codexState(initialState),
-          cwd: records.workspace,
-          instructionsRoot: path.join(repository, "benchmark", "instructions"),
-          model: cell.model,
-          effort: cell.effort,
-          environment: process.env,
-          onOutput,
-          onState,
-        })
-      : await EvidenceBenchmarkClaudeRunner.run({
-          state: claudeState(initialState),
-          cwd: records.workspace,
-          instructionsRoot: path.join(repository, "benchmark", "instructions"),
-          model: cell.model,
-          effort: claudeEffort(cell.effort),
-          environment: process.env,
-          onOutput,
-          onState,
-        });
-  if (result.status !== "completed")
-    throw new Error("Benchmark run was interrupted; resume the retained run.");
+  const eventDescriptor: number = fs.openSync(records.events, "a");
+  const rawDescriptor: number = fs.openSync(records.raw, "a");
+  try {
+    const onOutput = (
+      processIndex: number,
+      output: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput,
+    ): void => {
+      fs.writeFileSync(
+        eventDescriptor,
+        `${JSON.stringify({
+          recordedAt: new Date().toISOString(),
+          processIndex,
+          ...output,
+        })}\n`,
+        "utf8",
+      );
+      fs.writeFileSync(rawDescriptor, output.text, "utf8");
+    };
+    const onState = (state: EvidenceBenchmarkState): void => {
+      fs.fsyncSync(eventDescriptor);
+      fs.fsyncSync(rawDescriptor);
+      replaceDurably(
+        records.state,
+        `${JSON.stringify({ cell, records, state }, null, 2)}\n`,
+      );
+    };
+    onState(initialState);
+    const result =
+      cell.engine === "codex"
+        ? await EvidenceBenchmarkRunner.run({
+            state: codexState(initialState),
+            cwd: records.workspace,
+            instructionsRoot: path.join(
+              repository,
+              "benchmark",
+              "instructions",
+            ),
+            model: cell.model,
+            effort: cell.effort,
+            environment: process.env,
+            onOutput,
+            onState,
+          })
+        : await EvidenceBenchmarkClaudeRunner.run({
+            state: claudeState(initialState),
+            cwd: records.workspace,
+            instructionsRoot: path.join(
+              repository,
+              "benchmark",
+              "instructions",
+            ),
+            model: cell.model,
+            effort: claudeEffort(cell.effort),
+            environment: process.env,
+            onOutput,
+            onState,
+          });
+    if (result.status !== "completed")
+      throw new Error(
+        "Benchmark run was interrupted; resume the retained run.",
+      );
+  } finally {
+    fs.fsyncSync(eventDescriptor);
+    fs.fsyncSync(rawDescriptor);
+    fs.closeSync(eventDescriptor);
+    fs.closeSync(rawDescriptor);
+  }
 };
 
 const parseArguments = (
@@ -330,17 +356,6 @@ const packEvidence = async (
 const initializeAppendOnly = (file: string): void => {
   const descriptor: number = fs.openSync(file, "wx");
   fs.closeSync(descriptor);
-};
-
-const appendDurably = (file: string, content: string): void => {
-  if (content.length === 0) return;
-  const descriptor: number = fs.openSync(file, "a");
-  try {
-    fs.writeFileSync(descriptor, content, "utf8");
-    fs.fsyncSync(descriptor);
-  } finally {
-    fs.closeSync(descriptor);
-  }
 };
 
 const replaceDurably = (file: string, content: string): void => {

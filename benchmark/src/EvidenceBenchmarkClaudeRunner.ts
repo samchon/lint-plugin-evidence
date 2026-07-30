@@ -285,7 +285,21 @@ export namespace EvidenceBenchmarkClaudeRunner {
       child.once("close", (exitCode, signal) => resolve({ exitCode, signal }));
     });
 
-    let stdout = "";
+    const events: Record<string, unknown>[] = [];
+    let stdoutBuffer = "";
+    let eventError: unknown;
+    const collectEvents = (text: string): void => {
+      stdoutBuffer += text;
+      for (;;) {
+        const newline: number = stdoutBuffer.indexOf("\n");
+        if (newline === -1) return;
+        const line: string = stdoutBuffer.slice(0, newline).replace(/\r$/, "");
+        stdoutBuffer = stdoutBuffer.slice(newline + 1);
+        collectEvent(line, events, (error) => {
+          eventError ??= error;
+        });
+      }
+    };
     let output: Promise<void> = Promise.resolve();
     let outputError: unknown;
     const append = (
@@ -293,7 +307,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
       text: string,
     ): void => {
       if (text.length === 0) return;
-      if (stream === "stdout") stdout += text;
+      if (stream === "stdout") collectEvents(text);
       output = output
         .then(() => emit(stream, text))
         .catch((error: unknown) => {
@@ -306,25 +320,29 @@ export namespace EvidenceBenchmarkClaudeRunner {
     child.stdin.once("error", (error) => {
       processError ??= error;
     });
+    let dispatchError: unknown;
     try {
       await emit("stdin", instruction.objectiveText);
       instruction.inputDispatched = true;
       await publish(props, state);
       child.stdin.end(instruction.objectiveText, "utf8");
     } catch (error) {
+      dispatchError = error;
       child.stdin.destroy();
       child.kill();
-      await terminalPromise;
-      throw error;
     }
     const terminal = await terminalPromise;
     await output;
+    collectEvent(stdoutBuffer.replace(/\r$/, ""), events, (error) => {
+      eventError ??= error;
+    });
     processRecord.elapsedMs = elapsed(started);
     processRecord.exitCode = terminal.exitCode;
     processRecord.signal = terminal.signal;
     instruction.elapsedMs += processRecord.elapsedMs;
 
-    const events: Record<string, unknown>[] = parseEvents(stdout);
+    if (dispatchError !== undefined) throw dispatchError;
+    if (eventError !== undefined) throw eventError;
     const result: Record<string, unknown> | undefined = terminalResult(
       events,
       state.sessionId,
@@ -441,11 +459,22 @@ export namespace EvidenceBenchmarkClaudeRunner {
       );
   }
 
-  function parseEvents(stdout: string): Record<string, unknown>[] {
-    return stdout
-      .split(/\r?\n/)
-      .filter((line) => line.length !== 0)
-      .map((line) => object(JSON.parse(line) as unknown));
+  function collectEvent(
+    line: string,
+    events: Record<string, unknown>[],
+    onError: (error: unknown) => void,
+  ): void {
+    if (line.length === 0) return;
+    try {
+      const event: Record<string, unknown> = object(JSON.parse(line));
+      if (
+        (event.type === "system" && event.subtype === "init") ||
+        event.type === "result"
+      )
+        events.push(event);
+    } catch (error) {
+      onError(error);
+    }
   }
 
   function readUsage(value: unknown): IEvidenceBenchmarkTokenUsage {

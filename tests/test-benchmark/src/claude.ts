@@ -156,6 +156,12 @@ const main = async (): Promise<void> => {
     });
     assert.equal(outputFailure.status, "interrupted");
     assert.equal(outputFailure.instructions[0]?.inputDispatched, false);
+    assert.ok((outputFailure.processes[0]?.elapsedMs ?? -1) >= 0);
+    assert.equal(
+      outputFailure.processes[0]?.exitCode === null &&
+        outputFailure.processes[0]?.signal === null,
+      false,
+    );
     const outputFailureResume = await EvidenceBenchmarkClaudeRunner.run({
       state: outputFailure,
       cwd: root,
