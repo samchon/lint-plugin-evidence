@@ -24,18 +24,21 @@ SDK operation and DTO targets are `{@link}` references resolved through imports 
 Collect `backend-tests` exclusions on the exported const in `packages/backend/test/features/TEST_EVIDENCE_EXCLUDE.ts`. The const is a claim-local carrier rather than a test owner; keep truthful `@evidence` on selected feature-test functions. Use the path target for Markdown and the braced inline-link target for TypeScript. The linked symbol must be imported into the carrier file; the braces are required.
 
 ```ts
-import type { IShoppingSale } from "{{apiPackageName}}";
+import type { HttpError } from "{{apiPackageName}}";
 
 /**
  * @evidenceExclude docs/analysis/05-user-experience.md#responsive-grid
  *                  Frontend viewport journeys own this presentation behavior;
  *                  reject this exclusion if the server varies the response.
- * @evidenceExclude {@link IShoppingSale}
- *                  No backend feature exchanges this presentation projection;
- *                  reject this exclusion when an operation returns the type.
+ * @evidenceExclude {@link HttpError.prototype.toJSON}
+ *                  The inherited Nestia SDK dependency owns this transport
+ *                  serializer; reject this exclusion if authored behavior or
+ *                  a requirement begins specifying its serialization.
  */
 export const TEST_EVIDENCE_EXCLUDE = true;
 ```
+
+An authored DTO root that no backend feature constructs or reads is an invented or untested contract finding, not an exclusion reason.
 
 [Evidence Lint](../evidence/SKILL.md) owns the common exclusion rules. This carrier settles only `backend-tests`; every other claim remains independent.
 
