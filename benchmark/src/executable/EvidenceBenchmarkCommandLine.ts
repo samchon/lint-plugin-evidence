@@ -102,10 +102,10 @@ const main = async (): Promise<void> => {
       project: cell.subject,
       arm: cell.arm,
       variables: {
-        name: `evidence-benchmark-${cell.subject}-${cell.arm}`,
-        apiPackageName: `@evidence-benchmark/${cell.subject}-${cell.arm}-api`,
-        backendPackageName: `@evidence-benchmark/${cell.subject}-${cell.arm}-backend`,
-        frontendPackageName: `@evidence-benchmark/${cell.subject}-${cell.arm}-frontend`,
+        name: `benchmark-${cell.subject}-${cell.arm}`,
+        apiPackageName: `@benchmark/${cell.subject}-${cell.arm}-api`,
+        backendPackageName: `@benchmark/${cell.subject}-${cell.arm}-backend`,
+        frontendPackageName: `@benchmark/${cell.subject}-${cell.arm}-frontend`,
       },
       artifact:
         archive === undefined
