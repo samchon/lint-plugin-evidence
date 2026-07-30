@@ -95,14 +95,7 @@ Never substitute stock `tsc`, `ts-node`, or a separate ESLint invocation. A gree
 
 ## Build Order
 
-Each step consumes the previous step's output, so the order is not a preference.
-
-1. Backend `build:prisma` generates the Prisma client from `prisma/schema`. Nothing that imports the client compiles before this runs.
-2. Backend `pnpm build:api` compiles the authored DTO contract while it is still changing.
-3. Backend `build:main` compiles the complete controller contract and server against those DTOs.
-4. After every operation and DTO is settled, backend `build:sdk` regenerates `src/functional` and `swagger.json`, then compiles the complete API package.
-5. Backend `build:test` compiles tests against that fixed SDK.
-6. The frontend build type-checks the application against the regenerated SDK.
+The backend builds in authored dependency order: Prisma, DTOs, controllers, the settled generated SDK, then tests. [Backend wiring](../backend/wiring.md) owns the exact commands and regeneration boundary; the [Backend skill](../backend/SKILL.md) owns the artifact phase order.
 
 The workspace-root `pnpm build` is an Overall Phase command after every package exists. Do not use it during the Backend Phase, because it also compiles the unfinished frontend. Use the package commands above separately so a failure remains assigned to its authored layer.
 

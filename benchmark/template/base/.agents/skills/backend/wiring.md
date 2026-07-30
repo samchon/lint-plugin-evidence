@@ -119,25 +119,6 @@ Generation, build, lint, and test commands share generated API files, Prisma out
 
 A generator temporarily owns its output. Wait for it to finish before another command reads that output. Parallel execution here is not faster: one process can delete or replace a barrel while another compiler is reading it.
 
-## The SDK Build, End To End
-
-This is the loop everything else depends on, and getting it wrong produces failures that look like they came from somewhere else.
-
-**1. The schema generates the client.** `build:prisma` reads `prisma/schema/`, writes the typed client into the backend's source tree, and regenerates `docs/ERD.md` from the same comments. Every provider, transformer, and collector imports from that output, so none of them compile before it runs.
-
-**2. `prepare` pushes the schema to the database file.** SQLite means this creates or updates a local file with nothing to install and nothing to connect to. Run it after any schema change, or the running server queries columns that do not exist.
-
-**3. The authored contract is compiled before generation.** Finish every DTO and controller signature, run backend `build:api`, and run `build:main`. Keep changing the authored contract until both packages agree; do not repeatedly generate an SDK from a contract that is still being designed.
-
-**4. The settled controllers generate the SDK.** `build:sdk` reads the authored `src/controllers` directory from `nestia.config.ts`, emits `packages/api/src/functional/**` and `swagger.json`, and compiles the complete API package. Two consequences follow directly:
-
-- **A controller outside the owned directory is absent from runtime and the SDK.** A controller inside it needs no second registration edit, and the generated population must match runtime discovery.
-- **The JSDoc on each method becomes the SDK function's documentation and the OpenAPI description.** A documentation edit is a contract change, so it needs this step too.
-
-**5. Everything downstream consumes the regenerated SDK.** Run `build:test` after generation. The e2e tests import their accessors from the SDK, and the frontend later imports the same accessors and types.
-
-That is why an unregenerated change appears to work. The backend still compiles, the server still runs, and only a consumer notices, on the next clean build, in a package nobody was editing.
-
 ## When To Regenerate
 
 | Change                                   | Run during authoring                                      |
@@ -153,40 +134,4 @@ When a DTO or operation changes after SDK generation, finish the complete contra
 
 ## Consuming The SDK
 
-The tests and the frontend consume the same package and the same way.
-
-```ts
-import api, { IShoppingSale, IPage } from "{{apiPackageName}}";
-
-const connection: api.IConnection = { host: "http://127.0.0.1:37001" };
-const page: IPage<IShoppingSale.ISummary> =
-  await api.functional.shopping.customer.sale.index(connection, {
-    limit: 20,
-  });
-```
-
-The default export is `api`, and accessors live under `api.functional` along the route path. Types are named exports from the same package.
-
-Authentication is not something a consumer wires up. A lifecycle accessor writes the issued token into the connection it was given, because its controller method declares `@setHeader token.access Authorization`. The caller passes the same connection object to later calls and is authenticated.
-
-The API skill owns the full consumption contract, including simulation mode.
-
-## The Order Of A First Run
-
-Given only the requirement documents and an empty repository, this is the sequence that gets to a running server.
-
-1. Read every document under `docs/analysis/`.
-2. Write the schema under `packages/backend/prisma/schema/`, then `build:prisma` and `prepare`.
-3. Finish the DTOs under `packages/api/src/structures/`, then run `pnpm build:api` from `packages/backend`.
-4. Finish every controller stub and its contract JSDoc under `packages/backend/src/controllers/`, then run `build:main` and confirm discovery sees the expected population.
-5. Once the DTO and operation contract is settled, run `build:sdk`, then write the tests under `packages/backend/test/features/` and run `build:test`.
-6. Write the transformers under `packages/backend/src/transformers/` and the collectors under `packages/backend/src/collectors/`, one per DTO that needs each.
-7. Realize: swap each stub body for its call into a provider under `packages/backend/src/providers/` and remove its implementation-pending sentence, then `build:main` and run the tests.
-8. Start the server and confirm it answers.
-9. Build the frontend against simulation, then against this server.
-
-Each step reads everything the earlier steps produced. A step that cannot proceed usually means an earlier one is incomplete, and the fix belongs there.
-
-**Steps 6 and 7 are in that order for a reason.** A provider that is written before its transformer exists inlines a selection and a mapping, and that inline copy is what the transformer then has to be reconciled with. Writing the read side and the write side first leaves the provider with only the business logic, which is what it is for.
-
-**Step 5 before step 7 is deliberate too.** Tests written from the contract and the requirements describe what should happen; tests written after the provider describe what it happens to do, and the difference is invisible in a green suite.
+Tests and the frontend consume the same generated package. The [API skill](../api/SKILL.md) owns imports, connection mutation, authentication headers, simulation, and authored-versus-generated exports.
