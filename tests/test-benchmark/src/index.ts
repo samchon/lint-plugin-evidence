@@ -597,6 +597,24 @@ const writeInstructions = (root: string): Map<string, Buffer> => {
   return sources;
 };
 
+const readObjective = (
+  root: string,
+  sources: ReadonlyMap<string, Buffer>,
+  entry: (typeof ENTRIES)[number],
+): string => {
+  const prescribed: Buffer | undefined = sources.get(entry[1]);
+  const continuation: Buffer | undefined = sources.get("continue.md");
+  assert.ok(
+    prescribed,
+    `Missing fixture source: ${path.join(root, ...entry[1].split("/"))}`,
+  );
+  assert.ok(
+    continuation,
+    `Missing fixture source: ${path.join(root, "continue.md")}`,
+  );
+  return `${prescribed.toString("utf8")}\n\n${continuation.toString("utf8")}`;
+};
+
 const fakeAppServer = (): void => {
   const fail: boolean = process.argv.includes("--fail");
   const lateError: boolean = process.argv.includes("--late-error");
