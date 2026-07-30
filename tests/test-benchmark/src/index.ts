@@ -27,8 +27,9 @@ const ENTRIES = [
  *
  * 1. Complete every prescribed Goal through one fake app-server process.
  * 2. Assert exact text, automatic progression, token deltas, and raw records.
- * 3. Assert a non-zero native exit is retained as an interruption.
- * 4. Assert callback errors retain serializable Error identity and context.
+ * 3. Assert a late protocol error cannot survive as completed.
+ * 4. Assert a non-zero native exit is retained as an interruption.
+ * 5. Assert callback errors retain serializable Error identity and context.
  */
 const main = async (): Promise<void> => {
   const root: string = fs.mkdtempSync(
@@ -133,6 +134,22 @@ const main = async (): Promise<void> => {
       assert.equal(goal.tokenUsage.outputTokens, 4);
     });
     assert.equal(snapshots.at(-1)?.status, "completed");
+
+    const lateProtocolError = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--late-error"],
+      onOutput: () => undefined,
+    });
+    assert.equal(lateProtocolError.status, "interrupted");
+    assert.match(
+      lateProtocolError.interruption?.message ?? "",
+      /fixture\/late-error/,
+    );
 
     const invalidCursor = structuredClone(completed);
     invalidCursor.status = "interrupted";
@@ -265,6 +282,7 @@ const writeInstructions = (root: string): Map<string, Buffer> => {
 
 const fakeAppServer = (): void => {
   const fail: boolean = process.argv.includes("--fail");
+  const lateError: boolean = process.argv.includes("--late-error");
   let goalIndex = 0;
   let waitingForIdle = false;
   const send = (value: unknown, callback?: () => void): void => {
@@ -370,6 +388,8 @@ const fakeAppServer = (): void => {
             status: { type: "idle" },
           },
         });
+        if (lateError && goalIndex === ENTRIES.length)
+          send({ id: -1, method: "fixture/late-error" });
       }, 10);
     });
 };

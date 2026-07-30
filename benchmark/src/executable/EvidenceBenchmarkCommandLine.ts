@@ -169,6 +169,8 @@ const runBenchmark = async (
   records: IEvidenceBenchmarkRecordPaths,
   initialState: EvidenceBenchmarkState,
 ): Promise<void> => {
+  if (initialState.arm !== cell.arm)
+    throw new Error("Retained benchmark state uses a different arm.");
   const repository: string = path.resolve(import.meta.dirname, "../../..");
   const environment: NodeJS.ProcessEnv = { ...process.env };
   delete environment.EVIDENCE_BENCHMARK_ARCHIVE;

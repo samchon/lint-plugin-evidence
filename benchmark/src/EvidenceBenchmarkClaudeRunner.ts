@@ -583,18 +583,17 @@ export namespace EvidenceBenchmarkClaudeRunner {
     if (process.platform !== "win32") return { command: "claude", prefix: [] };
     const environment: NodeJS.ProcessEnv = props.environment ?? process.env;
     const executable: string | undefined = locateWindowsCommand(
-      "claude.exe",
+      "claude",
       environment,
     );
-    if (executable !== undefined) return { command: executable, prefix: [] };
-    const shim: string | undefined = locateWindowsCommand(
-      "claude.cmd",
-      environment,
-    );
-    const command: string | undefined = environment.ComSpec;
-    if (shim === undefined || command === undefined)
+    if (executable === undefined)
       throw new Error("Claude Code was not found on PATH.");
-    return { command, prefix: ["/d", "/s", "/c", shim] };
+    if (path.extname(executable).toLowerCase() === ".exe")
+      return { command: executable, prefix: [] };
+    const command: string | undefined = environment.ComSpec;
+    if (command === undefined)
+      throw new Error("Windows command processor was not found.");
+    return { command, prefix: ["/d", "/s", "/c", executable] };
   }
 
   function locateWindowsCommand(
@@ -610,7 +609,10 @@ export namespace EvidenceBenchmarkClaudeRunner {
     if (result.status !== 0) return undefined;
     return (result.stdout ?? "")
       .split(/\r?\n/)
-      .find((candidate) => candidate.length !== 0);
+      .find((candidate) => {
+        const extension: string = path.extname(candidate).toLowerCase();
+        return extension === ".exe" || extension === ".cmd";
+      });
   }
 
   function readVersion(
