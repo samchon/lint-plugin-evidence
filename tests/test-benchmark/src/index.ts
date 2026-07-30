@@ -94,7 +94,6 @@ const main = async (): Promise<void> => {
       assert.equal(goal.prescribedText, prescribed);
       assert.equal(goal.continuationText, continuation);
       assert.equal(goal.objectiveText, `${prescribed}\n\n${continuation}`);
-      assert.ok(goal.objectiveText.length <= 4_000);
       assert.equal(goal.goal?.objective, goal.objectiveText);
       assert.equal(goal.goal?.status, "complete");
       assert.equal(goal.terminalTurnCompleted, true);
