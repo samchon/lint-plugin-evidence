@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   template:
-    name: Todo plain template (${{ matrix.os }})
+    name: Plain backend template (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -58,5 +58,5 @@ jobs:
       - name: Check benchmark template test
         run: pnpm --filter test-benchmark check
 
-      - name: Test Todo Plain backend template
+      - name: Test Plain backend template
         run: pnpm --filter test-benchmark start
