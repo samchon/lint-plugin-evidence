@@ -29,6 +29,7 @@ AGENTS.md and SKILL.md files are operational documents for humans and agents. Ke
 - **Give each paragraph one job.** Split purpose, rule, rationale, procedure, and consequence when combining them would make the reader unpack a dense block.
 - **Use structure as compression.** Use numbered lists for ordered procedures, bullets for choices or checklists, tables for repeated mappings, and code blocks for exact commands. Do not hide a workflow inside one long sentence.
 - **State the rule before its reason.** Use negative phrasing only for a named failure mode that the affirmative rule does not already exclude.
+- **Review the instruction stack.** For every AGENTS.md or skill change, identify one owner for each rule, replace duplicate statements with links, check that domain procedure cannot weaken a global judgment or widen authority, and require an explicit stop or recovery boundary wherever work may repeat.
 
 The Voice section's "do not restate; link instead" rule applies here too: an agent-instruction file points at the wiki, a README, or a source comment rather than paraphrasing it.
 

@@ -46,6 +46,12 @@ Schedule pressure, an absent user, or a nearly finished branch does not weaken t
 
 Codex and Claude Code measured launches use the installed local CLIs, their existing authenticated accounts, and each CLI's native non-interactive YOLO flag. Do not add a second permission profile or OS-sandbox policy inside the adapter. Launch only disposable measured workspaces, reject controller environments whose variable names identify credentials or proxies, freeze and audit the exact invocation, and report that model-launched shell commands are not filesystem- or network-isolated. The generated SQLite application requires no container runtime.
 
+## Design Reset Boundary
+
+Apply AGENTS.md's **Reset a failing design** rule before launch, resume, or repair. A deterministic failure class that survives one correction stops the campaign before another patch: collapse duplicate owners, remove unused validation or recovery layers, and prove the replacement through the real launch path without a model call.
+
+A verified provider-capacity failure, timeout, tool interruption, or controller loss remains recoverable retained state; it does not by itself indict the runner design. An agent-declared blockage, premature completion, malformed state, leaked process, or repeated template defect is not external recovery evidence and must not acquire another paid attempt through an added exception.
+
 ## Subject Order
 
 Run Todo and Reddit first, with Codex and Claude Code evidence and plain cells started concurrently after the all-cell preparation barrier. Run Shopping and ERP only after the cheaper subjects are stable and their requirements are ready.
