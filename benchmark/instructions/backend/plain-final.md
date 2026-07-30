@@ -11,7 +11,7 @@ Each complete review round must include these gates:
 1. Re-read every requirement and decide its API and backend applicability.
 2. Review every current schema unit, DTO, controller operation, provider branch, database access, backend test assertion, negative path, authorization rule, and generated SDK contract.
 3. Fix every finding.
-4. From `packages/backend`, run `pnpm build:prisma` and `pnpm prepare`.
+4. From `packages/backend`, run `pnpm build:prisma` and `pnpm prepare:database`.
 5. From `packages/backend`, run `pnpm build:api` and `pnpm build:main`.
 6. Confirm every operation and DTO is settled, then run `pnpm build:sdk`.
 7. Run `pnpm build:test`, `pnpm lint`, `pnpm test`, and the live-server checks.

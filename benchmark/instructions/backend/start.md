@@ -9,7 +9,7 @@ The skills-contract turn remains binding. Before editing, re-read `AGENTS.md` an
 Complete this phase in dependency order:
 
 1. read and inventory the entire requirement corpus;
-2. design the database schema, then run `pnpm build:prisma` and `pnpm prepare` from `packages/backend`;
+2. design the database schema, then run `pnpm build:prisma` and `pnpm prepare:database` from `packages/backend`;
 3. finish the flat exported DTOs, then run `pnpm build:api` from `packages/backend`;
 4. finish every controller operation and contract, then run `pnpm build:main` from `packages/backend`;
 5. only after every operation and DTO is settled, run `pnpm build:sdk`;
