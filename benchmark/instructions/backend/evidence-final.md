@@ -12,7 +12,7 @@ Restore the backend Evidence configuration before the closing review:
 
 Finish the backend phase under the fully active backend Evidence Graph:
 
-1. From `packages/backend`, run `pnpm build:prisma` and `pnpm prepare`.
+1. From `packages/backend`, run `pnpm build:prisma` and `pnpm prepare:database`.
 2. Run `pnpm build:api` and `pnpm build:main`.
 3. Run `pnpm lint` with all five backend claims active.
 4. Confirm every operation and DTO is settled, then run `pnpm build:sdk`.

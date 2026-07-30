@@ -53,7 +53,7 @@ The frontend already has working defaults. Copy `packages/frontend/.env.example`
 
 The executable imports one class and calls one method. Parsing, orchestration, and setup live in the class, never in the entry point.
 
-Database preparation is a separate explicit step. `pnpm prepare` pushes the Prisma schema to the SQLite file without resetting existing data. `pnpm schema` enters the guarded `MySetupWizard` path and force-resets the local database. `MyBackend.open()` does neither.
+Database preparation is a separate explicit step. `pnpm prepare:database` pushes the Prisma schema to the SQLite file without resetting existing data. `pnpm schema` enters the guarded `MySetupWizard` path and force-resets the local database. `MyBackend.open()` does neither.
 
 ## Database Errors Are Mapped At The Boundary, Once
 
@@ -85,7 +85,7 @@ Two generators produce code that the rest of the repository imports, and both re
 
 **Prisma** is configured in two places, and the split is not optional. `main.prisma` declares the datasource provider and the two generators. **The connection lives in `prisma.config.ts` at the backend root**, because a schema file no longer accepts a `url`.
 
-Its `schema` points at the folder rather than a file, which is what makes the split-by-domain layout work. The url is the SQLite file, so cloning the repository and running `prepare` is the whole setup. Writing `url` into `main.prisma` instead is rejected, and the message names the property rather than the mistake.
+Its `schema` points at the folder rather than a file, which is what makes the split-by-domain layout work. The url is the SQLite file, so running `prepare:database` after authoring the schema is the whole database setup. Writing `url` into `main.prisma` instead is rejected, and the message names the property rather than the mistake.
 
 **Nestia** is configured in `nestia.config.ts` at the backend root.
 
@@ -100,7 +100,7 @@ Three of its settings matter beyond the paths.
 ```bash
 cd packages/backend
 pnpm build:prisma   # generate the client and the ERD
-pnpm prepare        # push the schema to the database
+pnpm prepare:database # push the schema to the database
 
 pnpm build:api      # compile authored DTOs through the backend-owned command
 pnpm build:main     # compile controllers and backend source
@@ -123,7 +123,7 @@ A generator temporarily owns its output. Wait for it to finish before another co
 
 | Change                                   | Run during authoring                                      |
 | ---------------------------------------- | --------------------------------------------------------- |
-| a model, a column, or a schema comment   | backend `build:prisma`, then `prepare`                    |
+| a model, a column, or a schema comment   | backend `build:prisma`, then `prepare:database`           |
 | a DTO in `packages/api/src/structures`   | backend `build:api`                                       |
 | a controller signature, route, or method | backend `build:main`                                      |
 | JSDoc on a controller method             | backend `build:main`                                      |

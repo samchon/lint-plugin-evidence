@@ -14,7 +14,7 @@
     "dev:frontend": "pnpm --filter {{frontendPackageName}} --fail-if-no-match dev",
     "format": "pnpm -r --if-present format",
     "lint": "pnpm --filter {{backendPackageName}} --fail-if-no-match build:prisma && pnpm -r --if-present lint",
-    "prepare:database": "pnpm --filter {{backendPackageName}} --fail-if-no-match prepare",
+    "prepare:database": "pnpm --filter {{backendPackageName}} --fail-if-no-match prepare:database",
     "schema:database": "pnpm --filter {{backendPackageName}} --fail-if-no-match schema",
     "start": "pnpm --filter {{backendPackageName}} --fail-if-no-match start",
     "test": "pnpm test:backend && pnpm test:frontend",
