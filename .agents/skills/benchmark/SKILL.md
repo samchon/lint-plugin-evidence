@@ -112,7 +112,7 @@ If the runner rejects the CLI version, cell identity, native checkpoint, or term
 Each run keeps:
 
 - `workspace/`: the prepared baseline and measured agent changes;
-- `state.json`: cell identity, record paths, session and CLI identity, instruction cursor and records, cumulative native token categories, process records, status, and interruption details;
+- `state.json`: cell identity including the benchmark Git revision, record paths, session and CLI identity, instruction cursor and records, cumulative native token categories, process records, status, and interruption details;
 - `events.jsonl`: every native stdin, stdout, and stderr chunk with process index, sequence, stream, and process-relative elapsed time; and
 - `raw.log`: the same raw chunks concatenated in delivery order.
 
