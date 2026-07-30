@@ -46,7 +46,7 @@ pnpm --filter @samchon/evidence-benchmark resume -- <engine> todo evidence <run-
 
 Resume reuses the retained workspace, nested Git history, frozen instructions, runtime assignment, engine session, logs, elapsed time, and token ledger. It skips only the accepted canonical prefix. A final turn is retained only while its current lint-restoration seal still matches; otherwise that turn and every accepted successor are invalidated, and execution restarts from that boundary.
 
-Claude Code measured launches and resumes use the installed local CLI and the same authenticated account. Its OS sandbox is enabled where the CLI supports it. Native Windows runs remain local and must retain the recorded workspace-scoped built-in tools, frozen inputs, secret-denying child environment, and exact model/session invocation; report that Bash lacks Claude's OS-level filesystem and network enforcement on that platform.
+Codex and Claude Code measured launches and resumes use the installed local CLIs, the same authenticated accounts, and each CLI's native non-interactive YOLO flag. Retain the exact model, session, structured-output, tool, mutable-settings, and frozen-input invocation. Reject a controller environment whose variable names identify credentials or proxies before starting a model process. Report that model-launched shell commands are not filesystem- or network-isolated; do not reintroduce an adapter-owned permission or OS-sandbox policy.
 
 A launched command is not proof of recovery. Verify all three:
 

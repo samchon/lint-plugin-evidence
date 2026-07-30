@@ -630,7 +630,8 @@ export namespace EvidenceBenchmarkTurnLedger {
           line,
         ),
       ).length;
-    const denialCount: number = structuredDenials + stderrDenials;
+    const denialCount: number =
+      structuredDenials !== 0 ? structuredDenials : stderrDenials;
     const blockerCount: number =
       structuredOutcome?.status === "blocked"
         ? structuredOutcome.blockers.length
@@ -709,11 +710,15 @@ export namespace EvidenceBenchmarkTurnLedger {
       );
     const structuredOutcome: IStructuredOutcome | undefined =
       readStructuredOutcome(result?.structured_output);
+    const structuredTerminalReason: boolean =
+      structuredOutputRequired === true
+        ? result?.stop_reason === "tool_use" && structuredOutcome !== undefined
+        : result?.stop_reason === "end_turn";
     const terminal: boolean =
       result?.subtype === "success" &&
       result.is_error === false &&
       result.terminal_reason === "completed" &&
-      result.stop_reason === "end_turn" &&
+      structuredTerminalReason &&
       result.api_error_status === null &&
       denialList !== undefined &&
       usage !== undefined &&
@@ -993,6 +998,22 @@ export namespace EvidenceBenchmarkTurnLedger {
     const outputSchemaValid: boolean =
       retainedOutputSchema === expectedOutputSchema &&
       retainedTurnOutputSchema(expectedOutputSchema);
+    const nativeYolo: boolean =
+      args.includes("--dangerously-bypass-approvals-and-sandbox") &&
+      retainedRoots === undefined &&
+      configValue(args, "permissions.benchmark.filesystem.:workspace_roots") ===
+        undefined &&
+      !args.includes('approval_policy="never"');
+    const retainedProfile: boolean =
+      !args.includes("--dangerously-bypass-approvals-and-sandbox") &&
+      args.includes('approval_policy="never"') &&
+      configValue(args, "permissions.benchmark.filesystem.:workspace_roots") ===
+        '{"."="write"}' &&
+      (retainedRoots === expectedRoots || retainedRoots === legacyRoots);
+    const executionModeValid: boolean =
+      props.invocationPolicy === "current"
+        ? nativeYolo
+        : nativeYolo || retainedProfile;
     if (
       !args.includes("--json") ||
       option(args, "--enable") !== "goals" ||
@@ -1001,22 +1022,16 @@ export namespace EvidenceBenchmarkTurnLedger {
       !args.includes("--ignore-user-config") ||
       !args.includes("--ignore-rules") ||
       !args.includes("--strict-config") ||
-      !args.includes('approval_policy="never"') ||
-      args.includes("--dangerously-bypass-approvals-and-sandbox") ||
+      !executionModeValid ||
       args.some((value) =>
         value.includes("shell_environment_policy.inherit=all"),
       ) ||
-      configValue(args, "permissions.benchmark.filesystem.:workspace_roots") !==
-        '{"."="write"}' ||
-      (props.invocationPolicy === "current"
-        ? retainedRoots !== expectedRoots
-        : retainedRoots !== expectedRoots && retainedRoots !== legacyRoots) ||
       (props.invocationPolicy === "current"
         ? !outputSchemaValid
         : retainedOutputSchema !== undefined && !outputSchemaValid)
     )
       throw new Error(
-        "Benchmark Codex attempt does not retain the required model, effort, goal, and isolation invocation.",
+        "Benchmark Codex attempt does not retain the required model, effort, goal, and native YOLO invocation.",
       );
     if (
       resumed
@@ -1087,7 +1102,6 @@ export namespace EvidenceBenchmarkTurnLedger {
       "--allow-dangerously-skip-permissions",
       "--bare",
       "--continue",
-      "--dangerously-skip-permissions",
       "--fork-session",
       "--no-session-persistence",
     ];
@@ -1097,6 +1111,18 @@ export namespace EvidenceBenchmarkTurnLedger {
     );
     const outputSchemaValid: boolean =
       retainedOutputSchema === turnOutputSchemaJson();
+    const nativeYolo: boolean =
+      args.includes("--dangerously-skip-permissions") &&
+      option(args, "--permission-mode") === undefined &&
+      retainedAllowedTools === undefined;
+    const retainedPolicy: boolean =
+      !args.includes("--dangerously-skip-permissions") &&
+      option(args, "--permission-mode") === "dontAsk" &&
+      allowedTools !== undefined;
+    const executionModeValid: boolean =
+      props.invocationPolicy === "current"
+        ? nativeYolo
+        : nativeYolo || retainedPolicy;
     if (
       !args.includes("-p") ||
       option(args, "--output-format") !== "stream-json" ||
@@ -1105,9 +1131,8 @@ export namespace EvidenceBenchmarkTurnLedger {
       !args.includes("--include-hook-events") ||
       option(args, "--model") !== props.model ||
       option(args, "--effort") !== props.effort ||
-      option(args, "--permission-mode") !== "dontAsk" ||
+      !executionModeValid ||
       option(args, "--tools") !== "Bash,Edit,Write,Read,Glob,Grep,Agent" ||
-      allowedTools === undefined ||
       option(args, "--disallowedTools") !== "WebFetch,WebSearch" ||
       option(args, "--setting-sources") !== "" ||
       !args.includes("--strict-mcp-config") ||
@@ -1124,16 +1149,18 @@ export namespace EvidenceBenchmarkTurnLedger {
         : retainedOutputSchema !== undefined && !outputSchemaValid)
     )
       throw new Error(
-        "Benchmark Claude Code attempt does not retain the required model, effort, tools, and isolation invocation.",
+        "Benchmark Claude Code attempt does not retain the required model, effort, tools, and native YOLO invocation.",
       );
     assertClaudeMcpConfig(option(args, "--mcp-config"));
-    assertClaudeSettings(
-      option(args, "--settings"),
-      props.repository,
-      props.workspace,
-      !(path.isAbsolute(launcher) && basename === "claude.exe"),
-      allowedTools,
-    );
+    if (nativeYolo) assertClaudeYoloSettings(option(args, "--settings"));
+    else
+      assertClaudeSettings(
+        option(args, "--settings"),
+        props.repository,
+        props.workspace,
+        !(path.isAbsolute(launcher) && basename === "claude.exe"),
+        allowedTools!,
+      );
     const resumed: boolean = option(args, "--resume") !== undefined;
     if (
       resumed
@@ -1164,6 +1191,33 @@ export namespace EvidenceBenchmarkTurnLedger {
     )
       throw new Error(
         "Benchmark Claude Code attempt does not retain an empty strict MCP configuration.",
+      );
+  }
+
+  function assertClaudeYoloSettings(value: string | undefined): void {
+    let parsed: unknown;
+    try {
+      parsed = value === undefined ? undefined : JSON.parse(value);
+    } catch {
+      parsed = undefined;
+    }
+    const settings: Record<string, unknown> | undefined = isObject(parsed)
+      ? parsed
+      : undefined;
+    const environment: unknown = settings?.env;
+    if (
+      !isObject(environment) ||
+      settings?.permissions !== undefined ||
+      settings?.sandbox !== undefined ||
+      settings?.autoMemoryEnabled !== false ||
+      environment.ANTHROPIC_DEFAULT_HAIKU_MODEL !== "claude-sonnet-5" ||
+      environment.ANTHROPIC_DEFAULT_SONNET_MODEL !== "claude-sonnet-5" ||
+      environment.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS !== "0" ||
+      environment.CLAUDE_CODE_SUBAGENT_MODEL !== "claude-sonnet-5" ||
+      environment.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB !== undefined
+    )
+      throw new Error(
+        "Benchmark Claude Code attempt does not retain the native YOLO settings.",
       );
   }
 
