@@ -197,7 +197,7 @@ This is not a hand-written mock, and understanding what it actually does is what
 
 **It validates the typed boundary exactly as the server would.** Look again at the generated `simulate`: it runs `typia.assert` over each path parameter and over the request body, through the same DTO validator the server's boundary uses. A malformed type, format, or declared range fails here for the same contract reason. A provider-owned authorization, lifecycle, uniqueness, concurrency, or other business refusal is not simulated because no provider runs.
 
-**It returns a value generated from the response type.** `typia.random<IShoppingSale>()` produces a value satisfying the declared type and every tag on it: a real uuid where the contract says uuid, a value inside the declared range where it says minimum and maximum, a member of the union where it says union. The response cannot be shaped wrongly, because it is generated from the contract rather than written by someone guessing at it.
+**It returns a value generated from the response type.** `typia.random<IShoppingSale>()` produces a value satisfying the declared type and every tag on it: a real uuid where the contract says uuid, a value inside the declared range where it says minimum and maximum, a member of the union where it says union. It proves the declared type-and-tag shape, not semantic consistency between independently generated fields.
 
 So a screen built against simulation is built against the real contract. If it renders a field the contract does not have, it breaks immediately.
 

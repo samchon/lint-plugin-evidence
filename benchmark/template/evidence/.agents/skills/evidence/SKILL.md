@@ -23,7 +23,7 @@ Use the owning layer document for tag placement and examples:
 
 ## Acknowledgement Placement
 
-Ownership and non-applicability have different homes. Keep every `@evidence` on the actual declaration selected by the claim: a model or field, DTO type or property, controller method, test function, screen, or journey. Never move ownership evidence into a central ledger.
+Ownership and non-applicability have different homes. Keep every `@evidence` on the actual declaration selected by the claim: a model, DTO type or property, controller method, test function, screen, or journey. Never move ownership evidence into a central ledger.
 
 TypeScript exclusions may be collected on the public const in the matching claim population:
 
@@ -35,7 +35,7 @@ TypeScript exclusions may be collected on the public const in the matching claim
 
 The const's property symbol need not match the claim's ownership selector. The file still must match that claim, the export must remain public, and every target remains claim-local and reference-local. The same carrier tag may participate in multiple matching claim-reference pairs: in particular, a Prisma model on `DTO_EVIDENCE_EXCLUDE` is both a `dto-types` model target and an ancestor of that model's selected `dto-properties` columns. Use an exact column target when only the property obligation is excluded.
 
-Schema exclusions may be collected as unattached top-level `/// @evidenceExclude` lines in `packages/backend/prisma/schema/exclude.schema`. That lint-only file is an explicit input of `schema-models` and is not a Prisma generate, migration, or ERD input. Only exclusions belong there; `@evidence` remains directly above its model or field.
+Schema exclusions may be collected as unattached top-level `/// @evidenceExclude` lines in `packages/backend/prisma/schema/exclude.schema`. That lint-only file is an explicit input of `schema-models` and is not a Prisma generate, migration, or ERD input. Only exclusions belong there; `@evidence` remains directly above its selected model.
 
 ## Configuration Ownership
 
@@ -74,96 +74,14 @@ This matrix is the canonical claim-state contract:
 
 Before `build:sdk`, the schema, DTO, and API-operation claims must all be active and healthy. Backend, Frontend, and Overall reports require every claim shown as active for that matrix gate to be restored. If frontend work proves a named backend defect, restore and revalidate every affected backend claim, regenerate affected output, and re-pass the Backend Phase gate before resuming frontend work.
 
-For example, this is a valid temporary deferral of `api-operations` in `packages/backend/lint.config.ts`:
-
-<!-- claim-deferral-example: packages/backend/lint.config.ts#api-operations -->
-```ts
-claims: [
-  // {
-  //   name: "api-operations",
-  //   type: "typescript",
-  //   files: ["src/controllers/**/*.ts"],
-  //   symbol: "function",
-  //   reference: [
-  //     {
-  //       type: "markdown",
-  //       root: "../..",
-  //       files: ["docs/analysis/**/*.md"],
-  //       symbol: ["h2", "h3"],
-  //     },
-  //     {
-  //       type: "prisma",
-  //       files: ["prisma/schema/**/*.prisma"],
-  //       symbol: ["model"],
-  //     },
-  //   ],
-  // },
-],
-```
-
-This is the same operation for `dto-properties` in `packages/backend/lint.config.ts`:
-
-<!-- claim-deferral-example: packages/backend/lint.config.ts#dto-properties -->
-```ts
-claims: [
-  // {
-  //   name: "dto-properties",
-  //   type: "typescript",
-  //   root: "../api",
-  //   files: ["src/structures/**/*.ts"],
-  //   symbol: "property",
-  //   reference: {
-  //     type: "prisma",
-  //     files: ["prisma/schema/**/*.prisma"],
-  //     symbol: ["column"],
-  //   },
-  // },
-],
-```
-
-This is the same operation for `frontend-screens` in `packages/frontend/lint.config.ts`:
-
-<!-- claim-deferral-example: packages/frontend/lint.config.ts#frontend-screens -->
-```ts
-claims: [
-  // {
-  //   name: "frontend-screens",
-  //   type: "typescript",
-  //   files: ["src/components/*/*-page.tsx", "!src/components/dev/**"],
-  //   symbol: "function",
-  //   reference: {
-  //     type: "markdown",
-  //     root: "../..",
-  //     files: ["docs/analysis/**/*.md"],
-  //     symbol: ["h2", "h3"],
-  //   },
-  // },
-],
-```
-
-Comment every line of the existing object and remove only those line-comment markers to restore its original text. Never edit a claim's internals, severity, rule entry, `files`, `symbol`, or `reference` population; never disable `evidence/graph` or add an environment bypass. Deferral postpones feedback only for work that has not started. It never hides an active layer's diagnostics.
+To defer a claim, line-comment every line of its existing whole object in place. Restore it only by removing those comment markers, so its original `files`, `symbol`, `reference`, severity, and carrier population return byte-for-byte. Never rewrite the object, disable `evidence/graph`, narrow a population, or add an environment bypass.
 
 ## Phase Gates
 
-At the Backend Phase gate, restore and validate the five claims in `packages/backend/lint.config.ts`. Confirm that `packages/backend/lint.config.main.ts` and `packages/backend/lint.config.test.ts` are unchanged and still contain their source and test Program projections.
+At the Backend Phase gate, restore and validate all five claims in `packages/backend/lint.config.ts`, confirm both immutable Program projections are unchanged, and follow the canonical backend gate in [Backend](../backend/SKILL.md). The schema, DTO, and operation claims must be active before SDK generation; all five must be active before the backend report.
 
-1. From `packages/backend`, run `pnpm build:prisma` and `pnpm prepare`.
-2. From `packages/backend`, run `pnpm build:api` and `pnpm build:main`.
-3. Restore the active backend claims and run `pnpm lint`.
-4. Confirm every operation and DTO is settled, then run `pnpm build:sdk`.
-5. Run `pnpm build:test`, `pnpm lint`, and `pnpm test`.
-6. Run the required live-server checks.
+At the Frontend Phase gate, restore all seven claims in the two canonical configurations with their original populations and `error` severities. Confirm both immutable backend projections are unchanged and validate the frontend claims. If frontend work changed an API or backend source, re-pass the affected backend gate first.
 
-Do not use the backend package's aggregate `pnpm build` or the workspace-root build during this phase.
-
-At the Frontend Phase gate, open both canonical `lint.config.ts` files and confirm that all seven original claim objects are active with their original populations and `error` severities. Confirm that both immutable backend Program projections are unchanged. Validate the two frontend claims in `packages/frontend/lint.config.ts`. If frontend work changed API or backend sources, revalidate the affected configurations and re-pass the Backend Phase first.
-
-At the Overall Phase gate:
-
-1. Open both canonical `lint.config.ts` files and restore every temporarily commented claim; confirm both immutable backend Program projections are unchanged.
-2. Confirm the active claim names are exactly the seven names in the configuration table.
-3. Confirm `evidence/graph` retains its original `error` severity and every claim retains its original population.
-4. Verify restoration from the two canonical configuration files and both immutable backend Program projections, then run the complete workspace lint, build, and test gates with no staged configuration override. An agent's prose report is not restoration evidence.
-5. Read and execute [Review](../review/SKILL.md) against the fully active graph.
+At the Overall Phase gate, restore all seven exact claim objects, confirm `evidence/graph` remains at `error`, confirm both immutable projections are unchanged, run the project-wide gates, and execute [Review](../review/SKILL.md) against the fully active graph. Configuration files, not an agent's prose report, prove restoration.
 
 A green phase subset is not whole-project completion. Any claim missing from its active phase, narrowed population, disabled rule, remaining phase-owned `@todo`, or unreviewed phase edge blocks that phase report.

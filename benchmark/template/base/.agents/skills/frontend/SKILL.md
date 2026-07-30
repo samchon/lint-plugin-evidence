@@ -40,7 +40,7 @@ Each step consumes the previous one, which is why the order is not a preference.
 7. Write the journey specs under `tests/journeys/` mirroring the requirement journeys, still against simulation.
 8. Close against the live backend: sessions, persistence, authorization, and the verification record in `wiki/verification.md`.
 
-The gated SDK fixes the contract before frontend work begins: the frontend starts from a realized and tested backend contract rather than an unfinished stub contract. Cracking a screen is experimental work: run the app with simulation on for contract-generated success responses, use gallery fixtures for named UI states, and drive both through the Playwright MCP browser while you build. What simulation cannot prove, the closing pass owns, and [verification.md](verification.md) says what that requires.
+The gated SDK fixes the contract before frontend work begins: the frontend starts from a realized and tested backend contract rather than an unfinished stub contract. Cracking a screen is experimental work: run the app with simulation on for contract-generated success responses, use gallery fixtures for named UI states, and drive both through an available interactive browser tool while you build. What simulation cannot prove, the closing pass owns, and [verification.md](verification.md) owns both the preferred browser path and its fallback.
 
 ## Stack
 

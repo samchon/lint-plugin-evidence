@@ -163,7 +163,7 @@ function ProductRoute() {
 
 function CatalogRoute() {
   return (
-    <Suspense fallback={<CatalogPageFallback />}>
+    <Suspense fallback={<AppSkeleton />}>
       <CatalogPage />
     </Suspense>
   );
@@ -190,7 +190,7 @@ export function App() {
 Three things here are the convention rather than the example.
 
 - **A page never reads route parameters.** It takes `productId: string`, so it cannot be rendered without one and its type says so. The wrapper owns the missing case, once, where the route is declared.
-- **A page that suspends exports its own fallback beside it**, so the skeleton and the screen it stands in for change together.
+- **A route uses a shared or route-local Suspense fallback.** A page's query-loading fallback stays private to the page file, so one-file-one-export remains intact.
 - **The catch-all route is declared.** Without it an unknown path renders nothing, which reads as a broken application rather than a wrong address.
 
 ## Providers Are Composed In One File

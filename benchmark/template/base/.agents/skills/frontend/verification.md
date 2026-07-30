@@ -64,13 +64,13 @@ Development happens against the simulation program and closes with the live one.
 
 Simulation returns valid random data, so the states that matter most never appear on demand: the empty list, the rejection, the longest name, the zero price. Waiting to meet them in the wild means shipping them unseen.
 
-Build one dev-only route, gated by the environment flag and absent from production navigation, that renders each screen's presentational components against fixture view models: one row per state a screen owes. The ui-review program walks it at the three widths, which turns "every screen handles every state" from a claim into something a browser run visits.
+Build one dev-only route gated by Vite's `import.meta.env.DEV` signal and absent from production navigation. It renders each screen's presentational components against fixture view models, one row per state a screen owes. The ui-review program walks it at the three widths, which turns "every screen handles every state" from a claim into something a browser run visits.
 
 When a defect arrives from the wild, its fixture joins the gallery, so the state that escaped once cannot escape silently again.
 
 ## Keep The Frontend Program Frontend-Only
 
-The frontend test program does not boot the backend, assert backend health, or check server state. Those belong to the live integration program.
+The frontend program does not boot the backend, assert backend health, seed its database, or inspect server state. Live mode consumes a separately prepared and running backend; backend setup and health remain external prerequisites, not frontend assertions.
 
 Mixing them makes a frontend failure indistinguishable from an environment failure, and a suite that goes red because a database was not seeded teaches everyone to ignore it.
 
