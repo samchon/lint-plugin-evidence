@@ -953,7 +953,6 @@ export namespace EvidenceBenchmarkRunner {
       .replace(/(?=(\\+?)?)\1"/g, '$1$1\\"')
       .replace(/(?=(\\+?)?)\1$/g, "$1$1");
     output = `"${output}"`;
-    output = escapeWindowsCommand(output);
     return escapeWindowsCommand(output);
   }
 
