@@ -75,8 +75,8 @@ export namespace EvidenceBenchmarkClaudeRunner {
   ): Promise<IEvidenceBenchmarkRunState> {
     const state: IEvidenceBenchmarkRunState = structuredClone(props.state);
     const entries = EvidenceBenchmarkRunner.instructionEntries(state.arm);
-    const executable = resolveExecutable(props);
     try {
+      const executable = resolveExecutable(props);
       const cliVersion: string =
         props.cliVersion ?? readVersion(executable.command, executable.prefix);
       if (state.cliVersion !== undefined && state.cliVersion !== cliVersion)
