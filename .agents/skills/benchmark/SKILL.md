@@ -36,7 +36,7 @@ Use this fixed engine matrix unless the user explicitly replaces it:
 
 Launch the complete authorized engine-by-subject-by-arm matrix concurrently. For the first wave, Todo and Reddit across both engines and both arms form eight cells. Record the engine, exact model, effort, CLI version, and invocation in every run. Do not substitute a model after launch or silently inherit an effort setting. Do not launch an engine until its adapter and deterministic proof pass on the exact campaign revision.
 
-Assign a dedicated read-only reporting subagent to refresh the campaign pull-request body every 15 minutes. That subagent reads retained state, logs, usage, and workspace inventories; it never edits a measured workspace, frozen input, or source branch. The 30-second liveness supervisor is a separate responsibility and must act immediately rather than waiting for the reporting interval.
+Assign a dedicated read-only reporting subagent to refresh the campaign pull-request body every 15 minutes. The live dashboard uses separate `## Codex` and `## Claude Code` sections rather than one combined engine table. That subagent reads retained state, logs, usage, and workspace inventories; it never edits a measured workspace, frozen input, or source branch. The 30-second liveness supervisor is a separate responsibility and must act immediately rather than waiting for the reporting interval.
 
 ## Launch Gate
 
@@ -77,7 +77,7 @@ A run is evidence only while it measures the product a real consumer would insta
 - **Give every arm its prescribed setup.** Use the same base template, requirements, user turns, model settings, and toolchain. The evidence arm alone receives the locally packed plugin and evidence lint configuration; the plain arm receives its own review instructions.
 - **Preserve the workload.** Do not weaken compilation, lint, testing, requirement coverage, or review obligations to make a cell finish.
 - **Record, never reconstruct.** Persist each engine's native streams, token categories, tool calls, commands, elapsed durations, completion claims, follow-up turns, and workspace state while the run is active. Label any later inference as an estimate.
-- **Separate costs.** Report materialization and installation overhead separately from agent wall time. For the backend-first protocol, separate backend, frontend, and overall start, review, and final turns.
+- **Separate costs and time.** Agent wall time starts when the Codex or Claude Code child process starts and is the sum of retained turn durations. Materialization, installation, the all-cell preparation barrier, controller admission, and reporting time are setup or operator overhead and never enter agent wall time. For the backend-first protocol, separate backend, frontend, and overall start, review, and final turns.
 - **Inspect surprises.** Read the live raw stream and workspace before stopping an unexpected cell, and inspect every successful retained workspace before accepting its result.
 
 The coding agent is the measured instrument; the benchmark runner is not a substitute for an operator. A run therefore requires continuous agent supervision, with every active cell observed at least once every 30 seconds. Read [running.md](running.md) before launching, observing, resuming, repairing, publishing, or reporting a live run.

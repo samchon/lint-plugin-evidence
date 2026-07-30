@@ -41,6 +41,11 @@ export namespace EvidenceBenchmarkCommandLine {
     accepted?: boolean;
     lintRestorationSha256?: string;
     sessionId?: string;
+    acceptanceInvalidation?: {
+      code: "permission-denied";
+      denialCount: number;
+      stdout: string;
+    };
   }
 
   interface IInstruction {
@@ -55,7 +60,7 @@ export namespace EvidenceBenchmarkCommandLine {
   }
 
   interface IState {
-    schemaVersion: 7;
+    schemaVersion: 8;
     workflow: typeof WORKFLOW;
     instructionsTreeSha256: string;
     project: IEvidenceBenchmarkMaterialization.Project;
@@ -67,11 +72,27 @@ export namespace EvidenceBenchmarkCommandLine {
     sourceCommit: string;
     lintBaselines: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[];
     runtime: EvidenceBenchmarkRuntime.IAssignment;
-    elapsedMs: number;
+    nonAgentElapsedMs: number;
+    agentElapsedMs: number;
+    timingNormalization?: {
+      legacyControllerElapsedMs: number;
+      excludedNonAgentElapsedMs: number;
+    };
     status: "prepared" | "running" | "interrupted" | "completed";
     completedWorkspaceTreeSha256?: string;
     sessionId?: string;
     turns: ITurn[];
+  }
+
+  interface ILegacyState extends Omit<
+    IState,
+    | "schemaVersion"
+    | "nonAgentElapsedMs"
+    | "agentElapsedMs"
+    | "timingNormalization"
+  > {
+    schemaVersion: 7;
+    elapsedMs: number;
   }
 
   interface IOptions {
@@ -211,10 +232,13 @@ export namespace EvidenceBenchmarkCommandLine {
       ]),
     ].sort();
     const tools: string = "Bash,Edit,Write,Read,Glob,Grep,Agent";
+    const workspaceGlob: string =
+      EvidenceBenchmarkTurnLedger.claudeWorkspaceGlob(workspace);
     const allowedTools: string[] = [
       "Bash",
-      "Edit(./**)",
-      "Read(./**)",
+      `Edit(${workspaceGlob})`,
+      `Write(${workspaceGlob})`,
+      `Read(${workspaceGlob})`,
       "Agent",
     ];
     const settings = {
@@ -469,34 +493,43 @@ export namespace EvidenceBenchmarkCommandLine {
       runId!,
     );
     assertInside(resultsRoot, root, "resume root");
-    const state: IState = EvidenceBenchmarkState.read(root, "Resumable state");
+    const retainedState: IState | ILegacyState = EvidenceBenchmarkState.read(
+      root,
+      "Resumable state",
+    );
     if (
-      state.schemaVersion !== 7 ||
-      state.workflow !== WORKFLOW ||
-      state.engine !== engine.engine ||
-      state.model !== engine.model ||
-      state.effort !== engine.effort ||
-      state.cliVersion !== engineVersion(engine.engine) ||
-      !Array.isArray(state.lintBaselines) ||
-      !Array.isArray(state.turns)
+      (retainedState.schemaVersion !== 7 &&
+        retainedState.schemaVersion !== 8) ||
+      retainedState.workflow !== WORKFLOW ||
+      retainedState.engine !== engine.engine ||
+      retainedState.model !== engine.model ||
+      retainedState.effort !== engine.effort ||
+      retainedState.cliVersion !== engineVersion(engine.engine) ||
+      !Array.isArray(retainedState.lintBaselines) ||
+      !Array.isArray(retainedState.turns)
     )
       throw new Error(
         `Run ${runId} does not use the resumable ${WORKFLOW} state schema.`,
       );
     if (
-      state.project !== project ||
-      state.arm !== arm ||
-      state.engine !== engine.engine
+      retainedState.project !== project ||
+      retainedState.arm !== arm ||
+      retainedState.engine !== engine.engine
     )
       throw new Error(
         `Run ${runId} does not belong to ${engine.engine}/${project}/${arm}.`,
       );
-    if (state.status !== "interrupted")
+    if (retainedState.status !== "interrupted")
       throw new Error(
-        state.status === "completed"
+        retainedState.status === "completed"
           ? `Run ${runId} is already complete.`
           : `Run ${runId} is still running; refusing a parallel resume controller.`,
       );
+    const state: IState =
+      retainedState.schemaVersion === 7
+        ? normalizeLegacyTiming(root, retainedState)
+        : retainedState;
+    assertTimingState(state);
 
     const workspace: string = path.join(root, "workspace");
     const logs: string = path.join(root, "logs");
@@ -515,12 +548,16 @@ export namespace EvidenceBenchmarkCommandLine {
       throw new Error(
         `Run ${runId} completed a turn but has no recoverable session ID.`,
       );
-    let sessionEstablished: boolean = state.turns.some(
-      (turn) =>
-        turn.sessionId !== undefined && turn.sessionId === state.sessionId,
-    );
-    const baseElapsedMs: number = state.elapsedMs;
-    const resumed: bigint = process.hrtime.bigint();
+    const sessionEstablishedByAudit: boolean =
+      auditAndInvalidateUnacceptableAcceptedTurns({
+        engine,
+        instructions,
+        repository,
+        root,
+        state,
+        workspace,
+      });
+    let sessionEstablished: boolean = sessionEstablishedByAudit;
     let phase: string = "resume-admission";
 
     try {
@@ -565,10 +602,10 @@ export namespace EvidenceBenchmarkCommandLine {
           writeState(root, state);
         }
         state.status = "running";
-        state.elapsedMs = baseElapsedMs + elapsed(resumed);
         writeState(root, state);
         phase = entry.name;
         const expectedSessionId: string | undefined = state.sessionId;
+        const priorSessionEstablished: boolean = sessionEstablished;
         const turn: ITurn = await runTurn({
           repository,
           engine,
@@ -581,10 +618,9 @@ export namespace EvidenceBenchmarkCommandLine {
           resume: sessionEstablished,
         });
         state.sessionId ??= turn.sessionId;
-        sessionEstablished ||= turn.sessionId === state.sessionId;
         turn.accepted = false;
         state.turns.push(turn);
-        state.elapsedMs = baseElapsedMs + elapsed(resumed);
+        state.agentElapsedMs = sumTurnElapsedMs(state.turns);
         writeState(root, state);
         if (
           turn.status === 0 &&
@@ -602,6 +638,18 @@ export namespace EvidenceBenchmarkCommandLine {
             `${entry.name} resume attempt exited with status ${String(turn.status)}.`,
           );
         }
+        EvidenceBenchmarkTurnLedger.assertSuccessfulAttempt({
+          repository,
+          runRoot: root,
+          workspace,
+          engine: engine.engine,
+          sessionId: state.sessionId!,
+          model: engine.model,
+          effort: engine.effort,
+          sessionEstablished: priorSessionEstablished,
+          turn,
+        });
+        sessionEstablished ||= turn.sessionId === state.sessionId;
         turn.lintRestorationSha256 = verifyLintRestoration({
           workspace,
           arm,
@@ -611,7 +659,6 @@ export namespace EvidenceBenchmarkCommandLine {
         turn.accepted = true;
         writeState(root, state);
       }
-      state.elapsedMs = baseElapsedMs + elapsed(resumed);
       state.completedWorkspaceTreeSha256 =
         EvidenceBenchmarkPublication.workspaceSha256(workspace);
       EvidenceBenchmarkTurnLedger.assertAcceptedOrder(state.turns, true);
@@ -620,7 +667,6 @@ export namespace EvidenceBenchmarkCommandLine {
       writeState(root, state);
     } catch (error) {
       state.status = "interrupted";
-      state.elapsedMs = baseElapsedMs + elapsed(resumed);
       writeState(root, state);
       recordFailure({
         repository,
@@ -630,12 +676,103 @@ export namespace EvidenceBenchmarkCommandLine {
         project,
         arm,
         phase,
-        elapsedMs: state.elapsedMs,
+        elapsedMs: state.agentElapsedMs,
         error,
         cleanup: "retained-for-resume",
       });
       throw error;
     }
+  }
+
+  function auditAndInvalidateUnacceptableAcceptedTurns(props: {
+    engine: EvidenceBenchmarkEngine.IDefinition;
+    instructions: readonly IInstruction[];
+    repository: string;
+    root: string;
+    state: IState;
+    workspace: string;
+  }): boolean {
+    if (props.state.sessionId === undefined) return false;
+    let sessionEstablished: boolean = false;
+    let invalidIndex: number | undefined;
+    let invalidName: TurnName | undefined;
+    let invalidReason: string | undefined;
+    let invalidDenialCount: number | undefined;
+    let invalidTurn: ITurn | undefined;
+    const inspections: readonly EvidenceBenchmarkTurnLedger.IAttemptInspection[] =
+      EvidenceBenchmarkTurnLedger.inspectAttempts({
+        repository: props.repository,
+        runRoot: props.root,
+        workspace: props.workspace,
+        engine: props.engine.engine,
+        sessionId: props.state.sessionId,
+        model: props.engine.model,
+        effort: props.engine.effort,
+        invocationPolicy: "retained",
+        turns: props.state.turns,
+      });
+    props.state.turns.forEach((turn, turnIndex) => {
+      const inspection: EvidenceBenchmarkTurnLedger.IAttemptInspection =
+        inspections[turnIndex]!;
+      if (
+        turn.accepted === true &&
+        inspection.verdict === "retryable-incomplete"
+      ) {
+        const index: number = props.instructions.findIndex(
+          (instruction) => instruction.name === turn.name,
+        );
+        if (index < 0)
+          throw new Error(
+            `Accepted turn ${turn.name} is outside the frozen workflow.`,
+          );
+        if (invalidIndex === undefined || index < invalidIndex) {
+          invalidIndex = index;
+          invalidName = turn.name;
+          invalidDenialCount = inspection.denialCount;
+          invalidReason = `retained ${String(inspection.denialCount)} native permission denial${
+            inspection.denialCount === 1 ? "" : "s"
+          }`;
+          invalidTurn = turn;
+        }
+      } else if (
+        turn.accepted === true &&
+        inspection.verdict !== "acceptable"
+      ) {
+        throw new Error(
+          `Accepted turn ${turn.name} has no acceptable native terminal evidence.`,
+        );
+      }
+      if (inspection.sessionLinked) sessionEstablished = true;
+    });
+    if (
+      invalidIndex === undefined ||
+      invalidName === undefined ||
+      invalidReason === undefined ||
+      invalidDenialCount === undefined ||
+      invalidTurn === undefined
+    )
+      return sessionEstablished;
+    for (const turn of props.state.turns)
+      if (
+        turn.accepted === true &&
+        props.instructions.findIndex(
+          (instruction) => instruction.name === turn.name,
+        ) >= invalidIndex
+      ) {
+        turn.accepted = false;
+        delete turn.lintRestorationSha256;
+      }
+    invalidTurn.acceptanceInvalidation = {
+      code: "permission-denied",
+      denialCount: invalidDenialCount,
+      stdout: invalidTurn.stdout,
+    };
+    EvidenceBenchmarkTurnLedger.assertAcceptedOrder(props.state.turns);
+    writeState(props.root, props.state);
+    process.stderr.write(
+      `Invalidated accepted ${invalidName} turn before resume: ${invalidReason}\n`,
+    );
+    return sessionEstablished;
   }
 
   async function prepareCell(
@@ -696,7 +833,7 @@ export namespace EvidenceBenchmarkCommandLine {
       const logs: string = path.join(root, "logs");
       fs.mkdirSync(logs, { recursive: false });
       const state: IState = {
-        schemaVersion: 7,
+        schemaVersion: 8,
         workflow: WORKFLOW,
         instructionsTreeSha256: freezeInstructions(root, props.instructions),
         project: props.project,
@@ -708,7 +845,8 @@ export namespace EvidenceBenchmarkCommandLine {
         sourceCommit: props.sourceCommit,
         lintBaselines: materialization.lintBaselines,
         runtime: props.runtime,
-        elapsedMs: elapsed(started),
+        nonAgentElapsedMs: elapsed(started),
+        agentElapsedMs: 0,
         status: "prepared",
         sessionId:
           props.engine.engine === "claude-code"
@@ -750,8 +888,6 @@ export namespace EvidenceBenchmarkCommandLine {
   }
 
   async function runPreparedCell(cell: IPreparedCell): Promise<void> {
-    const started: bigint = process.hrtime.bigint();
-    const baseElapsedMs: number = cell.state.elapsedMs;
     const logs: string = path.join(cell.root, "logs");
     let phase: string = "launch";
     let sessionEstablished: boolean = false;
@@ -770,6 +906,7 @@ export namespace EvidenceBenchmarkCommandLine {
       for (const entry of cell.instructions.entries) {
         phase = entry.name;
         const expectedSessionId: string | undefined = cell.state.sessionId;
+        const priorSessionEstablished: boolean = sessionEstablished;
         const turn: ITurn = await runTurn({
           repository: cell.repository,
           engine: cell.engine,
@@ -782,10 +919,9 @@ export namespace EvidenceBenchmarkCommandLine {
           resume: sessionEstablished,
         });
         cell.state.sessionId ??= turn.sessionId;
-        sessionEstablished ||= turn.sessionId === cell.state.sessionId;
         turn.accepted = false;
         cell.state.turns.push(turn);
-        cell.state.elapsedMs = baseElapsedMs + elapsed(started);
+        cell.state.agentElapsedMs = sumTurnElapsedMs(cell.state.turns);
         writeState(cell.root, cell.state);
         if (
           turn.status === 0 &&
@@ -800,6 +936,18 @@ export namespace EvidenceBenchmarkCommandLine {
           throw new Error(
             `${entry.name} turn exited with status ${String(turn.status)}.`,
           );
+        EvidenceBenchmarkTurnLedger.assertSuccessfulAttempt({
+          repository: cell.repository,
+          runRoot: cell.root,
+          workspace: cell.workspace,
+          engine: cell.engine.engine,
+          sessionId: cell.state.sessionId!,
+          model: cell.engine.model,
+          effort: cell.engine.effort,
+          sessionEstablished: priorSessionEstablished,
+          turn,
+        });
+        sessionEstablished ||= turn.sessionId === cell.state.sessionId;
         turn.lintRestorationSha256 = verifyLintRestoration({
           workspace: cell.workspace,
           arm: cell.arm,
@@ -809,7 +957,6 @@ export namespace EvidenceBenchmarkCommandLine {
         turn.accepted = true;
         writeState(cell.root, cell.state);
       }
-      cell.state.elapsedMs = baseElapsedMs + elapsed(started);
       cell.state.completedWorkspaceTreeSha256 =
         EvidenceBenchmarkPublication.workspaceSha256(cell.workspace);
       EvidenceBenchmarkTurnLedger.assertAcceptedOrder(cell.state.turns, true);
@@ -824,7 +971,6 @@ export namespace EvidenceBenchmarkCommandLine {
       writeState(cell.root, cell.state);
     } catch (error) {
       cell.state.status = "interrupted";
-      cell.state.elapsedMs = baseElapsedMs + elapsed(started);
       writeState(cell.root, cell.state);
       recordFailure({
         repository: cell.repository,
@@ -834,7 +980,7 @@ export namespace EvidenceBenchmarkCommandLine {
         project: cell.project,
         arm: cell.arm,
         phase,
-        elapsedMs: cell.state.elapsedMs,
+        elapsedMs: cell.state.agentElapsedMs,
         error,
         cleanup: "retained-for-resume",
       });
@@ -865,7 +1011,6 @@ export namespace EvidenceBenchmarkCommandLine {
       props.engine.engine === "codex"
         ? codexTurnArguments(props)
         : claudeTurnArguments(props);
-    const started: bigint = process.hrtime.bigint();
     const executable: { command: string; prefix: string[] } =
       props.engine.engine === "codex" ? codexExecutable() : claudeExecutable();
     const environment: NodeJS.ProcessEnv =
@@ -878,6 +1023,27 @@ export namespace EvidenceBenchmarkCommandLine {
       shell: false,
       windowsHide: true,
       stdio: "pipe",
+    });
+    const outcome = new Promise<{
+      started: bigint;
+      stopped: bigint;
+      status: number | null;
+    }>((resolve, reject) => {
+      let started: bigint | undefined;
+      child.once("spawn", () => {
+        started = process.hrtime.bigint();
+      });
+      child.once("error", reject);
+      child.once("close", (status) => {
+        if (started === undefined)
+          reject(new Error("Benchmark engine process closed before spawning."));
+        else
+          resolve({
+            started,
+            stopped: process.hrtime.bigint(),
+            status,
+          });
+      });
     });
     let sessionId: string | undefined;
     let remainder: string = "";
@@ -898,12 +1064,13 @@ export namespace EvidenceBenchmarkCommandLine {
     });
     child.stderr.pipe(stderr);
     child.stdin.end(props.prompt, "utf8");
-    let status: number | null;
+    let result: {
+      started: bigint;
+      stopped: bigint;
+      status: number | null;
+    };
     try {
-      status = await new Promise((resolve, reject) => {
-        child.once("error", reject);
-        child.once("close", resolve);
-      });
+      result = await outcome;
     } finally {
       await Promise.all([
         new Promise<void>((resolve) => stdout.end(resolve)),
@@ -912,8 +1079,8 @@ export namespace EvidenceBenchmarkCommandLine {
     }
     return {
       name: props.name,
-      elapsedMs: Number(process.hrtime.bigint() - started) / 1_000_000,
-      status,
+      elapsedMs: Number(result.stopped - result.started) / 1_000_000,
+      status: result.status,
       stdout: path.posix.join("logs", path.basename(stdoutPath)),
       stderr: path.posix.join("logs", path.basename(stderrPath)),
       invocation: [executable.command, ...executable.prefix, ...args],
@@ -1165,8 +1332,58 @@ export namespace EvidenceBenchmarkCommandLine {
       );
   }
 
+  function normalizeLegacyTiming(root: string, state: ILegacyState): IState {
+    const agentElapsedMs: number = sumTurnElapsedMs(state.turns);
+    if (!Number.isFinite(state.elapsedMs) || state.elapsedMs < agentElapsedMs)
+      throw new Error(
+        `Run ${path.basename(root)} has an invalid legacy timing ledger.`,
+      );
+    const { elapsedMs: legacyControllerElapsedMs, ...retained } = state;
+    const normalized: IState = {
+      ...retained,
+      schemaVersion: 8,
+      nonAgentElapsedMs: legacyControllerElapsedMs - agentElapsedMs,
+      agentElapsedMs,
+      timingNormalization: {
+        legacyControllerElapsedMs,
+        excludedNonAgentElapsedMs: legacyControllerElapsedMs - agentElapsedMs,
+      },
+    };
+    writeState(root, normalized);
+    return normalized;
+  }
+
+  function assertTimingState(state: IState): void {
+    const retainedAgentElapsedMs: number = sumTurnElapsedMs(state.turns);
+    if (
+      !Number.isFinite(state.nonAgentElapsedMs) ||
+      state.nonAgentElapsedMs < 0 ||
+      !Number.isFinite(state.agentElapsedMs) ||
+      state.agentElapsedMs < 0 ||
+      state.agentElapsedMs !== retainedAgentElapsedMs
+    )
+      throw new Error(
+        "Benchmark state timing must separate non-agent work from exact retained turn time.",
+      );
+  }
+
   function writeState(root: string, state: IState): void {
     EvidenceBenchmarkState.write(root, state);
+  }
+
+  function sumTurnElapsedMs(turns: readonly ITurn[]): number {
+    return turns.reduce((sum, turn) => {
+      if (
+        typeof turn.elapsedMs !== "number" ||
+        !Number.isFinite(turn.elapsedMs) ||
+        turn.elapsedMs < 0
+      )
+        throw new Error("Benchmark turn has an invalid agent duration.");
+      const total: number = sum + turn.elapsedMs;
+      if (!Number.isFinite(total))
+        throw new Error("Benchmark agent duration total is not finite.");
+      return total;
+    }, 0);
   }
 
   function assertInside(parent: string, target: string, label: string): void {

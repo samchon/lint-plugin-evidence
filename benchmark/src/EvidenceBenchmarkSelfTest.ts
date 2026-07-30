@@ -192,6 +192,15 @@ export namespace EvidenceBenchmarkSelfTest {
     const root: string = path.join(temporary, "claude-isolation");
     const repository: string = path.join(temporary, "source-repository");
     const workspace: string = path.join(root, "workspace");
+    const workspaceGlob: string =
+      EvidenceBenchmarkTurnLedger.claudeWorkspaceGlob(workspace);
+    const allowedTools: string[] = [
+      "Bash",
+      `Edit(${workspaceGlob})`,
+      `Write(${workspaceGlob})`,
+      `Read(${workspaceGlob})`,
+      "Agent",
+    ];
     const arguments_: readonly string[] =
       EvidenceBenchmarkCommandLine.claudeIsolationArguments(
         repository,
@@ -223,7 +232,7 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     assert.equal(
       arguments_[arguments_.indexOf("--allowedTools") + 1],
-      "Bash,Edit(./**),Read(./**),Agent",
+      allowedTools.join(","),
       "Claude built-in file permissions must remain scoped to the workspace",
     );
     const settings = JSON.parse(
@@ -243,8 +252,19 @@ export namespace EvidenceBenchmarkSelfTest {
           strictAllowlist: boolean;
         };
       };
+      permissions: {
+        allow: string[];
+        deny: string[];
+      };
       env: Record<string, string>;
     };
+    assert.deepEqual(settings.permissions.allow, allowedTools);
+    assert.deepEqual(settings.permissions.deny, ["WebFetch", "WebSearch"]);
+    assert.equal(
+      settings.permissions.allow.some((rule) => rule.includes("./**")),
+      false,
+      "Claude file permissions must not rely on project-relative matching",
+    );
     assert.equal(settings.sandbox.enabled, process.platform !== "win32");
     assert.equal(
       settings.sandbox.failIfUnavailable,
@@ -354,6 +374,10 @@ export namespace EvidenceBenchmarkSelfTest {
               type: "result",
               subtype: "success",
               is_error: false,
+              terminal_reason: "completed",
+              stop_reason: "end_turn",
+              api_error_status: null,
+              permission_denials: [],
               session_id: sessionId,
               usage: {
                 input_tokens: 10,
@@ -410,11 +434,170 @@ export namespace EvidenceBenchmarkSelfTest {
       },
     });
 
+    const retainedInspection = () =>
+      EvidenceBenchmarkTurnLedger.inspectAttempts({
+        repository,
+        runRoot,
+        workspace,
+        engine: "claude-code",
+        sessionId,
+        model,
+        effort: "high",
+        invocationPolicy: "retained",
+        turns,
+      });
+    const currentBackendInvocation: string[] = [
+      ...(turns[1]!.invocation as string[]),
+    ];
+    const tamperedBackendInvocation: string[] = [...currentBackendInvocation];
+    tamperedBackendInvocation[
+      tamperedBackendInvocation.indexOf("--allowedTools") + 1
+    ] = "Bash";
+    turns[1]!.invocation = tamperedBackendInvocation;
+    assert.throws(
+      retainedInspection,
+      /required model, effort, tools, and isolation invocation/,
+      "a downstream invocation defect must abort the complete retained audit",
+    );
+    assert.equal(
+      turns.every((turn) => turn.accepted === true),
+      true,
+      "retained inspection must never mutate acceptance state",
+    );
+    turns[1]!.invocation = currentBackendInvocation;
+    const orphanLog: string = path.join(runRoot, "logs", "orphan.stderr.log");
+    write(orphanLog, "");
+    assert.throws(
+      retainedInspection,
+      /log inventory does not exactly match/,
+      "resume audit must reject logs outside the retained attempt ledger",
+    );
+    fs.rmSync(orphanLog);
+
     const firstStdout: string = path.join(
       runRoot,
       "logs",
       "skills-contract.stdout.jsonl",
     );
+    const successfulFirstLog: string = fs.readFileSync(firstStdout, "utf8");
+    const currentFirstInvocation: string[] = [
+      ...(turns[0]!.invocation as string[]),
+    ];
+    const legacyAllowedTools: string[] = [
+      "Bash",
+      "Edit(./**)",
+      "Read(./**)",
+      "Agent",
+    ];
+    const legacyInvocation: string[] = [...currentFirstInvocation];
+    legacyInvocation[legacyInvocation.indexOf("--allowedTools") + 1] =
+      legacyAllowedTools.join(",");
+    const settingsIndex: number = legacyInvocation.indexOf("--settings") + 1;
+    const legacySettings = JSON.parse(legacyInvocation[settingsIndex]!) as {
+      permissions: { allow: string[] };
+    };
+    legacySettings.permissions.allow = legacyAllowedTools;
+    legacyInvocation[settingsIndex] = JSON.stringify(legacySettings);
+    turns[0]!.invocation = legacyInvocation;
+    EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
+      repository,
+      runRoot,
+      workspace,
+      engine: "claude-code",
+      sessionId,
+      model,
+      effort: "high",
+      turns,
+    });
+    assert.throws(
+      () =>
+        EvidenceBenchmarkTurnLedger.assertSuccessfulAttempt({
+          repository,
+          runRoot,
+          workspace,
+          engine: "claude-code",
+          sessionId,
+          model,
+          effort: "high",
+          sessionEstablished: false,
+          turn: turns[0]!,
+        }),
+      /required model, effort, tools, and isolation invocation/,
+      "legacy retained permissions must never admit a new attempt",
+    );
+    turns[0]!.invocation = currentFirstInvocation;
+
+    const retryStdout: string = path.join(
+      runRoot,
+      "logs",
+      "skills-contract.attempt-2.stdout.jsonl",
+    );
+    const retryStderr: string = path.join(
+      runRoot,
+      "logs",
+      "skills-contract.attempt-2.stderr.log",
+    );
+    write(retryStdout, successfulFirstLog);
+    write(retryStderr, "");
+    write(
+      firstStdout,
+      successfulFirstLog.replace(
+        '"permission_denials":[]',
+        '"permission_denials":[{"tool_name":"Write"}]',
+      ),
+    );
+    const rejectedPermissionTurn: EvidenceBenchmarkTurnLedger.ITurn = {
+      ...turns[0]!,
+      accepted: false,
+    };
+    assert.throws(
+      () =>
+        EvidenceBenchmarkTurnLedger.assertSuccessfulAttempt({
+          repository,
+          runRoot,
+          workspace,
+          engine: "claude-code",
+          sessionId,
+          model,
+          effort: "high",
+          sessionEstablished: false,
+          turn: rejectedPermissionTurn,
+        }),
+      EvidenceBenchmarkTurnLedger.PermissionDeniedError,
+      "a zero-exit Claude result with permission denials must not be accepted",
+    );
+    const retryInvocation: string[] = [...currentFirstInvocation];
+    retryInvocation[retryInvocation.indexOf("--session-id")] = "--resume";
+    const acceptedRetryTurn: EvidenceBenchmarkTurnLedger.ITurn = {
+      ...turns[0]!,
+      stdout: path.posix.join("logs", "skills-contract.attempt-2.stdout.jsonl"),
+      stderr: path.posix.join("logs", "skills-contract.attempt-2.stderr.log"),
+      invocation: retryInvocation,
+    };
+    const retrySummary: EvidenceBenchmarkTurnLedger.ISummary =
+      EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
+        repository,
+        runRoot,
+        workspace,
+        engine: "claude-code",
+        sessionId,
+        model,
+        effort: "high",
+        turns: [rejectedPermissionTurn, acceptedRetryTurn, ...turns.slice(1)],
+      });
+    assert.deepEqual(retrySummary, {
+      elapsedMs: 100,
+      attempts: 10,
+      accepted: 9,
+      tokens: {
+        input_tokens: 100,
+        cached_input_tokens: 30,
+        cache_creation_input_tokens: 20,
+        output_tokens: 40,
+        reasoning_output_tokens: 0,
+      },
+    });
+    write(firstStdout, successfulFirstLog);
     write(
       firstStdout,
       fs
@@ -744,11 +927,12 @@ export namespace EvidenceBenchmarkSelfTest {
               : undefined,
       };
     });
-    const elapsedMs: number = 100;
+    const nonAgentElapsedMs: number = 10;
+    const agentElapsedMs: number = 90;
     write(
       runStatePath,
       `${JSON.stringify({
-        schemaVersion: 7,
+        schemaVersion: 8,
         workflow: "backend-first-gated-v2",
         instructionsTreeSha256,
         project: "todo",
@@ -759,7 +943,8 @@ export namespace EvidenceBenchmarkSelfTest {
         cliVersion: "codex-cli 0.145.0",
         status: "completed",
         sourceCommit: "0123456789abcdef0123456789abcdef01234567",
-        elapsedMs,
+        nonAgentElapsedMs,
+        agentElapsedMs,
         sessionId,
         lintBaselines,
         completedWorkspaceTreeSha256:
@@ -777,9 +962,9 @@ export namespace EvidenceBenchmarkSelfTest {
       arm: "evidence",
       runId,
       measurement: {
-        totalElapsedMs: elapsedMs,
-        agentElapsedMs: 90,
-        nonAgentElapsedMs: 10,
+        totalElapsedMs: nonAgentElapsedMs + agentElapsedMs,
+        agentElapsedMs,
+        nonAgentElapsedMs,
         attempts: { total: 9, accepted: 9, rejected: 0 },
         tokens: {
           input_tokens: 900,
@@ -1729,6 +1914,15 @@ export namespace EvidenceBenchmarkSelfTest {
       commandLine,
       /EvidenceBenchmarkTurnLedger\.assertAcceptedOrder\(state\.turns\)/,
       "resume admission must use the shared accepted-turn validator",
+    );
+    assert.equal(
+      [
+        ...commandLine.matchAll(
+          /turn\.accepted = false;[\s\S]*?EvidenceBenchmarkTurnLedger\.assertSuccessfulAttempt\([\s\S]*?turn\.accepted = true;/g,
+        ),
+      ].length,
+      2,
+      "fresh and resumed turns must pass native evidence before acceptance",
     );
     const publicationSource: string = fs.readFileSync(
       path.join(

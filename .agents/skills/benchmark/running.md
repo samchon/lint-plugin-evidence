@@ -87,20 +87,29 @@ Failed capacity attempts remain in the token and time totals. Setup and operator
 
 ## Campaign Reporting
 
-Keep the pull-request body small:
+Keep the pull-request body small. After its fixed intent and one campaign-status sentence, group the live dashboard under exactly `## Codex` and `## Claude Code`. Do not combine both engines in one status, turn, or implementation-scale table. Keep the same table order inside each engine section so a reader can compare them without searching.
 
-| Engine | Project | Mode | Progress | Quality | Cost | Time |
-| ------ | ------- | ---- | -------- | ------: | ---: | ---: |
+```markdown
+## Codex
 
-`Progress` names the current retained instruction, estimated completion, and state. `Quality` is explicitly provisional until the final audit. `Cost` uses native token categories and the selected model's standard API-equivalent price. `Time` is cumulative elapsed duration without absolute timestamps.
+| Project | Mode | Progress | Quality | Cost | Time |
+| ------- | ---- | -------- | ------: | ---: | ---: |
 
-Record causes, recoveries, interventions, completed phases, scoring evidence, and clean self-review rounds as formal `COMMENT` pull-request reviews. Update the body immediately when a visible state is wrong; do not wait for the next 15-minute pass.
+## Claude Code
 
-For each cell, keep a compact turn breakdown for `skills-contract`, `backend/start`, `backend/review`, `backend/final`, `frontend/start`, `frontend/review`, `frontend/final`, `overall/review`, and `overall/final`. The skills contract is measured work, not free setup. Every completed or active turn reports cumulative native token categories, API-equivalent cost, and elapsed duration.
+| Project | Mode | Progress | Quality | Cost | Time |
+| ------- | ---- | -------- | ------: | ---: | ---: |
+```
 
-Below the status table, report implementation scale as counts rather than names. Count database tables, API operations, DTO types and properties, and test functions for each cell. Do not enumerate table or operation names in the pull-request body; detailed inventories belong in a formal review.
+`Progress` names the current retained instruction, estimated completion, and state without unexplained abbreviations. `Quality` is `—` until the final audit and becomes only the short final score or verdict; diagnostic prose belongs in a formal review. `Cost` shows total native token usage in whole millions and the selected model's standard API-equivalent price in whole dollars, using `<1M` below one million and never writing a decimal token or dollar value. `Time` is the sum of actual model-process turn durations rounded to whole seconds. Setup, materialization, installation, the launch barrier, controller admission, reporting, and other pre-agent time are reported separately and never enter this table.
 
-The reporting subagent edits the existing body in place every 15 minutes. It does not append a new status comment, and it does not replace detailed formal reviews with dashboard prose.
+Record causes, recoveries, interventions, completed phases, scoring evidence, and clean self-review rounds as formal `COMMENT` pull-request reviews. Do not add that narrative to either engine dashboard. Update the body immediately when a visible state is wrong; do not wait for the next 15-minute pass.
+
+Within each engine section, keep a compact turn breakdown for that engine's cells across `skills-contract`, `backend/start`, `backend/review`, `backend/final`, `frontend/start`, `frontend/review`, `frontend/final`, `overall/review`, and `overall/final`. The skills contract becomes measured work only when the engine child process starts; a CLI or configuration failure before model activity is a launch failure, not a completed skills-contract turn. Every completed or active turn reports cumulative whole-million native tokens, whole-dollar API-equivalent cost, and whole-second model-process duration.
+
+Below each engine's turn breakdown, report that engine's implementation scale as counts rather than names. Count database tables, API operations, DTO types and properties, and test functions for each cell. Do not enumerate table or operation names in the pull-request body; detailed inventories belong in a formal review.
+
+The reporting subagent edits the existing body in place every 15 minutes. It updates values inside the two fixed engine sections without changing their structure, appending a new status comment, or replacing detailed formal reviews with dashboard prose.
 
 ## Canceling A Campaign
 

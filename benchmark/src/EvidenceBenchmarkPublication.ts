@@ -185,7 +185,8 @@ export namespace EvidenceBenchmarkPublication {
       cliVersion?: unknown;
       status?: unknown;
       sourceCommit?: unknown;
-      elapsedMs?: unknown;
+      nonAgentElapsedMs?: unknown;
+      agentElapsedMs?: unknown;
       sessionId?: unknown;
       instructionsTreeSha256?: unknown;
       completedWorkspaceTreeSha256?: unknown;
@@ -204,7 +205,7 @@ export namespace EvidenceBenchmarkPublication {
       }>;
     }>(runRoot, "Completed benchmark state");
     if (
-      state.schemaVersion !== 7 ||
+      state.schemaVersion !== 8 ||
       state.workflow !== "backend-first-gated-v2" ||
       state.project !== request.project ||
       state.arm !== request.arm ||
@@ -218,9 +219,12 @@ export namespace EvidenceBenchmarkPublication {
       state.status !== "completed" ||
       typeof state.sourceCommit !== "string" ||
       !/^[0-9a-f]{40}$/i.test(state.sourceCommit) ||
-      typeof state.elapsedMs !== "number" ||
-      !Number.isFinite(state.elapsedMs) ||
-      state.elapsedMs < 0 ||
+      typeof state.nonAgentElapsedMs !== "number" ||
+      !Number.isFinite(state.nonAgentElapsedMs) ||
+      state.nonAgentElapsedMs < 0 ||
+      typeof state.agentElapsedMs !== "number" ||
+      !Number.isFinite(state.agentElapsedMs) ||
+      state.agentElapsedMs < 0 ||
       typeof state.sessionId !== "string" ||
       state.sessionId.length === 0 ||
       typeof state.instructionsTreeSha256 !== "string" ||
@@ -391,7 +395,8 @@ export namespace EvidenceBenchmarkPublication {
         engine: state.engine,
         model: state.model,
         effort: state.effort,
-        elapsedMs: state.elapsedMs,
+        nonAgentElapsedMs: state.nonAgentElapsedMs,
+        agentElapsedMs: state.agentElapsedMs,
         sourceCommit: state.sourceCommit,
         instructionsTreeSha256: state.instructionsTreeSha256,
         completedWorkspaceTreeSha256: state.completedWorkspaceTreeSha256,
@@ -599,7 +604,8 @@ export namespace EvidenceBenchmarkPublication {
       engine: unknown;
       model: unknown;
       effort: unknown;
-      elapsedMs: number;
+      nonAgentElapsedMs: number;
+      agentElapsedMs: number;
       sourceCommit: string;
       instructionsTreeSha256: string;
       completedWorkspaceTreeSha256: string;
@@ -621,14 +627,14 @@ export namespace EvidenceBenchmarkPublication {
       throw new Error(
         "Benchmark report identity does not match the accepted run.",
       );
-    if (props.state.elapsedMs < props.ledger.elapsedMs)
+    if (props.state.agentElapsedMs !== props.ledger.elapsedMs)
       throw new Error(
-        "Benchmark controller elapsed time is shorter than its model attempts.",
+        "Benchmark agent elapsed time differs from its retained model attempts.",
       );
     const measurement = object(report.measurement, "report measurement");
     exactNumber(
       measurement.totalElapsedMs,
-      props.state.elapsedMs,
+      props.state.nonAgentElapsedMs + props.state.agentElapsedMs,
       "total elapsed time",
     );
     exactNumber(
@@ -638,7 +644,7 @@ export namespace EvidenceBenchmarkPublication {
     );
     exactNumber(
       measurement.nonAgentElapsedMs,
-      props.state.elapsedMs - props.ledger.elapsedMs,
+      props.state.nonAgentElapsedMs,
       "non-agent elapsed time",
     );
     const attempts = object(measurement.attempts, "report attempts");

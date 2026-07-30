@@ -5,6 +5,18 @@ import { EvidenceBenchmarkEngine } from "./EvidenceBenchmarkEngine.ts";
 
 /** Validates the retained order and native evidence of benchmark turns. */
 export namespace EvidenceBenchmarkTurnLedger {
+  /** Native terminal verdict that permits a retained same-turn retry. */
+  export class PermissionDeniedError extends Error {
+    /** Captures the exact structured denial count from the native terminal. */
+    public constructor(public readonly denialCount: number) {
+      super(
+        `Benchmark attempt retained ${denialCount} native permission denial${
+          denialCount === 1 ? "" : "s"
+        }.`,
+      );
+    }
+  }
+
   /** Canonical measured turn order shared by both benchmark arms and engines. */
   export const NAMES = [
     "skills-contract",
@@ -18,8 +30,41 @@ export namespace EvidenceBenchmarkTurnLedger {
     "overall-final",
   ] as const;
 
+  /** Builds Claude's absolute, workspace-only permission glob. */
+  export function claudeWorkspaceGlob(workspace: string): string {
+    const resolved: string = path
+      .resolve(workspace)
+      .replaceAll("\\", "/")
+      .replace(/\/+$/, "");
+    const drive: RegExpExecArray | null = /^([A-Za-z]):(\/.*)$/.exec(resolved);
+    if (drive !== null) return `//${drive[1]!.toLowerCase()}${drive[2]!}/**`;
+    if (resolved.startsWith("/")) return `/${resolved}/**`;
+    throw new Error("Claude workspace permissions require an absolute path.");
+  }
+
   /** One canonical benchmark instruction name. */
   export type Name = (typeof NAMES)[number];
+
+  /** Invocation contract used when admitting new or auditing retained work. */
+  export type InvocationPolicy = "current" | "retained";
+
+  /** Native outcome of one structurally valid retained attempt. */
+  export interface IAttemptInspection {
+    /** Whether the native stream established the cell session. */
+    sessionLinked: boolean;
+
+    /** Whether the process result may be accepted, retried, or only retained. */
+    verdict: "acceptable" | "retryable-incomplete" | "process-failed";
+
+    /** Structured retry cause, present only for a retryable incomplete turn. */
+    reason?: "permission-denied";
+
+    /** Number of native permission denials retained by the terminal event. */
+    denialCount?: number;
+
+    /** Native usage retained even when an attempt is not accepted. */
+    usage?: ISummary["tokens"];
+  }
 
   /** Retained fields needed to admit and audit one model-process attempt. */
   export interface ITurn {
@@ -112,6 +157,198 @@ export namespace EvidenceBenchmarkTurnLedger {
       );
   }
 
+  /** Inspects one attempt without mutating its retained ledger. */
+  export function inspectAttempt(props: {
+    /** Source repository blocked from the measured agent's file tools. */
+    repository: string;
+
+    /** Exact retained cell root containing the attempt logs. */
+    runRoot: string;
+
+    /** Exact measured workspace used as the process working directory. */
+    workspace: string;
+
+    /** Fixed coding engine whose native stream is expected. */
+    engine: EvidenceBenchmarkEngine.Name;
+
+    /** Session identifier retained for the cell. */
+    sessionId: string;
+
+    /** Exact provider model selected by the fixed engine matrix. */
+    model: EvidenceBenchmarkEngine.Model;
+
+    /** Explicit reasoning effort selected by the fixed engine matrix. */
+    effort: EvidenceBenchmarkEngine.Effort;
+
+    /** Whether an earlier attempt established the retained session. */
+    sessionEstablished: boolean;
+
+    /** Invocation contract applied to this attempt. */
+    invocationPolicy: InvocationPolicy;
+
+    /** Retained attempt to inspect. */
+    turn: ITurn;
+  }): IAttemptInspection {
+    return inspectRetainedAttempt(props, new Set());
+  }
+
+  /** Audits a complete retained attempt ledger before any recovery mutation. */
+  export function inspectAttempts(
+    props: Omit<
+      Parameters<typeof inspectAttempt>[0],
+      "sessionEstablished" | "turn"
+    > & {
+      /** Complete chronological attempt ledger to audit transactionally. */
+      turns: readonly ITurn[];
+    },
+  ): readonly IAttemptInspection[] {
+    const retained: Set<string> = new Set();
+    const inspections: IAttemptInspection[] = [];
+    let sessionEstablished: boolean = false;
+    for (const turn of props.turns) {
+      const inspection: IAttemptInspection = inspectRetainedAttempt(
+        {
+          ...props,
+          sessionEstablished,
+          turn,
+        },
+        retained,
+      );
+      inspections.push(inspection);
+      if (inspection.sessionLinked) sessionEstablished = true;
+    }
+    assertExactLogInventory(props.runRoot, retained);
+    return inspections;
+  }
+
+  /** Requires one process-success attempt to carry acceptable native evidence. */
+  export function assertSuccessfulAttempt(
+    props: Omit<Parameters<typeof inspectAttempt>[0], "invocationPolicy">,
+  ): void {
+    const inspection: IAttemptInspection = inspectAttempt({
+      ...props,
+      invocationPolicy: "current",
+    });
+    if (inspection.verdict === "retryable-incomplete")
+      throw new PermissionDeniedError(inspection.denialCount!);
+    if (inspection.verdict !== "acceptable")
+      throw new Error(
+        `Benchmark attempt ${String(props.turn.name)} did not exit successfully.`,
+      );
+  }
+
+  function inspectRetainedAttempt(
+    props: Parameters<typeof inspectAttempt>[0],
+    retained: Set<string>,
+  ): IAttemptInspection {
+    const definition: EvidenceBenchmarkEngine.IDefinition =
+      EvidenceBenchmarkEngine.definition(props.engine);
+    if (props.model !== definition.model || props.effort !== definition.effort)
+      throw new Error(
+        `Benchmark ${props.engine} attempt does not use its fixed model and effort.`,
+      );
+    if (
+      typeof props.turn.name !== "string" ||
+      !NAMES.includes(props.turn.name as Name) ||
+      typeof props.turn.elapsedMs !== "number" ||
+      !Number.isFinite(props.turn.elapsedMs) ||
+      props.turn.elapsedMs < 0 ||
+      (props.turn.status !== null &&
+        (typeof props.turn.status !== "number" ||
+          !Number.isInteger(props.turn.status) ||
+          props.turn.status < 0)) ||
+      typeof props.turn.accepted !== "boolean" ||
+      (props.turn.sessionId !== undefined &&
+        (typeof props.turn.sessionId !== "string" ||
+          props.turn.sessionId.length === 0)) ||
+      typeof props.turn.cwd !== "string" ||
+      path.resolve(props.turn.cwd) !== path.resolve(props.workspace)
+    )
+      throw new Error(
+        `Benchmark attempt ${String(props.turn.name)} has an invalid retained ledger entry.`,
+      );
+    const stdout: string = retainedLog(
+      props.runRoot,
+      props.turn.stdout,
+      ".stdout.jsonl",
+      retained,
+    );
+    const stem: string = path.basename(stdout, ".stdout.jsonl");
+    if (
+      stem !== props.turn.name &&
+      new RegExp(
+        `^${props.turn.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.attempt-[2-9][0-9]*$`,
+      ).test(stem) === false
+    )
+      throw new Error(
+        `Benchmark attempt ${props.turn.name} retained another instruction's log.`,
+      );
+    retainedLog(
+      props.runRoot,
+      props.turn.stderr,
+      ".stderr.log",
+      retained,
+      stem,
+    );
+    const events: Record<string, unknown>[] = readEvents(stdout, props.turn);
+    const evidence: IAttemptEvidence =
+      props.engine === "codex"
+        ? codexEvidence(events, props.sessionId)
+        : claudeEvidence(events, props.sessionId, props.model);
+    if (
+      !Array.isArray(props.turn.invocation) ||
+      props.turn.invocation.some((value) => typeof value !== "string")
+    )
+      throw new Error(
+        `Benchmark attempt ${String(props.turn.name)} has no retained invocation.`,
+      );
+    assertInvocation({
+      engine: props.engine,
+      invocation: props.turn.invocation as string[],
+      repository: props.repository,
+      workspace: props.workspace,
+      sessionId: props.sessionId,
+      model: props.model,
+      effort: props.effort,
+      sessionEstablished: props.sessionEstablished,
+      invocationPolicy: props.invocationPolicy,
+    });
+    if (
+      (evidence.linked && props.turn.sessionId !== props.sessionId) ||
+      (!evidence.linked && props.turn.sessionId !== undefined)
+    )
+      throw new Error(
+        `Benchmark attempt ${String(props.turn.name)} is not linked to its retained session identity.`,
+      );
+    if (props.turn.status !== 0)
+      return {
+        sessionLinked: evidence.linked,
+        verdict: "process-failed",
+        ...(evidence.usage === undefined ? {} : { usage: evidence.usage }),
+      };
+    if (!evidence.linked || !evidence.terminal)
+      throw new Error(
+        `Benchmark attempt ${String(props.turn.name)} has no complete native terminal evidence.`,
+      );
+    if (evidence.permissionDenialCount !== undefined)
+      return {
+        sessionLinked: true,
+        verdict: "retryable-incomplete",
+        reason: "permission-denied",
+        denialCount: evidence.permissionDenialCount,
+        ...(evidence.usage === undefined ? {} : { usage: evidence.usage }),
+      };
+    if (!evidence.acceptable)
+      throw new Error(
+        `Benchmark attempt ${String(props.turn.name)} has no acceptable native terminal evidence.`,
+      );
+    return {
+      sessionLinked: true,
+      verdict: "acceptable",
+      ...(evidence.usage === undefined ? {} : { usage: evidence.usage }),
+    };
+  }
+
   /** Verifies retained logs, terminal events, session linkage, and invocation. */
   export function assertRetainedEvidence(props: {
     /** Source repository blocked from the measured agent's file tools. */
@@ -147,7 +384,17 @@ export namespace EvidenceBenchmarkTurnLedger {
     const model: EvidenceBenchmarkEngine.Model = definition.model;
     const effort: EvidenceBenchmarkEngine.Effort = definition.effort;
     assertAcceptedOrder(props.turns, true);
-    const retained: Set<string> = new Set();
+    const inspections: readonly IAttemptInspection[] = inspectAttempts({
+      engine: props.engine,
+      repository: props.repository,
+      runRoot: props.runRoot,
+      workspace: props.workspace,
+      sessionId: props.sessionId,
+      model,
+      effort,
+      invocationPolicy: "retained",
+      turns: props.turns,
+    });
     const summary: ISummary = {
       elapsedMs: 0,
       attempts: props.turns.length,
@@ -160,116 +407,35 @@ export namespace EvidenceBenchmarkTurnLedger {
         reasoning_output_tokens: 0,
       },
     };
-    let sessionEstablished: boolean = false;
-    for (const turn of props.turns) {
-      if (
-        typeof turn.name !== "string" ||
-        !NAMES.includes(turn.name as Name) ||
-        typeof turn.elapsedMs !== "number" ||
-        !Number.isFinite(turn.elapsedMs) ||
-        turn.elapsedMs < 0 ||
-        (turn.status !== null &&
-          (typeof turn.status !== "number" ||
-            !Number.isInteger(turn.status) ||
-            turn.status < 0)) ||
-        typeof turn.accepted !== "boolean" ||
-        (turn.sessionId !== undefined &&
-          (typeof turn.sessionId !== "string" ||
-            turn.sessionId.length === 0)) ||
-        !Array.isArray(turn.invocation) ||
-        turn.invocation.length === 0 ||
-        turn.invocation.some((value) => typeof value !== "string") ||
-        typeof turn.cwd !== "string" ||
-        path.resolve(turn.cwd) !== path.resolve(props.workspace)
-      )
-        throw new Error(
-          `Benchmark attempt ${String(turn.name)} has an invalid retained ledger entry.`,
-        );
-      summary.elapsedMs += turn.elapsedMs;
+    props.turns.forEach((turn, index) => {
+      const inspection: IAttemptInspection = inspections[index]!;
+      summary.elapsedMs += Number(turn.elapsedMs);
       if (!Number.isFinite(summary.elapsedMs))
         throw new Error("Benchmark attempt duration total is not finite.");
       if (turn.accepted === true) summary.accepted++;
-
-      const stdout: string = retainedLog(
-        props.runRoot,
-        turn.stdout,
-        ".stdout.jsonl",
-        retained,
-      );
-      const stem: string = path.basename(stdout, ".stdout.jsonl");
-      if (
-        stem !== turn.name &&
-        new RegExp(
-          `^${turn.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.attempt-[2-9][0-9]*$`,
-        ).test(stem) === false
-      )
-        throw new Error(
-          `Benchmark attempt ${turn.name} retained another instruction's log.`,
-        );
-      retainedLog(props.runRoot, turn.stderr, ".stderr.log", retained, stem);
-      const objects: Record<string, unknown>[] = readEvents(stdout, turn);
-      const evidence: IAttemptEvidence =
-        props.engine === "codex"
-          ? codexEvidence(objects, props.sessionId)
-          : claudeEvidence(objects, props.sessionId, model);
-      if ((turn.accepted === true || turn.status === 0) && !evidence.linked)
-        throw new Error(
-          `Benchmark attempt ${turn.name} is not linked to the retained ${props.engine} session.`,
-        );
-      if (
-        (turn.accepted === true || turn.status === 0) &&
-        turn.sessionId !== props.sessionId
-      )
-        throw new Error(
-          `Benchmark attempt ${turn.name} retained the wrong session identity.`,
-        );
-      if ((turn.accepted === true || turn.status === 0) && !evidence.completed)
+      if (turn.accepted === true && inspection.verdict !== "acceptable")
         throw new Error(
           `Benchmark attempt ${turn.name} has no successful terminal model-usage proof.`,
         );
-      if (evidence.usage !== undefined)
+      if (inspection.usage !== undefined)
         for (const category of Object.keys(summary.tokens) as Array<
           keyof ISummary["tokens"]
         >) {
-          summary.tokens[category] += evidence.usage[category];
+          summary.tokens[category] += inspection.usage[category];
           if (!Number.isSafeInteger(summary.tokens[category]))
             throw new Error(
               `Benchmark token category ${category} exceeds the safe integer range.`,
             );
         }
-      assertInvocation({
-        engine: props.engine,
-        invocation: turn.invocation as string[],
-        repository: props.repository,
-        workspace: props.workspace,
-        sessionId: props.sessionId,
-        model,
-        effort,
-        sessionEstablished,
-      });
-      if (evidence.linked) sessionEstablished = true;
-    }
-    const logs: string = path.resolve(props.runRoot, "logs");
-    const actualLogs: string[] = fs
-      .readdirSync(logs, { withFileTypes: true })
-      .map((entry) => {
-        if (!entry.isFile() || entry.isSymbolicLink())
-          throw new Error(
-            `Benchmark log inventory contains a non-regular entry: ${entry.name}.`,
-          );
-        return path.resolve(logs, entry.name);
-      })
-      .sort();
-    if (JSON.stringify(actualLogs) !== JSON.stringify([...retained].sort()))
-      throw new Error(
-        "Benchmark log inventory does not exactly match the retained attempt ledger.",
-      );
+    });
     return summary;
   }
 
   interface IAttemptEvidence {
     linked: boolean;
-    completed: boolean;
+    terminal: boolean;
+    acceptable: boolean;
+    permissionDenialCount?: number;
     usage?: ISummary["tokens"];
   }
 
@@ -319,9 +485,11 @@ export namespace EvidenceBenchmarkTurnLedger {
       completed[0] === undefined
         ? undefined
         : readCodexUsage(completed[0].usage);
+    const terminal: boolean = completed.length === 1 && usage !== undefined;
     return {
       linked,
-      completed: completed.length === 1 && usage !== undefined,
+      terminal,
+      acceptable: terminal,
       ...(usage === undefined ? {} : { usage }),
     };
   }
@@ -363,12 +531,39 @@ export namespace EvidenceBenchmarkTurnLedger {
       );
     const usage: ISummary["tokens"] | undefined =
       result === undefined ? undefined : readClaudeUsage(result, model);
+    const permissionDenials: unknown = result?.permission_denials;
+    const denialList: unknown[] | undefined = Array.isArray(permissionDenials)
+      ? permissionDenials
+      : undefined;
+    const errors: unknown = result?.errors;
+    const noErrors: boolean =
+      errors === undefined || (Array.isArray(errors) && errors.length === 0);
+    const structuredDenials: boolean =
+      denialList !== undefined &&
+      denialList.every(
+        (denial) =>
+          isObject(denial) &&
+          typeof denial.tool_name === "string" &&
+          denial.tool_name.length !== 0,
+      );
+    const terminal: boolean =
+      result?.subtype === "success" &&
+      result.is_error === false &&
+      result.terminal_reason === "completed" &&
+      result.stop_reason === "end_turn" &&
+      result.api_error_status === null &&
+      denialList !== undefined &&
+      usage !== undefined;
+    const permissionDenialCount: number | undefined =
+      terminal && noErrors && structuredDenials && denialList!.length !== 0
+        ? denialList!.length
+        : undefined;
     return {
       linked: initializations.length !== 0,
-      completed:
-        result?.subtype === "success" &&
-        result.is_error === false &&
-        usage !== undefined,
+      terminal,
+      acceptable:
+        terminal && noErrors && denialList!.length === 0 && usage !== undefined,
+      ...(permissionDenialCount === undefined ? {} : { permissionDenialCount }),
       ...(usage === undefined ? {} : { usage }),
     };
   }
@@ -497,6 +692,27 @@ export namespace EvidenceBenchmarkTurnLedger {
     return location;
   }
 
+  function assertExactLogInventory(
+    runRoot: string,
+    retained: ReadonlySet<string>,
+  ): void {
+    const logs: string = path.resolve(runRoot, "logs");
+    const actualLogs: string[] = fs
+      .readdirSync(logs, { withFileTypes: true })
+      .map((entry) => {
+        if (!entry.isFile() || entry.isSymbolicLink())
+          throw new Error(
+            `Benchmark log inventory contains a non-regular entry: ${entry.name}.`,
+          );
+        return path.resolve(logs, entry.name);
+      })
+      .sort();
+    if (JSON.stringify(actualLogs) !== JSON.stringify([...retained].sort()))
+      throw new Error(
+        "Benchmark log inventory does not exactly match the retained attempt ledger.",
+      );
+  }
+
   function assertInvocation(props: {
     engine: EvidenceBenchmarkEngine.Name;
     invocation: readonly string[];
@@ -506,6 +722,7 @@ export namespace EvidenceBenchmarkTurnLedger {
     model: string;
     effort: string;
     sessionEstablished: boolean;
+    invocationPolicy: InvocationPolicy;
   }): void {
     if (props.engine === "codex") assertCodexInvocation(props);
     else assertClaudeInvocation(props);
@@ -519,6 +736,7 @@ export namespace EvidenceBenchmarkTurnLedger {
     model: string;
     effort: string;
     sessionEstablished: boolean;
+    invocationPolicy: InvocationPolicy;
   }): void {
     const execIndex: number = props.invocation.indexOf("exec");
     const launcherTrusted: boolean =
@@ -573,6 +791,7 @@ export namespace EvidenceBenchmarkTurnLedger {
     model: string;
     effort: string;
     sessionEstablished: boolean;
+    invocationPolicy: InvocationPolicy;
   }): void {
     const launcher: string = props.invocation[0]!;
     const basename: string = path.basename(launcher).toLowerCase();
@@ -590,6 +809,31 @@ export namespace EvidenceBenchmarkTurnLedger {
         "Benchmark attempt has an untrusted Claude Code launcher.",
       );
     const args: readonly string[] = props.invocation.slice(1);
+    const workspaceGlob: string = claudeWorkspaceGlob(props.workspace);
+    const currentAllowedTools: string[] = [
+      "Bash",
+      `Edit(${workspaceGlob})`,
+      `Write(${workspaceGlob})`,
+      `Read(${workspaceGlob})`,
+      "Agent",
+    ];
+    const legacyAllowedTools: string[] = [
+      "Bash",
+      "Edit(./**)",
+      "Read(./**)",
+      "Agent",
+    ];
+    const retainedAllowedTools: string | undefined = option(
+      args,
+      "--allowedTools",
+    );
+    const allowedTools: string[] | undefined =
+      retainedAllowedTools === currentAllowedTools.join(",")
+        ? currentAllowedTools
+        : props.invocationPolicy === "retained" &&
+            retainedAllowedTools === legacyAllowedTools.join(",")
+          ? legacyAllowedTools
+          : undefined;
     const forbidden: readonly string[] = [
       "--allow-dangerously-skip-permissions",
       "--bare",
@@ -608,7 +852,7 @@ export namespace EvidenceBenchmarkTurnLedger {
       option(args, "--effort") !== props.effort ||
       option(args, "--permission-mode") !== "dontAsk" ||
       option(args, "--tools") !== "Bash,Edit,Write,Read,Glob,Grep,Agent" ||
-      option(args, "--allowedTools") !== "Bash,Edit(./**),Read(./**),Agent" ||
+      allowedTools === undefined ||
       option(args, "--disallowedTools") !== "WebFetch,WebSearch" ||
       option(args, "--setting-sources") !== "" ||
       !args.includes("--strict-mcp-config") ||
@@ -630,6 +874,7 @@ export namespace EvidenceBenchmarkTurnLedger {
       props.repository,
       props.workspace,
       !(path.isAbsolute(launcher) && basename === "claude.exe"),
+      allowedTools,
     );
     const resumed: boolean = option(args, "--resume") !== undefined;
     if (
@@ -669,6 +914,7 @@ export namespace EvidenceBenchmarkTurnLedger {
     repository: string,
     workspace: string,
     sandboxSupported: boolean,
+    allowedTools: readonly string[],
   ): void {
     let parsed: unknown;
     try {
@@ -701,8 +947,7 @@ export namespace EvidenceBenchmarkTurnLedger {
     if (
       !isObject(sandbox) ||
       !isObject(permissions) ||
-      JSON.stringify(permissions.allow) !==
-        JSON.stringify(["Bash", "Edit(./**)", "Read(./**)", "Agent"]) ||
+      JSON.stringify(permissions.allow) !== JSON.stringify(allowedTools) ||
       JSON.stringify(permissions.deny) !==
         JSON.stringify(["WebFetch", "WebSearch"]) ||
       sandbox.enabled !== sandboxSupported ||
