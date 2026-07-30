@@ -267,7 +267,6 @@ export namespace EvidenceBenchmarkClaudeRunner {
     }>((resolve) => {
       child.once("error", (error) => {
         processError ??= error;
-        resolve({ exitCode: null, signal: null });
       });
       child.once("close", (exitCode, signal) => resolve({ exitCode, signal }));
     });
