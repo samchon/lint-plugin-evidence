@@ -92,7 +92,7 @@ The runner assigns each engine, subject, and arm distinct API, Swagger, Vite dev
 
 ## Observe and resume
 
-Inspect every active cell at least once every 30 seconds: read its `run.json`, controller liveness, newest stdout JSONL and stderr, current workspace, and active gate. Revive a recoverable interruption immediately. Separately, update the campaign pull-request body every 10 minutes with only Engine, Project, Mode, Progress, Quality, Cost, and Time; report interruptions, recoveries, defects, interventions, and completed phases as formal `COMMENT` reviews.
+Inspect every active cell at least once every 30 seconds: read its `run.json`, controller liveness, newest stdout JSONL and stderr, current workspace, and active gate. Revive a recoverable interruption immediately. Separately, update the campaign pull-request body every 10 minutes under distinct `## Codex` and `## Claude Code` sections with only Project, Mode, Progress, Quality, Cost, and Time; report interruptions, recoveries, defects, interventions, and completed phases as formal `COMMENT` reviews.
 
 Resume a recoverably interrupted cell with its exact engine, subject, arm, and run identity:
 
