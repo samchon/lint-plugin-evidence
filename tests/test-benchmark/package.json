@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "test-benchmark",
-  "version": "0.0.0",
+  "version": "0.4.4",
   "description": "Consumer-shaped Plain template backend test.",
   "type": "module",
   "scripts": {

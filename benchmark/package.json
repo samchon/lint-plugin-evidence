@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@samchon/evidence-benchmark",
-  "version": "0.0.0",
+  "version": "0.4.4",
   "description": "Deterministic materialization and package preparation for the evidence benchmark.",
   "type": "module",
   "exports": {
