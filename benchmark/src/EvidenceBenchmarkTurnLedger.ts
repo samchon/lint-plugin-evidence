@@ -5,6 +5,15 @@ import { EvidenceBenchmarkEngine } from "./EvidenceBenchmarkEngine.ts";
 
 /** Validates the retained order and native evidence of benchmark turns. */
 export namespace EvidenceBenchmarkTurnLedger {
+  /** Serializes the exact workspace and cache roots of one Codex cell. */
+  export function codexWorkspaceRootsConfig(workspace: string): string {
+    const roots: readonly string[] = [
+      path.resolve(workspace),
+      path.resolve(path.dirname(workspace), "cache"),
+    ].sort((left, right) => left.localeCompare(right));
+    return `{${roots.map((root) => `${JSON.stringify(root)}=true`).join(",")}}`;
+  }
+
   /** Native terminal verdict that permits a retained same-turn retry. */
   export class PermissionDeniedError extends Error {
     /** Captures the exact structured denial count from the native terminal. */
@@ -752,6 +761,14 @@ export namespace EvidenceBenchmarkTurnLedger {
       throw new Error("Benchmark attempt has an untrusted Codex launcher.");
     const args: readonly string[] = props.invocation.slice(execIndex + 1);
     const resumed: boolean = args[0] === "resume";
+    const expectedRoots: string = codexWorkspaceRootsConfig(props.workspace);
+    const legacyRoots: string = `{${JSON.stringify(
+      path.resolve(path.dirname(props.workspace), "cache"),
+    )}=true}`;
+    const retainedRoots: string | undefined = configValue(
+      args,
+      "permissions.benchmark.workspace_roots",
+    );
     if (
       !args.includes("--json") ||
       option(args, "--enable") !== "goals" ||
@@ -764,7 +781,12 @@ export namespace EvidenceBenchmarkTurnLedger {
       args.includes("--dangerously-bypass-approvals-and-sandbox") ||
       args.some((value) =>
         value.includes("shell_environment_policy.inherit=all"),
-      )
+      ) ||
+      configValue(args, "permissions.benchmark.filesystem.:workspace_roots") !==
+        '{"."="write"}' ||
+      (props.invocationPolicy === "current"
+        ? retainedRoots !== expectedRoots
+        : retainedRoots !== expectedRoots && retainedRoots !== legacyRoots)
     )
       throw new Error(
         "Benchmark Codex attempt does not retain the required model, effort, goal, and isolation invocation.",
@@ -1015,5 +1037,20 @@ export namespace EvidenceBenchmarkTurnLedger {
     if (indexes.length > 1)
       throw new Error(`Benchmark invocation repeats option ${name}.`);
     return indexes[0] === undefined ? undefined : args[indexes[0] + 1];
+  }
+
+  function configValue(
+    args: readonly string[],
+    key: string,
+  ): string | undefined {
+    const prefix: string = `${key}=`;
+    const matches: string[] = args.flatMap((value, index) =>
+      value === "--config" && args[index + 1]?.startsWith(prefix) === true
+        ? [args[index + 1]!.slice(prefix.length)]
+        : [],
+    );
+    if (matches.length > 1)
+      throw new Error(`Benchmark invocation repeats config ${key}.`);
+    return matches[0];
   }
 }

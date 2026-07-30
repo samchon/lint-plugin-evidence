@@ -181,7 +181,7 @@ export namespace EvidenceBenchmarkCommandLine {
       "--config",
       'permissions.benchmark.filesystem.:slash_tmp="deny"',
       "--config",
-      `permissions.benchmark.workspace_roots={${tomlString(cache)}=true}`,
+      `permissions.benchmark.workspace_roots=${EvidenceBenchmarkTurnLedger.codexWorkspaceRootsConfig(workspace)}`,
       "--config",
       'permissions.benchmark.filesystem.:workspace_roots={"."="write"}',
       "--config",
@@ -415,6 +415,7 @@ export namespace EvidenceBenchmarkCommandLine {
           engineVersion(engine.engine),
         ]),
       );
+    proveCodexAdapter(repository);
     await EvidenceBenchmarkRuntime.assertAvailable(
       cells.map((cell) => cell.runtime),
     );
@@ -1697,6 +1698,99 @@ export namespace EvidenceBenchmarkCommandLine {
     if (version.length === 0)
       throw new Error("Codex CLI returned an empty version.");
     return version;
+  }
+
+  /**
+   * Proves the exact Codex permission profile before any paid model work.
+   *
+   * The proof writes only inside a disposable run-owned root. It requires both
+   * configured roots to be writable and an adjacent path to remain denied.
+   */
+  export function proveCodexAdapter(repository: string): void {
+    const workRoot: string = path.resolve(repository, "benchmark", ".work");
+    fs.mkdirSync(workRoot, { recursive: true });
+    const root: string = path.join(
+      workRoot,
+      `codex-adapter-proof-${crypto.randomUUID()}`,
+    );
+    assertInside(workRoot, root, "Codex adapter proof root");
+    const workspace: string = path.join(root, "workspace");
+    const cache: string = path.join(root, "cache");
+    const outside: string = path.join(root, "outside.txt");
+    const workspaceProof: string = path.join(workspace, "proof.txt");
+    const cacheProof: string = path.join(cache, "proof.txt");
+    fs.mkdirSync(workspace, { recursive: true });
+    fs.mkdirSync(cache, { recursive: true });
+    try {
+      const executable: { command: string; prefix: string[] } =
+        codexExecutable();
+      const isolation: readonly string[] = codexIsolationArguments(
+        workspace,
+        {},
+      );
+      const configs: string[] = isolation.flatMap((value, index) =>
+        value === "--config" ? ["--config", isolation[index + 1]!] : [],
+      );
+      const platform: string[] =
+        process.platform === "win32"
+          ? []
+          : [process.platform === "darwin" ? "macos" : "linux"];
+      const common: string[] = [
+        ...executable.prefix,
+        "sandbox",
+        ...platform,
+        "-P",
+        "benchmark",
+        "-C",
+        workspace,
+        ...configs,
+        "--",
+        process.execPath,
+        "-e",
+      ];
+      const writeScript: string =
+        'for (const target of process.argv.slice(1)) require("node:fs").writeFileSync(target, "proof")';
+      const allowed = spawnSync(
+        executable.command,
+        [...common, writeScript, workspaceProof, cacheProof],
+        {
+          cwd: workspace,
+          encoding: "utf8",
+          shell: false,
+          windowsHide: true,
+        },
+      );
+      if (
+        allowed.error !== undefined ||
+        allowed.status !== 0 ||
+        !fs.existsSync(workspaceProof) ||
+        !fs.existsSync(cacheProof)
+      )
+        throw new Error(
+          `Codex adapter could not write its measured workspace and cache: ${(allowed.stderr ?? "").trim()}`,
+        );
+      const denied = spawnSync(
+        executable.command,
+        [...common, writeScript, outside],
+        {
+          cwd: workspace,
+          encoding: "utf8",
+          shell: false,
+          windowsHide: true,
+        },
+      );
+      if (
+        denied.error !== undefined ||
+        denied.status === 0 ||
+        fs.existsSync(outside)
+      )
+        throw new Error(
+          "Codex adapter did not deny a write outside its measured workspace and cache.",
+        );
+    } finally {
+      assertInside(workRoot, root, "Codex adapter proof cleanup");
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   }
 
   function claudeExecutable(): { command: string; prefix: string[] } {

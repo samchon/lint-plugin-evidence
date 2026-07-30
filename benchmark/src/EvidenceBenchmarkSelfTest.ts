@@ -43,6 +43,7 @@ export namespace EvidenceBenchmarkSelfTest {
       createFixture(repository, fixture);
       await testPinnedPnpm(repository);
       testCodexIsolation(temporary);
+      testCodexTurnLedger(temporary);
       testClaudeIsolation(temporary);
       testEngineMatrix();
       testClaudeTurnLedger(temporary);
@@ -177,6 +178,24 @@ export namespace EvidenceBenchmarkSelfTest {
       invocation,
       /permissions\.benchmark\.filesystem\.:workspace_roots=\{"\."="write"\}/,
     );
+    const workspaceRoots: string =
+      EvidenceBenchmarkTurnLedger.codexWorkspaceRootsConfig(workspace);
+    assert.equal(
+      arguments_.includes(
+        `permissions.benchmark.workspace_roots=${workspaceRoots}`,
+      ),
+      true,
+      "Codex permissions must name both the measured workspace and its run-owned cache",
+    );
+    assert.equal(
+      workspaceRoots,
+      `{${[workspace, path.join(root, "cache")]
+        .map((entry) => path.resolve(entry))
+        .sort((left, right) => left.localeCompare(right))
+        .map((entry) => `${JSON.stringify(entry)}=true`)
+        .join(",")}}`,
+      "Codex workspace roots must be absolute and deterministic on every platform",
+    );
     assert.equal(
       invocation.includes('filesystem.":'),
       false,
@@ -186,6 +205,90 @@ export namespace EvidenceBenchmarkSelfTest {
     assert.match(invocation, /shell_environment_policy\.inherit="core"/);
     assert.match(invocation, /shell_environment_policy\.set=/);
     assert.equal(invocation.includes("must-not-leak"), false);
+  }
+
+  function testCodexTurnLedger(temporary: string): void {
+    const runRoot: string = path.join(temporary, "codex-turn-ledger");
+    const repository: string = path.join(temporary, "source-repository");
+    const workspace: string = path.join(runRoot, "workspace");
+    const logs: string = path.join(runRoot, "logs");
+    const sessionId: string = "12345678-1234-4123-8123-123456789abc";
+    fs.mkdirSync(logs, { recursive: true });
+    const stdout: string = "logs/skills-contract.stdout.jsonl";
+    const stderr: string = "logs/skills-contract.stderr.log";
+    write(
+      path.join(runRoot, ...stdout.split("/")),
+      [
+        JSON.stringify({ type: "thread.started", thread_id: sessionId }),
+        JSON.stringify({
+          type: "turn.completed",
+          usage: {
+            input_tokens: 10,
+            cached_input_tokens: 5,
+            output_tokens: 4,
+            reasoning_output_tokens: 2,
+          },
+        }),
+        "",
+      ].join("\n"),
+    );
+    write(path.join(runRoot, ...stderr.split("/")), "");
+    const commonInvocation: string[] = [
+      "--json",
+      "--enable",
+      "goals",
+      "--model",
+      "gpt-5.6-terra",
+      "--config",
+      "model_reasoning_effort=high",
+      ...EvidenceBenchmarkCommandLine.codexIsolationArguments(workspace, {}),
+      "--skip-git-repo-check",
+    ];
+    const turn: EvidenceBenchmarkTurnLedger.ITurn = {
+      name: "skills-contract",
+      elapsedMs: 10,
+      status: 0,
+      stdout,
+      stderr,
+      invocation: [
+        "codex",
+        "exec",
+        ...commonInvocation,
+        "--cd",
+        workspace,
+        "-",
+      ],
+      cwd: workspace,
+      accepted: false,
+      sessionId,
+    };
+    const inspectCurrent = () =>
+      EvidenceBenchmarkTurnLedger.assertSuccessfulAttempt({
+        repository,
+        runRoot,
+        workspace,
+        engine: "codex",
+        sessionId,
+        model: "gpt-5.6-terra",
+        effort: "high",
+        sessionEstablished: false,
+        turn,
+      });
+    inspectCurrent();
+    const invocation: string[] = [...(turn.invocation as string[])];
+    const rootsIndex: number = invocation.findIndex((value) =>
+      value.startsWith("permissions.benchmark.workspace_roots="),
+    );
+    assert.notEqual(rootsIndex, -1);
+    invocation[rootsIndex] =
+      `permissions.benchmark.workspace_roots={` +
+      `${JSON.stringify(path.join(runRoot, "cache"))}=true}`;
+    turn.invocation = invocation;
+    assert.throws(
+      inspectCurrent,
+      /required model, effort, goal, and isolation invocation/,
+      "current Codex admission must reject a profile that omits the measured workspace",
+    );
   }
 
   function testClaudeIsolation(temporary: string): void {
