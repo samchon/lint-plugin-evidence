@@ -1,6 +1,6 @@
 # Skills Contract
 
-Use goal mode for this skills-contract stage. Create a bounded goal for completing the instruction reading below, and mark it complete only after every required document has been read in full. This contract remains binding for every later turn in this benchmark.
+Treat this skills-contract stage as one bounded objective. Preserve it across an interruption, and declare it complete only after every required document below has been read in full. This contract remains binding for every later turn in this benchmark.
 
 Before implementation, generation, project commands, or file edits:
 

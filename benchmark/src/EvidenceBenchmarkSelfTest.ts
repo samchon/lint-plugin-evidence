@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import cp from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
@@ -6,10 +7,12 @@ import path from "node:path";
 
 import * as ts from "typescript-api";
 
+import { EvidenceBenchmarkAgentProcess } from "./EvidenceBenchmarkAgentProcess.ts";
 import { EvidenceBenchmarkBaseline } from "./EvidenceBenchmarkBaseline.ts";
 import { EvidenceBenchmarkCommandLine } from "./EvidenceBenchmarkCommandLine.ts";
 import { EvidenceBenchmarkConsumerProof } from "./EvidenceBenchmarkConsumerProof.ts";
 import { EvidenceBenchmarkCorpus } from "./EvidenceBenchmarkCorpus.ts";
+import { EvidenceBenchmarkEngine } from "./EvidenceBenchmarkEngine.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
 import { EvidenceBenchmarkMaterializer } from "./EvidenceBenchmarkMaterializer.ts";
@@ -41,7 +44,12 @@ export namespace EvidenceBenchmarkSelfTest {
       const fixture: string = path.join(temporary, "fixture");
       createFixture(repository, fixture);
       await testPinnedPnpm(repository);
+      await testAgentProcessLifecycle(temporary);
       testCodexIsolation(temporary);
+      testCodexTurnLedger(temporary);
+      testClaudeIsolation(temporary);
+      testEngineMatrix();
+      testClaudeTurnLedger(temporary);
       testStateJournal(temporary);
       await testRuntimeIsolation();
       await testPublicationSafety(temporary);
@@ -126,6 +134,217 @@ export namespace EvidenceBenchmarkSelfTest {
     assert.equal(fs.existsSync(previous), false);
   }
 
+  async function testAgentProcessLifecycle(temporary: string): Promise<void> {
+    const root: string = path.join(temporary, "agent-process");
+    const workspace: string = path.join(root, "workspace");
+    fs.mkdirSync(workspace, { recursive: true });
+    const sentinel: cp.ChildProcess = cp.spawn(
+      process.execPath,
+      ["-e", "setInterval(() => {}, 1000)", "outside-sentinel"],
+      { stdio: "ignore", windowsHide: true },
+    );
+    assert.notEqual(sentinel.pid, undefined);
+    let inheritedPid: number | undefined;
+    try {
+      let spawnedPid: number | undefined;
+      const natural = await EvidenceBenchmarkAgentProcess.run({
+        command: process.execPath,
+        arguments: [
+          "-e",
+          [
+            'process.stdout.write("stdout-exact");',
+            'process.stderr.write("stderr-exact");',
+            "setTimeout(() => process.exit(0), 50);",
+          ].join(""),
+        ],
+        cwd: workspace,
+        environment: process.env,
+        stdin: "",
+        stdout: path.join(root, "natural.stdout.jsonl"),
+        stderr: path.join(root, "natural.stderr.log"),
+        onSpawn: (pid) => {
+          spawnedPid = pid;
+        },
+      });
+      assert.equal(natural.exitCode, 0);
+      assert.equal(natural.signal, null);
+      assert.equal(natural.pid, spawnedPid);
+      assert.ok(
+        natural.elapsedMs >= 25 && natural.elapsedMs < 5_000,
+        `spawn-to-exit duration is outside its expected bound: ${natural.elapsedMs}`,
+      );
+      assert.equal(
+        fs.readFileSync(path.join(root, "natural.stdout.jsonl"), "utf8"),
+        "stdout-exact",
+      );
+      assert.equal(
+        fs.readFileSync(path.join(root, "natural.stderr.log"), "utf8"),
+        "stderr-exact",
+      );
+      assert.equal(isProcessAlive(sentinel.pid!), true);
+
+      const failed = await EvidenceBenchmarkAgentProcess.run({
+        command: process.execPath,
+        arguments: ["-e", "process.exit(7)"],
+        cwd: workspace,
+        environment: process.env,
+        stdin: "",
+        stdout: path.join(root, "failed.stdout.jsonl"),
+        stderr: path.join(root, "failed.stderr.log"),
+      });
+      assert.equal(failed.exitCode, 7);
+      assert.equal(failed.signal, null);
+      assert.equal(isProcessAlive(sentinel.pid!), true);
+
+      let signalPid: number | undefined;
+      const signaled = await EvidenceBenchmarkAgentProcess.run({
+        command: process.execPath,
+        arguments: ["-e", "setInterval(() => {}, 1000)"],
+        cwd: workspace,
+        environment: process.env,
+        stdin: "",
+        stdout: path.join(root, "signaled.stdout.jsonl"),
+        stderr: path.join(root, "signaled.stderr.log"),
+        onSpawn: (pid) => {
+          signalPid = pid;
+          setTimeout(() => process.kill(pid, "SIGTERM"), 50);
+        },
+      });
+      assert.equal(signaled.pid, signalPid);
+      assert.equal(signaled.exitCode, process.platform === "win32" ? 1 : null);
+      assert.equal(
+        signaled.signal,
+        process.platform === "win32" ? null : "SIGTERM",
+      );
+      assert.equal(isProcessAlive(sentinel.pid!), true);
+
+      const inheritedStarted: number = Date.now();
+      const inherited = await EvidenceBenchmarkAgentProcess.run({
+        command: process.execPath,
+        arguments: [
+          "-e",
+          [
+            'const cp = require("node:child_process");',
+            'const child = cp.spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: ["ignore", "inherit", "inherit"] });',
+            "console.log(`inherited-pid=${child.pid}`);",
+            "child.unref();",
+          ].join(""),
+        ],
+        cwd: workspace,
+        environment: process.env,
+        stdin: "",
+        stdout: path.join(root, "inherited.stdout.jsonl"),
+        stderr: path.join(root, "inherited.stderr.log"),
+      });
+      inheritedPid = readProcessPid(
+        path.join(root, "inherited.stdout.jsonl"),
+        /inherited-pid=(\d+)/,
+      );
+      assert.equal(inherited.exitCode, 0);
+      assert.equal(inherited.signal, null);
+      assert.ok(
+        Date.now() - inheritedStarted < 5_000,
+        "an inherited stdio descriptor must not block the direct-child result",
+      );
+      assert.equal(isProcessAlive(sentinel.pid!), true);
+
+      const earlyExit = await EvidenceBenchmarkAgentProcess.run({
+        command: process.execPath,
+        arguments: [
+          "-e",
+          'process.stdin.once("data", () => process.exit(7)); process.stdin.resume();',
+        ],
+        cwd: workspace,
+        environment: process.env,
+        stdin: "x".repeat(2 * 1024 * 1024),
+        stdout: path.join(root, "epipe.stdout.jsonl"),
+        stderr: path.join(root, "epipe.stderr.log"),
+      });
+      assert.equal(earlyExit.exitCode, 7);
+      assert.equal(earlyExit.signal, null);
+      assert.equal(isProcessAlive(sentinel.pid!), true);
+
+      await assert.rejects(
+        EvidenceBenchmarkAgentProcess.run({
+          command: path.join(root, "missing-executable"),
+          arguments: [],
+          cwd: workspace,
+          environment: process.env,
+          stdin: "",
+          stdout: path.join(root, "spawn-error.stdout.jsonl"),
+          stderr: path.join(root, "spawn-error.stderr.log"),
+        }),
+        "a synchronous or asynchronous spawn failure must reject",
+      );
+      assert.equal(isProcessAlive(sentinel.pid!), true);
+
+      const occupiedStdout: string = path.join(
+        root,
+        "stream-error.stdout.jsonl",
+      );
+      fs.writeFileSync(occupiedStdout, "occupied", "utf8");
+      let streamErrorPid: number | undefined;
+      await assert.rejects(
+        EvidenceBenchmarkAgentProcess.run({
+          command: process.execPath,
+          arguments: ["-e", "setInterval(() => {}, 1000)"],
+          cwd: workspace,
+          environment: process.env,
+          stdin: "",
+          stdout: occupiedStdout,
+          stderr: path.join(root, "stream-error.stderr.log"),
+          onSpawn: (pid) => {
+            streamErrorPid = pid;
+          },
+        }),
+        "a retained-log stream failure must reject and stop the direct child",
+      );
+      assert.notEqual(streamErrorPid, undefined);
+      await waitForProcessExit(streamErrorPid!);
+      assert.equal(isProcessAlive(sentinel.pid!), true);
+    } finally {
+      if (inheritedPid !== undefined && isProcessAlive(inheritedPid))
+        process.kill(inheritedPid, "SIGKILL");
+      if (isProcessAlive(sentinel.pid!)) sentinel.kill("SIGKILL");
+    }
+  }
+
+  function readProcessPid(file: string, pattern: RegExp): number {
+    const text: string = fs.readFileSync(file, "utf8");
+    const match: RegExpExecArray | null = pattern.exec(text);
+    assert.notEqual(match, null, `process PID missing from ${file}`);
+    return Number(match![1]);
+  }
+
+  async function waitForProcessExit(pid: number): Promise<void> {
+    const deadline: number = Date.now() + 3_000;
+    while (isProcessAlive(pid) && Date.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    assert.equal(isProcessAlive(pid), false, `process ${pid} did not exit`);
+  }
+
+  function isProcessAlive(pid: number): boolean {
+    if (process.platform !== "win32") {
+      const status: cp.SpawnSyncReturns<string> = cp.spawnSync(
+        "ps",
+        ["-o", "stat=", "-p", String(pid)],
+        {
+          encoding: "utf8",
+          stdio: "pipe",
+        },
+      );
+      if (status.status !== 0) return false;
+      const state: string = status.stdout.trim();
+      return state.length !== 0 && !state.startsWith("Z");
+    }
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function testCodexIsolation(temporary: string): void {
     const root: string = path.join(temporary, "codex-isolation");
     const workspace: string = path.join(root, "workspace");
@@ -167,12 +386,711 @@ export namespace EvidenceBenchmarkSelfTest {
     assert.match(invocation, /default_permissions="benchmark"/);
     assert.match(
       invocation,
-      /permissions\.benchmark\.filesystem\.":root"="deny"/,
+      /permissions\.benchmark\.filesystem\.:root="deny"/,
+    );
+    assert.match(
+      invocation,
+      /permissions\.benchmark\.filesystem\.:workspace_roots=\{"\."="write"\}/,
+    );
+    const workspaceRoots: string =
+      EvidenceBenchmarkTurnLedger.codexWorkspaceRootsConfig(workspace);
+    assert.equal(
+      arguments_.includes(
+        `permissions.benchmark.workspace_roots=${workspaceRoots}`,
+      ),
+      true,
+      "Codex permissions must name both the measured workspace and its run-owned cache",
+    );
+    assert.equal(
+      workspaceRoots,
+      `{${[workspace, path.join(root, "cache")]
+        .map((entry) => path.resolve(entry))
+        .sort((left, right) => left.localeCompare(right))
+        .map((entry) => `${JSON.stringify(entry)}=true`)
+        .join(",")}}`,
+      "Codex workspace roots must be absolute and deterministic on every platform",
+    );
+    assert.equal(
+      invocation.includes('filesystem.":'),
+      false,
+      "Codex CLI dotted overrides must not quote special filesystem tokens",
     );
     assert.match(invocation, /permissions\.benchmark\.network\.domains=/);
     assert.match(invocation, /shell_environment_policy\.inherit="core"/);
     assert.match(invocation, /shell_environment_policy\.set=/);
     assert.equal(invocation.includes("must-not-leak"), false);
+  }
+
+  function testCodexTurnLedger(temporary: string): void {
+    const runRoot: string = path.join(temporary, "codex-turn-ledger");
+    const repository: string = path.join(temporary, "source-repository");
+    const workspace: string = path.join(runRoot, "workspace");
+    const logs: string = path.join(runRoot, "logs");
+    const sessionId: string = "12345678-1234-4123-8123-123456789abc";
+    fs.mkdirSync(workspace, { recursive: true });
+    fs.mkdirSync(logs, { recursive: true });
+    const outputSchema: string =
+      EvidenceBenchmarkTurnLedger.turnOutputSchemaPath(workspace);
+    write(
+      outputSchema,
+      `${EvidenceBenchmarkTurnLedger.turnOutputSchemaJson()}\n`,
+    );
+    const stdout: string = "logs/skills-contract.stdout.jsonl";
+    const stderr: string = "logs/skills-contract.stderr.log";
+    const completedOutcome: string = JSON.stringify({
+      status: "completed",
+      summary: "The assigned turn and its gates completed.",
+      blockers: [],
+    });
+    const successfulLog: string = [
+      JSON.stringify({ type: "thread.started", thread_id: sessionId }),
+      JSON.stringify({
+        type: "item.completed",
+        item: {
+          id: "message-1",
+          type: "agent_message",
+          text: completedOutcome,
+        },
+      }),
+      JSON.stringify({
+        type: "turn.completed",
+        usage: {
+          input_tokens: 10,
+          cached_input_tokens: 5,
+          output_tokens: 4,
+          reasoning_output_tokens: 2,
+        },
+      }),
+      "",
+    ].join("\n");
+    write(path.join(runRoot, ...stdout.split("/")), successfulLog);
+    write(path.join(runRoot, ...stderr.split("/")), "");
+    const commonInvocation: string[] = [
+      "--json",
+      "--enable",
+      "goals",
+      "--model",
+      "gpt-5.6-terra",
+      "--config",
+      "model_reasoning_effort=high",
+      ...EvidenceBenchmarkCommandLine.codexIsolationArguments(workspace, {}),
+      "--output-schema",
+      outputSchema,
+      "--skip-git-repo-check",
+    ];
+    const turn: EvidenceBenchmarkTurnLedger.ITurn = {
+      name: "skills-contract",
+      elapsedMs: 10,
+      status: 0,
+      stdout,
+      stderr,
+      invocation: [
+        "codex",
+        "exec",
+        ...commonInvocation,
+        "--cd",
+        workspace,
+        "-",
+      ],
+      cwd: workspace,
+      accepted: false,
+      sessionId,
+    };
+    const inspectCurrent = () =>
+      EvidenceBenchmarkTurnLedger.assertSuccessfulAttempt({
+        repository,
+        runRoot,
+        workspace,
+        engine: "codex",
+        sessionId,
+        model: "gpt-5.6-terra",
+        effort: "high",
+        sessionEstablished: false,
+        turn,
+      });
+    inspectCurrent();
+    turn.signal = "SIGTERM";
+    assert.throws(
+      inspectCurrent,
+      /did not exit successfully/,
+      "a native termination signal must never be normalized into success",
+    );
+    turn.signal = null;
+    inspectCurrent();
+    const invocation: string[] = [...(turn.invocation as string[])];
+    const rootsIndex: number = invocation.findIndex((value) =>
+      value.startsWith("permissions.benchmark.workspace_roots="),
+    );
+    assert.notEqual(rootsIndex, -1);
+    invocation[rootsIndex] =
+      `permissions.benchmark.workspace_roots={` +
+      `${JSON.stringify(path.join(runRoot, "cache"))}=true}`;
+    turn.invocation = invocation;
+    assert.throws(
+      inspectCurrent,
+      /required model, effort, goal, and isolation invocation/,
+      "current Codex admission must reject a profile that omits the measured workspace",
+    );
+    turn.invocation = [
+      "codex",
+      "exec",
+      ...commonInvocation,
+      "--cd",
+      workspace,
+      "-",
+    ];
+    write(
+      path.join(runRoot, ...stdout.split("/")),
+      [
+        JSON.stringify({ type: "thread.started", thread_id: sessionId }),
+        JSON.stringify({
+          type: "item.completed",
+          item: {
+            id: "item-1",
+            type: "command_execution",
+            status: "declined",
+            exit_code: -1,
+            aggregated_output: "rejected: blocked by policy",
+          },
+        }),
+        JSON.stringify({
+          type: "item.completed",
+          item: {
+            id: "message-1",
+            type: "agent_message",
+            text: completedOutcome,
+          },
+        }),
+        JSON.stringify({
+          type: "turn.completed",
+          usage: {
+            input_tokens: 10,
+            cached_input_tokens: 5,
+            output_tokens: 4,
+            reasoning_output_tokens: 2,
+          },
+        }),
+        "",
+      ].join("\n"),
+    );
+    assert.deepEqual(
+      EvidenceBenchmarkTurnLedger.inspectAttempt({
+        repository,
+        runRoot,
+        workspace,
+        engine: "codex",
+        sessionId,
+        model: "gpt-5.6-terra",
+        effort: "high",
+        sessionEstablished: false,
+        invocationPolicy: "current",
+        turn,
+      }),
+      {
+        sessionLinked: true,
+        verdict: "retryable-incomplete",
+        reason: "policy-denied",
+        denialCount: 1,
+        usage: {
+          input_tokens: 10,
+          cached_input_tokens: 5,
+          cache_creation_input_tokens: 0,
+          output_tokens: 4,
+          reasoning_output_tokens: 2,
+        },
+      },
+      "a zero-exit Codex turn must retain usage but reject a structured policy denial",
+    );
+    assert.throws(
+      inspectCurrent,
+      EvidenceBenchmarkTurnLedger.PolicyDeniedError,
+      "a zero-exit Codex turn with a declined command must not be accepted",
+    );
+    write(path.join(runRoot, ...stdout.split("/")), successfulLog);
+    write(
+      path.join(runRoot, ...stderr.split("/")),
+      "ERROR codex_core::tools::router: error=patch rejected: writing outside of the project; rejected by user approval settings\n",
+    );
+    assert.throws(
+      inspectCurrent,
+      EvidenceBenchmarkTurnLedger.PolicyDeniedError,
+      "a Codex patch denial omitted from stdout must still prevent acceptance",
+    );
+    write(path.join(runRoot, ...stderr.split("/")), "");
+    write(
+      path.join(runRoot, ...stdout.split("/")),
+      [
+        JSON.stringify({ type: "thread.started", thread_id: sessionId }),
+        JSON.stringify({
+          type: "item.completed",
+          item: {
+            id: "message-1",
+            type: "agent_message",
+            text: JSON.stringify({
+              status: "blocked",
+              summary: "The required build could not run.",
+              blockers: ["The required build was unavailable."],
+            }),
+          },
+        }),
+        JSON.stringify({
+          type: "turn.completed",
+          usage: {
+            input_tokens: 10,
+            cached_input_tokens: 5,
+            output_tokens: 4,
+            reasoning_output_tokens: 2,
+          },
+        }),
+        "",
+      ].join("\n"),
+    );
+    assert.throws(
+      inspectCurrent,
+      EvidenceBenchmarkTurnLedger.AgentBlockedError,
+      "a truthful structured blocker must not be accepted as completion",
+    );
+    write(path.join(runRoot, ...stdout.split("/")), successfulLog);
+  }
+
+  function testClaudeIsolation(temporary: string): void {
+    const root: string = path.join(temporary, "claude-isolation");
+    const repository: string = path.join(temporary, "source-repository");
+    const workspace: string = path.join(root, "workspace");
+    const workspaceGlob: string =
+      EvidenceBenchmarkTurnLedger.claudeWorkspaceGlob(workspace);
+    const allowedTools: string[] = [
+      "Bash",
+      `Edit(${workspaceGlob})`,
+      `Write(${workspaceGlob})`,
+      `Read(${workspaceGlob})`,
+      "Agent",
+    ];
+    const arguments_: readonly string[] =
+      EvidenceBenchmarkCommandLine.claudeIsolationArguments(
+        repository,
+        workspace,
+        {
+          ANTHROPIC_API_KEY: "must-not-leak",
+          HTTPS_PROXY: "http://must-not-leak.invalid",
+        },
+      );
+    const invocation: string = arguments_.join("\n");
+    assert.equal(
+      invocation.includes("--dangerously-skip-permissions"),
+      false,
+      "measured Claude Code turns must never bypass permissions",
+    );
+    assert.equal(
+      invocation.includes("must-not-leak"),
+      false,
+      "Claude Code settings must retain protected names without secret values",
+    );
+    assert.equal(
+      arguments_[arguments_.indexOf("--permission-mode") + 1],
+      "dontAsk",
+    );
+    assert.equal(
+      arguments_[arguments_.indexOf("--setting-sources") + 1],
+      "",
+      "measured Claude Code turns must not load mutable filesystem settings",
+    );
+    assert.equal(
+      arguments_[arguments_.indexOf("--allowedTools") + 1],
+      allowedTools.join(","),
+      "Claude built-in file permissions must remain scoped to the workspace",
+    );
+    const settings = JSON.parse(
+      arguments_[arguments_.indexOf("--settings") + 1]!,
+    ) as {
+      sandbox: {
+        enabled: boolean;
+        failIfUnavailable: boolean;
+        allowUnsandboxedCommands: boolean;
+        filesystem: {
+          denyRead: string[];
+          allowRead: string[];
+          allowWrite: string[];
+        };
+        network: {
+          allowedDomains: string[];
+          strictAllowlist: boolean;
+        };
+      };
+      permissions: {
+        allow: string[];
+        deny: string[];
+      };
+      env: Record<string, string>;
+    };
+    assert.deepEqual(settings.permissions.allow, allowedTools);
+    assert.deepEqual(settings.permissions.deny, ["WebFetch", "WebSearch"]);
+    assert.equal(
+      settings.permissions.allow.some((rule) => rule.includes("./**")),
+      false,
+      "Claude file permissions must not rely on project-relative matching",
+    );
+    assert.equal(settings.sandbox.enabled, process.platform !== "win32");
+    assert.equal(
+      settings.sandbox.failIfUnavailable,
+      process.platform !== "win32",
+    );
+    assert.equal(settings.sandbox.allowUnsandboxedCommands, false);
+    assert.deepEqual(settings.sandbox.filesystem.denyRead, [
+      "~/",
+      path.resolve(repository),
+      root,
+    ]);
+    assert.deepEqual(settings.sandbox.filesystem.allowRead, [
+      workspace,
+      path.join(root, "cache"),
+    ]);
+    assert.deepEqual(settings.sandbox.filesystem.allowWrite, [
+      path.join(root, "cache"),
+    ]);
+    assert.equal(settings.sandbox.network.strictAllowlist, true);
+    assert.deepEqual(settings.sandbox.network.allowedDomains, [
+      "localhost",
+      "127.0.0.1",
+    ]);
+    assert.equal(settings.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, "1");
+    assert.equal(
+      settings.env.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS,
+      "0",
+      "Claude Code must wait for measured background agents without a ceiling",
+    );
+  }
+
+  function testEngineMatrix(): void {
+    assert.deepEqual(EvidenceBenchmarkEngine.MATRIX, [
+      {
+        engine: "codex",
+        model: "gpt-5.6-terra",
+        effort: "high",
+      },
+      {
+        engine: "claude-code",
+        model: "claude-sonnet-5",
+        effort: "high",
+      },
+    ]);
+    const identities: string[] = ["todo", "reddit"].flatMap((project) =>
+      EvidenceBenchmarkEngine.MATRIX.flatMap((engine) =>
+        ["evidence", "plain"].map(
+          (arm) => `${project}/${engine.engine}/${arm}`,
+        ),
+      ),
+    );
+    assert.equal(identities.length, 8);
+    assert.equal(new Set(identities).size, 8);
+  }
+
+  function testClaudeTurnLedger(temporary: string): void {
+    const runRoot: string = path.join(temporary, "claude-turn-ledger");
+    const repository: string = path.join(temporary, "source-repository");
+    const workspace: string = path.join(runRoot, "workspace");
+    const logs: string = path.join(runRoot, "logs");
+    const sessionId: string = "12345678-1234-4123-8123-123456789abc";
+    const model: EvidenceBenchmarkEngine.Model = "claude-sonnet-5";
+    const launcher: string =
+      process.platform === "win32"
+        ? path.resolve(
+            process.env.APPDATA ?? path.join(temporary, "AppData", "Roaming"),
+            "npm",
+            "node_modules",
+            "@anthropic-ai",
+            "claude-code",
+            "bin",
+            "claude.exe",
+          )
+        : "claude";
+    fs.mkdirSync(workspace, { recursive: true });
+    const commonInvocation: string[] = [
+      "-p",
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--forward-subagent-text",
+      "--include-hook-events",
+      "--json-schema",
+      EvidenceBenchmarkTurnLedger.turnOutputSchemaJson(),
+      "--model",
+      model,
+      "--effort",
+      "high",
+      ...EvidenceBenchmarkCommandLine.claudeIsolationArguments(
+        repository,
+        workspace,
+        {},
+      ),
+    ];
+    const turns: EvidenceBenchmarkTurnLedger.ITurn[] =
+      EvidenceBenchmarkTurnLedger.NAMES.map((name, index) => {
+        const stdout: string = path.posix.join("logs", `${name}.stdout.jsonl`);
+        const stderr: string = path.posix.join("logs", `${name}.stderr.log`);
+        write(
+          path.join(runRoot, ...stdout.split("/")),
+          [
+            JSON.stringify({
+              type: "system",
+              subtype: "init",
+              session_id: sessionId,
+              model,
+            }),
+            JSON.stringify({
+              type: "result",
+              subtype: "success",
+              is_error: false,
+              terminal_reason: "completed",
+              stop_reason: "end_turn",
+              api_error_status: null,
+              permission_denials: [],
+              structured_output: {
+                status: "completed",
+                summary: "The assigned turn and its gates completed.",
+                blockers: [],
+              },
+              session_id: sessionId,
+              usage: {
+                input_tokens: 10,
+                cache_creation_input_tokens: 2,
+                cache_read_input_tokens: 3,
+                output_tokens: 4,
+              },
+              modelUsage: {
+                [model]: {},
+              },
+            }),
+            "",
+          ].join("\n"),
+        );
+        write(path.join(runRoot, ...stderr.split("/")), "");
+        return {
+          name,
+          elapsedMs: 10,
+          status: 0,
+          stdout,
+          stderr,
+          invocation: [
+            launcher,
+            ...commonInvocation,
+            index === 0 ? "--session-id" : "--resume",
+            sessionId,
+          ],
+          cwd: workspace,
+          accepted: true,
+          sessionId,
+        };
+      });
+    const summary: EvidenceBenchmarkTurnLedger.ISummary =
+      EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
+        repository,
+        runRoot,
+        workspace,
+        engine: "claude-code",
+        sessionId,
+        model,
+        effort: "high",
+        turns,
+      });
+    assert.deepEqual(summary, {
+      elapsedMs: 90,
+      attempts: 9,
+      accepted: 9,
+      tokens: {
+        input_tokens: 90,
+        cached_input_tokens: 27,
+        cache_creation_input_tokens: 18,
+        output_tokens: 36,
+        reasoning_output_tokens: 0,
+      },
+    });
+
+    const retainedInspection = () =>
+      EvidenceBenchmarkTurnLedger.inspectAttempts({
+        repository,
+        runRoot,
+        workspace,
+        engine: "claude-code",
+        sessionId,
+        model,
+        effort: "high",
+        invocationPolicy: "retained",
+        turns,
+      });
+    const currentBackendInvocation: string[] = [
+      ...(turns[1]!.invocation as string[]),
+    ];
+    const tamperedBackendInvocation: string[] = [...currentBackendInvocation];
+    tamperedBackendInvocation[
+      tamperedBackendInvocation.indexOf("--allowedTools") + 1
+    ] = "Bash";
+    turns[1]!.invocation = tamperedBackendInvocation;
+    assert.throws(
+      retainedInspection,
+      /required model, effort, tools, and isolation invocation/,
+      "a downstream invocation defect must abort the complete retained audit",
+    );
+    assert.equal(
+      turns.every((turn) => turn.accepted === true),
+      true,
+      "retained inspection must never mutate acceptance state",
+    );
+    turns[1]!.invocation = currentBackendInvocation;
+    const orphanLog: string = path.join(runRoot, "logs", "orphan.stderr.log");
+    write(orphanLog, "");
+    assert.throws(
+      retainedInspection,
+      /log inventory does not exactly match/,
+      "resume audit must reject logs outside the retained attempt ledger",
+    );
+    fs.rmSync(orphanLog);
+
+    const firstStdout: string = path.join(
+      runRoot,
+      "logs",
+      "skills-contract.stdout.jsonl",
+    );
+    const successfulFirstLog: string = fs.readFileSync(firstStdout, "utf8");
+    const currentFirstInvocation: string[] = [
+      ...(turns[0]!.invocation as string[]),
+    ];
+    const legacyAllowedTools: string[] = [
+      "Bash",
+      "Edit(./**)",
+      "Read(./**)",
+      "Agent",
+    ];
+    const legacyInvocation: string[] = [...currentFirstInvocation];
+    legacyInvocation[legacyInvocation.indexOf("--allowedTools") + 1] =
+      legacyAllowedTools.join(",");
+    const settingsIndex: number = legacyInvocation.indexOf("--settings") + 1;
+    const legacySettings = JSON.parse(legacyInvocation[settingsIndex]!) as {
+      permissions: { allow: string[] };
+    };
+    legacySettings.permissions.allow = legacyAllowedTools;
+    legacyInvocation[settingsIndex] = JSON.stringify(legacySettings);
+    turns[0]!.invocation = legacyInvocation;
+    EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
+      repository,
+      runRoot,
+      workspace,
+      engine: "claude-code",
+      sessionId,
+      model,
+      effort: "high",
+      turns,
+    });
+    assert.throws(
+      () =>
+        EvidenceBenchmarkTurnLedger.assertSuccessfulAttempt({
+          repository,
+          runRoot,
+          workspace,
+          engine: "claude-code",
+          sessionId,
+          model,
+          effort: "high",
+          sessionEstablished: false,
+          turn: turns[0]!,
+        }),
+      /required model, effort, tools, and isolation invocation/,
+      "legacy retained permissions must never admit a new attempt",
+    );
+    turns[0]!.invocation = currentFirstInvocation;
+
+    const retryStdout: string = path.join(
+      runRoot,
+      "logs",
+      "skills-contract.attempt-2.stdout.jsonl",
+    );
+    const retryStderr: string = path.join(
+      runRoot,
+      "logs",
+      "skills-contract.attempt-2.stderr.log",
+    );
+    write(retryStdout, successfulFirstLog);
+    write(retryStderr, "");
+    write(
+      firstStdout,
+      successfulFirstLog.replace(
+        '"permission_denials":[]',
+        '"permission_denials":[{"tool_name":"Write"}]',
+      ),
+    );
+    const rejectedPermissionTurn: EvidenceBenchmarkTurnLedger.ITurn = {
+      ...turns[0]!,
+      accepted: false,
+    };
+    assert.throws(
+      () =>
+        EvidenceBenchmarkTurnLedger.assertSuccessfulAttempt({
+          repository,
+          runRoot,
+          workspace,
+          engine: "claude-code",
+          sessionId,
+          model,
+          effort: "high",
+          sessionEstablished: false,
+          turn: rejectedPermissionTurn,
+        }),
+      EvidenceBenchmarkTurnLedger.PermissionDeniedError,
+      "a zero-exit Claude result with permission denials must not be accepted",
+    );
+    const retryInvocation: string[] = [...currentFirstInvocation];
+    retryInvocation[retryInvocation.indexOf("--session-id")] = "--resume";
+    const acceptedRetryTurn: EvidenceBenchmarkTurnLedger.ITurn = {
+      ...turns[0]!,
+      stdout: path.posix.join("logs", "skills-contract.attempt-2.stdout.jsonl"),
+      stderr: path.posix.join("logs", "skills-contract.attempt-2.stderr.log"),
+      invocation: retryInvocation,
+    };
+    const retrySummary: EvidenceBenchmarkTurnLedger.ISummary =
+      EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
+        repository,
+        runRoot,
+        workspace,
+        engine: "claude-code",
+        sessionId,
+        model,
+        effort: "high",
+        turns: [rejectedPermissionTurn, acceptedRetryTurn, ...turns.slice(1)],
+      });
+    assert.deepEqual(retrySummary, {
+      elapsedMs: 100,
+      attempts: 10,
+      accepted: 9,
+      tokens: {
+        input_tokens: 100,
+        cached_input_tokens: 30,
+        cache_creation_input_tokens: 20,
+        output_tokens: 40,
+        reasoning_output_tokens: 0,
+      },
+    });
+    write(firstStdout, successfulFirstLog);
+    write(
+      firstStdout,
+      fs
+        .readFileSync(firstStdout, "utf8")
+        .replace(`"${model}":{}`, '"claude-haiku-4-5-20251001":{}'),
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
+          repository,
+          runRoot,
+          workspace,
+          engine: "claude-code",
+          sessionId,
+          model,
+          effort: "high",
+          turns,
+        }),
+      /unselected model/,
+      "Claude native usage must reject any model outside the fixed cell model",
+    );
   }
 
   async function testRuntimeIsolation(): Promise<void> {
@@ -320,6 +1238,7 @@ export namespace EvidenceBenchmarkSelfTest {
       "benchmark",
       "result",
       "todo",
+      "codex",
       "evidence",
       "runs",
       runId,
@@ -424,9 +1343,15 @@ export namespace EvidenceBenchmarkSelfTest {
     };
     write(materializationPath, `${JSON.stringify(materialization)}\n`);
     const runStatePath: string = path.join(runRoot, "run.json");
-    const threadId: string = "019c1234-5678-789a-bcde-f0123456789a";
+    const sessionId: string = "019c1234-5678-789a-bcde-f0123456789a";
     const turnNames: readonly EvidenceBenchmarkTurnLedger.Name[] =
       EvidenceBenchmarkTurnLedger.NAMES;
+    const outputSchema: string =
+      EvidenceBenchmarkTurnLedger.turnOutputSchemaPath(workspace);
+    write(
+      outputSchema,
+      `${EvidenceBenchmarkTurnLedger.turnOutputSchemaJson()}\n`,
+    );
     const commonInvocation: string[] = [
       "--json",
       "--enable",
@@ -436,6 +1361,8 @@ export namespace EvidenceBenchmarkSelfTest {
       "--config",
       "model_reasoning_effort=high",
       ...EvidenceBenchmarkCommandLine.codexIsolationArguments(workspace, {}),
+      "--output-schema",
+      outputSchema,
       "--skip-git-repo-check",
     ];
     const turns = turnNames.map((name, index) => {
@@ -445,7 +1372,19 @@ export namespace EvidenceBenchmarkSelfTest {
       write(
         path.join(runRoot, ...stdout.split("/")),
         [
-          JSON.stringify({ type: "thread.started", thread_id: threadId }),
+          JSON.stringify({ type: "thread.started", thread_id: sessionId }),
+          JSON.stringify({
+            type: "item.completed",
+            item: {
+              id: "message-1",
+              type: "agent_message",
+              text: JSON.stringify({
+                status: "completed",
+                summary: "The assigned turn and its gates completed.",
+                blockers: [],
+              }),
+            },
+          }),
           JSON.stringify({
             type: "turn.completed",
             usage: {
@@ -468,8 +1407,9 @@ export namespace EvidenceBenchmarkSelfTest {
         invocation:
           index === 0
             ? ["codex", "exec", ...commonInvocation, "--cd", workspace, "-"]
-            : ["codex", "exec", "resume", ...commonInvocation, threadId, "-"],
-        threadId,
+            : ["codex", "exec", "resume", ...commonInvocation, sessionId, "-"],
+        cwd: workspace,
+        sessionId,
         accepted: true,
         lintRestorationSha256:
           name === "backend-final"
@@ -479,11 +1419,12 @@ export namespace EvidenceBenchmarkSelfTest {
               : undefined,
       };
     });
-    const elapsedMs: number = 100;
+    const nonAgentElapsedMs: number = 10;
+    const agentElapsedMs: number = 90;
     write(
       runStatePath,
       `${JSON.stringify({
-        schemaVersion: 6,
+        schemaVersion: 8,
         workflow: "backend-first-gated-v2",
         instructionsTreeSha256,
         project: "todo",
@@ -494,8 +1435,9 @@ export namespace EvidenceBenchmarkSelfTest {
         cliVersion: "codex-cli 0.145.0",
         status: "completed",
         sourceCommit: "0123456789abcdef0123456789abcdef01234567",
-        elapsedMs,
-        threadId,
+        nonAgentElapsedMs,
+        agentElapsedMs,
+        sessionId,
         lintBaselines,
         completedWorkspaceTreeSha256:
           EvidenceBenchmarkPublication.workspaceSha256(workspace),
@@ -503,25 +1445,30 @@ export namespace EvidenceBenchmarkSelfTest {
       })}\n`,
     );
     const report = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       status: "accepted",
+      engine: "codex",
+      model: "gpt-5.6-terra",
+      effort: "high",
       project: "todo",
       arm: "evidence",
       runId,
       measurement: {
-        totalElapsedMs: elapsedMs,
-        agentElapsedMs: 90,
-        nonAgentElapsedMs: 10,
+        totalElapsedMs: nonAgentElapsedMs + agentElapsedMs,
+        agentElapsedMs,
+        nonAgentElapsedMs,
         attempts: { total: 9, accepted: 9, rejected: 0 },
         tokens: {
           input_tokens: 900,
           cached_input_tokens: 450,
+          cache_creation_input_tokens: 0,
           output_tokens: 180,
           reasoning_output_tokens: 45,
         },
         pricingUsdPerMillion: {
           input: 1,
           cachedInput: 0.1,
+          cacheCreationInput: 0,
           output: 2,
         },
         apiEquivalentCostUsd: 0.000855,
@@ -574,6 +1521,7 @@ export namespace EvidenceBenchmarkSelfTest {
         "--checkout",
         checkout,
         "--public",
+        "codex",
         "todo",
         "evidence",
         runId,
@@ -902,8 +1850,16 @@ export namespace EvidenceBenchmarkSelfTest {
         "",
       ].join("\n"),
     );
-    for (const arm of ["evidence", "plain"] as const)
-      await createRepairCell(repository, runId, "todo", arm, "interrupted");
+    for (const engine of EvidenceBenchmarkEngine.MATRIX)
+      for (const arm of ["evidence", "plain"] as const)
+        await createRepairCell(
+          repository,
+          runId,
+          engine.engine,
+          "todo",
+          arm,
+          "interrupted",
+        );
     const result: EvidenceBenchmarkRepair.IResult =
       await EvidenceBenchmarkRepair.apply(
         repository,
@@ -916,29 +1872,36 @@ export namespace EvidenceBenchmarkSelfTest {
         ]),
       );
     assert.equal(result.kind, "operator-intervention");
-    assert.deepEqual(result.cells, ["todo/evidence", "todo/plain"]);
-    for (const arm of ["evidence", "plain"] as const) {
-      const root: string = path.join(
-        repository,
-        "benchmark",
-        "result",
-        "todo",
-        arm,
-        "runs",
-        runId,
-      );
-      assert.equal(
-        fs
-          .readFileSync(path.join(root, "workspace", "shared.txt"), "utf8")
-          .replaceAll("\r\n", "\n"),
-        "after\n",
-      );
-      assert.ok(
-        fs.existsSync(
-          path.join(root, "interventions", `${result.patchSha256}.json`),
-        ),
-      );
-    }
+    assert.deepEqual(result.cells, [
+      "codex/todo/evidence",
+      "codex/todo/plain",
+      "claude-code/todo/evidence",
+      "claude-code/todo/plain",
+    ]);
+    for (const engine of EvidenceBenchmarkEngine.MATRIX)
+      for (const arm of ["evidence", "plain"] as const) {
+        const root: string = path.join(
+          repository,
+          "benchmark",
+          "result",
+          "todo",
+          engine.engine,
+          arm,
+          "runs",
+          runId,
+        );
+        assert.equal(
+          fs
+            .readFileSync(path.join(root, "workspace", "shared.txt"), "utf8")
+            .replaceAll("\r\n", "\n"),
+          "after\n",
+        );
+        assert.ok(
+          fs.existsSync(
+            path.join(root, "interventions", `${result.patchSha256}.json`),
+          ),
+        );
+      }
     await expectFailure(
       () =>
         EvidenceBenchmarkRepair.apply(
@@ -1019,14 +1982,18 @@ export namespace EvidenceBenchmarkSelfTest {
       "forbidden target",
     );
 
-    for (const arm of ["evidence", "plain"] as const)
-      await createRepairCell(
-        repository,
-        runId,
-        "reddit",
-        arm,
-        arm === "evidence" ? "running" : "interrupted",
-      );
+    for (const engine of EvidenceBenchmarkEngine.MATRIX)
+      for (const arm of ["evidence", "plain"] as const)
+        await createRepairCell(
+          repository,
+          runId,
+          engine.engine,
+          "reddit",
+          arm,
+          engine.engine === "codex" && arm === "evidence"
+            ? "running"
+            : "interrupted",
+        );
     await expectFailure(
       () =>
         EvidenceBenchmarkRepair.apply(
@@ -1038,13 +2005,14 @@ export namespace EvidenceBenchmarkSelfTest {
             "reddit",
           ]),
         ),
-      "paused reddit/evidence",
+      "paused codex/reddit/evidence",
     );
   }
 
   async function createRepairCell(
     repository: string,
     runId: string,
+    engine: EvidenceBenchmarkEngine.Name,
     project: IEvidenceBenchmarkMaterialization.Project,
     arm: IEvidenceBenchmarkMaterialization.Arm,
     status: "running" | "interrupted",
@@ -1054,6 +2022,7 @@ export namespace EvidenceBenchmarkSelfTest {
       "benchmark",
       "result",
       project,
+      engine,
       arm,
       "runs",
       runId,
@@ -1065,6 +2034,7 @@ export namespace EvidenceBenchmarkSelfTest {
       `${JSON.stringify({
         project,
         arm,
+        engine,
         status,
         sourceCommit: "0123456789abcdef",
         turns: [{ name: "backend-start", status: 1 }],
@@ -1405,8 +2375,8 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     assert.match(
       skillsContract,
-      /Use goal mode for this /,
-      "skills-contract.md must activate a bounded stage goal",
+      /Treat this [^\n]+ stage as one bounded objective\./,
+      "skills-contract.md must establish a bounded stage objective",
     );
     const commandLine: string = fs.readFileSync(
       path.join(
@@ -1429,8 +2399,22 @@ export namespace EvidenceBenchmarkSelfTest {
     );
     assert.match(
       commandLine,
+      /const preparations = await Promise\.allSettled\([\s\S]+prepareCell\([\s\S]+preparationFailures[\s\S]+const executions = await Promise\.allSettled\([\s\S]+runPreparedCell\(cell\)/,
+      "all eight cells must cross one complete preparation barrier before any model execution",
+    );
+    assert.match(
+      commandLine,
       /EvidenceBenchmarkTurnLedger\.assertAcceptedOrder\(state\.turns\)/,
       "resume admission must use the shared accepted-turn validator",
+    );
+    assert.equal(
+      [
+        ...commandLine.matchAll(
+          /turn\.accepted = false;[\s\S]*?EvidenceBenchmarkTurnLedger\.assertSuccessfulAttempt\([\s\S]*?turn\.accepted = true;/g,
+        ),
+      ].length,
+      2,
+      "fresh and resumed turns must pass native evidence before acceptance",
     );
     const publicationSource: string = fs.readFileSync(
       path.join(
@@ -1492,13 +2476,13 @@ export namespace EvidenceBenchmarkSelfTest {
     for (const phase of ["backend", "frontend", "overall"])
       for (const file of fs.readdirSync(path.join(instructions, phase)))
         for (const contract of [
-          /Use goal mode for this /,
+          /Treat this [^\n]+ stage as one bounded objective\./,
           /The skills-contract turn remains binding\.[^\n]*re-read `AGENTS\.md`/i,
         ])
           assert.match(
             fs.readFileSync(path.join(instructions, phase, file), "utf8"),
             contract,
-            `${phase}/${file} must preserve its bounded goal and skills contract`,
+            `${phase}/${file} must preserve its bounded objective and skills contract`,
           );
 
     const template: string = path.join(repository, "benchmark", "template");
@@ -1912,8 +2896,8 @@ export namespace EvidenceBenchmarkSelfTest {
 
   async function testRetentionIgnore(repository: string): Promise<void> {
     for (const relative of [
-      "benchmark/result/todo/evidence/runs/example/logs/stderr.raw.log",
-      "benchmark/.work/todo/evidence/terminal/stderr.raw.log",
+      "benchmark/result/todo/codex/evidence/runs/example/logs/stderr.raw.log",
+      "benchmark/.work/todo/claude-code/evidence/terminal/stderr.raw.log",
     ]) {
       const result = await EvidenceBenchmarkProcess.run(
         "git",

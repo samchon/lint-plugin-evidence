@@ -1,6 +1,6 @@
 # Frontend Plain Final
 
-Use goal mode for this frontend Plain final stage. Resume the same unfinished stage goal after an interruption; otherwise create it now. Mark it complete only when the complete frontend Loop Until Dry, browser journeys, live integration, and package gates below are all green.
+Treat this frontend Plain final stage as one bounded objective. Preserve the same unfinished objective across an interruption; otherwise begin it now. Declare it complete only when the complete frontend Loop Until Dry, browser journeys, live integration, and package gates below are all green.
 
 The skills-contract turn remains binding. Re-read `AGENTS.md` and the applicable Frontend and Review instructions in full before any final-stage action.
 

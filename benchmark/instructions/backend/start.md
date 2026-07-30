@@ -1,6 +1,6 @@
 # Backend Start
 
-Use goal mode for this backend implementation stage. Resume the same unfinished stage goal after an interruption; otherwise create it now. Keep it bounded to making the complete API and backend ready for the active arm's review, and mark it complete only when every backend obligation and basic backend gate below is satisfied.
+Treat this backend implementation stage as one bounded objective. Preserve the same unfinished objective across an interruption; otherwise begin it now. Keep it bounded to making the complete API and backend ready for the active arm's review, and declare it complete only when every backend obligation and basic backend gate below is satisfied.
 
 Build the complete API and backend required by every file under `docs/analysis/`.
 

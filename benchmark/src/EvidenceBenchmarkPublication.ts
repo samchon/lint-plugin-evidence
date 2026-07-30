@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { EvidenceBenchmarkEngine } from "./EvidenceBenchmarkEngine.ts";
 import { EvidenceBenchmarkHash } from "./EvidenceBenchmarkHash.ts";
 import { EvidenceBenchmarkLintBaseline } from "./EvidenceBenchmarkLintBaseline.ts";
 import { EvidenceBenchmarkProcess } from "./EvidenceBenchmarkProcess.ts";
@@ -25,6 +26,9 @@ export namespace EvidenceBenchmarkPublication {
 
     /** Completed benchmark subject to publish. */
     project: IEvidenceBenchmarkMaterialization.Project;
+
+    /** Completed benchmark engine to publish. */
+    engine: EvidenceBenchmarkEngine.Name;
 
     /** Completed comparison arm to publish. */
     arm: IEvidenceBenchmarkMaterialization.Arm;
@@ -122,11 +126,14 @@ export namespace EvidenceBenchmarkPublication {
       throw new Error("Publication requires an explicit --public flag.");
     if (!isGitHubRepository(repository))
       throw new Error(`Invalid GitHub repository: ${repository}.`);
-    if (positional.length !== 3)
+    if (positional.length !== 4)
       throw new Error(
-        "Usage: benchmark publish --repository <owner/name> --checkout <local-path> --public <project> <arm> <run-id>",
+        "Usage: benchmark publish --repository <owner/name> --checkout <local-path> --public <engine> <project> <arm> <run-id>",
       );
-    const [projectInput, armInput, runId] = positional;
+    const [engineInput, projectInput, armInput, runId] = positional;
+    const engine: EvidenceBenchmarkEngine.Name = EvidenceBenchmarkEngine.parse(
+      engineInput!,
+    );
     if (!ARMS.includes(armInput as (typeof ARMS)[number]))
       throw new Error(`Unknown benchmark arm: ${armInput}.`);
     if (
@@ -139,6 +146,7 @@ export namespace EvidenceBenchmarkPublication {
     return {
       repository,
       checkout,
+      engine,
       project: EvidenceBenchmarkProject.parse(projectInput!),
       arm: armInput as IEvidenceBenchmarkMaterialization.Arm,
       runId,
@@ -160,6 +168,7 @@ export namespace EvidenceBenchmarkPublication {
     const runRoot: string = path.resolve(
       resultsRoot,
       request.project,
+      request.engine,
       request.arm,
       "runs",
       request.runId,
@@ -176,8 +185,9 @@ export namespace EvidenceBenchmarkPublication {
       cliVersion?: unknown;
       status?: unknown;
       sourceCommit?: unknown;
-      elapsedMs?: unknown;
-      threadId?: unknown;
+      nonAgentElapsedMs?: unknown;
+      agentElapsedMs?: unknown;
+      sessionId?: unknown;
       instructionsTreeSha256?: unknown;
       completedWorkspaceTreeSha256?: unknown;
       lintBaselines?: readonly IEvidenceBenchmarkMaterialization.ILintConfigBaseline[];
@@ -188,36 +198,42 @@ export namespace EvidenceBenchmarkPublication {
         stdout?: unknown;
         stderr?: unknown;
         invocation?: unknown;
+        cwd?: unknown;
         accepted?: unknown;
-        threadId?: unknown;
+        sessionId?: unknown;
         lintRestorationSha256?: unknown;
       }>;
     }>(runRoot, "Completed benchmark state");
     if (
-      state.schemaVersion !== 6 ||
+      state.schemaVersion !== 8 ||
       state.workflow !== "backend-first-gated-v2" ||
       state.project !== request.project ||
       state.arm !== request.arm ||
-      state.engine !== "codex" ||
-      state.model !== "gpt-5.6-terra" ||
-      state.effort !== "high" ||
+      state.engine !== request.engine ||
+      state.model !==
+        EvidenceBenchmarkEngine.definition(request.engine).model ||
+      state.effort !==
+        EvidenceBenchmarkEngine.definition(request.engine).effort ||
       typeof state.cliVersion !== "string" ||
       state.cliVersion.length === 0 ||
       state.status !== "completed" ||
       typeof state.sourceCommit !== "string" ||
       !/^[0-9a-f]{40}$/i.test(state.sourceCommit) ||
-      typeof state.elapsedMs !== "number" ||
-      !Number.isFinite(state.elapsedMs) ||
-      state.elapsedMs < 0 ||
-      typeof state.threadId !== "string" ||
-      state.threadId.length === 0 ||
+      typeof state.nonAgentElapsedMs !== "number" ||
+      !Number.isFinite(state.nonAgentElapsedMs) ||
+      state.nonAgentElapsedMs < 0 ||
+      typeof state.agentElapsedMs !== "number" ||
+      !Number.isFinite(state.agentElapsedMs) ||
+      state.agentElapsedMs < 0 ||
+      typeof state.sessionId !== "string" ||
+      state.sessionId.length === 0 ||
       typeof state.instructionsTreeSha256 !== "string" ||
       typeof state.completedWorkspaceTreeSha256 !== "string" ||
       !Array.isArray(state.lintBaselines) ||
       !Array.isArray(state.turns)
     )
       throw new Error(
-        `Publication requires the completed ${request.project}/${request.arm} run ${request.runId}.`,
+        `Publication requires the completed ${request.engine}/${request.project}/${request.arm} run ${request.runId}.`,
       );
     EvidenceBenchmarkTurnLedger.assertAcceptedOrder(state.turns, true);
     const instructions: string = path.join(runRoot, "inputs", "instructions");
@@ -277,9 +293,11 @@ export namespace EvidenceBenchmarkPublication {
       throw new Error(`Completed workspace was not found: ${workspace}.`);
     const ledger: EvidenceBenchmarkTurnLedger.ISummary =
       EvidenceBenchmarkTurnLedger.assertRetainedEvidence({
+        engine: request.engine,
+        repository: sourceRoot,
         runRoot,
         workspace,
-        threadId: state.threadId,
+        sessionId: state.sessionId,
         model: state.model,
         effort: state.effort,
         turns: state.turns,
@@ -374,7 +392,11 @@ export namespace EvidenceBenchmarkPublication {
       runRoot,
       request,
       state: {
-        elapsedMs: state.elapsedMs,
+        engine: state.engine,
+        model: state.model,
+        effort: state.effort,
+        nonAgentElapsedMs: state.nonAgentElapsedMs,
+        agentElapsedMs: state.agentElapsedMs,
         sourceCommit: state.sourceCommit,
         instructionsTreeSha256: state.instructionsTreeSha256,
         completedWorkspaceTreeSha256: state.completedWorkspaceTreeSha256,
@@ -412,7 +434,10 @@ export namespace EvidenceBenchmarkPublication {
     const workRoot: string = path.join(sourceRoot, "benchmark", ".work");
     fs.mkdirSync(workRoot, { recursive: true });
     const stage: string = fs.mkdtempSync(
-      path.join(workRoot, `publication-${request.project}-${request.arm}-`),
+      path.join(
+        workRoot,
+        `publication-${request.engine}-${request.project}-${request.arm}-`,
+      ),
     );
     const relativeLeaf: string = [
       String(state.engine),
@@ -576,7 +601,11 @@ export namespace EvidenceBenchmarkPublication {
     runRoot: string;
     request: IRequest;
     state: {
-      elapsedMs: number;
+      engine: unknown;
+      model: unknown;
+      effort: unknown;
+      nonAgentElapsedMs: number;
+      agentElapsedMs: number;
       sourceCommit: string;
       instructionsTreeSha256: string;
       completedWorkspaceTreeSha256: string;
@@ -586,8 +615,11 @@ export namespace EvidenceBenchmarkPublication {
   }): void {
     const report = object(props.value, "benchmark report");
     if (
-      report.schemaVersion !== 1 ||
+      report.schemaVersion !== 2 ||
       report.status !== "accepted" ||
+      report.engine !== props.state.engine ||
+      report.model !== props.state.model ||
+      report.effort !== props.state.effort ||
       report.project !== props.request.project ||
       report.arm !== props.request.arm ||
       report.runId !== props.request.runId
@@ -595,14 +627,14 @@ export namespace EvidenceBenchmarkPublication {
       throw new Error(
         "Benchmark report identity does not match the accepted run.",
       );
-    if (props.state.elapsedMs < props.ledger.elapsedMs)
+    if (props.state.agentElapsedMs !== props.ledger.elapsedMs)
       throw new Error(
-        "Benchmark controller elapsed time is shorter than its model attempts.",
+        "Benchmark agent elapsed time differs from its retained model attempts.",
       );
     const measurement = object(report.measurement, "report measurement");
     exactNumber(
       measurement.totalElapsedMs,
-      props.state.elapsedMs,
+      props.state.nonAgentElapsedMs + props.state.agentElapsedMs,
       "total elapsed time",
     );
     exactNumber(
@@ -612,7 +644,7 @@ export namespace EvidenceBenchmarkPublication {
     );
     exactNumber(
       measurement.nonAgentElapsedMs,
-      props.state.elapsedMs - props.ledger.elapsedMs,
+      props.state.nonAgentElapsedMs,
       "non-agent elapsed time",
     );
     const attempts = object(measurement.attempts, "report attempts");
@@ -632,6 +664,13 @@ export namespace EvidenceBenchmarkPublication {
         props.ledger.tokens[category],
         `token category ${category}`,
       );
+    if (
+      JSON.stringify(Object.keys(tokens).sort()) !==
+      JSON.stringify(Object.keys(props.ledger.tokens).sort())
+    )
+      throw new Error(
+        "Benchmark report token inventory does not match the engine-native ledger.",
+      );
     const pricing = object(measurement.pricingUsdPerMillion, "report pricing");
     const inputPrice: number = finiteNonnegative(
       pricing.input,
@@ -645,17 +684,32 @@ export namespace EvidenceBenchmarkPublication {
       pricing.output,
       "output-token price",
     );
+    const cacheCreationInputPrice: number = finiteNonnegative(
+      pricing.cacheCreationInput,
+      "cache-creation-input-token price",
+    );
     if (inputPrice === 0 || outputPrice === 0)
       throw new Error(
         "Benchmark report requires positive standard input and output token prices.",
       );
+    if (props.state.engine === "claude-code" && cacheCreationInputPrice === 0)
+      throw new Error(
+        "Claude Code reports require a positive cache-creation input price.",
+      );
     const expectedCost: number =
-      ((props.ledger.tokens.input_tokens -
-        props.ledger.tokens.cached_input_tokens) *
-        inputPrice +
-        props.ledger.tokens.cached_input_tokens * cachedInputPrice +
-        props.ledger.tokens.output_tokens * outputPrice) /
-      1_000_000;
+      props.state.engine === "codex"
+        ? ((props.ledger.tokens.input_tokens -
+            props.ledger.tokens.cached_input_tokens) *
+            inputPrice +
+            props.ledger.tokens.cached_input_tokens * cachedInputPrice +
+            props.ledger.tokens.output_tokens * outputPrice) /
+          1_000_000
+        : (props.ledger.tokens.input_tokens * inputPrice +
+            props.ledger.tokens.cached_input_tokens * cachedInputPrice +
+            props.ledger.tokens.cache_creation_input_tokens *
+              cacheCreationInputPrice +
+            props.ledger.tokens.output_tokens * outputPrice) /
+          1_000_000;
     const actualCost: number = finiteNonnegative(
       measurement.apiEquivalentCostUsd,
       "API-equivalent cost",
@@ -807,7 +861,9 @@ export namespace EvidenceBenchmarkPublication {
         record.sourceCommit !== sourceCommit ||
         EvidenceBenchmarkHash.bytes(patch) !== sha256 ||
         !Array.isArray(record.scope) ||
-        !record.scope.includes(`${request.project}/${request.arm}`) ||
+        !record.scope.includes(
+          `${request.engine}/${request.project}/${request.arm}`,
+        ) ||
         typeof record.elapsedMs !== "number" ||
         !Number.isFinite(record.elapsedMs) ||
         record.elapsedMs < 0 ||
