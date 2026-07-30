@@ -167,6 +167,7 @@ const runBenchmark = async (
       `${JSON.stringify({ cell, records, state }, null, 2)}\n`,
     );
   };
+  onState(initialState);
   const result =
     cell.engine === "codex"
       ? await EvidenceBenchmarkRunner.run({
