@@ -2532,6 +2532,14 @@ export namespace EvidenceBenchmarkSelfTest {
         /MyModule\.input\(\)/,
         `integrated ${arm} wiring guide must not teach a nonexistent controller input API`,
       );
+      const frontendVerification: string = Buffer.from(
+        composition.files.get(".agents/skills/frontend/verification.md")!,
+      ).toString("utf8");
+      assert.match(
+        frontendVerification,
+        /playwright\/no-standalone-expect[\s\S]+web-first locator waits[\s\S]+wrapping `test\(\)` callback/,
+        `integrated ${arm} frontend verification must preserve assertions without putting Playwright expect outside a registered test`,
+      );
       const healthTest: string = Buffer.from(
         composition.files.get(
           "packages/backend/test/features/api/health/test_api_health.ts",
