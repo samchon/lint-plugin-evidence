@@ -61,6 +61,7 @@ const main = async (): Promise<void> => {
     });
 
     assert.equal(completed.status, "completed");
+    assert.equal(completed.cliVersion, "fixture-cli");
     assert.equal(completed.nextInstructionIndex, ENTRIES.length);
     assert.equal(completed.goals.length, ENTRIES.length);
     assert.equal(completed.processes.length, 1);
@@ -207,7 +208,11 @@ const fakeAppServer = (): void => {
         return send({
           id: request.id,
           result: {
-            thread: { id: "fixture-thread", status: { type: "idle" } },
+            thread: {
+              id: "fixture-thread",
+              cliVersion: "fixture-cli",
+              status: { type: "idle" },
+            },
           },
         });
       if (

@@ -56,6 +56,7 @@ export namespace EvidenceBenchmarkRunner {
   export interface IEvidenceBenchmarkRunState {
     arm: EvidenceBenchmarkArm;
     sessionId?: string;
+    cliVersion?: string;
     nextInstructionIndex: number;
     status: "ready" | "running" | "interrupted" | "completed";
     threadTokenUsage: IEvidenceBenchmarkTokenUsage;
@@ -184,7 +185,6 @@ export namespace EvidenceBenchmarkRunner {
       "goals",
       "--config",
       `model_reasoning_effort="${props.effort}"`,
-      "--strict-config",
     ];
     const processIndex: number = state.processes.length;
     const processRecord: IEvidenceBenchmarkProcessRecord = {
@@ -493,7 +493,15 @@ export namespace EvidenceBenchmarkRunner {
       const thread: Record<string, unknown> = object(response.thread);
       if (typeof thread.id !== "string")
         throw new Error("Codex app-server omitted the thread ID.");
+      if (typeof thread.cliVersion !== "string")
+        throw new Error("Codex app-server omitted the CLI version.");
+      if (
+        state.cliVersion !== undefined &&
+        state.cliVersion !== thread.cliVersion
+      )
+        throw new Error("Retained benchmark cell uses a different CLI version.");
       state.sessionId = thread.id;
+      state.cliVersion = thread.cliVersion;
       current().threadIdle = object(thread.status, false)?.type === "idle";
       publish();
 
