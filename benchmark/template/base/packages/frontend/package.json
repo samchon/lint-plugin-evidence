@@ -10,10 +10,10 @@
     "lint": "ttsc -p tsconfig.json --noEmit",
     "playwright:install": "playwright install chromium",
     "preview": "vite preview --host 0.0.0.0",
-    "readme:screens": "node scripts/run-playwright.mjs readme",
+    "readme:screens": "pnpm build && playwright test tests/readme.spec.ts",
     "test": "pnpm test:e2e",
-    "test:e2e": "node scripts/run-playwright.mjs e2e",
-    "ui:review": "node scripts/run-playwright.mjs ui-review"
+    "test:e2e": "pnpm build && playwright test tests/journeys",
+    "ui:review": "pnpm build && playwright test tests/ui-review.spec.ts"
   },
   "dependencies": {
     "@nestia/fetcher": "catalog:samchon",

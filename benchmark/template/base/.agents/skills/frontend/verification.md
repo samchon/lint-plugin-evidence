@@ -10,12 +10,11 @@ Every one of those ships from a green build. Browser verification is the only th
 
 ## Where The Programs Live
 
-All browser programs live in `tests/` at the package root, one spec file per purpose, driven by one runner with a mode argument.
+All browser programs live in `tests/` at the package root, one spec file per purpose, under one Playwright configuration.
 
 ```
 packages/frontend/
   playwright.config.ts
-  scripts/run-playwright.mjs
   tests/
     journeys/            one spec per requirement journey
     ui-review.spec.ts    layout and interaction review across viewports
@@ -23,9 +22,9 @@ packages/frontend/
 ```
 
 ```json
-"test:e2e": "node scripts/run-playwright.mjs e2e",
-"ui:review": "node scripts/run-playwright.mjs ui-review",
-"readme:screens": "node scripts/run-playwright.mjs readme",
+"test:e2e": "pnpm build && playwright test tests/journeys",
+"ui:review": "pnpm build && playwright test tests/ui-review.spec.ts",
+"readme:screens": "pnpm build && playwright test tests/readme.spec.ts",
 "playwright:install": "playwright install chromium"
 ```
 

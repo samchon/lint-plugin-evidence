@@ -37,8 +37,6 @@ packages/frontend/
   index.html
   vite.config.ts
   playwright.config.ts
-  scripts/
-    run-playwright.mjs             one runner, several modes
   src/
     main.tsx                       entry
     App.tsx                        routes and the shell
@@ -234,16 +232,16 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   "preview": "vite preview --host 0.0.0.0",
   "lint": "ttsc -p tsconfig.json --noEmit",
   "format": "ttsc format -p tsconfig.json",
-  "test:e2e": "node scripts/run-playwright.mjs e2e",
-  "ui:review": "node scripts/run-playwright.mjs ui-review",
-  "readme:screens": "node scripts/run-playwright.mjs readme",
+  "test:e2e": "pnpm build && playwright test tests/journeys",
+  "ui:review": "pnpm build && playwright test tests/ui-review.spec.ts",
+  "readme:screens": "pnpm build && playwright test tests/readme.spec.ts",
   "playwright:install": "playwright install chromium"
 }
 ```
 
 **`lint` is one command because the compile is one pass.** `ttsc` emits type errors and lint diagnostics in the same stream and sums both into the exit code, so a separate `typecheck` script running stock `tsc` would report green over failures this project treats as errors. There is no `tsc` here and no separate lint invocation; the project skill owns why.
 
-One runner with a mode argument beats several near-identical configurations. `build` runs `lint` before bundling, so a broken type or a lint failure stops the build rather than shipping.
+Each browser script builds once, then selects its own stable spec path under the shared Playwright configuration. `build` runs `lint` before bundling, so a broken type or lint failure stops before the browser starts.
 
 ## Record The Notable Choices
 

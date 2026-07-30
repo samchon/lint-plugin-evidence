@@ -8,7 +8,7 @@
     "build:api": "pnpm --dir ../api build",
     "build:main": "rimraf lib && ttsc -p tsconfig.json",
     "build:prisma": "prisma generate --schema=prisma/schema",
-    "build:sdk": "nestia all && node ../api/scripts/ensure-nestia-exports.cjs && pnpm build:api",
+    "build:sdk": "nestia all && pnpm build:api",
     "build:test": "rimraf bin && ttsc -p tsconfig.test.json",
     "dev": "ttsx src/executable/server.ts",
     "format": "ttsc format -p tsconfig.json && ttsc format -p tsconfig.test.json",
