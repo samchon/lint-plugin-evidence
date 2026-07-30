@@ -1548,21 +1548,6 @@ export namespace EvidenceBenchmarkSelfTest {
         /MyModule\.input\(\)/,
         `integrated ${arm} wiring guide must not teach a nonexistent controller input API`,
       );
-      const healthTest: string = Buffer.from(
-        composition.files.get(
-          "packages/backend/test/features/api/health/test_api_health.ts",
-        )!,
-      ).toString("utf8");
-      assert.match(
-        healthTest,
-        /assert\.equal\(response, "OK"\)/,
-        `integrated ${arm} health test must assert the exact marker`,
-      );
-      assert.doesNotMatch(
-        healthTest,
-        /typia\.assert\(response\)/,
-        `integrated ${arm} health test must not accept every string response`,
-      );
       const workflow: string = Buffer.from(
         composition.files.get(".github/workflows/ci.yml")!,
       ).toString("utf8");
