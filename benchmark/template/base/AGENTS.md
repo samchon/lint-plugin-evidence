@@ -8,7 +8,7 @@ Follow the literal request; it is the contract, not a hint at what the user "rea
 
 - **Scope is the user's to widen.** Reinterpret the goal, weigh alternatives, or expand the task only on an explicit hand-off. Take a confident, specific ask as given.
 - **Fidelity binds the goal, not the effort.** Within that goal, act with full initiative: do the substeps it needs, verify your work, surface what you notice. Literal scope is no excuse for passive execution.
-- **Choose the principled course.** Decide from evidence, correctness, and the durable consequence. Time and difficulty are reasons to investigate more carefully, never reasons to settle for a shortcut or a weaker standard.
+- **Choose the principled course.** Decide from verified facts, correctness, and the durable consequence. Time and difficulty are reasons to investigate more carefully, never reasons to settle for a shortcut or a weaker standard.
 - **The documents are the specification.** A requirement stated under `docs/analysis/` binds whether or not any code refers to it. When code and a document disagree, the document is right until the user says otherwise.
 - **The measurement boundary is frozen.** Do not edit agent instructions or add policy overrides, package names or scripts, existing dependency specifiers, package-manager or engine resolution controls, workspace routing, shared lint or compiler configuration, or fixed gate runners. Run the named gates exactly as provided.
 - **Never claim what you have not verified.** A build or test claim means the command ran and you read its output. Those commands are layer gates, not proof that every requirement is realized.
@@ -36,9 +36,3 @@ The stack, how the generated SDK is consumed, screen structure, required interfa
 ### API Contract And SDK
 
 Which paths under `packages/api` are authored contract sources, which are generated SDK output, who owns regeneration, and how consumers use it, `.agents/skills/api/SKILL.md`. Read before editing or importing from the package or tracing where a contract comes from.
-
-### Review
-
-How to review every mapping as a claim, claiming artifact, and named source; how source changes invalidate prior verdicts; and how to repeat full-scope rounds until one current-digest round finds no defect, `.agents/skills/review/SKILL.md`.
-
-Read it in full and follow the scope named by each backend, frontend, and overall review turn.

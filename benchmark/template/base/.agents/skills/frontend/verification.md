@@ -127,9 +127,9 @@ Write the flows concretely enough to repeat. "Verified the checkout flow" is not
 
 Update the record when the flows change. A verification document dated before the last three features is a record of a product that no longer exists.
 
-## Preserve Failure Diagnostics, Not As Evidence
+## Preserve Failure Diagnostics, Not As Completion Proof
 
-Keep traces and screenshots from failing runs while you diagnose them. They are diagnostics, not product evidence, and they do not belong in the repository as proof that something works.
+Keep traces and screenshots from failing runs while you diagnose them. They are diagnostics, not product proof, and they do not belong in the repository as proof that something works.
 
 ## Frontend Verification Gate
 

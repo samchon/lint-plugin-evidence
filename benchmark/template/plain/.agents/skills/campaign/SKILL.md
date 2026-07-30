@@ -53,7 +53,7 @@ screen          ->  browser spec
 
 Granularity is part of the edge. A DTO type owes a requirement and a table because it represents a named concept. A DTO property owes a column or derivation because it carries a value. Inspecting only the type level leaves properties unaccounted for.
 
-These edges are the known minimum. Whenever one artifact silently depends on another, add that relationship to the population and review it with the rest. Keep the graph current when a new artifact kind or dependency appears.
+These edges are the known minimum. Whenever one artifact silently depends on another, add that relationship to the current population recorded in the campaign ledger and review it with the rest. Keep that recorded population current when a new artifact kind or dependency appears. The benchmark's agent instructions are frozen inputs; never edit this skill during the campaign.
 
 ## Mandatory Review Dimensions
 

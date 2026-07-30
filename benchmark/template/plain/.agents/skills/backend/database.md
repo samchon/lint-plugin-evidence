@@ -8,6 +8,7 @@ The schema answers to `docs/analysis/`. Every requirement that names persistent 
 
 Read [the campaign skill](../campaign/SKILL.md) and [its database edge](../campaign/database.md) before starting, and keep the ledger open while you work. Record every requirement you resolve to storage as you resolve it, because the campaign counts against that record and you will not remember on the second pass.
 
+<!-- benchmark-template-splice: base-body -->
 {{base}}
 
 ## After Any Schema Change

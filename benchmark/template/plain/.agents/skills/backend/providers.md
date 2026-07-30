@@ -8,6 +8,7 @@ A provider can satisfy its contract's types while enforcing none of the requirem
 
 Read [the campaign skill](../campaign/SKILL.md) and [its logic edge](../campaign/logic.md) before starting. The traversal that matters most there is by cross-cutting rule rather than by operation: a rule stated once in a document and applying in many places is the thing that gets implemented once and missed three times.
 
+<!-- benchmark-template-splice: base-body -->
 {{base}}
 
 ## After Any Implementation Change

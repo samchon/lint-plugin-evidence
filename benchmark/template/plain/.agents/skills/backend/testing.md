@@ -8,6 +8,7 @@ Every operation needs its success path and each rejection its contract states. T
 
 Read [the campaign skill](../campaign/SKILL.md) and [its test edge](../campaign/test.md) before starting. The framing that matters there is not "the test that covers this requirement" but **the test that would fail if the requirement stopped holding**, because a test that passes either way covers nothing.
 
+<!-- benchmark-template-splice: base-body -->
 {{base}}
 
 ## The Traversal That Finds What The Others Miss

@@ -8,6 +8,7 @@ Every user-facing requirement needs a screen that delivers it, and every screen 
 
 Read [the campaign skill](../campaign/SKILL.md) and [its frontend edge](../campaign/frontend.md) before starting. Note that the frontend is not one node in that graph: once its folders take shape it grows its own internal obligations, and those need campaigning like the outer ones.
 
+<!-- benchmark-template-splice: base-body -->
 {{base}}
 
 ## Write The Screen Plan Before The Screen

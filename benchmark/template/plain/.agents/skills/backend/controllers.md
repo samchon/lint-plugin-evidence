@@ -8,6 +8,7 @@ Every requirement that describes something a user does needs an operation that l
 
 Read [the campaign skill](../campaign/SKILL.md) and [its API edge](../campaign/api.md) before starting. That edge has four walks, not two, and skipping the backward ones is how an invented endpoint acquires invented semantics that the logic and the tests then honor.
 
+<!-- benchmark-template-splice: base-body -->
 {{base}}
 
 ## After Any Contract Change

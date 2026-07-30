@@ -27,7 +27,7 @@ What is durable is that **the documents are organized by primary concern, while 
 
 **This is why reading only the operations document produces an application with every endpoint and none of the rules.** The refusal an endpoint owes is written where the policies live, and the actor permitted to call it is written where the roles live. Neither appears beside the operation.
 
-Read every document before you finish. A subject's absence from one document is not evidence that it has no requirements, and a document that looks like a table of contents may still carry a statement nothing else repeats.
+Read every document before you finish. A subject's absence from one document does not establish that it has no requirements, and a document that looks like a table of contents may still carry a statement nothing else repeats.
 
 ## The Documents Are The Specification
 

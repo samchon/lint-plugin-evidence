@@ -36,7 +36,7 @@ The artifact on the right owes an account of every applicable unit on the left.
 - **Every screen traces to the operations it consumes**, and every rendered field traces to a response property.
 - **Every data call uses a generated accessor.** A handwritten wrapper between the screen and SDK can survive a contract change it should expose.
 
-Add new internal relationships to the graph in [SKILL.md](SKILL.md) as soon as the frontend structure introduces them.
+Record new internal relationships in the campaign ledger as soon as the frontend structure introduces them, and include them in every subsequent complete round. Do not edit the frozen campaign skill.
 
 ## Every State Is A Requirement
 

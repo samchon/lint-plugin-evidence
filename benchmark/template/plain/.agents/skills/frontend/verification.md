@@ -6,6 +6,7 @@ Every journey the documents give an actor must have a spec under `tests/journeys
 
 Read [the campaign skill](../campaign/SKILL.md) and [its frontend edge](../campaign/frontend.md) before starting; the journey-to-spec walk lives there with the rest of the frontend campaign.
 
+<!-- benchmark-template-splice: base-body -->
 {{base}}
 
 ## The Ledger Rows This Suite Owes

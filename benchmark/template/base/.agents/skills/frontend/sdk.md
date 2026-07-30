@@ -93,7 +93,7 @@ Simulation answers with valid random data, so it cannot reliably produce an empt
 
 **Then finish against the live backend.** Simulation proves shape and flow. It proves nothing about persistence, sessions, authorization, refresh, or side effects, because no provider ran. Development is complete only after the same `pnpm test:e2e` suite runs with `VITE_API_SIMULATE=false`, against the real host, with real data.
 
-Two rules keep that honest. Label evidence from simulation as shape-and-flow evidence, never as integration. And never record a run as live integration while `VITE_API_SIMULATE` is `true`, because the environment and verification record are what a later reader trusts.
+Two rules keep that honest. Record simulation as shape-and-flow verification, never as integration. And never record a run as live integration while `VITE_API_SIMULATE` is `true`, because the environment and verification record are what a later reader trusts.
 
 ## Handle What The Contract Says Can Fail
 

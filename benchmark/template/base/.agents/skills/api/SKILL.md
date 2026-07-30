@@ -207,6 +207,6 @@ That last part is the trap. Values are random per call, so a browser assertion m
 
 **How to use it.** After the Backend Layer Gate passes, use simulation inside the frontend phase for screens, navigation, forms, loading, empty and error states, and browser programs that cover the main flows. Then close against the already gated live backend, because persistence, sessions, authorization, refresh, and side effects are exactly what simulation does not prove. Simulation is a frontend implementation technique, not permission to begin frontend work before backend realization.
 
-Label the evidence accordingly. A run in simulation is shape-and-flow evidence, never integration evidence, and a run with simulation enabled must never be recorded as live integration.
+Label the verification record accordingly. A simulated run proves shape and flow, never integration, and a run with simulation enabled must never be recorded as live integration.
 
 The flag is turned on by `simulate: true` in the Nestia configuration when the SDK is generated. If an accessor has no `simulate` branch, the SDK was generated without it.

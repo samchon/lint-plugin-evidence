@@ -37,4 +37,4 @@ Name the actual owner and a condition that would veto the exclusion. “Backend-
 
 ## SDK Consumption
 
-No claim mechanically binds SDK accessors to screens. The common Review skill still requires the complete SDK-to-screen population in both arms. Never edit generated accessors or add an ad hoc transport path.
+No claim mechanically binds SDK accessors to screens. The base Frontend skill and omission log own complete product consumption; Evidence review does not add a second unconfigured SDK-to-screen census. Never edit generated accessors or add an ad hoc transport path.

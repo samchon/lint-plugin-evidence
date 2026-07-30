@@ -283,7 +283,7 @@ The kind a table was given in the schema is not a label. It governs which operat
 | `snapshot` | reads and inserts only, because it is immutable history |
 | `material` | reads only, except the current pointer a provider maintains beside a snapshot append |
 
-An update or a delete against a snapshot row is a defect regardless of what the code needs, because the row is the evidence something else depends on. When a snapshot appears to need editing, the entity needs a new snapshot instead.
+An update or a delete against a snapshot row is a defect regardless of what the code needs, because another artifact depends on that historical record. When a snapshot appears to need editing, the entity needs a new snapshot instead.
 
 The one write a `material` table accepts is the maintained current pointer, upserted in the same transaction as the snapshot it points at.
 

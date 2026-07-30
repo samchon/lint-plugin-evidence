@@ -10,6 +10,7 @@ A DTO carries two obligations, and they sit at different granularities.
 
 Read [the campaign skill](../campaign/SKILL.md) and [its API edge](../campaign/api.md) before starting. That edge is where these two walks live.
 
+<!-- benchmark-template-splice: base-body -->
 {{base}}
 
 ## The Two Walks, At Two Granularities
