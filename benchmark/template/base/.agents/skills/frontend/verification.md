@@ -28,7 +28,7 @@ packages/frontend/
 "playwright:install": "playwright install chromium"
 ```
 
-The runner serves the production build on a fixed local port and points the browser at it, so every closing mode tests what actually ships rather than the development server. Drive interim per-screen and gallery passes through the dev server, then require a production build, a repository-wide search proving that no implementation-pending sentence or unfinished stub remains, and the closing browser modes after the last screen is cracked. Take the port from the environment with a validated default, and fail loudly on a bad value rather than silently binding somewhere else.
+Playwright serves the production build on a fixed local port and points the browser at it, so every closing mode tests what actually ships rather than the development server. Drive interim per-screen and gallery passes through the dev server, then require a production build, a repository-wide search proving that no implementation-pending sentence or unfinished stub remains, and the closing browser modes after the last screen is cracked. Take the port from the environment with a validated default, and fail loudly on a bad value rather than silently binding somewhere else.
 
 Install the browser before the first run. In Linux CI the install needs its system dependencies explicitly, run from the frontend package directory.
 
