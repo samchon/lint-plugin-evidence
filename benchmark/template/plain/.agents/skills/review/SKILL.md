@@ -147,13 +147,9 @@ A partial round never carries forward. Any change invalidates the current round,
 
 Repeat complete rounds until one full round against the current state finds zero actionable improvements. One such dry round is sufficient; never require two consecutive dry rounds.
 
-## Prove One Directly Before The Dry Round
+## Calibrate Before The Dry Round
 
-Reading establishes that a claim is plausible. Removing the behavior establishes that something depended on it.
-
-Before beginning the round that may qualify as dry, take one material behavioral claim, temporarily remove the behavior it names, and confirm the relevant test fails. Restore the behavior completely and confirm the workspace is back to its intended state before starting the full round at the first requirement. The mutation and restoration are diagnostic preparation, not part of the round; performing either during the traversal would invalidate it.
-
-If nothing fails, the claim is decorative and every entry written in the same style is suspect.
+Complete the behavioral mutation calibration owned by [the base Testing skill](../backend/testing.md) before beginning the round that may qualify as dry. The mutation and restoration are preparation, not part of the round; performing either during the traversal invalidates it.
 
 ## What This Skill Cannot Do
 

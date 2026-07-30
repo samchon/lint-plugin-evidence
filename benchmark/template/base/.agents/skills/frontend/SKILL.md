@@ -88,6 +88,10 @@ Return to the API or backend only when a named requirement, diagnostic, test, SD
 
 The frontend is not finished when it compiles, and a green build says nothing about whether a control does anything.
 
-Before accepting the gate, enumerate every current product-facing SDK operation and trace it to a screen and browser journey or to its requirement-backed entry in `packages/frontend/wiki/omissions.md`. Then walk backward from every screen data call to the generated accessor it uses. Perform this against the current SDK and screen files rather than a remembered plan; an unconsumed operation, an unrecorded omission, or a handwritten transport path is a finding in both benchmark arms.
+Before accepting the gate, enumerate every current product-facing SDK operation and trace it to a screen and browser journey or to its requirement-backed entry in `packages/frontend/wiki/omissions.md`. Then walk backward from every screen data call to the generated accessor it uses.
+
+Enumerate every production component as well. Trace each domain or shared component to the screen that renders it, or to a requirement-backed necessary boundary such as an application provider or reusable primitive. A component with no current consumer or necessary boundary is dead code.
+
+Perform both traversals against the current SDK, component, and screen files rather than a remembered plan. An unconsumed operation, unrecorded omission, handwritten transport path, or unowned component is a finding.
 
 This layer passes when the application starts, every requirement-backed user journey works when performed, the interface is coherent at every required width, deliberate omissions are recorded, and the verification document reflects what was actually run against a real backend.

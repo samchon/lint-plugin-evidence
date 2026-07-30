@@ -15,7 +15,7 @@ Finish the frontend phase under the fully active Evidence Graph:
 
 1. From `packages/frontend`, run `pnpm build`, `pnpm test:e2e`, and `pnpm ui:review`.
 2. Run the required journeys against the live backend and inspect the browser output.
-3. Follow the Evidence and Review skills over every acknowledgement selected by the two frontend claims at this final source digest, with all seven claims active.
+3. Follow the Review skill in full at this final source digest, including the current host and common residual populations, and review every acknowledgement selected by the two frontend claims with all seven claims active.
 
 From the workspace root, run `rg --hidden -n -F '@todo' packages/frontend --glob '*.ts' --glob '*.tsx'` and require no matches. This source-scoped search excludes the Evidence instruction files that teach the tag.
 

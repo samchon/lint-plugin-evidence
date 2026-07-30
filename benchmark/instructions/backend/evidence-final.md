@@ -17,7 +17,7 @@ Finish the backend phase under the fully active backend Evidence Graph:
 3. Run `pnpm lint` with all five backend claims active.
 4. Confirm every operation and DTO is settled, then run `pnpm build:sdk`.
 5. Run `pnpm build:test`, `pnpm lint`, `pnpm test`, and the live-server checks.
-6. Follow the Evidence and Review skills over every acknowledgement selected by the five active claims at this final source digest.
+6. Follow the Review skill in full at this final source digest, including the current host and common residual populations, and review every acknowledgement selected by the five active claims.
 
 From the workspace root, run `rg --hidden -n -F '@todo' packages/api packages/backend --glob '*.ts'` and require no matches. This source-scoped search excludes the Evidence instruction files that teach the tag.
 

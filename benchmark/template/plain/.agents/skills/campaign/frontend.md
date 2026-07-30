@@ -56,7 +56,7 @@ A journey without a specification has never been performed as one actor. A speci
 
 The compiler cannot tell you that a control does nothing.
 
-Run every flow at mobile, tablet, and desktop widths. Confirm every control causes an observable change and every state is reachable. SDK simulation can prove contract shape and client flow; integration against the live backend separately proves server behavior.
+Run every requirement-backed flow. For the main journeys, perform the interactive pass owned by the base Verification skill and inspect the layout at mobile, tablet, and desktop widths. Confirm every control causes an observable change and every required state is reachable. SDK simulation can prove contract shape and client flow; integration against the live backend separately proves server behavior.
 
 ## Findings
 

@@ -14,7 +14,7 @@ Complete final verification under the fully active Evidence Graph:
 
 1. From the workspace root, run `pnpm format`, `pnpm build`, `pnpm lint`, `pnpm prepare:database`, and `pnpm test`.
 2. From `packages/frontend`, run `pnpm ui:review`, then complete the required live backend and browser verification.
-3. Follow the Evidence and Review skills over every acknowledgement selected by all seven claims at this final source digest.
+3. Follow the Review skill in full at this final source digest, including the current host and common residual populations, and review every acknowledgement selected by all seven claims.
 
 From the workspace root, run `rg --hidden -n -F '@todo' packages --glob '*.ts' --glob '*.tsx'` and require no matches. This source-scoped search excludes the Evidence instruction files that teach the tag.
 

@@ -392,10 +392,14 @@ Use public operations for setup and assertions. Do not read the database as a fa
 
 When neither the response nor any reachable follow-up read exposes the effect a requirement names, that is a finding about the API. An effect nobody can observe through the product is an effect the product does not deliver.
 
+## Calibrate One Behavioral Proof
+
+Before a backend or overall review that may qualify as clean, select one material behavioral requirement and temporarily remove the production behavior that implements it. Run the relevant test and require it to fail for the missing behavior, then restore the implementation exactly and rerun the test successfully. Complete the mutation and restoration before the review starts; changing either during a review invalidates that review.
+
+If the test does not fail, it is decorative rather than proof. Correct the test, restore the intended implementation, and finish the calibration before beginning the candidate clean review.
+
 ## Running
 
 Before realize, the suite is red by design: the stubs answer with random data, so a business assertion fails. A suite that is green while random-answer controller stubs remain unfinished is a suite asserting nothing.
 
 From `packages/backend`, run `pnpm test`. The command builds the API package, compiles the test program through its configured lint projection, boots the application against SQLite, runs every exported test function, and closes it. Nothing needs to be started beforehand; [wiring.md](wiring.md) owns the canonical command sequence.
-
-If you are unsure a test proves its requirement, temporarily remove the behavior, confirm the relevant test fails, then restore it before continuing.
