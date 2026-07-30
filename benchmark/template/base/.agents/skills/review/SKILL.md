@@ -1,6 +1,6 @@
 ---
 name: review
-description: Defines whole-population integrity review, including full-scope rounds repeated until one round finds no defect. Use after the first implementation pass and before every completion report.
+description: Defines indivisible whole-population integrity review, with complete rounds repeated until one full round finds no defect. Use after the first implementation pass and before every completion report.
 ---
 
 # Review
@@ -93,7 +93,9 @@ Run complete review rounds over the active phase scope until one entire round is
 
 Every round is an independent full review of the whole active phase scope. Reread every H2 and H3 and walk each one through every layer applicable to that phase. Then enumerate and reverse-walk every authored artifact and every cross-layer relationship in that phase. Recheck every state, permission, negative path, named boundary, generated output, implementation-pending marker, unfinished stub, and required phase gate.
 
-Never divide a round below the prescribed phase boundary. Never carry a partial round forward as if its untouched remainder had passed. Every round starts from the complete current requirements and the complete current artifact population for that phase.
+A round is indivisible. Never split it by file, layer, package, requirement subset, review lens, finding, time window, or agent and then combine the partial reports. Parallel assistance may surface candidate findings, but no delegated slice counts as part of the round. The reviewer that will declare the result must personally perform one continuous traversal of the complete current requirements, complete current artifact population, and every relationship in the prescribed phase scope.
+
+Never carry a partial round forward as if its untouched remainder had passed. Never skip an unchanged requirement or artifact because a previous non-dry round inspected it. Every new round restarts at the first requirement and covers the complete current population again.
 
 If a round finds even one missing, invented, stale, false, partial, or unverified mapping or behavior, that round is not dry. Record every finding, repair every confirmed defect at its owning layer, regenerate affected outputs, rerun every invalidated gate, and begin a new full round from the start on the changed source.
 
