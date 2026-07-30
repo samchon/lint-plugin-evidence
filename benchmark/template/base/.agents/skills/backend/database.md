@@ -17,12 +17,6 @@ The numeric prefix orders domains from foundational to dependent, so a reader me
 
 `main.prisma` holds the datasource and both generators, and nothing else. **It declares the provider and not the connection**, which lives in `prisma.config.ts` beside the package and is owned by [wiring.md](wiring.md). It declares the SQLite provider, the client generator with its output path, and `prisma-markdown`, which is why schema comments are published documentation rather than internal notes: they become `docs/ERD.md`, which a reader sees without opening the schema.
 
-## Evidence Placement
-
-Put `@evidence` directly above the model, column, or relation that stores the cited requirement. That declaration is the owner, and moving its evidence elsewhere makes the claim false.
-
-Reviewed `schema-models` exclusions may instead be collected as unattached top-level `/// @evidenceExclude` lines in `packages/backend/prisma/schema/exclude.schema`. The `.schema` file is a lint-only claim input: Prisma generation, migration, and ERD continue to read only the `.prisma` schema folder. Do not put `@evidence` there, add models there, or widen a Prisma command to include it.
-
 ## Field Types
 
 The vocabulary is closed. There is no JSON, object, or array type, and structure that needs querying is normalized into a child table instead.
@@ -276,7 +270,7 @@ Index what the requirements say you filter and sort by. A listing endpoint whose
 
 ## Snapshots And Retained State
 
-A live foreign key to a mutable row is never as-of evidence. A snapshot made only of parent keys, timestamps, and version markers is incomplete: copy enough business state to reconstruct the point-in-time meaning even after the source is edited or deleted.
+A live foreign key to a mutable row never proves an as-of state. A snapshot made only of parent keys, timestamps, and version markers is incomplete: copy enough business state to reconstruct the point-in-time meaning even after the source is edited or deleted.
 
 When a retained concept is named, copy every requirement-scoped field of it unless the requirements narrow the subset. Lists introduced by "including" or "such as" are not exhaustive. A snapshot column copies the source field's optionality.
 
@@ -294,7 +288,7 @@ If an attempt or an external result can be stored before its final parent exists
 
 Before adding a field or a convenience foreign key, check whether an existing table already owns that fact. A second writable copy desynchronizes silently.
 
-The test is whether a later edit to the source must change what this row means. If it must, reference the owner. If it must not, the captured value is retained evidence and belongs here. Posting-time currency and exchange rate are the standard example: the rate table owns current rates, and the posted row owns the rate honored at posting.
+The test is whether a later edit to the source must change what this row means. If it must, reference the owner. If it must not, the captured value is a retained historical record and belongs here. Posting-time currency and exchange rate are the standard example: the rate table owns current rates, and the posted row owns the rate honored at posting.
 
 Keep one current store per actor and scope for role, grade, or title state. History tables preserve change over time and never replace the current store.
 

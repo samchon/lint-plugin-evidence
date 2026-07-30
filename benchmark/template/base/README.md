@@ -8,12 +8,15 @@ The scaffold was adapted from `wrtnlabs/autobe-mcp` commit `bf7d0373de9cae932c11
 
 ```bash
 pnpm install
+cp packages/backend/.env.example packages/backend/.env
 pnpm build
 pnpm lint
 pnpm test
 pnpm format
 ```
 
-Run `pnpm prepare:database` after changing the Prisma schema. Install Chromium once with `pnpm --filter {{frontendPackageName}} playwright:install` before running the browser suite.
+The backend `.env` is required for local server and test processes. The frontend already has working defaults; copy `packages/frontend/.env.example` to `packages/frontend/.env` only when overriding them.
+
+Run `pnpm prepare:database` after changing the Prisma schema. Use `pnpm schema:database` only when intentionally resetting the local database. Install Chromium once with `pnpm --filter {{frontendPackageName}} playwright:install` before running the browser suite.
 
 The included GitHub Actions workflow performs a frozen install, build, lint, SQLite preparation, backend tests, and Chromium frontend tests on every push and pull request. It uses only local CI environment values and requires no repository secrets.

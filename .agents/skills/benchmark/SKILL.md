@@ -1,117 +1,52 @@
 ---
 name: benchmark
-description: Defines how @samchon/lint-plugin-evidence measures its product claim — authorization, launch gates, frozen inputs, measurement integrity, active supervision, recovery, result publication, and reporting. Use before launching, observing, resuming, repairing, publishing, or reporting a benchmark run, or before editing anything a run reads; do not use for deterministic tests under tests/, which the development skill owns.
+description: Defines authorization, frozen inputs, execution, supervision, measurement, and issue-campaign reporting for the @samchon/lint-plugin-evidence benchmark. Use before changing benchmark inputs or code, or launching, supervising, resuming, or reporting a benchmark run; deterministic tests under tests/ use the development skill.
 ---
 
 # Benchmark
 
-## Product Claim
+## Purpose
 
-The README claims that an unattended agent can skip a requirement and still report completion, and that the evidence graph moves that omission into the build. This repository treats unproven claims as defects, so that product claim requires measured evidence.
+The benchmark compares the same coding agent building the same application with and without the Evidence plugin. Both arms receive the same requirements, shared template, instruction sequence, model, and effort. Only the Evidence arm receives the plugin, graph configuration, and Evidence-specific guidance.
 
-For each engine, the benchmark asks the same model to build the same application twice: once with the evidence plugin and once without it. The selected instructions, subject requirements, shared template, arm overlays, locally packed product, native agent stream, and retained workspace are the experiment's authority.
+The runner is deliberately small. It prepares an isolated workspace, sends the selected Markdown instructions as Goals to one engine session in their fixed order, includes the common continuation text once in each Goal objective, and retains the complete conversation and native measurements. The native Goal runtime owns continued turns. The runner does not judge requirements, implementation quality, test results, or completion claims.
 
-The plain arm is not a strawman. Its existing review skill requires exhaustive whole-project review until a complete round is dry, because the benchmark must compare evidence against a serious manual method.
+## Authorization
 
-## Authority
+A model run is expensive. Launch or rerun only the exact subjects, engines, arms, models, and phases the user authorizes. Publication always requires separate explicit authorization.
 
-A run is expensive, long, and consumes model quota. Treat the subject, engine, arm, model, and phase boundaries in the user's request as binding.
-
-Authorization to run a named benchmark covers that run, active supervision, recovery of its retained cells, and its report. It does not authorize an unrequested rerun, different subject, engine, arm, model, publication, or unrelated repository mutation.
-
-Publication requires separate explicit authorization. Never infer a GitHub owner from this repository, its remote, the package scope, or an example command.
-
-## Campaign Contract
-
-A benchmark is an issue campaign, not a detached batch process. Keep one campaign pull request open while its authorized waves run. Commit and push deterministic runner, template, instruction, and plugin corrections to that pull request; record detailed findings, interruptions, recoveries, interventions, and completed phases as formal `COMMENT` reviews. Do not merge the campaign pull request between waves.
-
-After the campaign pull request merges, close only the linked issues whose current acceptance scope the merged tree actually satisfies. Keep the handoff or residual issue open until its own implementation pull request merges.
-
-Use this fixed engine matrix unless the user explicitly replaces it:
-
-| Engine      | Model             | Effort |
-| ----------- | ----------------- | ------ |
-| Codex       | `gpt-5.6-terra`   | `high` |
-| Claude Code | `claude-sonnet-5` | `high` |
-
-Launch the complete authorized engine-by-subject-by-arm matrix concurrently. For the first wave, Todo and Reddit across both engines and both arms form eight cells. Record the engine, exact model, effort, CLI version, and invocation in every run. Do not substitute a model after launch or silently inherit an effort setting. Do not launch an engine until its adapter and deterministic proof pass on the exact campaign revision.
-
-Assign a dedicated read-only reporting subagent to refresh the campaign pull-request body every 10 minutes. The live dashboard uses separate `## Codex` and `## Claude Code` sections rather than one combined engine table. That subagent reads retained state, logs, usage, and workspace inventories; it never edits a measured workspace, frozen input, or source branch. The 30-second liveness supervisor is a separate responsibility and must act immediately rather than waiting for the reporting interval.
-
-## Launch Gate
-
-Launch only from a clean pushed commit. The repository suites and the consumer-shaped template proof must be green for that exact revision. Prepare and admit every cell in the selected wave before any cell enters measured agent work; if one preparation fails, launch none. Keep the campaign pull request open until every authorized subject finishes; do not merge it between waves.
-
-Schedule pressure, an absent user, or a nearly finished branch does not weaken this gate. Settle every deterministic template, package, configuration, build, port, and CI defect before model use.
-
-Codex and Claude Code measured launches use the installed local CLIs, their existing authenticated accounts, and each CLI's native non-interactive YOLO flag. Do not add a second permission profile or OS-sandbox policy inside the adapter. Launch only disposable measured workspaces, reject controller environments whose variable names identify credentials or proxies, freeze and audit the exact invocation, and report that model-launched shell commands are not filesystem- or network-isolated. The generated SQLite application requires no container runtime.
-
-## Subject Order
-
-Run Todo and Reddit first, with Codex and Claude Code evidence and plain cells started concurrently after the all-cell preparation barrier. Run Shopping and ERP only after the cheaper subjects are stable and their requirements are ready.
-
-A shared defect affects every subject, so settle deterministic failures on the cheaper wave before spending the larger one.
+Benchmark repair is an issue campaign. Open its campaign pull request before changing files. Self-review each completed correction, then commit and push it promptly. Record material findings and completed corrections as formal `COMMENT` reviews. Do not merge the campaign pull request while the campaign is active.
 
 ## Frozen Inputs
 
-`benchmark/requirements/**` is user-owned source material and is read-only to every agent. Never edit, rewrite, normalize, summarize, rename, add, or delete anything in that tree, and never insert a corpus contract, evaluator instruction, evidence guidance, acceptance criterion, or other agent-authored text into it. If a requirement corpus appears incomplete, inconsistent, or unsuitable, stop before launch and report the defect; only the user may restore or replace the source material.
+`benchmark/requirements/**` is user-owned and inviolable. Never edit, rewrite, normalize, summarize, rename, add, or delete anything in that tree. Never insert benchmark guidance or acceptance criteria into it.
 
-Freeze these inputs before the first cell in a comparable wave starts:
+Accept each selected requirement directory as opaque paths and bytes. Do not validate or infer its filenames, formats, encoding, headings, identifiers, structure, completeness, consistency, or suitability. Copy it exactly into the workspace.
 
-- the complete requirement corpus for every subject in the wave;
-- the complete selected user-turn workflow: `benchmark/prompts/**` for the retained baseline protocol or `benchmark/instructions/**` for the backend-first gated protocol;
-- the shared template and both arm overlays, including their existing skills and lint configurations;
-- the locally packed product revision installed by the evidence arm;
-- each engine's model, reasoning effort, CLI version, and toolchain versions; and
-- the measurement and quality-scoring procedure used for every arm.
+The generated workspace, product archive, engine, model, effort, and CLI version stay fixed during a run. Read each instruction from its repository Markdown file when starting that Goal, and retain the exact user text in the turn record; do not create a second instruction copy.
 
-The backend-first protocol shares each phase's start and review turn, then gives each arm its own phase-final turn. The runner must read the complete sequence once at launch, retain those exact bytes under the cell's `inputs/`, and send only the retained copy.
+## Implementation Boundary
 
-Editing a frozen input or active workspace by hand after one cell starts invalidates comparison with that cell. The only salvage path is the user's explicitly authorized, common, recorded operator intervention in [running.md](running.md), applied identically across both engines and both arms in the affected subject set; it qualifies the comparison and never becomes an unreported clean run.
+Keep benchmark source under `benchmark/src/` and write it only in TypeScript. Prefer deletion and direct composition over wrappers, validators, compatibility layers, recovery protocols, or duplicated state.
 
-Frozen benchmark Markdown is exempt from repository-wide formatting. Keep it covered by `.prettierignore` so an unrelated formatting pass cannot alter experimental input bytes.
+Do not add subject-specific answers, expected-output checks, monkey patches, model-facing hints, or benchmark-only product behavior. Plain must contain no Evidence package, tag, rule, carrier, or guidance. Evidence-only treatment belongs only in the Evidence overlay.
 
-## Measurement Integrity
+Deterministic runner tests belong under `tests/` and run in CI. Never put a self-test framework in `benchmark/src/`.
 
-A run is evidence only while it measures the product a real consumer would install.
+## Execution
 
-- **Measure the real product.** Do not add subject-name checks, expected-answer checks, benchmark-only product branches, monkey patches, or harness restrictions that would be invalid for an ordinary consumer.
-- **Give every arm its prescribed setup.** Use the same base template, requirements, user turns, model settings, and toolchain. The evidence arm alone receives the locally packed plugin and evidence lint configuration; the plain arm receives its own review instructions.
-- **Preserve the workload.** Do not weaken compilation, lint, testing, requirement coverage, or review obligations to make a cell finish.
-- **Record, never reconstruct.** Persist each engine's native streams, token categories, tool calls, commands, elapsed durations, completion claims, follow-up turns, and workspace state while the run is active. Label any later inference as an estimate.
-- **Separate costs and time.** Agent wall time starts when the Codex or Claude Code child process starts and is the sum of retained turn durations. Materialization, installation, the all-cell preparation barrier, controller admission, and reporting time are setup or operator overhead and never enter agent wall time. For the backend-first protocol, separate backend, frontend, and overall start, review, and final turns.
-- **Inspect surprises.** Read the live raw stream and workspace before stopping an unexpected cell, and inspect every successful retained workspace before accepting its result.
+Prepare every selected cell before starting paid work. Each cell gets its own workspace and engine session. Combine each prescribed instruction with the exact text of `benchmark/instructions/continue.md` once and set that text as the Goal objective in its declared order. Do not send a synthetic continuation turn; the native Goal runtime continues an active Goal. When the measured agent marks the Goal complete, wait for its terminal turn and idle state, then start the next prescribed Goal. A non-zero exit or signal interrupts the cell.
 
-The coding agent is the measured instrument; the benchmark runner is not a substitute for an operator. A run therefore requires continuous agent supervision, with every active cell observed at least once every 30 seconds. Read [running.md](running.md) before launching, observing, resuming, repairing, publishing, or reporting a live run.
+Retain the exact prescribed and continuation user text, complete native event stream, raw stdout and stderr, session and Goal identity, native token categories, tool and command events, elapsed model-process time, exit code, and signal in delivery order. Record facts without adding build, lint, requirement, graph, quality, publication, or completion verdicts.
 
-## Predict Before Spending
+## Supervision
 
-Record an evidence-based prediction of wall time, token use, requirement coverage, test coverage, implementation scale, and quality before launching a paid wave. Update the prediction when a new subject corpus becomes ready, but never rewrite a prediction after observing its run.
+An operator agent reacts only to an abnormal interruption. It inspects the native failure, preserves the retained state, and resumes the same session when authorized. The native Goal runtime handles ordinary questions, partial reports, and pauses under the common continuation text without operator prose.
 
-Settle offline whatever a deterministic check can settle. A model run must not be used to discover a template, package, configuration, or build defect that the repository tests could have exposed.
+Do not add implementation advice, hints, or ad hoc completion judgments to a measured session. Do not mutate a measured workspace to rescue a run.
 
-## Run Ownership
+## Reporting
 
-Each cell owns an exact result root and every process below it. Never reuse a workspace across engines, arms, or run identities.
+Report measured token categories and model-process elapsed time from retained native output. Label estimates as estimates. Keep setup time separate.
 
-Retain every cell that reached a measured agent turn. A provider-capacity error, timeout, tool interruption, or controller loss is recoverable state, not a failed result: preserve its workspace, nested Git history, frozen inputs, engine session identity, raw logs, token ledger, and elapsed time, then resume the first incomplete turn.
-
-Remove only a setup cell that never entered measured agent work or a cell explicitly invalidated by frozen-input drift or non-comparable intervention. Resolve the exact owned path and stop its owned processes before removal. Never clear shared package or model caches.
-
-## Results
-
-Store attempts under `benchmark/result/<subject>/<engine>/<arm>/runs/<run-id>/`. Keep the latest successful demo workspace at `benchmark/result/<subject>/<engine>/<arm>/workspace/` and preserve the last successful subject-engine-arm result.
-
-Record total elapsed time, setup and agent wall time, every native token category, commands and gates, completion-claim timing, requirement and test coverage, quality assessment, and the exact frozen-input identities. Do not record absolute start or completion timestamps. Keep working knowledge in `.wiki/` according to the wiki skill, but do not treat that ignored local directory as the only copy of a benchmark result.
-
-Completion is provisional until an operator verifies the full prescribed turn sequence, terminal build, lint, backend and frontend tests, residual requirement coverage, and semantic quality. Only that accepted workspace may become a leaf in the public result repository.
-
-## Cancellation
-
-When the user cancels a campaign and explicitly rejects its partial results, stop the campaign reporting monitor, automatic resumers, cell controllers, model processes, servers, and their owned descendants. Verify that no owned process remains before deleting data.
-
-Remove only the canceled campaign's ignored `benchmark/.work/` and `benchmark/result/` trees after resolving their exact workspace paths. Do not delete requirement corpora, templates, instructions, shared caches, source changes, or an independently published result repository. Report that the removed local run data is not recoverable.
-
-## Contradicting Results
-
-If measured data contradicts a public product claim, correct the claim. A result that falsifies the hypothesis is the benchmark working, not a reason to suppress or rerun the row.
+Inspect the completed workspace before accepting any product or quality claim. A contradiction is a benchmark result, not a reason to hide, patch, or rerun it.

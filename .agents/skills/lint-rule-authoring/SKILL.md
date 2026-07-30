@@ -83,6 +83,7 @@ func (c *Context) ReportRangeFix(pos, end int, message string, edits ...TextEdit
 
 A second registry, `rule.RegisterProject`, runs once per Program **before any file rule**. This plugin depends on it: markdown cannot enter the Program at all, so the document index is built here by reading files from disk directly, published with `ctx.SetState`, and read back by file rules through `ctx.ProjectResult(name)`.
 
+- **`ctx.Sources` is the tsconfig root population, not `Program.SourceFiles()`.** Upstream builds it from `parsedConfig.fileNames`; an implementation file that appears only because a root imports it is not supplied. A project rule may rebase or filter those sources, but it must not claim that following imports recovers the same population. Add a sibling directory to the owning tsconfig when the rule must inspect it.
 - **The index must be immutable once built.** The host synchronizes only the state wrapper; the contents are yours to make safe, and file rules read it from a parallel walk.
 - **Project findings have no file, no range, and no fix.** A markdown-side error cannot point at a line. Report TypeScript-side violations on the JSDoc node instead, where a position exists.
 - **Project rules cannot be configured in an entry with `files`.** Such an entry is rejected even when empty or `off`.

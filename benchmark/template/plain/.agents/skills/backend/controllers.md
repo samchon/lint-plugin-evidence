@@ -1,16 +1,28 @@
 # Operations
 
-Every required public capability needs an authored controller operation, and every operation needs requirement and schema owners. Generated accessors mirror this contract; they do not establish that it is complete.
+This layer answers to two upstream sources at once, and they find different defects.
 
-Map every required public capability to an exact authored operation. Record actor, method, path, authorization, parameters, response, state effects, failures, and exposed models, then reverse-walk every authored operation to those owners.
+Every requirement that describes something a user does needs an operation that lets them do it. Every table and column needs an operation that reads or writes it, or a recorded decision that none does. A contract can cover every requirement while leaving half the schema unreachable, and it can expose every table while satisfying no requirement.
 
-Verify success and refusal surfaces separately. An operation that exists but omits an actor restriction, required failure, boundary, or state transition is incomplete.
+**Nothing checks either direction for you.** A contract that compiles and regenerates the SDK cleanly is a well-formed contract, not the right one.
+
+Read [the campaign skill](../campaign/SKILL.md) and [its API edge](../campaign/api.md) before starting. That edge has four walks, not two, and skipping the backward ones is how an invented endpoint acquires invented semantics that the logic and the tests then honor.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}
 
-## After A Contract Change
+## After Any Contract Change
 
-Regenerate the SDK and OpenAPI document. Invalidate provider, test, and frontend mappings that depended on the previous contract, and recheck them at the new digest.
+Regenerating the SDK is the first step, not the last. The change re-opens three campaigns.
 
-If an operation cannot express a requirement because the schema lacks state, repair the database owner. Do not hide the defect in a controller or generated accessor.
+- **The test campaign**, because what the tests must prove has moved. A new rejection needs a test that attempts it; a changed response shape changes every assertion against it.
+- **The logic campaign**, because the provider implements this contract and its effects.
+- **The frontend campaign**, because a screen consumes these operations and a changed contract can leave it reading a field that no longer exists.
+
+Record the re-opening in the ledger as you make the change.
+
+## When The Contract Cannot Express It
+
+If a requirement needs an operation you cannot design because the schema has no state for it, the finding belongs to the database campaign. Fix it there.
+
+Adding a column from here to make an operation designable is the workaround that hides the defect from every layer after it, and it commits the rest of the work to a schema decision nobody reviewed.

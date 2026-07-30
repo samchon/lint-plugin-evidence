@@ -14,6 +14,6 @@ Complete final verification with a full-project Loop Until Dry. Each complete ro
 
 Any finding, correction, generated-output change, formatting change, or failed gate makes the round non-dry. Restart the complete overall round at the resulting source digest. Stop after one entire current-digest round finds zero actionable defect and leaves every gate current and green; one dry round is sufficient.
 
-Any failed command, review finding, remaining `@todo`, stale verdict, uncovered requirement, unowned artifact, or unverified assumption means the application is incomplete. Keep fixing and repeating the complete overall round until every gate is green.
+Any failed command, review finding, unfinished stub, remaining implementation marker, stale verdict, uncovered requirement, unowned artifact, or unverified assumption means the application is incomplete. Keep fixing and repeating the complete overall round until every gate is green.
 
 Report the exact commands and results.

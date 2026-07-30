@@ -13,9 +13,11 @@ export async function journey_customer_checkout(page: Page): Promise<void> {}
 
 The page `{@link}` resolves through an import in the journey file. Presentation-only specs and fixtures are outside this claim; do not use them to acknowledge functional requirements.
 
+After the last screen is realized, run `rg --hidden -n -F '@todo' packages/frontend --glob '*.ts' --glob '*.tsx'` from the workspace root and require no matches before the closing browser modes. This source-scoped search excludes the Evidence instruction files that teach the tag.
+
 ## Excluding A Requirement Or Page From Journeys
 
-Put `@evidenceExclude` on a selected exported journey function when `frontend-journeys` intentionally does not verify a configured requirement or traverse a selected page. Use a path target for Markdown and a braced `{@link PageName}` target for a page imported into the journey file.
+Put `@evidenceExclude` on `packages/frontend/tests/journeys/JOURNEY_EVIDENCE_EXCLUDE.ts` when `frontend-journeys` intentionally does not verify a configured requirement or traverse a selected page. Use a path target for Markdown and a braced `{@link PageName}` target for a page imported into the carrier file.
 
 ```ts
 import { AdminRedirectPage } from "../../src/components/admin/admin-redirect-page";
@@ -28,10 +30,10 @@ import { AdminRedirectPage } from "../../src/components/admin/admin-redirect-pag
  *                  The authentication bootstrap owns this redirect-only page;
  *                  reject this exclusion if the page gains an interaction.
  */
-export async function journey_checkout(page: Page): Promise<void> {}
+export const JOURNEY_EVIDENCE_EXCLUDE = true;
 ```
 
-The journey function is only a carrier for a claim-local decision. Name the actual owner and a condition that would veto the omission. An H2 or TypeScript ancestor target covers every selected descendant, so use the narrowest truthful target and keep evidence and exclusion scopes disjoint within this claim-reference obligation. A screen exclusion does not discharge a journey exclusion, and neither affects backend tests.
+Name the actual owner and a condition that would veto the omission. An H2 or TypeScript ancestor target covers every selected descendant, so use the narrowest truthful target and keep evidence and exclusion scopes disjoint within this claim-reference obligation. A screen exclusion does not discharge a journey exclusion, and neither affects backend tests.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}

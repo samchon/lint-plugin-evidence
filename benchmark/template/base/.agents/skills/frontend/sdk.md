@@ -32,16 +32,17 @@ That is where a validation the client should run before submitting and the serve
 A connection carries the host and the headers. Authenticating means calling a lifecycle accessor with it.
 
 ```ts
-const connection: IConnection = { host: config.apiHost };
-await api.functional.shopping.auth.customer.join(connection, { body });
-// connection is now authenticated
+import { apiConnection } from "@/lib/client";
+
+await api.functional.shopping.auth.customer.join(apiConnection, { body });
+// apiConnection is now authenticated
 ```
 
 **Do not write the header yourself.** The accessor does it, because the operation behind it declares where the token goes, which [the API skill](../api/SKILL.md) covers along with the rest of the connection contract.
 
-Assigning `connection.headers.Authorization` by hand is the mistake to avoid here. It duplicates what the accessor already did, and it is written with a `Bearer ` prefix roughly every time, which then diverges from the value the accessor writes. The one place a token is handled is inside the generated call.
+Assigning `apiConnection.headers.Authorization` by hand is the mistake to avoid here. It duplicates what the accessor already did, and it is written with a `Bearer ` prefix roughly every time, which then diverges from the value the accessor writes. The one place a token is handled is inside the generated call.
 
-One connection per actor, authenticated once and reused for every later call by that actor. A fresh connection object built from the same host is anonymous, and the resulting failure appears on some later call rather than at the point the mistake was made.
+`src/lib/client.ts` owns the browser's one `apiConnection`. Authenticate it once for the current actor and reuse it for every later call. A fresh connection object built inside a domain hook is anonymous, and the resulting failure appears on some later call rather than at the point the mistake was made.
 
 Persisting a session across a reload means storing the issued token and putting it back on the connection at startup, which is the one time you touch the header directly. Read it back through the same accessor's response type rather than a shape of your own.
 
@@ -54,7 +55,16 @@ Hiding an unavailable command is good usability and is not security. The server 
 The SDK answers from generated data when its connection asks it to.
 
 ```ts
-const connection: IConnection = { host: apiHost, simulate: true };
+// src/lib/client.ts
+import type { IConnection } from "@nestia/fetcher";
+
+import { config } from "@/lib/config";
+
+/** Shared generated-SDK connection for browser requests. */
+export const apiConnection: IConnection = {
+  host: config.apiHost,
+  simulate: config.simulate,
+};
 ```
 
 This is the mocking seam at the contract boundary, and it is the primary axis of frontend development rather than a fallback for when the backend is down.
@@ -65,21 +75,25 @@ Drive the flag from the environment rather than from code, so the same build can
 
 ```ts
 // src/lib/config.ts
-export const config = {
-  get apiHost() {
-    return import.meta.env.VITE_API_HOST?.trim() || "http://127.0.0.1:37001";
-  },
-  get simulate() {
-    return import.meta.env.VITE_API_SIMULATE?.trim() === "true";
-  },
+const readBoolean = (value: string | undefined, fallback: boolean): boolean => {
+  if (value === undefined) return fallback;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new Error(`Expected a boolean environment value, received "${value}".`);
 };
+
+/** Validated frontend environment settings. */
+export const config = {
+  apiHost: import.meta.env.VITE_API_HOST ?? "http://127.0.0.1:37001",
+  simulate: readBoolean(import.meta.env.VITE_API_SIMULATE, true),
+} as const;
 ```
 
-Simulation answers with valid random data, so it can never show an empty list, a rejection, or an edge state on demand; the state gallery in [verification.md](verification.md) owns forcing those.
+Simulation answers with valid random data, so it cannot reliably produce an empty list, a rejection, or another named edge state on demand; the state gallery in [verification.md](verification.md) owns forcing those.
 
-**Then finish against the live backend.** Simulation proves shape and flow. It proves nothing about persistence, sessions, authorization, refresh, or side effects, because no provider ran. Development is complete only after a separately named program runs the same flows with simulation off, against the real host, with real data.
+**Then finish against the live backend.** Simulation proves shape and flow. It proves nothing about persistence, sessions, authorization, refresh, or side effects, because no provider ran. Development is complete only after the same `pnpm test:e2e` suite runs with `VITE_API_SIMULATE=false`, against the real host, with real data.
 
-Two rules keep that honest. Label evidence from simulation as shape-and-flow evidence, never as integration. And never point a program named for live integration at the simulated path, because the name is what a later reader trusts.
+Two rules keep that honest. Record simulation as shape-and-flow verification, never as integration. And never record a run as live integration while `VITE_API_SIMULATE` is `true`, because the environment and verification record are what a later reader trusts.
 
 ## Handle What The Contract Says Can Fail
 

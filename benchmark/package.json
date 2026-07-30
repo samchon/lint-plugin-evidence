@@ -2,31 +2,18 @@
   "private": true,
   "name": "@samchon/evidence-benchmark",
   "version": "0.4.4",
-  "description": "Deterministic materialization and package preparation for the evidence benchmark.",
+  "description": "Minimal native-Goal runner for the Evidence benchmark.",
   "type": "module",
   "exports": {
-    "./corpus": "./src/EvidenceBenchmarkCorpus.ts",
-    "./materialization": "./src/structures/IEvidenceBenchmarkMaterialization.ts",
-    "./process": "./src/EvidenceBenchmarkProcess.ts",
-    "./template": "./src/EvidenceBenchmarkTemplate.ts"
+    "./runner": "./src/EvidenceBenchmarkRunner.ts",
+    "./workspace": "./src/EvidenceBenchmarkWorkspace.ts"
   },
   "scripts": {
-    "start": "node --experimental-transform-types src/executable/benchmark.ts start",
-    "plan": "node --experimental-transform-types src/executable/benchmark.ts plan",
-    "resume": "node --experimental-transform-types src/executable/benchmark.ts resume",
-    "repair": "node --experimental-transform-types src/executable/benchmark.ts repair",
-    "publish:result": "node --experimental-transform-types src/executable/benchmark.ts publish",
-    "check": "pnpm run check:source && tsc --noEmit -p tsconfig.json",
-    "check:source": "node --experimental-transform-types src/executable/check-source-contract.ts",
-    "test": "pnpm run test:unit && pnpm run test:package",
-    "test:baseline": "node --experimental-transform-types src/executable/self-test.ts --baseline",
-    "test:unit": "node --experimental-transform-types src/executable/self-test.ts",
-    "test:package": "node --experimental-transform-types src/executable/self-test.ts --package"
+    "start": "node --experimental-transform-types src/executable/EvidenceBenchmarkCommandLine.ts",
+    "check": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "catalog:utils",
-    "tar": "7.5.22",
-    "typescript": "catalog:typescript",
-    "typescript-api": "npm:typescript@5.9.3"
+    "typescript": "catalog:typescript"
   }
 }

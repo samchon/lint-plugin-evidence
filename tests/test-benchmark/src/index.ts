@@ -1,102 +1,295 @@
-import { spawn } from "node:child_process";
+import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import readline from "node:readline";
 
-import type { IEvidenceBenchmarkMaterialization } from "@samchon/evidence-benchmark/materialization";
-import { EvidenceBenchmarkTemplate } from "@samchon/evidence-benchmark/template";
+import { EvidenceBenchmarkRunner } from "../../../benchmark/src/EvidenceBenchmarkRunner.ts";
 
-const repository: string = path.resolve(import.meta.dirname, "../../..");
-const suite: string = path.resolve(import.meta.dirname, "..");
-const workspace: string = path.join(suite, "workspace");
-const variables: IEvidenceBenchmarkMaterialization.IVariables = {
-  name: "benchmark-template-proof",
-  apiPackageName: "@benchmark-template-proof/api",
-  backendPackageName: "@benchmark-template-proof/backend",
-  frontendPackageName: "@benchmark-template-proof/frontend",
-};
+const ENTRIES = [
+  ["skills-contract", "skills-contract.md"],
+  ["backend-start", "backend/start.md"],
+  ["backend-review", "backend/review.md"],
+  ["backend-final", "backend/evidence-final.md"],
+  ["frontend-start", "frontend/start.md"],
+  ["frontend-review", "frontend/review.md"],
+  ["frontend-final", "frontend/evidence-final.md"],
+  ["overall-review", "overall/review.md"],
+  ["overall-final", "overall/evidence-final.md"],
+] as const;
 
 /**
- * Verifies the Plain benchmark template through its real backend test command.
+ * Verifies the small production runner against a free app-server fixture.
  *
- * This is a consumer proof: it materializes one Plain workspace, installs its
- * declared dependencies, and lets the backend package own every test
- * prerequisite and assertion.
+ * Each prescribed instruction and the shared continuation become one active
+ * Goal. Native Goal, turn, token, process, and raw-stream facts are recorded;
+ * the runner performs no workspace judgment.
  *
- * 1. Materialize the base template with the Plain overlay.
- * 2. Install the generated workspace.
- * 3. Build and test from its backend package.
+ * 1. Complete every prescribed Goal through one fake app-server process.
+ * 2. Assert exact text, automatic progression, token deltas, and raw records.
+ * 3. Assert a non-zero native exit is retained as an interruption.
+ * 4. Assert callback errors retain serializable Error identity and context.
  */
 const main = async (): Promise<void> => {
-  fs.rmSync(workspace, { recursive: true, force: true });
-  writeTree(
-    workspace,
-    EvidenceBenchmarkTemplate.compose({
-      template: path.join(repository, "benchmark", "template"),
-      arm: "plain",
-      variables,
-    }).files,
+  const root: string = fs.mkdtempSync(
+    path.join(os.tmpdir(), "evidence-benchmark-runner-"),
   );
-  const environment: NodeJS.ProcessEnv = {
-    ...process.env,
-    CI: "1",
-    API_PORT: "37001",
-    JWT_SECRET_KEY: "benchmark-template-proof-secret-at-least-32-characters",
-    JWT_ACCESS_TTL_SECONDS: "3600",
-    JWT_REFRESH_TTL_SECONDS: "2592000",
-    TTSC_CACHE_DIR: path.join(repository, "node_modules", ".cache", "ttsc"),
-    VITE_API_HOST: "http://127.0.0.1:37001",
-    VITE_API_SIMULATE: "true",
-  };
-  await pnpm(["install"], workspace, environment);
-  await pnpm(
-    ["build"],
-    path.join(workspace, "packages", "backend"),
-    environment,
-  );
-  await pnpm(
-    ["test"],
-    path.join(workspace, "packages", "backend"),
-    environment,
-  );
-};
+  try {
+    const sources: Map<string, Buffer> = writeInstructions(root);
+    const prefix: string[] = [
+      "--experimental-transform-types",
+      import.meta.filename,
+      "--fake-app-server",
+    ];
+    const snapshots: EvidenceBenchmarkRunner.IEvidenceBenchmarkRunState[] = [];
+    const completedOutput: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] =
+      [];
+    const completed = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: (_processIndex, output) => {
+        completedOutput.push(output);
+      },
+      onState: (state) => {
+        snapshots.push(state);
+      },
+    });
 
-const pnpm = async (
-  arguments_: readonly string[],
-  cwd: string,
-  env: NodeJS.ProcessEnv,
-): Promise<void> => {
-  const executable: string | undefined = process.env.npm_execpath;
-  if (executable === undefined)
-    throw new Error("The benchmark template test must be launched by pnpm.");
-  const child = spawn(process.execPath, [executable, ...arguments_], {
-    cwd,
-    env,
-    shell: false,
-    stdio: "inherit",
-    windowsHide: true,
-  });
-  const status: number | null = await new Promise((resolve, reject) => {
-    child.once("error", reject);
-    child.once("close", resolve);
-  });
-  if (status !== 0)
-    throw new Error(
-      `pnpm ${arguments_.join(" ")} failed with status ${String(status)}.`,
+    assert.equal(completed.status, "completed");
+    assert.equal(completed.cliVersion, "fixture-cli");
+    assert.equal(completed.nextInstructionIndex, ENTRIES.length);
+    assert.equal(completed.goals.length, ENTRIES.length);
+    assert.equal(completed.processes.length, 1);
+    assert.equal(completed.processes[0]!.exitCode, 0);
+    assert.equal(completed.processes[0]!.signal, null);
+    assert.equal("output" in completed.processes[0]!, false);
+    assert.ok(completedOutput.length > 0);
+    const requests = completedOutput
+      .filter((output) => output.stream === "stdin")
+      .map((output) => JSON.parse(output.text) as Record<string, unknown>);
+    assert.equal(
+      requests.some((request) => request.method === "turn/start"),
+      false,
     );
-};
+    const goalRequests = requests.filter(
+      (request) => request.method === "thread/goal/set",
+    );
+    assert.equal(goalRequests.length, ENTRIES.length);
+    assert.ok(
+      goalRequests.every(
+        (request) =>
+          (request.params as Record<string, unknown>).status === "active",
+      ),
+    );
+    completed.goals.forEach((goal, index) => {
+      const [name, relative] = ENTRIES[index]!;
+      const prescribed: string = sources.get(relative)!.toString("utf8");
+      const continuation: string = sources.get("continue.md")!.toString("utf8");
+      assert.equal(goal.name, name);
+      assert.equal(goal.relativePath, relative);
+      assert.equal(goal.prescribedText, prescribed);
+      assert.equal(goal.continuationText, continuation);
+      assert.equal(goal.objectiveText, `${prescribed}\n\n${continuation}`);
+      assert.equal(goal.goal?.objective, goal.objectiveText);
+      assert.equal(goal.goal?.status, "complete");
+      assert.equal(goal.terminalTurnCompleted, true);
+      assert.equal(goal.threadIdle, true);
+      assert.equal(goal.tokenUsage.totalTokens, 10);
+      assert.equal(goal.tokenUsage.inputTokens, 6);
+      assert.equal(goal.tokenUsage.outputTokens, 4);
+    });
+    assert.equal(snapshots.at(-1)?.status, "completed");
 
-const writeTree = (
-  root: string,
-  files: ReadonlyMap<string, Uint8Array>,
-): void => {
-  for (const [relative, content] of files) {
-    const output: string = path.join(root, ...relative.split("/"));
-    fs.mkdirSync(path.dirname(output), { recursive: true });
-    fs.writeFileSync(output, content, { flag: "wx" });
+    const interruptedOutput: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] =
+      [];
+    const interrupted = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--fail"],
+      onOutput: (_processIndex, output) => {
+        interruptedOutput.push(output);
+      },
+    });
+    assert.equal(interrupted.status, "interrupted");
+    assert.equal(interrupted.nextInstructionIndex, 0);
+    assert.equal(interrupted.processes[0]!.exitCode, 7);
+    assert.match(
+      interruptedOutput
+        .filter((output) => output.stream === "stderr")
+        .map((output) => output.text)
+        .join(""),
+      /fixture interruption/,
+    );
+
+    const outputFailure = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => {
+        throw new Error("fixture durable output failure");
+      },
+    });
+    assert.equal(outputFailure.status, "interrupted");
+    assert.equal(outputFailure.interruption?.name, "Error");
+    assert.equal(
+      outputFailure.interruption?.message,
+      "fixture durable output failure",
+    );
+    assert.equal(typeof outputFailure.interruption?.stack, "string");
+    assert.doesNotThrow(() => JSON.stringify(outputFailure.interruption));
+
+    for (const [relative, source] of sources)
+      assert.deepEqual(
+        fs.readFileSync(path.join(root, ...relative.split("/"))),
+        source,
+      );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
 };
 
-main().catch((error: unknown) => {
-  console.log(error);
-  process.exit(1);
-});
+const writeInstructions = (root: string): Map<string, Buffer> => {
+  const sources: Map<string, Buffer> = new Map([
+    ["continue.md", Buffer.from("Continue until this Goal is complete.\r\n")],
+  ]);
+  ENTRIES.forEach(([name, relative]) =>
+    sources.set(relative, Buffer.from(`# ${name}\r\n\r\nExecute exactly.\r\n`)),
+  );
+  for (const [relative, source] of sources) {
+    const location: string = path.join(root, ...relative.split("/"));
+    fs.mkdirSync(path.dirname(location), { recursive: true });
+    fs.writeFileSync(location, source);
+  }
+  return sources;
+};
+
+const fakeAppServer = (): void => {
+  const fail: boolean = process.argv.includes("--fail");
+  let goalIndex = 0;
+  let waitingForIdle = false;
+  const send = (value: unknown, callback?: () => void): void => {
+    process.stdout.write(`${JSON.stringify(value)}\n`, callback);
+  };
+  const goal = (objective: string, status: "active" | "complete") => ({
+    threadId: "fixture-thread",
+    objective,
+    status,
+    tokenBudget: null,
+    tokensUsed: goalIndex * 10,
+    timeUsedSeconds: goalIndex,
+    createdAt: 1,
+    updatedAt: goalIndex + 1,
+  });
+  readline
+    .createInterface({ input: process.stdin })
+    .on("line", (line: string) => {
+      const request = JSON.parse(line) as {
+        id?: number;
+        method: string;
+        params?: Record<string, unknown>;
+      };
+      if (request.id === undefined) return;
+      if (request.method === "initialize")
+        return send({ id: request.id, result: {} });
+      if (request.method === "thread/start")
+        return send({
+          id: request.id,
+          result: {
+            thread: {
+              id: "fixture-thread",
+              cliVersion: "fixture-cli",
+              status: { type: "idle" },
+            },
+          },
+        });
+      if (
+        request.method !== "thread/goal/set" ||
+        request.params?.status !== "active" ||
+        typeof request.params.objective !== "string" ||
+        waitingForIdle
+      )
+        return send({
+          id: request.id,
+          error: { message: `Unexpected request: ${request.method}` },
+        });
+      const objective: string = request.params.objective;
+      goalIndex++;
+      if (fail) {
+        process.stderr.write("fixture interruption\n");
+        return send(
+          { id: request.id, result: { goal: goal(objective, "active") } },
+          () => process.exit(7),
+        );
+      }
+      const turnId: string = `turn-${goalIndex}`;
+      const total = {
+        totalTokens: goalIndex * 10,
+        inputTokens: goalIndex * 6,
+        cachedInputTokens: 0,
+        cacheWriteInputTokens: 0,
+        outputTokens: goalIndex * 4,
+        reasoningOutputTokens: 0,
+      };
+      send({ id: request.id, result: { goal: goal(objective, "active") } });
+      send({
+        method: "turn/started",
+        params: {
+          threadId: "fixture-thread",
+          turn: { id: turnId },
+        },
+      });
+      send({
+        method: "thread/tokenUsage/updated",
+        params: {
+          threadId: "fixture-thread",
+          tokenUsage: { total },
+        },
+      });
+      send({
+        method: "thread/goal/updated",
+        params: {
+          threadId: "fixture-thread",
+          goal: goal(objective, "complete"),
+          turnId,
+        },
+      });
+      send({
+        method: "turn/completed",
+        params: {
+          threadId: "fixture-thread",
+          turn: { id: turnId, status: "completed", durationMs: 1 },
+        },
+      });
+      waitingForIdle = true;
+      setTimeout(() => {
+        waitingForIdle = false;
+        send({
+          method: "thread/status/changed",
+          params: {
+            threadId: "fixture-thread",
+            status: { type: "idle" },
+          },
+        });
+      }, 10);
+    });
+};
+
+if (process.argv.includes("--fake-app-server")) fakeAppServer();
+else
+  main().catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  });

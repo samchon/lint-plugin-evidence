@@ -15,6 +15,6 @@ Finish the frontend phase with a complete plain-arm Loop Until Dry over the fron
 
 Any finding, correction, generated-output change, or failed gate makes the round non-dry. Restart the complete frontend-scoped round at the resulting source digest. Stop after one entire current-digest round finds zero actionable defect and leaves every gate current and green; one dry round is sufficient.
 
-Do not run the workspace-root build during this phase. Any failed command, review finding, remaining frontend `@todo`, broken journey, or unverified user-facing requirement means the phase is incomplete.
+Do not run the workspace-root build during this phase. Any failed command, review finding, unfinished frontend stub, remaining frontend implementation marker, broken journey, or unverified user-facing requirement means the phase is incomplete.
 
 Report the exact commands and results. State that whole-project verification remains pending.

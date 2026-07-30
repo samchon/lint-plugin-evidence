@@ -191,7 +191,7 @@ A pattern resolves against its population's base — the `ttsc` project root unl
 
 ### Populations above the project
 
-A monorepo usually keeps one requirements set that several packages implement together, and each package is its own `ttsc` project with its own `tsconfig.json` and `lint.config.ts`. A Markdown or Prisma population declares the directory it resolves against with `root`:
+A monorepo usually keeps one requirements set that several packages implement together, and each package is its own `ttsc` project with its own `tsconfig.json` and `lint.config.ts`. A Markdown or Prisma population, or a TypeScript claim, declares the directory it resolves against with `root`:
 
 ```ts
 // packages/backend/lint.config.ts and packages/api/lint.config.ts, identically
@@ -205,13 +205,13 @@ A monorepo usually keeps one requirements set that several packages implement to
 
 `root` is one directory, never a glob. It may sit inside the project (`docs`), above it (`../../docs`), or on an absolute path (`/srv/contracts`, `C:/contracts`). A Windows drive-relative path such as `C:docs` is refused, because it resolves against whatever directory that drive is currently on rather than against a stable base.
 
-**Moving the root moves the addresses with it.** Under the configuration above, a section is cited as `requirements/pricing.md#discounts` — not through the citing package's distance from the documents. That is what lets two packages share one document set: they declare the same base and write the same citation, so adopting the set costs a `root` line and nothing else. A Prisma target carries no path at all, so a root there changes which files join the schema set and where a diagnostic points, never how a model is cited.
+**Moving the root moves the addresses with it.** Under the configuration above, a section is cited as `requirements/pricing.md#discounts` — not through the citing package's distance from the documents. That is what lets two packages share one document set: they declare the same base and write the same citation, so adopting the set costs a `root` line and nothing else. Prisma and TypeScript targets carry no path, so a root there changes which files join the population and where a diagnostic points, never how a model or symbol is cited.
 
 Diagnostics name the resolved base, so a population that selects nothing says which directory it looked in, and a unit above the project is located through it: `Missing acknowledgement for 'requirements/pricing.md#discounts' (Markdown H2 'Discount Policy' at ../../docs/requirements/pricing.md:12)`. A root that names no directory is reported as a root, with the spelling you wrote and the path it resolved to.
 
-Everything a rooted population reads is published to the `ttsc` host as a watched dependency, so editing a document two directories up starts the next `ttsc check --watch` cycle exactly as editing one inside the project does.
+Everything a rooted Markdown or Prisma population reads is published to the `ttsc` host as a watched dependency, so editing a document two directories up starts the next `ttsc check --watch` cycle exactly as editing one inside the project does.
 
-There is no `root` on a TypeScript population. Its files come from the `ttsc` program, which no outside directory contributes to; `package` is the channel that reaches a population you do not own, and `files` narrows it from there.
+A TypeScript claim `root` changes only the base used to match files already supplied by `ttsc`. It does not scan that directory or follow imports, so the owning tsconfig must explicitly include a sibling source root before the claim can select it. TypeScript references retain their existing Program or installed-package selectors and do not accept `root`; `package` is the channel that reaches a population you do not own.
 
 **Each project still owes its own coverage.** Two projects referencing one document set are two independent obligations, so a section only the backend implements needs an `@evidenceExclude` in the API project, and the reverse for an API-only one. That is the intended form rather than a gap: the claim that a requirement does not apply to a package is a reviewable decision, and a shared population with a per-project filter would let one package silently drop a requirement the other still enforces.
 

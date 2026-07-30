@@ -14,7 +14,7 @@ The test is one question: did the contract state it? A refusal treated as a cras
 
 One error boundary per route layout. A render error in the order detail must not blank the catalog, the navigation, or the cart: the shell survives, and the broken route shows a fallback whose retry resets the boundary and invalidates that route's queries.
 
-Per-component boundaries hide defects instead of containing them. A card that quietly swallows its own crash removes the evidence that something is wrong.
+Per-component boundaries hide defects instead of containing them. A card that quietly swallows its own crash removes the signal that something is wrong.
 
 ## Retry Follows Idempotency
 

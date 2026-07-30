@@ -2,7 +2,7 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
-    "rootDir": ".",
+    "rootDir": "..",
     "plugins": [
       {
         "transform": "@ttsc/lint",
@@ -10,5 +10,9 @@
       }
     ]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "../api/src/structures/**/*.ts"
+  ]
 }

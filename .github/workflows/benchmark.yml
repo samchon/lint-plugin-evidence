@@ -1,4 +1,4 @@
-name: benchmark-template
+name: benchmark-runner
 
 on:
   pull_request:
@@ -16,14 +16,14 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: benchmark-template-${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+  group: benchmark-runner-${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  template:
-    name: Plain backend template (${{ matrix.os }})
+  runner:
+    name: Benchmark runner (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -42,21 +42,8 @@ jobs:
           node-version: 22.22.2
           cache: pnpm
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version: 1.26.x
-
       - name: Install repository dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Restore ttsc plugin cache
-        uses: actions/cache@v4
-        with:
-          path: node_modules/.cache/ttsc
-          key: ttsc-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'packages/evidence/src/**', 'packages/evidence/native/**') }}
-
-      - name: Check benchmark template test
-        run: pnpm --filter test-benchmark check
-
-      - name: Test Plain backend template
+      - name: Test benchmark runner
         run: pnpm --filter test-benchmark start

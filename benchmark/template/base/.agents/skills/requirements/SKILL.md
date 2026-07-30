@@ -9,7 +9,7 @@ description: Defines what the requirement documents under docs/analysis contain,
 
 `docs/analysis/` is input. Someone else wrote it, it arrives complete, and it is not yours to author.
 
-That is worth stating because the instinct when a document seems thin is to fill the gap yourself. Do not. A behavior the documents do not describe is not yours to invent, and a contradiction is not yours to resolve by picking the easier reading.
+Do not add behavior the documents do not describe. Read the complete set together and implement every statement without discarding one in favor of an easier interpretation.
 
 Treat the directory as read-only. Never edit a document so that it agrees with code you already wrote, and never add a section because the implementation needed one.
 
@@ -27,13 +27,11 @@ What is durable is that **the documents are organized by primary concern, while 
 
 **This is why reading only the operations document produces an application with every endpoint and none of the rules.** The refusal an endpoint owes is written where the policies live, and the actor permitted to call it is written where the roles live. Neither appears beside the operation.
 
-Read every document before you finish. A subject's absence from one document is not evidence that it has no requirements, and a document that looks like a table of contents may still carry a statement nothing else repeats.
+Read every document before you finish. A subject's absence from one document does not establish that it has no requirements, and a document that looks like a table of contents may still carry a statement nothing else repeats.
 
 ## The Documents Are The Specification
 
-They are read-only. When code and a document disagree, the document is right.
-
-If a document is genuinely contradictory or impossible, say so explicitly and stop on that point. Do not resolve the contradiction by picking whichever reading is easier to build, and do not edit the document so the disagreement disappears.
+They are read-only. When code and a document disagree, the document is right. Treat the complete requirement set as authoritative and implement it as written.
 
 ## How A Requirement Is Written
 

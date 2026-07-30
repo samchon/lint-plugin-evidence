@@ -4,19 +4,21 @@
   "version": "0.1.0",
   "description": "NestJS, Nestia, and Prisma backend for {{name}}",
   "scripts": {
-    "build": "pnpm build:prisma && pnpm --dir ../api build && pnpm build:main && pnpm build:sdk && pnpm build:test",
+    "build": "pnpm build:prisma && pnpm build:api && pnpm build:main && pnpm build:sdk && pnpm build:test",
+    "build:api": "pnpm --dir ../api build",
     "build:main": "rimraf lib && ttsc -p tsconfig.json",
     "build:prisma": "prisma generate --schema=prisma/schema",
-    "build:sdk": "nestia all && node ../api/scripts/ensure-nestia-exports.cjs && pnpm --dir ../api build",
+    "build:sdk": "nestia all && node ../api/scripts/ensure-nestia-exports.cjs && pnpm build:api",
     "build:test": "rimraf bin && ttsc -p tsconfig.test.json",
     "dev": "ttsx src/executable/server.ts",
     "format": "ttsc format -p tsconfig.json && ttsc format -p tsconfig.test.json",
     "lint": "ttsc -p tsconfig.tools.json --noEmit && ttsc -p tsconfig.lint.json --noEmit",
     "prepare": "prisma db push --schema=prisma/schema",
+    "schema": "ttsx src/executable/schema.ts",
     "start": "ttsx src/executable/server.ts",
     "start:prod": "node lib/executable/server.js",
     "start:swagger": "ttsx src/executable/swagger.ts",
-    "test": "pnpm --dir ../api build && ttsx --project tsconfig.test.json test/index.ts"
+    "test": "pnpm build:api && ttsx --project tsconfig.test.json test/index.ts"
   },
   "dependencies": {
     "@nestia/core": "catalog:samchon",

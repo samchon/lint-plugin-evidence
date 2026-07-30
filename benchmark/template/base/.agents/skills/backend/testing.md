@@ -2,7 +2,7 @@
 
 The end-to-end suite under `packages/backend/test/` is the only artifact that proves the product behaves as the requirements say.
 
-The scaffold already contains `test/features/api/health/test_api_health.ts`. It is an infrastructure proof, not requirement evidence: it calls the generated `api.functional.health.get` accessor and asserts the exact `"OK"` marker. Keep it intact while adding requirement-derived scenarios.
+The scaffold already contains `test/features/api/health/test_api_health.ts`. It is an infrastructure proof, not proof of a product requirement: it calls the generated `api.functional.health.get` accessor and validates the returned string contract. Keep it intact while adding requirement-derived scenarios.
 
 ## Read Three Things Before Writing One Test
 
@@ -17,12 +17,6 @@ A test is written from three sources, and skipping any of them produces a test t
 **The structures are the half most often skipped**, and skipping them is what produces a test asserting a property no DTO declares or building a body from fields someone assumed. Read the type and its JSDoc, including each property's, before writing the object literal. If a property you expect is absent, it is absent: the contract is the fact, and inventing around it makes a test that proves a product nobody shipped.
 
 The requirements half is what the other two cannot supply. The SDK tells you what the product can do; only the documents tell you what it must do, and a suite written from the SDK alone proves the endpoints exist.
-
-## Evidence Placement
-
-Put `@evidence` on the exported test function whose scenario proves the cited requirement, SDK operation, or DTO type. The reason must name the observable proof that the body actually performs.
-
-Collect reviewed `backend-tests` exclusions on the exported const in `packages/backend/test/features/TEST_EVIDENCE_EXCLUDE.ts`. The carrier's property symbol is intentionally separate from the claim's function selector. Use it only when the public suite genuinely cannot or should not exercise the target; never move evidence from a real scenario into the ledger.
 
 ## Layout
 
@@ -400,8 +394,8 @@ When neither the response nor any reachable follow-up read exposes the effect a 
 
 ## Running
 
-Before realize, the suite is red by design: the stubs answer with random data, so a business assertion fails. A suite that is green while operations still carry `@todo` tags is a suite asserting nothing.
+Before realize, the suite is red by design: the stubs answer with random data, so a business assertion fails. A suite that is green while random-answer controller stubs remain unfinished is a suite asserting nothing.
 
-The test command executes through `ttsx` with lint contributors disabled, so a standing lint diagnostic never blocks running the suite: the build is where lint gates, and the suite is where behavior does. Run the backend test command from the workspace root and read the output. The runner boots the application itself against the SQLite file, runs every exported test function, and closes it, so nothing needs to be started beforehand. A suite that passes because it asserts nothing passes exactly as loudly as one that works.
+The test command first builds the API package, then executes `ttsx --project tsconfig.test.json`. That test project loads `@ttsc/lint` with `lint.config.ts`, so compile or lint diagnostics can stop the suite before behavior runs. Run the backend test command from the workspace root and read the output. The runner boots the application itself against the SQLite file, runs every exported test function, and closes it, so nothing needs to be started beforehand. A suite that passes because it asserts nothing passes exactly as loudly as one that works.
 
 If you are unsure a test proves its requirement, remove the behavior and confirm the test fails, then restore it.

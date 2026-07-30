@@ -5,7 +5,9 @@ description: Defines the immutable documents under docs/analysis, the exact H2/H
 
 # Requirements
 
-No plugin reports a selected section missing from the plain arm. Build the denominator explicitly from exactly the H2 and H3 headings in `docs/analysis/**/*.md`, identified as `<workspace-relative-path>#<canonical-anchor>`. An explicit `{#anchor}` wins; otherwise use the renderer's canonical lowercase slug. H1, H4+, generated `docs/ERD.md`, and non-analysis Markdown are not units.
+Nothing automatically reports a selected section missing from the plain arm. Build the denominator explicitly from exactly the H2 and H3 headings in `docs/analysis/**/*.md`, identified as `<workspace-relative-path>#<canonical-anchor>`. An explicit `{#anchor}` wins; otherwise use the renderer's canonical lowercase slug. H1, H4+, generated `docs/ERD.md`, and non-analysis Markdown are not units.
+
+Read [the campaign skill](../campaign/SKILL.md) and [its requirements edge](../campaign/requirements.md) before you start. That edge is the root of the graph and the only one with nothing upstream to catch its mistakes.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}
@@ -20,4 +22,4 @@ Read every selected section for states, actor authority, ownership, refusals, an
 
 ## Immutable Input
 
-Never edit `docs/analysis/**` to agree with code. A contradiction is a finding against the implementation or, if the corpus itself is invalid, a frozen-input protocol finding that may stop the cell.
+Never edit, challenge, validate, or repair `docs/analysis/**`. Accept the selected sections as the specification and review only whether the application realizes them.

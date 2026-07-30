@@ -25,7 +25,8 @@ A rule the DTO cannot express, such as "these two fields must match" or "this da
 ```ts
 const toDiagnoses = (errors: IValidation.IError[]): IDiagnosis[] =>
   errors.map((error) => ({
-    accessor: error.path.replace(/^\$input\./, ""),
+    accessor:
+      error.path === "$input" ? "" : error.path.replace(/^\$input\./, ""),
     message: `Expected ${error.expected}.`,
   }));
 ```
@@ -37,7 +38,7 @@ The server's rejections arrive as `IDiagnosis[]` already. So one renderer handle
 {fieldError("email") && <FieldMessage>{fieldError("email")}</FieldMessage>}
 ```
 
-**Never show a validation failure only as a banner.** A form with six fields and a message at the top makes the user hunt. The accessor exists so that the message lands where the value is, and a diagnosis whose accessor is `"unknown"` is the only one that belongs at the top.
+**Never show a validation failure only as a banner.** A form with six fields and a message at the top makes the user hunt. The accessor exists so that the message lands where the value is, and a diagnosis whose accessor is `""` is the only one that belongs at the top.
 
 ## Submission Is A State, Not An Event
 
@@ -62,7 +63,7 @@ Ask what a reader would now see differently: the list the row joins, the detail 
 
 ## What A Form Must Not Do
 
-**Do not send a field the DTO does not declare.** It is dropped at the boundary, and the user's intent goes with it.
+**Do not send a field the DTO does not declare.** It is outside the public contract: the client cannot rely on the boundary rejecting, ignoring, or preserving it, and no downstream behavior may depend on it.
 
 **Do not fabricate a value to satisfy a required field.** An empty string for an absent optional is a value, and the server stores it. Omit the property instead, which is what `?: null | T` exists to allow.
 

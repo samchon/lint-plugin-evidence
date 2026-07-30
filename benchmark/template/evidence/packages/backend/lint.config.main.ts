@@ -13,8 +13,9 @@ declare const process: {
  *
  * `tsconfig.json` contains `src` but not `test`, so only claims whose authored
  * hosts can exist in that Program belong here. The canonical backend lint
- * configuration retains all three claims and owns temporary deferral; this
- * projection is sealed benchmark input and must not be edited by agents.
+ * configuration retains all five backend-phase claims and owns temporary
+ * deferral. This projection is sealed benchmark input and must not be edited
+ * by agents.
  */
 const graph: IEvidenceGraphConfig = {
   claims: [
@@ -66,8 +67,5 @@ export default {
   },
   rules: {
     "evidence/graph": isNestiaConfigLoader ? "off" : ["error", graph],
-    "evidence/documented": isNestiaConfigLoader ? "off" : "error",
-    "evidence/singular": isNestiaConfigLoader ? "off" : "error",
-    "evidence/todo": isNestiaConfigLoader ? "off" : "error",
   },
 } satisfies ITtscLintConfig;
