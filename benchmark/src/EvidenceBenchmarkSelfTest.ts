@@ -171,7 +171,16 @@ export namespace EvidenceBenchmarkSelfTest {
     assert.match(invocation, /default_permissions="benchmark"/);
     assert.match(
       invocation,
-      /permissions\.benchmark\.filesystem\.":root"="deny"/,
+      /permissions\.benchmark\.filesystem\.:root="deny"/,
+    );
+    assert.match(
+      invocation,
+      /permissions\.benchmark\.filesystem\.:workspace_roots=\{"\."="write"\}/,
+    );
+    assert.equal(
+      invocation.includes('filesystem.":'),
+      false,
+      "Codex CLI dotted overrides must not quote special filesystem tokens",
     );
     assert.match(invocation, /permissions\.benchmark\.network\.domains=/);
     assert.match(invocation, /shell_environment_policy\.inherit="core"/);
