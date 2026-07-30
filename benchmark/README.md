@@ -17,6 +17,16 @@ Each benchmark cell uses a new ignored workspace.
 
 Instructions remain in the benchmark repository. The runner reads each Markdown file when starting its Goal and records the exact text it sends; it does not copy instructions into the generated workspace.
 
+## Run
+
+Start a new cell from the repository root:
+
+```bash
+pnpm --filter @samchon/evidence-benchmark start -- <project> <evidence|plain> [model] [effort] [run-id]
+```
+
+Omit `run-id` to create a new cell. After an abnormal interruption, pass that cell's existing `run-id` with the same project, arm, model, and effort to resume its retained workspace and native session.
+
 ## Goal sequence
 
 One native session receives these nine instructions as Goals in order:
