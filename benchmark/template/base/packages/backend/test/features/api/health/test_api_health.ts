@@ -23,8 +23,8 @@ export async function test_api_health(
   const healthConnection: api.IConnection = { host: connection.host };
 
   // Step 2: Call the generated health accessor
-  const response = await api.functional.health.get(healthConnection);
+  const value: string = await api.functional.health.get(healthConnection);
 
   // Step 3: Validate the response against its generated type
-  typia.assert(response);
+  typia.assert(value);
 }
