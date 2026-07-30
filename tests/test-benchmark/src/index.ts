@@ -181,6 +181,7 @@ const main = async (): Promise<void> => {
 
     const stateFailureOutput: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] =
       [];
+    let stateCheckpointCount = 0;
     const stateFailure = await EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("evidence"),
       cwd: root,
@@ -196,8 +197,11 @@ const main = async (): Promise<void> => {
         if (
           state.sessionId !== undefined &&
           state.goals[0]?.goal === null
-        )
+        ) {
+          stateCheckpointCount++;
+          if (stateCheckpointCount !== 2) return;
           throw new Error("fixture durable state failure");
+        }
       },
     });
     assert.equal(stateFailure.status, "interrupted");

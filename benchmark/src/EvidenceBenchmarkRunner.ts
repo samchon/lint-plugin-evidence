@@ -285,6 +285,9 @@ export namespace EvidenceBenchmarkRunner {
       record.terminalTurnId = null;
       record.terminalTurnCompleted = false;
       record.threadIdle = false;
+      publish();
+      await publication;
+      if (outcome !== undefined) return;
       const response: unknown = await request("thread/goal/set", {
         threadId: state.sessionId,
         objective: record.objectiveText,
