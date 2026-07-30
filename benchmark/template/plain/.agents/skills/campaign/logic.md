@@ -36,20 +36,10 @@ Structural correctness does not establish behavioral meaning. A default can inve
 
 [The provider topic](../backend/providers.md) owns the semantic questions to ask of each provider. Apply them to every provider during the round, not only suspicious code.
 
-## Place In The Round
-
-Within every campaign round, traverse every operation, requirement rule, cross-cutting application point, schema invariant, provider branch, state transition, and response mapping.
-
-This dimension is not a separate round or separately mergeable verdict. Any finding invalidates the whole campaign round: correct it at its owning layer, propagate its consequences, and restart the complete traversal at the first requirement. Completion requires one entire current-state round covering this dimension and every sibling dimension with zero actionable improvements.
-
-## Cascade
+## Findings
 
 Requirements, database, and API findings re-open this dimension in full. An implementation correction re-opens the test relationship. If a finding shows that the contract or schema is wrong, correct that owning layer and propagate the invalidation through every downstream relationship.
 
 Do not patch a provider to compensate for a wrong contract or schema; that hides the owning defect from later layers.
 
-## Dimension Exit
-
-This dimension is exhausted within the full round when every contract effect and refusal is implemented, every requirement is enforced everywhere it applies, every schema invariant has logic that maintains it, every response property has a real source, and every branch traces to something that requires it.
-
-A successful build proves the shapes line up. It proves none of these relationships.
+Within the indivisible round owned by [SKILL.md](SKILL.md), this dimension is exhausted when every contract effect and refusal is implemented, every requirement is enforced everywhere it applies, every schema invariant has logic that maintains it, every response property has a real source, and every branch traces to something that requires it. A successful build proves none of these relationships.

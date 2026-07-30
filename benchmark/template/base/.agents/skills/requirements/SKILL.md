@@ -35,7 +35,7 @@ They are read-only. When code and a document disagree, the document is right. Tr
 
 ## How A Requirement Is Written
 
-Each requirement section is written to be understandable on its own. A well-formed one gives you five things, and each one changes what you must build:
+Read each requirement section for the following facts when they are present:
 
 - **The actor or concept** the statement is about.
 - **The circumstance** that makes it apply: an input, a state, a permission, a time.
@@ -43,7 +43,7 @@ Each requirement section is written to be understandable on its own. A well-form
 - **The observable result**, including the refusal or the exception when the circumstance is not met.
 - **The named values**: the allowed set, the threshold, the unit, the relationship, the boundary. These are what make the requirement testable rather than aspirational.
 
-When you read a section, name all five before implementing it. A section whose observable result you cannot state is a section you have not finished reading.
+Capture every stated fact without demanding that the section contain all five, filling a gap, or judging the document's form. The documents are authoritative input; this checklist prevents omissions in your reading.
 
 Worked through on one section:
 
@@ -95,7 +95,7 @@ That is the standard, and it is not a summary of the sections above but the thin
 
 Not most requirements. Not the ones that were easy to see, and not the ones a reasonable reader would call the important ones. **An omitted requirement is a defect of the same severity as one implemented incorrectly, and it is harder to find**, because nothing in the repository points at the place where it should have been. A build that compiles, a suite that passes, and a server that starts are all fully compatible with a requirement nobody read.
 
-So finishing a section means finishing it: the five parts extracted, every cell of the lattice the documents state, every refusal, every named value. A section read once and implemented halfway is worse than one not started, because it looks done from every direction.
+So finishing a section means capturing every applicable fact above, every cell of the lattice the documents state, every refusal, and every named value. A section read once and implemented halfway is worse than one not started, because it looks done from every direction.
 
 ## Trace In Both Directions
 

@@ -8,13 +8,13 @@ The `dto-types` claim selects exported root types and independently references M
  *
  * @evidence docs/analysis/02-domain-model.md#sale-summary Exposes the required
  *           public summary.
- * @evidence prisma:ShoppingSale Represents the persisted sale.
+ * @evidence prisma:shopping_sales Represents the persisted sale.
  */
 export interface IShoppingSale {
   /**
    * Current public title.
    *
-   * @evidence prisma:ShoppingSale.title Carries the stored title.
+   * @evidence prisma:shopping_sales.title Carries the stored title.
    */
   title: string;
 }
@@ -31,17 +31,17 @@ Collect reviewed `dto-types` and `dto-properties` exclusions on the exported con
  * @evidenceExclude docs/analysis/05-user-experience.md#empty-state-copy
  *                  CatalogPage owns this presentation-only wording; reject
  *                  this exclusion if a response must carry it.
- * @evidenceExclude prisma:LoginAttempt
+ * @evidenceExclude prisma:shopping_login_attempts
  *                  AuthenticationProvider owns this internal record; reject
  *                  this exclusion if it enters a request or response body.
- * @evidenceExclude prisma:ShoppingSale.internal_note
+ * @evidenceExclude prisma:shopping_sales.internal_note
  *                  ShoppingSaleProvider keeps this operator-only value
  *                  server-side; reject this exclusion if clients may read it.
  */
 export const DTO_EVIDENCE_EXCLUDE = true;
 ```
 
-The two claims still tally independently, but the same carrier and target may participate in both when both claim-reference pairs select them. A Markdown target participates only in `dto-types`, while a Prisma column target participates only in `dto-properties`. A Prisma model target participates in `dto-types` and is also an ancestor of every selected column in `dto-properties`, so excluding `prisma:ShoppingSale` broadly excludes that model's selected columns from both obligations. Use a column target for a narrow property exclusion, use the narrowest truthful target, and keep evidence and exclusion scopes disjoint within each obligation. Neither claim affects backend or frontend claims.
+The two claims still tally independently, but the same carrier and target may participate in both when both claim-reference pairs select them. A Markdown target participates only in `dto-types`, while a Prisma column target participates only in `dto-properties`. A Prisma model target participates in `dto-types` and is also an ancestor of every selected column in `dto-properties`, so excluding `prisma:shopping_sales` broadly excludes that model's selected columns from both obligations. Use a column target for a narrow property exclusion, use the narrowest truthful target, and keep evidence and exclusion scopes disjoint within each obligation. Neither claim affects backend or frontend claims.
 
 <!-- benchmark-template-splice: base-body -->
 {{base}}

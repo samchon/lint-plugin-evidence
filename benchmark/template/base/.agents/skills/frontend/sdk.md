@@ -69,7 +69,7 @@ export const apiConnection: IConnection = {
 
 This is the mocking seam at the contract boundary, and it is the primary axis of frontend development rather than a fallback for when the backend is down.
 
-**Build the product against simulation first.** Screens, navigation, forms, loading and empty and error states, and the browser tests that cover the main flows can all be built and run this way, against the real types, with no server and no database. Because the simulation answers from the same contract the server implements, a screen built this way is built against the truth.
+**Build the product against simulation first.** Screens, navigation, forms, loading and empty and error states, and the browser tests that cover the main flows can all be built and run this way, against the real declared types and tags, with no server and no database. Simulation is contract-shaped input, not proof of business invariants or cross-field consistency.
 
 Drive the flag from the environment rather than from code, so the same build can run either way:
 

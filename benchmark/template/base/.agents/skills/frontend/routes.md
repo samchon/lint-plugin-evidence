@@ -24,19 +24,21 @@ This is the three-state rule from [session.md](session.md) made structural: the 
 The guard recorded where the user was going; the login success reads it back.
 
 ```ts
-const from = (location.state as { from?: Location })?.from?.pathname ?? "/";
+const from = readReturnLocation(location.state) ?? "/";
 navigate(from, { replace: true });
 ```
 
-Without the `state` half, "we will send you back" is a lie, and every session expiry costs the user their place. [session.md](session.md) owns preserving the typed work; this is the mechanism that preserves the route.
+The typed helper validates the stored location and preserves its pathname, query, and hash. Without that state, "we will send you back" is a lie, and every session expiry costs the user their place. [session.md](session.md) owns preserving the typed work; this is the mechanism that preserves the route.
 
-## 403 And 404 Are Different Pages
+## Router 404, API 404, And 403 Are Different States
 
-**404 is a path that resolves to nothing**: the catch-all route, offering the way home.
+**A router 404** is a client path that resolves to nothing: the catch-all route, offering the way home.
 
-**403 is a real resource the server refused**: render the denial in place, on the same URL. Navigating away throws out the address the user could retry after signing in with the right account, or hand to someone who has the authority.
+**An API 404** means the requested resource is missing or deliberately invisible to this actor. Render that result in the screen that made the call.
 
-The classifier is the response, not the route table, so the denial state is rendered by the screen that made the call.
+**An API 403** is a real operation or resource the server refused without hiding it. Render the denial in place, on the same URL. Navigating away throws out the address the user could retry after signing in with the right account, or hand to someone who has the authority.
+
+Classify API failures from the response, not the route table.
 
 ## Split At Route Boundaries, Nowhere Smaller
 

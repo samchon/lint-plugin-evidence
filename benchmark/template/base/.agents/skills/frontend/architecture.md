@@ -8,20 +8,25 @@ The frontend is a single-page application. It builds to static assets and talks 
 
 Do not add a server tier, an API route layer, a backend-for-frontend, or a server-rendering framework. `packages/backend` is the server. A second one inside the frontend duplicates authentication, duplicates error handling, and puts business decisions in a place the backend's tests never reach.
 
-## Call The SDK From The Screen That Owns The Workflow
+## Domain Hooks Call The SDK For Their Screens
 
 ```ts
 import api, { IShoppingSale, IPage } from "{{apiPackageName}}";
 
-const page: IPage<IShoppingSale.ISummary> =
-  await api.functional.shopping.customer.sale.index(connection, {
-    limit: 20,
+export function useSales() {
+  return useQuery({
+    queryKey: keys.sales,
+    queryFn: () =>
+      api.functional.shopping.customer.sale.index(apiConnection, {
+        limit: 20,
+      }),
   });
+}
 ```
 
-Keep the call visible at the call site, so the screen shows which operation, which DTO, which loading state, and which error path it owns.
+The screen calls its domain hook; the hook calls the generated accessor directly and owns its query key, invalidation, and transport state. This keeps the operation visible where the domain data path is defined while the screen owns rendering and interaction states.
 
-Do not introduce a wrapper, service module, repository object, or command facade whose only purpose is to hide the generated SDK. That indirection buys nothing: the SDK is already typed, already named after the routes, and already regenerated when the contract changes. Hiding it behind a hand-written layer means the hand-written layer is what breaks instead, and it breaks silently.
+Do not insert a wrapper, service module, repository object, or command facade between the hook and the SDK. The SDK is already typed and regenerated with the contract; a hand-written transport layer is the copy that drifts.
 
 Mapping a response into the shape a screen wants is fine when the same mapping is used more than once inside that screen. Keep it local to the screen, not in a shared layer that grows into a second contract.
 
@@ -114,16 +119,7 @@ const keys = {
 
 The keys are `as const` and prefixed with the domain. The constant assertion is what makes a typo in a key a compile error instead of a query that silently never matches an invalidation. The prefix keeps two domains from colliding on a name as ordinary as `session`.
 
-A parameterized key takes the parameter, so each distinct query caches separately. A catalog key that ignores the search string serves the first search's results to every later one.
-
-```ts
-export function useCatalog(search: string) {
-  return useQuery({
-    queryKey: keys.catalog(search),
-    queryFn: () => fetchCatalog(search),
-  });
-}
-```
+A parameterized key takes the parameter, so each distinct query caches separately. A catalog hook whose key ignores the search string can serve the first search's results to every later one.
 
 A mutation invalidates **every** key that shows what it changed, not the obvious one.
 

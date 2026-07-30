@@ -20,7 +20,7 @@ After the last screen is realized, run `rg --hidden -n -F '@todo' packages/front
 Put `@evidenceExclude` on `packages/frontend/tests/journeys/JOURNEY_EVIDENCE_EXCLUDE.ts` when `frontend-journeys` intentionally does not verify a configured requirement or traverse a selected page. Use a path target for Markdown and a braced `{@link PageName}` target for a page imported into the carrier file.
 
 ```ts
-import { AdminRedirectPage } from "../../src/components/admin/admin-redirect-page";
+import type { AdminRedirectPage } from "../../src/components/admin/admin-redirect-page";
 
 /**
  * @evidenceExclude docs/analysis/04-business-rules.md#ledger-reconciliation

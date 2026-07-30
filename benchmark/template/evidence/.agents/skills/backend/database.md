@@ -9,7 +9,7 @@ Place a citation in the `///` block attached to the exact model that stores the 
 ///
 /// @evidence docs/analysis/02-domain-model.md#sale-lifecycle Stores the states
 ///           and timestamps required by the lifecycle.
-model ShoppingSale {
+model shopping_sales {
 }
 ```
 
@@ -17,7 +17,7 @@ Use leaf H3 targets by default. Use an H2 only when this one model owns every se
 
 ## Excluding A Requirement From The Schema
 
-Collect reviewed `schema-models` exclusions as unattached top-level `/// @evidenceExclude` lines in `packages/backend/prisma/schema/exclude.schema`. The file is a claim-local lint-only carrier rather than a schema owner; keep truthful `@evidence` directly above the selected model, field, or relation that stores the requirement.
+Collect reviewed `schema-models` exclusions as unattached top-level `/// @evidenceExclude` lines in `packages/backend/prisma/schema/exclude.schema`. The file is a claim-local lint-only carrier rather than a schema owner. The configured ownership selector is `model`, so keep truthful `@evidence` directly above the selected model; fields and relations are not ownership hosts for this claim.
 
 ```prisma
 /// @evidenceExclude docs/analysis/05-user-experience.md#empty-state-copy

@@ -30,9 +30,9 @@ An interface that branches on signed-in or signed-out is wrong for the first pai
 
 A session ends when the server says so. The interface does not count down, does not decode the token, and does not decide expiry on its own; [testing.md](../backend/testing.md) covers why token contents are not part of the contract.
 
-So the flow is: a call is refused, the interface refreshes once, and either the retry succeeds or the session is genuinely over.
+When the SDK exposes refresh and the public error contract identifies session expiry or an unauthorized session, refresh once and retry the original call once. A generic refusal, business rejection, or 403 is not a refresh signal. If expiry cannot be distinguished, the API contract needs repair rather than a client-side guess.
 
-**One refresh attempt per failure, not a loop.** A refresh that itself fails means the session is gone, and retrying that is how an interface hangs on a spinner forever.
+**One refresh attempt per eligible failure, not a loop.** A refresh that itself fails means the session is gone, and retrying that is how an interface hangs on a spinner forever.
 
 **When the session is over, say so and keep the user where they are.** Preserve the route and whatever they had typed, so signing back in returns them to the work rather than to the home page. A silent redirect looks like the product crashed.
 

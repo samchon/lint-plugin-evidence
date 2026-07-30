@@ -20,7 +20,7 @@ Per-component boundaries hide defects instead of containing them. A card that qu
 
 Queries may retry automatically, a bounded number of times, because reading twice is reading.
 
-**Mutations never retry automatically.** The failure surfaces, the input survives, and the user decides. An automatic resubmit of a non-idempotent write is how one click becomes two orders on a flaky connection. The one sanctioned automatic recovery is the single refresh-then-retry on an expired session, and [session.md](session.md) owns it.
+**Mutations never retry automatically.** The failure surfaces, the input survives, and the user decides. An automatic resubmit of a non-idempotent write is how one click becomes two orders on a flaky connection. When the contract exposes refresh and identifies session expiry, [session.md](session.md) permits one refresh followed by one retry of the original call.
 
 ## One Toast Channel, For The Unexpected Only
 

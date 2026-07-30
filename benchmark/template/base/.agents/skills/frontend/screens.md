@@ -27,7 +27,7 @@ export function CatalogPage(props: { sellerId: string }) {
 
 The bare `props;` mention keeps the enumerated props from reading as unused while nothing consumes them, the same convention the backend stubs use, and the skeleton return is the whole placeholder body.
 
-Crack one screen at a time against simulation for contract-generated success responses and against gallery fixtures for named UI states. Drive both through the Playwright MCP browser as you build so the states are seen rather than imagined. A screen is cracked when every state renders, its real hooks and gallery rows exist, and its implementation-pending sentence is gone.
+Crack one screen at a time against simulation for contract-generated success responses and against gallery fixtures for named UI states. Drive both through an available interactive browser tool so the states are seen rather than imagined, and record the fallback when no such tool is available. A screen is cracked when every state renders, its real hooks and gallery rows exist, and its implementation-pending sentence is gone.
 
 A screen that needs an operation the SDK does not expose reveals a gap in the API contract. Send it back there. Do not improvise a frontend-only path around it.
 
@@ -67,7 +67,7 @@ export function CatalogPage() {
   );
 }
 
-export function CatalogPageFallback() {
+function CatalogPageFallback() {
   return <Skeleton className="h-64 w-full" />;
 }
 ```

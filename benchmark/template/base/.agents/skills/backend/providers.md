@@ -287,13 +287,13 @@ An update or a delete against a snapshot row is a defect regardless of what the 
 
 The one write a `material` table accepts is the maintained current pointer, upserted in the same transaction as the snapshot it points at.
 
-## Scheduled Work Is An Operation
+## Scheduled Work Separates One Run From Recurrence
 
-The backend owns no scheduler. There is no timer, no queue, and no jobs directory, and the bootstrap only creates the application and listens.
+The backend owns no scheduler. There is no timer, queue, or jobs directory, and the bootstrap only creates the application and listens.
 
-A requirement that says something runs nightly, at a period boundary, or when a queue drains is realized as **an ordinary operation that performs one run**. Recurrence belongs to whatever already schedules work in the deployment: a platform cron entry, a CI workflow, an operator command calling that endpoint.
+When the requirements define recurring work, separate the idempotent behavior of one run from the deployment mechanism that invokes it. Expose an authenticated operation only when the deployment can legitimately call that public boundary; do not invent an endpoint merely to make an in-process timer testable. The recurrence belongs to the actual deployment owner, such as a platform cron entry, CI workflow, or operator command.
 
-An in-process timer would have no operation, no test, and no requirement owner, so the requirement stays reported as unrealized while the code runs unproven. The operation gives it a contract, a body, a scenario, and a coverage owner, and it preserves the on-demand rerun such a process always turns out to need.
+The operation and its tests prove one run. They do not prove that recurrence is configured. Record the external trigger and its owner in the operation JSDoc and the project wiki so the implementation boundary remains explicit.
 
 **Make the run idempotent per period.** Key the run row on its scope and period, guard it with a unique constraint, and reject or no-op a period already completed rather than executing it twice.
 
@@ -303,7 +303,7 @@ An in-process timer would have no operation, no test, and no requirement owner, 
 
 A retried cron, an operator rerun, and a redelivered queue message all arrive as a second call, and without the key each posts the work again. Assert that with a second call in the test.
 
-Record the trigger in the operation's own documentation and in the requirement it serves. Omitting both silently turns a scheduled obligation into a manual endpoint nobody knows to schedule.
+Never edit the requirement documents to record that decision. They are immutable input.
 
 ## Do Not Revalidate The Boundary
 

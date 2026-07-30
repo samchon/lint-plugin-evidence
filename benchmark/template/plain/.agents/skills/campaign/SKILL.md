@@ -13,11 +13,7 @@ The requirement documents are immutable inputs. Accept them as the specification
 
 Working code is necessary and not sufficient. A build that compiles, a suite that passes, and a server that starts are all compatible with a requirement nobody implemented.
 
-## What This Costs, And Why You Pay It
-
-The method below is expensive. It reads whole documents you have already read, re-walks artifacts you have already checked, and restarts after any finding. That is the intended shape, not waste to optimize away.
-
-**A missed requirement costs more than any amount of re-reading.** Do not shorten a round because an earlier traversal was clean, sample a document because it looks familiar, or skip an artifact because you wrote it yourself.
+An exhaustive round rereads familiar material and restarts after a finding. Do not shorten it, sample it, or carry an earlier verdict forward; a missed requirement is the failure this method exists to prevent.
 
 ## The Obligation Graph
 
@@ -69,19 +65,13 @@ Every campaign round applies every sibling document below as a mandatory review 
 
 These documents are dimensions of one round, not independent campaigns, passes, agents, or verdicts. None may be run separately and later combined with another partial result. Read the [Review skill](../review/SKILL.md) before the round and apply it throughout this same traversal.
 
-## Complete Active-Phase Population
-
-Backend review covers the complete API and backend population. Frontend review covers the complete frontend population and every backend contract it consumes. Overall review covers the complete repository population across every layer.
-
-For the active phase, inspect every applicable requirement, rule, value, state, permission, negative path, schema item, DTO, operation, business branch, test path, screen, interaction, SDK call, browser journey, and cross-layer relationship. Every artifact must trace to an applicable requirement or necessary implementation boundary. Every applicable requirement must trace through every layer needed to make its behavior observable.
-
 ## One Indivisible Round
 
-A round is one continuous exhaustive traversal of the complete active-phase population through every mandatory review dimension. It begins at the first requirement and ends only after the last applicable artifact and relationship has been inspected in both directions.
+A round is one continuous exhaustive traversal of the complete active-phase population through every mandatory review dimension. Backend scope covers the complete API and backend population. Frontend scope covers the complete frontend population and every backend contract it consumes. Overall scope covers the complete repository.
 
 Never divide a round by file, requirement subset, package, layer, artifact kind, review lens, finding, time window, or agent. Never combine partial reviews and call the result a round. Parallel assistance may surface candidate findings, but it cannot replace any portion of the traversal. The agent declaring the result must personally inspect the entire population in one round.
 
-Do not sample, inspect only changed files, rely on an earlier inventory instead of current artifacts, skip unchanged items, or carry forward a partial or earlier verdict. An interruption or unfinished traversal is not a round.
+Begin at the first requirement and end only after every applicable rule, value, state, permission, negative path, schema item, DTO, operation, business branch, test path, screen, interaction, SDK call, browser journey, and relationship has been inspected in both directions. Do not sample, inspect only changed files, rely on an earlier inventory, or skip unchanged items. An interruption or unfinished traversal is not a round.
 
 ## The Cascade
 
@@ -91,7 +81,7 @@ An upstream change re-opens every downstream relationship. A requirement finding
 
 Never carry a clean conclusion across a change. A conclusion applies only to the exact repository state traversed from beginning to end.
 
-## Loop Until Dry
+## Restart Until Dry
 
 The number of rounds has no ceiling:
 
@@ -101,11 +91,9 @@ The number of rounds has no ceiling:
 4. Discard the interrupted round and restart at the first requirement.
 5. Stop only when one entire current-state round reaches the last artifact with zero actionable omissions, defects, inventions, stale artifacts, false mappings, partial behaviors, or unverified relationships.
 
-One complete zero-improvement round is the stopping condition. No second clean round is required. A partial review, a set of separately reviewed slices, or a union of parallel results never satisfies it.
+One complete zero-improvement round is the stopping condition. No second clean round is required. A partial review, separately reviewed slices, or a union of parallel results never satisfies it.
 
-## Completion
-
-The campaign is complete only when all of the following hold against one unchanged repository state:
+The campaign is complete only when the same unchanged repository state also satisfies all of the following:
 
 - every requirement maps to every artifact needed to realize it;
 - every artifact traces to a requirement or a recorded necessary implementation boundary;
@@ -115,8 +103,4 @@ The campaign is complete only when all of the following hold against one unchang
 
 Report what you inspected, corrected, and verified. If any requirement remains unrealized or any gate remains unavailable, report that exact boundary rather than reporting completion.
 
-## Verify Rather Than Assume
-
-Check every claim against the current artifact, not recollection or an earlier ledger entry. Open and read the implementation before recording a requirement as realized, and run the prescribed gates rather than predicting their result.
-
-The Review skill owns claim verification in full, including removing a behavior when appropriate to confirm that the test naming it fails.
+The [Review skill](../review/SKILL.md) owns claim verification within the round. Check current artifacts and prescribed gates rather than recollection or ledger entries.

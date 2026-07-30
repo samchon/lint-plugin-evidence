@@ -51,6 +51,6 @@ The mutation shape: snapshot and apply the flip in `onMutate`, restore the snaps
 
 ## Races Are Solved By Keys, Not By Flags
 
-Two searches in flight resolve out of order, and whichever returns last paints the screen. The query library solves this when the parameter is in the key, because a response for a key you have left is discarded.
+Two searches in flight can resolve out of order. The query library prevents the old result from painting the current view when the parameter is part of the key; it may still retain that result under its own key for later reuse.
 
 So the rule is structural: **data fetching lives in keyed hooks, never in a hand-rolled effect.** The hand-rolled version reintroduces the race and then grows an `ignore` flag to patch it. Debounced search debounces the value feeding the key, and cancellation comes free.

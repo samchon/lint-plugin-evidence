@@ -53,22 +53,10 @@ Capture every normative statement in each selected section under its canonical i
 
 If several statements concern the same actor, concept, lifecycle, or threshold, preserve each source statement in the inventory. Do not edit the documents or silently replace one statement with another.
 
-## Place In The Round
-
-Within every campaign round, read every selected H2/H3 section and its complete body from the source files as part of the same continuous full-population traversal.
-
-This dimension is not a separate round or separately mergeable verdict. Any finding in the application's realization invalidates the whole campaign round: correct it at its owning layer, propagate its consequences, and restart the complete traversal at the first requirement. Completion requires one entire current-state round covering this dimension and every sibling dimension with zero actionable improvements.
-
-Reading an earlier inventory instead of the current documents is not a traversal of this population.
-
-## Cascade
+## Findings
 
 Any newly captured or previously omitted requirement statement re-opens every downstream relationship. A statement can imply storage, DTOs, operations, logic, tests, screens, and browser journeys.
 
 Record every invalidated downstream relationship when the finding is recorded.
 
-## Dimension Exit
-
-This dimension is exhausted within the full round when the ledger holds the complete entry for every canonical H2/H3 identity and every normative statement within it, with no omission and no invented requirement.
-
-The build and tests cannot report an absent inventory entry.
+Within the indivisible round owned by [SKILL.md](SKILL.md), reread every selected section from the source rather than an earlier inventory. This dimension is exhausted when the ledger contains every identity and statement with no omission or invention; builds and tests cannot establish that.

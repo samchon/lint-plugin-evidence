@@ -29,18 +29,8 @@ For every removable entity, determine from the requirements whether history and 
 
 This decision is often made by default, but reversing it later rewrites every query over the table.
 
-## Place In The Round
-
-Within every campaign round, traverse the full requirement inventory and every table, column, relation, constraint, deletion rule, and retention rule in both directions.
-
-This dimension is not a separate round or separately mergeable verdict. Any finding invalidates the whole campaign round: correct it, propagate its consequences, and restart the complete traversal at the first requirement. Completion requires one entire current-state round covering this dimension and every sibling dimension with zero actionable improvements.
-
-## Cascade
+## Findings
 
 A requirements finding re-opens this dimension in full. Any schema change re-opens the API, logic, and test relationships because each depends on the storage shape. Record which downstream relationships the correction invalidates when you record the finding.
 
-## Dimension Exit
-
-This dimension is exhausted within the full round when every persistent requirement names its storage, every table and column names its requirement, and every deletion and retention decision is recorded with the requirement that drove it.
-
-Schema compilation and client generation prove none of this.
+Within the indivisible round owned by [SKILL.md](SKILL.md), this dimension is exhausted when every persistent requirement names its storage, every table and column names its requirement, and every deletion and retention decision names its source. Schema compilation and client generation prove none of this.

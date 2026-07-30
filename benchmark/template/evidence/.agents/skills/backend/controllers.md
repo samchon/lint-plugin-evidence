@@ -10,7 +10,7 @@ Write the operation's narrowest truthful citations when its public contract is d
  *
  * @evidence docs/analysis/03-functional-requirements.md#browse-sales Serves the
  *           seller's visibility-filtered browsing capability.
- * @evidence prisma:ShoppingSale Exposes persisted sale identity and lifecycle.
+ * @evidence prisma:shopping_sales Exposes persisted sale identity and lifecycle.
  */
 @core.TypedRoute.Patch()
 public async index(): Promise<IPage<IShoppingSale.ISummary>> {
@@ -31,7 +31,7 @@ Collect `api-operations` exclusions on the exported const in `packages/backend/s
  * @evidenceExclude docs/analysis/05-user-experience.md#empty-state-copy
  *                  CatalogPage owns this presentation-only requirement; reject
  *                  this exclusion if it gains an API response or failure rule.
- * @evidenceExclude prisma:LoginAttempt
+ * @evidenceExclude prisma:shopping_login_attempts
  *                  AuthenticationProvider owns this internal security record;
  *                  reject this exclusion if any endpoint exposes it.
  */

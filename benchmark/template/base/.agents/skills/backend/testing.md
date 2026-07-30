@@ -1,6 +1,6 @@
 # Testing
 
-The end-to-end suite under `packages/backend/test/` is the only artifact that proves the product behaves as the requirements say.
+The end-to-end suite under `packages/backend/test/` is the primary executable proof that backend behavior follows the requirements. Frontend delivery is proved separately through browser journeys.
 
 The scaffold already contains `test/features/api/health/test_api_health.ts`. It is an infrastructure proof, not proof of a product requirement: it calls the generated `api.functional.health.get` accessor and validates the returned string contract. Keep it intact while adding requirement-derived scenarios.
 
@@ -325,7 +325,7 @@ Randomize a resource's own data. **Path parameters and foreign keys come from pr
 typia.assert(response);
 ```
 
-That validates the whole response: every property, type, format, and constraint. **Never add checks after it.** A pattern test on an identifier or a `typeof` comparison is redundant.
+That validates the whole response: every property, type, format, and constraint. **Do not follow it with redundant type or format checks.** A pattern test on an identifier or a `typeof` comparison adds no proof.
 
 Then assert the business fact, with the title first so a failure names the assertion:
 
@@ -379,7 +379,7 @@ Positive paths stay clean: valid bodies, a qualified caller, and no manufactured
 ## What A Test Must Prove
 
 - **The requirement, not the mechanism.** If a rule says two coupons of the same kind cannot stack, stack them and assert the refusal.
-- **A negative twin for every positive.** Where a rule permits something, pin the adjacent case one property away where it must be refused.
+- **Every stated refusal.** Add the adjacent negative case when the requirements or contract define it; never invent a rejection merely to mirror a positive path.
 - **The boundaries.** Empty list, single element, expired window, the threshold on both sides, first page and last.
 - **Authorization explicitly.** A route that leaks another actor's data returns 200 and looks correct in every test written as the owner.
 - **The state after the effect.** An operation whose requirement says it also closes something is not proven by a 200.
@@ -396,6 +396,6 @@ When neither the response nor any reachable follow-up read exposes the effect a 
 
 Before realize, the suite is red by design: the stubs answer with random data, so a business assertion fails. A suite that is green while random-answer controller stubs remain unfinished is a suite asserting nothing.
 
-The test command first builds the API package, then executes `ttsx --project tsconfig.test.json`. That test project loads `@ttsc/lint` with `lint.config.ts`, so compile or lint diagnostics can stop the suite before behavior runs. Run the backend test command from the workspace root and read the output. The runner boots the application itself against the SQLite file, runs every exported test function, and closes it, so nothing needs to be started beforehand. A suite that passes because it asserts nothing passes exactly as loudly as one that works.
+From `packages/backend`, run `pnpm test`. The command builds the API package, compiles the test program through its configured lint projection, boots the application against SQLite, runs every exported test function, and closes it. Nothing needs to be started beforehand; [wiring.md](wiring.md) owns the canonical command sequence.
 
-If you are unsure a test proves its requirement, remove the behavior and confirm the test fails, then restore it.
+If you are unsure a test proves its requirement, temporarily remove the behavior, confirm the relevant test fails, then restore it before continuing.

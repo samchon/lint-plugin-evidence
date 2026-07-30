@@ -2,7 +2,7 @@
 
 A DTO carries two obligations, and they sit at different granularities.
 
-**The type answers to a requirement and a table.** It exists because the specification named a concept, and it represents a row someone can point at.
+**The type answers to a requirement and a source.** An entity DTO names the table it represents. A workflow input, computed projection, or aggregate instead names the operation, source tables, or derivation that gives it meaning.
 
 **A property answers to the schema alone.** Not to a requirement: the question a property can actually answer is where its value comes from, which is a column or a stated derivation.
 
@@ -15,7 +15,7 @@ Read [the campaign skill](../campaign/SKILL.md) and [its API edge](../campaign/a
 
 ## The Two Walks, At Two Granularities
 
-**Type level, both directions.** Every requirement concept that a caller must receive has a DTO, and every DTO names the requirement that asked for it plus the table it represents. A DTO with no requirement is one you invented for the implementation's convenience.
+**Type level, both directions.** Every requirement concept that a caller must exchange has a DTO, and every DTO names the requirement that asked for it plus its table or other precise source. A DTO with neither a requirement nor a source is an invented shape.
 
 **Property level, both directions.** Every property names the column it carries or the derivation it is computed from, and every column that a requirement says a caller must see appears in some read variant. A property carrying a nested object names the foreign key column that reaches it. The second direction is the one that finds the field the schema stores and the API never exposes, which passes every check the first direction makes.
 
