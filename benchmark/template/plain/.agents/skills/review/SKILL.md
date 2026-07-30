@@ -33,11 +33,11 @@ So the ledger is the index of what to review and never proof that the review pas
 
 This is the part that decides whether the skill is worth running.
 
-When a claim does not hold, **the claiming artifact is not automatically what is wrong.** An authored upstream source is under review too, and it fails in ways only a reader arriving from the claim is placed to notice.
+When a claim does not hold, **the claiming artifact is not automatically what is wrong.** An authored project source upstream of it may be wrong too, and it fails in ways only a reader arriving from the claim is placed to notice. The immutable requirement is never that editable source.
 
 **The claiming side is wrong** when the code does less than the claim says, does it in one path and not its sibling, or does something adjacent that reads similar. A provider recorded as enforcing the coupon-stacking rule, which refuses only the same coupon twice, is this.
 
-**The authored source side is wrong** when it does not mean what the artifacts built on it assume. A column nullable where three DTOs treat it as always present. A contract omitting an effect four tests assert. A model storing a state under a name meaning the opposite of what the requirement calls it.
+**The authored project source side is wrong** when it does not mean what downstream artifacts assume. A column may be nullable where three DTOs treat it as always present, or a contract may omit an effect four tests assert.
 
 Here is that second case, and it is the one a two-sided review never finds.
 
@@ -59,7 +59,7 @@ Reading the third side finds that the requirement calls a **suspended** sale end
 
 **Both are wrong together** when a misreading propagated. The schema was built from a reading of the section, the contract from the schema, the tests from the contract, and by then nobody has reopened the document. This is precisely why the third read is not optional, and why it goes back to the source rather than to whatever intermediate artifact is nearest.
 
-`docs/analysis/` is the one source you never edit. It is given input. When an artifact and a section disagree, the section is right, and the finding is against the artifact or against your reading of it.
+`docs/analysis/` is never a correction target. When an artifact and a section disagree, accept the section and correct the project artifact or the reading that produced it.
 
 Every other source is yours. The Prisma models, the operation contracts, the DTOs: a finding there is a finding, and repairing it there is the correct outcome.
 
@@ -147,13 +147,13 @@ A partial round never carries forward. Any change invalidates the current round,
 
 Repeat complete rounds until one full round against the current state finds zero actionable improvements. One such dry round is sufficient; never require two consecutive dry rounds.
 
-## Prove One Directly, Once Per Round
+## Prove One Directly Before The Dry Round
 
 Reading establishes that a claim is plausible. Removing the behavior establishes that something depended on it.
 
-Take one claim that matters, delete the behavior it names, and confirm the build or the suite fails. Then restore it. If nothing failed, the claim was decorative, and every entry written in the same style is now suspect.
+Before beginning the round that may qualify as dry, take one material behavioral claim, temporarily remove the behavior it names, and confirm the relevant test fails. Restore the behavior completely and confirm the workspace is back to its intended state before starting the full round at the first requirement. The mutation and restoration are diagnostic preparation, not part of the round; performing either during the traversal would invalidate it.
 
-Nothing in this repository will ask you to do this.
+If nothing fails, the claim is decorative and every entry written in the same style is suspect.
 
 ## What This Skill Cannot Do
 
