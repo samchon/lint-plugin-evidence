@@ -53,7 +53,7 @@ export class Service {
  * collection can still accept the same declaration as an outgoing function
  * claim.
  *
- *  1. Attach evidence to a callable auto-accessor.
+ *  1. Attach evidence to a callable auto-accessor beside a real function unit.
  *  2. Select function hosts and one Markdown heading.
  *  3. Assert the declaration is reported as unsupported.
  */
@@ -64,6 +64,7 @@ func TestTypeScriptAutoAccessorsAreNotFunctionClaimHosts(t *testing.T) {
 export class Service {
   /** @evidence docs/spec.md#contract This accessor cannot claim function evidence. */
   accessor callback = (): void => {};
+  handler = (): void => {};
 }
 `,
 	}, `{"claims":[{

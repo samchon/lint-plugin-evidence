@@ -46,10 +46,20 @@ func (graphRule) Check(ctx *rule.ProjectContext) {
 	// base rather than each re-deriving it from the author's spelling.
 	resolveGraphBases(root, &config)
 
+	// A TypeScript claim with matched files but no selected public host has
+	// nothing that can own an acknowledgement. Materialize only those own
+	// populations first, so an inactive claim cannot make its reference
+	// loaders perform work or report diagnostics.
+	typescript := loadTypeScriptInventories(
+		root,
+		ctx.Sources,
+		typeScriptClaimPopulationConfig(config),
+	)
+	config = activeGraphConfig(config, typescript)
+	extendTypeScriptInventories(root, ctx.Sources, config, typescript)
 	markdown, markdownProblems := loadMarkdownInventories(root, config)
 	prisma, prismaProblems := loadPrismaInventories(root, config)
 	swagger, swaggerProblems := loadSwaggerInventories(root, config)
-	typescript := loadTypeScriptInventories(root, ctx.Sources, config)
 	problems = append(problems, markdownProblems...)
 	problems = append(problems, prismaProblems...)
 	problems = append(problems, swaggerProblems...)
@@ -100,6 +110,66 @@ func evidenceProjectRoot(identity rule.ProjectIdentity) string {
 		}
 	}
 	return ""
+}
+
+// typeScriptClaimPopulationConfig removes every reference and non-TypeScript
+// claim from the loader input used to decide activation.
+//
+// This is a loading boundary, not merely an evaluation filter: a claim cannot
+// become inactive because a failed reference was inspected before the claim's
+// own selected host population was known.
+func typeScriptClaimPopulationConfig(config graphConfig) graphConfig {
+	claims := make([]claimSpec, 0, len(config.Claims))
+	for _, claim := range config.Claims {
+		if claim.Type != artifactTypeScript {
+			continue
+		}
+		claim.References = nil
+		claims = append(claims, claim)
+	}
+	return graphConfig{Claims: claims}
+}
+
+// activeGraphConfig omits only healthy TypeScript claims whose matched own
+// population contains no exported unit selected by the claim's symbol set.
+//
+// Zero matched files stays active so a misspelled glob remains an error.
+// Unhealthy populations stay active because failed input cannot prove the
+// selected population is empty. Other artifact kinds retain their existing
+// activation and evaluation semantics.
+func activeGraphConfig(
+	config graphConfig,
+	typescript map[string]*artifactInventory,
+) graphConfig {
+	active := make([]claimSpec, 0, len(config.Claims))
+	for _, claim := range config.Claims {
+		if claim.Type == artifactTypeScript &&
+			typeScriptClaimIsInactive(claim, typescript) {
+			continue
+		}
+		active = append(active, claim)
+	}
+	config.Claims = active
+	return config
+}
+
+func typeScriptClaimIsInactive(
+	claim claimSpec,
+	inventories map[string]*artifactInventory,
+) bool {
+	paths := matchingInventoryPaths(inventories, claim.Base, claim.Files)
+	if len(paths) == 0 ||
+		!populationIsHealthy(inventories, claim.Base, paths) {
+		return false
+	}
+	for _, path := range paths {
+		for _, unit := range inventories[path].Units {
+			if claim.Symbols.contains(unit.Symbol) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func materializeClaimStates(

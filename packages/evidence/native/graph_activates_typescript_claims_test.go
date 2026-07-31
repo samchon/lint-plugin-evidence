@@ -1,0 +1,159 @@
+package evidence
+
+import "testing"
+
+/**
+ * Verifies a healthy TypeScript claim with no selected exported host is
+ * inactive before its references load.
+ *
+ * Evaluation-only suppression is too late: an unreadable reference would
+ * still fail a graph whose claim has no declaration capable of acknowledging
+ * it. A class is exported here but is not a `type` unit, which pins activation
+ * to the claim selector rather than to any export or merely matched file.
+ *
+ *  1. Match one healthy TypeScript file that exports no selected `type` unit.
+ *  2. Point its Markdown reference at a missing root.
+ *  3. Assert the inactive claim neither loads nor diagnoses that reference.
+ */
+func TestTypeScriptClaimWithoutASelectedExportSkipsItsReferences(t *testing.T) {
+	assertNoProblems(t, runIndexRule(t, map[string]string{
+		"src/placeholder.ts": "export class Placeholder {}\n",
+	}, `{"claims":[{
+		"type":"typescript",
+		"files":["src/**"],
+		"symbol":"type",
+		"reference":{
+			"type":"markdown",
+			"root":"missing-docs",
+			"files":["**/*.md"],
+			"symbol":"h2"
+		}
+	}]}`))
+}
+
+/**
+ * Verifies the first selected exported host activates the complete claim.
+ *
+ * Inactivity is derived from the current Program rather than latched in
+ * configuration. Adding one selected interface must therefore restore the
+ * existing reference coverage behavior without another config edit.
+ *
+ *  1. Match one exported interface selected by a TypeScript `type` claim.
+ *  2. Materialize one unacknowledged Markdown heading.
+ *  3. Assert the now-active claim reports its missing acknowledgement.
+ */
+func TestFirstSelectedTypeScriptExportActivatesCoverage(t *testing.T) {
+	assertProblemContains(t, runIndexRule(t, map[string]string{
+		"docs/spec.md":    "## Contract\n",
+		"src/contract.ts": "export interface Contract {}\n",
+	}, `{"claims":[{
+		"type":"typescript",
+		"files":["src/**"],
+		"symbol":"type",
+		"reference":{
+			"type":"markdown",
+			"files":["docs/**/*.md"],
+			"symbol":"h2"
+		}
+	}]}`), "Missing acknowledgement for 'docs/spec.md#contract'")
+}
+
+/**
+ * Verifies a claim glob matching zero files is not vacuously inactive.
+ *
+ * Treating every zero-host population as inactive would make a misspelled
+ * claim glob indistinguishable from an intentionally empty source folder. The
+ * reference failure beside the claim miss proves the loader boundary remains
+ * open when no own file matched at all.
+ *
+ *  1. Miss every TypeScript source with a typo in the claim glob.
+ *  2. Give the still-active claim an unreadable Markdown root.
+ *  3. Assert both configuration boundaries remain diagnostic.
+ */
+func TestTypeScriptClaimMatchingZeroFilesKeepsDiagnosticsActive(t *testing.T) {
+	messages := runIndexRule(t, map[string]string{
+		"src/contract.ts": "export interface Contract {}\n",
+	}, `{"claims":[{
+		"type":"typescript",
+		"files":["src/typo/**"],
+		"symbol":"type",
+		"reference":{
+			"type":"markdown",
+			"root":"missing-docs",
+			"files":["**/*.md"],
+			"symbol":"h2"
+		}
+	}]}`)
+	assertProblemContains(t, messages, "matched no typescript files")
+	assertProblemContains(t, messages, "could not read the markdown root 'missing-docs'")
+}
+
+/**
+ * Verifies a failed own population cannot prove a TypeScript claim inactive.
+ *
+ * Loader failure and healthy emptiness have opposite meanings for coverage.
+ * A partial population may be missing the selected export, so filtering that
+ * claim would hide both the direct failure and every repair signal behind it.
+ *
+ *  1. Mark the only matching TypeScript inventory as failed and unitless.
+ *  2. Apply the activation filter to the configured claim.
+ *  3. Assert the failed claim remains present for normal failure handling.
+ */
+func TestFailedTypeScriptClaimPopulationDoesNotBecomeInactive(t *testing.T) {
+	root := t.TempDir()
+	config := decodeInventoryConfig(t, root, `{"claims":[{
+		"type":"typescript",
+		"files":["src/claim.ts"],
+		"symbol":"type",
+		"reference":{"type":"markdown","files":["docs/spec.md"],"symbol":"h2"}
+	}]}`)
+	address := config.Claims[0].Base.addressOf("src/claim.ts")
+	active := activeGraphConfig(config, map[string]*artifactInventory{
+		address.Key: {
+			Address:    address.Key,
+			Path:       address.Display,
+			Type:       artifactTypeScript,
+			LoadFailed: true,
+		},
+	})
+	if len(active.Claims) != 1 {
+		t.Fatal("a failed TypeScript population must remain active until its contents are knowable")
+	}
+}
+
+/**
+ * Verifies activation filtering leaves non-TypeScript claim kinds unchanged.
+ *
+ * Markdown and Prisma claims already have established empty-population
+ * diagnostics and loaders. The new host gate belongs only to TypeScript, even
+ * when another claim currently has no materialized unit.
+ *
+ *  1. Configure one Markdown and one Prisma claim.
+ *  2. Apply the TypeScript activation filter with no TypeScript inventory.
+ *  3. Assert both original claims remain active.
+ */
+func TestTypeScriptActivationDoesNotFilterMarkdownOrPrismaClaims(t *testing.T) {
+	root := t.TempDir()
+	config := decodeInventoryConfig(t, root, `{"claims":[
+		{
+			"type":"markdown",
+			"files":["docs/**/*.md"],
+			"symbol":"h2",
+			"reference":{"type":"prisma","files":["prisma/**/*.prisma"],"symbol":"model"}
+		},
+		{
+			"type":"prisma",
+			"files":["prisma/**/*.prisma"],
+			"symbol":"model",
+			"reference":{"type":"markdown","files":["docs/**/*.md"],"symbol":"h2"}
+		}
+	]}`)
+	active := activeGraphConfig(config, map[string]*artifactInventory{})
+	if len(active.Claims) != len(config.Claims) {
+		t.Fatalf(
+			"TypeScript activation changed non-TypeScript claims: got %d, want %d",
+			len(active.Claims),
+			len(config.Claims),
+		)
+	}
+}

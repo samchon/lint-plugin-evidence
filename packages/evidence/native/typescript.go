@@ -14,6 +14,23 @@ func loadTypeScriptInventories(
 	config graphConfig,
 ) map[string]*artifactInventory {
 	inventories := map[string]*artifactInventory{}
+	extendTypeScriptInventories(root, sources, config, inventories)
+	return inventories
+}
+
+// extendTypeScriptInventories adds only populations the caller has not already
+// scanned.
+//
+// Graph activation first needs each TypeScript claim's own population, before
+// it is allowed to inspect that claim's references. Once active claims are
+// known, this second pass adds their reference bases without rescanning the
+// claim bases already materialized.
+func extendTypeScriptInventories(
+	root string,
+	sources []*shimast.SourceFile,
+	config graphConfig,
+	inventories map[string]*artifactInventory,
+) {
 	bases := configuredBases(config, artifactTypeScript)
 	for _, file := range sources {
 		if file == nil || !isTypeScriptPath(file.FileName()) {
@@ -25,10 +42,12 @@ func loadTypeScriptInventories(
 				continue
 			}
 			address := base.addressOf(relative)
+			if inventories[address.Key] != nil {
+				continue
+			}
 			inventories[address.Key] = scanTypeScriptInventoryAt(address, file)
 		}
 	}
-	return inventories
 }
 
 func isTypeScriptPath(path string) bool {

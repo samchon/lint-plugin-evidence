@@ -90,8 +90,8 @@ export const execute = (): void => {}, value = 1;
  * declaration is therefore invalid only when no owning claim accepts its host,
  * and the one finding names every obligation it failed to join.
  *
- *  1. Match one function declaration from type and property claims.
- *  2. Resolve its target inside both references.
+ *  1. Activate type and property claims beside one function declaration.
+ *  2. Resolve the function's target inside both references.
  *  3. Assert one scope finding names both claims while coverage remains missing.
  */
 func TestOverlappingClaimsReportOneGenuineOutOfScopeDeclaration(t *testing.T) {
@@ -100,6 +100,8 @@ func TestOverlappingClaimsReportOneGenuineOutOfScopeDeclaration(t *testing.T) {
 		"src/ref.ts": `
 /** @evidence docs/spec.md#contract This function belongs to neither selector. */
 export function ref(): void {}
+export interface SelectedType {}
+export const selectedProperty = true;
 `,
 	}, `{"claims":[
 		{
