@@ -713,7 +713,7 @@ const main = async (): Promise<void> => {
     assert.equal(unprovenBlockedResume.status, "interrupted");
     assert.match(
       unprovenBlockedResume.interruption?.message ?? "",
-      /exact next retained turn/,
+      /exact retained or next turn/,
     );
 
     const outputFailure = await EvidenceBenchmarkRunner.run({
