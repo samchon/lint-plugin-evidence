@@ -1,163 +1,102 @@
 ---
 name: benchmark
-description: Defines authorization, frozen inputs, launch, native agent operation, interruption recovery, retained measurement, completed-workspace review, comparison, publication boundaries, and truthful reporting for the @samchon/lint-plugin-evidence benchmark. Use before preparing, launching, observing, resuming, accepting, comparing, publishing, or reporting a benchmark run.
+description: Runs an @samchon/lint-plugin-evidence benchmark campaign from issue creation through launch, supervision, recovery, retained reporting, completed-workspace review, and pull-request completion. Use whenever operating or reporting a benchmark run.
 ---
 
-# Benchmark
+# Running A Benchmark Campaign
 
-## Purpose
+## Start The Campaign
 
-The benchmark compares the same coding engine building the same application with and without the Evidence plugin. A comparable pair uses the same subject requirements, shared template, instruction order, engine, model, effort, CLI version, and benchmark revision. Only the Evidence arm receives the locally packed plugin, Evidence overlay, graph configuration, and Evidence-specific guidance.
+Before measurement:
 
-The runner executes and records the experiment. It does not validate requirements, judge the generated application, repair a measured workspace, or turn an agent completion claim into a quality verdict.
+1. Open the campaign issue.
+2. Use the campaign branch in the repository's single worktree.
+3. Push an empty campaign commit and open a draft pull request.
+4. Record the authorized matrix, benchmark revision, engines, models, efforts, CLI versions, Evidence archive digest, and live dashboard in the pull-request body.
+5. Assign one read-only reporting subagent to update that body every 10 minutes and immediately after a state change or anomaly.
 
-## Authorization
+Keep exactly these dashboard sections and columns:
 
-A model run is expensive. Launch only the exact engine, subject, arm, model, and effort the user authorizes. Authorization for a new cell does not cover a different cell or an unrequested rerun.
+```markdown
+## Codex
 
-Recovery may resume the same retained run identity and native session after an abnormal interruption when that engine retained an exact continuation boundary. A new run ID, changed cell identity, changed model or effort, changed benchmark input, or restarted comparison is a new run and requires explicit authorization.
+| Project | Mode | Run ID | Progress | Quality | Native usage | Cost | Time |
+| ------- | ---- | ------ | -------- | ------- | ------------ | ---- | ---- |
 
-The runner does not publish results. Publication requires separate explicit authorization and a procedure that names the destination and accepted run; never infer either.
+## Claude Code
 
-## Frozen Inputs
+| Project | Mode | Run ID | Progress | Quality | Native usage | Cost | Time |
+| ------- | ---- | ------ | -------- | ------- | ------------ | ---- | ---- |
+```
 
-`benchmark/requirements/**` is user-owned, authoritative, and inviolable. Never edit, rewrite, normalize, summarize, rename, add, delete, validate, or challenge anything in that tree. Accept the selected directory as opaque paths and bytes and let the runner copy it exactly into `docs/analysis/`.
+`Progress` reports the retained instruction and status. `Quality` remains `—` until completed-workspace review. Report only retained usage and cost. `Time` is completed instruction elapsed time plus the active process-relative `elapsedMs` from the latest retained event, rounded to whole seconds; setup and operator time stay separate.
 
-Keep the benchmark revision, selected requirements, template, overlays, locally packed product, instructions, engine, model, effort, and CLI version fixed throughout every comparable run. The runner reads an instruction when it starts, so editing an input while a cell is active changes the experiment even if earlier instructions already retained their text.
+## Prepare And Launch
 
-As the operator, do not modify a measured workspace, inject implementation advice, weaken a gate, hard-code a subject answer, or install Evidence material in Plain. A defect or contradiction in the generated application is measured behavior, not permission to repair or rerun it.
+Freeze the authorized subject, arm, engine, model, effort, requirements, template, instructions, package archive, CLI version, and benchmark revision before launch. Do not launch an unauthorized cell or rerun.
 
-## Before Launch
+Treat `benchmark/requirements/**` as opaque, authoritative bytes. Never edit, rename, add, delete, normalize, summarize, validate, or challenge it. The runner only copies the selected directory into `docs/analysis/`.
 
-Record the authorized engine, subject, arm, model, effort, and benchmark repository commit before launch. Use the same fixed revision and execution settings for every cell intended for comparison. Do not start while any selected requirement, template, overlay, instruction, or Evidence package input is still changing.
-
-Run at most one command for a run ID. Concurrent launch or resume processes can corrupt the retained session and record.
-
-Pass the engine, model, and effort explicitly:
+Start a cell with every identity field explicit:
 
 ```bash
 pnpm --filter @samchon/evidence-benchmark start <codex|claude-code> <subject> <evidence|plain> <model> <effort>
 ```
 
-Omitting the run ID creates a new run under `benchmark/result/<subject>/<engine>/<arm>/runs/<run-id>/`. Before paid agent work, the runner prepares a new ignored workspace:
+Before native work, the runner copies the base template, applies only the selected arm overlay, copies the selected requirements byte-for-byte, installs dependencies, and commits the workspace baseline. Evidence additionally installs one immutable locally packed archive shared by parallel Evidence cells. Plain never reads or installs it.
 
-1. It copies the base template.
-2. It applies only the selected arm overlay.
-3. It copies the selected requirement directory byte-for-byte into `docs/analysis/`.
-4. For Evidence only, it packs the local plugin and installs the resulting archive.
-5. It installs workspace dependencies.
-6. It initializes and commits the prepared workspace baseline.
+Run at most one command for a run ID. A preparation failure before native work does not consume the authorized cell when its identity and frozen inputs remain unchanged.
 
-A preparation failure before the native session starts is not a measured result. Correct the external prerequisite without changing frozen benchmark meaning, then launch under the existing authorization. Stop for user direction if correction would change an input or cell identity.
+## Run The Objectives
 
-Parallel Evidence cells must share one immutable package archive instead of running the package's destructive `prepack` concurrently. From the clean frozen revision, prepare the ignored archive and environment once.
+One native session receives exactly nine objectives:
 
-PowerShell:
-
-```powershell
-New-Item -ItemType Directory -Force benchmark/result | Out-Null
-pnpm --dir packages/evidence pack --out ../../benchmark/result/evidence.tgz
-$env:EVIDENCE_BENCHMARK_ARCHIVE = (Resolve-Path benchmark/result/evidence.tgz).Path
-```
-
-POSIX shell:
-
-```bash
-mkdir -p benchmark/result
-pnpm --dir packages/evidence pack --out ../../benchmark/result/evidence.tgz
-export EVIDENCE_BENCHMARK_ARCHIVE="$(pwd)/benchmark/result/evidence.tgz"
-```
-
-Launch every Evidence cell in that cohort with the same inherited value. Each cell copies the archive and records its SHA-256; Plain never reads it.
-
-## Instruction Sequence
-
-One native session receives exactly nine instructions in this order:
-
-| Step | Objective | Evidence instruction | Plain instruction |
+| Step | Objective | Evidence | Plain |
 | --: | --- | --- | --- |
-| 1 | Skills contract | `instructions/skills-contract.md` | `instructions/skills-contract.md` |
-| 2 | Backend start | `instructions/backend/start.md` | `instructions/backend/start.md` |
-| 3 | Backend review | `instructions/backend/review.md` | `instructions/backend/review.md` |
+| 1 | Skills contract | `instructions/skills-contract.md` | same |
+| 2 | Backend start | `instructions/backend/start.md` | same |
+| 3 | Backend review | `instructions/backend/review.md` | same |
 | 4 | Backend final | `instructions/backend/evidence-final.md` | `instructions/backend/plain-final.md` |
-| 5 | Frontend start | `instructions/frontend/start.md` | `instructions/frontend/start.md` |
-| 6 | Frontend review | `instructions/frontend/review.md` | `instructions/frontend/review.md` |
+| 5 | Frontend start | `instructions/frontend/start.md` | same |
+| 6 | Frontend review | `instructions/frontend/review.md` | same |
 | 7 | Frontend final | `instructions/frontend/evidence-final.md` | `instructions/frontend/plain-final.md` |
-| 8 | Overall review | `instructions/overall/review.md` | `instructions/overall/review.md` |
+| 8 | Overall review | `instructions/overall/review.md` | same |
 | 9 | Overall final | `instructions/overall/evidence-final.md` | `instructions/overall/plain-final.md` |
 
-At each step, the runner reads the selected instruction and `instructions/continue.md`, joins those exact texts once, and records the complete objective. Do not send a synthetic continuation, answer an ordinary question, or add operator prose.
+At each step, the runner joins that file with `instructions/continue.md` once and records the exact objective. Do not add operator prose.
 
-Codex receives each objective as a native Goal in one app-server thread. The runner advances only after the Goal is complete, its terminal turn is completed, and the thread is idle.
+Codex advances after the retained Goal completes, its terminal turn completes, and the thread becomes idle. Claude Code advances after one successful noninteractive terminal result in the retained session.
 
-Claude Code receives each objective as one noninteractive native agent loop. The first loop creates a session and the following loops resume it. The runner advances only after the loop emits one successful terminal result for the retained session. Claude Code has no Codex Goal primitive; do not describe its result as one.
+## Supervise The Run
 
-These terminal signals record execution progress. They do not establish implementation quality.
+Observe every active cell at least every 30 seconds. Check `state.json`, benchmark and native process liveness, and `events.jsonl` and `raw.log` recency. Investigate any disagreement immediately and correct the dashboard without waiting for its 10-minute interval.
 
-## Operator Boundary
+Do not edit a measured workspace, prompt the measured agent, inject advice, weaken a gate, hard-code a subject answer, or expose Evidence material to Plain. Questions and partial reports do not invite operator input.
 
-Leave an active cell to its native agent runtime. Questions and partial reports do not call for operator prose; the shared continuation text already instructs the agent to finish autonomously. Do not prompt the measured agent, edit its workspace, change an input, or make an external completion judgment.
+Intervene only for an abnormal interruption or explicit cancellation. Never repair a measured workspace, edit retained state, substitute a session, or retry automatically.
 
-Act only when the command reports an abnormal interruption or the user cancels the run. Interruptions include a failed or interrupted native turn, usage or budget exhaustion, runtime failure, non-zero exit, signal, invalid protocol state, or a retained-state mismatch.
+## Recover Or Cancel
 
-On interruption:
+On interruption, preserve the run and identify the exact instruction, process result, native session, and failure from `state.json`, `events.jsonl`, and `raw.log`.
 
-1. Preserve the run directory and workspace unchanged.
-2. Read `state.json`, `events.jsonl`, and `raw.log` to identify the exact current instruction, native failure, process result, and retained session.
-3. Resume only when the cell identity, frozen inputs, workspace, CLI version, objective, and engine-specific checkpoint remain exact.
-4. Stop and report the retained facts when identity or input drift exists, the exact checkpoint is missing, the workspace was modified externally, the cause is unknown, or the same deterministic failure recurs.
-
-Do not add prompts, repair the workspace, substitute a session, or retry automatically.
-
-If the user cancels, stop the active command, preserve its run directory, and report it as incomplete. Do not delete it or mark it complete; resuming later requires renewed authorization.
-
-## Resume
-
-Resume with the original engine, subject, arm, model, effort, and retained run ID:
+Resume only when the cell identity, frozen inputs, workspace, CLI version, objective, and native checkpoint still match:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark start <codex|claude-code> <subject> <evidence|plain> <model> <effort> <run-id>
+pnpm --filter @samchon/evidence-benchmark start <engine> <subject> <arm> <model> <effort> <run-id>
 ```
 
-The runner verifies the retained cell and preserves earlier objectives, token usage, elapsed durations, process records, and raw events.
+Codex may resume an exact retained Goal checkpoint. Claude Code may resume only at a successful instruction boundary or before an undispatched instruction; a dispatched instruction without a successful terminal result is not resumable.
 
-Codex can continue the exact current Goal when the retained native Goal and terminal checkpoints still match. A new app-server process is transport for the same session, not a new measured cell.
+On cancellation, stop the reporting subagent and every liveness watcher, then force-stop every benchmark command, native process, and owned descendant. Verify that no process references an affected run. Preserve every run directory and report each cell as incomplete; never delete or mark it complete.
 
-Claude Code can continue at an instruction boundary when the prior successful result is retained, or start the current instruction when it was never dispatched. If the current instruction was dispatched without a successful terminal result, exact resume is unavailable: preserve the incomplete cell and stop. Resending the objective or adding `continue` would create a new user input and is forbidden.
+## Complete The Campaign
 
-If the runner rejects the CLI version, cell identity, native checkpoint, or terminal boundary, stop. Do not bypass the check, edit `state.json`, create a replacement instruction, or start a fresh run under the old result.
+Treat a cell as execution-complete only when `state.json` is `completed`, all nine instructions have native terminal checkpoints, and the final process exits zero without a signal.
 
-## Retained Record
+Review every completed workspace read-only. Accept `docs/analysis/**` as the specification without validating it. Report defects only in the generated application or mismatches between its artifacts and the specification. Requirements are never defect candidates.
 
-Each run keeps:
+Report each run ID, retained status, instruction, session and CLI identity, token categories, cost, instruction and process time, exit code, signal, interruption, and remaining unknown. Never reconstruct missing measurements.
 
-- `workspace/`: the prepared baseline and measured agent changes;
-- `state.json`: cell identity including the benchmark Git revision and Evidence artifact SHA-256 when applicable, record paths, session and CLI identity, instruction cursor and records, cumulative native token categories, process records, status, and interruption details;
-- `events.jsonl`: every native stdin, stdout, and stderr chunk with observation time, process index, sequence, stream, and process-relative elapsed time; and
-- `raw.log`: the same raw chunks concatenated in delivery order.
+Report recurring template, instruction, or runner defects immediately. Commit and push verified corrections in the same pull request. If a correction changes a file an active cell may still read, stop and preserve the cohort before editing it.
 
-Codex records the native Goal, terminal-turn and idle checkpoints, starting and ending token totals, token delta, and accumulated native turn duration. Claude Code records input dispatch, its resolved native model, terminal result, native usage categories, client-estimated cost, and process duration; it does not report a separate reasoning-token category, so none is invented. Both retain the requested model, exact prescribed text, continuation text, combined objective, command, arguments, exit code, signal, and raw events.
-
-Do not reconstruct missing measurements. Report native token categories separately, keep setup outside process and instruction time, and label any derived price, estimate, or later quality assessment.
-
-## Acceptance
-
-Treat execution as complete only when `state.json` records `completed`, the cursor has passed all nine instructions, every instruction has the engine-specific terminal checkpoint, and the final process exited with code zero and no signal.
-
-Runner completion proves only that the sequence reached those recorded terminal conditions. It does not prove requirement coverage, implementation correctness, test quality, graph integrity, or product quality.
-
-Inspect the completed workspace without changing it before making any quality claim. Treat `docs/analysis/**` as the accepted specification, check the prescribed gates and resulting artifacts, and report defects and contradictions as results. Never convert uncertainty or a measured agent's prose into acceptance.
-
-Compare only cells whose frozen inputs and declared execution identity match except for the intended arm treatment. Qualify or reject a comparison when revision, requirements, instructions, engine, model, effort, CLI version, workspace integrity, or operator intervention differs; do not hide the difference or silently rerun.
-
-## Completed-Workspace Review
-
-Review every completed workspace read-only while its raw record is fresh. Separate defects in the generated application from evidence that a template, instruction, or runner systematically misdirected the agent. Record the exact run ID, artifact location, retained event, and reason for each conclusion.
-
-Report benchmark-input defect candidates immediately. During a multi-cell cohort, do not change its frozen revision or inputs after any cell starts. Finish reviewing every cell in that cohort, compare whether the candidate recurs, then correct verified benchmark defects before launching a later cohort. A correction creates a new benchmark revision and never changes or silently replaces completed results.
-
-## Reporting
-
-Report retained facts under their exact cell and run ID: current or terminal status, instruction position, session and CLI identity, interruption, native token categories, instruction and process elapsed time, exit code, and signal. Preserve failures and incomplete instructions in the account.
-
-Keep setup and operator time separate from retained model-process time. Label estimates, derived costs, and post-run assessments as such. State what was directly recorded, what was inspected afterward, and what remains unknown.
+After every correction is committed and pushed, perform the pull-request skill's complete Overall Self-Review before inspecting CI. Never partition a round. Any correction restarts a complete round; stop only after one round finds nothing to improve. Inspect CI afterward and merge only when the cohort is closed and every required check is green.
