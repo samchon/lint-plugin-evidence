@@ -7,14 +7,14 @@
   "model": "gpt-5.6-luna",
   "effort": "high",
   "status": "running",
-  "stage": "backend-review",
+  "stage": "backend-final",
   "launchedAt": "2026-07-31T18:09:03.414Z",
-  "tokens": 65717835,
-  "workElapsedMs": 4393624.4525,
-  "wallElapsedMs": 4396133,
+  "tokens": 67133644,
+  "workElapsedMs": 4472813.0425,
+  "wallElapsedMs": 4473979,
   "worktree": {
-    "files": 40,
-    "additions": 5867,
+    "files": 42,
+    "additions": 5875,
     "deletions": 32
   },
   "stages": [
@@ -22,15 +22,22 @@
       "name": "backend-start",
       "tokens": 21679956,
       "elapsedMs": 2113000,
-      "tokenPercent": 33,
-      "timePercent": 48
+      "tokenPercent": 32,
+      "timePercent": 47
     },
     {
       "name": "backend-review",
-      "tokens": 44037879,
-      "elapsedMs": 2280624.4524999997,
-      "tokenPercent": 67,
-      "timePercent": 52
+      "tokens": 44565903,
+      "elapsedMs": 2285000,
+      "tokenPercent": 66,
+      "timePercent": 51
+    },
+    {
+      "name": "backend-final",
+      "tokens": 887785,
+      "elapsedMs": 74813.04250000045,
+      "tokenPercent": 1,
+      "timePercent": 2
     }
   ]
 }
