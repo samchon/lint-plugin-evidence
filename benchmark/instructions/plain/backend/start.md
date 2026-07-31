@@ -10,5 +10,4 @@ This stage owns only the complete first implementation of the API and backend. D
 4. Compare the complete requirement inventory with the controller and DTO inventory. Do not proceed while any requirement, API operation, request, response, or contract detail is omitted.
 5. Before writing any test program, run `pnpm build:sdk` once to generate the fixed SDK under `packages/api/src/functional/`.
 6. Write comprehensive tests under `packages/backend/test/features/` that cover every requirement and API operation without a single omission.
-7. Implement the complete backend logic and replace every controller stub with its real implementation.
-8. Run `pnpm lint` and `pnpm test` from `packages/backend`, then launch the backend and verify `/health` and representative requirement-backed operations live.
+7. Run `pnpm test` from `packages/backend`.
