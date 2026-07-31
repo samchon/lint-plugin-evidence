@@ -1,10 +1,16 @@
 # Plain Backend Final
 
-Audit whether the Plain Backend Review actually completed.
+Read `AGENTS.md` and every required document under `.agents/skills/review/` and `.agents/skills/campaign/` in full.
 
-1. Confirm that every backend requirement and artifact was read directly.
-2. Confirm that every finding was fixed at its owner.
-3. Confirm that each fix restarted the review from its first item.
-4. Confirm that the last complete review round found no problem and made no edit.
+This objective audits whether Plain Backend Review was actually completed. Do not perform a substitute review or use searches, summaries, inventories, builds, tests, or Git status as proof.
 
-If any point is unproven, return to Plain Backend Review. Do not perform a substitute review here.
+If any condition below is unproven, return to Plain Backend Review and continue it. Complete only when every condition is proven.
+
+| Verify | Required result |
+| --- | --- |
+| Scope | One review round covered the complete review table without partitioning |
+| Direct reading | Every file in scope was actually read in full |
+| Corrections | Every discovered problem was corrected |
+| Restart | Every correction restarted the complete review from the beginning |
+| Final round | The last full-scope round occurred after the final correction |
+| Completion | The last round omitted nothing, found no problem, and made no edit |
