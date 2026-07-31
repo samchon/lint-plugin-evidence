@@ -4,7 +4,7 @@ Read `.agents/skills/review/SKILL.md` before working.
 
 Review the written reason on every backend `@evidence` and `@evidenceExclude` acknowledgement. Do not perform a general code review or review the frontend.
 
-Do not recheck target resolution, host eligibility, or coverage; compilation owns those structural checks. For each `@evidence`, decide whether the reason specifically and truthfully explains why the host implements, represents, or proves the cited target. For each `@evidenceExclude`, decide whether the reason specifically and truthfully explains the non-applicability, actual owner or observable alternative, and concrete veto condition.
+Review only whether each `@evidence` or `@evidenceExclude` reason precisely and truthfully explains why it applies.
 
 Fix every vague, circular, copied, irrelevant, or false reason. After any correction, restart from the first backend reason. Complete when one pass over every backend reason requires no edit.
 
