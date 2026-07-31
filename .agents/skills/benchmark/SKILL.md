@@ -13,23 +13,18 @@ Before measurement:
 2. Use the campaign branch in the repository's single worktree.
 3. Push an empty campaign commit and open a draft pull request.
 4. Record the authorized matrix, benchmark revision, engines, models, efforts, CLI versions, Evidence archive digest, and live dashboard in the pull-request body.
-5. Assign one read-only reporting subagent to update that body every 10 minutes and immediately after a state change or anomaly.
+5. Assign one read-only reporting subagent to update that body every 5 minutes and immediately after a state change or anomaly.
 
-Keep exactly these dashboard sections and columns:
+Group the dashboard by authorized model. Keep one H2 per model, show only the latest launched run for each cell, and omit cells that have not launched:
 
 ```markdown
-## Codex
+## GPT-5.6-Terra
 
-| Project | Mode | Run ID | Progress | Quality | Native usage | Cost | Time |
-| ------- | ---- | ------ | -------- | ------- | ------------ | ---- | ---- |
-
-## Claude Code
-
-| Project | Mode | Run ID | Progress | Quality | Native usage | Cost | Time |
-| ------- | ---- | ------ | -------- | ------- | ------------ | ---- | ---- |
+| Project | Mode | Progress | Cost | Time |
+| ------- | ---- | -------- | ---- | ---- |
 ```
 
-`Progress` reports the retained instruction and status. `Quality` remains `—` until completed-workspace review. Report only retained usage and cost. `Time` is completed instruction elapsed time plus the active process-relative `elapsedMs` from the latest retained event, rounded to whole seconds; setup and operator time stay separate.
+`Progress` keeps the exact current or last retained instruction name, such as `backend-start`, and appends only its short status, such as `· running` or `· interrupted`; put anomaly details outside the table. `Cost` is retained total token usage rounded to the nearest million and written as an integer with `M`, such as `3M`. `Time` is completed instruction elapsed time plus the active process-relative `elapsedMs` from the latest retained event, rounded to whole minutes and written only in hours and minutes, such as `7m` or `1h 07m`; setup and operator time stay separate. Do not add run-ID, usage-breakdown, or quality columns.
 
 ## Prepare And Launch
 
