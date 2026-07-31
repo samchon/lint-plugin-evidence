@@ -45,4 +45,4 @@ export const CONTROLLER_EVIDENCE_EXCLUDE = true;
 
 ## After A Contract Change
 
-Regenerate the SDK and OpenAPI document, then invalidate provider, test, and frontend reviews that depended on the previous contract. Never narrow a graph population to silence a diagnostic; temporary whole-claim deferral is governed by [Evidence Lint](../evidence/SKILL.md) and must be restored before completion.
+Regenerate the SDK and OpenAPI document, then invalidate provider, test, and frontend reviews that depended on the previous contract. Never edit a graph population to silence a diagnostic. The configured `api-operations` claim activates automatically when its first selected exported operation appears; [Evidence Lint](../evidence/SKILL.md) owns that activation boundary.

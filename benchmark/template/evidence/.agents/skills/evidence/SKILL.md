@@ -1,6 +1,6 @@
 ---
 name: evidence
-description: Defines evidence-arm graph claims, configuration ownership, temporary claim deferral, acknowledgement tags, and mandatory final reactivation. Use before editing an evidence lint.config.ts, adding or reviewing @evidence or @evidenceExclude tags, or responding to evidence/graph diagnostics.
+description: Defines evidence-arm graph claims, automatic TypeScript claim activation, frozen configuration ownership, and acknowledgement tags. Read in full at the start of every Evidence objective and again before responding to an evidence/graph diagnostic or reviewing an acknowledgement.
 ---
 
 # Evidence Lint
@@ -10,6 +10,10 @@ description: Defines evidence-arm graph claims, configuration ownership, tempora
 An evidence graph claim selects authored declarations that must acknowledge every unit selected by each configured reference. Every claim-reference pair is a separate obligation: satisfying one claim never satisfies another, and one reference in an array never satisfies its neighbors.
 
 `@evidence <target> <reason>` states that the selected host owns the target. `@evidenceExclude <target> <reason>` states that this claim intentionally does not own the target and names the actual owner or observable alternative. Both forms cover the target's selected descendants, remain claim-local, and require disjoint scopes.
+
+All claim objects stay configured from the first command onward. A TypeScript claim is inactive while its own `root`, `files`, and `symbol` population contains no selected exported host. The first selected exported host activates the whole claim and every configured reference automatically. A missing or unreadable own population is still an error; only a successfully loaded zero-host population is inactive.
+
+Inactivity is not proof that no artifact is required. It prevents a future-layer claim from demanding acknowledgements before that layer has a host; the applicable base layer skill still determines whether the requirements demand a host.
 
 Use the owning layer document for tag placement and examples:
 
@@ -48,42 +52,20 @@ The complete graph is declared in two canonical package-local files. Open the fi
 
 The benchmark activates only `evidence/graph`. Do not add `evidence/todo`: the Evidence arm uses `@todo` as its explicit stub ledger and verifies its removal with source-scoped searches, while an additional lint rule would change the measured gate workload.
 
-`packages/backend/lint.config.ts` is the sole canonical owner of all five backend-phase claims and every temporary deferral. Its no-emit `tsconfig.lint.json` explicitly includes `packages/api/src/structures`, so the rooted `dto-types` and `dto-properties` populations remain inside `ttsc`'s supplied source roots rather than being discovered from imports or the filesystem.
+`packages/backend/lint.config.ts` is the sole canonical owner of all five backend-phase claims. Its no-emit `tsconfig.lint.json` explicitly includes `packages/api/src/structures`, so the rooted `dto-types` and `dto-properties` populations remain inside `ttsc`'s supplied source roots rather than being discovered from imports or the filesystem.
 
-`packages/backend/lint.config.main.ts` and `packages/backend/lint.config.test.ts` are immutable projections for emission Programs. The main projection contains `schema-models` and `api-operations`; the test projection adds `backend-tests`. Neither repeats the DTO claims, because adding API source roots to either emission Program would duplicate API output.
+Backend main, lint, and tool Programs use that root configuration directly. The test Program enters through `packages/backend/test/lint.config.ts`, which only extends the root configuration. TypeScript claim activation derives the applicable projection from each Program's actual selected exported hosts, so no Program-specific file duplicates or edits the graph.
 
-Nestia sets `NESTIA_SDK_TRANSFORM=1` while compiling its private config-loader and SDK runtime Programs. Those Programs do not preserve the package root that the graph populations require. The canonical configuration and main projection therefore contain the same exact, immutable bypass for that environment only. Ordinary `pnpm lint`, main builds outside Nestia's private Programs, and the test projection still run their graphs at `error` severity. Do not edit either bypass or the test projection.
+Nestia sets `NESTIA_SDK_TRANSFORM=1` while compiling its private config-loader and SDK runtime Programs. Those Programs do not preserve the package root that the graph populations require. The canonical configuration contains one exact, immutable bypass for that environment only. Ordinary `pnpm lint`, main builds outside Nestia's private Programs, and the test Program still run the graph at `error` severity.
 
-The template starts with all seven claims active and `evidence/graph` at `error` severity. Keep claims for the layer under active development enabled. Claims for a later layer that has not started may be deferred as described below; they are not evidence of unfinished work in the current layer.
-
-## Temporary Claim Deferral
-
-During active development, a later-layer claim that has not started may be deferred when its expected diagnostics would bury the current work. Diagnostic volume never permits deferring the claim for the layer under active development. Comment out only the affected whole claim object.
-
-This matrix is the canonical claim-state contract:
-
-| Gate | Must be active | May be deferred only if not started |
-| --- | --- | --- |
-| Schema authoring | `schema-models` | `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys` |
-| DTO authoring | `schema-models`, `dto-types`, `dto-properties` | `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys` |
-| Controller authoring | `schema-models`, `dto-types`, `dto-properties`, `api-operations` | `backend-tests`, `frontend-screens`, `frontend-journeys` |
-| SDK generation | `schema-models`, `dto-types`, `dto-properties`, `api-operations` | `backend-tests`, `frontend-screens`, `frontend-journeys` |
-| Backend test | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests` | `frontend-screens`, `frontend-journeys` |
-| Backend report | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests` | `frontend-screens`, `frontend-journeys` |
-| Frontend screen | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens` | `frontend-journeys` |
-| Frontend journey/report | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys` | None |
-| Overall final | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests`, `frontend-screens`, `frontend-journeys` | None |
-
-Before `build:sdk`, the schema, DTO, and API-operation claims must all be active and healthy. Backend, Frontend, and Overall reports require every claim shown as active for that matrix gate to be restored. If frontend work proves a named backend defect, restore and revalidate every affected backend claim, regenerate affected output, and re-pass the Backend Phase gate before resuming frontend work.
-
-To defer a claim, line-comment every line of its existing whole object in place. Restore it only by removing those comment markers, so its original `files`, `symbol`, `reference`, severity, and carrier population return byte-for-byte. Never rewrite the object, disable `evidence/graph`, narrow a population, or add an environment bypass. The template's exact `NESTIA_SDK_TRANSFORM=1` guard is sealed infrastructure, not a claim deferral or permission for another bypass.
+The template ships all seven claim objects and `evidence/graph` at `error` severity as frozen configuration. TypeScript claim activation follows the selected exported host population; it is never managed through `lint.config.ts`.
 
 ## Phase Gates
 
-At the Backend Phase gate, restore and validate all five claims in `packages/backend/lint.config.ts`, confirm the sealed Nestia guards and both immutable Program projections are unchanged, and follow the canonical backend gate in [Backend](../backend/SKILL.md). The schema, DTO, and operation claims must be active before SDK generation; all five must be active before the backend report. `build:sdk` proves generation, not graph health: the ordinary canonical `pnpm lint` immediately before and after it must pass with the guard inactive.
+At the Backend Phase gate, validate all five configured claims in `packages/backend/lint.config.ts`, confirm the sealed Nestia guard and the test config's root extension are unchanged, and follow the canonical backend gate in [Backend](../backend/SKILL.md). `build:sdk` proves generation, not graph health: the ordinary canonical `pnpm lint` immediately before and after it must pass with the guard inactive.
 
-At the Frontend Phase gate, restore all seven claims in the two canonical configurations with their original populations and `error` severities. Confirm both immutable backend projections are unchanged and validate the frontend claims. If frontend work changed an API or backend source, re-pass the affected backend gate first.
+At the Frontend Phase gate, confirm all seven claim objects remain configured in the two canonical files with their original populations and `error` severities. Confirm the backend test config still extends the canonical root and validate the frontend claims. If frontend work changed an API or backend source, re-pass the affected backend gate first.
 
-At the Overall Phase gate, restore all seven exact claim objects, confirm `evidence/graph` remains at `error` outside the sealed Nestia environment, confirm both immutable projections are unchanged, run the project-wide gates, and execute [Review](../review/SKILL.md) against the fully active graph. Configuration files, not an agent's prose report, prove restoration.
+At the Overall Phase gate, confirm all seven exact claim objects remain configured, confirm `evidence/graph` remains at `error` outside the sealed Nestia environment, confirm the backend test config still extends the canonical root, run the project-wide gates, and execute [Review](../review/SKILL.md) against every populated claim. Configuration and the current host populations, not an agent's prose report, prove enforcement.
 
-A green phase subset is not whole-project completion. Any claim missing from its active phase, narrowed population, disabled rule, remaining phase-owned `@todo`, or unreviewed phase edge blocks that phase report.
+A green phase subset is not whole-project completion. Any missing claim object, altered population, disabled rule, remaining phase-owned `@todo`, required host absent from an inactive population, or unreviewed phase edge blocks that phase report.

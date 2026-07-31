@@ -1,6 +1,6 @@
 ---
 name: review
-description: Defines the questions a completeness pass does not ask: whether each claimed realization is true, whether each authored upstream artifact agrees with the immutable requirement, and which claims prove anything at all. Use inside every campaign round rather than after them, and again whenever any artifact or any source changes.
+description: Defines the fresh exhaustive integrity review inside each Plain campaign round: whether every claimed realization is true, whether each authored upstream artifact agrees with the immutable requirement, and which claims prove anything at all. Read after the Campaign skill at the start of every Plain review and final objective, and restart after any artifact changes.
 ---
 
 # Review
@@ -9,7 +9,7 @@ description: Defines the questions a completeness pass does not ask: whether eac
 
 The [campaign skill](../campaign/SKILL.md) is already a reading discipline. Its rounds read the full population on both sides of an edge, from the artifacts rather than from your notes about them, because nothing here can report a gap for you. That is the right shape and this skill does not replace any of it.
 
-**Do not read this as a later phase.** A campaign round that establishes presence quickly, intending to check truth afterwards, is a campaign round that did not happen: presence in this repository is established by reading, and a reader who is not asking whether the thing is true is not really reading it.
+**Do not read this as a later phase.** Every review or final objective begins with a fresh complete read of the Campaign skill and this skill, in that order. A campaign round that establishes presence quickly, intending to check truth afterwards, is a campaign round that did not happen: presence in this repository is established by reading, and a reader who is not asking whether the thing is true is not really reading it.
 
 What this skill adds is the set of questions that a completeness pass does not naturally ask, because they are not about whether a row is filled.
 
@@ -139,17 +139,19 @@ A finding here re-opens the current campaign round exactly like any other findin
 
 ## One Indivisible Round
 
-A review round is one continuous full traversal of the complete active scope. Never partition a round by file, layer, package, requirement subset, review lens, finding, time window, or agent, and never compose partial reports into a round.
+A candidate clean review is one fresh, continuous, exhaustive traversal of the complete current active scope. Start at the first requirement after the last mutation and personally read every current requirement, artifact, claim, and relationship. Never partition a round by file, layer, package, requirement subset, review lens, finding, time window, or agent, and never compose partial reports into a round.
 
 Parallel assistance may surface candidate findings, but delegated slices do not count toward the round. The final reviewer must personally traverse every current requirement, every current artifact, and every relationship in the active scope.
 
-A partial round never carries forward. Any change invalidates the current round, and the next round restarts at the first requirement without skipping unchanged requirements or artifacts.
+A partial round never carries forward. Any source, test, generated-output, configuration, formatting, mutation, or restoration change invalidates the current round. Discard every verdict from that traversal and restart at the first requirement without skipping unchanged requirements or artifacts.
+
+A digest, green gate, checklist, inventory, ledger, previous review, or unchanged-file argument is navigation or verification evidence only. None substitutes for, shortens, or certifies the fresh exhaustive traversal.
 
 Repeat complete rounds until one full round against the current state finds zero actionable improvements. One such dry round is sufficient; never require two consecutive dry rounds.
 
 ## Calibrate Before The Dry Round
 
-Complete the behavioral mutation calibration owned by [the base Testing skill](../backend/testing.md) before beginning the round that may qualify as dry. The mutation and restoration are preparation, not part of the round; performing either during the traversal invalidates it.
+Complete the behavioral mutation calibration owned by [the base Testing skill](../backend/testing.md) before beginning the round that may qualify as dry. The mutation and its exact restoration are state changes, so the candidate review starts only after both finish. Performing either after the traversal begins invalidates every result and requires a restart at the first requirement.
 
 ## What This Skill Cannot Do
 

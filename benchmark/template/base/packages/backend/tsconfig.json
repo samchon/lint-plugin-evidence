@@ -9,7 +9,7 @@
     "plugins": [
       {
         "transform": "@ttsc/lint",
-        "configFile": "./lint.config.main.ts"
+        "configFile": "./lint.config.ts"
       }
     ]
   },

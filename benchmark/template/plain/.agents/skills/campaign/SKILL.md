@@ -1,6 +1,6 @@
 ---
 name: campaign
-description: Defines how to realize the complete requirement set through one indivisible campaign round over every applicable artifact and relationship. Use before implementation, after any artifact changes, and before reporting a phase complete.
+description: Defines how to realize the complete requirement set through one indivisible campaign round over every applicable artifact and relationship. Read in full at the start of every Plain objective, after any artifact changes, and before reporting a phase complete.
 ---
 
 # Campaign
@@ -14,6 +14,8 @@ The requirement documents are immutable inputs. Accept them as the specification
 Working code is necessary and not sufficient. A build that compiles, a suite that passes, and a server that starts are all compatible with a requirement nobody implemented.
 
 An exhaustive round rereads familiar material and restarts after a finding. Do not shorten it, sample it, or carry an earlier verdict forward; a missed requirement is the failure this method exists to prevent.
+
+Every Plain objective begins with a fresh complete read of this skill. A read, ledger, inventory, or verdict from an earlier objective is context only and never discharges the current objective.
 
 ## The Obligation Graph
 
@@ -73,7 +75,7 @@ Never divide a round by file, requirement subset, package, layer, artifact kind,
 
 Begin at the first requirement and end only after every applicable rule, value, state, permission, negative path, schema item, DTO, operation, business branch, test path, screen, interaction, SDK call, browser journey, and relationship has been inspected in both directions. Do not sample, inspect only changed files, rely on an earlier inventory, or skip unchanged items. An interruption or unfinished traversal is not a round.
 
-A source digest, artifact count, route inventory, placeholder search, green gate, or ledger entry may identify the state and help navigate it. None proves that the population was traversed, and none may replace any part of the round.
+A source digest, artifact count, route inventory, placeholder search, green gate, or ledger entry may identify the state and help navigate it. None proves that the population was traversed, and none may replace, shorten, or certify any part of the round.
 
 ## The Cascade
 

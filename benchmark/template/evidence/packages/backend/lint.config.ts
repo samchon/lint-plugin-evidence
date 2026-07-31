@@ -76,7 +76,11 @@ const graph: IEvidenceGraphConfig = {
     {
       name: "api-operations",
       type: "typescript",
-      files: ["src/controllers/**/*.ts"],
+      // The scaffold health probe is infrastructure, not a product operation.
+      files: [
+        "src/controllers/**/*.ts",
+        "!src/controllers/HealthController.ts",
+      ],
       symbol: "function",
       reference: [
         {
