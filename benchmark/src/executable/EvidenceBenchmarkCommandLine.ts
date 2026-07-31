@@ -9,6 +9,7 @@ import typia from "typia";
 import { EvidenceBenchmarkClaudeRunner } from "../EvidenceBenchmarkClaudeRunner.ts";
 import { EvidenceBenchmarkRunner } from "../EvidenceBenchmarkRunner.ts";
 import { EvidenceBenchmarkWorkspace } from "../EvidenceBenchmarkWorkspace.ts";
+import { sanitizeBenchmarkEnvironment } from "../sanitizeBenchmarkEnvironment.ts";
 import type { IEvidenceBenchmarkClaudeRunState } from "../structures/IEvidenceBenchmarkClaudeRunState.ts";
 import type { IEvidenceBenchmarkOutput } from "../structures/IEvidenceBenchmarkOutput.ts";
 import type { IEvidenceBenchmarkRunState } from "../structures/IEvidenceBenchmarkRunState.ts";
@@ -203,10 +204,8 @@ const runBenchmark = async (
       throw new Error("Evidence benchmark artifact no longer matches its SHA.");
   }
   const repository: string = path.resolve(import.meta.dirname, "../../..");
-  const environment: NodeJS.ProcessEnv = { ...process.env };
-  for (const name of Object.keys(environment))
-    if (name.toUpperCase() === "EVIDENCE_BENCHMARK_ARCHIVE")
-      delete environment[name];
+  const environment: NodeJS.ProcessEnv =
+    sanitizeBenchmarkEnvironment(process.env);
   const eventDescriptor: number = fs.openSync(records.events, "a");
   const rawDescriptor: number = fs.openSync(records.raw, "a");
   try {
