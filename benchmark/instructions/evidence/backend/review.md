@@ -14,4 +14,4 @@ Every review round must cover the entire table below as one indivisible claim tr
 | Every selected host | Its applicable requirement and configured references |
 | Every `@evidence` acknowledgement | Its selected host, exact target, written reason, and full acknowledged scope |
 | Every `@evidenceExclude` acknowledgement | Its eligible carrier, exact target, actual owner or observable alternative, veto condition, and full excluded scope |
-| Every inactive TypeScript claim | The requirements, proving that no required host is missing |
+| Every inactive claim population | The requirements, proving that no required host is missing |
