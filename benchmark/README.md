@@ -37,7 +37,7 @@ Raw run records and measured workspaces stay under the ignored `benchmark/output
 pnpm --filter @samchon/evidence-benchmark report
 ```
 
-The command writes `benchmark/aggregate/summary.json` plus `tokens.svg`, `work-time.svg`, and `wall-time.svg`. The JSON preserves raw aggregate values and per-stage shares; the SVG files render the same cells without recalculating them.
+The command writes `benchmark/aggregate/summary.json`, stable per-cell JSON under `benchmark/aggregate/cells/<model>/<project>/<arm>.json`, and SVG/PNG pairs for tokens, work time, and wall time. Every artifact renders or copies values from the same retained aggregate without recalculating them.
 
 ## Instruction sequence
 

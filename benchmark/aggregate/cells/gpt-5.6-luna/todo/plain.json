@@ -1,0 +1,29 @@
+{
+  "engine": "codex",
+  "subject": "todo",
+  "arm": "plain",
+  "runId": "52ae8428-6573-4481-8073-2f383b9fc392",
+  "benchmarkRevision": "184bce715b4ab5af49b4bb8beba5fa7d33457a2a",
+  "model": "gpt-5.6-luna",
+  "effort": "high",
+  "status": "running",
+  "stage": "backend-start",
+  "launchedAt": "2026-07-31T18:09:03.414Z",
+  "tokens": 867294,
+  "workElapsedMs": 128256.0087,
+  "wallElapsedMs": 129867,
+  "worktree": {
+    "files": 0,
+    "additions": 0,
+    "deletions": 0
+  },
+  "stages": [
+    {
+      "name": "backend-start",
+      "tokens": 867294,
+      "elapsedMs": 128256.0087,
+      "tokenPercent": 100,
+      "timePercent": 100
+    }
+  ]
+}

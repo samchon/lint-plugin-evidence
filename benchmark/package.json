@@ -15,6 +15,7 @@
     "check": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@types/node": "catalog:utils",
     "ttsc": "catalog:typescript",
     "typia": "catalog:samchon",

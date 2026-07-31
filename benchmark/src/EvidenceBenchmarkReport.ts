@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { Resvg } from "@resvg/resvg-js";
+
 import { collectEvidenceBenchmarkReport } from "./EvidenceBenchmarkDashboard.ts";
 import type {
   IEvidenceBenchmarkReport,
@@ -13,7 +15,7 @@ export interface IEvidenceBenchmarkReportOptions {
   generatedAt?: Date;
 }
 
-/** Writes the latest-run JSON aggregate and its three comparison charts. */
+/** Writes the latest-run JSON aggregate, stable cells, and comparison charts. */
 export const writeEvidenceBenchmarkReport = (
   options: IEvidenceBenchmarkReportOptions,
 ): IEvidenceBenchmarkReport => {
@@ -27,12 +29,34 @@ export const writeEvidenceBenchmarkReport = (
     path.join(output, "summary.json"),
     `${JSON.stringify(report, null, 2)}\n`,
   );
-  for (const chart of CHARTS)
-    fs.writeFileSync(
-      path.join(output, chart.file),
-      renderBarChart(report, chart),
+  const cells: string = path.join(output, "cells");
+  fs.rmSync(cells, { recursive: true, force: true });
+  for (const cell of report.cells) {
+    const file: string = path.join(
+      cells,
+      pathSegment(cell.model),
+      pathSegment(cell.subject),
+      `${cell.arm}.json`,
     );
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, `${JSON.stringify(cell, null, 2)}\n`);
+  }
+  for (const chart of CHARTS) {
+    const svg: string = renderBarChart(report, chart);
+    fs.writeFileSync(path.join(output, chart.file), svg);
+    fs.writeFileSync(
+      path.join(output, chart.file.replace(/\.svg$/u, ".png")),
+      new Resvg(svg).render().asPng(),
+    );
+  }
   return report;
+};
+
+const pathSegment = (value: string): string => {
+  const encoded: string = encodeURIComponent(value);
+  return encoded === "." || encoded === ".."
+    ? encoded.replaceAll(".", "%2E")
+    : encoded;
 };
 
 interface IChart {

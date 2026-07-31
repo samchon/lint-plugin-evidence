@@ -1,0 +1,29 @@
+{
+  "engine": "codex",
+  "subject": "reddit",
+  "arm": "evidence",
+  "runId": "7510d0dd-6c9e-43df-a1bf-86989a810aa8",
+  "benchmarkRevision": "184bce715b4ab5af49b4bb8beba5fa7d33457a2a",
+  "model": "gpt-5.6-luna",
+  "effort": "high",
+  "status": "running",
+  "stage": "backend-start",
+  "launchedAt": "2026-07-31T18:09:03.553Z",
+  "tokens": 1033790,
+  "workElapsedMs": 128344.646,
+  "wallElapsedMs": 129728,
+  "worktree": {
+    "files": 0,
+    "additions": 0,
+    "deletions": 0
+  },
+  "stages": [
+    {
+      "name": "backend-start",
+      "tokens": 1033790,
+      "elapsedMs": 128344.646,
+      "tokenPercent": 100,
+      "timePercent": 100
+    }
+  ]
+}

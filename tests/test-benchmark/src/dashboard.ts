@@ -22,7 +22,7 @@ import type {
  * 1. Create two real benchmark worktrees and retained run records.
  * 2. Give one cell an older run and a newer active run with later output.
  * 3. Render the summary table and stage-level cost, time, and shares.
- * 4. Publish deterministic JSON and SVG charts from the same aggregate.
+ * 4. Publish deterministic aggregate and per-cell JSON plus SVG/PNG charts.
  * 5. Assert stale and unlaunched cells never appear.
  */
 const main = (): void => {
@@ -217,12 +217,27 @@ const main = (): void => {
       ),
       report,
     );
-    const chartFiles: readonly string[] = [
+    assert.deepEqual(
+      JSON.parse(
+        fs.readFileSync(
+          path.join(
+            reportOutput,
+            "cells",
+            "gpt-5.6-luna",
+            "todo",
+            "plain.json",
+          ),
+          "utf8",
+        ),
+      ),
+      todoPlain,
+    );
+    const svgChartFiles: readonly string[] = [
       "tokens.svg",
       "work-time.svg",
       "wall-time.svg",
     ];
-    for (const file of chartFiles) {
+    for (const file of svgChartFiles) {
       const svg: string = fs.readFileSync(
         path.join(reportOutput, file),
         "utf8",
@@ -237,13 +252,28 @@ const main = (): void => {
       assert.equal(svg.includes("old"), false);
       assert.equal(svg.includes("Shopping"), false);
     }
+    const pngChartFiles: readonly string[] = [
+      "tokens.png",
+      "work-time.png",
+      "wall-time.png",
+    ];
+    for (const file of pngChartFiles)
+      assert.deepEqual(
+        fs.readFileSync(path.join(reportOutput, file)).subarray(0, 8),
+        Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+      );
     const repeatedOutput: string = path.join(repository, "published-again");
     writeEvidenceBenchmarkReport({
       repository,
       output: repeatedOutput,
       generatedAt,
     });
-    for (const file of ["summary.json", ...chartFiles])
+    for (const file of [
+      "summary.json",
+      ...svgChartFiles,
+      ...pngChartFiles,
+      path.join("cells", "gpt-5.6-luna", "todo", "plain.json"),
+    ])
       assert.deepEqual(
         fs.readFileSync(path.join(repeatedOutput, file)),
         fs.readFileSync(path.join(reportOutput, file)),

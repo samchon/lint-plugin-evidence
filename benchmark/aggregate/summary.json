@@ -1,204 +1,60 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-31T16:43:08.726Z",
+  "generatedAt": "2026-07-31T18:11:13.281Z",
   "cells": [
     {
       "engine": "codex",
       "subject": "todo",
       "arm": "plain",
-      "runId": "a322a9b9-6c06-4435-ac72-70f136c119f9",
-      "benchmarkRevision": "2e103a8beecbbbba8956c83ce5523a408a64f51d",
-      "model": "gpt-5.6-terra",
-      "effort": "high",
-      "status": "interrupted",
-      "stage": "backend-start",
-      "launchedAt": "2026-07-31T04:07:24.545Z",
-      "tokens": 8786309,
-      "workElapsedMs": 754663.6349,
-      "wallElapsedMs": 45344181,
-      "worktree": {
-        "files": 2,
-        "additions": 240,
-        "deletions": 0
-      },
-      "stages": [
-        {
-          "name": "skills-contract",
-          "tokens": 1535117,
-          "elapsedMs": 155000,
-          "tokenPercent": 17,
-          "timePercent": 21
-        },
-        {
-          "name": "backend-start",
-          "tokens": 7251192,
-          "elapsedMs": 599663.6349,
-          "tokenPercent": 83,
-          "timePercent": 79
-        }
-      ]
-    },
-    {
-      "engine": "codex",
-      "subject": "todo",
-      "arm": "evidence",
-      "runId": "4ae7e6a1-e5be-4192-85cc-cb85320fd9c2",
-      "benchmarkRevision": "2e103a8beecbbbba8956c83ce5523a408a64f51d",
-      "model": "gpt-5.6-terra",
+      "runId": "52ae8428-6573-4481-8073-2f383b9fc392",
+      "benchmarkRevision": "184bce715b4ab5af49b4bb8beba5fa7d33457a2a",
+      "model": "gpt-5.6-luna",
       "effort": "high",
       "status": "running",
       "stage": "backend-start",
-      "launchedAt": "2026-07-31T04:07:24.702Z",
-      "tokens": 8429858,
-      "workElapsedMs": 754128.8436,
-      "wallElapsedMs": 45344024,
+      "launchedAt": "2026-07-31T18:09:03.414Z",
+      "tokens": 867294,
+      "workElapsedMs": 128256.0087,
+      "wallElapsedMs": 129867,
       "worktree": {
-        "files": 3,
-        "additions": 349,
+        "files": 0,
+        "additions": 0,
         "deletions": 0
       },
       "stages": [
         {
-          "name": "skills-contract",
-          "tokens": 1545070,
-          "elapsedMs": 126000,
-          "tokenPercent": 18,
-          "timePercent": 17
-        },
-        {
           "name": "backend-start",
-          "tokens": 6884788,
-          "elapsedMs": 628128.8436,
-          "tokenPercent": 82,
-          "timePercent": 83
+          "tokens": 867294,
+          "elapsedMs": 128256.0087,
+          "tokenPercent": 100,
+          "timePercent": 100
         }
       ]
     },
     {
       "engine": "codex",
-      "subject": "reddit",
-      "arm": "plain",
-      "runId": "00076342-28b0-46bf-85fe-e2733988b584",
-      "benchmarkRevision": "2e103a8beecbbbba8956c83ce5523a408a64f51d",
-      "model": "gpt-5.6-terra",
+      "subject": "todo",
+      "arm": "evidence",
+      "runId": "dad68267-243a-4ab6-8df3-4aa3a52203a3",
+      "benchmarkRevision": "184bce715b4ab5af49b4bb8beba5fa7d33457a2a",
+      "model": "gpt-5.6-luna",
       "effort": "high",
       "status": "running",
       "stage": "backend-start",
-      "launchedAt": "2026-07-31T04:07:24.654Z",
-      "tokens": 8029538,
-      "workElapsedMs": 754161.107,
-      "wallElapsedMs": 45344072,
+      "launchedAt": "2026-07-31T18:09:03.579Z",
+      "tokens": 695856,
+      "workElapsedMs": 116374.604,
+      "wallElapsedMs": 129702,
       "worktree": {
-        "files": 4,
-        "additions": 447,
-        "deletions": 0
-      },
-      "stages": [
-        {
-          "name": "skills-contract",
-          "tokens": 1379455,
-          "elapsedMs": 146000,
-          "tokenPercent": 17,
-          "timePercent": 19
-        },
-        {
-          "name": "backend-start",
-          "tokens": 6650083,
-          "elapsedMs": 608161.107,
-          "tokenPercent": 83,
-          "timePercent": 81
-        }
-      ]
-    },
-    {
-      "engine": "codex",
-      "subject": "reddit",
-      "arm": "evidence",
-      "runId": "39802f82-2747-4896-8b8a-56bbeb478ca6",
-      "benchmarkRevision": "2e103a8beecbbbba8956c83ce5523a408a64f51d",
-      "model": "gpt-5.6-terra",
-      "effort": "high",
-      "status": "interrupted",
-      "stage": "backend-start",
-      "launchedAt": "2026-07-31T04:07:25.641Z",
-      "tokens": 8349618,
-      "workElapsedMs": 753816.3635,
-      "wallElapsedMs": 45343085,
-      "worktree": {
-        "files": 4,
-        "additions": 436,
-        "deletions": 0
-      },
-      "stages": [
-        {
-          "name": "skills-contract",
-          "tokens": 2005601,
-          "elapsedMs": 154000,
-          "tokenPercent": 24,
-          "timePercent": 20
-        },
-        {
-          "name": "backend-start",
-          "tokens": 6344017,
-          "elapsedMs": 599816.3635,
-          "tokenPercent": 76,
-          "timePercent": 80
-        }
-      ]
-    },
-    {
-      "engine": "codex",
-      "subject": "todo",
-      "arm": "plain",
-      "runId": "faaaba8a-9d6e-4cb4-b870-220e4820def0",
-      "benchmarkRevision": "cccf206755ad7ad68ab7f38f3e6438fe8d10d559",
-      "model": "gpt-5.6-luna",
-      "effort": "high",
-      "status": "interrupted",
-      "stage": "backend-start",
-      "launchedAt": "2026-07-31T16:06:47.951Z",
-      "tokens": 13445618,
-      "workElapsedMs": 1692857.8358,
-      "wallElapsedMs": 2180775,
-      "worktree": {
-        "files": 33,
-        "additions": 3968,
-        "deletions": 3
-      },
-      "stages": [
-        {
-          "name": "backend-start",
-          "tokens": 13445618,
-          "elapsedMs": 1692857.8358,
-          "tokenPercent": 100,
-          "timePercent": 100
-        }
-      ]
-    },
-    {
-      "engine": "codex",
-      "subject": "todo",
-      "arm": "evidence",
-      "runId": "234ef503-b9bb-4110-aac5-d141b2df33d5",
-      "benchmarkRevision": "586916656d3bd14f7aba4d63af78fc64703b509b",
-      "model": "gpt-5.6-luna",
-      "effort": "high",
-      "status": "interrupted",
-      "stage": "backend-start",
-      "launchedAt": "2026-07-31T16:28:16.753Z",
-      "tokens": 2298658,
-      "workElapsedMs": 406153.3957,
-      "wallElapsedMs": 891973,
-      "worktree": {
-        "files": 8,
-        "additions": 455,
+        "files": 0,
+        "additions": 0,
         "deletions": 0
       },
       "stages": [
         {
           "name": "backend-start",
-          "tokens": 2298658,
-          "elapsedMs": 406153.3957,
+          "tokens": 695856,
+          "elapsedMs": 116374.604,
           "tokenPercent": 100,
           "timePercent": 100
         }
@@ -208,26 +64,26 @@
       "engine": "codex",
       "subject": "reddit",
       "arm": "plain",
-      "runId": "9ae31023-36a3-4017-bebb-7ebcb3b74c63",
-      "benchmarkRevision": "cccf206755ad7ad68ab7f38f3e6438fe8d10d559",
+      "runId": "d0c92e84-bcd5-4600-b62a-ebb39ed31684",
+      "benchmarkRevision": "184bce715b4ab5af49b4bb8beba5fa7d33457a2a",
       "model": "gpt-5.6-luna",
       "effort": "high",
-      "status": "interrupted",
+      "status": "running",
       "stage": "backend-start",
-      "launchedAt": "2026-07-31T16:06:48.599Z",
-      "tokens": 16621809,
-      "workElapsedMs": 1693358.9951,
-      "wallElapsedMs": 2180127,
+      "launchedAt": "2026-07-31T18:09:03.553Z",
+      "tokens": 772389,
+      "workElapsedMs": 127410.2311,
+      "wallElapsedMs": 129728,
       "worktree": {
-        "files": 44,
-        "additions": 5861,
-        "deletions": 8
+        "files": 1,
+        "additions": 1,
+        "deletions": 0
       },
       "stages": [
         {
           "name": "backend-start",
-          "tokens": 16621809,
-          "elapsedMs": 1693358.9951,
+          "tokens": 772389,
+          "elapsedMs": 127410.2311,
           "tokenPercent": 100,
           "timePercent": 100
         }
@@ -237,26 +93,26 @@
       "engine": "codex",
       "subject": "reddit",
       "arm": "evidence",
-      "runId": "1b32613e-dac2-4188-af54-26c61a004310",
-      "benchmarkRevision": "586916656d3bd14f7aba4d63af78fc64703b509b",
+      "runId": "7510d0dd-6c9e-43df-a1bf-86989a810aa8",
+      "benchmarkRevision": "184bce715b4ab5af49b4bb8beba5fa7d33457a2a",
       "model": "gpt-5.6-luna",
       "effort": "high",
-      "status": "interrupted",
+      "status": "running",
       "stage": "backend-start",
-      "launchedAt": "2026-07-31T16:28:17.062Z",
-      "tokens": 2372767,
-      "workElapsedMs": 407047.4848,
-      "wallElapsedMs": 891664,
+      "launchedAt": "2026-07-31T18:09:03.553Z",
+      "tokens": 1033790,
+      "workElapsedMs": 128344.646,
+      "wallElapsedMs": 129728,
       "worktree": {
-        "files": 2,
-        "additions": 666,
+        "files": 0,
+        "additions": 0,
         "deletions": 0
       },
       "stages": [
         {
           "name": "backend-start",
-          "tokens": 2372767,
-          "elapsedMs": 407047.4848,
+          "tokens": 1033790,
+          "elapsedMs": 128344.646,
           "tokenPercent": 100,
           "timePercent": 100
         }

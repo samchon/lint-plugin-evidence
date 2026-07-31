@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title description" viewBox="0 0 1200 578" width="1200" height="578">
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title description" viewBox="0 0 1200 370" width="1200" height="370">
 <title id="title">Benchmark work time</title>
 <desc id="description">Retained native process time for the latest launched benchmark cells</desc>
 <style>
@@ -11,52 +11,32 @@
   .empty { font-size: 15px; fill: #667085; }
   .track { fill: #eef1f6; }
 </style>
-<rect width="1200" height="578" fill="#ffffff"/>
+<rect width="1200" height="370" fill="#ffffff"/>
 <text x="32" y="38" class="title">Benchmark work time</text>
 <text x="32" y="62" class="subtitle">Retained native process time for the latest launched benchmark cells</text>
 <rect x="32" y="82" width="14" height="14" rx="3" fill="#4c78a8"/>
 <text x="54" y="94" class="legend">Plain</text>
 <rect x="118" y="82" width="14" height="14" rx="3" fill="#f58518"/>
 <text x="140" y="94" class="legend">Evidence</text>
-<text x="32" y="148" class="label">GPT-5.6-Terra · Todo Plain · interrupted</text>
+<text x="32" y="148" class="label">GPT-5.6-Luna · Todo Plain · running</text>
 <text x="32" y="167" class="stage">Stage: backend-start</text>
 <rect x="430" y="137" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="137" width="276" height="28" rx="4" fill="#4c78a8"/>
-<text x="1068" y="157" class="value">13m</text>
-<text x="32" y="200" class="label">GPT-5.6-Terra · Todo Evidence · running</text>
+<rect x="430" y="137" width="620" height="28" rx="4" fill="#4c78a8"/>
+<text x="1068" y="157" class="value">2m</text>
+<text x="32" y="200" class="label">GPT-5.6-Luna · Todo Evidence · running</text>
 <text x="32" y="219" class="stage">Stage: backend-start</text>
 <rect x="430" y="189" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="189" width="276" height="28" rx="4" fill="#f58518"/>
-<text x="1068" y="209" class="value">13m</text>
-<text x="32" y="252" class="label">GPT-5.6-Terra · Reddit Plain · running</text>
+<rect x="430" y="189" width="562" height="28" rx="4" fill="#f58518"/>
+<text x="1068" y="209" class="value">2m</text>
+<text x="32" y="252" class="label">GPT-5.6-Luna · Reddit Plain · running</text>
 <text x="32" y="271" class="stage">Stage: backend-start</text>
 <rect x="430" y="241" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="241" width="276" height="28" rx="4" fill="#4c78a8"/>
-<text x="1068" y="261" class="value">13m</text>
-<text x="32" y="304" class="label">GPT-5.6-Terra · Reddit Evidence · interrupted</text>
+<rect x="430" y="241" width="615" height="28" rx="4" fill="#4c78a8"/>
+<text x="1068" y="261" class="value">2m</text>
+<text x="32" y="304" class="label">GPT-5.6-Luna · Reddit Evidence · running</text>
 <text x="32" y="323" class="stage">Stage: backend-start</text>
 <rect x="430" y="293" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="293" width="276" height="28" rx="4" fill="#f58518"/>
-<text x="1068" y="313" class="value">13m</text>
-<text x="32" y="356" class="label">GPT-5.6-Luna · Todo Plain · interrupted</text>
-<text x="32" y="375" class="stage">Stage: backend-start</text>
-<rect x="430" y="345" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="345" width="620" height="28" rx="4" fill="#4c78a8"/>
-<text x="1068" y="365" class="value">28m</text>
-<text x="32" y="408" class="label">GPT-5.6-Luna · Todo Evidence · interrupted</text>
-<text x="32" y="427" class="stage">Stage: backend-start</text>
-<rect x="430" y="397" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="397" width="149" height="28" rx="4" fill="#f58518"/>
-<text x="1068" y="417" class="value">7m</text>
-<text x="32" y="460" class="label">GPT-5.6-Luna · Reddit Plain · interrupted</text>
-<text x="32" y="479" class="stage">Stage: backend-start</text>
-<rect x="430" y="449" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="449" width="620" height="28" rx="4" fill="#4c78a8"/>
-<text x="1068" y="469" class="value">28m</text>
-<text x="32" y="512" class="label">GPT-5.6-Luna · Reddit Evidence · interrupted</text>
-<text x="32" y="531" class="stage">Stage: backend-start</text>
-<rect x="430" y="501" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="501" width="149" height="28" rx="4" fill="#f58518"/>
-<text x="1068" y="521" class="value">7m</text>
-<text x="32" y="566" class="generated">Generated 2026-07-31T16:43:08.726Z</text>
+<rect x="430" y="293" width="620" height="28" rx="4" fill="#f58518"/>
+<text x="1068" y="313" class="value">2m</text>
+<text x="32" y="358" class="generated">Generated 2026-07-31T18:11:13.281Z</text>
 </svg>
