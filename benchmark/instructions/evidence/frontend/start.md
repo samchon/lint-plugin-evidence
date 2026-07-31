@@ -1,5 +1,7 @@
 # Evidence Frontend Start
 
+Read `AGENTS.md` and the skill documents relevant to this objective before working.
+
 Implement the complete frontend against the fixed SDK and live backend. Do not perform the review yet.
 
 Add each `@evidence` acknowledgement to the screen or journey that actually owns the cited target, and state the exact responsibility that connects them. Use `@evidenceExclude` only when the target does not belong to the claim; name the actual owner or observable alternative and the condition that would invalidate the exclusion.

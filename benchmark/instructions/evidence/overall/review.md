@@ -1,5 +1,7 @@
 # Evidence Overall Review
 
+Read `AGENTS.md` and the skill documents relevant to this objective before working.
+
 Review every `@evidence` and `@evidenceExclude` acknowledgement in the application for accuracy. Do not perform a general code review.
 
 For each `@evidence`, confirm that the target exists, the host actually owns the cited responsibility, and the reason precisely explains that relationship. For each `@evidenceExclude`, confirm that the target belongs to the claim and the reason names the actual owner or observable alternative and a concrete veto condition.
