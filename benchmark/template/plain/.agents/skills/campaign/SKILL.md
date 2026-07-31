@@ -73,6 +73,8 @@ Never divide a round by file, requirement subset, package, layer, artifact kind,
 
 Begin at the first requirement and end only after every applicable rule, value, state, permission, negative path, schema item, DTO, operation, business branch, test path, screen, interaction, SDK call, browser journey, and relationship has been inspected in both directions. Do not sample, inspect only changed files, rely on an earlier inventory, or skip unchanged items. An interruption or unfinished traversal is not a round.
 
+A source digest, artifact count, route inventory, placeholder search, green gate, or ledger entry may identify the state and help navigate it. None proves that the population was traversed, and none may replace any part of the round.
+
 ## The Cascade
 
 Any finding invalidates the current round. Correct every confirmed finding at its owning layer, regenerate affected derived artifacts, rerun every invalidated gate, and begin a new complete round at the first requirement.

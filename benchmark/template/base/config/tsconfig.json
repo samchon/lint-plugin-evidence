@@ -8,6 +8,7 @@
     "resolveJsonModule": true,
     "sourceMap": true,
     "newLine": "lf",
+    "noErrorTruncation": true,
     "strict": true,
     "noImplicitReturns": true,
     "noUncheckedIndexedAccess": true,

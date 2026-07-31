@@ -24,6 +24,9 @@ export interface IEvidenceBenchmarkRunProps {
   /** Explicit native reasoning effort. */
   effort: EvidenceBenchmarkEffort;
 
+  /** Repository revision of this runner invocation. */
+  runnerRevision?: string;
+
   /** Sanitized child-process environment. */
   environment?: NodeJS.ProcessEnv;
 

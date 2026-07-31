@@ -52,7 +52,7 @@ The benchmark activates only `evidence/graph`. Do not add `evidence/todo`: the E
 
 `packages/backend/lint.config.main.ts` and `packages/backend/lint.config.test.ts` are immutable projections for emission Programs. The main projection contains `schema-models` and `api-operations`; the test projection adds `backend-tests`. Neither repeats the DTO claims, because adding API source roots to either emission Program would duplicate API output.
 
-Only the main projection may disable its graph for Nestia's temporary config-loader Program. The canonical no-emit lint configuration and the test projection always run their graphs at `error` severity. Do not edit or defer either projection.
+Nestia sets `NESTIA_SDK_TRANSFORM=1` while compiling its private config-loader and SDK runtime Programs. Those Programs do not preserve the package root that the graph populations require. The canonical configuration and main projection therefore contain the same exact, immutable bypass for that environment only. Ordinary `pnpm lint`, main builds outside Nestia's private Programs, and the test projection still run their graphs at `error` severity. Do not edit either bypass or the test projection.
 
 The template starts with all seven claims active and `evidence/graph` at `error` severity. Keep claims for the layer under active development enabled. Claims for a later layer that has not started may be deferred as described below; they are not evidence of unfinished work in the current layer.
 
@@ -76,14 +76,14 @@ This matrix is the canonical claim-state contract:
 
 Before `build:sdk`, the schema, DTO, and API-operation claims must all be active and healthy. Backend, Frontend, and Overall reports require every claim shown as active for that matrix gate to be restored. If frontend work proves a named backend defect, restore and revalidate every affected backend claim, regenerate affected output, and re-pass the Backend Phase gate before resuming frontend work.
 
-To defer a claim, line-comment every line of its existing whole object in place. Restore it only by removing those comment markers, so its original `files`, `symbol`, `reference`, severity, and carrier population return byte-for-byte. Never rewrite the object, disable `evidence/graph`, narrow a population, or add an environment bypass.
+To defer a claim, line-comment every line of its existing whole object in place. Restore it only by removing those comment markers, so its original `files`, `symbol`, `reference`, severity, and carrier population return byte-for-byte. Never rewrite the object, disable `evidence/graph`, narrow a population, or add an environment bypass. The template's exact `NESTIA_SDK_TRANSFORM=1` guard is sealed infrastructure, not a claim deferral or permission for another bypass.
 
 ## Phase Gates
 
-At the Backend Phase gate, restore and validate all five claims in `packages/backend/lint.config.ts`, confirm both immutable Program projections are unchanged, and follow the canonical backend gate in [Backend](../backend/SKILL.md). The schema, DTO, and operation claims must be active before SDK generation; all five must be active before the backend report.
+At the Backend Phase gate, restore and validate all five claims in `packages/backend/lint.config.ts`, confirm the sealed Nestia guards and both immutable Program projections are unchanged, and follow the canonical backend gate in [Backend](../backend/SKILL.md). The schema, DTO, and operation claims must be active before SDK generation; all five must be active before the backend report. `build:sdk` proves generation, not graph health: the ordinary canonical `pnpm lint` immediately before and after it must pass with the guard inactive.
 
 At the Frontend Phase gate, restore all seven claims in the two canonical configurations with their original populations and `error` severities. Confirm both immutable backend projections are unchanged and validate the frontend claims. If frontend work changed an API or backend source, re-pass the affected backend gate first.
 
-At the Overall Phase gate, restore all seven exact claim objects, confirm `evidence/graph` remains at `error`, confirm both immutable projections are unchanged, run the project-wide gates, and execute [Review](../review/SKILL.md) against the fully active graph. Configuration files, not an agent's prose report, prove restoration.
+At the Overall Phase gate, restore all seven exact claim objects, confirm `evidence/graph` remains at `error` outside the sealed Nestia environment, confirm both immutable projections are unchanged, run the project-wide gates, and execute [Review](../review/SKILL.md) against the fully active graph. Configuration files, not an agent's prose report, prove restoration.
 
 A green phase subset is not whole-project completion. Any claim missing from its active phase, narrowed population, disabled rule, remaining phase-owned `@todo`, or unreviewed phase edge blocks that phase report.

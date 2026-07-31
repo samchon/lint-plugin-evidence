@@ -15,10 +15,10 @@ Finish the frontend phase under the fully active Evidence Graph:
 
 1. From `packages/frontend`, run `pnpm build`, `pnpm test:e2e`, and `pnpm ui:review`.
 2. Run the required journeys against the live backend and inspect the browser output.
-3. Follow the Review skill in full at this final source digest, including the current host and common residual populations, and review every acknowledgement selected by the two frontend claims with all seven claims active.
+3. Start a fresh candidate review round at the first Review-skill population. Inspect every current host, common residual, and acknowledgement selected by the two frontend claims with all seven claims active; a digest, count, route list, prior ledger, or green gate is not review evidence.
 
 From the workspace root, run `rg --hidden -n -F '@todo' packages/frontend --glob '*.ts' --glob '*.tsx'` and require no matches. This source-scoped search excludes the Evidence instruction files that teach the tag.
 
-Do not run the workspace-root build during this phase. Any failed command, graph diagnostic, false acknowledgement, changed claim population, remaining frontend `@todo`, broken journey, or unverified user-facing requirement means the phase is incomplete. Fix the owner and rerun the affected claim and package gates.
+Do not run the workspace-root build during this phase. Any failed command, graph diagnostic, false acknowledgement, changed claim population, remaining frontend `@todo`, broken journey, or unverified user-facing requirement means the phase is incomplete. Any source, configuration, generated-output, or formatting change invalidates the candidate round: fix the owner, rerun the affected claim and package gates, then restart the complete Review-skill population from its first item.
 
 Report the exact commands and results. State that whole-project verification remains pending.

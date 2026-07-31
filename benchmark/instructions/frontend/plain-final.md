@@ -13,7 +13,9 @@ Finish the frontend phase with a complete plain-arm Restart Until Dry over the f
 5. fix every frontend finding; and
 6. from `packages/frontend`, run `pnpm build`, `pnpm test:e2e`, and `pnpm ui:review`.
 
-Any finding, correction, generated-output change, or failed gate makes the round non-dry. Restart the complete frontend-scoped round at the resulting source digest. Stop after one entire current-digest round finds zero actionable defect and leaves every gate current and green; one dry round is sufficient.
+The qualifying dry round begins only after the most recent finding, correction, generated-output change, formatting change, or failed gate has been resolved. Work performed before that event belongs to an invalidated round and cannot be reused. Record the frontend/integration source-population digest at the beginning of each candidate round and recompute it at the end. Equal digests prove only that the round used one stable state; they never substitute for rereading or reviewing that state.
+
+Any finding, correction, generated-output change, formatting change, or failed gate makes the round non-dry. Stop the traversal, resolve the invalidation, and restart at item 1 against the resulting source digest. Do not continue from the artifact after the finding, reread only changed files, or count a post-gate digest, route count, placeholder scan, or partial audit as the restart. Stop after one entire current-digest round finds zero actionable defect and leaves every gate current and green; one dry round is sufficient.
 
 Do not run the workspace-root build during this phase. Any failed command, review finding, unfinished frontend stub, remaining frontend implementation marker, broken journey, or unverified user-facing requirement means the phase is incomplete.
 

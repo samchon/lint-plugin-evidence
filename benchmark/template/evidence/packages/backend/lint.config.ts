@@ -4,6 +4,10 @@ import {
 } from "@samchon/lint-plugin-evidence";
 import type { ITtscLintConfig } from "@ttsc/lint";
 
+declare const process: {
+  env: Record<string, string | undefined>;
+};
+
 /**
  * The evidence obligations of the backend package.
  *
@@ -122,6 +126,9 @@ const graph: IEvidenceGraphConfig = {
   ],
 };
 
+const isNestiaSdkTransform: boolean =
+  process.env.NESTIA_SDK_TRANSFORM === "1";
+
 export default {
   extends: "../../config/lint.config.ts",
   // Prisma owns this generated client. The authored schema remains selected by
@@ -131,6 +138,6 @@ export default {
     evidence,
   },
   rules: {
-    "evidence/graph": ["error", graph],
+    "evidence/graph": isNestiaSdkTransform ? "off" : ["error", graph],
   },
 } satisfies ITtscLintConfig;

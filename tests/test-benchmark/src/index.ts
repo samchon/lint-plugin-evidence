@@ -615,6 +615,105 @@ const main = async (): Promise<void> => {
       /resume Goal snapshot/,
     );
 
+    const blockedCurrentBoundary = structuredClone(activeCurrentBoundary);
+    const blockedCurrentRecord = blockedCurrentBoundary.goals[1]!;
+    blockedCurrentRecord.goal!.status = "blocked";
+    blockedCurrentRecord.tokenUsageTurnId = "turn-2";
+    blockedCurrentBoundary.threadTokenUsage = {
+      totalTokens: 20,
+      inputTokens: 12,
+      cachedInputTokens: 4,
+      cacheWriteInputTokens: 2,
+      outputTokens: 8,
+      reasoningOutputTokens: 6,
+    };
+    const blockedCurrentOutput: IEvidenceBenchmarkOutput[] = [];
+    const blockedCurrentResume = await EvidenceBenchmarkRunner.run({
+      state: blockedCurrentBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--current-blocked",
+        "--resume-status-before-response",
+      ],
+      onOutput: (_processIndex, output) => {
+        blockedCurrentOutput.push(output);
+      },
+    });
+    assert.equal(blockedCurrentResume.status, "completed");
+    const blockedResumedGoalRequests = blockedCurrentOutput
+      .filter((output) => output.stream === "stdin")
+      .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+      .filter((request) => request.method === "thread/goal/set");
+    assert.equal(blockedResumedGoalRequests.length, ENTRIES.length - 1);
+    assert.equal(
+      (blockedResumedGoalRequests[0]?.params as Record<string, unknown>)
+        ?.objective,
+      readObjective(root, sources, ENTRIES[1]!),
+    );
+
+    const advancedBlockedResume = await EvidenceBenchmarkRunner.run({
+      state: blockedCurrentBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--current-blocked",
+        "--advanced-interrupted-replay",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(advancedBlockedResume.status, "completed");
+
+    const activeInterruptedBoundary = structuredClone(blockedCurrentBoundary);
+    activeInterruptedBoundary.goals[1]!.goal!.status = "active";
+    const activeInterruptedResume = await EvidenceBenchmarkRunner.run({
+      state: activeInterruptedBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--current-interrupted-active",
+        "--same-turn-interrupted-replay",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(
+      activeInterruptedResume.status,
+      "completed",
+      JSON.stringify(activeInterruptedResume.interruption),
+    );
+
+    const unprovenBlockedResume = await EvidenceBenchmarkRunner.run({
+      state: blockedCurrentBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--current-blocked",
+        "--unproven-interrupted-replay",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(unprovenBlockedResume.status, "interrupted");
+    assert.match(
+      unprovenBlockedResume.interruption?.message ?? "",
+      /exact retained or next turn/,
+    );
+
     const outputFailure = await EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("evidence"),
       cwd: root,
@@ -686,14 +785,30 @@ const fakeAppServer = (): void => {
     "--blocked-then-complete",
   );
   const activeGoalGet: boolean = process.argv.includes("--active-goal-get");
+  const advancedInterruptedReplay: boolean = process.argv.includes(
+    "--advanced-interrupted-replay",
+  );
+  const sameTurnInterruptedReplay: boolean = process.argv.includes(
+    "--same-turn-interrupted-replay",
+  );
+  const unprovenInterruptedReplay: boolean = process.argv.includes(
+    "--unproven-interrupted-replay",
+  );
   const emptyGoal: boolean = process.argv.includes("--empty-goal");
   const omitToken: boolean = process.argv.includes("--omit-token");
   const omitTerminalToken: boolean = process.argv.includes(
     "--omit-terminal-token",
   );
   const currentActive: boolean = process.argv.includes("--current-active");
+  const currentBlocked: boolean = process.argv.includes("--current-blocked");
+  const currentInterruptedActive: boolean = process.argv.includes(
+    "--current-interrupted-active",
+  );
   const currentGoal: boolean =
-    currentActive || process.argv.includes("--current-goal");
+    currentActive ||
+    currentBlocked ||
+    currentInterruptedActive ||
+    process.argv.includes("--current-goal");
   const lateResumeSnapshot: boolean = process.argv.includes(
     "--late-resume-snapshot",
   );
@@ -701,6 +816,9 @@ const fakeAppServer = (): void => {
   const previousActive: boolean = process.argv.includes("--previous-active");
   const previousGoal: boolean =
     currentGoal || previousActive || process.argv.includes("--previous-goal");
+  const resumeStatusBeforeResponse: boolean = process.argv.includes(
+    "--resume-status-before-response",
+  );
   const wrongGoal: boolean = process.argv.includes("--wrong-goal");
   const wrongThread: boolean = process.argv.includes("--wrong-thread");
   const terminalLf: boolean = process.argv.includes("--terminal-lf");
@@ -753,118 +871,183 @@ const fakeAppServer = (): void => {
           },
         },
       });
-    if (request.method === "thread/resume")
-      return send(
-        {
-          id: request.id,
-          result: {
-            thread: {
-              id: wrongThread ? "fixture-other-thread" : "fixture-thread",
-              cliVersion: "fixture-cli",
-              status: { type: "idle" },
+    if (request.method === "thread/resume") {
+      const respond = (): void =>
+        send(
+          {
+            id: request.id,
+            result: {
+              thread: {
+                id: wrongThread ? "fixture-other-thread" : "fixture-thread",
+                cliVersion: "fixture-cli",
+                status: { type: "idle" },
+                turns: sameTurnInterruptedReplay
+                  ? [
+                      {
+                        id: `turn-${goalIndex}`,
+                        status: "interrupted",
+                      },
+                      {
+                        id: "turn-empty-interrupted",
+                        status: "interrupted",
+                      },
+                    ]
+                  : advancedInterruptedReplay || unprovenInterruptedReplay
+                    ? [
+                        { id: `turn-${goalIndex}`, status: "completed" },
+                        ...(advancedInterruptedReplay
+                          ? [
+                              {
+                                id: "turn-interrupted",
+                                status: "interrupted",
+                              },
+                            ]
+                          : []),
+                      ]
+                    : undefined,
+              },
             },
           },
-        },
-        () => {
-          if (wrongThread) return;
-          if (previousGoal) {
-            send({
-              method: "thread/tokenUsage/updated",
-              params: {
-                threadId: "fixture-thread",
-                turnId: `turn-${goalIndex}`,
-                tokenUsage: {
-                  total: {
-                    totalTokens: goalIndex * 10,
-                    inputTokens: goalIndex * 6,
-                    cachedInputTokens: goalIndex * 2,
-                    cacheWriteInputTokens: goalIndex,
-                    outputTokens: goalIndex * 4,
-                    reasoningOutputTokens: goalIndex * 3,
-                  },
-                },
-              },
-            });
-            const continueCurrentGoal = (): void => {
-              goalIndex++;
-              const turnId: string = `turn-${goalIndex}`;
-              const total = {
-                totalTokens: goalIndex * 10,
-                inputTokens: goalIndex * 6,
-                cachedInputTokens: goalIndex * 2,
-                cacheWriteInputTokens: goalIndex,
-                outputTokens: goalIndex * 4,
-                reasoningOutputTokens: goalIndex * 3,
-              };
-              send({
-                method: "thread/status/changed",
-                params: {
-                  threadId: "fixture-thread",
-                  status: { type: "active" },
-                },
-              });
-              send({
-                method: "turn/started",
-                params: {
-                  threadId: "fixture-thread",
-                  turn: { id: turnId },
-                },
-              });
-              send({
-                method: "thread/goal/updated",
-                params: {
-                  threadId: "fixture-thread",
-                  goal: goal(retainedObjective(), "complete"),
-                  turnId,
-                },
-              });
+          () => {
+            if (wrongThread) return;
+            if (previousGoal) {
+              const replay =
+                advancedInterruptedReplay ||
+                unprovenInterruptedReplay ||
+                sameTurnInterruptedReplay
+                  ? {
+                      turnId: sameTurnInterruptedReplay
+                        ? `turn-${goalIndex}`
+                        : "turn-interrupted",
+                      total: {
+                        totalTokens: 25,
+                        inputTokens: 15,
+                        cachedInputTokens: 5,
+                        cacheWriteInputTokens: 2,
+                        outputTokens: 10,
+                        reasoningOutputTokens: 7,
+                      },
+                    }
+                  : {
+                      turnId: `turn-${goalIndex}`,
+                      total: {
+                        totalTokens: goalIndex * 10,
+                        inputTokens: goalIndex * 6,
+                        cachedInputTokens: goalIndex * 2,
+                        cacheWriteInputTokens: goalIndex,
+                        outputTokens: goalIndex * 4,
+                        reasoningOutputTokens: goalIndex * 3,
+                      },
+                    };
               send({
                 method: "thread/tokenUsage/updated",
                 params: {
                   threadId: "fixture-thread",
-                  turnId,
-                  tokenUsage: { total },
+                  turnId: replay.turnId,
+                  tokenUsage: { total: replay.total },
                 },
               });
-              waitingForTurnCompletion = true;
-              send({
-                method: "thread/status/changed",
-                params: {
-                  threadId: "fixture-thread",
-                  status: { type: "idle" },
-                },
-              });
-              setTimeout(() => {
-                waitingForTurnCompletion = false;
+              const continueCurrentGoal = (): void => {
+                goalIndex++;
+                const turnId: string = `turn-${goalIndex}`;
+                const total = {
+                  totalTokens: goalIndex * 10,
+                  inputTokens: goalIndex * 6,
+                  cachedInputTokens: goalIndex * 2,
+                  cacheWriteInputTokens: goalIndex,
+                  outputTokens: goalIndex * 4,
+                  reasoningOutputTokens: goalIndex * 3,
+                };
                 send({
-                  method: "turn/completed",
+                  method: "thread/status/changed",
                   params: {
                     threadId: "fixture-thread",
-                    turn: { id: turnId, status: "completed", durationMs: 1 },
+                    status: { type: "active" },
                   },
                 });
-              }, 10);
-            };
-            const emitSnapshot = (): void =>
-              send(
-                {
+                send({
+                  method: "turn/started",
+                  params: {
+                    threadId: "fixture-thread",
+                    turn: { id: turnId },
+                  },
+                });
+                send({
                   method: "thread/goal/updated",
                   params: {
                     threadId: "fixture-thread",
-                    goal: goal(
-                      retainedObjective(),
-                      previousActive || currentActive ? "active" : "complete",
-                    ),
-                    turnId: null,
+                    goal: goal(retainedObjective(), "complete"),
+                    turnId,
                   },
-                },
-                currentActive ? continueCurrentGoal : undefined,
-              );
-            if (lateResumeSnapshot) setTimeout(emitSnapshot, 10);
-            else emitSnapshot();
-          }
-        },
-      );
+                });
+                send({
+                  method: "thread/tokenUsage/updated",
+                  params: {
+                    threadId: "fixture-thread",
+                    turnId,
+                    tokenUsage: { total },
+                  },
+                });
+                waitingForTurnCompletion = true;
+                send({
+                  method: "thread/status/changed",
+                  params: {
+                    threadId: "fixture-thread",
+                    status: { type: "idle" },
+                  },
+                });
+                setTimeout(() => {
+                  waitingForTurnCompletion = false;
+                  send({
+                    method: "turn/completed",
+                    params: {
+                      threadId: "fixture-thread",
+                      turn: { id: turnId, status: "completed", durationMs: 1 },
+                    },
+                  });
+                }, 10);
+              };
+              const emitSnapshot = (): void =>
+                send(
+                  {
+                    method: "thread/goal/updated",
+                    params: {
+                      threadId: "fixture-thread",
+                      goal: goal(
+                        retainedObjective(),
+                        currentBlocked
+                          ? "blocked"
+                          : previousActive ||
+                              currentActive ||
+                              currentInterruptedActive
+                            ? "active"
+                            : "complete",
+                      ),
+                      turnId: null,
+                    },
+                  },
+                  currentActive || currentInterruptedActive
+                    ? continueCurrentGoal
+                    : undefined,
+                );
+              if (lateResumeSnapshot) setTimeout(emitSnapshot, 10);
+              else emitSnapshot();
+            }
+          },
+        );
+      if (resumeStatusBeforeResponse)
+        return send(
+          {
+            method: "thread/status/changed",
+            params: {
+              threadId: "fixture-thread",
+              status: { type: "idle" },
+            },
+          },
+          respond,
+        );
+      return respond();
+    }
     if (request.method === "thread/goal/get")
       return send({
         id: request.id,
@@ -874,9 +1057,14 @@ const fakeAppServer = (): void => {
             : previousGoal
               ? goal(
                   retainedObjective(),
-                  activeGoalGet || previousActive || currentActive
-                    ? "active"
-                    : "complete",
+                  currentBlocked
+                    ? "blocked"
+                    : activeGoalGet ||
+                        previousActive ||
+                        currentActive ||
+                        currentInterruptedActive
+                      ? "active"
+                      : "complete",
                 )
               : null,
         },

@@ -114,6 +114,13 @@ export namespace EvidenceBenchmarkRunner {
     let resumeSnapshotPending: boolean = !fresh;
     let resumeSnapshot: Record<string, unknown> | undefined;
     let resumeSnapshotRecordIndex: number | undefined;
+    let resumeUsageReplay:
+      | {
+          turnId: string;
+          usage: IEvidenceBenchmarkTokenUsage;
+        }
+      | undefined;
+    const resumeLifecycle: Record<string, unknown>[] = [];
     let resolveResumeSnapshot!: () => void;
     const resumeSnapshotPromise = new Promise<void>((resolve) => {
       resolveResumeSnapshot = resolve;
@@ -138,6 +145,7 @@ export namespace EvidenceBenchmarkRunner {
     ]);
     const processIndex: number = state.processes.length;
     const processRecord: IEvidenceBenchmarkProcessRecord = {
+      runnerRevision: props.runnerRevision,
       command,
       arguments: arguments_,
       elapsedMs: 0,
@@ -351,23 +359,55 @@ export namespace EvidenceBenchmarkRunner {
                 : state.goals.find(
                     (candidate) => candidate.index === record.index - 1,
                   );
+            const exact: boolean =
+              retained !== undefined &&
+              sameUsage(usage, state.threadTokenUsage) &&
+              retained.tokenUsageTurnId === params.turnId &&
+              (currentOwnsReplay ||
+                (retained.goal?.status === "complete" &&
+                  retained.terminalTurnId !== null &&
+                  retained.terminalTurnCompleted &&
+                  retained.threadIdle &&
+                  retained.tokenUsageTurnId === retained.terminalTurnId &&
+                  retained.tokenUsageEnd !== null &&
+                  sameUsage(retained.tokenUsageEnd, state.threadTokenUsage)));
+            if (exact) {
+              publish();
+              return;
+            }
+            if (
+              currentOwnsReplay &&
+              canOwnInterruptedUsageReplay(record.goal?.status) &&
+              usageAdvanced(usage, state.threadTokenUsage)
+            ) {
+              if (
+                resumeUsageReplay !== undefined &&
+                (resumeUsageReplay.turnId !== params.turnId ||
+                  !sameUsage(resumeUsageReplay.usage, usage))
+              )
+                throw new Error(
+                  "Codex emitted conflicting interrupted-turn token replays.",
+                );
+              resumeUsageReplay = {
+                turnId: params.turnId,
+                usage: structuredClone(usage),
+              };
+              return;
+            }
             if (
               retained === undefined ||
               !sameUsage(usage, state.threadTokenUsage) ||
-              retained.tokenUsageTurnId !== params.turnId ||
-              (!currentOwnsReplay &&
-                (retained.goal?.status !== "complete" ||
-                  retained.terminalTurnId === null ||
-                  !retained.terminalTurnCompleted ||
-                  !retained.threadIdle ||
-                  retained.tokenUsageTurnId !== retained.terminalTurnId ||
-                  retained.tokenUsageEnd === null ||
-                  !sameUsage(retained.tokenUsageEnd, state.threadTokenUsage)))
+              retained.tokenUsageTurnId !== params.turnId
             )
               throw new Error(
                 "Codex resume token replay does not match the retained checkpoint.",
               );
-            publish();
+            throw new Error(
+              "Codex resume token replay lacks an exact retained boundary.",
+            );
+          }
+          if (!resumeReconciled) {
+            resumeLifecycle.push(structuredClone(message));
             return;
           }
           state.threadTokenUsage = usage;
@@ -379,12 +419,11 @@ export namespace EvidenceBenchmarkRunner {
       }
       if (
         !resumeReconciled &&
-        resumeSnapshotPending &&
         !(message.method === "thread/goal/updated" && params.turnId === null)
-      )
-        throw new Error(
-          "Codex emitted resume lifecycle before its Goal snapshot.",
-        );
+      ) {
+        resumeLifecycle.push(structuredClone(message));
+        return;
+      }
       if (message.method === "turn/started") {
         current().threadIdle = false;
         publish();
@@ -465,6 +504,13 @@ export namespace EvidenceBenchmarkRunner {
         if (status.type === "systemError" || status.type === "notLoaded")
           finish("interrupted", message);
         else await advance();
+      }
+    };
+    const flushResumeLifecycle = async (): Promise<void> => {
+      const buffered: Record<string, unknown>[] = resumeLifecycle.splice(0);
+      for (const message of buffered) {
+        if (outcome !== undefined) return;
+        await notify(message);
       }
     };
 
@@ -608,7 +654,10 @@ export namespace EvidenceBenchmarkRunner {
                 instructionIndex: record.index,
                 nativeGoal: goal,
               });
-            else await beginGoal();
+            else {
+              await flushResumeLifecycle();
+              if (outcome === undefined) await beginGoal();
+            }
           } else if (
             resumeSnapshot === undefined ||
             resumeSnapshotRecordIndex === undefined
@@ -655,7 +704,8 @@ export namespace EvidenceBenchmarkRunner {
               validateNativeGoal(previous, resumeSnapshot, sessionId);
               validateNativeGoal(previous, goal, sessionId);
               resumeReconciled = true;
-              await beginGoal();
+              await flushResumeLifecycle();
+              if (outcome === undefined) await beginGoal();
             }
           } else {
             validateNativeGoal(record, record.goal, sessionId);
@@ -663,11 +713,10 @@ export namespace EvidenceBenchmarkRunner {
             validateNativeGoal(record, goal, sessionId);
             if (
               resumeSnapshotRecordIndex !== record.index ||
-              (goal.status !== "active" && goal.status !== "complete") ||
+              !isRetainedGoalStatus(goal.status) ||
               (resumeSnapshot.status === "complete" &&
                 goal.status !== "complete") ||
-              (record.goal.status !== "active" &&
-                record.goal.status !== "complete")
+              !isRetainedGoalStatus(record.goal.status)
             )
               finish("interrupted", {
                 name: "EvidenceBenchmarkResumeInterruption",
@@ -696,14 +745,79 @@ export namespace EvidenceBenchmarkRunner {
                 tokenUsageTurnId: record.tokenUsageTurnId,
               });
             else {
+              reconcileInterruptedUsageReplay(record, thread);
               resumeReconciled = true;
-              await advance();
+              publish();
+              await flushResumeLifecycle();
+              if (outcome === undefined) {
+                if (isInterruptedGoalStatus(goal.status)) await beginGoal();
+                else await advance();
+              }
             }
           }
         }
       }
     } catch (error) {
       finish("interrupted", error);
+    }
+
+    function reconcileInterruptedUsageReplay(
+      record: IEvidenceBenchmarkGoalRecord,
+      thread: Record<string, unknown>,
+    ): void {
+      if (resumeUsageReplay === undefined) return;
+      if (
+        !canOwnInterruptedUsageReplay(record.goal?.status) ||
+        record.tokenUsageTurnId === null
+      )
+        throw new Error(
+          "Codex advanced token replay does not belong to an interrupted Goal.",
+        );
+      const values: unknown = thread.turns;
+      if (!Array.isArray(values))
+        throw new Error(
+          "Codex omitted turn history needed to prove interrupted token replay.",
+        );
+      const turns: Record<string, unknown>[] = values.map((value) =>
+        object(value),
+      );
+      const retainedIndex: number = turns.findIndex(
+        (turn) => turn.id === record.tokenUsageTurnId,
+      );
+      const replayIndex: number = turns.findIndex(
+        (turn) =>
+          turn.id === resumeUsageReplay?.turnId &&
+          turn.status === "interrupted",
+      );
+      const sameInterruptedTurn: boolean =
+        resumeUsageReplay.turnId === record.tokenUsageTurnId &&
+        replayIndex === retainedIndex;
+      const nextInterruptedTurn: boolean = replayIndex === retainedIndex + 1;
+      const trailingTurnsInterrupted: boolean = turns
+        .slice(replayIndex)
+        .every((turn) => turn.status === "interrupted");
+      if (
+        retainedIndex === -1 ||
+        (!sameInterruptedTurn && !nextInterruptedTurn) ||
+        !trailingTurnsInterrupted
+      )
+        throw new Error(
+          `Codex interrupted token replay is not the exact retained or next turn followed only by interrupted turns: ${JSON.stringify(
+            {
+              retainedTurnId: record.tokenUsageTurnId,
+              replayTurnId: resumeUsageReplay.turnId,
+              retainedIndex,
+              replayIndex,
+              turns: turns.map((turn) => ({
+                id: turn.id,
+                status: turn.status,
+              })),
+            },
+          )}`,
+        );
+      state.threadTokenUsage = structuredClone(resumeUsageReplay.usage);
+      record.tokenUsageTurnId = resumeUsageReplay.turnId;
+      resumeUsageReplay = undefined;
     }
 
     const result: "completed" | "interrupted" = await outcomePromise;
@@ -881,6 +995,27 @@ export namespace EvidenceBenchmarkRunner {
       throw new Error(
         "Native Goal does not match the retained thread and objective.",
       );
+  }
+
+  function isRetainedGoalStatus(value: unknown): boolean {
+    return (
+      value === "active" ||
+      value === "complete" ||
+      isInterruptedGoalStatus(value)
+    );
+  }
+
+  function isInterruptedGoalStatus(value: unknown): boolean {
+    return (
+      value === "paused" ||
+      value === "blocked" ||
+      value === "usageLimited" ||
+      value === "budgetLimited"
+    );
+  }
+
+  function canOwnInterruptedUsageReplay(value: unknown): boolean {
+    return value === "active" || isInterruptedGoalStatus(value);
   }
 
   function locateWindowsCommand(

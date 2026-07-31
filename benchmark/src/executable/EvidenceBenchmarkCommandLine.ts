@@ -9,6 +9,7 @@ import typia from "typia";
 import { EvidenceBenchmarkClaudeRunner } from "../EvidenceBenchmarkClaudeRunner.ts";
 import { EvidenceBenchmarkRunner } from "../EvidenceBenchmarkRunner.ts";
 import { EvidenceBenchmarkWorkspace } from "../EvidenceBenchmarkWorkspace.ts";
+import { sanitizeBenchmarkEnvironment } from "../sanitizeBenchmarkEnvironment.ts";
 import type { IEvidenceBenchmarkClaudeRunState } from "../structures/IEvidenceBenchmarkClaudeRunState.ts";
 import type { IEvidenceBenchmarkOutput } from "../structures/IEvidenceBenchmarkOutput.ts";
 import type { IEvidenceBenchmarkRunState } from "../structures/IEvidenceBenchmarkRunState.ts";
@@ -62,13 +63,13 @@ const main = async (): Promise<void> => {
   const options: IEvidenceBenchmarkArguments = parseArguments(
     process.argv.slice(2),
   );
-  const benchmarkRevision: string = readBenchmarkRevision(repository);
+  const runnerRevision: string = readBenchmarkRevision(repository);
   const requestedCell: IEvidenceBenchmarkCell = {
     engine: options.engine,
     subject: options.subject,
     arm: options.arm,
     runId: options.runId ?? crypto.randomUUID(),
-    benchmarkRevision,
+    benchmarkRevision: runnerRevision,
     model: options.model,
     effort: options.effort,
   };
@@ -96,12 +97,13 @@ const main = async (): Promise<void> => {
     cell.engine !== requestedCell.engine ||
     cell.subject !== requestedCell.subject ||
     cell.arm !== requestedCell.arm ||
-    cell.benchmarkRevision !== requestedCell.benchmarkRevision ||
     cell.model !== requestedCell.model ||
     cell.effort !== requestedCell.effort ||
     cell.runId !== requestedCell.runId
   )
     throw new Error("Retained benchmark cell does not match the invocation.");
+  if (retained !== undefined)
+    assertRecoveryRevision(repository, cell.benchmarkRevision, runnerRevision);
   if (
     retained !== undefined &&
     ((cell.arm === "evidence" &&
@@ -114,7 +116,7 @@ const main = async (): Promise<void> => {
 
   if (retained !== undefined) {
     assertRegularFile(records.state);
-    await runBenchmark(cell, records, retained.state);
+    await runBenchmark(cell, records, retained.state, runnerRevision);
     return;
   }
 
@@ -175,6 +177,7 @@ const main = async (): Promise<void> => {
     cell.engine === "codex"
       ? EvidenceBenchmarkRunner.create(cell.arm)
       : EvidenceBenchmarkClaudeRunner.create(cell.arm),
+    runnerRevision,
   );
 };
 
@@ -182,6 +185,7 @@ const runBenchmark = async (
   cell: IEvidenceBenchmarkCell,
   records: IEvidenceBenchmarkRecordPaths,
   initialState: EvidenceBenchmarkState,
+  runnerRevision: string,
 ): Promise<void> => {
   if (initialState.arm !== cell.arm)
     throw new Error("Retained benchmark state uses a different arm.");
@@ -200,10 +204,9 @@ const runBenchmark = async (
       throw new Error("Evidence benchmark artifact no longer matches its SHA.");
   }
   const repository: string = path.resolve(import.meta.dirname, "../../..");
-  const environment: NodeJS.ProcessEnv = { ...process.env };
-  for (const name of Object.keys(environment))
-    if (name.toUpperCase() === "EVIDENCE_BENCHMARK_ARCHIVE")
-      delete environment[name];
+  const environment: NodeJS.ProcessEnv = sanitizeBenchmarkEnvironment(
+    process.env,
+  );
   const eventDescriptor: number = fs.openSync(records.events, "a");
   const rawDescriptor: number = fs.openSync(records.raw, "a");
   try {
@@ -243,6 +246,7 @@ const runBenchmark = async (
             ),
             model: cell.model,
             effort: cell.effort,
+            runnerRevision,
             environment,
             onOutput,
             onState,
@@ -257,6 +261,7 @@ const runBenchmark = async (
             ),
             model: cell.model,
             effort: claudeEffort(cell.effort),
+            runnerRevision,
             environment,
             onOutput,
             onState,
@@ -363,6 +368,28 @@ const readBenchmarkRevision = (repository: string): string => {
   if (revision.status !== 0 || !/^[0-9a-f]{40}$/i.test(value))
     throw new Error("Unable to identify the benchmark repository revision.");
   return value;
+};
+
+const assertRecoveryRevision = (
+  repository: string,
+  benchmarkRevision: string,
+  runnerRevision: string,
+): void => {
+  if (benchmarkRevision === runnerRevision) return;
+  const ancestry = spawnSync(
+    "git",
+    ["merge-base", "--is-ancestor", benchmarkRevision, runnerRevision],
+    {
+      cwd: repository,
+      encoding: "utf8",
+      shell: false,
+      windowsHide: true,
+    },
+  );
+  if (ancestry.status !== 0)
+    throw new Error(
+      "Recovery runner revision must descend from the frozen benchmark revision.",
+    );
 };
 
 const sha256 = (file: string): string =>

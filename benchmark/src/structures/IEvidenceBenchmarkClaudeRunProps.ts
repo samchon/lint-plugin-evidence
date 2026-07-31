@@ -24,6 +24,9 @@ export interface IEvidenceBenchmarkClaudeRunProps {
   /** Explicit native effort level. */
   effort: EvidenceBenchmarkClaudeEffort;
 
+  /** Repository revision of this runner invocation. */
+  runnerRevision?: string;
+
   /** Sanitized child-process environment. */
   environment?: NodeJS.ProcessEnv;
 

@@ -13,23 +13,18 @@ Before measurement:
 2. Use the campaign branch in the repository's single worktree.
 3. Push an empty campaign commit and open a draft pull request.
 4. Record the authorized matrix, benchmark revision, engines, models, efforts, CLI versions, Evidence archive digest, and live dashboard in the pull-request body.
-5. Assign one read-only reporting subagent to update that body every 10 minutes and immediately after a state change or anomaly.
+5. Assign one read-only reporting subagent to update that body every 5 minutes and immediately after a state change or anomaly.
 
-Keep exactly these dashboard sections and columns:
+Generate the dashboard with `pnpm --filter @samchon/evidence-benchmark dashboard`; do not inspect workspace source to reconstruct its values. Group it by authorized model, keep one H2 per model, show only the latest launched run for each cell, and omit cells that have not launched:
 
 ```markdown
-## Codex
+## GPT-5.6-Terra
 
-| Project | Mode | Run ID | Progress | Quality | Native usage | Cost | Time |
-| ------- | ---- | ------ | -------- | ------- | ------------ | ---- | ---- |
-
-## Claude Code
-
-| Project | Mode | Run ID | Progress | Quality | Native usage | Cost | Time |
-| ------- | ---- | ------ | -------- | ------- | ------------ | ---- | ---- |
+| Project | Mode | Stage | Progress | Cost | Time |
+| ------- | ---- | ----- | -------- | ---- | ---- |
 ```
 
-`Progress` reports the retained instruction and status. `Quality` remains `—` until completed-workspace review. Report only retained usage and cost. `Time` is completed instruction elapsed time plus the active process-relative `elapsedMs` from the latest retained event, rounded to whole seconds; setup and operator time stay separate.
+`Stage` keeps the exact current or last retained instruction name, such as `backend-start`, and appends only its short status, such as `· running` or `· interrupted`; put anomaly details outside the table. `Progress` is the read-only Git delta from the prepared workspace baseline, including tracked and untracked files, written as `27 files · +3.1k/−120 LOC`; it measures implementation volume, not completion percentage. `Cost` is retained total token usage rounded to the nearest million and written as an integer with `M`, such as `3M`. `Time` is finalized native-process elapsed time plus the active process's latest retained event time, rounded to whole minutes and written only in hours and minutes, such as `7m` or `1h 07m`; setup and operator time stay separate. Do not add run-ID, usage-breakdown, or quality columns.
 
 ## Prepare And Launch
 
@@ -73,7 +68,7 @@ Observe every active cell at least every 30 seconds. Check `state.json`, benchma
 
 Do not edit a measured workspace, prompt the measured agent, inject advice, weaken a gate, hard-code a subject answer, or expose Evidence material to Plain. Questions and partial reports do not invite operator input.
 
-Intervene only for an abnormal interruption or explicit cancellation. Never repair a measured workspace, edit retained state, substitute a session, or retry automatically.
+Intervene immediately for an abnormal interruption or explicit cancellation. Diagnose the retained state, process, events, and raw stream first; when the exact recovery conditions below match, resume the same run without waiting for operator prose or the next reporting interval. Never blind-retry before diagnosis, repair a measured workspace, edit retained state, or substitute a session.
 
 ## Recover Or Cancel
 
@@ -85,7 +80,11 @@ Resume only when the cell identity, frozen inputs, workspace, CLI version, objec
 pnpm --filter @samchon/evidence-benchmark start <engine> <subject> <arm> <model> <effort> <run-id>
 ```
 
+Keep the cell's original `benchmarkRevision` frozen. When recovery requires a committed runner correction, resume only from a clean descendant revision; retain that correction as the new process's `runnerRevision` while the runner revalidates the stored cell, instruction bytes, workspace, artifact digest, CLI, session, Goal, and token boundary.
+
 Codex may resume an exact retained Goal checkpoint. Claude Code may resume only at a successful instruction boundary or before an undispatched instruction; a dispatched instruction without a successful terminal result is not resumable.
+
+Start an eligible resume immediately after diagnosis and any required runner correction. If the resume itself fails, preserve that attempt, diagnose the new failure, and recover again from the last exact checkpoint; never abandon a cell or loop without evidence.
 
 On cancellation, stop the reporting subagent and every liveness watcher, then force-stop every benchmark command, native process, and owned descendant. Verify that no process references an affected run. Preserve every run directory and report each cell as incomplete; never delete or mark it complete.
 
