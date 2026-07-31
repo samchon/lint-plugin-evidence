@@ -10,11 +10,13 @@
     "./workspace": "./src/EvidenceBenchmarkWorkspace.ts"
   },
   "scripts": {
-    "start": "node --experimental-transform-types src/executable/EvidenceBenchmarkCommandLine.ts",
+    "start": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkCommandLine.ts",
     "check": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "catalog:utils",
+    "ttsc": "catalog:typescript",
+    "typia": "catalog:samchon",
     "typescript": "catalog:typescript"
   }
 }

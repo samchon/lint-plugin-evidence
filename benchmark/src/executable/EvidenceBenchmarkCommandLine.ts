@@ -4,21 +4,27 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import typia from "typia";
+
 import { EvidenceBenchmarkClaudeRunner } from "../EvidenceBenchmarkClaudeRunner.ts";
 import { EvidenceBenchmarkRunner } from "../EvidenceBenchmarkRunner.ts";
 import { EvidenceBenchmarkWorkspace } from "../EvidenceBenchmarkWorkspace.ts";
+import type { IEvidenceBenchmarkClaudeRunState } from "../structures/IEvidenceBenchmarkClaudeRunState.ts";
+import type { IEvidenceBenchmarkOutput } from "../structures/IEvidenceBenchmarkOutput.ts";
+import type { IEvidenceBenchmarkRunState } from "../structures/IEvidenceBenchmarkRunState.ts";
+import type { IEvidenceBenchmarkWorkspaceResult } from "../structures/IEvidenceBenchmarkWorkspaceResult.ts";
+import type { EvidenceBenchmarkArm } from "../typings/EvidenceBenchmarkArm.ts";
+import type { EvidenceBenchmarkClaudeEffort } from "../typings/EvidenceBenchmarkClaudeEffort.ts";
+import type { EvidenceBenchmarkEffort } from "../typings/EvidenceBenchmarkEffort.ts";
 
-type EvidenceBenchmarkEffort =
-  EvidenceBenchmarkRunner.IEvidenceBenchmarkRunProps["effort"];
 type EvidenceBenchmarkEngine = "codex" | "claude-code";
 type EvidenceBenchmarkState =
-  | EvidenceBenchmarkRunner.IEvidenceBenchmarkRunState
-  | EvidenceBenchmarkClaudeRunner.IEvidenceBenchmarkRunState;
+  IEvidenceBenchmarkRunState | IEvidenceBenchmarkClaudeRunState;
 
 interface IEvidenceBenchmarkArguments {
   engine: EvidenceBenchmarkEngine;
   subject: string;
-  arm: EvidenceBenchmarkRunner.EvidenceBenchmarkArm;
+  arm: EvidenceBenchmarkArm;
   model: string;
   effort: EvidenceBenchmarkEffort;
   runId?: string;
@@ -27,7 +33,7 @@ interface IEvidenceBenchmarkArguments {
 interface IEvidenceBenchmarkCell {
   engine: EvidenceBenchmarkEngine;
   subject: string;
-  arm: EvidenceBenchmarkRunner.EvidenceBenchmarkArm;
+  arm: EvidenceBenchmarkArm;
   runId: string;
   benchmarkRevision: string;
   evidenceArtifactSha256?: string;
@@ -79,9 +85,9 @@ const main = async (): Promise<void> => {
   const retained: IEvidenceBenchmarkStateFile | undefined =
     options.runId === undefined
       ? undefined
-      : (JSON.parse(
-          fs.readFileSync(path.join(output, "state.json"), "utf8"),
-        ) as IEvidenceBenchmarkStateFile);
+      : typia.assert<IEvidenceBenchmarkStateFile>(
+          JSON.parse(fs.readFileSync(path.join(output, "state.json"), "utf8")),
+        );
   const records: IEvidenceBenchmarkRecordPaths = recordPaths(output);
   if (retained !== undefined && !sameRecordPaths(retained.records, records))
     throw new Error("Retained benchmark record paths do not match the run.");
@@ -118,7 +124,7 @@ const main = async (): Promise<void> => {
       : undefined;
   const archive: string | undefined =
     temporary === undefined ? undefined : path.join(temporary, "evidence.tgz");
-  let prepared: EvidenceBenchmarkWorkspace.IEvidenceBenchmarkWorkspaceResult;
+  let prepared: IEvidenceBenchmarkWorkspaceResult;
   try {
     if (archive !== undefined) {
       const retainedArchive: string | undefined =
@@ -203,7 +209,7 @@ const runBenchmark = async (
   try {
     const onOutput = (
       processIndex: number,
-      output: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput,
+      output: IEvidenceBenchmarkOutput,
     ): void => {
       fs.writeFileSync(
         eventDescriptor,
@@ -310,7 +316,7 @@ const parseArguments = (
 
 const codexState = (
   state: EvidenceBenchmarkState,
-): EvidenceBenchmarkRunner.IEvidenceBenchmarkRunState => {
+): IEvidenceBenchmarkRunState => {
   if (!("threadTokenUsage" in state))
     throw new Error("Retained benchmark state does not belong to Codex.");
   return state;
@@ -318,7 +324,7 @@ const codexState = (
 
 const claudeState = (
   state: EvidenceBenchmarkState,
-): EvidenceBenchmarkClaudeRunner.IEvidenceBenchmarkRunState => {
+): IEvidenceBenchmarkClaudeRunState => {
   if ("threadTokenUsage" in state)
     throw new Error("Retained benchmark state does not belong to Claude Code.");
   return state;
@@ -326,7 +332,7 @@ const claudeState = (
 
 const claudeEffort = (
   effort: EvidenceBenchmarkEffort,
-): EvidenceBenchmarkClaudeRunner.EvidenceBenchmarkEffort => {
+): EvidenceBenchmarkClaudeEffort => {
   if (effort === "ultra")
     throw new Error("Claude Code does not support ultra effort.");
   return effort;

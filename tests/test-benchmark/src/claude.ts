@@ -5,6 +5,8 @@ import path from "node:path";
 
 import { EvidenceBenchmarkClaudeRunner } from "../../../benchmark/src/EvidenceBenchmarkClaudeRunner.ts";
 import { EvidenceBenchmarkRunner } from "../../../benchmark/src/EvidenceBenchmarkRunner.ts";
+import type { IEvidenceBenchmarkClaudeTokenUsage } from "../../../benchmark/src/structures/IEvidenceBenchmarkClaudeTokenUsage.ts";
+import type { IEvidenceBenchmarkOutput } from "../../../benchmark/src/structures/IEvidenceBenchmarkOutput.ts";
 
 /**
  * Verifies the Claude Code adapter against a free stream-JSON fixture.
@@ -28,7 +30,7 @@ const main = async (): Promise<void> => {
       import.meta.filename,
       "--fake-claude",
     ];
-    const output: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] = [];
+    const output: IEvidenceBenchmarkOutput[] = [];
     const completed = await EvidenceBenchmarkClaudeRunner.run({
       state: EvidenceBenchmarkClaudeRunner.create("evidence"),
       cwd: root,
@@ -55,7 +57,7 @@ const main = async (): Promise<void> => {
       cachedInputTokens: 18,
       cacheWriteInputTokens: 9,
       outputTokens: 36,
-    } satisfies EvidenceBenchmarkClaudeRunner.IEvidenceBenchmarkTokenUsage);
+    } satisfies IEvidenceBenchmarkClaudeTokenUsage);
     assert.equal("reasoningOutputTokens" in completed.tokenUsage, false);
     assert.equal(completed.costUsd, entries.length * 0.01);
     completed.processes.forEach((process, index) => {
@@ -100,7 +102,7 @@ const main = async (): Promise<void> => {
         cachedInputTokens: 2,
         cacheWriteInputTokens: 1,
         outputTokens: 4,
-      } satisfies EvidenceBenchmarkClaudeRunner.IEvidenceBenchmarkTokenUsage);
+      } satisfies IEvidenceBenchmarkClaudeTokenUsage);
       assert.equal(instruction.costUsd, 0.01);
     });
     assert.deepEqual(
@@ -193,14 +195,14 @@ const main = async (): Promise<void> => {
       cachedInputTokens: 1,
       cacheWriteInputTokens: 1,
       outputTokens: 2,
-    } satisfies EvidenceBenchmarkClaudeRunner.IEvidenceBenchmarkTokenUsage);
+    } satisfies IEvidenceBenchmarkClaudeTokenUsage);
     assert.deepEqual(errorResult.tokenUsage, {
       totalTokens: 5,
       inputTokens: 1,
       cachedInputTokens: 1,
       cacheWriteInputTokens: 1,
       outputTokens: 2,
-    } satisfies EvidenceBenchmarkClaudeRunner.IEvidenceBenchmarkTokenUsage);
+    } satisfies IEvidenceBenchmarkClaudeTokenUsage);
     assert.equal(errorResult.instructions[0]?.costUsd, 0.02);
     assert.equal(errorResult.costUsd, 0.02);
     assert.equal(errorResult.processes[0]?.exitCode, 1);

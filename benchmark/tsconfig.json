@@ -4,7 +4,13 @@
     "allowImportingTsExtensions": true,
     "declaration": false,
     "noEmit": true,
+    "plugins": [
+      {
+        "transform": "typia/lib/transform"
+      }
+    ],
     "rootDir": "src",
+    "rewriteRelativeImportExtensions": true,
     "sourceMap": false,
     "types": ["node"]
   },

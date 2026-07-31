@@ -5,6 +5,9 @@ import path from "node:path";
 import readline from "node:readline";
 
 import { EvidenceBenchmarkRunner } from "../../../benchmark/src/EvidenceBenchmarkRunner.ts";
+import type { IEvidenceBenchmarkOutput } from "../../../benchmark/src/structures/IEvidenceBenchmarkOutput.ts";
+import type { IEvidenceBenchmarkRunState } from "../../../benchmark/src/structures/IEvidenceBenchmarkRunState.ts";
+import type { IEvidenceBenchmarkTokenUsage } from "../../../benchmark/src/structures/IEvidenceBenchmarkTokenUsage.ts";
 
 const ENTRIES = [
   ["skills-contract", "skills-contract.md"],
@@ -42,9 +45,8 @@ const main = async (): Promise<void> => {
       import.meta.filename,
       "--fake-app-server",
     ];
-    const snapshots: EvidenceBenchmarkRunner.IEvidenceBenchmarkRunState[] = [];
-    const completedOutput: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] =
-      [];
+    const snapshots: IEvidenceBenchmarkRunState[] = [];
+    const completedOutput: IEvidenceBenchmarkOutput[] = [];
     let enterSessionCheckpoint!: () => void;
     const sessionCheckpointEntered = new Promise<void>((resolve) => {
       enterSessionCheckpoint = resolve;
@@ -137,7 +139,7 @@ const main = async (): Promise<void> => {
         cacheWriteInputTokens: 1,
         outputTokens: 4,
         reasoningOutputTokens: 3,
-      } satisfies EvidenceBenchmarkRunner.IEvidenceBenchmarkTokenUsage);
+      } satisfies IEvidenceBenchmarkTokenUsage);
     });
     assert.deepEqual(completed.threadTokenUsage, {
       totalTokens: 90,
@@ -146,11 +148,10 @@ const main = async (): Promise<void> => {
       cacheWriteInputTokens: 9,
       outputTokens: 36,
       reasoningOutputTokens: 27,
-    } satisfies EvidenceBenchmarkRunner.IEvidenceBenchmarkTokenUsage);
+    } satisfies IEvidenceBenchmarkTokenUsage);
     assert.equal(snapshots.at(-1)?.status, "completed");
 
-    const terminalLfOutput: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] =
-      [];
+    const terminalLfOutput: IEvidenceBenchmarkOutput[] = [];
     const terminalLf = await EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("evidence"),
       cwd: root,
@@ -330,8 +331,7 @@ const main = async (): Promise<void> => {
       /invalid completed Goal/,
     );
 
-    const interruptedOutput: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] =
-      [];
+    const interruptedOutput: IEvidenceBenchmarkOutput[] = [];
     const interrupted = await EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("evidence"),
       cwd: root,
@@ -436,8 +436,7 @@ const main = async (): Promise<void> => {
       /notification omitted its thread ID/,
     );
 
-    const stateFailureOutput: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] =
-      [];
+    const stateFailureOutput: IEvidenceBenchmarkOutput[] = [];
     let stateCheckpointCount = 0;
     const stateFailure = await EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("evidence"),
@@ -508,8 +507,7 @@ const main = async (): Promise<void> => {
     completedCurrentBoundary.threadTokenUsage = structuredClone(
       completedCurrentBoundary.goals[1]!.tokenUsageEnd!,
     );
-    const completedCurrentOutput: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] =
-      [];
+    const completedCurrentOutput: IEvidenceBenchmarkOutput[] = [];
     const completedCurrentResume = await EvidenceBenchmarkRunner.run({
       state: completedCurrentBoundary,
       cwd: root,
@@ -576,8 +574,7 @@ const main = async (): Promise<void> => {
     activeCurrentBoundary.threadTokenUsage = structuredClone(
       activeCurrentBoundary.goals[0]!.tokenUsageEnd!,
     );
-    const activeCurrentOutput: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput[] =
-      [];
+    const activeCurrentOutput: IEvidenceBenchmarkOutput[] = [];
     const activeCurrentResume = await EvidenceBenchmarkRunner.run({
       state: activeCurrentBoundary,
       cwd: root,
