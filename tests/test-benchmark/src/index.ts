@@ -38,9 +38,9 @@ const ENTRIES = EVIDENCE_ENTRIES;
 /**
  * Verifies the small production runner against a free app-server fixture.
  *
- * Each prescribed instruction and its arm-owned continuation become one
- * active Goal. Native Goal, turn, token, process, and raw-stream facts are
- * recorded; the runner performs no workspace judgment.
+ * Each prescribed instruction and its arm-owned continuation become one active
+ * Goal. Native Goal, turn, token, process, and raw-stream facts are recorded;
+ * the runner performs no workspace judgment.
  *
  * 1. Complete every prescribed Goal through one fake app-server process.
  * 2. Assert exact text, automatic progression, token deltas, and raw records.
@@ -825,9 +825,7 @@ const readObjective = (
   entry: (typeof ENTRIES)[number],
 ): string => {
   const prescribed: Buffer | undefined = sources.get(entry[1]);
-  const continuation: Buffer | undefined = sources.get(
-    "evidence/continue.md",
-  );
+  const continuation: Buffer | undefined = sources.get("evidence/continue.md");
   assert.ok(
     prescribed,
     `Missing fixture source: ${path.join(root, ...entry[1].split("/"))}`,

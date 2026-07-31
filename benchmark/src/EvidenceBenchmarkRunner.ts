@@ -849,8 +849,8 @@ export namespace EvidenceBenchmarkRunner {
   /**
    * Returns the frozen nine-objective sequence for an experiment arm.
    *
-   * Each arm owns every instruction byte. Paths and positions remain
-   * comparable without either arm reading a shared runtime objective.
+   * Each arm owns every instruction byte. Paths and positions remain comparable
+   * without either arm reading a shared runtime objective.
    */
   export function instructionEntries(
     arm: EvidenceBenchmarkArm,
@@ -868,9 +868,7 @@ export namespace EvidenceBenchmarkRunner {
     ];
   }
 
-  /**
-   * Returns the arm-owned continuation appended to every objective.
-   */
+  /** Returns the arm-owned continuation appended to every objective. */
   export function instructionContinuationPath(
     arm: EvidenceBenchmarkArm,
   ): string {
