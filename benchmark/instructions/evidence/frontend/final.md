@@ -1,7 +1,3 @@
 # Evidence Frontend Final
 
-Did the current frontend compile successfully?
-
-Did you actually run the browser runtime tests against the current frontend and live backend?
-
-If either answer is no or unproven, run the required command and fix every failure. Complete only when both answers are yes.
+Keep `pnpm dev` running from `packages/frontend`, then run `pnpm test:e2e` against the current frontend and live backend. Fix every failure and complete only after the development build, production build, and browser tests all succeed.

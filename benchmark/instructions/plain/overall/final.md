@@ -1,8 +1,10 @@
 # Overall Final
 
-Did the preceding overall review actually perform the literal, indivisible, full-scope reading required by its instruction? This objective audits only that question. Do not perform a substitute review or use searches, summaries, inventories, builds, tests, or Git status as proof.
+Did the preceding overall review actually perform the literal, indivisible, full-scope reading required by its instruction? Do not perform a substitute review or use searches, summaries, inventories, builds, tests, or Git status as proof.
 
 If any condition below is unproven, return to the preceding overall review objective and continue it. Complete only when every condition is proven.
+
+Require backend `pnpm check:watch` and frontend `pnpm dev` to report clean current builds. Clean builds are required but are not proof of the review.
 
 | Verify | Required result |
 | --- | --- |

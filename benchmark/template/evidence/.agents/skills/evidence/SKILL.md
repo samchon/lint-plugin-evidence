@@ -54,15 +54,15 @@ The benchmark activates only `evidence/graph`. Do not add `evidence/todo`: the E
 
 `packages/backend/lint.config.ts` is the sole canonical owner of all five backend-phase claims. The package's single `tsconfig.json` includes backend source, backend tests, and `packages/api/src/structures`, so every rooted claim population stays inside `ttsc`'s supplied source roots rather than being discovered from imports or the filesystem.
 
-Every backend command uses that one Program. `pnpm lint` invokes `ttsc check` explicitly, which loads the root lint configuration; build and test commands do not carry lint-plugin settings in `tsconfig.json`. TypeScript claim activation derives applicability from the Program's actual selected exported hosts; no stage owns a narrower projection.
+`pnpm check:watch` runs that one Program throughout the backend phase. It automatically loads the root lint configuration, reloads that configuration and its local dependencies when they change, and reports type, lint, and Evidence diagnostics after every source or project-input change. TypeScript claim activation derives applicability from the Program's actual selected exported hosts; no stage owns a narrower projection.
 
-Nestia sets `NESTIA_SDK_TRANSFORM=1` inside its private transform context, which does not preserve the package root that the graph populations require. The canonical configuration contains one exact, immutable bypass for that environment only. The ordinary `pnpm lint` gate runs the graph at `error` severity.
+Nestia sets `NESTIA_SDK_TRANSFORM=1` inside its private transform context, which does not preserve the package root that the graph populations require. The canonical configuration contains one exact, immutable bypass for that environment only. The persistent watcher remains outside that private transform and runs the graph at `error` severity.
 
 The template ships all seven claim objects and `evidence/graph` at `error` severity as frozen configuration. TypeScript claim activation follows the selected exported host population; it is never managed through `lint.config.ts`.
 
 ## Phase Gates
 
-At the Backend Phase gate, validate all five configured claims in `packages/backend/lint.config.ts`, confirm the sealed Nestia guard and single root `tsconfig.json` are unchanged, and follow the canonical backend gate in [Backend](../backend/SKILL.md). `build:sdk` proves generation, not graph health: the ordinary canonical `pnpm lint` immediately before and after it must pass with the guard inactive.
+At the Backend Phase gate, validate all five configured claims in `packages/backend/lint.config.ts`, confirm the sealed Nestia guard and single root `tsconfig.json` are unchanged, and follow the canonical backend gate in [Backend](../backend/SKILL.md). `build:sdk` proves generation, not graph health: the persistent watcher must complete a clean rebuild before and after it with the guard inactive.
 
 At the Frontend Phase gate, confirm all seven claim objects remain configured in the two canonical files with their original populations and `error` severities. Confirm the backend still has one root Program and validate the frontend claims. If frontend work changed an API or backend source, re-pass the affected backend gate first.
 

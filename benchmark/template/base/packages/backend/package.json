@@ -9,6 +9,7 @@
     "build:prisma": "prisma generate --schema=prisma/schema",
     "build:sdk": "nestia all && pnpm --dir ../api build",
     "build:test": "ttsc --noEmit",
+    "check:watch": "ttsc --watch --noEmit --preserveWatchOutput",
     "dev": "ttsx src/executable/server.ts",
     "format": "ttsc format",
     "lint": "ttsc check",

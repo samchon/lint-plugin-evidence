@@ -1,3 +1,3 @@
 # Evidence Backend Final
 
-Run `pnpm build:test` and `pnpm test` from `packages/backend` against the current implementation and fix every failure. Complete only when both commands succeed.
+Keep `pnpm check:watch` running from `packages/backend` and run `pnpm test` against the current implementation. Fix every failure and complete only after the latest watcher rebuild and the runtime suite both succeed.

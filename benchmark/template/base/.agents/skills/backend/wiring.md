@@ -99,37 +99,36 @@ Three of its settings matter beyond the paths.
 
 ```bash
 cd packages/backend
+pnpm check:watch    # keep type, lint, and contributor checks running
 pnpm build:prisma   # generate the client and the ERD
 pnpm schema         # reset the SQLite database to the schema
 
-pnpm build:main     # compile DTOs, controllers, and backend source
 pnpm build:sdk      # after every operation and DTO is settled
-pnpm build:test     # compile tests against the generated SDK
 pnpm test           # run the e2e suite
 ```
 
-The order is a dependency chain, not a preference. Nothing that imports the database client compiles before `build:prisma`. The single backend `build:main` program proves the DTO and controller contract together. Run `build:sdk` only after every operation and DTO is settled; it generates the SDK and compiles the complete API package, then tests consume that fixed output.
+The watcher starts first and stays resident. Its single Program includes backend source, tests, and authored API DTOs, automatically reloads lint configuration, and reports type, lint, and contributor diagnostics after every change. Nothing that imports the database client becomes clean before `build:prisma`. Run `build:sdk` only after every operation and DTO is settled; it generates the SDK and compiles the complete API package, then tests consume that fixed output.
 
 Do not use the backend package's aggregate `pnpm build` while developing this phase, and do not run the workspace-root build. The aggregate command hides which authored layer failed, while the root command also compiles the unfinished frontend.
 
 ## One Writer At A Time
 
-Generation, build, lint, and test commands share generated API files, Prisma output, compiler caches, and plugin executables. Run them serially in one workspace. Never start SDK generation beside another SDK generation, build, lint, or test, and never launch parallel agents that mutate the same generated tree.
+Generation and test commands share generated API files and Prisma output. Run those writers serially in one workspace, and never launch parallel agents that mutate the same generated tree. The read-only `check:watch` process remains resident while they run; transient diagnostics during generated-file replacement do not describe the settled state, so wait for its next completed rebuild.
 
 A generator temporarily owns its output. Wait for it to finish before another command reads that output. Parallel execution here is not faster: one process can delete or replace a barrel while another compiler is reading it.
 
 ## When To Regenerate
 
-| Change                                   | Run during authoring                                      |
-| ---------------------------------------- | --------------------------------------------------------- |
-| a model, a column, or a schema comment   | backend `build:prisma`, then `schema`                     |
-| a DTO in `packages/api/src/structures`   | backend `build:main`                                      |
-| a controller signature, route, or method | backend `build:main`                                      |
-| JSDoc on a controller method             | backend `build:main`                                      |
-| a provider body only                     | backend `build:main`                                      |
-| the complete DTO/operation contract      | backend `build:sdk`, then `build:test`                    |
+| Change                                   | Run during authoring                  |
+| ---------------------------------------- | ------------------------------------- |
+| a model, a column, or a schema comment   | backend `build:prisma`, then `schema` |
+| a DTO in `packages/api/src/structures`   | wait for `check:watch`                |
+| a controller signature, route, or method | wait for `check:watch`                |
+| JSDoc on a controller method             | wait for `check:watch`                |
+| a provider body only                     | wait for `check:watch`                |
+| the complete DTO/operation contract      | backend `build:sdk`                   |
 
-When a DTO or operation changes after SDK generation, finish the complete contract correction first, rerun backend `build:main`, then regenerate the SDK once. Do not use a root build as a substitute for assigning the failure to its package.
+When a DTO or operation changes after SDK generation, finish the complete contract correction first, wait for a clean watcher rebuild, then regenerate the SDK once. Do not use a root build as a substitute for assigning the failure to its package.
 
 ## Consuming The SDK
 

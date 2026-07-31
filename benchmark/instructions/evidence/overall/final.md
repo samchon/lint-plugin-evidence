@@ -1,7 +1,3 @@
 # Evidence Overall Final
 
-Did the complete application compile successfully?
-
-Did you actually run the backend and browser runtime tests against the current application?
-
-If either answer is no or unproven, run the required command and fix every failure. Complete only when both answers are yes.
+Keep backend `pnpm check:watch` and frontend `pnpm dev` running, then run `pnpm test` from `packages/backend` and `pnpm test:e2e` from `packages/frontend` against the current application. Fix every failure and complete only after both current builds and both runtime suites succeed.

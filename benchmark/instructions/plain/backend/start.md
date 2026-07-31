@@ -4,6 +4,8 @@ Read `AGENTS.md` and every document under `.agents/skills/backend/` in full befo
 
 This stage owns only the complete first implementation of the API and backend. Do not implement the frontend or perform the review yet.
 
+Start `pnpm check:watch` from `packages/backend` as a persistent background process before implementation, monitor its output, and keep it running through every backend objective. Fix every diagnostic it reports, and complete an objective only after its latest rebuild succeeds.
+
 1. Read every file under `docs/analysis/` in full, without omitting a single file, section, or requirement.
 2. Design the complete requirement-derived database under `packages/backend/prisma/schema/`. When the whole schema is settled, run `pnpm build:prisma` and `pnpm schema` from `packages/backend`.
 3. Based on the requirements under `docs/analysis/` and the database design under `packages/backend/prisma/schema/`, design every API controller under `packages/backend/src/controllers/` and every DTO under `packages/api/src/structures/` without omitting any required operation or data contract.
