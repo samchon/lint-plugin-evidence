@@ -175,10 +175,7 @@ const main = async (): Promise<void> => {
       const objective: string = readObjective(root, sources, ENTRIES[index]!);
       assert.ok(objective.endsWith("\n"));
       assert.equal(goal.objectiveText, objective);
-      assert.deepEqual(
-        Buffer.from(goal.objectiveText),
-        Buffer.from(objective),
-      );
+      assert.deepEqual(Buffer.from(goal.objectiveText), Buffer.from(objective));
       assert.equal(
         (terminalLfRequests[index]?.params as Record<string, unknown>)
           ?.objective,
@@ -201,11 +198,7 @@ const main = async (): Promise<void> => {
       model: "fixture-model",
       effort: "high",
       command: process.execPath,
-      commandPrefixArguments: [
-        ...prefix,
-        "--previous-goal",
-        "--terminal-lf",
-      ],
+      commandPrefixArguments: [...prefix, "--previous-goal", "--terminal-lf"],
       onOutput: () => undefined,
     });
     assert.equal(terminalLfResume.status, "completed");

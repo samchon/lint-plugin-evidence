@@ -52,7 +52,7 @@ Keep the dashboard grouped under exactly `## Codex` and `## Claude Code`. Use th
 | ------- | ---- | ------ | -------- | ------- | ------------ | ---- | ---- |
 ```
 
-`Progress` names the retained instruction and status without unexplained abbreviations. `Quality` remains `—` until the completed-workspace review. Report native usage, cost, and model-process time only when the retained record establishes them; use `—` rather than estimating a missing value. Setup and operator time remain outside model-process time.
+`Progress` names the retained instruction and status without unexplained abbreviations. `Quality` remains `—` until the completed-workspace review. Report native usage and cost only when the retained record establishes them; use `—` rather than estimating a missing value. `Time` is completed instruction elapsed time plus the active process-relative `elapsedMs` from the latest retained event, rounded to whole seconds. Setup and operator time remain outside model-process time.
 
 Edit the dashboard in place. Record causes, recoveries, interventions, completed phases, completed-workspace findings, and whole-PR self-review rounds as formal `COMMENT` pull-request reviews rather than growing the dashboard into a narrative.
 
@@ -144,7 +144,7 @@ On interruption:
 
 Do not add prompts, repair the workspace, substitute a session, or retry automatically.
 
-If the user cancels, stop the reporting and liveness subagents and every active benchmark command, preserve each run directory, and report every affected cell as incomplete. Do not delete a retained run or mark it complete; resuming later requires renewed authorization.
+If the user cancels, stop the reporting and liveness subagents and force-stop every active benchmark command, native model process, and owned descendant. Verify that no process still references an affected run, preserve each run directory, and report every affected cell as incomplete. Do not delete a retained run or mark it complete; resuming later requires renewed authorization.
 
 ## Resume
 
@@ -181,7 +181,7 @@ Treat execution as complete only when `state.json` records `completed`, the curs
 
 Runner completion proves only that the sequence reached those recorded terminal conditions. It does not prove requirement coverage, implementation correctness, test quality, graph integrity, or product quality.
 
-Inspect the completed workspace without changing it before making any quality claim. Treat `docs/analysis/**` as the accepted specification, check the prescribed gates and resulting artifacts, and report defects and contradictions as results. Never convert uncertainty or a measured agent's prose into acceptance.
+Inspect the completed workspace without changing it before making any quality claim. Treat `docs/analysis/**` as the accepted specification, check the prescribed gates and resulting artifacts, and report defects in the generated application and mismatches between its artifacts and the specification as results. Never validate or challenge the specification, and never convert uncertainty or a measured agent's prose into acceptance.
 
 Compare only cells whose frozen inputs and declared execution identity match except for the intended arm treatment. Qualify or reject a comparison when revision, requirements, instructions, engine, model, effort, CLI version, workspace integrity, or operator intervention differs; do not hide the difference or silently rerun.
 
@@ -189,7 +189,7 @@ Compare only cells whose frozen inputs and declared execution identity match exc
 
 Review every completed workspace read-only while its raw record is fresh. Separate defects in the generated application from evidence that a template, instruction, or runner systematically misdirected the agent. Record the exact run ID, artifact location, retained event, and reason for each conclusion.
 
-Report benchmark-input defect candidates immediately. During a multi-cell cohort, do not change its frozen revision or inputs after any cell starts. Finish reviewing every cell in that cohort, compare whether the candidate recurs, then correct verified benchmark defects before launching a later cohort. A correction creates a new benchmark revision and never changes or silently replaces completed results.
+Report template, instruction, and runner defect candidates immediately. Requirements are never defect candidates. During a multi-cell cohort, do not change its frozen revision or inputs after any cell starts. Finish reviewing every cell in that cohort, compare whether the candidate recurs, then correct verified benchmark defects before launching a later cohort. A correction creates a new benchmark revision and never changes or silently replaces completed results.
 
 ## Reporting
 
