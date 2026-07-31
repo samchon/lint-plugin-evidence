@@ -80,6 +80,8 @@ Resume only when the cell identity, frozen inputs, workspace, CLI version, objec
 pnpm --filter @samchon/evidence-benchmark start <engine> <subject> <arm> <model> <effort> <run-id>
 ```
 
+Keep the cell's original `benchmarkRevision` frozen. When recovery requires a committed runner correction, resume only from a clean descendant revision; retain that correction as the new process's `runnerRevision` while the runner revalidates the stored cell, instruction bytes, workspace, artifact digest, CLI, session, Goal, and token boundary.
+
 Codex may resume an exact retained Goal checkpoint. Claude Code may resume only at a successful instruction boundary or before an undispatched instruction; a dispatched instruction without a successful terminal result is not resumable.
 
 Start an eligible resume immediately after diagnosis and any required runner correction. If the resume itself fails, preserve that attempt, diagnose the new failure, and recover again from the last exact checkpoint; never abandon a cell or loop without evidence.

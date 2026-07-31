@@ -204,6 +204,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
     ]);
     const processIndex: number = state.processes.length;
     const processRecord: IEvidenceBenchmarkProcessRecord = {
+      runnerRevision: props.runnerRevision,
       command: executable.command,
       arguments: arguments_,
       elapsedMs: 0,

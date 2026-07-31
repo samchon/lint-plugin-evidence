@@ -5,6 +5,9 @@
  * arguments, and terminal disposition remain attributable.
  */
 export interface IEvidenceBenchmarkProcessRecord {
+  /** Repository revision of the runner that started this native process. */
+  runnerRevision?: string;
+
   /** Resolved executable launched without a shell. */
   command: string;
 

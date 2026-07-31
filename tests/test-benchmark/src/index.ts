@@ -656,6 +656,42 @@ const main = async (): Promise<void> => {
       readObjective(root, sources, ENTRIES[1]!),
     );
 
+    const advancedBlockedResume = await EvidenceBenchmarkRunner.run({
+      state: blockedCurrentBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--current-blocked",
+        "--advanced-interrupted-replay",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(advancedBlockedResume.status, "completed");
+
+    const unprovenBlockedResume = await EvidenceBenchmarkRunner.run({
+      state: blockedCurrentBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--current-blocked",
+        "--unproven-interrupted-replay",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(unprovenBlockedResume.status, "interrupted");
+    assert.match(
+      unprovenBlockedResume.interruption?.message ?? "",
+      /exact next retained turn/,
+    );
+
     const outputFailure = await EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("evidence"),
       cwd: root,
@@ -727,6 +763,12 @@ const fakeAppServer = (): void => {
     "--blocked-then-complete",
   );
   const activeGoalGet: boolean = process.argv.includes("--active-goal-get");
+  const advancedInterruptedReplay: boolean = process.argv.includes(
+    "--advanced-interrupted-replay",
+  );
+  const unprovenInterruptedReplay: boolean = process.argv.includes(
+    "--unproven-interrupted-replay",
+  );
   const emptyGoal: boolean = process.argv.includes("--empty-goal");
   const omitToken: boolean = process.argv.includes("--omit-token");
   const omitTerminalToken: boolean = process.argv.includes(
@@ -808,18 +850,41 @@ const fakeAppServer = (): void => {
                 id: wrongThread ? "fixture-other-thread" : "fixture-thread",
                 cliVersion: "fixture-cli",
                 status: { type: "idle" },
+                turns:
+                  advancedInterruptedReplay || unprovenInterruptedReplay
+                    ? [
+                        { id: `turn-${goalIndex}`, status: "completed" },
+                        ...(advancedInterruptedReplay
+                          ? [
+                              {
+                                id: "turn-interrupted",
+                                status: "interrupted",
+                              },
+                            ]
+                          : []),
+                      ]
+                    : undefined,
               },
             },
           },
           () => {
             if (wrongThread) return;
             if (previousGoal) {
-              send({
-                method: "thread/tokenUsage/updated",
-                params: {
-                  threadId: "fixture-thread",
-                  turnId: `turn-${goalIndex}`,
-                  tokenUsage: {
+              const replay = advancedInterruptedReplay ||
+                unprovenInterruptedReplay
+                ? {
+                    turnId: "turn-interrupted",
+                    total: {
+                      totalTokens: 25,
+                      inputTokens: 15,
+                      cachedInputTokens: 5,
+                      cacheWriteInputTokens: 2,
+                      outputTokens: 10,
+                      reasoningOutputTokens: 7,
+                    },
+                  }
+                : {
+                    turnId: `turn-${goalIndex}`,
                     total: {
                       totalTokens: goalIndex * 10,
                       inputTokens: goalIndex * 6,
@@ -828,7 +893,13 @@ const fakeAppServer = (): void => {
                       outputTokens: goalIndex * 4,
                       reasoningOutputTokens: goalIndex * 3,
                     },
-                  },
+                  };
+              send({
+                method: "thread/tokenUsage/updated",
+                params: {
+                  threadId: "fixture-thread",
+                  turnId: replay.turnId,
+                  tokenUsage: { total: replay.total },
                 },
               });
               const continueCurrentGoal = (): void => {
