@@ -1,6 +1,6 @@
 ---
 name: benchmark
-description: Defines authorization, frozen inputs, launch, native agent operation, interruption recovery, retained measurement, completed-workspace review, comparison, publication boundaries, and truthful reporting for the @samchon/lint-plugin-evidence benchmark. Use before preparing, launching, observing, resuming, accepting, comparing, publishing, or reporting a benchmark run.
+description: Defines authorization, campaign tracking, frozen inputs, launch, native agent operation, interruption recovery, retained measurement, completed-workspace review, comparison, publication boundaries, and truthful reporting for the @samchon/lint-plugin-evidence benchmark. Use before preparing, launching, observing, resuming, accepting, comparing, publishing, or reporting a benchmark run.
 ---
 
 # Benchmark
@@ -26,6 +26,37 @@ The runner does not publish results. Publication requires separate explicit auth
 Keep the benchmark revision, selected requirements, template, overlays, locally packed product, instructions, engine, model, effort, and CLI version fixed throughout every comparable run. The runner reads an instruction when it starts, so editing an input while a cell is active changes the experiment even if earlier instructions already retained their text.
 
 As the operator, do not modify a measured workspace, inject implementation advice, weaken a gate, hard-code a subject answer, or install Evidence material in Plain. A defect or contradiction in the generated application is measured behavior, not permission to repair or rerun it.
+
+## Campaign Pull Request
+
+Run a benchmark as an issue campaign. Before campaign implementation or measurement begins:
+
+1. open the campaign issue;
+2. create its branch without changing an active cohort's worktree;
+3. push an empty campaign commit and open a draft pull request; and
+4. put the authorized matrix, frozen revision, model and effort, CLI versions, artifact identity, and live status dashboard in the pull-request body.
+
+For a multi-cell campaign, assign one read-only reporting subagent to the pull request. It refreshes the existing body every 10 minutes from retained state, process liveness, and log metadata. It never edits a measured workspace, frozen input, campaign source, or retained record. A wrong visible status, interruption, suspicious terminal result, or newly discovered shared defect is updated and reported immediately rather than waiting for the next interval.
+
+Keep the dashboard grouped under exactly `## Codex` and `## Claude Code`. Use the same table shape and cell order in both sections:
+
+```markdown
+## Codex
+
+| Project | Mode | Run ID | Progress | Quality | Native usage | Cost | Time |
+| ------- | ---- | ------ | -------- | ------- | ------------ | ---- | ---- |
+
+## Claude Code
+
+| Project | Mode | Run ID | Progress | Quality | Native usage | Cost | Time |
+| ------- | ---- | ------ | -------- | ------- | ------------ | ---- | ---- |
+```
+
+`Progress` names the retained instruction and status without unexplained abbreviations. `Quality` remains `—` until the completed-workspace review. Report native usage, cost, and model-process time only when the retained record establishes them; use `—` rather than estimating a missing value. Setup and operator time remain outside model-process time.
+
+Edit the dashboard in place. Record causes, recoveries, interventions, completed phases, completed-workspace findings, and whole-PR self-review rounds as formal `COMMENT` pull-request reviews rather than growing the dashboard into a narrative.
+
+Accumulate every verified benchmark runner, template, or instruction correction discovered during the campaign in this same pull request, with prompt commits and pushes. An active cohort remains frozen: prepare corrections only in an isolated campaign worktree, never change the repository worktree from which active cells read later instructions, and never merge the campaign pull request until that cohort closes. A merged correction creates a new benchmark revision for later cohorts or authorized replacement runs; it never changes or silently replaces retained results.
 
 ## Before Launch
 
@@ -97,6 +128,8 @@ These terminal signals record execution progress. They do not establish implemen
 ## Operator Boundary
 
 Leave an active cell to its native agent runtime. Questions and partial reports do not call for operator prose; the shared continuation text already instructs the agent to finish autonomously. Do not prompt the measured agent, edit its workspace, change an input, or make an external completion judgment.
+
+Observe every active cell at least once every 30 seconds. Each pass checks `state.json`, benchmark-command and native-process liveness, and `events.jsonl` and `raw.log` recency. When a status, process, and stream disagree, inspect the latest retained protocol event immediately. Do not inspect implementation quality or requirement coverage before the cell completes.
 
 Act only when the command reports an abnormal interruption or the user cancels the run. Interruptions include a failed or interrupted native turn, usage or budget exhaustion, runtime failure, non-zero exit, signal, invalid protocol state, or a retained-state mismatch.
 
