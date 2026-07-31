@@ -73,7 +73,7 @@ Observe every active cell at least every 30 seconds. Check `state.json`, benchma
 
 Do not edit a measured workspace, prompt the measured agent, inject advice, weaken a gate, hard-code a subject answer, or expose Evidence material to Plain. Questions and partial reports do not invite operator input.
 
-Intervene only for an abnormal interruption or explicit cancellation. Never repair a measured workspace, edit retained state, substitute a session, or retry automatically.
+Intervene immediately for an abnormal interruption or explicit cancellation. Diagnose the retained state, process, events, and raw stream first; when the exact recovery conditions below match, resume the same run without waiting for operator prose or the next reporting interval. Never blind-retry before diagnosis, repair a measured workspace, edit retained state, or substitute a session.
 
 ## Recover Or Cancel
 
@@ -86,6 +86,8 @@ pnpm --filter @samchon/evidence-benchmark start <engine> <subject> <arm> <model>
 ```
 
 Codex may resume an exact retained Goal checkpoint. Claude Code may resume only at a successful instruction boundary or before an undispatched instruction; a dispatched instruction without a successful terminal result is not resumable.
+
+Start an eligible resume immediately after diagnosis and any required runner correction. If the resume itself fails, preserve that attempt, diagnose the new failure, and recover again from the last exact checkpoint; never abandon a cell or loop without evidence.
 
 On cancellation, stop the reporting subagent and every liveness watcher, then force-stop every benchmark command, native process, and owned descendant. Verify that no process references an affected run. Preserve every run directory and report each cell as incomplete; never delete or mark it complete.
 
