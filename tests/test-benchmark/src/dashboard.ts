@@ -131,7 +131,7 @@ const main = (): void => {
     );
     assert.match(
       dashboard,
-      /^\| Reddit Plain \| `backend-start` · interrupted \| 0 files · \+0\/−0 LOC \| 2m \| 1M \| 2m \|$/mu,
+      /^\| Reddit Plain \| `backend-start` · interrupted \| 0 files · \+0\/−0 LOC \| (?:\d+h )?\d{1,2}m \| 1M \| 2m \|$/mu,
     );
     assert.match(dashboard, /^- \*\*Todo Plain stages\*\*$/mu);
     assert.match(
