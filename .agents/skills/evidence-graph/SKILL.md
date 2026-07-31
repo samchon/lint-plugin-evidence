@@ -100,7 +100,6 @@ A mixed variable statement can carry both function and property host kinds becau
 
 `evidence/graph` evaluates the complete configured graph once per Program and answers three distinct questions.
 
-- **Activation.** A Markdown, Prisma, or TypeScript claim activates only when its own population loads successfully and contains at least one unit selected by the claim's `symbol`. A healthy zero-unit claim is inactive and does not load its references; a missing, unreadable, or rejected own population remains active so its failure cannot become silence.
 - **Resolution.** Does every declaration target resolve to exactly one selected unit or structural ancestor?
 - **Host eligibility.** Does `@evidence` live on a symbol kind selected by its claim, or does `@evidenceExclude` live on an eligible carrier in a matching claim file?
 - **Coverage.** Does every selected reference unit have one acknowledgement in this claim?

@@ -19,7 +19,7 @@ export interface IEvidenceBenchmarkGoalRecord {
   /** Exact selected instruction bytes decoded as UTF-8. */
   prescribedText: string;
 
-  /** Exact selected arm's continuation instruction. */
+  /** Exact shared continuation instruction. */
   continuationText: string;
 
   /** Exact user objective sent to the native Goal API. */

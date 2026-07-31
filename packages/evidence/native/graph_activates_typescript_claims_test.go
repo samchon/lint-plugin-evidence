@@ -190,3 +190,45 @@ func TestUnreadableTypeScriptClaimRootDoesNotBecomeInactive(t *testing.T) {
 		t.Fatal("an unreadable TypeScript root must remain active for its population diagnostic")
 	}
 }
+
+/**
+ * Verifies activation filtering leaves non-TypeScript claim kinds unchanged.
+ *
+ * Markdown and Prisma claims already have established empty-population
+ * diagnostics and loaders. The new host gate belongs only to TypeScript, even
+ * when another claim currently has no materialized unit.
+ *
+ *  1. Configure one Markdown and one Prisma claim.
+ *  2. Apply the TypeScript activation filter with no TypeScript inventory.
+ *  3. Assert both original claims remain active.
+ */
+func TestTypeScriptActivationDoesNotFilterMarkdownOrPrismaClaims(t *testing.T) {
+	root := t.TempDir()
+	config := decodeInventoryConfig(t, root, `{"claims":[
+		{
+			"type":"markdown",
+			"files":["docs/**/*.md"],
+			"symbol":"h2",
+			"reference":{"type":"prisma","files":["prisma/**/*.prisma"],"symbol":"model"}
+		},
+		{
+			"type":"prisma",
+			"files":["prisma/**/*.prisma"],
+			"symbol":"model",
+			"reference":{"type":"markdown","files":["docs/**/*.md"],"symbol":"h2"}
+		}
+	]}`)
+	active := activeGraphConfig(
+		config,
+		map[string]*artifactInventory{},
+		map[string]*artifactInventory{},
+		map[string]*artifactInventory{},
+	)
+	if len(active.Claims) != len(config.Claims) {
+		t.Fatalf(
+			"TypeScript activation changed non-TypeScript claims: got %d, want %d",
+			len(active.Claims),
+			len(config.Claims),
+		)
+	}
+}

@@ -1,10 +1,9 @@
 # Evidence Frontend Start
 
-Read `AGENTS.md` and every document under `.agents/skills/frontend/` and `.agents/skills/evidence/` in full before working, and obey them throughout this objective.
+Implement the complete frontend against the fixed SDK and live backend. Do not perform the review yet.
 
-This stage owns only the complete first implementation of the frontend and its live integration. Do not perform the review yet. Add truthful Evidence annotations to real claim hosts as they appear; never create an artifact merely to activate a claim.
+Add each `@evidence` acknowledgement to the screen or journey that actually owns the cited target, and state the exact responsibility that connects them. Use `@evidenceExclude` only when the target does not belong to the claim; name the actual owner or observable alternative and the condition that would invalidate the exclusion.
 
-1. Read every file under `docs/analysis/` and `packages/api/src/` in full, without omitting a single requirement, operation, DTO, property, or contract detail.
-2. Based on the requirements and the fixed SDK, implement every required screen and user journey under `packages/frontend/src/` without omitting any required behavior or API-backed capability.
-3. Write test programs under `packages/frontend/tests/journeys/` that cover every requirement-backed user journey without a single omission.
-4. When the frontend implementation is complete, run `pnpm lint` and `pnpm test:e2e` from `packages/frontend` to verify it and fix every failure.
+1. Implement every required screen and user journey under `packages/frontend/src/`. Each screen must cite the exact requirement it delivers.
+2. Write test programs under `packages/frontend/tests/journeys/` for every requirement-backed user journey. Each journey must cite the requirement and screens it exercises.
+3. Complete the live-backend integration, then run `pnpm lint` and `pnpm test:e2e` from `packages/frontend` and fix every failure.

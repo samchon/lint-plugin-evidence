@@ -1,17 +1,12 @@
 # Evidence Frontend Review
 
-Before reviewing, read `AGENTS.md` and every document under `.agents/skills/evidence/` and `.agents/skills/review/` in full. Obey them throughout this objective.
+Review every frontend `@evidence` and `@evidenceExclude` acknowledgement for accuracy. Do not perform a general code review.
 
-Review only the configured frontend Evidence claims and their acknowledgements in the current files. Do not perform a general code review.
+For each `@evidence`, confirm that the target exists, the host actually owns the cited responsibility, and the reason precisely explains that relationship. For each `@evidenceExclude`, confirm that the target belongs to the claim and the reason names the actual owner or observable alternative and a concrete veto condition.
 
-Full traversal is literal: inspect every configured claim, its current population, every selected host, and every `@evidence` and `@evidenceExclude` acknowledgement. Never replace that traversal with lint output, searches, inventories, summaries, or a previous review.
+Fix every inaccurate, irrelevant, vague, or false acknowledgement. After any correction, restart from the first frontend acknowledgement. Complete when one pass over every frontend acknowledgement requires no edit.
 
-Every review round must cover the entire table below as one indivisible claim traversal. Never partition claims or hosts between rounds. If you find even one defect or make any correction, restart the complete table. Repeat without any limit until one entire current-state round finds no defect and makes no edit.
-
-| Review in full | Verify against |
+| Claim | Every acknowledgement must match |
 | --- | --- |
-| Canonical frontend claims and their populations | The frozen claim configuration and current selected hosts |
-| Every selected host | Its applicable requirement and configured references |
-| Every `@evidence` acknowledgement | Its selected host, exact target, written reason, and full acknowledged scope |
-| Every `@evidenceExclude` acknowledgement | Its eligible carrier, exact target, actual owner or observable alternative, veto condition, and full excluded scope |
-| Every inactive claim population | The requirements, proving that no required host is missing |
+| `frontend-screens` | The requirement delivered by the screen |
+| `frontend-journeys` | The requirement and screens exercised by the journey |

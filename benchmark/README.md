@@ -64,7 +64,7 @@ Setup time remains separate from model-process time. The retained record does no
 
 ## Interruption and review
 
-The operator does not add prose or implementation advice during a cell. The selected arm's continuation text already instructs the measured agent to finish autonomously.
+The operator does not add prose or implementation advice during a cell. The shared continuation text already instructs the measured agent to finish autonomously.
 
 After an abnormal interruption, preserve the run and inspect its retained state. Codex may continue an exact retained Goal.
 

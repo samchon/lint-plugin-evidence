@@ -11,9 +11,9 @@ An evidence graph claim selects authored declarations that must acknowledge ever
 
 `@evidence <target> <reason>` states that the selected host owns the target. `@evidenceExclude <target> <reason>` states that this claim intentionally does not own the target and names the actual owner or observable alternative. Both forms cover the target's selected descendants, remain claim-local, and require disjoint scopes.
 
-All claim objects stay configured from the first command onward. A Markdown, Prisma, or TypeScript claim is inactive while its own successfully loaded `root`, `files`, and `symbol` population contains no selected unit. TypeScript units must be selected exported hosts. The first selected unit activates the whole claim and every configured reference automatically. A missing, unreadable, or rejected own population remains active and reports its failure; only a successfully loaded zero-unit population is inactive.
+All claim objects stay configured from the first command onward. A TypeScript claim is inactive while its own `root`, `files`, and `symbol` population contains no selected exported host. The first selected exported host activates the whole claim and every configured reference automatically. A missing or unreadable own population is still an error; only a successfully loaded zero-host population is inactive.
 
-Inactivity is not proof that no artifact is required. It prevents a future-layer claim from demanding acknowledgements before that layer has a selected unit; the applicable base layer skill still determines whether the requirements demand one.
+Inactivity is not proof that no artifact is required. It prevents a future-layer claim from demanding acknowledgements before that layer has a host; the applicable base layer skill still determines whether the requirements demand a host.
 
 Use the owning layer document for tag placement and examples:
 
