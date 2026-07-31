@@ -3,24 +3,21 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import typia from "typia";
 
-import { EvidenceBenchmarkClaudeRunner } from "../EvidenceBenchmarkClaudeRunner.ts";
 import { EvidenceBenchmarkRunner } from "../EvidenceBenchmarkRunner.ts";
 import { EvidenceBenchmarkWorkspace } from "../EvidenceBenchmarkWorkspace.ts";
 import { sanitizeBenchmarkEnvironment } from "../sanitizeBenchmarkEnvironment.ts";
-import type { IEvidenceBenchmarkClaudeRunState } from "../structures/IEvidenceBenchmarkClaudeRunState.ts";
 import type { IEvidenceBenchmarkOutput } from "../structures/IEvidenceBenchmarkOutput.ts";
 import type { IEvidenceBenchmarkRunState } from "../structures/IEvidenceBenchmarkRunState.ts";
 import type { IEvidenceBenchmarkWorkspaceResult } from "../structures/IEvidenceBenchmarkWorkspaceResult.ts";
 import type { EvidenceBenchmarkArm } from "../typings/EvidenceBenchmarkArm.ts";
-import type { EvidenceBenchmarkClaudeEffort } from "../typings/EvidenceBenchmarkClaudeEffort.ts";
 import type { EvidenceBenchmarkEffort } from "../typings/EvidenceBenchmarkEffort.ts";
 
-type EvidenceBenchmarkEngine = "codex" | "claude-code";
-type EvidenceBenchmarkState =
-  IEvidenceBenchmarkRunState | IEvidenceBenchmarkClaudeRunState;
+type EvidenceBenchmarkEngine = "codex";
+type EvidenceBenchmarkState = IEvidenceBenchmarkRunState;
 
 interface IEvidenceBenchmarkArguments {
   engine: EvidenceBenchmarkEngine;
@@ -60,10 +57,10 @@ const EVIDENCE_BENCHMARK_PACKAGE_NAME = "@samchon/lint-plugin-evidence";
 
 const main = async (): Promise<void> => {
   const repository: string = path.resolve(import.meta.dirname, "../../..");
-  const options: IEvidenceBenchmarkArguments = parseArguments(
+  const options: IEvidenceBenchmarkArguments = parseEvidenceBenchmarkArguments(
     process.argv.slice(2),
   );
-  const runnerRevision: string = readBenchmarkRevision(repository);
+  const runnerRevision: string = readEvidenceBenchmarkRevision(repository);
   const requestedCell: IEvidenceBenchmarkCell = {
     engine: options.engine,
     subject: options.subject,
@@ -89,8 +86,12 @@ const main = async (): Promise<void> => {
       : typia.assert<IEvidenceBenchmarkStateFile>(
           JSON.parse(fs.readFileSync(path.join(output, "state.json"), "utf8")),
         );
-  const records: IEvidenceBenchmarkRecordPaths = recordPaths(output);
-  if (retained !== undefined && !sameRecordPaths(retained.records, records))
+  const records: IEvidenceBenchmarkRecordPaths =
+    evidenceBenchmarkRecordPaths(output);
+  if (
+    retained !== undefined &&
+    !sameEvidenceBenchmarkRecordPaths(retained.records, records)
+  )
     throw new Error("Retained benchmark record paths do not match the run.");
   const cell: IEvidenceBenchmarkCell = retained?.cell ?? requestedCell;
   if (
@@ -103,7 +104,11 @@ const main = async (): Promise<void> => {
   )
     throw new Error("Retained benchmark cell does not match the invocation.");
   if (retained !== undefined)
-    assertRecoveryRevision(repository, cell.benchmarkRevision, runnerRevision);
+    assertEvidenceBenchmarkRecoveryRevision(
+      repository,
+      cell.benchmarkRevision,
+      runnerRevision,
+    );
   if (
     retained !== undefined &&
     ((cell.arm === "evidence" &&
@@ -167,16 +172,19 @@ const main = async (): Promise<void> => {
       fs.rmSync(temporary, { recursive: true, force: true });
   }
 
-  if (!sameRecordPaths(records, recordPaths(prepared.root)))
+  if (
+    !sameEvidenceBenchmarkRecordPaths(
+      records,
+      evidenceBenchmarkRecordPaths(prepared.root),
+    )
+  )
     throw new Error("Prepared benchmark workspace has an invalid path.");
   initializeAppendOnly(records.events);
   initializeAppendOnly(records.raw);
   await runBenchmark(
     cell,
     records,
-    cell.engine === "codex"
-      ? EvidenceBenchmarkRunner.create(cell.arm)
-      : EvidenceBenchmarkClaudeRunner.create(cell.arm),
+    EvidenceBenchmarkRunner.create(cell.arm),
     runnerRevision,
   );
 };
@@ -234,38 +242,17 @@ const runBenchmark = async (
       );
     };
     onState(initialState);
-    const result =
-      cell.engine === "codex"
-        ? await EvidenceBenchmarkRunner.run({
-            state: codexState(initialState),
-            cwd: records.workspace,
-            instructionsRoot: path.join(
-              repository,
-              "benchmark",
-              "instructions",
-            ),
-            model: cell.model,
-            effort: cell.effort,
-            runnerRevision,
-            environment,
-            onOutput,
-            onState,
-          })
-        : await EvidenceBenchmarkClaudeRunner.run({
-            state: claudeState(initialState),
-            cwd: records.workspace,
-            instructionsRoot: path.join(
-              repository,
-              "benchmark",
-              "instructions",
-            ),
-            model: cell.model,
-            effort: claudeEffort(cell.effort),
-            runnerRevision,
-            environment,
-            onOutput,
-            onState,
-          });
+    const result = await EvidenceBenchmarkRunner.run({
+      state: initialState,
+      cwd: records.workspace,
+      instructionsRoot: path.join(repository, "benchmark", "instructions"),
+      model: cell.model,
+      effort: cell.effort,
+      runnerRevision,
+      environment,
+      onOutput,
+      onState,
+    });
     if (result.status !== "completed")
       throw new Error(
         "Benchmark run was interrupted; resume the retained run.",
@@ -278,15 +265,15 @@ const runBenchmark = async (
   }
 };
 
-const parseArguments = (
+export const parseEvidenceBenchmarkArguments = (
   input: readonly string[],
 ): IEvidenceBenchmarkArguments => {
   if (input.length < 5 || input.length > 6)
     throw new Error(
-      "Usage: pnpm start <codex|claude-code> <subject> <evidence|plain> <model> <effort> [run-id]",
+      "Usage: pnpm start codex <subject> <evidence|plain> <model> <effort> [run-id]",
     );
   const engine: string = input[0]!;
-  if (engine !== "codex" && engine !== "claude-code")
+  if (engine !== "codex")
     throw new Error(`Invalid benchmark engine: ${engine}.`);
   const subject: string = input[1]!;
   if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(subject))
@@ -306,8 +293,6 @@ const parseArguments = (
     effort !== "ultra"
   )
     throw new Error(`Invalid benchmark effort: ${effort}.`);
-  if (engine === "claude-code" && effort === "ultra")
-    throw new Error("Claude Code does not support ultra effort.");
   const runId: string | undefined = input[5];
   if (
     runId !== undefined &&
@@ -319,31 +304,7 @@ const parseArguments = (
   return { engine, subject, arm, model, effort, runId };
 };
 
-const codexState = (
-  state: EvidenceBenchmarkState,
-): IEvidenceBenchmarkRunState => {
-  if (!("threadTokenUsage" in state))
-    throw new Error("Retained benchmark state does not belong to Codex.");
-  return state;
-};
-
-const claudeState = (
-  state: EvidenceBenchmarkState,
-): IEvidenceBenchmarkClaudeRunState => {
-  if ("threadTokenUsage" in state)
-    throw new Error("Retained benchmark state does not belong to Claude Code.");
-  return state;
-};
-
-const claudeEffort = (
-  effort: EvidenceBenchmarkEffort,
-): EvidenceBenchmarkClaudeEffort => {
-  if (effort === "ultra")
-    throw new Error("Claude Code does not support ultra effort.");
-  return effort;
-};
-
-const readBenchmarkRevision = (repository: string): string => {
+export const readEvidenceBenchmarkRevision = (repository: string): string => {
   const status = spawnSync(
     "git",
     ["status", "--porcelain", "--untracked-files=all"],
@@ -370,7 +331,7 @@ const readBenchmarkRevision = (repository: string): string => {
   return value;
 };
 
-const assertRecoveryRevision = (
+export const assertEvidenceBenchmarkRecoveryRevision = (
   repository: string,
   benchmarkRevision: string,
   runnerRevision: string,
@@ -437,7 +398,9 @@ const initializeAppendOnly = (file: string): void => {
   fs.closeSync(descriptor);
 };
 
-const recordPaths = (root: string): IEvidenceBenchmarkRecordPaths => ({
+export const evidenceBenchmarkRecordPaths = (
+  root: string,
+): IEvidenceBenchmarkRecordPaths => ({
   root: path.resolve(root),
   workspace: path.join(path.resolve(root), "workspace"),
   state: path.join(path.resolve(root), "state.json"),
@@ -445,7 +408,7 @@ const recordPaths = (root: string): IEvidenceBenchmarkRecordPaths => ({
   raw: path.join(path.resolve(root), "raw.log"),
 });
 
-const sameRecordPaths = (
+export const sameEvidenceBenchmarkRecordPaths = (
   left: IEvidenceBenchmarkRecordPaths,
   right: IEvidenceBenchmarkRecordPaths,
 ): boolean => {
@@ -484,7 +447,11 @@ const replaceDurably = (file: string, content: string): void => {
   fs.renameSync(temporary, file);
 };
 
-main().catch((error: unknown) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (
+  process.argv[1] !== undefined &&
+  pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url
+)
+  main().catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  });

@@ -8,13 +8,12 @@
     "node": ">=22.15"
   },
   "scripts": {
-    "build": "pnpm --filter {{backendPackageName}} --fail-if-no-match build:prisma && pnpm --filter {{apiPackageName}} --fail-if-no-match build && pnpm --filter {{backendPackageName}} --fail-if-no-match build:main && pnpm --filter {{backendPackageName}} --fail-if-no-match build:sdk && pnpm --filter {{backendPackageName}} --fail-if-no-match build:test && pnpm --filter {{frontendPackageName}} --fail-if-no-match build",
+    "build": "pnpm --filter {{backendPackageName}} --fail-if-no-match build:prisma && pnpm --filter {{backendPackageName}} --fail-if-no-match build:main && pnpm --filter {{backendPackageName}} --fail-if-no-match build:sdk && pnpm --filter {{backendPackageName}} --fail-if-no-match build:test && pnpm --filter {{frontendPackageName}} --fail-if-no-match build",
     "build:frontend": "pnpm --filter {{frontendPackageName}} --fail-if-no-match build",
     "build:prisma": "pnpm --filter {{backendPackageName}} --fail-if-no-match build:prisma",
     "dev:frontend": "pnpm --filter {{frontendPackageName}} --fail-if-no-match dev",
     "format": "pnpm -r --if-present format",
     "lint": "pnpm --filter {{backendPackageName}} --fail-if-no-match build:prisma && pnpm -r --if-present lint",
-    "prepare:database": "pnpm --filter {{backendPackageName}} --fail-if-no-match prepare:database",
     "schema:database": "pnpm --filter {{backendPackageName}} --fail-if-no-match schema",
     "start": "pnpm --filter {{backendPackageName}} --fail-if-no-match start",
     "test": "pnpm test:backend && pnpm test:frontend",

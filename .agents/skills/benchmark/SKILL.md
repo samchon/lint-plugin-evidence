@@ -15,16 +15,21 @@ Before measurement:
 4. Record the authorized matrix, benchmark revision, engines, models, efforts, CLI versions, Evidence archive digest, and live dashboard in the pull-request body.
 5. Assign one read-only reporting subagent to update that body every 5 minutes and immediately after a state change or anomaly.
 
-Generate the dashboard with `pnpm --filter @samchon/evidence-benchmark dashboard`; do not inspect workspace source to reconstruct its values. Group it by authorized model, keep one H2 per model, show only the latest launched run for each cell, and omit cells that have not launched:
+Generate the dashboard with `pnpm --filter @samchon/evidence-benchmark dashboard`; do not inspect workspace source to reconstruct its values. Group it by authorized model, keep one H2 per model, show only the latest launched run for each cell, and omit cells that have not launched. Under each model, render one summary table followed by each cell's retained stage list:
 
 ```markdown
 ## GPT-5.6-Terra
 
-| Project | Mode | Stage | Progress | Cost | Time |
-| ------- | ---- | ----- | -------- | ---- | ---- |
+| Cell | Stage | Progress | Elapsed | Cost | Work time |
+| --- | --- | --- | ---: | ---: | ---: |
+| Todo Plain | `backend-review` · running | 27 files · +3.1k/−20 LOC | 1h 12m | 7M | 1h 07m |
+
+- **Todo Plain stages**
+  - `backend-start`: 3M · 42m · 43% tokens · 63% time
+  - `backend-review`: 4M · 25m · 57% tokens · 37% time
 ```
 
-`Stage` keeps the exact current or last retained instruction name, such as `backend-start`, and appends only its short status, such as `· running` or `· interrupted`; put anomaly details outside the table. `Progress` is the read-only Git delta from the prepared workspace baseline, including tracked and untracked files, written as `27 files · +3.1k/−120 LOC`; it measures implementation volume, not completion percentage. `Cost` is retained total token usage rounded to the nearest million and written as an integer with `M`, such as `3M`. `Time` is finalized native-process elapsed time plus the active process's latest retained event time, rounded to whole minutes and written only in hours and minutes, such as `7m` or `1h 07m`; setup and operator time stay separate. Do not add run-ID, usage-breakdown, or quality columns.
+The table's Stage keeps the exact current or last retained instruction name, such as `backend-start`, and appends only its short status, such as `· running` or `· interrupted`; put anomaly details outside the dashboard. `Progress` is the read-only Git delta from the prepared workspace baseline, including tracked and untracked files, written as `27 files · +3.1k/−20 LOC`; it measures implementation volume, not completion percentage. `Cost`, `Work time`, and every stage report retained token usage rounded to the nearest million as an integer with `M`, and retained work time rounded to whole minutes in hours and minutes, such as `7m` or `1h 07m`. Every stage also reports its unrounded token and work-time shares of that cell, rounded to whole percentages. Derive an active stage only from the retained thread total and process elapsed time after subtracting finalized stages; never reconstruct a missing measurement. `Elapsed` is wall-clock time so a silent stall remains visible. Setup and operator time stay separate. Do not add run IDs, token-category breakdowns, or quality judgments.
 
 ## Prepare And Launch
 
@@ -35,7 +40,7 @@ Treat `benchmark/requirements/**` as opaque, authoritative bytes. Never edit, re
 Start a cell with every identity field explicit:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark start <codex|claude-code> <subject> <evidence|plain> <model> <effort>
+pnpm --filter @samchon/evidence-benchmark start codex <subject> <evidence|plain> <model> <effort>
 ```
 
 Before native work, the runner copies the base template, applies only the selected arm overlay, copies the selected requirements byte-for-byte, installs dependencies, and commits the workspace baseline. Evidence additionally installs one immutable locally packed archive shared by parallel Evidence cells. Plain never reads or installs it.
@@ -44,27 +49,28 @@ Run at most one command for a run ID. A preparation failure before native work d
 
 ## Run The Objectives
 
-One native session receives exactly nine objectives:
+One native session receives exactly eight objectives:
 
 | Step | Objective | Evidence | Plain |
 | --: | --- | --- | --- |
-| 1 | Skills contract | `instructions/skills-contract.md` | same |
-| 2 | Backend start | `instructions/backend/start.md` | same |
-| 3 | Backend review | `instructions/backend/review.md` | same |
-| 4 | Backend final | `instructions/backend/evidence-final.md` | `instructions/backend/plain-final.md` |
-| 5 | Frontend start | `instructions/frontend/start.md` | same |
-| 6 | Frontend review | `instructions/frontend/review.md` | same |
-| 7 | Frontend final | `instructions/frontend/evidence-final.md` | `instructions/frontend/plain-final.md` |
-| 8 | Overall review | `instructions/overall/review.md` | same |
-| 9 | Overall final | `instructions/overall/evidence-final.md` | `instructions/overall/plain-final.md` |
+| 1 | Backend start | `instructions/evidence/backend/start.md` | `instructions/plain/backend/start.md` |
+| 2 | Backend review | `instructions/evidence/backend/review.md` | `instructions/plain/backend/review.md` |
+| 3 | Backend final | `instructions/evidence/backend/final.md` | `instructions/plain/backend/final.md` |
+| 4 | Frontend start | `instructions/evidence/frontend/start.md` | `instructions/plain/frontend/start.md` |
+| 5 | Frontend review | `instructions/evidence/frontend/review.md` | `instructions/plain/frontend/review.md` |
+| 6 | Frontend final | `instructions/evidence/frontend/final.md` | `instructions/plain/frontend/final.md` |
+| 7 | Overall review | `instructions/evidence/overall/review.md` | `instructions/plain/overall/review.md` |
+| 8 | Overall final | `instructions/evidence/overall/final.md` | `instructions/plain/overall/final.md` |
 
-At each step, the runner joins that file with `instructions/continue.md` once and records the exact objective. Do not add operator prose.
+At each step, the runner joins that file with the same arm's `instructions/<arm>/continue.md` once and records the exact objective. The arms share no runtime instruction bytes. Do not add operator prose.
 
-Codex advances after the retained Goal completes, its terminal turn completes, and the thread becomes idle. Claude Code advances after one successful noninteractive terminal result in the retained session.
+Codex advances after the retained Goal completes, its terminal turn completes, and the thread becomes idle.
+
+The runner gives app-server a bounded shutdown grace after closing its input, then force-stops the owned process tree and records that cleanup if app-server does not exit. A detached owner monitor performs the same cleanup if the runner itself disappears, so a disconnected app-server cannot survive indefinitely.
 
 ## Supervise The Run
 
-Observe every active cell at least every 30 seconds. Check `state.json`, benchmark and native process liveness, and `events.jsonl` and `raw.log` recency. Investigate any disagreement immediately and correct the dashboard without waiting for its 10-minute interval.
+Observe every active cell at least every 30 seconds. Check `state.json`, benchmark and native process liveness, and `events.jsonl` and `raw.log` recency. Investigate any disagreement immediately and correct the dashboard without waiting for its 5-minute interval.
 
 Do not edit a measured workspace, prompt the measured agent, inject advice, weaken a gate, hard-code a subject answer, or expose Evidence material to Plain. Questions and partial reports do not invite operator input.
 
@@ -82,7 +88,7 @@ pnpm --filter @samchon/evidence-benchmark start <engine> <subject> <arm> <model>
 
 Keep the cell's original `benchmarkRevision` frozen. When recovery requires a committed runner correction, resume only from a clean descendant revision; retain that correction as the new process's `runnerRevision` while the runner revalidates the stored cell, instruction bytes, workspace, artifact digest, CLI, session, Goal, and token boundary.
 
-Codex may resume an exact retained Goal checkpoint. Claude Code may resume only at a successful instruction boundary or before an undispatched instruction; a dispatched instruction without a successful terminal result is not resumable.
+Codex may resume an exact retained Goal checkpoint.
 
 Start an eligible resume immediately after diagnosis and any required runner correction. If the resume itself fails, preserve that attempt, diagnose the new failure, and recover again from the last exact checkpoint; never abandon a cell or loop without evidence.
 
@@ -90,7 +96,7 @@ On cancellation, stop the reporting subagent and every liveness watcher, then fo
 
 ## Complete The Campaign
 
-Treat a cell as execution-complete only when `state.json` is `completed`, all nine instructions have native terminal checkpoints, and the final process exits zero without a signal.
+Treat a cell as execution-complete only when `state.json` is `completed`, all eight instructions have native terminal checkpoints, and the final process either exits zero without a signal or records runner-owned forced shutdown after those checkpoints completed.
 
 Review every completed workspace read-only. Accept `docs/analysis/**` as the specification without validating it. Report defects only in the generated application or mismatches between its artifacts and the specification. Requirements are never defect candidates.
 

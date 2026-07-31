@@ -28,6 +28,7 @@ func TestGraphAcceptsPublicTypeScriptExclusionCarriers(t *testing.T) {
  * @evidenceExclude docs/controller.md#controller This package intentionally exposes no operation for the section.
  */
 export const CONTROLLER_EVIDENCE_EXCLUDE = true;
+export function selectedController(): void {}
 `,
 		"src/structures/DTO_EVIDENCE_EXCLUDE.ts": `
 /**
@@ -36,6 +37,7 @@ export const CONTROLLER_EVIDENCE_EXCLUDE = true;
  * @evidenceExclude docs/dto.md#dto This package intentionally exposes no DTO for the section.
  */
 export const DTO_EVIDENCE_EXCLUDE = true;
+export interface SelectedDto {}
 `,
 	}, `{"claims":[{
 		"name":"api-operations",
@@ -61,7 +63,7 @@ export const DTO_EVIDENCE_EXCLUDE = true;
  * use it would move claimed implementation away from the declaration that
  * actually owns the behavior and erase the graph's host meaning.
  *
- *  1. Select function hosts and cite the target from an exported property.
+ *  1. Select a function host and cite the target from an exported property.
  *  2. Use `@evidence`, not `@evidenceExclude`, on that carrier.
  *  3. Assert the selected-host diagnostic and missing obligation both remain.
  */
@@ -75,6 +77,7 @@ func TestGraphKeepsEvidenceOnSelectedTypeScriptHosts(t *testing.T) {
  * @evidence docs/spec.md#contract This property does not own an operation.
  */
 export const CONTROLLER_EVIDENCE_EXCLUDE = true;
+export function selectedController(): void {}
 `,
 	}, `{"claims":[{
 		"type":"typescript",
@@ -95,8 +98,8 @@ export const CONTROLLER_EVIDENCE_EXCLUDE = true;
  * acknowledgement surface that generated declarations and consumers cannot
  * address.
  *
- *  1. Put an exclusion on an unexported constant in a matching claim file.
- *  2. Select function hosts and materialize one Markdown obligation.
+ *  1. Put an exclusion on an unexported constant beside a selected function.
+ *  2. Materialize one Markdown obligation for that active function claim.
  *  3. Assert the carrier is rejected and the obligation remains missing.
  */
 func TestGraphRejectsPrivateTypeScriptExclusionCarriers(t *testing.T) {
@@ -105,6 +108,7 @@ func TestGraphRejectsPrivateTypeScriptExclusionCarriers(t *testing.T) {
 		"src/controllers/CONTROLLER_EVIDENCE_EXCLUDE.ts": `
 /** @evidenceExclude docs/spec.md#contract This private ledger must not count. */
 const CONTROLLER_EVIDENCE_EXCLUDE = true;
+export function selectedController(): void {}
 `,
 	}, `{"claims":[{
 		"type":"typescript",
@@ -141,6 +145,8 @@ func TestGraphKeepsExclusionCarriersClaimLocal(t *testing.T) {
  * @evidenceExclude docs/dto.md#shape This package intentionally omits the shape.
  */
 export const EVIDENCE_EXCLUDE = true;
+export function selectedOperation(): void {}
+export interface SelectedShape {}
 `,
 	}, `{"claims":[{
 		"name":"operations",

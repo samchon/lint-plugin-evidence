@@ -2,16 +2,16 @@
   "private": true,
   "name": "@samchon/evidence-benchmark",
   "version": "0.4.4",
-  "description": "Minimal Codex and Claude Code runner for the Evidence benchmark.",
+  "description": "Minimal Codex runner for the Evidence benchmark.",
   "type": "module",
   "exports": {
-    "./claude-runner": "./src/EvidenceBenchmarkClaudeRunner.ts",
     "./runner": "./src/EvidenceBenchmarkRunner.ts",
     "./workspace": "./src/EvidenceBenchmarkWorkspace.ts"
   },
   "scripts": {
     "start": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkCommandLine.ts",
     "dashboard": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkDashboard.ts",
+    "report": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkReport.ts",
     "check": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {

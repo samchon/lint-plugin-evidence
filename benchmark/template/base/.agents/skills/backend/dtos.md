@@ -1,209 +1,111 @@
 # DTOs
 
-This document owns the data transfer objects: where they live, what they are named, what each variant means, how every property earns its place, and how relations are shaped.
+DTOs are the public request and response contract. Declare every requirement-derived DTO under `packages/api/src/structures/`, never inside the backend.
 
-## They Live In The API Package
+## Files And Exports
 
-**Declare every DTO under `packages/api/src/structures`, never inside `packages/backend`.**
+Keep the directory flat, one root interface per file:
 
-```
+```text
 packages/api/src/structures/
   IShoppingSale.ts
   IShoppingSaleSnapshot.ts
   index.ts
-packages/api/src/typings/
-  IDiagnosis.ts
-  IEntity.ts
-  IPage.ts
-  index.ts
 ```
 
-The backend imports its own request and response types from that package, which reads backwards until you see why: **the contract belongs to the SDK, and the server is one implementation of it.** A type declared inside the backend is a type consumers cannot import, so the first client to need it copies it, and the copy is what drifts.
+Export every file directly from `structures/index.ts`, then through `src/index.ts`. Consumers import from the package entry only. `IEntity`, `IPage`, and `IDiagnosis` remain transport primitives under `src/typings/`.
 
-Keep `structures` flat, with one file per root DTO named for the interface it declares. The interface and namespace inside that file carry the domain hierarchy; the filesystem does not repeat it.
+Name a root interface from the full singular table name: `shopping_customer_sessions` becomes `IShoppingCustomerSession`. Variants use namespaces:
 
-`IEntity`, `IPage`, and `IDiagnosis` live in `src/typings` because they are shared transport primitives rather than DTOs derived from a database model or requirement operation. Import them from the API package entry exactly like DTOs, but do not move them into `structures` or redeclare them beside a domain DTO.
-
-## Everything Is Exported From The Index
-
-A type that is not reachable from the package entry does not exist for a consumer.
-
-```ts
-// packages/api/src/structures/index.ts
-export * from "./IShoppingSale";
-export * from "./IShoppingSaleSnapshot";
-```
-
-Add the direct export to `structures/index.ts` in the same edit that adds the file. Every DTO in `structures` must appear there; nested barrels and directory exports are forbidden because the DTO directory is flat. A type present in the tree and absent from the index compiles here, fails to import there, and the failure surfaces in the frontend rather than where it was caused.
-
-## Contract Direction
-
-An interface DTO describes only what this backend exchanges with **its own clients**: what a caller sends, what the backend returns, and the body an external system posts to a webhook this backend exposes.
-
-The request this backend sends to a payment gateway, a mail provider, or a tax authority, and that provider's response, are **not DTOs**. They are internal types owned by the outbound client inside the backend package. Clients receive the domain row this backend recorded, such as a payment or a dispatch attempt, not the provider's wire shape.
-
-No check can tell an outbound provider type from a legitimate computed DTO by looking at it. Authoring one publishes it in the OpenAPI document, generates it into the SDK, ships it to browsers, and then leaves it flagged as unused, which pressures someone into adding an endpoint that proxies the provider.
-
-Decide by direction before the type exists, not by whether its mapping passes.
-
-## Naming
-
-Form the root from the table name: keep every word including the service prefix, PascalCase, singularize, prefix `I`.
-
-| Table | Wrong | Right | Problem |
-| --- | --- | --- | --- |
-| `shopping_sales` | `ISale` | `IShoppingSale` | dropped the prefix |
-| `shopping_customer_sessions` | `IShoppingSession` | `IShoppingCustomerSession` | dropped an intermediate word |
-| any | `IShoppingSaleICreate` | `IShoppingSale.ICreate` | missing the dot; that type does not exist downstream |
-
-Variants attach with a dot. A multi-item response wraps the item type in the shared generic instead of gaining a name of its own: `IPage<IShoppingSale.ISummary>`.
-
-Do not pluralize an interface name or invent a pagination variant of your own.
-
-## Variant Meaning
-
-| Variant | Contains |
+| Variant | Meaning |
 | --- | --- |
-| base | the full read shape |
-| `.ISummary` | the list-item projection, list-friendly |
-| `.ICreate` | caller-supplied creation fields, no ids and no timestamps |
-| `.IUpdate` | the mutable fields |
-| `.IRequest` | search, filter, pagination, and sort controls |
-| `.IJoin`, `.ILogin`, `.IRefresh` | credential and session-context input |
-| `.IAuthorized` | the actor plus the issued token |
+| base | complete read shape |
+| `.ISummary` | list item |
+| `.ICreate` | caller-supplied creation fields |
+| `.IUpdate` | mutable fields |
+| `.IRequest` | pagination, search, filters, and sort |
+| `.IJoin`, `.ILogin`, `.IRefresh` | authentication input |
+| `.IAuthorized` | actor and issued authorization material |
 
-A mutable state property such as a published flag or a small status enum stays in `.IUpdate` unless an accepted transition operation already owns the change. Excluding it because such an operation might be added later leaves the state unreachable through the API forever.
-
-If a `.ISummary` contains a pagination property, it was shaped as a page rather than an item. Rebuild it from the entity's own fields, because the page wrapper is generated.
+Use `IPage<T>` for every multi-item response. Do not define a second page wrapper.
 
 ## Every Property Has A Source
 
-This is the rule the rest of the document serves. Build the property list outward from the database model: every property either maps to a real column, or justifies itself in its description as a computed value or a request control. A property carrying a nested object maps to the foreign key column that reaches it, because that column is what has to exist for the join to be possible.
+Each root DTO maps to a requirement and a precise source: a model, operation, or named derivation. Each property maps to a column, relation, or stated derivation. A property with no source is a phantom and must be removed or its owning schema corrected.
 
-**A property with neither is a phantom.** It compiles, it reaches the provider, and there is nothing to fill it with.
+Computed values state their derivation in JSDoc. “Computed” alone is not a derivation.
 
-Run this before declaring a property computed:
+Every public type and property has useful JSDoc. State meaning, source, absence semantics, unit, scale, and security implications instead of restating the property name.
 
-1. check the column list of the model this DTO represents;
-2. check the foreign key columns that reach the models it joins;
-3. verify the stated derivation uses only columns that exist.
+## Types And Tags
 
-A description saying a column "needs to be added" or is "pending migration" means the property is not ready to design. Add the column first.
+Tags are runtime boundary validation and OpenAPI constraints, not decoration:
 
-The inverse mistake is describing a property as computed when the schema already stores it.
+```ts
+id: string & tags.Format<"uuid">;
+createdAt: string & tags.Format<"date-time">;
+email: string & tags.Format<"email">;
+quantity: number & tags.Type<"uint32"> & tags.Minimum<1>;
+title: string & tags.MinLength<1> & tags.MaxLength<255>;
+```
 
-Properties that legitimately have no stored source: the pagination and search controls in a request variant, the connection context in a join or login variant, aggregate counts in a read variant, and the issued token in an authorized variant.
+Match schema nullability in response-reachable variants. A create variant may require a value that becomes nullable later. Write nullable tagged values as:
 
-A password is not one of them. It maps to the stored hash column as a transformation.
+```ts
+closedAt: null | (string & tags.Format<"date-time">);
+```
 
-## Types, Nullability, Formats
-
-Map a column to the type and format it actually has, and say so with a typia tag. Discarding the tag turns a semantic column into a bare string, and every consumer then accepts anything.
-
-| Column | Property |
-| --- | --- |
-| uuid | `string & tags.Format<"uuid">` |
-| datetime | `string & tags.Format<"date-time">` |
-| decimal, double | `number` |
-| int | `number & tags.Type<"int32">`, or `"uint32"` when it cannot be negative |
-| boolean | `boolean` |
-| email, url, ip | `string & tags.Format<"email">`, `<"url">`, `<"ipv4">` |
-| bounded text | `string & tags.MinLength<1> & tags.MaxLength<255>` |
-| bounded number | `number & tags.Minimum<1> & tags.Maximum<100>` |
-
-**A tag is not documentation. It is the boundary check, the OpenAPI constraint, and the random generator all at once.** `TypedBody` rejects a malformed value before any provider runs, the published document tells consumers the rule, and `typia.random<T>()` in a test produces a value that satisfies it. A property typed as bare `string` gets none of those, so every one of them becomes something a person has to remember instead.
-
-**Tag every constraint the requirements state**, not only the formats. A quantity the documents bound belongs in the type as `tags.Minimum`, because a bound that lives only in a provider is a rule the contract does not publish and no consumer can honor before submitting.
-
-**`tags.` is part of the name.** A bare `Format<"uuid">` is a different, unimported symbol, and the error it produces says the two types have no properties in common rather than naming the mistake.
-
-Intersect tags rather than nesting them, and put the tag on the value type: a nullable formatted string is `null | (string & tags.Format<"date-time">)`, never `(null | string) & tags.Format<...>`.
-
-**Decimal exactness stops at the contract boundary.** Storage and provider arithmetic stay exact; the wire carries a number. State the currency and the business scale in the description so clients format and compare at that scale, expose the currency code as its own property, and for a cross-currency row expose the posting rate and the converted amount as separate properties.
-
-**A stored calendar date crosses as a date-time at UTC midnight**, and the description says so, so clients compare and render by the date part without a local-time shift. Use a bare date format only for a genuinely computed bucket such as a report month, and name its derivation and timezone.
-
-**Nullability has direction.** A nullable stored value stays observable in every response-reachable variant. A request-only variant may require a present value for the same column.
-
-A non-null column may intentionally map to a nullable property, especially where the database supplies a default. Do not reverse that decision merely to mirror the column.
-
-A column that becomes nullable only when a later transition clears it, but is always set at creation, is **required and non-nullable in `.ICreate`** and nullable in the read and update variants. Decide from the documented creation semantics, not from the column's name.
-
-## Enums Are Narrowed Only From A Structured Owner
-
-Narrow to a closed set of literals when the requirements or another structured owner defines a closed, caller-visible domain. Otherwise keep the value a free string.
-
-**Vocabulary alone does not create a closed set.** A property named `status`, `state`, `role`, `level`, `visibility`, `direction`, or `type` is not thereby an enum, and an upstream or provider value with an open domain stays a string.
-
-Descriptions are documentation, not declarations. Wording such as "allowed values" and any list in prose creates nothing.
-
-The same logical enum on several DTOs shares one literal set. Casing drift between `"pending"` and `"Pending"`, or a member present in one place and missing in another, is a defect.
-
-**Group enums by meaning, not by property name.** A status on an order and a status on a user are usually different enums. When uncertain, keep them separate: an incorrect merge corrupts a contract, while a missed merge only duplicates a definition.
-
-## Tagged Unions
-
-Use a discriminator only on a union whose members are named object references. Every member declares the discriminating property, lists it as required, and gives it a string schema, with exact constants when the domain is closed.
-
-Add an explicit mapping whenever a payload value differs from its type name. A mapping cannot introduce a type absent from the union beside it.
+Use a literal union only when the requirements or another structured owner defines a closed public vocabulary. A property named `status` is not automatically an enum.
 
 ## Relations
 
-Classify the edge before shaping it. The classification decides the shape on both sides.
+| Relationship and direction | DTO shape |
+| --- | --- |
+| response needs related display data | target DTO or summary |
+| response only correlates | scalar identifier |
+| request associates an existing row | scalar identifier |
+| request creates a composition child | nested child `.ICreate` |
+| event-created collection | separate endpoint, optionally an aggregate count |
 
-**Composition.** The child is managed through the parent's lifecycle and cannot exist first. Nested object or array in reads; nested `.ICreate` in requests.
+Response relation names drop `_id`; request identifiers use camelCase `Id`. Do not expose both an id and nested object for one edge without a requirement-backed reason.
 
-**Association.** The target is an independent entity that already exists. A reference to its `.ISummary` in reads; a raw identifier in requests.
+Current versioned entities expose their current revision as `lastSnapshot`. Full history belongs to a dedicated endpoint.
 
-**Aggregation.** Event-driven rows created later by other people: comments, votes, logs. Do not embed them. Expose a count and give the collection its own endpoint.
+## Listing Request
 
-| Context | Shape | Why |
-| --- | --- | --- |
-| response, the reader needs the related entity's display data | reference to the target or its `.ISummary` | saves a second fetch; the transformer joins it |
-| response, the reader only correlates | scalar identifier | a full object bloats every row |
-| create or update, association to an existing row | scalar identifier | nested objects invite phantom writes |
-| create, composition child owned by this lifecycle | nested `.ICreate` reference | the child cannot exist first |
+```ts
+export namespace IShoppingSale {
+  export interface IRequest extends IPage.IRequest {
+    search?: null | IRequest.ISearch;
+    sort?: null | IPage.Sort<IRequest.SortableColumns>;
+  }
+  export namespace IRequest {
+    export interface ISearch {
+      title?: null | string;
+      sectionCodes?: null | string[];
+    }
+    export type SortableColumns =
+      | "sale.created_at"
+      | "sale.opened_at";
+  }
+}
+```
 
-**Foreign key naming changes with direction.** A response drops the `_id` and uses the relation name, so `author_id` becomes `author` mapped through the relation. A request keeps the camelCased identifier, so `authorId` maps through the column.
+Optional request fields use `?: null | T`. Sort uses ordered `+field` and `-field` tokens from the declared union.
 
-An optional one-to-one composition child in a create or update is the child's `.ICreate` or null. A required one is a bare required reference. A required one-to-many array carries a minimum length of one.
+## Credentials And Sessions
 
-When the target has a unique business code, prefer that code over the internal identifier in request references. Callers hold business codes; they do not hold internal identifiers.
+Never expose password hashes, persisted reset proofs, verification secrets, or external credentials. Plaintext credentials appear only in input DTOs.
 
-Do not expose both the scalar identifier and the relation object for the same edge without saying why in the description.
+`.IAuthorized` carries only what the authentication contract returns. Add refresh proof, deadlines, or connection context only when the requirements expose them. Do not copy another subject's session fields by habit.
 
-**Cross-type circular references make generation impossible.** A self-reference remains legitimate for a tree.
+## Completion
 
-## Snapshots
+Before SDK generation, verify both directions:
 
-A current-entity read variant represents its current version as a nested snapshot property named exactly `lastSnapshot`. It is singular and never an array.
-
-The plural array is full version history. Reserve it for an explicit history endpoint rather than embedding it on the current entity.
-
-A retained snapshot of a **different** entity is not `lastSnapshot`. Name it after that entity, such as the product snapshot an order item captured at purchase time.
-
-Request variants omit snapshot objects unless the operation writes the snapshot family in the same transaction.
-
-## Actors, Sessions, And Credentials
-
-The actor is who; the session is how they connected.
-
-**A credential column never appears in a response variant.** A password hash, a persisted reset or verification token, and an external secret are excluded even though the database stores them. A plaintext password appears only in a credential-input variant.
-
-Merely sensitive data is not a credential. Whether it is exposed is an authorization decision, and hard-excluding it hides a field the requirements may need visible.
-
-**Issued authorization material lives only in `.IAuthorized`**, returned by the lifecycle operations the requirements define. The authorized variant carries the actor identity and a `token.access` string when the controller uses `@setHeader token.access Authorization`. Add a refresh proof or deadline only when the requirements expose refresh or expiry semantics, and name each deadline for the promise it actually represents. Do not publish fixed `refresh`, `expired_at`, or `refreshable_until` fields merely because another subject used them, and never expose a stored verifier or session row as the token response.
-
-When the actor owns a required one-to-one composition such as a profile, `.IJoin` embeds that child's `.ICreate` as a property, so registration creates both rows in one call and the collector connects them.
-
-**Session context follows the requirements, not a fixed matrix.** If the product exposes connection address, referring page, origin, device label, or another context fact, state where the server observes it, whether the caller may supply it, and which session read returns it. Otherwise omit it from storage and every DTO. Never make optional client metadata required merely because a session row happens to exist.
-
-When refresh exists, its request carries only the proof and context the refresh contract requires. An anonymous actor may still need a continuation proof; credential-free does not mean tokenless. A subject with no refresh operation has no refresh variant.
-
-## Descriptions Are The Published Reference
-
-Every DTO and every property carries a description, and it is rendered into the API documentation.
-
-The root description says when the DTO is used and what boundary it represents. A property description says what the value means to the caller, where it comes from, why it may be absent, and any security implication.
-
-A label is not a description. `/** The name. */` on a property called `name` publishes nothing.
+- every caller-visible requirement concept has a DTO;
+- every DTO and property has a real source;
+- every caller-visible stored value reaches a read variant;
+- every constraint, null state, unit, and enum matches its owner;
+- no generated or outbound-provider wire type was published as a DTO; and
+- every authored DTO is exported from the package entry.

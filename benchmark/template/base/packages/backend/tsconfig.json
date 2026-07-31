@@ -2,16 +2,14 @@
   "extends": "../../config/tsconfig.json",
   "compilerOptions": {
     "outDir": "lib",
-    "rootDir": "src",
+    "rootDir": "..",
     "declaration": false,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "plugins": [
-      {
-        "transform": "@ttsc/lint",
-        "configFile": "./lint.config.main.ts"
-      }
-    ]
+    "emitDecoratorMetadata": true
   },
-  "include": ["src"]
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "../api/src/structures/**/*.ts"
+  ]
 }

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -9,22 +10,34 @@ import type { IEvidenceBenchmarkOutput } from "../../../benchmark/src/structures
 import type { IEvidenceBenchmarkRunState } from "../../../benchmark/src/structures/IEvidenceBenchmarkRunState.ts";
 import type { IEvidenceBenchmarkTokenUsage } from "../../../benchmark/src/structures/IEvidenceBenchmarkTokenUsage.ts";
 
-const ENTRIES = [
-  ["skills-contract", "skills-contract.md"],
-  ["backend-start", "backend/start.md"],
-  ["backend-review", "backend/review.md"],
-  ["backend-final", "backend/evidence-final.md"],
-  ["frontend-start", "frontend/start.md"],
-  ["frontend-review", "frontend/review.md"],
-  ["frontend-final", "frontend/evidence-final.md"],
-  ["overall-review", "overall/review.md"],
-  ["overall-final", "overall/evidence-final.md"],
+const EVIDENCE_ENTRIES = [
+  ["backend-start", "evidence/backend/start.md"],
+  ["backend-review", "evidence/backend/review.md"],
+  ["backend-final", "evidence/backend/final.md"],
+  ["frontend-start", "evidence/frontend/start.md"],
+  ["frontend-review", "evidence/frontend/review.md"],
+  ["frontend-final", "evidence/frontend/final.md"],
+  ["overall-review", "evidence/overall/review.md"],
+  ["overall-final", "evidence/overall/final.md"],
 ] as const;
+
+const PLAIN_ENTRIES = [
+  ["backend-start", "plain/backend/start.md"],
+  ["backend-review", "plain/backend/review.md"],
+  ["backend-final", "plain/backend/final.md"],
+  ["frontend-start", "plain/frontend/start.md"],
+  ["frontend-review", "plain/frontend/review.md"],
+  ["frontend-final", "plain/frontend/final.md"],
+  ["overall-review", "plain/overall/review.md"],
+  ["overall-final", "plain/overall/final.md"],
+] as const;
+
+const ENTRIES = EVIDENCE_ENTRIES;
 
 /**
  * Verifies the small production runner against a free app-server fixture.
  *
- * Each prescribed instruction and the shared continuation become one active
+ * Each prescribed instruction and its arm-owned continuation become one active
  * Goal. Native Goal, turn, token, process, and raw-stream facts are recorded;
  * the runner performs no workspace judgment.
  *
@@ -40,6 +53,77 @@ const main = async (): Promise<void> => {
   );
   try {
     const sources: Map<string, Buffer> = writeInstructions(root);
+    assert.deepEqual(
+      EvidenceBenchmarkRunner.instructionEntries("evidence"),
+      EVIDENCE_ENTRIES,
+    );
+    assert.deepEqual(
+      EvidenceBenchmarkRunner.instructionEntries("plain"),
+      PLAIN_ENTRIES,
+    );
+    assert.equal(
+      EvidenceBenchmarkRunner.instructionContinuationPath("evidence"),
+      "evidence/continue.md",
+    );
+    assert.equal(
+      EvidenceBenchmarkRunner.instructionContinuationPath("plain"),
+      "plain/continue.md",
+    );
+    const evidencePaths: Set<string> = new Set(
+      EVIDENCE_ENTRIES.map((entry) => entry[1]),
+    );
+    assert.equal(
+      PLAIN_ENTRIES.some((entry) => evidencePaths.has(entry[1])),
+      false,
+    );
+    PLAIN_ENTRIES.forEach((entry, index) =>
+      assert.notDeepEqual(
+        sources.get(entry[1]),
+        sources.get(EVIDENCE_ENTRIES[index]![1]),
+      ),
+    );
+    assert.notDeepEqual(
+      sources.get("plain/continue.md"),
+      sources.get("evidence/continue.md"),
+    );
+    const orphan = spawn(
+      process.execPath,
+      ["-e", "setInterval(() => undefined, 1000)"],
+      {
+        detached: process.platform !== "win32",
+        stdio: "ignore",
+        windowsHide: true,
+      },
+    );
+    assert.notEqual(orphan.pid, undefined);
+    const orphanClosed = new Promise<void>((resolve) => {
+      orphan.once("close", () => resolve());
+    });
+    spawn(
+      process.execPath,
+      [
+        path.join(
+          import.meta.dirname,
+          "../../../benchmark/src/executable/EvidenceBenchmarkProcessMonitor.mjs",
+        ),
+        "999999999",
+        String(orphan.pid),
+      ],
+      {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
+      },
+    ).unref();
+    await Promise.race([
+      orphanClosed,
+      new Promise<never>((_resolve, reject) =>
+        setTimeout(
+          () => reject(new Error("Owner monitor left an orphan process.")),
+          5_000,
+        ),
+      ),
+    ]);
     const prefix: string[] = [
       "--experimental-transform-types",
       import.meta.filename,
@@ -120,8 +204,10 @@ const main = async (): Promise<void> => {
     );
     completed.goals.forEach((goal, index) => {
       const [name, relative] = ENTRIES[index]!;
-      const prescribed: string = sources.get(relative)!.toString("utf8");
-      const continuation: string = sources.get("continue.md")!.toString("utf8");
+      const prescribed: string = readPrescribed(sources, relative);
+      const continuation: string = sources
+        .get("evidence/continue.md")!
+        .toString("utf8");
       assert.equal(goal.name, name);
       assert.equal(goal.relativePath, relative);
       assert.equal(goal.prescribedText, prescribed);
@@ -140,69 +226,176 @@ const main = async (): Promise<void> => {
         outputTokens: 4,
         reasoningOutputTokens: 3,
       } satisfies IEvidenceBenchmarkTokenUsage);
+      assert.equal(goal.elapsedMs, 1_000);
     });
     assert.deepEqual(completed.threadTokenUsage, {
-      totalTokens: 90,
-      inputTokens: 54,
-      cachedInputTokens: 18,
-      cacheWriteInputTokens: 9,
-      outputTokens: 36,
-      reasoningOutputTokens: 27,
+      totalTokens: ENTRIES.length * 10,
+      inputTokens: ENTRIES.length * 6,
+      cachedInputTokens: ENTRIES.length * 2,
+      cacheWriteInputTokens: ENTRIES.length,
+      outputTokens: ENTRIES.length * 4,
+      reasoningOutputTokens: ENTRIES.length * 3,
     } satisfies IEvidenceBenchmarkTokenUsage);
     assert.equal(snapshots.at(-1)?.status, "completed");
 
-    const terminalLfOutput: IEvidenceBenchmarkOutput[] = [];
-    const terminalLf = await EvidenceBenchmarkRunner.run({
+    const plain = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("plain"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(plain.status, "completed");
+    plain.goals.forEach((goal, index) => {
+      const entry = PLAIN_ENTRIES[index]!;
+      const prescribed: string = readPrescribed(sources, entry[1]);
+      const continuation: string = sources
+        .get("plain/continue.md")!
+        .toString("utf8");
+      assert.equal(goal.relativePath, entry[1]);
+      assert.equal(goal.prescribedText, prescribed);
+      assert.equal(goal.continuationText, continuation);
+      assert.equal(goal.objectiveText, `${prescribed}\n\n${continuation}`);
+      assert.equal(goal.goal?.objective, goal.objectiveText);
+    });
+
+    const forcedCleanup = await EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("evidence"),
       cwd: root,
       instructionsRoot: root,
       model: "fixture-model",
       effort: "high",
       command: process.execPath,
-      commandPrefixArguments: [...prefix, "--terminal-lf"],
-      onOutput: (_processIndex, output) => {
-        terminalLfOutput.push(output);
-      },
+      commandPrefixArguments: [...prefix, "--hang-on-close"],
+      shutdownGraceMs: 50,
+      onOutput: () => undefined,
     });
-    assert.equal(terminalLf.status, "completed");
-    assert.equal(terminalLf.nextInstructionIndex, ENTRIES.length);
-    assert.equal(terminalLf.goals.length, ENTRIES.length);
-    const terminalLfRequests = terminalLfOutput
-      .filter((output) => output.stream === "stdin")
-      .map((output) => JSON.parse(output.text) as Record<string, unknown>)
-      .filter((request) => request.method === "thread/goal/set");
-    assert.equal(terminalLfRequests.length, ENTRIES.length);
-    terminalLf.goals.forEach((goal, index) => {
-      const objective: string = readObjective(root, sources, ENTRIES[index]!);
-      assert.ok(objective.endsWith("\n"));
-      assert.equal(goal.objectiveText, objective);
-      assert.deepEqual(Buffer.from(goal.objectiveText), Buffer.from(objective));
-      assert.equal(
-        (terminalLfRequests[index]?.params as Record<string, unknown>)
-          ?.objective,
-        objective,
-      );
-      assert.equal(goal.goal?.objective, objective.slice(0, -1));
-    });
-
-    const terminalLfBoundary = structuredClone(terminalLf);
-    terminalLfBoundary.status = "interrupted";
-    terminalLfBoundary.nextInstructionIndex = 1;
-    terminalLfBoundary.goals = terminalLfBoundary.goals.slice(0, 1);
-    terminalLfBoundary.threadTokenUsage = structuredClone(
-      terminalLfBoundary.goals[0]!.tokenUsageEnd!,
+    assert.equal(forcedCleanup.status, "completed");
+    assert.equal(forcedCleanup.nextInstructionIndex, ENTRIES.length);
+    assert.equal(forcedCleanup.processes[0]?.shutdownForced, true);
+    assert.equal(
+      Number.isSafeInteger(forcedCleanup.processes[0]?.processId),
+      true,
     );
-    const terminalLfResume = await EvidenceBenchmarkRunner.run({
-      state: terminalLfBoundary,
+
+    const retainedCleanup = structuredClone(forcedCleanup);
+    retainedCleanup.status = "interrupted";
+    retainedCleanup.interruption = {
+      name: "Error",
+      message: "Codex app-server survived forced process-tree cleanup.",
+    };
+    delete retainedCleanup.processes[0]?.processId;
+    const recoveredCleanup = await EvidenceBenchmarkRunner.run({
+      state: retainedCleanup,
       cwd: root,
       instructionsRoot: root,
       model: "fixture-model",
       effort: "high",
       command: process.execPath,
-      commandPrefixArguments: [...prefix, "--previous-goal", "--terminal-lf"],
+      commandPrefixArguments: prefix,
       onOutput: () => undefined,
     });
-    assert.equal(terminalLfResume.status, "completed");
+    assert.equal(recoveredCleanup.status, "completed");
+    assert.equal(recoveredCleanup.interruption, undefined);
+
+    const unrelatedInterruption = structuredClone(retainedCleanup);
+    unrelatedInterruption.interruption = {
+      name: "Error",
+      message: "An unrelated terminal failure.",
+    };
+    const retainedInterruption = await EvidenceBenchmarkRunner.run({
+      state: unrelatedInterruption,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(retainedInterruption.status, "interrupted");
+    assert.equal(
+      retainedInterruption.interruption?.message,
+      "An unrelated terminal failure.",
+    );
+
+    const inheritedStream = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--inherit-stream-after-exit"],
+      shutdownGraceMs: 50,
+      onOutput: () => undefined,
+    });
+    assert.equal(inheritedStream.status, "completed");
+    assert.notEqual(inheritedStream.processes[0]?.exitCode, null);
+    assert.notEqual(inheritedStream.processes[0]?.shutdownForced, true);
+
+    const terminalLineBreakOutput: IEvidenceBenchmarkOutput[] = [];
+    const terminalLineBreak = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--trim-terminal-line-breaks"],
+      onOutput: (_processIndex, output) => {
+        terminalLineBreakOutput.push(output);
+      },
+    });
+    assert.equal(terminalLineBreak.status, "completed");
+    assert.equal(terminalLineBreak.nextInstructionIndex, ENTRIES.length);
+    assert.equal(terminalLineBreak.goals.length, ENTRIES.length);
+    const terminalLineBreakRequests = terminalLineBreakOutput
+      .filter((output) => output.stream === "stdin")
+      .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+      .filter((request) => request.method === "thread/goal/set");
+    assert.equal(terminalLineBreakRequests.length, ENTRIES.length);
+    terminalLineBreak.goals.forEach((goal, index) => {
+      const objective: string = readObjective(root, sources, ENTRIES[index]!);
+      assert.ok(objective.endsWith("\r\n"));
+      assert.equal(goal.objectiveText, objective);
+      assert.deepEqual(Buffer.from(goal.objectiveText), Buffer.from(objective));
+      assert.equal(
+        (terminalLineBreakRequests[index]?.params as Record<string, unknown>)
+          ?.objective,
+        objective,
+      );
+      assert.equal(goal.goal?.objective, objective.replace(/[\r\n]+$/u, ""));
+    });
+
+    const terminalLineBreakBoundary = structuredClone(terminalLineBreak);
+    terminalLineBreakBoundary.status = "interrupted";
+    terminalLineBreakBoundary.nextInstructionIndex = 1;
+    terminalLineBreakBoundary.goals = terminalLineBreakBoundary.goals.slice(
+      0,
+      1,
+    );
+    terminalLineBreakBoundary.threadTokenUsage = structuredClone(
+      terminalLineBreakBoundary.goals[0]!.tokenUsageEnd!,
+    );
+    const terminalLineBreakResume = await EvidenceBenchmarkRunner.run({
+      state: terminalLineBreakBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--previous-goal",
+        "--trim-terminal-line-breaks",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(terminalLineBreakResume.status, "completed");
 
     if (process.platform === "win32") {
       const shimDirectory: string = path.join(root, "command shims");
@@ -468,6 +661,72 @@ const main = async (): Promise<void> => {
         .map((output) => JSON.parse(output.text) as Record<string, unknown>)
         .filter((request) => request.method === "thread/goal/set").length,
       0,
+    );
+    const undispatchedBoundary = structuredClone(stateFailure);
+    const usedUndispatchedBoundary = structuredClone(stateFailure);
+    const adoptedUndispatchedGoal = await EvidenceBenchmarkRunner.run({
+      state: undispatchedBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--undispatched-active"],
+      onOutput: () => undefined,
+    });
+    assert.equal(adoptedUndispatchedGoal.status, "completed");
+    assert.equal(adoptedUndispatchedGoal.nextInstructionIndex, ENTRIES.length);
+    const rejectedUsedUndispatchedGoal = await EvidenceBenchmarkRunner.run({
+      state: usedUndispatchedBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--undispatched-used"],
+      onOutput: () => undefined,
+    });
+    assert.equal(rejectedUsedUndispatchedGoal.status, "interrupted");
+    assert.match(
+      rejectedUsedUndispatchedGoal.interruption?.message ?? "",
+      /exact retained boundary/,
+    );
+    const nextUndispatchedBoundary = structuredClone(completed);
+    nextUndispatchedBoundary.status = "interrupted";
+    nextUndispatchedBoundary.nextInstructionIndex = 1;
+    nextUndispatchedBoundary.goals = nextUndispatchedBoundary.goals.slice(0, 2);
+    const nextUndispatchedRecord = nextUndispatchedBoundary.goals[1]!;
+    nextUndispatchedRecord.goal = null;
+    nextUndispatchedRecord.terminalTurnId = null;
+    nextUndispatchedRecord.terminalTurnCompleted = false;
+    nextUndispatchedRecord.threadIdle = false;
+    nextUndispatchedRecord.tokenUsageTurnId = null;
+    nextUndispatchedRecord.tokenUsageEnd = null;
+    nextUndispatchedRecord.tokenUsage = {
+      totalTokens: 0,
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
+      outputTokens: 0,
+      reasoningOutputTokens: 0,
+    };
+    nextUndispatchedBoundary.threadTokenUsage = structuredClone(
+      nextUndispatchedBoundary.goals[0]!.tokenUsageEnd!,
+    );
+    const adoptedNextUndispatchedGoal = await EvidenceBenchmarkRunner.run({
+      state: nextUndispatchedBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--undispatched-next"],
+      onOutput: () => undefined,
+    });
+    assert.equal(adoptedNextUndispatchedGoal.status, "completed");
+    assert.equal(
+      adoptedNextUndispatchedGoal.nextInstructionIndex,
+      ENTRIES.length,
     );
     const firstBoundaryResume = await EvidenceBenchmarkRunner.run({
       state: stateFailure,
@@ -747,10 +1006,20 @@ const main = async (): Promise<void> => {
 
 const writeInstructions = (root: string): Map<string, Buffer> => {
   const sources: Map<string, Buffer> = new Map([
-    ["continue.md", Buffer.from("Continue until this Goal is complete.\r\n")],
+    [
+      "evidence/continue.md",
+      Buffer.from("Continue until this Goal is complete.\r\n"),
+    ],
+    ["plain/continue.md", Buffer.from("Finish the Plain Goal.\r\n")],
   ]);
   ENTRIES.forEach(([name, relative]) =>
     sources.set(relative, Buffer.from(`# ${name}\r\n\r\nExecute exactly.\r\n`)),
+  );
+  PLAIN_ENTRIES.forEach(([name, relative]) =>
+    sources.set(
+      relative,
+      Buffer.from(`# Plain ${name}\r\n\r\nExecute only Plain.\r\n`),
+    ),
   );
   for (const [relative, source] of sources) {
     const location: string = path.join(root, ...relative.split("/"));
@@ -765,21 +1034,42 @@ const readObjective = (
   sources: ReadonlyMap<string, Buffer>,
   entry: (typeof ENTRIES)[number],
 ): string => {
-  const prescribed: Buffer | undefined = sources.get(entry[1]);
-  const continuation: Buffer | undefined = sources.get("continue.md");
-  assert.ok(
-    prescribed,
-    `Missing fixture source: ${path.join(root, ...entry[1].split("/"))}`,
-  );
+  const prescribed: string = readPrescribed(sources, entry[1]);
+  const continuation: Buffer | undefined = sources.get("evidence/continue.md");
   assert.ok(
     continuation,
-    `Missing fixture source: ${path.join(root, "continue.md")}`,
+    `Missing fixture source: ${path.join(root, "evidence/continue.md")}`,
   );
-  return `${prescribed.toString("utf8")}\n\n${continuation.toString("utf8")}`;
+  return `${prescribed}\n\n${continuation.toString("utf8")}`;
+};
+
+const readPrescribed = (
+  sources: ReadonlyMap<string, Buffer>,
+  relativePath: string,
+): string => {
+  const source: Buffer | undefined = sources.get(relativePath);
+  assert.ok(source, `Missing fixture source: ${relativePath}`);
+  const prescribed: string = source.toString("utf8");
+  if (!relativePath.endsWith("/final.md")) return prescribed;
+  const reviewPath: string = relativePath.replace(
+    /\/final\.md$/u,
+    "/review.md",
+  );
+  const review: Buffer | undefined = sources.get(reviewPath);
+  assert.ok(review, `Missing fixture source: ${reviewPath}`);
+  const lines: string[] = review.toString("utf8").split(/\r\n|\n|\r/u);
+  if (lines.at(-1) === "") lines.pop();
+  const quote: string = lines.map((line) => `> ${line}`).join("\n");
+  const separator: string = prescribed.endsWith("\n") ? "\n" : "\n\n";
+  return `${prescribed}${separator}${quote}`;
 };
 
 const fakeAppServer = (): void => {
   const fail: boolean = process.argv.includes("--fail");
+  const hangOnClose: boolean = process.argv.includes("--hang-on-close");
+  const inheritStreamAfterExit: boolean = process.argv.includes(
+    "--inherit-stream-after-exit",
+  );
   const lateError: boolean = process.argv.includes("--late-error");
   const blockedThenComplete: boolean = process.argv.includes(
     "--blocked-then-complete",
@@ -814,15 +1104,40 @@ const fakeAppServer = (): void => {
   );
   const missingThreadId: boolean = process.argv.includes("--missing-thread-id");
   const previousActive: boolean = process.argv.includes("--previous-active");
+  const undispatchedActive: boolean = process.argv.includes(
+    "--undispatched-active",
+  );
+  const undispatchedUsed: boolean = process.argv.includes(
+    "--undispatched-used",
+  );
+  const undispatchedNext: boolean = process.argv.includes(
+    "--undispatched-next",
+  );
+  const undispatched: boolean =
+    undispatchedActive || undispatchedUsed || undispatchedNext;
   const previousGoal: boolean =
-    currentGoal || previousActive || process.argv.includes("--previous-goal");
+    currentGoal ||
+    previousActive ||
+    undispatched ||
+    process.argv.includes("--previous-goal");
   const resumeStatusBeforeResponse: boolean = process.argv.includes(
     "--resume-status-before-response",
   );
   const wrongGoal: boolean = process.argv.includes("--wrong-goal");
   const wrongThread: boolean = process.argv.includes("--wrong-thread");
-  const terminalLf: boolean = process.argv.includes("--terminal-lf");
-  let goalIndex = currentActive ? 1 : currentGoal ? 2 : previousGoal ? 1 : 0;
+  const trimTerminalLineBreaks: boolean = process.argv.includes(
+    "--trim-terminal-line-breaks",
+  );
+  let goalIndex = undispatchedActive
+    ? 0
+    : currentActive || undispatchedNext
+      ? 1
+      : currentGoal
+        ? 2
+        : previousGoal
+          ? 1
+          : 0;
+  let undispatchedSnapshotPending = undispatched;
   let waitingForTurnCompletion = false;
   const send = (value: unknown, callback?: () => void): void => {
     process.stdout.write(`${JSON.stringify(value)}\n`, callback);
@@ -832,24 +1147,35 @@ const fakeAppServer = (): void => {
     status: "active" | "blocked" | "complete",
   ) => ({
     threadId: "fixture-thread",
-    objective:
-      terminalLf && objective.endsWith("\n")
-        ? objective.slice(0, -1)
-        : objective,
+    objective: trimTerminalLineBreaks
+      ? objective.replace(/[\r\n]+$/u, "")
+      : objective,
     status,
     tokenBudget: null,
-    tokensUsed: goalIndex * 10,
-    timeUsedSeconds: goalIndex,
+    tokensUsed: undispatchedSnapshotPending
+      ? undispatchedUsed
+        ? 10
+        : 0
+      : goalIndex * 10,
+    timeUsedSeconds: undispatchedSnapshotPending
+      ? undispatchedUsed
+        ? 1
+        : 0
+      : goalIndex,
     createdAt: 1,
     updatedAt: goalIndex + 1,
   });
   const input = readline.createInterface({ input: process.stdin });
   const retainedObjective = (): string => {
-    const relativePath: string = ENTRIES[currentGoal ? 1 : 0]![1];
+    const relativePath: string =
+      ENTRIES[currentGoal || undispatchedNext ? 1 : 0]![1];
     return `${fs.readFileSync(
       path.join(process.cwd(), ...relativePath.split("/")),
       "utf8",
-    )}\n\n${fs.readFileSync(path.join(process.cwd(), "continue.md"), "utf8")}`;
+    )}\n\n${fs.readFileSync(
+      path.join(process.cwd(), "evidence", "continue.md"),
+      "utf8",
+    )}`;
   };
   input.on("line", (line: string) => {
     const request = JSON.parse(line) as {
@@ -911,42 +1237,44 @@ const fakeAppServer = (): void => {
           () => {
             if (wrongThread) return;
             if (previousGoal) {
-              const replay =
-                advancedInterruptedReplay ||
-                unprovenInterruptedReplay ||
-                sameTurnInterruptedReplay
-                  ? {
-                      turnId: sameTurnInterruptedReplay
-                        ? `turn-${goalIndex}`
-                        : "turn-interrupted",
-                      total: {
-                        totalTokens: 25,
-                        inputTokens: 15,
-                        cachedInputTokens: 5,
-                        cacheWriteInputTokens: 2,
-                        outputTokens: 10,
-                        reasoningOutputTokens: 7,
-                      },
-                    }
-                  : {
-                      turnId: `turn-${goalIndex}`,
-                      total: {
-                        totalTokens: goalIndex * 10,
-                        inputTokens: goalIndex * 6,
-                        cachedInputTokens: goalIndex * 2,
-                        cacheWriteInputTokens: goalIndex,
-                        outputTokens: goalIndex * 4,
-                        reasoningOutputTokens: goalIndex * 3,
-                      },
-                    };
-              send({
-                method: "thread/tokenUsage/updated",
-                params: {
-                  threadId: "fixture-thread",
-                  turnId: replay.turnId,
-                  tokenUsage: { total: replay.total },
-                },
-              });
+              if (!undispatched || undispatchedNext) {
+                const replay =
+                  advancedInterruptedReplay ||
+                  unprovenInterruptedReplay ||
+                  sameTurnInterruptedReplay
+                    ? {
+                        turnId: sameTurnInterruptedReplay
+                          ? `turn-${goalIndex}`
+                          : "turn-interrupted",
+                        total: {
+                          totalTokens: 25,
+                          inputTokens: 15,
+                          cachedInputTokens: 5,
+                          cacheWriteInputTokens: 2,
+                          outputTokens: 10,
+                          reasoningOutputTokens: 7,
+                        },
+                      }
+                    : {
+                        turnId: `turn-${goalIndex}`,
+                        total: {
+                          totalTokens: goalIndex * 10,
+                          inputTokens: goalIndex * 6,
+                          cachedInputTokens: goalIndex * 2,
+                          cacheWriteInputTokens: goalIndex,
+                          outputTokens: goalIndex * 4,
+                          reasoningOutputTokens: goalIndex * 3,
+                        },
+                      };
+                send({
+                  method: "thread/tokenUsage/updated",
+                  params: {
+                    threadId: "fixture-thread",
+                    turnId: replay.turnId,
+                    tokenUsage: { total: replay.total },
+                  },
+                });
+              }
               const continueCurrentGoal = (): void => {
                 goalIndex++;
                 const turnId: string = `turn-${goalIndex}`;
@@ -1018,6 +1346,7 @@ const fakeAppServer = (): void => {
                         currentBlocked
                           ? "blocked"
                           : previousActive ||
+                              undispatched ||
                               currentActive ||
                               currentInterruptedActive
                             ? "active"
@@ -1061,6 +1390,7 @@ const fakeAppServer = (): void => {
                     ? "blocked"
                     : activeGoalGet ||
                         previousActive ||
+                        undispatched ||
                         currentActive ||
                         currentInterruptedActive
                       ? "active"
@@ -1080,6 +1410,7 @@ const fakeAppServer = (): void => {
         error: { message: `Unexpected request: ${request.method}` },
       });
     const objective: string = request.params.objective;
+    undispatchedSnapshotPending = false;
     goalIndex++;
     if (fail) {
       process.stderr.write("fixture interruption\n");
@@ -1206,6 +1537,13 @@ const fakeAppServer = (): void => {
   });
   input.on("close", () => {
     if (lateError) send({ id: -1, method: "fixture/late-error" });
+    if (hangOnClose) setInterval(() => undefined, 1_000);
+    if (inheritStreamAfterExit)
+      spawn(process.execPath, ["-e", "setTimeout(() => undefined, 500)"], {
+        detached: true,
+        stdio: ["ignore", process.stdout, process.stderr],
+        windowsHide: true,
+      }).unref();
   });
 };
 

@@ -5,6 +5,9 @@
  * arguments, and terminal disposition remain attributable.
  */
 export interface IEvidenceBenchmarkProcessRecord {
+  /** Operating-system process ID when the runner launched the app-server. */
+  processId?: number;
+
   /** Repository revision of the runner that started this native process. */
   runnerRevision?: string;
 
@@ -22,4 +25,7 @@ export interface IEvidenceBenchmarkProcessRecord {
 
   /** Terminating signal, or null when none was reported. */
   signal: NodeJS.Signals | null;
+
+  /** True when exact work completed but app-server required forced cleanup. */
+  shutdownForced?: boolean;
 }

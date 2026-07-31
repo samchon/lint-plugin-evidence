@@ -1,95 +1,49 @@
-# TypeScript And Typia
+# TypeScript, Typia, And Prisma Diagnostics
 
-This document owns the type errors you will actually meet, because the same dozen recur and each has one correct fix.
+Fix the owning artifact. Never use `any`, double casts, suppression comments, or widened signatures to silence a diagnostic.
 
-The rule underneath all of them: **fix the artifact, do not silence the compiler.** No `any`, no `as unknown as`, no suppression comment. Each of those converts a compile error into a runtime defect, and the runtime defect surfaces somewhere unrelated.
+## Common Diagnostics
 
-## The Catalog
-
-| Error | Cause | Fix |
+| Symptom | Cause | Correct fix |
 | --- | --- | --- |
-| tag-to-tag incompatibility on a `typia.tag` property | two tag intersections do not overlap | `value satisfies Base as Base`; nullable: `value satisfies T \| null as T \| null` |
-| `Date` is not assignable to `string & Format<"date-time">` | the database client returns `Date` | `.toISOString()`; nullable target: `date?.toISOString() ?? null` |
-| `Format<"uuid">` has no properties in common | the `tags.` prefix is missing | `string & tags.Format<"uuid">`, never a bare `Format<...>` |
-| `X \| undefined` not assignable after a truthy check | `typia.assert(v)` does not narrow the original binding | assign it, or narrow in place with `typia.assertGuard(v!)` |
-| `string` not assignable to a literal union | a widened string reaching a narrowed field | `typia.assert<"a" \| "b">(value)`, or index the consuming type |
-| two types "have no overlap", or a property on `never` | an earlier guard already narrowed it | delete the redundant check |
-| object possibly undefined on index access | unchecked indexed access | guard it, or inline the fallback |
-| `.map` on a possibly-undefined array | the optional chain stops at the array | `(items ?? []).map(...)` when empty means none |
-| cannot redeclare a block-scoped variable in a `switch` | every `case` shares one block scope | wrap each case body in its own braces |
-| the error persists after a `!== undefined` check | the type has three states | check both, or use `!= null` |
-| literal-to-literal mismatch between two domains | two different vocabularies | an exhaustive `Record<From, To>`, never a cast |
-| `boolean \| undefined` used as a condition | optional chaining before a predicate | compare `=== true`, or coalesce `?? false` |
-| decimal not assignable to number | a decimal column | `Number(value)` |
-| a ternary sort direction widens to `string` | literal widening across branches | `"asc" as const` |
+| tagged primitives do not overlap | incompatible refinements | prove the base with `value satisfies T as T` |
+| `Date` is not assignable to date-time string | Prisma returns `Date` | `.toISOString()`; preserve `null` when nullable |
+| `Format<"uuid">` mismatch | missing `tags.` prefix | `string & tags.Format<"uuid">` |
+| `T \| undefined` remains after `typia.assert` | return value was ignored | use the return or `typia.assertGuard(value!)` |
+| string not assignable to a literal union | open input reaches closed contract | runtime assert or exhaustive map |
+| property on `never` | earlier guard already narrowed it, or a selection contains `null` | remove the duplicate guard or fix the selection |
+| optional array has no `.map` | optional chain ended before the array | `(items ?? []).map(...)` |
+| duplicate block variable in `switch` | cases share one scope | wrap each case body |
+| check removed `undefined` but not `null` | the type has three states | branch explicitly or use `!= null` when equivalent |
+| decimal not assignable to number | Prisma decimal crosses the API boundary | `Number(value)` |
+| sort direction widens to string | branch literal widening | preserve `"asc" as const` |
+| Prisma field absent from query result | it was not selected | add the scalar or relation to `select` |
+| Prisma create/select rejects a name | table name used instead of relation property | use the schema relation name |
 
-## `satisfies X as X`, Not A Cast
+## Preserve Meaning
 
-When two tag intersections conflict but the underlying value is genuinely fine, strip the tags without lying about the runtime shape.
+`T | null | undefined` often means:
 
-```ts
-const page: number & tags.Type<"int32"> = getValue();
-const usable = page satisfies number as number;
-```
+- `undefined`: leave unchanged;
+- `null`: clear;
+- value: set.
 
-`satisfies` proves the value really is that base type before the assertion removes the refinement, so the pair cannot claim something false. A bare `as` can. Prefer this over `typia.assert`, which adds a runtime check you do not need when the value already came from a validated source.
+Do not collapse these states unless the contract says they are equivalent.
 
-## The Three States Mean Three Things
-
-`T | null | undefined` is not one nullish case. In a request body the convention is:
-
-- `undefined` means **do not change this**;
-- `null` means **clear it**;
-- a value means **set it**.
-
-So `!== undefined` does not eliminate `null`, and a check that treats them alike implements a different feature than the contract describes. Use `!= null` when both are the ignore case, and branch explicitly when they are not.
-
-The direction of a conversion follows the consuming signature, never habit. An optional property takes `value ?? undefined`. A nullable property keeps `value ?? null`. Read the interface before choosing.
-
-## A Wrong Default Is Worse Than A Compile Error
-
-This is the most dangerous item here, because it type-checks and inverts behavior.
+A default must encode the documented meaning:
 
 ```ts
-// WRONG: this means "already expired"
+// Wrong when null means no expiry: immediately expired.
 expiredAt: (row.expired_at ?? new Date()).toISOString(),
 
-// RIGHT, when null means "no expiration"
-expiredAt: (row.expired_at ?? new Date("9999-12-31T23:59:59.999Z")).toISOString(),
+// Prefer preserving null when the DTO allows it.
+expiredAt: row.expired_at?.toISOString() ?? null,
 ```
 
-A default must encode what null means **for that field**, and the schema comment is where that meaning was written down. Go read it rather than reaching for whatever satisfies the type.
+If a nullable source feeds a required target, first check whether the DTO or schema is wrong. Do not invent a plausible value merely to compile.
 
-A field that needs a default in order to compile is often a field whose DTO should have been nullable. Check that before inventing a value: a nullable source into a required target is usually a contract mistake, not a conversion problem.
+## Remove Dead Checks
 
-## `assert` Returns, `assertGuard` Narrows
+Typed Nestia boundaries already validate DTO types, formats, and declared ranges. Delete repeated provider regexes and primitive checks. Keep business-rule validation.
 
-```ts
-const item: IItem | undefined = items.find((i) => i.id === id);
-
-const safe = typia.assert(item!);   // use the return value
-typia.assertGuard(item!);           // returns void, narrows `item` itself
-```
-
-Picking the wrong one produces an error that looks like the check did not happen, because it did not narrow anything.
-
-## `never` Means You Already Checked
-
-```ts
-if (record.deleted_at !== null) throw ErrorUtil.forbidden("Deleted.");
-// from here down, deleted_at is null on every path
-```
-
-A later branch testing it again is unreachable, and the compiler says `never`. The fix is to delete the second check, not to cast around it. A `never` error is the compiler reporting that your code disagrees with itself.
-
-## Deletion Is Also A Fix
-
-Some diagnostics are repaired by removing code.
-
-**Runtime type and format validation on validated parameters.** The boundary already proved every type, format, and length the DTO declares. A `typeof` check, a trimmed-length check, or a format regex on such a parameter is dead code that will drift from the contract.
-
-**A standalone object or array literal.** `({ where: { id } });` binds nothing and does nothing, and the compiler does not flag it. If a filter or a data object seems to have no effect, look for one of these first.
-
-## When It Keeps Coming Back
-
-If the same diagnostic signature recurs across a file, stop patching lines and re-derive the function from its contract. A repeated error usually means one wrong assumption expressed a dozen times, and fixing it once at the source resolves the whole class.
+When the same diagnostic recurs across a file, stop patching lines and re-derive the function from its contract and selection. Repetition usually points to one wrong upstream assumption.

@@ -342,8 +342,8 @@ export interface Ref {}
  * tag in a matched file as valid would make a property-only claim selector
  * indistinguishable from the all-symbol default.
  *
- *  1. Select only TypeScript property hosts.
- *  2. Put a valid target on an exported function.
+ *  1. Select only TypeScript property hosts and materialize one such host.
+ *  2. Put a valid target on a neighboring exported function.
  *  3. Assert both the out-of-scope host and missing acknowledgement.
  */
 func TestDeclarationsRejectOutOfScopeSymbolHosts(t *testing.T) {
@@ -352,6 +352,7 @@ func TestDeclarationsRejectOutOfScopeSymbolHosts(t *testing.T) {
 		"src/ref.ts": `
 /** @evidence docs/spec.md#contract This function is outside the selected host kind. */
 export function ref(): void {}
+export const selectedProperty = true;
 `,
 	}, `{"claims":[{
 		"type":"typescript",

@@ -22,34 +22,41 @@ Instructions remain in the benchmark repository. The runner reads each Markdown 
 Start a new cell from the repository root:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark start <codex|claude-code> <project> <evidence|plain> <model> <effort> [run-id]
+pnpm --filter @samchon/evidence-benchmark start codex <project> <evidence|plain> <model> <effort> [run-id]
 ```
 
 Omit `run-id` to create a cell under `benchmark/result/<project>/<engine>/<arm>/runs/<run-id>/`. Pass an existing run ID only to resume that exact engine, project, arm, model, effort, workspace, and session.
 
 When launching Evidence cells concurrently, follow the Benchmark skill's shared-archive procedure. Every Evidence cell copies that archive and records its SHA-256. Without `EVIDENCE_BENCHMARK_ARCHIVE`, a standalone Evidence cell packs its own archive.
 
+## Publishable reports
+
+Raw run records and measured workspaces stay under the ignored `benchmark/result/` directory. Generate the tracked latest-run aggregate and comparison charts with:
+
+```bash
+pnpm --filter @samchon/evidence-benchmark report
+```
+
+The command writes `benchmark/reports/latest/summary.json` plus `tokens.svg`, `work-time.svg`, and `wall-time.svg`. The JSON preserves raw aggregate values and per-stage shares; the SVG files render the same cells without recalculating them.
+
 ## Instruction sequence
 
-One native session receives these nine instructions in order:
+One native session receives these eight instructions in order:
 
 | Step | Evidence | Plain |
 | --- | --- | --- |
-| Skills contract | `instructions/skills-contract.md` | `instructions/skills-contract.md` |
-| Backend start | `instructions/backend/start.md` | `instructions/backend/start.md` |
-| Backend review | `instructions/backend/review.md` | `instructions/backend/review.md` |
-| Backend final | `instructions/backend/evidence-final.md` | `instructions/backend/plain-final.md` |
-| Frontend start | `instructions/frontend/start.md` | `instructions/frontend/start.md` |
-| Frontend review | `instructions/frontend/review.md` | `instructions/frontend/review.md` |
-| Frontend final | `instructions/frontend/evidence-final.md` | `instructions/frontend/plain-final.md` |
-| Overall review | `instructions/overall/review.md` | `instructions/overall/review.md` |
-| Overall final | `instructions/overall/evidence-final.md` | `instructions/overall/plain-final.md` |
+| Backend start | `instructions/evidence/backend/start.md` | `instructions/plain/backend/start.md` |
+| Backend review | `instructions/evidence/backend/review.md` | `instructions/plain/backend/review.md` |
+| Backend final | `instructions/evidence/backend/final.md` | `instructions/plain/backend/final.md` |
+| Frontend start | `instructions/evidence/frontend/start.md` | `instructions/plain/frontend/start.md` |
+| Frontend review | `instructions/evidence/frontend/review.md` | `instructions/plain/frontend/review.md` |
+| Frontend final | `instructions/evidence/frontend/final.md` | `instructions/plain/frontend/final.md` |
+| Overall review | `instructions/evidence/overall/review.md` | `instructions/plain/overall/review.md` |
+| Overall final | `instructions/evidence/overall/final.md` | `instructions/plain/overall/final.md` |
 
-For each step, the runner combines the prescribed instruction and `instructions/continue.md` once as the objective.
+For each Final step, the runner appends the matching Review instruction as a Markdown blockquote at the bottom of the prescribed instruction. It then combines the prescribed instruction and that arm's `instructions/<arm>/continue.md` once as the objective. No runtime instruction bytes are shared across arms.
 
 Codex receives each objective as a native Goal in one app-server thread. It advances after Goal completion, terminal-turn completion, and an idle thread.
-
-Claude Code receives each objective as one noninteractive agent loop. The first loop creates the session and later loops resume it. It advances after one successful terminal result for the retained session. Claude Code does not expose the Codex native Goal primitive.
 
 Engine completion is recorded execution behavior, not a quality verdict.
 
@@ -59,10 +66,9 @@ The runner retains facts in delivery order:
 
 - the exact prescribed, continuation, and combined user text;
 - complete native stdin, stdout, and stderr in `events.jsonl` and `raw.log`, with observation and process-relative times;
-- project, engine, arm, benchmark Git revision, Evidence artifact SHA-256 when applicable, requested model and Claude Code's resolved native model, effort, CLI version, session, instruction, and process identity;
+- project, engine, arm, benchmark Git revision, Evidence artifact SHA-256 when applicable, requested model, effort, CLI version, session, instruction, and process identity;
 - the current instruction cursor and engine-specific terminal checkpoints;
-- native token categories, process elapsed time, exit code, and signal; Claude Code does not expose a separate reasoning-token category; and
-- Claude Code's reported client-side cost estimate.
+- native token categories, process elapsed time, exit code, and signal.
 
 Setup time remains separate from model-process time. The retained record does not add build, lint, requirement, graph, quality, publication, or completion verdicts.
 
@@ -70,6 +76,6 @@ Setup time remains separate from model-process time. The retained record does no
 
 The operator does not add prose or implementation advice during a cell. The shared continuation text already instructs the measured agent to finish autonomously.
 
-After an abnormal interruption, preserve the run and inspect its retained state. Codex may continue an exact retained Goal. Claude Code may continue from a completed instruction boundary, but an instruction that was dispatched without a successful terminal result cannot be resent as an exact continuation; keep that cell incomplete.
+After an abnormal interruption, preserve the run and inspect its retained state. Codex may continue an exact retained Goal.
 
 Review every completed workspace without changing it. Record application defects separately from evidence that a template, instruction, or runner misdirected the agent. Do not change frozen inputs while any cell in the same comparison cohort is active.

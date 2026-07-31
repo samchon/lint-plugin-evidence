@@ -1,102 +1,72 @@
-# SDK
+# Frontend SDK And Session
 
-This document owns how the frontend talks to the backend.
+## Transport
 
-## The Generated SDK Is The Only Transport
-
-`packages/api` is generated from the backend's controllers by Nestia. Its `functional` tree mirrors the route tree, and every accessor carries the request and response types with it.
+Call generated accessors directly from domain hooks:
 
 ```ts
-import api, { IShoppingSale, IPage } from "{{apiPackageName}}";
+import api from "{{apiPackageName}}";
 
-const page: IPage<IShoppingSale.ISummary> =
-  await api.functional.shopping.customer.sale.index(connection, {
-    limit: 20,
-  });
+const page = await api.functional.shopping.customer.sale.index(
+  apiConnection,
+  { body: { limit: 20 } },
+);
 ```
 
-- **Never hand-write a fetch or assemble a URL.** A hand-written call compiles fine after a route changes; an accessor does not, and that failure is the entire point of generating the SDK.
-- **Never derive an accessor name from a path or a verb.** Take it from the generated exports. If the accessor you expect does not exist, find the operation whose method and path match and use the accessor generated for it. Inventing `putById` or casting the namespace to reach a missing member hides a contract mismatch rather than reporting it.
-- **Never redeclare a request or response type.** Import it. A locally redeclared DTO is the second copy that drifts.
+Never hand-write `fetch`, URLs, request types, response types, or accessor names. Read the generated exports and JSDoc. A missing accessor is an API finding.
 
-The generated JSDoc carries the operation's purpose, its authorization rule, and what the response means. Read it rather than guessing from the accessor name.
+Pure validation or mapping needed identically by frontend and backend comes from `packages/api/src/diagnosers`.
 
-## Shared Rules Live In `diagnosers`
+## Shared Connection
 
-Any pure rule the frontend and the backend must apply identically belongs in `packages/api/src/diagnosers`, exported from the package, imported by both.
-
-That is where a validation the client should run before submitting and the server must enforce on arrival lives, so the two cannot drift into a form that accepts what the server then rejects. Entity-to-input mappers for edit forms and shared derivations belong there too. The API skill owns the full rule; the point here is that the frontend imports those helpers rather than reimplementing them.
-
-## Connections And Authentication
-
-A connection carries the host and the headers. Authenticating means calling a lifecycle accessor with it.
+`src/lib/client.ts` owns one connection for the current browser actor:
 
 ```ts
-import { apiConnection } from "@/lib/client";
-
-await api.functional.shopping.auth.customer.join(apiConnection, { body });
-// apiConnection is now authenticated
-```
-
-**Do not write the header yourself.** The accessor does it, because the operation behind it declares where the token goes, which [the API skill](../api/SKILL.md) covers along with the rest of the connection contract.
-
-Assigning `apiConnection.headers.Authorization` by hand is the mistake to avoid here. It duplicates what the accessor already did, and it is written with a `Bearer ` prefix roughly every time, which then diverges from the value the accessor writes. The one place a token is handled is inside the generated call.
-
-`src/lib/client.ts` owns the browser's one `apiConnection`. Authenticate it once for the current actor and reuse it for every later call. A fresh connection object built inside a domain hook is anonymous, and the resulting failure appears on some later call rather than at the point the mistake was made.
-
-Persisting a session across a reload means storing the issued token and putting it back on the connection at startup, which is the one time you touch the header directly. Read it back through the same accessor's response type rather than a shape of your own.
-
-Model join, login, refresh, logout, and any grade-management flow from the operations the SDK actually exposes. Do not invent a frontend-only permission model: if the contract exposes role grants, membership, ownership-scoped operations, or session refresh, the interface calls those and reflects their typed state.
-
-Hiding an unavailable command is good usability and is not security. The server remains authoritative, so keep denial paths visible: a stale session, a revoked role, or an ownership change can still produce a refusal on a button the interface chose to show.
-
-## Develop Against Simulation, Finish Against The Server
-
-The SDK answers from generated data when its connection asks it to.
-
-```ts
-// src/lib/client.ts
-import type { IConnection } from "@nestia/fetcher";
-
-import { config } from "@/lib/config";
-
-/** Shared generated-SDK connection for browser requests. */
 export const apiConnection: IConnection = {
   host: config.apiHost,
   simulate: config.simulate,
 };
 ```
 
-This is the mocking seam at the contract boundary, and it is the primary axis of frontend development rather than a fallback for when the backend is down.
+Authentication accessors write the issued token into this connection. Reuse it for every later call. Do not create connections inside hooks or write a `Bearer` header manually.
 
-**Build the product against simulation first.** Screens, navigation, forms, loading and empty and error states, and the browser tests that cover the main flows can all be built and run this way, against the real declared types and tags, with no server and no database. Simulation is contract-shaped input, not proof of business invariants or cross-field consistency.
+Persist the issued token when the contract supports a durable session and restore it onto the shared connection before the first identity-dependent query. Store the response contract, not a parallel local session shape.
 
-Drive the flag from the environment rather than from code, so the same build can run either way:
+## Identity States
+
+Render three states:
+
+| State | UI |
+| --- | --- |
+| restoring | shell and identity skeleton |
+| anonymous | public view and sign-in path |
+| authenticated | actor-specific view |
+
+Do not render anonymous during restoration; it flashes the wrong identity and may redirect an authenticated user.
+
+The server decides expiry. Do not decode tokens or run a client timer. If the public contract identifies an expired session and exposes refresh, refresh once and retry once. A failed refresh ends the session.
+
+Sign-out follows the contract. Without server revocation, clear local authorization and every actor-owned query cache. With a revocation operation, call the exact current-session or all-session operation, then clear local state after success.
+
+## Simulation And Live Mode
+
+Drive mode from environment:
 
 ```ts
-// src/lib/config.ts
-const readBoolean = (value: string | undefined, fallback: boolean): boolean => {
-  if (value === undefined) return fallback;
-  if (value === "true") return true;
-  if (value === "false") return false;
-  throw new Error(`Expected a boolean environment value, received "${value}".`);
-};
-
-/** Validated frontend environment settings. */
 export const config = {
   apiHost: import.meta.env.VITE_API_HOST ?? "http://127.0.0.1:37001",
   simulate: readBoolean(import.meta.env.VITE_API_SIMULATE, true),
 } as const;
 ```
 
-Simulation answers with valid random data, so it cannot reliably produce an empty list, a rejection, or another named edge state on demand; the state gallery in [verification.md](verification.md) owns forcing those.
+Simulation validates the typed boundary and returns generated response shapes. It does not prove persistence, authorization, sessions, side effects, or deterministic business state.
 
-**Then finish against the live backend.** Simulation proves shape and flow. It proves nothing about persistence, sessions, authorization, refresh, or side effects, because no provider ran. Development is complete only after the same `pnpm test:e2e` suite runs with `VITE_API_SIMULATE=false`, against the real host, with real data.
+Use simulation for screen construction and contract flow. Use fixtures for empty, refusal, boundary, and long-content states. Finish by running browser journeys with `VITE_API_SIMULATE=false` against a separately running backend.
 
-Two rules keep that honest. Record simulation as shape-and-flow verification, never as integration. And never record a run as live integration while `VITE_API_SIMULATE` is `true`, because the environment and verification record are what a later reader trusts.
+Never record a simulated run as live integration.
 
-## Handle What The Contract Says Can Fail
+## Failures
 
-An operation whose contract states a rejection has a visible outcome in the interface. The business rules say what the refusal means; the screen says it in words a user can act on.
+Render contract-declared rejections in the workflow, using `IDiagnosis.accessor` for field placement. Unexpected network and server failures go to a route-level error boundary.
 
-Preserve nullable and union states from the contract instead of erasing them with placeholder text. A field the contract says can be absent is absent for a reason the requirements usually state, and rendering a dash in its place discards that meaning.
+Queries may retry a bounded number of times. Mutations do not retry automatically; replaying a non-idempotent write can duplicate state. Preserve user input after any refusal.

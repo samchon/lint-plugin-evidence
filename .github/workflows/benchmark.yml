@@ -3,7 +3,10 @@ name: benchmark-runner
 on:
   pull_request:
     paths:
+      - ".agents/skills/benchmark/**"
       - ".github/workflows/benchmark.yml"
+      - "benchmark/README.md"
+      - "benchmark/instructions/**"
       - "benchmark/package.json"
       - "benchmark/template/**"
       - "benchmark/requirements/**"
@@ -44,6 +47,9 @@ jobs:
 
       - name: Install repository dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Check benchmark types
+        run: pnpm --filter @samchon/evidence-benchmark check && pnpm --filter test-benchmark check
 
       - name: Test benchmark runner
         run: pnpm --filter test-benchmark start

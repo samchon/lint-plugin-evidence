@@ -1,131 +1,86 @@
 ---
 name: project
-description: Defines the workspace layout, package boundaries, generated artifacts, build order, and canonical commands for this monorepo. Use when orienting in the repository, working inside any package, or choosing a build, lint, or test command.
+description: Defines the benchmark workspace, package boundaries, generated artifacts, phase order, compiler gates, development processes, and canonical commands. Read before choosing where to work or which command to run.
 ---
 
-# Project Outline
+# Project
 
-## What This Repository Is
+## Product
 
-A requirement set under `docs/analysis/` realized as a running application. The documents state what must be true; the packages make it true. A stub that satisfies a type without satisfying the requirement is not progress, and neither is an endpoint nobody can reach from the product.
+This repository implements every requirement under `docs/analysis/` as a NestJS backend, generated Nestia SDK, and React application. The requirement documents are immutable input. A compiling stub, an unreachable endpoint, or an untested behavior is incomplete.
 
-## Where You Are Starting From
+The scaffold already provides package wiring, lint and compiler configuration, SQLite setup, `/health`, and a frontend shell. Requirement-derived models, contracts, logic, tests, screens, and journeys are yours to implement.
 
-The workspace is scaffolded and empty. The build chain, the lint configuration, the test harness, the server bootstrap, the `/health` infrastructure route with its generated SDK accessor and e2e proof, and the frontend shell exist and work. There is no requirement-derived schema, controller, provider, test, or screen.
+## Packages
 
-Everything else in this repository is yours to write, from the documents alone. Nobody will hand you a data model or a route list.
+| Path | Owner |
+| --- | --- |
+| `docs/analysis/` | Immutable requirements |
+| `packages/api/src/structures/` | Authored request and response DTOs |
+| `packages/api/src/functional/` | Generated SDK accessors |
+| `packages/backend/prisma/schema/` | Authored Prisma schema |
+| `packages/backend/src/controllers/` | Routes, guards, and delegation |
+| `packages/backend/src/providers/` | Business logic and database access |
+| `packages/backend/test/features/` | Backend end-to-end tests |
+| `packages/frontend/src/` | React application |
+| `packages/frontend/tests/journeys/` | Browser journeys |
 
-Start by reading `docs/analysis/` in full, then read the backend skill's wiring topic for the order that gets an empty repository to a running server. Do not begin writing a schema after skimming one document: the concern that decides a table's shape usually lives in a different document from the one that names the table.
+Import the API package from its package entry. Do not add a `structures` subpath export or import.
 
-## Development Phases
+## Phase Order
 
-Complete the project through three gates.
+1. Implement and review the complete API and backend.
+2. Implement and review the frontend against the settled SDK and live backend.
+3. Review the complete application and run the final runtime gates.
 
-1. Build the API and backend, apply the active arm's Backend Phase review, and pass the Backend Layer Gate. Do not implement the frontend during this phase.
-2. Build the frontend against the gated SDK and live backend, apply the active arm's Frontend Phase review, and pass the Frontend Layer Gate. Return to the backend only for a named requirement, diagnostic, test, contract, or integration failure, and re-pass the backend gate after repair.
-3. Apply the active arm's Overall Phase review and run the complete workspace-root gates.
+Do not begin frontend implementation before the backend contract and tests pass. A later frontend finding may reopen the backend only when it identifies a specific requirement, contract, diagnostic, test, or integration defect.
 
-Package-scoped commands own the first two gates. The workspace-root build belongs to the overall gate because it compiles every package.
+## Compiler Gates And Development Processes
 
-## Layout
+- Run `pnpm check:watch` from `packages/backend` with the lifecycle prescribed by the current arm's instruction. It checks backend source, backend tests, API DTOs, lint rules, and configured contributors through the package's single `tsconfig.json`. The benchmark arms intentionally use different watcher lifecycles; never carry one arm's lifecycle into another.
+- Start `pnpm dev` from `packages/frontend` before frontend authoring. Keep it running through Overall Final. Vite and `@ttsc/unplugin` report type, lint, and contributor diagnostics on reload.
+- Start the backend server with `pnpm dev` from `packages/backend` before live frontend integration. Keep it running through Overall Final.
 
-```
-docs/
-  analysis/          requirement documents, read-only specification
-  ERD.md             generated from the Prisma schema
-config/              shared tsconfig and the lint configuration packages extend
-wiki/                the project's own working records, never built or shipped
-packages/
-  api/               authored DTO contract and diagnosers, generated accessors
-  backend/           NestJS server, Prisma schema, providers, tests
-  frontend/          Vite and React single-page application
-```
-
-### `docs/`
-
-`docs/analysis/` holds the requirement documents. They are the authoritative specification and they are read-only. Implement them as written; never edit a document so that it agrees with code you already wrote.
-
-`docs/ERD.md` is generated from the Prisma schema by `prisma-markdown`. Do not hand-edit it.
-
-The requirements skill covers what the documents contain and how to read them.
-
-### `packages/api`
-
-The SDK a consumer installs, and the only place API contracts are declared.
-
-- `src/structures/` holds every requirement-derived DTO in one flat directory. Every DTO is exported directly from `src/structures/index.ts`; this is where a request or response type is declared, not in the backend.
-- `src/typings/` holds shared transport primitives that are not requirement or database DTOs: `IEntity`, `IPage`, and `IDiagnosis`.
-- `src/functional/` holds the client accessors generated by Nestia from the backend's controllers. Generated output.
-- `src/diagnosers/` holds pure helpers shared by client and server, such as a validator that both sides must agree on or a mapper from an entity to its creation form.
-- `swagger.json` is the generated OpenAPI document.
-
-The backend imports its own DTOs from this package. That direction is deliberate: the contract is the SDK's, and the server is one implementation of it.
-
-### `packages/backend`
-
-- `src/controllers/` routing, authorization, and delegation, grouped by domain then by actor.
-- `src/providers/` business logic and every database access, one namespace per entity.
-- `src/transformers/` one namespace per DTO: its Prisma selection and its row-to-DTO mapping.
-- `src/collectors/` one namespace per creation DTO: the Prisma creation payload it assembles.
-- `src/decorators/` the per-actor authentication parameter decorators, and their payload types.
-- `src/utils/` cross-cutting helpers: error construction, pagination, dates, tokens, hashing.
-- `src/services/` integrations with anything outside this process.
-- `src/setup/` schema setup and seeding.
-- `src/executable/` process entry points. These are bootstraps, not implementations.
-- `prisma/schema/` the schema, split by domain.
-- `test/` the end-to-end tests.
-
-### `packages/frontend`
-
-The Vite and React application. It consumes `packages/api` and declares no API types of its own.
-
-- `src/components/` the screens and shared pieces, split by domain: `ui/` primitives, `providers/` the composed app providers, `<domain>/` a route's page beside the sub-components only it uses.
-- `src/lib/client.ts` owns the one shared SDK connection used by the browser's current session.
-- `src/lib/<domain>/` holds the interface's domain vocabulary: view-model types, hooks with their query keys, and fixtures.
-- `tests/journeys/` the browser journey specs; the presentation specs sit beside the folder, not in it.
-- `wiki/` the project's own records: architecture, omissions, verification.
-
-The frontend skill's architecture topic owns the full layout.
-
-## The Toolchain Is `ttsc`, Not `tsc`
-
-Builds, type checks, and lint run through `ttsc`; tests run through `ttsx`. Lint is part of the compile: its diagnostics arrive in the same stream as type errors and the exit code sums both.
-
-Never substitute stock `tsc`, `ts-node`, or a separate ESLint invocation. A green stock `tsc` proves nothing here, because it skips every rule the build enforces.
-
-## Build Order
-
-The backend builds in authored dependency order: Prisma, DTOs, controllers, the settled generated SDK, then tests. [Backend wiring](../backend/wiring.md) owns the exact commands and regeneration boundary; the [Backend skill](../backend/SKILL.md) owns the artifact phase order.
-
-The workspace-root `pnpm build` is an Overall Phase command after every package exists. Do not use it during the Backend Phase, because it also compiles the unfinished frontend. Use the package commands above separately so a failure remains assigned to its authored layer.
+If a required development process exits, diagnose its output, fix the owning failure, restart it, and wait for a clean current reload. A stale earlier success is not a gate result.
 
 ## Generated Artifacts
 
-These are outputs. Editing one produces a change the next generation deletes without warning, and the deletion looks like someone else's bug.
-
-| Artifact | Generated from | Regenerate with |
+| Generated artifact | Authored source | Command |
 | --- | --- | --- |
-| `packages/api/src/functional/**` | backend controllers | backend `build:sdk` |
-| `packages/api/swagger.json` | backend controllers | backend `build:sdk` |
-| `packages/backend/src/prisma/**` | `prisma/schema/**` | backend `build:prisma` |
-| `docs/ERD.md` | `prisma/schema/**` | `build:prisma` |
+| `packages/backend/src/prisma/**` | `packages/backend/prisma/schema/**` | backend `pnpm build:prisma` |
+| `docs/ERD.md` | `packages/backend/prisma/schema/**` | backend `pnpm build:prisma` |
+| `packages/api/src/functional/**` | controllers and DTOs | backend `pnpm build:sdk` |
 
-Change the source instead: a controller signature, a DTO, or a model.
-
-Generated paths are excluded as authored implementation and from ordinary source lint. Review them as regenerated reference or consumer populations. Regenerate and inspect them as downstream products; never make them green by editing their bytes.
+Never edit generated output. Correct its authored source and regenerate after the complete source change settles.
 
 ## Commands
 
+From `packages/backend`:
+
 ```bash
-pnpm install
-pnpm build
-pnpm lint
+pnpm check:watch
+pnpm build:prisma
+pnpm schema
+pnpm build:sdk
 pnpm test
-pnpm format
+pnpm dev
 ```
 
-Run these workspace commands only for whole-project verification after every layer exists. During the Backend Phase, use the package-scoped sequence in the Backend skill instead. `pnpm lint` uses the same compiler without emitting, so it reports what the corresponding build would without replacing that layer's required build.
+From `packages/frontend`:
 
-**`pnpm format` applies the formatting; it is not a check you can fail.** `ttsc format` rewrites the files, and formatting is deliberately not a lint severity, so a difference in spacing never competes with a real diagnostic in the same output. Run it before you finish a piece of work rather than hand-aligning anything, and never argue with what it produces.
+```bash
+pnpm dev
+pnpm test:e2e
+```
 
-Run the narrowest command that proves your change first, then a broader one when shared behavior changed. Read the output; a command whose result you did not read is not verification.
+`pnpm build:prisma` generates the client and ERD. `pnpm schema` resets the disposable SQLite database. `pnpm build:sdk` generates the SDK and compiles the API package. `pnpm test` runs the backend suite. Frontend `pnpm test:e2e` builds the production bundle and runs browser journeys.
+
+Follow the current arm's instruction for `check:watch`. Run generators only after their complete authored input settles, and run mutating generators and runtime tests one at a time because they share generated files and the SQLite database.
+
+The workspace-root `pnpm build` and `pnpm test` are Overall-phase commands. Do not use a root build to judge an unfinished layer.
+
+## Toolchain
+
+Compilation and lint run through `ttsc`; tests run through `ttsx`. Do not substitute stock `tsc`, `ts-node`, or ESLint. A stock TypeScript build omits the configured contributor rules.
+
+`pnpm format` rewrites files. It is not a correctness gate.

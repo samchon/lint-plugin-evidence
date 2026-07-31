@@ -17,11 +17,14 @@ import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm.ts";
 /**
  * Executes the retained Codex Goal sequence for one benchmark cell.
  *
- * The runner sends the nine frozen objectives through one app-server thread,
+ * The runner sends the eight frozen objectives through one app-server thread,
  * retaining native Goal, terminal-turn, idle, token, process, and raw-stream
  * boundaries without judging or editing the measured application.
  */
 export namespace EvidenceBenchmarkRunner {
+  const PROCESS_CLEANUP_ERROR =
+    "Codex app-server survived forced process-tree cleanup.";
+
   /**
    * Creates an empty Codex state for the selected experiment arm.
    *
@@ -47,13 +50,15 @@ export namespace EvidenceBenchmarkRunner {
       typia.assert<IEvidenceBenchmarkRunState>(structuredClone(props.state));
     const entries = instructionEntries(state.arm);
     if (state.nextInstructionIndex >= entries.length) {
-      if (state.interruption !== undefined) {
+      const recoverableCleanup: boolean = isRecoverableCompletedCleanup(state);
+      if (state.interruption !== undefined && !recoverableCleanup) {
         state.status = "interrupted";
         await props.onState?.(structuredClone(state));
         return state;
       }
       try {
         validateCompletedState(state, entries);
+        if (recoverableCleanup) delete state.interruption;
         state.status = "completed";
       } catch (error) {
         state.status = "interrupted";
@@ -62,6 +67,9 @@ export namespace EvidenceBenchmarkRunner {
       await props.onState?.(structuredClone(state));
       return state;
     }
+    const shutdownGraceMs: number = props.shutdownGraceMs ?? 5_000;
+    if (!Number.isSafeInteger(shutdownGraceMs) || shutdownGraceMs <= 0)
+      throw new Error("App-server shutdown grace must be a positive integer.");
 
     const current = (): IEvidenceBenchmarkGoalRecord => {
       const record: IEvidenceBenchmarkGoalRecord | undefined = state.goals.find(
@@ -79,12 +87,15 @@ export namespace EvidenceBenchmarkRunner {
       const entry = entries[state.nextInstructionIndex];
       if (entry === undefined)
         throw new Error("Instruction cursor is invalid.");
-      const prescribedText: string = fs.readFileSync(
-        path.join(props.instructionsRoot, ...entry[1].split("/")),
-        "utf8",
+      const prescribedText: string = readPrescribedText(
+        props.instructionsRoot,
+        entry[1],
       );
       const continuationText: string = fs.readFileSync(
-        path.join(props.instructionsRoot, "continue.md"),
+        path.join(
+          props.instructionsRoot,
+          ...instructionContinuationPath(state.arm).split("/"),
+        ),
         "utf8",
       );
       const record: IEvidenceBenchmarkGoalRecord = {
@@ -114,6 +125,7 @@ export namespace EvidenceBenchmarkRunner {
     let resumeSnapshotPending: boolean = !fresh;
     let resumeSnapshot: Record<string, unknown> | undefined;
     let resumeSnapshotRecordIndex: number | undefined;
+    let resumeAdoptedUndispatchedGoal = false;
     let resumeUsageReplay:
       | {
           turnId: string;
@@ -193,12 +205,19 @@ export namespace EvidenceBenchmarkRunner {
     const started: bigint = process.hrtime.bigint();
     const child = spawn(command, arguments_, {
       cwd: props.cwd,
+      detached: process.platform !== "win32",
       env: props.environment ?? process.env,
       shell: false,
       windowsVerbatimArguments: executable.windowsVerbatimArguments,
       windowsHide: true,
       stdio: "pipe",
     });
+    if (child.pid === undefined)
+      throw new Error("Codex app-server omitted its process ID.");
+    processRecord.processId = child.pid;
+    monitorProcess(process.pid, child.pid, (error) =>
+      finish("interrupted", error),
+    );
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
 
@@ -308,6 +327,7 @@ export namespace EvidenceBenchmarkRunner {
         });
         return;
       }
+      record.elapsedMs = nativeGoalElapsedMs(state, record);
       advancing = true;
       record.tokenUsageEnd = structuredClone(state.threadTokenUsage);
       record.tokenUsage = subtract(
@@ -437,12 +457,55 @@ export namespace EvidenceBenchmarkRunner {
         if (!resumeReconciled && params.turnId === null) {
           if (!resumeSnapshotPending || resumeSnapshot !== undefined)
             throw new Error("Codex emitted duplicate resume Goal snapshots.");
+          const previous: IEvidenceBenchmarkGoalRecord | undefined =
+            state.goals.find(
+              (candidate) => candidate.index === record.index - 1,
+            );
           const retained: IEvidenceBenchmarkGoalRecord | undefined =
-            record.goal !== null
-              ? record
-              : state.goals.find(
-                  (candidate) => candidate.index === record.index - 1,
-                );
+            record.goal !== null ? record : previous;
+          const previousBoundaryComplete: boolean =
+            record.index === 0
+              ? previous === undefined
+              : previous?.goal?.status === "complete" &&
+                previous.terminalTurnId !== null &&
+                previous.terminalTurnCompleted &&
+                previous.threadIdle &&
+                previous.tokenUsageTurnId === previous.terminalTurnId &&
+                previous.tokenUsageEnd !== null &&
+                usageAdvanced(
+                  previous.tokenUsageEnd,
+                  previous.tokenUsageStart,
+                ) &&
+                sameUsage(
+                  previous.tokenUsage,
+                  subtract(previous.tokenUsageEnd, previous.tokenUsageStart),
+                ) &&
+                sameUsage(previous.tokenUsageEnd, state.threadTokenUsage);
+          const undispatched: boolean =
+            record.goal === null &&
+            previousBoundaryComplete &&
+            record.terminalTurnId === null &&
+            !record.terminalTurnCompleted &&
+            record.tokenUsageTurnId === null &&
+            record.tokenUsageEnd === null &&
+            sameUsage(record.tokenUsageStart, state.threadTokenUsage) &&
+            sameUsage(record.tokenUsage, zeroUsage()) &&
+            goal.status === "active" &&
+            goal.tokensUsed === 0 &&
+            goal.timeUsedSeconds === 0;
+          if (undispatched) {
+            if (previous?.goal !== null && previous?.goal !== undefined)
+              validateNativeGoal(previous, previous.goal, state.sessionId);
+            validateNativeGoal(record, goal, state.sessionId);
+            record.goal = structuredClone(goal);
+            resumeSnapshot = structuredClone(goal);
+            resumeSnapshotRecordIndex = record.index;
+            resumeAdoptedUndispatchedGoal = true;
+            resumeSnapshotPending = false;
+            resolveResumeSnapshot();
+            publish();
+            return;
+          }
           if (
             retained?.goal === null ||
             retained?.goal === undefined ||
@@ -551,28 +614,46 @@ export namespace EvidenceBenchmarkRunner {
       }
     });
 
+    let resolveExited!: () => void;
+    const exited = new Promise<void>((resolve) => {
+      resolveExited = resolve;
+    });
+    let resolveClosed!: () => void;
     const closed = new Promise<void>((resolve) => {
-      child.once("error", (error) => finish("interrupted", error));
-      child.once("close", (exitCode, signal) => {
-        if (stdout.trim().length !== 0) {
-          try {
-            receive(typia.assert<Record<string, unknown>>(JSON.parse(stdout)));
-          } catch {
-            finish("interrupted", stdout);
-          }
+      resolveClosed = resolve;
+    });
+    child.once("error", (error) => {
+      finish("interrupted", error);
+      resolveExited();
+      resolveClosed();
+    });
+    child.once("exit", (exitCode, signal) => {
+      processRecord.elapsedMs = elapsed(started);
+      processRecord.exitCode = exitCode;
+      processRecord.signal = signal;
+      for (const waiter of pending.values())
+        waiter.reject(new Error("Codex app-server exited."));
+      pending.clear();
+      if (
+        outcome === "completed" &&
+        (exitCode !== 0 || signal !== null) &&
+        processRecord.shutdownForced !== true
+      )
+        finish("interrupted", { exitCode, signal });
+      if (outcome === undefined) finish("interrupted", { exitCode, signal });
+      publish();
+      resolveExited();
+    });
+    child.once("close", () => {
+      if (stdout.trim().length !== 0) {
+        try {
+          receive(typia.assert<Record<string, unknown>>(JSON.parse(stdout)));
+        } catch {
+          finish("interrupted", stdout);
         }
-        processRecord.elapsedMs = elapsed(started);
-        processRecord.exitCode = exitCode;
-        processRecord.signal = signal;
-        for (const waiter of pending.values())
-          waiter.reject(new Error("Codex app-server exited."));
-        pending.clear();
-        if (outcome === "completed" && (exitCode !== 0 || signal !== null))
-          finish("interrupted", { exitCode, signal });
-        if (outcome === undefined) finish("interrupted", { exitCode, signal });
-        publish();
-        resolve();
-      });
+      }
+      publish();
+      resolveClosed();
     });
 
     try {
@@ -750,7 +831,11 @@ export namespace EvidenceBenchmarkRunner {
               publish();
               await flushResumeLifecycle();
               if (outcome === undefined) {
-                if (isInterruptedGoalStatus(goal.status)) await beginGoal();
+                if (
+                  resumeAdoptedUndispatchedGoal ||
+                  isInterruptedGoalStatus(goal.status)
+                )
+                  await beginGoal();
                 else await advance();
               }
             }
@@ -824,14 +909,29 @@ export namespace EvidenceBenchmarkRunner {
     await notifications;
     await publication;
     child.stdin.end();
-    await closed;
+    if (!(await waitFor(exited, shutdownGraceMs))) {
+      processRecord.shutdownForced = true;
+      await terminateProcessTree(child.pid);
+      if (
+        !(await waitFor(exited, shutdownGraceMs)) &&
+        isProcessAlive(child.pid)
+      ) {
+        finish("interrupted", new Error(PROCESS_CLEANUP_ERROR));
+      }
+    }
+    processRecord.elapsedMs = elapsed(started);
+    if (!(await waitFor(closed, shutdownGraceMs))) {
+      child.stdout.destroy();
+      child.stderr.destroy();
+      child.unref();
+    }
     await notifications;
     await outputPublication;
     await publication;
     state.status =
       result === "completed" &&
-      processRecord.exitCode === 0 &&
-      processRecord.signal === null &&
+      ((processRecord.exitCode === 0 && processRecord.signal === null) ||
+        processRecord.shutdownForced === true) &&
       state.interruption === undefined &&
       !outputFailed &&
       !publicationFailed
@@ -844,25 +944,64 @@ export namespace EvidenceBenchmarkRunner {
   }
 
   /**
-   * Returns the frozen nine-objective sequence for an experiment arm.
+   * Returns the frozen eight-objective sequence for an experiment arm.
    *
-   * Only the arm-specific final files differ; every shared objective retains
-   * the same path and position for a comparable pair.
+   * Each arm owns every instruction byte. Paths and positions remain comparable
+   * without either arm reading a shared runtime objective.
    */
   export function instructionEntries(
     arm: EvidenceBenchmarkArm,
   ): readonly (readonly [string, string])[] {
     return [
-      ["skills-contract", "skills-contract.md"],
-      ["backend-start", "backend/start.md"],
-      ["backend-review", "backend/review.md"],
-      ["backend-final", `backend/${arm}-final.md`],
-      ["frontend-start", "frontend/start.md"],
-      ["frontend-review", "frontend/review.md"],
-      ["frontend-final", `frontend/${arm}-final.md`],
-      ["overall-review", "overall/review.md"],
-      ["overall-final", `overall/${arm}-final.md`],
+      ["backend-start", `${arm}/backend/start.md`],
+      ["backend-review", `${arm}/backend/review.md`],
+      ["backend-final", `${arm}/backend/final.md`],
+      ["frontend-start", `${arm}/frontend/start.md`],
+      ["frontend-review", `${arm}/frontend/review.md`],
+      ["frontend-final", `${arm}/frontend/final.md`],
+      ["overall-review", `${arm}/overall/review.md`],
+      ["overall-final", `${arm}/overall/final.md`],
     ];
+  }
+
+  /** Returns the arm-owned continuation appended to every objective. */
+  export function instructionContinuationPath(
+    arm: EvidenceBenchmarkArm,
+  ): string {
+    return `${arm}/continue.md`;
+  }
+
+  /**
+   * Reads one instruction and quotes its matching Review at the end of a Final.
+   *
+   * The quote gives Final the exact review contract it must verify without
+   * duplicating that contract across two authored instruction files.
+   */
+  function readPrescribedText(
+    instructionsRoot: string,
+    relativePath: string,
+  ): string {
+    const prescribedText: string = fs.readFileSync(
+      path.join(instructionsRoot, ...relativePath.split("/")),
+      "utf8",
+    );
+    if (!relativePath.endsWith("/final.md")) return prescribedText;
+    const reviewPath: string = relativePath.replace(
+      /\/final\.md$/u,
+      "/review.md",
+    );
+    const reviewText: string = fs.readFileSync(
+      path.join(instructionsRoot, ...reviewPath.split("/")),
+      "utf8",
+    );
+    const separator: string = prescribedText.endsWith("\n") ? "\n" : "\n\n";
+    return `${prescribedText}${separator}${quoteMarkdown(reviewText)}`;
+  }
+
+  function quoteMarkdown(text: string): string {
+    const lines: string[] = text.split(/\r\n|\n|\r/u);
+    if (lines.at(-1) === "") lines.pop();
+    return lines.map((line) => `> ${line}`).join("\n");
   }
 
   function validateCompletedState(
@@ -889,7 +1028,10 @@ export namespace EvidenceBenchmarkRunner {
         record.objectiveText !==
           `${record.prescribedText}\n\n${record.continuationText}` ||
         record.goal?.threadId !== state.sessionId ||
-        record.goal?.objective !== record.objectiveText ||
+        !sameNativeGoalObjective(
+          record.goal?.objective,
+          record.objectiveText,
+        ) ||
         record.goal?.status !== "complete" ||
         record.terminalTurnId === null ||
         !record.terminalTurnCompleted ||
@@ -922,10 +1064,45 @@ export namespace EvidenceBenchmarkRunner {
       state.processes.at(-1);
     if (
       terminal === undefined ||
-      terminal.exitCode !== 0 ||
-      terminal.signal !== null
+      ((terminal.exitCode !== 0 || terminal.signal !== null) &&
+        terminal.shutdownForced !== true)
     )
       throw new Error("Codex retained an invalid terminal process.");
+  }
+
+  function nativeGoalElapsedMs(
+    state: IEvidenceBenchmarkRunState,
+    record: IEvidenceBenchmarkGoalRecord,
+  ): number {
+    const cumulative: unknown = record.goal?.timeUsedSeconds;
+    const previous: IEvidenceBenchmarkGoalRecord | undefined =
+      record.index === 0
+        ? undefined
+        : state.goals.find((candidate) => candidate.index === record.index - 1);
+    const baseline: unknown = previous?.goal?.timeUsedSeconds ?? 0;
+    if (
+      typeof cumulative !== "number" ||
+      !Number.isFinite(cumulative) ||
+      cumulative < 0 ||
+      typeof baseline !== "number" ||
+      !Number.isFinite(baseline) ||
+      baseline < 0 ||
+      cumulative < baseline
+    )
+      throw new Error("Codex retained an invalid native Goal time boundary.");
+    return (cumulative - baseline) * 1_000;
+  }
+
+  function isRecoverableCompletedCleanup(
+    state: IEvidenceBenchmarkRunState,
+  ): boolean {
+    const terminal: IEvidenceBenchmarkProcessRecord | undefined =
+      state.processes.at(-1);
+    return (
+      state.interruption?.message === PROCESS_CLEANUP_ERROR &&
+      terminal?.shutdownForced === true &&
+      (terminal.processId === undefined || !isProcessAlive(terminal.processId))
+    );
   }
 
   /**
@@ -935,7 +1112,7 @@ export namespace EvidenceBenchmarkRunner {
    * receive one correctly escaped `cmd.exe` command line.
    */
   export function resolveExecutable(props: {
-    name: "codex" | "claude";
+    name: "codex";
     environment: NodeJS.ProcessEnv;
     command?: string;
     commandPrefixArguments?: readonly string[];
@@ -987,14 +1164,20 @@ export namespace EvidenceBenchmarkRunner {
     goal: Record<string, unknown>,
     threadId: string,
   ): void {
-    const objectiveMatches: boolean =
-      goal.objective === record.objectiveText ||
-      (record.objectiveText.endsWith("\n") &&
-        goal.objective === record.objectiveText.slice(0, -1));
-    if (goal.threadId !== threadId || !objectiveMatches)
+    if (
+      goal.threadId !== threadId ||
+      !sameNativeGoalObjective(goal.objective, record.objectiveText)
+    )
       throw new Error(
         "Native Goal does not match the retained thread and objective.",
       );
+  }
+
+  function sameNativeGoalObjective(actual: unknown, expected: string): boolean {
+    if (typeof actual !== "string") return false;
+    const canonicalize = (value: string): string =>
+      value.replace(/\r\n/gu, "\n").replace(/[\r\n]+$/u, "");
+    return canonicalize(actual) === canonicalize(expected);
   }
 
   function isRetainedGoalStatus(value: unknown): boolean {
@@ -1181,5 +1364,86 @@ export namespace EvidenceBenchmarkRunner {
 
   function elapsed(started: bigint): number {
     return Number(process.hrtime.bigint() - started) / 1_000_000;
+  }
+
+  function isProcessAlive(targetPid: number): boolean {
+    try {
+      process.kill(targetPid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function monitorProcess(
+    ownerPid: number,
+    targetPid: number,
+    onError: (error: Error) => void,
+  ): void {
+    const monitor = spawn(
+      process.execPath,
+      [
+        path.join(
+          import.meta.dirname,
+          "executable",
+          "EvidenceBenchmarkProcessMonitor.mjs",
+        ),
+        String(ownerPid),
+        String(targetPid),
+      ],
+      {
+        detached: true,
+        shell: false,
+        stdio: "ignore",
+        windowsHide: true,
+      },
+    );
+    monitor.once("error", onError);
+    monitor.unref();
+  }
+
+  async function terminateProcessTree(targetPid: number): Promise<void> {
+    if (process.platform !== "win32") {
+      try {
+        process.kill(-targetPid, "SIGKILL");
+      } catch {
+        try {
+          process.kill(targetPid, "SIGKILL");
+        } catch {
+          // The app-server exited between the timeout and cleanup.
+        }
+      }
+      return;
+    }
+    await new Promise<void>((resolve) => {
+      const cleanup = spawn(
+        "taskkill.exe",
+        ["/pid", String(targetPid), "/T", "/F"],
+        {
+          shell: false,
+          stdio: "ignore",
+          windowsHide: true,
+        },
+      );
+      cleanup.once("error", () => resolve());
+      cleanup.once("close", () => resolve());
+    });
+  }
+
+  async function waitFor(
+    promise: Promise<void>,
+    timeoutMs: number,
+  ): Promise<boolean> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        promise.then(() => true),
+        new Promise<false>((resolve) => {
+          timer = setTimeout(() => resolve(false), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
   }
 }

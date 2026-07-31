@@ -6,8 +6,8 @@
   "scripts": {
     "build": "rimraf dist && pnpm lint && vite build",
     "dev": "vite --host 0.0.0.0",
-    "format": "ttsc format -p tsconfig.json",
-    "lint": "ttsc -p tsconfig.json --noEmit",
+    "format": "ttsc format",
+    "lint": "ttsc --noEmit",
     "playwright:install": "playwright install chromium",
     "preview": "vite preview --host 0.0.0.0",
     "readme:screens": "pnpm build && playwright test tests/readme.spec.ts",
