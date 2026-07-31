@@ -72,6 +72,7 @@ const main = (): void => {
 
     validateMaterializedSkillLinks(templateRoot, arm);
   }
+  validateEvidenceWatcherLifecycle(benchmarkRoot, templateRoot);
   assert.notEqual(
     fs.readFileSync(
       path.join(benchmarkRoot, "instructions", "plain", "continue.md"),
@@ -214,6 +215,65 @@ const main = (): void => {
       TtSc_Tsgo_Binary: "tsgo",
     }),
     { KEEP_ME: "yes" },
+  );
+};
+
+const validateEvidenceWatcherLifecycle = (
+  benchmarkRoot: string,
+  templateRoot: string,
+): void => {
+  const entries = EvidenceBenchmarkRunner.instructionEntries("evidence");
+  const instructions = entries.map(([, relative]) => ({
+    relative,
+    source: fs.readFileSync(
+      path.join(benchmarkRoot, "instructions", relative),
+      "utf8",
+    ),
+  }));
+  const backendStart = instructions.find(
+    ({ relative }) => relative === "evidence/backend/start.md",
+  );
+  assert.ok(backendStart, "Evidence backend-start must exist.");
+  const firstDraft = backendStart.source.indexOf("Complete the first draft");
+  const firstWatcher = backendStart.source.indexOf("pnpm check:watch");
+  assert.ok(
+    firstDraft >= 0 && firstWatcher >= 0 && firstDraft < firstWatcher,
+    "Evidence backend-start must finish its first draft before check:watch.",
+  );
+
+  const watcherInstructions = instructions.filter(({ source }) =>
+    source.includes("pnpm check:watch"),
+  );
+  assert.notEqual(
+    watcherInstructions.length,
+    0,
+    "Evidence must prescribe compiler gates.",
+  );
+  for (const { relative, source } of watcherInstructions) {
+    const start = source.indexOf("pnpm check:watch");
+    const clean = source.indexOf("clean rebuild", start);
+    const stop = source.indexOf("stop the watcher", start);
+    assert.ok(
+      start < clean && clean < stop,
+      `${relative} must start, clean, and stop its bounded compiler gate in order.`,
+    );
+    assert.doesNotMatch(
+      source,
+      /(?:persistent|resident).*check:watch|check:watch.*(?:through Overall Final|keep (?:it|the watcher) running)/iu,
+      `${relative} must not retain check:watch across commands or phases.`,
+    );
+  }
+
+  const sharedSkills = collectFiles(
+    path.join(templateRoot, "base", ".agents", "skills"),
+  )
+    .filter((file) => file.endsWith(".md"))
+    .map((file) => fs.readFileSync(file, "utf8"))
+    .join("\n");
+  assert.doesNotMatch(
+    sharedSkills,
+    /Start .*check:watch.*before .*authoring|Keep .*check:watch.*running through Overall Final/iu,
+    "Base skills must not revive a pre-authoring or resident backend watcher.",
   );
 };
 

@@ -156,6 +156,6 @@ rg --hidden -n -F '@todo' packages/frontend --glob '*.ts' --glob '*.tsx'
 
 Do not start backend `pnpm check:watch` while the first backend draft is still being populated. The first selected host activates its complete claim, so an incomplete draft can produce graph-wide diagnostics for artifacts that are about to be created.
 
-Complete the first backend draft, then start `pnpm check:watch`. The compiler owns target resolution, host eligibility, overlap, coverage, and missing acknowledgements. Fix the complete diagnostic batch, wait for a clean rebuild, and stop the watcher before running the next command or phase.
+Complete the first backend draft, then start `pnpm check:watch`. The compiler owns target resolution, host eligibility, overlap, coverage, and missing acknowledgements. Fix the complete diagnostic batch and wait for a clean rebuild. Stop the watcher afterward so this compiler gate remains a bounded check of the current graph and cannot overlap the next generator, runtime command, or phase.
 
 At each gate, confirm the canonical claim configurations remain unchanged, wait for clean current builds, and run the phase's runtime tests. Never edit a claim population or move a tag merely to silence a diagnostic.

@@ -11,5 +11,5 @@ Add each `@evidence` acknowledgement to the artifact that actually owns the cite
 3. Run `pnpm build:sdk` from `packages/backend`.
 4. Write test programs under `packages/backend/test/features/` for every requirement and API operation. Each test must cite the requirement, operation, and DTO contract it proves.
 5. Complete the first draft of all backend logic before starting the Evidence compiler gate.
-6. Start `pnpm check:watch` from `packages/backend`. Fix every diagnostic in complete graph-wide batches, wait for a clean rebuild, then stop the watcher before continuing.
+6. Start `pnpm check:watch` from `packages/backend`. Waiting until now avoids graph-wide diagnostics for hosts that did not exist during the first draft. Fix the complete diagnostic batch, wait for a clean rebuild, then stop the watcher so it cannot overlap the runtime gate or next phase.
 7. Run `pnpm test` from `packages/backend` and fix every failure. Complete only after the clean watcher rebuild and runtime suite both succeed.

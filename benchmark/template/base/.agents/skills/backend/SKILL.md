@@ -49,7 +49,7 @@ Complete the first draft of the schema, contract, tests, and implementation befo
 pnpm check:watch
 ```
 
-The package's single `tsconfig.json` includes backend source, backend tests, and authored API DTOs. The watcher automatically reloads its lint configuration and reports type, lint, and contributor diagnostics. Fix the complete diagnostic batch, require a clean rebuild after the latest change, and stop the watcher before the next command or phase. Start a fresh watcher at each later compiler gate.
+The package's single `tsconfig.json` includes backend source, backend tests, and authored API DTOs. The watcher automatically reloads its lint configuration and reports type, lint, and contributor diagnostics. Waiting for the complete first draft prevents not-yet-authored artifacts from appearing as defects. Fix the complete diagnostic batch, require a clean rebuild after the latest change, and stop the watcher so it cannot overlap a generator, runtime test, or later phase. Start a fresh watcher at each later compiler gate.
 
 Do not create another backend `tsconfig.json` or package-local lint configuration for tests. Do not toggle claim configuration by phase.
 
