@@ -1,10 +1,14 @@
 # Evidence Frontend Final
 
-Audit whether the Evidence Frontend Review actually completed.
+Did the preceding Evidence frontend review actually perform the literal, indivisible, current-state claim traversal required by its instruction? This objective audits only that question. Do not perform a substitute review or use lint output, searches, summaries, inventories, builds, tests, or Git status as proof.
 
-1. Confirm that every active frontend claim and annotation was inspected.
-2. Confirm that every host, target, and reason was checked for truth and relevance.
-3. Confirm that every annotation defect was corrected.
-4. Confirm that the last complete traversal needed no edit.
+If any condition below is unproven, return to the preceding Evidence frontend review objective and continue it. Complete only when every condition is proven.
 
-If any point is unproven, return to Evidence Frontend Review. Do not perform a substitute review here or claim whole-project completion.
+| Verify | Required result |
+| --- | --- |
+| Scope | One review round covered every configured frontend claim and selected host without partitioning |
+| Acknowledgements | Every `@evidence` and `@evidenceExclude` host, target, reason, and complete scope was inspected |
+| Inactive claims | Every inactive TypeScript claim was checked against the requirements for a missing required host |
+| Corrections | Every discovered defect was corrected |
+| Restart | Every correction restarted the complete claim traversal from the beginning |
+| Completion | The last current-state round found no defect and made no edit |

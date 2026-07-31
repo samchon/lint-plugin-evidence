@@ -1,13 +1,10 @@
 # Evidence Frontend Start
 
-Build the complete frontend against the gated SDK.
+Read `AGENTS.md` and every document under `.agents/skills/frontend/` and `.agents/skills/evidence/` in full before working, and obey them throughout this objective.
 
-1. Inventory every required user journey.
-2. Implement routes, sessions, and state transitions.
-3. Implement forms, lists, errors, and responsive screens.
-4. Implement SDK integration and live-backend behavior.
-5. Add truthful Evidence annotations as real claim hosts appear.
-6. Implement and run browser journeys.
-7. Run every frontend gate.
+This stage owns only the complete first implementation of the frontend and its live integration. Do not perform the review yet. Add truthful Evidence annotations to real claim hosts as they appear; never create an artifact merely to activate a claim.
 
-Use frontend-scoped commands. If frontend work proves a backend defect, fix the backend owner, regenerate affected output, and rerun the complete backend gate.
+1. Read every file under `docs/analysis/` and `packages/api/src/` in full, without omitting a single requirement, operation, DTO, property, or contract detail.
+2. Based on the requirements and the fixed SDK, implement every required screen and user journey under `packages/frontend/src/` without omitting any required behavior or API-backed capability.
+3. Write test programs under `packages/frontend/tests/journeys/` that cover every requirement-backed user journey without a single omission.
+4. When the frontend implementation is complete, run `pnpm lint` and `pnpm test:e2e` from `packages/frontend` to verify it and fix every failure.
