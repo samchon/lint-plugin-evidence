@@ -145,6 +145,10 @@ const main = (): void => {
     ),
     "utf8",
   );
+  const backendSkill: string = fs.readFileSync(
+    path.join(baseTemplate, ".agents", "skills", "backend", "SKILL.md"),
+    "utf8",
+  );
 
   assert.equal(backendPackage.scripts.prepare, undefined);
   assert.equal(backendPackage.scripts["prepare:database"], undefined);
@@ -166,6 +170,14 @@ const main = (): void => {
   assert.equal(apiPackage.scripts.build, "rimraf lib && ttsc");
   assert.equal(apiPackage.main, "./src/index.ts");
   assert.deepEqual(apiPackage.exports, { ".": "./src/index.ts" });
+  assert.match(backendSkill, /packages\/api\/package\.json/u);
+  assert.match(backendSkill, /"main": "\.\/src\/index\.ts"/u);
+  assert.match(backendSkill, /"\.": "\.\/src\/index\.ts"/u);
+  assert.match(backendSkill, /"publishConfig"/u);
+  assert.match(backendSkill, /"main": "\.\/lib\/index\.js"/u);
+  assert.match(backendSkill, /"types": "\.\/lib\/index\.d\.ts"/u);
+  assert.match(backendSkill, /consume the one live TypeScript contract/u);
+  assert.match(backendSkill, /only when the package is packed or published/u);
   assert.deepEqual(apiPackage.publishConfig, {
     main: "./lib/index.js",
     types: "./lib/index.d.ts",

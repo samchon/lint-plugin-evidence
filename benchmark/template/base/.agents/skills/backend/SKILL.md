@@ -29,6 +29,31 @@ The backend realizes the requirements as a schema, public contract, business log
 
 Fix a defect at its owner. A provider must not compensate for a missing column, a controller must not contain business logic, and a test must not weaken a legitimate requirement.
 
+## API Package Entry
+
+Keep this exact split in `packages/api/package.json`:
+
+```json
+{
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "main": "./lib/index.js",
+    "types": "./lib/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./lib/index.d.ts",
+        "default": "./lib/index.js"
+      }
+    }
+  }
+}
+```
+
+`main` and `exports` let every workspace package consume the one live TypeScript contract before publication. `publishConfig` replaces that same root entry with compiled JavaScript and declarations only when the package is packed or published. Redirecting the source entries makes local consumers depend on stale or missing build output; adding a subpath export creates a second contract surface.
+
 ## Implementation Order
 
 1. Read every requirement under `docs/analysis/`.
