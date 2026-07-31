@@ -46,16 +46,26 @@ func (graphRule) Check(ctx *rule.ProjectContext) {
 	// base rather than each re-deriving it from the author's spelling.
 	resolveGraphBases(root, &config)
 
-	// A TypeScript claim with matched files but no selected public host has
-	// nothing that can own an acknowledgement. Materialize only those own
-	// populations first, so an inactive claim cannot make its reference
-	// loaders perform work or report diagnostics.
+	// A claim with no selected own unit has nothing that can own an
+	// acknowledgement. Materialize only claim-side populations first, so an
+	// inactive claim cannot make its reference loaders perform work or report
+	// diagnostics.
 	typescript := loadTypeScriptInventories(
 		root,
 		ctx.Sources,
-		typeScriptClaimPopulationConfig(config),
+		claimPopulationConfig(config, artifactTypeScript),
 	)
-	config = activeGraphConfig(config, typescript)
+	markdownClaims, markdownClaimProblems := loadMarkdownInventories(
+		root,
+		claimPopulationConfig(config, artifactMarkdown),
+	)
+	prismaClaims, prismaClaimProblems := loadPrismaInventories(
+		root,
+		claimPopulationConfig(config, artifactPrisma),
+	)
+	problems = append(problems, markdownClaimProblems...)
+	problems = append(problems, prismaClaimProblems...)
+	config = activeGraphConfig(config, markdownClaims, prismaClaims, typescript)
 	extendTypeScriptInventories(root, ctx.Sources, config, typescript)
 	markdown, markdownProblems := loadMarkdownInventories(root, config)
 	prisma, prismaProblems := loadPrismaInventories(root, config)
@@ -112,16 +122,19 @@ func evidenceProjectRoot(identity rule.ProjectIdentity) string {
 	return ""
 }
 
-// typeScriptClaimPopulationConfig removes every reference and non-TypeScript
-// claim from the loader input used to decide activation.
+// claimPopulationConfig removes every reference and other artifact kind from
+// the loader input used to decide activation.
 //
 // This is a loading boundary, not merely an evaluation filter: a claim cannot
 // become inactive because a failed reference was inspected before the claim's
 // own selected host population was known.
-func typeScriptClaimPopulationConfig(config graphConfig) graphConfig {
+func claimPopulationConfig(
+	config graphConfig,
+	kind artifactKind,
+) graphConfig {
 	claims := make([]claimSpec, 0, len(config.Claims))
 	for _, claim := range config.Claims {
-		if claim.Type != artifactTypeScript {
+		if claim.Type != kind {
 			continue
 		}
 		claim.References = nil
@@ -130,21 +143,29 @@ func typeScriptClaimPopulationConfig(config graphConfig) graphConfig {
 	return graphConfig{Claims: claims}
 }
 
-// activeGraphConfig omits only healthy TypeScript claims whose matched own
-// population contains no exported unit selected by the claim's symbol set.
+// activeGraphConfig omits healthy claim populations that contain no own unit
+// selected by the claim's symbol set.
 //
+// TypeScript, Prisma, and Markdown are the three claim-capable artifact kinds.
 // A healthy zero-file match is empty and therefore inactive, including when a
-// typo caused the empty match. Unhealthy or unreadable populations stay active
-// because failed input cannot prove the selected population is empty. Other
-// artifact kinds retain their existing activation and evaluation semantics.
+// typo caused it. Unhealthy or unreadable populations stay active because
+// failed input cannot prove the selected population is empty.
 func activeGraphConfig(
 	config graphConfig,
+	markdown map[string]*artifactInventory,
+	prisma map[string]*artifactInventory,
 	typescript map[string]*artifactInventory,
 ) graphConfig {
 	active := make([]claimSpec, 0, len(config.Claims))
 	for _, claim := range config.Claims {
-		if claim.Type == artifactTypeScript &&
-			typeScriptClaimIsInactive(claim, typescript) {
+		inventories := inventoriesOf(
+			claim.Type,
+			markdown,
+			prisma,
+			map[string]*artifactInventory{},
+			typescript,
+		)
+		if claimIsInactive(claim, inventories) {
 			continue
 		}
 		active = append(active, claim)
@@ -153,13 +174,18 @@ func activeGraphConfig(
 	return config
 }
 
-func typeScriptClaimIsInactive(
+func claimIsInactive(
 	claim claimSpec,
 	inventories map[string]*artifactInventory,
 ) bool {
+	switch claim.Type {
+	case artifactMarkdown, artifactPrisma, artifactTypeScript:
+	default:
+		return false
+	}
 	paths := matchingInventoryPaths(inventories, claim.Base, claim.Files)
 	if !populationIsHealthy(inventories, claim.Base, paths) ||
-		unreadableBaseProblem(claim.Base, artifactTypeScript) != "" {
+		unreadableBaseProblem(claim.Base, claim.Type) != "" {
 		return false
 	}
 	for _, path := range paths {

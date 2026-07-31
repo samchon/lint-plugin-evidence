@@ -142,14 +142,19 @@ func TestFailedTypeScriptClaimPopulationDoesNotBecomeInactive(t *testing.T) {
 		"reference":{"type":"markdown","files":["docs/spec.md"],"symbol":"h2"}
 	}]}`)
 	address := config.Claims[0].Base.addressOf("src/claim.ts")
-	active := activeGraphConfig(config, map[string]*artifactInventory{
-		address.Key: {
-			Address:    address.Key,
-			Path:       address.Display,
-			Type:       artifactTypeScript,
-			LoadFailed: true,
+	active := activeGraphConfig(
+		config,
+		map[string]*artifactInventory{},
+		map[string]*artifactInventory{},
+		map[string]*artifactInventory{
+			address.Key: {
+				Address:    address.Key,
+				Path:       address.Display,
+				Type:       artifactTypeScript,
+				LoadFailed: true,
+			},
 		},
-	})
+	)
 	if len(active.Claims) != 1 {
 		t.Fatal("a failed TypeScript population must remain active until its contents are knowable")
 	}
@@ -175,7 +180,12 @@ func TestUnreadableTypeScriptClaimRootDoesNotBecomeInactive(t *testing.T) {
 		"symbol":"type",
 		"reference":{"type":"markdown","files":["docs/spec.md"],"symbol":"h2"}
 	}]}`)
-	active := activeGraphConfig(config, map[string]*artifactInventory{})
+	active := activeGraphConfig(
+		config,
+		map[string]*artifactInventory{},
+		map[string]*artifactInventory{},
+		map[string]*artifactInventory{},
+	)
 	if len(active.Claims) != 1 {
 		t.Fatal("an unreadable TypeScript root must remain active for its population diagnostic")
 	}
@@ -208,7 +218,12 @@ func TestTypeScriptActivationDoesNotFilterMarkdownOrPrismaClaims(t *testing.T) {
 			"reference":{"type":"markdown","files":["docs/**/*.md"],"symbol":"h2"}
 		}
 	]}`)
-	active := activeGraphConfig(config, map[string]*artifactInventory{})
+	active := activeGraphConfig(
+		config,
+		map[string]*artifactInventory{},
+		map[string]*artifactInventory{},
+		map[string]*artifactInventory{},
+	)
 	if len(active.Claims) != len(config.Claims) {
 		t.Fatalf(
 			"TypeScript activation changed non-TypeScript claims: got %d, want %d",
