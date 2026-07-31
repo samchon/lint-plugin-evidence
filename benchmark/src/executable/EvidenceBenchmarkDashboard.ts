@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import typia from "typia";
@@ -176,15 +177,14 @@ const compareRuns = (left: IDashboardRun, right: IDashboardRun): number => {
 
 const renderRun = (file: IDashboardStateFile): string => {
   const delta: IWorktreeDelta = inspectWorktree(file.records.workspace);
-  return [
-    `| ${title(file.cell.subject)}`,
+  return `| ${[
+    title(file.cell.subject),
     title(file.cell.arm),
     stage(file.state),
     formatDelta(delta),
     formatCost(file.state),
     formatTime(elapsed(file)),
-    "|",
-  ].join(" | ");
+  ].join(" | ")} |`;
 };
 
 const stage = (state: IDashboardState): string => {
@@ -206,45 +206,54 @@ const inspectWorktree = (workspace: string): IWorktreeDelta => {
   ]).trim();
   if (baseline.length === 0)
     throw new Error(`Benchmark workspace has no baseline commit: ${workspace}`);
-  const tracked: string = git(workspace, ["diff", "--numstat", baseline, "--"]);
-  let files: number = 0;
-  let additions: number = 0;
-  let deletions: number = 0;
-  for (const line of tracked.split(/\r?\n/u)) {
-    if (line.length === 0) continue;
-    const [added, deleted] = line.split("\t", 3);
-    if (added === undefined || deleted === undefined)
-      throw new Error(`Invalid git numstat line: ${line}`);
-    ++files;
-    if (added !== "-") {
-      additions += Number(added);
-      deletions += Number(deleted);
+  const gitDirectory: string = path.resolve(
+    workspace,
+    git(workspace, ["rev-parse", "--git-dir"]).trim(),
+  );
+  const temporary: string = fs.mkdtempSync(
+    path.join(os.tmpdir(), "evidence-dashboard-"),
+  );
+  const index: string = path.join(temporary, "index");
+  try {
+    fs.copyFileSync(path.join(gitDirectory, "index"), index);
+    const environment: NodeJS.ProcessEnv = { GIT_INDEX_FILE: index };
+    git(workspace, ["add", "--intent-to-add", "--", "."], environment);
+    const numstat: string = git(
+      workspace,
+      ["diff", "--numstat", baseline, "--"],
+      environment,
+    );
+    let files: number = 0;
+    let additions: number = 0;
+    let deletions: number = 0;
+    for (const line of numstat.split(/\r?\n/u)) {
+      if (line.length === 0) continue;
+      const [added, deleted] = line.split("\t", 3);
+      if (added === undefined || deleted === undefined)
+        throw new Error(`Invalid git numstat line: ${line}`);
+      ++files;
+      if (added !== "-") {
+        additions += Number(added);
+        deletions += Number(deleted);
+      }
     }
+    return { files, additions, deletions };
+  } finally {
+    fs.rmSync(temporary, { recursive: true, force: true });
   }
-  const untracked: string[] = git(workspace, [
-    "ls-files",
-    "--others",
-    "--exclude-standard",
-    "-z",
-  ])
-    .split("\u0000")
-    .filter((file) => file.length !== 0);
-  files += untracked.length;
-  for (const relative of untracked) {
-    const buffer: Buffer = fs.readFileSync(path.join(workspace, relative));
-    if (buffer.includes(0)) continue;
-    additions += countLines(buffer);
-  }
-  return { files, additions, deletions };
 };
 
-const git = (workspace: string, args: string[]): string => {
+const git = (
+  workspace: string,
+  args: string[],
+  environment: NodeJS.ProcessEnv = {},
+): string => {
   const result = spawnSync(
     "git",
     ["-c", "core.quotepath=false", "--no-optional-locks", "-C", workspace, ...args],
     {
       encoding: "utf8",
-      env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+      env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", ...environment },
       windowsHide: true,
     },
   );
@@ -253,13 +262,6 @@ const git = (workspace: string, args: string[]): string => {
       `Git dashboard query failed (${args.join(" ")}): ${result.stderr}`,
     );
   return result.stdout;
-};
-
-const countLines = (buffer: Buffer): number => {
-  if (buffer.length === 0) return 0;
-  let count: number = buffer.at(-1) === 10 ? 0 : 1;
-  for (const byte of buffer) if (byte === 10) ++count;
-  return count;
 };
 
 const formatDelta = (delta: IWorktreeDelta): string =>
