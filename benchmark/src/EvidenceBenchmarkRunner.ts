@@ -2,92 +2,31 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
+import typia from "typia";
+
+import type { IEvidenceBenchmarkExecutable } from "./structures/IEvidenceBenchmarkExecutable.ts";
+import type { IEvidenceBenchmarkGoalRecord } from "./structures/IEvidenceBenchmarkGoalRecord.ts";
+import type { IEvidenceBenchmarkInterruption } from "./structures/IEvidenceBenchmarkInterruption.ts";
+import type { IEvidenceBenchmarkOutput } from "./structures/IEvidenceBenchmarkOutput.ts";
+import type { IEvidenceBenchmarkProcessRecord } from "./structures/IEvidenceBenchmarkProcessRecord.ts";
+import type { IEvidenceBenchmarkRunProps } from "./structures/IEvidenceBenchmarkRunProps.ts";
+import type { IEvidenceBenchmarkRunState } from "./structures/IEvidenceBenchmarkRunState.ts";
+import type { IEvidenceBenchmarkTokenUsage } from "./structures/IEvidenceBenchmarkTokenUsage.ts";
+import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm.ts";
+
+/**
+ * Executes the retained Codex Goal sequence for one benchmark cell.
+ *
+ * The runner sends the nine frozen objectives through one app-server thread,
+ * retaining native Goal, terminal-turn, idle, token, process, and raw-stream
+ * boundaries without judging or editing the measured application.
+ */
 export namespace EvidenceBenchmarkRunner {
-  export type EvidenceBenchmarkArm = "evidence" | "plain";
-
-  export interface IEvidenceBenchmarkTokenUsage {
-    totalTokens: number;
-    inputTokens: number;
-    cachedInputTokens: number;
-    cacheWriteInputTokens: number;
-    outputTokens: number;
-    reasoningOutputTokens: number;
-  }
-
-  export interface IEvidenceBenchmarkOutput {
-    sequence: number;
-    elapsedMs: number;
-    stream: "stdin" | "stdout" | "stderr";
-    text: string;
-  }
-
-  export interface IEvidenceBenchmarkProcessRecord {
-    command: string;
-    arguments: string[];
-    elapsedMs: number;
-    exitCode: number | null;
-    signal: NodeJS.Signals | null;
-  }
-
-  export interface IEvidenceBenchmarkInterruption {
-    name: string;
-    message: string;
-    stack?: string;
-    detail?: unknown;
-  }
-
-  export interface IEvidenceBenchmarkGoalRecord {
-    index: number;
-    name: string;
-    relativePath: string;
-    prescribedText: string;
-    continuationText: string;
-    objectiveText: string;
-    goal: Record<string, unknown> | null;
-    terminalTurnId: string | null;
-    terminalTurnCompleted: boolean;
-    threadIdle: boolean;
-    tokenUsageTurnId: string | null;
-    tokenUsageStart: IEvidenceBenchmarkTokenUsage;
-    tokenUsageEnd: IEvidenceBenchmarkTokenUsage | null;
-    tokenUsage: IEvidenceBenchmarkTokenUsage;
-    elapsedMs: number;
-  }
-
-  export interface IEvidenceBenchmarkRunState {
-    arm: EvidenceBenchmarkArm;
-    sessionId?: string;
-    cliVersion?: string;
-    nextInstructionIndex: number;
-    status: "ready" | "running" | "interrupted" | "completed";
-    threadTokenUsage: IEvidenceBenchmarkTokenUsage;
-    goals: IEvidenceBenchmarkGoalRecord[];
-    processes: IEvidenceBenchmarkProcessRecord[];
-    interruption?: IEvidenceBenchmarkInterruption;
-  }
-
-  export interface IEvidenceBenchmarkRunProps {
-    state: IEvidenceBenchmarkRunState;
-    cwd: string;
-    instructionsRoot: string;
-    model: string;
-    effort: "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
-    environment?: NodeJS.ProcessEnv;
-    command?: string;
-    commandPrefixArguments?: readonly string[];
-    onOutput: (
-      processIndex: number,
-      output: IEvidenceBenchmarkOutput,
-    ) => void | Promise<void>;
-    onState?: (state: IEvidenceBenchmarkRunState) => void | Promise<void>;
-  }
-
-  export interface IEvidenceBenchmarkExecutable {
-    command: string;
-    composeArguments: (arguments_: readonly string[]) => string[];
-    windowsVerbatimArguments: boolean;
-  }
-
+  /**
+   * Creates an empty Codex state for the selected experiment arm.
+   *
+   * No native identity exists until the first app-server thread is created.
+   */
   export function create(
     arm: EvidenceBenchmarkArm,
   ): IEvidenceBenchmarkRunState {
@@ -104,7 +43,8 @@ export namespace EvidenceBenchmarkRunner {
   export async function run(
     props: IEvidenceBenchmarkRunProps,
   ): Promise<IEvidenceBenchmarkRunState> {
-    const state: IEvidenceBenchmarkRunState = structuredClone(props.state);
+    const state: IEvidenceBenchmarkRunState =
+      typia.assert<IEvidenceBenchmarkRunState>(structuredClone(props.state));
     const entries = instructionEntries(state.arm);
     if (state.nextInstructionIndex >= entries.length) {
       if (state.interruption !== undefined) {
@@ -558,7 +498,7 @@ export namespace EvidenceBenchmarkRunner {
         stdout = stdout.slice(newline + 1);
         if (line.length === 0) continue;
         try {
-          receive(JSON.parse(line));
+          receive(typia.assert<Record<string, unknown>>(JSON.parse(line)));
         } catch {
           finish("interrupted", line);
         }
@@ -570,7 +510,7 @@ export namespace EvidenceBenchmarkRunner {
       child.once("close", (exitCode, signal) => {
         if (stdout.trim().length !== 0) {
           try {
-            receive(JSON.parse(stdout));
+            receive(typia.assert<Record<string, unknown>>(JSON.parse(stdout)));
           } catch {
             finish("interrupted", stdout);
           }
@@ -789,6 +729,12 @@ export namespace EvidenceBenchmarkRunner {
     return state;
   }
 
+  /**
+   * Returns the frozen nine-objective sequence for an experiment arm.
+   *
+   * Only the arm-specific final files differ; every shared objective retains
+   * the same path and position for a comparable pair.
+   */
   export function instructionEntries(
     arm: EvidenceBenchmarkArm,
   ): readonly (readonly [string, string])[] {
@@ -868,6 +814,12 @@ export namespace EvidenceBenchmarkRunner {
       throw new Error("Codex retained an invalid terminal process.");
   }
 
+  /**
+   * Resolves a native CLI into a shell-free cross-platform invocation.
+   *
+   * POSIX binaries receive arguments directly, while Windows command shims
+   * receive one correctly escaped `cmd.exe` command line.
+   */
   export function resolveExecutable(props: {
     name: "codex" | "claude";
     environment: NodeJS.ProcessEnv;
@@ -972,17 +924,7 @@ export namespace EvidenceBenchmarkRunner {
       false,
     );
     if (total === undefined) return undefined;
-    const fields: readonly (keyof IEvidenceBenchmarkTokenUsage)[] = [
-      "totalTokens",
-      "inputTokens",
-      "cachedInputTokens",
-      "cacheWriteInputTokens",
-      "outputTokens",
-      "reasoningOutputTokens",
-    ];
-    return fields.every((field) => typeof total[field] === "number")
-      ? (total as unknown as IEvidenceBenchmarkTokenUsage)
-      : undefined;
+    return typia.is<IEvidenceBenchmarkTokenUsage>(total) ? total : undefined;
   }
 
   function subtract(
@@ -1097,8 +1039,7 @@ export namespace EvidenceBenchmarkRunner {
     value: unknown,
     required = true,
   ): Record<string, unknown> | undefined {
-    if (typeof value === "object" && value !== null && !Array.isArray(value))
-      return value as Record<string, unknown>;
+    if (typia.is<Record<string, unknown>>(value)) return value;
     if (required) throw new Error("Codex app-server message is invalid.");
     return undefined;
   }

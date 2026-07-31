@@ -3,70 +3,36 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
+import typia, { tags } from "typia";
+
 import { EvidenceBenchmarkRunner } from "./EvidenceBenchmarkRunner.ts";
+import type { IEvidenceBenchmarkClaudeInstructionRecord } from "./structures/IEvidenceBenchmarkClaudeInstructionRecord.ts";
+import type { IEvidenceBenchmarkClaudeRunProps } from "./structures/IEvidenceBenchmarkClaudeRunProps.ts";
+import type { IEvidenceBenchmarkClaudeRunState } from "./structures/IEvidenceBenchmarkClaudeRunState.ts";
+import type { IEvidenceBenchmarkClaudeTokenUsage } from "./structures/IEvidenceBenchmarkClaudeTokenUsage.ts";
+import type { IEvidenceBenchmarkExecutable } from "./structures/IEvidenceBenchmarkExecutable.ts";
+import type { IEvidenceBenchmarkInterruption } from "./structures/IEvidenceBenchmarkInterruption.ts";
+import type { IEvidenceBenchmarkOutput } from "./structures/IEvidenceBenchmarkOutput.ts";
+import type { IEvidenceBenchmarkProcessRecord } from "./structures/IEvidenceBenchmarkProcessRecord.ts";
+import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm.ts";
 
+/**
+ * Executes the retained Claude Code instruction sequence for one cell.
+ *
+ * Each frozen objective runs in one noninteractive native process while all
+ * nine processes retain the same Claude session, measurements, and exact
+ * instruction boundary.
+ */
 export namespace EvidenceBenchmarkClaudeRunner {
-  export type EvidenceBenchmarkEffort =
-    "low" | "medium" | "high" | "xhigh" | "max";
-
-  export interface IEvidenceBenchmarkTokenUsage {
-    totalTokens: number;
-    inputTokens: number;
-    cachedInputTokens: number;
-    cacheWriteInputTokens: number;
-    outputTokens: number;
-  }
-
-  export interface IEvidenceBenchmarkInstructionRecord {
-    index: number;
-    name: string;
-    relativePath: string;
-    prescribedText: string;
-    continuationText: string;
-    objectiveText: string;
-    inputDispatched: boolean;
-    completed: boolean;
-    processIndexes: number[];
-    terminalResult: Record<string, unknown> | null;
-    tokenUsage: IEvidenceBenchmarkTokenUsage;
-    costUsd: number;
-    elapsedMs: number;
-  }
-
-  export interface IEvidenceBenchmarkRunState {
-    arm: EvidenceBenchmarkRunner.EvidenceBenchmarkArm;
-    sessionId: string;
-    cliVersion?: string;
-    nativeModel?: string;
-    nextInstructionIndex: number;
-    status: "ready" | "running" | "interrupted" | "completed";
-    tokenUsage: IEvidenceBenchmarkTokenUsage;
-    costUsd: number;
-    instructions: IEvidenceBenchmarkInstructionRecord[];
-    processes: EvidenceBenchmarkRunner.IEvidenceBenchmarkProcessRecord[];
-    interruption?: EvidenceBenchmarkRunner.IEvidenceBenchmarkInterruption;
-  }
-
-  export interface IEvidenceBenchmarkRunProps {
-    state: IEvidenceBenchmarkRunState;
-    cwd: string;
-    instructionsRoot: string;
-    model: string;
-    effort: EvidenceBenchmarkEffort;
-    environment?: NodeJS.ProcessEnv;
-    command?: string;
-    commandPrefixArguments?: readonly string[];
-    cliVersion?: string;
-    onOutput: (
-      processIndex: number,
-      output: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput,
-    ) => void | Promise<void>;
-    onState?: (state: IEvidenceBenchmarkRunState) => void | Promise<void>;
-  }
-
+  /**
+   * Creates an empty Claude Code state with one retained native session ID.
+   *
+   * The ID is generated before launch because every later process must resume
+   * this exact session.
+   */
   export function create(
-    arm: EvidenceBenchmarkRunner.EvidenceBenchmarkArm,
-  ): IEvidenceBenchmarkRunState {
+    arm: EvidenceBenchmarkArm,
+  ): IEvidenceBenchmarkClaudeRunState {
     return {
       arm,
       sessionId: crypto.randomUUID(),
@@ -80,9 +46,12 @@ export namespace EvidenceBenchmarkClaudeRunner {
   }
 
   export async function run(
-    props: IEvidenceBenchmarkRunProps,
-  ): Promise<IEvidenceBenchmarkRunState> {
-    const state: IEvidenceBenchmarkRunState = structuredClone(props.state);
+    props: IEvidenceBenchmarkClaudeRunProps,
+  ): Promise<IEvidenceBenchmarkClaudeRunState> {
+    const state: IEvidenceBenchmarkClaudeRunState =
+      typia.assert<IEvidenceBenchmarkClaudeRunState>(
+        structuredClone(props.state),
+      );
     const entries = EvidenceBenchmarkRunner.instructionEntries(state.arm);
     try {
       if (state.nextInstructionIndex >= entries.length) {
@@ -113,7 +82,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
       delete state.interruption;
 
       while (state.nextInstructionIndex < entries.length) {
-        const instruction: IEvidenceBenchmarkInstructionRecord =
+        const instruction: IEvidenceBenchmarkClaudeInstructionRecord =
           prepareInstruction(state, props.instructionsRoot, entries);
         if (instruction.completed) {
           state.nextInstructionIndex++;
@@ -151,11 +120,11 @@ export namespace EvidenceBenchmarkClaudeRunner {
   }
 
   function prepareInstruction(
-    state: IEvidenceBenchmarkRunState,
+    state: IEvidenceBenchmarkClaudeRunState,
     instructionsRoot: string,
     entries: readonly (readonly [string, string])[],
-  ): IEvidenceBenchmarkInstructionRecord {
-    const retained: IEvidenceBenchmarkInstructionRecord | undefined =
+  ): IEvidenceBenchmarkClaudeInstructionRecord {
+    const retained: IEvidenceBenchmarkClaudeInstructionRecord | undefined =
       state.instructions.find(
         (instruction) => instruction.index === state.nextInstructionIndex,
       );
@@ -170,7 +139,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
       path.join(instructionsRoot, "continue.md"),
       "utf8",
     );
-    const instruction: IEvidenceBenchmarkInstructionRecord = {
+    const instruction: IEvidenceBenchmarkClaudeInstructionRecord = {
       index: state.nextInstructionIndex,
       name: entry[0],
       relativePath: entry[1],
@@ -190,10 +159,10 @@ export namespace EvidenceBenchmarkClaudeRunner {
   }
 
   async function executeInstruction(
-    props: IEvidenceBenchmarkRunProps,
-    state: IEvidenceBenchmarkRunState,
-    instruction: IEvidenceBenchmarkInstructionRecord,
-    executable: EvidenceBenchmarkRunner.IEvidenceBenchmarkExecutable,
+    props: IEvidenceBenchmarkClaudeRunProps,
+    state: IEvidenceBenchmarkClaudeRunState,
+    instruction: IEvidenceBenchmarkClaudeInstructionRecord,
+    executable: IEvidenceBenchmarkExecutable,
     cliVersion: string,
   ): Promise<void> {
     const fresh: boolean = !state.instructions.some(
@@ -234,14 +203,13 @@ export namespace EvidenceBenchmarkClaudeRunner {
       state.sessionId,
     ]);
     const processIndex: number = state.processes.length;
-    const processRecord: EvidenceBenchmarkRunner.IEvidenceBenchmarkProcessRecord =
-      {
-        command: executable.command,
-        arguments: arguments_,
-        elapsedMs: 0,
-        exitCode: null,
-        signal: null,
-      };
+    const processRecord: IEvidenceBenchmarkProcessRecord = {
+      command: executable.command,
+      arguments: arguments_,
+      elapsedMs: 0,
+      exitCode: null,
+      signal: null,
+    };
     state.processes.push(processRecord);
     instruction.processIndexes.push(processIndex);
     await publish(props, state);
@@ -249,7 +217,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
     const started: bigint = process.hrtime.bigint();
     let sequence = 0;
     const emit = async (
-      stream: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput["stream"],
+      stream: IEvidenceBenchmarkOutput["stream"],
       text: string,
     ): Promise<void> => {
       if (text.length === 0) return;
@@ -309,7 +277,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
     let output: Promise<void> = Promise.resolve();
     let outputError: unknown;
     const append = (
-      stream: EvidenceBenchmarkRunner.IEvidenceBenchmarkOutput["stream"],
+      stream: IEvidenceBenchmarkOutput["stream"],
       text: string,
     ): void => {
       if (text.length === 0) return;
@@ -355,7 +323,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
     );
     if (result !== undefined) {
       instruction.terminalResult = structuredClone(result);
-      const usage: IEvidenceBenchmarkTokenUsage = readUsage(result.usage);
+      const usage: IEvidenceBenchmarkClaudeTokenUsage = readUsage(result.usage);
       instruction.tokenUsage = usage;
       state.tokenUsage = addUsage(state.tokenUsage, usage);
       const costUsd: number = nonnegativeNumber(
@@ -381,8 +349,8 @@ export namespace EvidenceBenchmarkClaudeRunner {
 
   function validateInitializations(
     events: readonly Record<string, unknown>[],
-    state: IEvidenceBenchmarkRunState,
-    props: IEvidenceBenchmarkRunProps,
+    state: IEvidenceBenchmarkClaudeRunState,
+    props: IEvidenceBenchmarkClaudeRunProps,
     cliVersion: string,
   ): void {
     const initializations = events.filter(
@@ -465,7 +433,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
   }
 
   function validateCompletedState(
-    state: IEvidenceBenchmarkRunState,
+    state: IEvidenceBenchmarkClaudeRunState,
     entries: readonly (readonly [string, string])[],
   ): void {
     if (
@@ -480,10 +448,10 @@ export namespace EvidenceBenchmarkClaudeRunner {
       state.nativeModel.length === 0
     )
       throw new Error("Claude Code retained an invalid completed identity.");
-    let retainedUsage: IEvidenceBenchmarkTokenUsage = zeroUsage();
+    let retainedUsage: IEvidenceBenchmarkClaudeTokenUsage = zeroUsage();
     let retainedCost = 0;
     entries.forEach((entry, index) => {
-      const instruction: IEvidenceBenchmarkInstructionRecord | undefined =
+      const instruction: IEvidenceBenchmarkClaudeInstructionRecord | undefined =
         state.instructions.find((candidate) => candidate.index === index);
       if (
         instruction === undefined ||
@@ -500,7 +468,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
           "Claude Code retained an invalid completed instruction.",
         );
       validateSuccessfulResult(instruction.terminalResult);
-      const usage: IEvidenceBenchmarkTokenUsage = readUsage(
+      const usage: IEvidenceBenchmarkClaudeTokenUsage = readUsage(
         instruction.terminalResult.usage,
       );
       const cost: number = nonnegativeNumber(
@@ -518,8 +486,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
       retainedCost += cost;
       const processIndex: number | undefined =
         instruction.processIndexes.at(-1);
-      const processRecord:
-        EvidenceBenchmarkRunner.IEvidenceBenchmarkProcessRecord | undefined =
+      const processRecord: IEvidenceBenchmarkProcessRecord | undefined =
         processIndex === undefined ? undefined : state.processes[processIndex];
       if (
         processRecord === undefined ||
@@ -542,7 +509,9 @@ export namespace EvidenceBenchmarkClaudeRunner {
   ): void {
     if (line.length === 0) return;
     try {
-      const event: Record<string, unknown> = object(JSON.parse(line));
+      const event: Record<string, unknown> = typia.assert<
+        Record<string, unknown>
+      >(JSON.parse(line));
       if (
         (event.type === "system" && event.subtype === "init") ||
         event.type === "result"
@@ -553,7 +522,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
     }
   }
 
-  function readUsage(value: unknown): IEvidenceBenchmarkTokenUsage {
+  function readUsage(value: unknown): IEvidenceBenchmarkClaudeTokenUsage {
     const usage: Record<string, unknown> = object(value);
     const inputTokens: number = tokenCount(usage.input_tokens);
     const cachedInputTokens: number = tokenCount(usage.cache_read_input_tokens);
@@ -572,9 +541,9 @@ export namespace EvidenceBenchmarkClaudeRunner {
   }
 
   function addUsage(
-    left: IEvidenceBenchmarkTokenUsage,
-    right: IEvidenceBenchmarkTokenUsage,
-  ): IEvidenceBenchmarkTokenUsage {
+    left: IEvidenceBenchmarkClaudeTokenUsage,
+    right: IEvidenceBenchmarkClaudeTokenUsage,
+  ): IEvidenceBenchmarkClaudeTokenUsage {
     return {
       totalTokens: left.totalTokens + right.totalTokens,
       inputTokens: left.inputTokens + right.inputTokens,
@@ -586,8 +555,8 @@ export namespace EvidenceBenchmarkClaudeRunner {
   }
 
   function sameUsage(
-    left: IEvidenceBenchmarkTokenUsage,
-    right: IEvidenceBenchmarkTokenUsage,
+    left: IEvidenceBenchmarkClaudeTokenUsage,
+    right: IEvidenceBenchmarkClaudeTokenUsage,
   ): boolean {
     return (
       left.totalTokens === right.totalTokens &&
@@ -598,7 +567,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
     );
   }
 
-  function zeroUsage(): IEvidenceBenchmarkTokenUsage {
+  function zeroUsage(): IEvidenceBenchmarkClaudeTokenUsage {
     return {
       totalTokens: 0,
       inputTokens: 0,
@@ -609,19 +578,19 @@ export namespace EvidenceBenchmarkClaudeRunner {
   }
 
   function tokenCount(value: unknown): number {
-    if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0)
-      throw new Error("Claude Code reported an invalid token count.");
-    return value;
+    return typia.assert<number & tags.Type<"uint64">>(value);
   }
 
   function nonnegativeNumber(value: unknown, name: string): number {
-    if (typeof value !== "number" || !Number.isFinite(value) || value < 0)
+    try {
+      return typia.assert<number & tags.Minimum<0>>(value);
+    } catch {
       throw new Error(`${name} is invalid.`);
-    return value;
+    }
   }
 
   function readVersion(
-    executable: EvidenceBenchmarkRunner.IEvidenceBenchmarkExecutable,
+    executable: IEvidenceBenchmarkExecutable,
     environment: NodeJS.ProcessEnv,
   ): string {
     const result = spawnSync(
@@ -645,7 +614,7 @@ export namespace EvidenceBenchmarkClaudeRunner {
 
   function normalizeInterruption(
     value: unknown,
-  ): EvidenceBenchmarkRunner.IEvidenceBenchmarkInterruption {
+  ): IEvidenceBenchmarkInterruption {
     const source: Record<string, unknown> | undefined = object(value, false);
     return {
       name:
@@ -693,15 +662,14 @@ export namespace EvidenceBenchmarkClaudeRunner {
     value: unknown,
     required = true,
   ): Record<string, unknown> | undefined {
-    if (typeof value === "object" && value !== null && !Array.isArray(value))
-      return value as Record<string, unknown>;
+    if (typia.is<Record<string, unknown>>(value)) return value;
     if (required) throw new Error("Claude Code event is invalid.");
     return undefined;
   }
 
   function publish(
-    props: IEvidenceBenchmarkRunProps,
-    state: IEvidenceBenchmarkRunState,
+    props: IEvidenceBenchmarkClaudeRunProps,
+    state: IEvidenceBenchmarkClaudeRunState,
   ): Promise<void> {
     return Promise.resolve(props.onState?.(structuredClone(state)));
   }

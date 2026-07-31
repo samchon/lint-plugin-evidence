@@ -1,30 +1,28 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+
+import typia from "typia";
+
+import type { IEvidenceBenchmarkWorkspaceArtifact } from "./structures/IEvidenceBenchmarkWorkspaceArtifact.ts";
+import type { IEvidenceBenchmarkWorkspaceRequest } from "./structures/IEvidenceBenchmarkWorkspaceRequest.ts";
+import type { IEvidenceBenchmarkWorkspaceResult } from "./structures/IEvidenceBenchmarkWorkspaceResult.ts";
+import type { IEvidenceBenchmarkWorkspaceVariables } from "./structures/IEvidenceBenchmarkWorkspaceVariables.ts";
+
+/**
+ * Materializes one immutable benchmark workspace before native model work.
+ *
+ * It applies the selected template treatment, copies opaque requirements,
+ * installs dependencies, commits the neutral baseline, and publishes the
+ * workspace with one atomic rename.
+ */
 export namespace EvidenceBenchmarkWorkspace {
-  export type EvidenceBenchmarkArm = "evidence" | "plain";
-  export interface IEvidenceBenchmarkWorkspaceVariables {
-    name: string;
-    apiPackageName: string;
-    backendPackageName: string;
-    frontendPackageName: string;
-  }
-  export interface IEvidenceBenchmarkWorkspaceArtifact {
-    name: string;
-    archive: string;
-  }
-  export interface IEvidenceBenchmarkWorkspaceRequest {
-    repository: string;
-    output: string;
-    project: string;
-    arm: EvidenceBenchmarkArm;
-    variables: IEvidenceBenchmarkWorkspaceVariables;
-    artifact?: IEvidenceBenchmarkWorkspaceArtifact;
-  }
-  export interface IEvidenceBenchmarkWorkspaceResult {
-    root: string;
-    workspace: string;
-  }
+  /**
+   * Builds and atomically publishes the prepared workspace for one cell.
+   *
+   * Failure removes only the private stage directory and never exposes a
+   * partially prepared final run path.
+   */
   export async function prepareWorkspace(
     request: IEvidenceBenchmarkWorkspaceRequest,
   ): Promise<IEvidenceBenchmarkWorkspaceResult> {
@@ -149,9 +147,9 @@ export namespace EvidenceBenchmarkWorkspace {
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.copyFileSync(path.resolve(artifact.archive), target);
     const location: string = path.join(workspace, "package.json");
-    const manifest = JSON.parse(fs.readFileSync(location, "utf8")) as {
+    const manifest = typia.assert<{
       devDependencies?: Record<string, string>;
-    };
+    }>(JSON.parse(fs.readFileSync(location, "utf8")));
     manifest.devDependencies ??= {};
     manifest.devDependencies[artifact.name] = `file:${dependency}`;
     fs.writeFileSync(location, `${JSON.stringify(manifest, null, 2)}\n`);
