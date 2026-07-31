@@ -52,7 +52,13 @@ Keep this exact split in `packages/api/package.json`:
 }
 ```
 
-`main` and `exports` let every workspace package consume the one live TypeScript contract before publication. `publishConfig` replaces that same root entry with compiled JavaScript and declarations only when the package is packed or published. Redirecting the source entries makes local consumers depend on stale or missing build output; adding a subpath export creates a second contract surface.
+`main` and `exports` let every workspace package consume the one live TypeScript contract before publication.
+
+`publishConfig` replaces that same root entry with compiled JavaScript and declarations only when the package is packed or published.
+
+Redirecting the source entries makes local consumers depend on stale or missing build output.
+
+Adding a subpath export creates a second contract surface.
 
 ## Implementation Order
 
