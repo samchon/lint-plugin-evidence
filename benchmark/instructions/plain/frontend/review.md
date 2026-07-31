@@ -8,7 +8,7 @@ Full reading is literal: open and read every file in the complete review scope. 
 
 Every review round must cover the entire table below as one indivisible full reading. Never partition the scope between rounds or compose partial reviews into a result. If you find even one problem or omission, fix it and restart the complete table. Repeat full-scope rounds without any limit until one entire round has no omitted file, requirement, artifact, journey, or relation, finds no problem, and makes no edit.
 
-Keep `pnpm dev` running from `packages/frontend`. Fix every diagnostic it reports and restart the complete review; complete only after the current application reloads without error.
+Ensure backend `pnpm dev` and frontend `pnpm dev` are running. Fix every diagnostic either process reports and restart the complete review; complete only after the current live application reloads without error.
 
 | Read in full | Compare with |
 | --- | --- |

@@ -4,7 +4,9 @@ Did the preceding backend review actually perform the literal, indivisible, full
 
 If any condition below is unproven, return to the preceding backend review objective and continue it. Complete only when every condition is proven.
 
-Require the persistent `pnpm check:watch` process to complete a clean rebuild after the current implementation. A clean rebuild is required but is not proof of the review.
+Ensure `pnpm check:watch` is running from `packages/backend`, wait for a clean rebuild, and run `pnpm test` against the current implementation. A clean rebuild and passing runtime suite are required but are not proof of the review.
+
+Ensure `pnpm dev` is also running from `packages/backend`, and keep both processes running through Overall Final.
 
 | Verify | Required result |
 | --- | --- |

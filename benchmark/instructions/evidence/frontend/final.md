@@ -1,3 +1,5 @@
 # Evidence Frontend Final
 
-Keep `pnpm dev` running from `packages/frontend`, then run `pnpm test:e2e` against the current frontend and live backend. Fix every failure and complete only after the development build, production build, and browser tests all succeed.
+Ensure backend `pnpm check:watch`, backend `pnpm dev`, and frontend `pnpm dev` are running. Run `pnpm test:e2e` from `packages/frontend` with `VITE_API_SIMULATE=false`.
+
+Fix every failure and complete only after the current development build, production build, and live-backend browser tests all succeed. Keep the three processes running through Overall Final.

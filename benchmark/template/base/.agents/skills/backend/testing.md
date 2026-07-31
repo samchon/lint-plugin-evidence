@@ -1,405 +1,160 @@
-# Testing
+# Backend Testing
 
-The end-to-end suite under `packages/backend/test/` is the primary executable proof that backend behavior follows the requirements. Frontend delivery is proved separately through browser journeys.
+Tests under `packages/backend/test/` are executable proof of backend behavior. Read the requirements, generated accessors, and DTOs before writing a scenario. The SDK says what can be called; only the requirements say what must happen.
 
-The scaffold already contains `test/features/api/health/test_api_health.ts`. It is an infrastructure proof, not proof of a product requirement: it calls the generated `api.functional.health.get` accessor and validates the returned string contract. Keep it intact while adding requirement-derived scenarios.
-
-## Read Three Things Before Writing One Test
-
-A test is written from three sources, and skipping any of them produces a test that compiles and proves the wrong thing.
-
-| Source | Answers |
-| --- | --- |
-| `docs/analysis/` | what must be true, and what must be refused |
-| `packages/api/src/functional/**` | which accessor to call, and what it takes |
-| `packages/api/src/structures/**` | what a body must contain, and what a response carries |
-
-**The structures are the half most often skipped**, and skipping them is what produces a test asserting a property no DTO declares or building a body from fields someone assumed. Read the type and its JSDoc, including each property's, before writing the object literal. If a property you expect is absent, it is absent: the contract is the fact, and inventing around it makes a test that proves a product nobody shipped.
-
-The requirements half is what the other two cannot supply. The SDK tells you what the product can do; only the documents tell you what it must do, and a suite written from the SDK alone proves the endpoints exist.
+Keep the scaffold health test intact. It proves infrastructure, not a product requirement.
 
 ## Layout
 
-```
+```text
 test/
-  features/api/<domain>/test_api_<domain>_<action>.ts
+  features/api/<domain>/test_api_<domain>_<behavior>.ts
   authorize/authorize_<actor>_<join|login|refresh>.ts
   prepare/prepare_random_<entity>.ts
   generate/generate_random_<accessor_path>.ts
 ```
 
-Each folder holds one kind of thing, and the kinds do not mix.
+- `features/`: one exported test function per file.
+- `authorize/`: one helper per authentication lifecycle operation.
+- `prepare/`: synchronous creation-body builders with no calls.
+- `generate/`: one public SDK call that returns the created value.
 
-- **`features/`** holds the tests. One file, one exported function, filename matching the function name.
-- **`authorize/`** holds one helper per authentication lifecycle operation, and nothing else.
-- **`prepare/`** holds synchronous body builders that call nothing.
-- **`generate/`** holds helpers that perform one call and return what it made.
+Names match the exported function and describe the behavior or refusal being proved.
 
-## A Test
+## Scenario Shape
+
+Every test JSDoc states the behavior, why the scenario proves it, and numbered steps. The body repeats those steps as comments.
 
 ```ts
-export async function test_api_sale_unit_belongs_to_its_sale(
+/**
+ * Proves a sale unit remains reachable through its owning sale.
+ *
+ * 1. Join an administrator and create the required section.
+ * 2. Join a seller and create a sale in that section.
+ * 3. Add a unit to the sale.
+ * 4. Read the sale and assert it contains the unit.
+ */
+export async function test_api_sale_unit_belongs_to_sale(
   connection: api.IConnection,
 ): Promise<void> {
-  // Step 1: Register an administrator, who may open a section
-  const adminConnection: api.IConnection = { host: connection.host };
-  await authorize_admin_join(adminConnection, {});
+  const admin: api.IConnection = { host: connection.host };
+  await authorize_admin_join(admin, {});
+  const section = await generate_random_admin_section_create(admin, {});
 
-  // Step 2: Open the section the sale will belong to
-  const section = await generate_random_shopping_admin_section_create(
-    adminConnection,
-    {},
-  );
-  typia.assert(section);
-
-  // Step 3: Register a seller, who becomes the owner of what they register
-  const sellerConnection: api.IConnection = { host: connection.host };
-  await authorize_seller_join(sellerConnection, {});
-
-  // Step 4: Register a sale in that section
-  const sale = await generate_random_shopping_seller_section_sale_create(
-    sellerConnection,
-    { params: { sectionId: section.id } },
-  );
-  typia.assert(sale);
-
-  // Step 5: Add a unit to the sale
-  const unit = await generate_random_shopping_seller_section_sale_saleUnit_create(
-    sellerConnection,
-    {
-      body: { name: "Standard", primary: true },
-      params: { sectionId: section.id, saleId: sale.id },
-    },
-  );
-  typia.assert(unit);
-
-  // Step 6: Assert the unit belongs to the sale it was created under
-  TestValidator.equals("unit name", unit.name, "Standard");
-  TestValidator.equals("unit is primary", unit.primary, true);
-  TestValidator.predicate(
-    "the sale now lists the unit",
-    (
-      await api.functional.shopping.seller.section.sale.at(sellerConnection, {
-        sectionId: section.id,
-        id: sale.id,
-      })
-    ).units.some((u) => u.id === unit.id),
-  );
-}
-```
-
-The numbered comments mirror the numbered steps in the JSDoc block, so a reader can follow either one and land in the same place.
-
-**Two actors, two connections, and the switch is visible in the order.** The administrator opens the section because that is who may; the seller registers the sale because that is who may. A test that did both on one connection would pass only against a backend that had stopped checking.
-
-**The final assertion reads the effect back through a public operation.** The creation response already carries the unit, so asserting against it proves the response echoed its input. Reading the sale afterwards proves the row was written and is reachable the way a caller would reach it.
-
-## Connection Isolation
-
-The `connection` parameter is a **base connection** carrying the host. Never call an operation with it directly.
-
-Create one connection per actor from that host, authenticate it once, and reuse that same variable for every call by that actor.
-
-```ts
-const sellerConnection: api.IConnection = { host: connection.host };
-await authorize_seller_join(sellerConnection, {});
-```
-
-**The authorization helper does not touch headers, and neither do you.** A lifecycle accessor writes the issued token into the connection it was given, which [the API skill](../api/SKILL.md) covers along with the rest of the connection contract. Nothing here needs to open a controller to know that: the accessor is the contract a test consumes.
-
-So authenticating an actor means calling its authorize helper with that actor's connection. A connection created later and never passed to an authorize helper is anonymous, and the failure arrives as a 401 on a call that looks unrelated.
-
-## Authorize Helpers
-
-One per lifecycle operation, named for the actor and the operation.
-
-```ts
-export async function authorize_seller_join(
-  connection: api.IConnection,
-  props: {
-    body?: DeepPartial<IShoppingSeller.IJoin>;
-  },
-): Promise<IShoppingSeller.IAuthorized> {
-  const joinInput = {
-    email: props.body?.email ?? typia.random<string & tags.Format<"email">>(),
-    password: props.body?.password ?? RandomGenerator.alphaNumeric(16),
-    ip: props.body?.ip ?? typia.random<string & tags.Format<"ipv4">>(),
-  } satisfies IShoppingSeller.IJoin;
-  return await api.functional.shopping.auth.seller.join(connection, {
-    body: joinInput,
+  const seller: api.IConnection = { host: connection.host };
+  await authorize_seller_join(seller, {});
+  const sale = await generate_random_seller_sale_create(seller, {
+    params: { sectionId: section.id },
   });
+  const unit = await generate_random_seller_sale_unit_create(seller, {
+    params: { sectionId: section.id, saleId: sale.id },
+    body: { name: "Standard", primary: true },
+  });
+
+  const detail = await api.functional.shopping.seller.sale.at(seller, {
+    id: sale.id,
+  });
+  typia.assert(detail);
+  TestValidator.predicate(
+    "sale contains the created unit",
+    detail.units.some((elem) => elem.id === unit.id),
+  );
 }
 ```
 
-`join`, `login`, and `refresh` each get their own helper. Nothing else belongs in this folder: creating an ordinary resource is a generate helper even when only an authenticated actor can do it.
+The final assertion observes the effect through a public read. Checking only the create response proves that the response echoed input, not that state persisted.
 
-Every field defaults through `??`, so a caller passing `{}` gets a valid actor and a caller pinning one field changes only that field.
+## Connections And Setup
 
-## Prepare And Generate
+The test's `connection` parameter supplies only the host. Create one connection per actor, authenticate it once through an authorize helper, and reuse it. Never write headers manually.
 
-**`prepare_random_*`** builds a creation body. It takes an optional partial, calls nothing, and is synchronous.
+Setup uses public operations:
+
+1. authenticate the actor for the next protected step;
+2. create parents before children;
+3. establish ownership, membership, grade, or approval through the operation that grants it;
+4. switch actors explicitly; and
+5. invoke the target behavior.
+
+Do not seed the database directly. A required state that no public operation can establish is an API finding.
+
+The database is shared across tests and repeated runs. Assert against records and identifiers created by the scenario, never global emptiness, total row count, or an unscoped position.
+
+## Helpers
+
+Prepare helpers preserve deliberate `null`:
 
 ```ts
-export function prepare_random_sale_unit(
-  input?: DeepPartial<IShoppingSaleUnit.ICreate> | undefined,
-): IShoppingSaleUnit.ICreate {
+export function prepare_random_sale(
+  input?: DeepPartial<IShoppingSale.ICreate>,
+): IShoppingSale.ICreate {
   return {
-    name: input?.name ?? RandomGenerator.name(),
-    primary: input?.primary ?? true,
-    description:
-      input?.description !== undefined
-        ? input.description
-        : RandomGenerator.paragraph({ sentences: 3 }),
+    title: input?.title ?? RandomGenerator.name(),
+    closedAt:
+      input?.closedAt !== undefined
+        ? input.closedAt
+        : null,
   };
 }
 ```
 
-A nullable field checks `!== undefined` rather than using `??`, because `??` would replace a deliberate `null` with the random default and silently change what the test is testing.
+Generate helpers call one existing accessor. Path parameters and foreign keys come from earlier public responses; random identifiers are valid only in an explicit not-found test.
 
-**`generate_random_*`** performs one call and returns what it made. It takes the connection first and a props object carrying the body and the path parameters.
+## Coverage
 
-```ts
-export async function generate_random_shopping_seller_section_sale_saleUnit_create(
-  connection: api.IConnection,
-  props: {
-    body?: DeepPartial<IShoppingSaleUnit.ICreate> | undefined;
-    params: { sectionId: string; saleId: string };
-  },
-): Promise<IShoppingSaleUnit> {
-  const prepared: IShoppingSaleUnit.ICreate = prepare_random_sale_unit(
-    props.body,
-  );
-  return await api.functional.shopping.seller.section.sale.saleUnit.create(
-    connection,
-    {
-      body: prepared,
-      sectionId: props.params.sectionId,
-      saleId: props.params.saleId,
-    },
-  );
-}
-```
+For every requirement, name a test that would fail if the behavior disappeared. For every operation, cover success and every stated refusal. For every exchanged DTO shape, construct or read it through an applicable operation.
 
-The name comes from the accessor path, joined with underscores. `props` is always present, `{}` when nothing is pinned. Path parameters are required in the type, because a fabricated identifier refers to no row.
+Minimum behavioral cases:
 
-Use an existing helper for the endpoint it owns, and call the SDK directly only where none covers it.
-
-## The Scenario Comment Is Required
-
-Every test carries a JSDoc block, and it is not a summary. It is the scenario, written so a reader knows what the test establishes and what it proves without reading the body.
-
-```ts
-/**
- * Validate that a unit created under a sale belongs to that sale.
- *
- * A sale lives in a section an administrator opens, and a seller registers
- * the sale and its units. This test builds the section as an administrator
- * and the sale as a seller, adds a unit, then reads the sale back and
- * confirms the unit is reachable through it rather than only echoed by the
- * creation response.
- *
- * 1. Register an administrator, who may open a section.
- * 2. Open the section the sale will belong to.
- * 3. Register a seller, who owns what they register.
- * 4. Register a sale in that section, as the seller.
- * 5. Add a unit to the sale.
- * 6. Read the sale and assert it lists the unit.
- */
-```
-
-A summary sentence, a blank line, topic paragraphs, then the numbered steps. The numbers match the `// Step N:` comments in the body.
-
-Write the steps so someone could perform them by hand. A step that says "set up the data" is not a step.
-
-## The Database Is Shared
-
-**The runner does not reset the database between tests.** Tests in one invocation see each other's writes, and a repeated local run sees the previous run's rows.
-
-That makes a whole class of assertion wrong even though it passes the first time you write it.
-
-```ts
-// Wrong: passes on an empty database and never again.
-TestValidator.equals("no sales yet", page.data.length, 0);
-TestValidator.equals("exactly three", page.pagination.records, 3);
-
-// Right: scoped to what this test created.
-const mine = page.data.filter((s) => s.id === sale.id);
-TestValidator.equals("this seller's sale is listed once", mine.length, 1);
-```
-
-Prove against what the scenario controls: the ids it created, a filter it owns, a state transition it caused, a stable business predicate. Never against a global count, a global emptiness, or a position in an unscoped list.
-
-## What Each Kind Of Operation Owes
-
-A scenario proves one distinct observable behavior, and the kind of operation under test fixes the minimum it owes.
-
-| The operation | Owes |
+| Contract | Proof |
 | --- | --- |
-| a public read | one success, proved in the response |
-| a persisted mutation | one success, plus the effect observed somewhere |
-| a list or search | a collection-query proof: the filter selects, the sort orders, the page bounds |
-| a create whose body carries a value under a single-column unique constraint | one duplicate rejection, submitting that same value again as the same owner |
-| a grade-restricted operation | a positive proof at a sufficient grade, and a negative at an insufficient one where that grade is reachable |
+| persisted mutation | successful response and observable follow-up state |
+| list or search | filter, ordering, and pagination behavior |
+| ownership or visibility | permitted and forbidden actors |
+| threshold or window | both sides of the boundary |
+| retained history | mutate the source, then read the retained value |
+| delete with restore | content and ownership survive the full cycle |
+| caller-controlled unique value | duplicate submission is refused |
+| grade restriction | reachable sufficient and insufficient grades |
 
-**The duplicate obligation is narrow, and its boundary is the point.** It applies when the caller supplies the value that collides. It does not apply to a value the server generates, to a composite unique index a client cannot steer into a collision, or to login and refresh, which are not creations. Writing a duplicate case for any of those tests the database rather than the requirement.
-
-## Setup Uses Join, And Does Not Repeat Side Effects
-
-Use the join operation for ordinary authenticated setup. It registers the account and returns the authorization in one call, so a second login for the same actor buys nothing.
-
-The lifecycle operations are the exception, because there the lifecycle is the subject.
-
-- **A join test** has no prior identity setup. That is the whole point of it.
-- **A login test** joins first to create an account with credentials it keeps, then calls login on a **fresh, unauthenticated connection**. Reusing the joined connection proves nothing, because that connection already carries a token.
-- **A refresh test** joins, then passes the issued refresh value through the refresh operation's own request DTO.
-
-## Setup Order Is The Scenario
-
-The setup calls are the scenario's structure, so write them as an ordered list before writing any of them.
-
-1. Authenticate the actor that performs the next protected step.
-2. Create parents before children.
-3. Establish the membership, ownership, approval, or grade through the public operation that grants it.
-4. Switch actors only after the previous actor's setup is finished.
-5. Then call the target.
-
-**Every actor switch is visible in that order.** An administrator joins, the administrator creates a product, a customer joins, the customer orders it: four steps, two connections, and a reader can see which call runs as whom.
-
-**The target is not one of its own prerequisites**, and one method-and-path appears once in one scenario. Needing it twice means either the scenario proves two things, or the second call is the target.
-
-**Read what a prerequisite already does before adding the next call.** A create operation whose contract says the creator becomes the owner and is auto-subscribed has already established that state. Subscribing again is a duplicate that the provider correctly rejects, and the failure looks like a defect in the operation under test rather than in the setup.
-
-Derive each actor's setup from the contract rather than by copying another actor's. Two actors with similar names often need different steps.
-
-## Naming
-
-`test_api_<feature>_<action>_<context>`, globally unique across the suite, because each name owns one file and one exported function.
-
-Differentiate variants by input condition or expected outcome: `test_api_user_registration_when_username_taken`. A negative authority case names the grade it was refused for: `test_api_sale_registration_forbidden_for_unapproved_seller`.
-
-Renaming duplicate behavior does not make it distinct. If two names would prove the same thing, there is one test.
-
-## A Grade Must Be Reachable Before It Can Be Proved
-
-**Join establishes the default grade and nothing else.** Any higher grade in a test comes from calling the operation that grants it, as that grade's holder, exactly as a user would.
-
-The promoted actor keeps the connection it already had. Grades are loaded per request rather than carried in the token, so a grant takes effect on the next call and re-authenticating after one proves nothing. If a test only passes after a second login, the grade is being read from the wrong place.
-
-That makes the negative case conditional. Write it when an insufficient grade is publicly reachable, using the correct actor at a grade the operation does not accept, with otherwise valid input. Skip it when the actor has no grades, when every declared grade satisfies the gate, or when no insufficient grade can be reached at all.
-
-**When no public operation can establish a sufficient grade, the scenario is currently impossible, and that is the finding.** Record it and repair the API. Do not invent setup, write to the database, or let the caller assign their own authority to get the test running: a test that reaches a grade by a route no user has proves a behavior the product does not offer. [controllers.md](controllers.md) owns the grant and removal routes this depends on.
-
-## Do Not Assert What The Contract Does Not Expose
-
-Token claims are not part of the contract unless a response DTO carries them. Do not decode a token to assert an expiry, a subject, or an address.
-
-Expiry cannot be manufactured without the server's secret, and tampering with an issued token proves only that a bad token is rejected. One such rejection is enough for the suite; there is no separate expired, forged, and malformed case a client can actually steer into distinct outcomes.
-
-**Refresh-token reuse is provable only where the contract exposes revocation or rotation.** When a refresh extends the same session and the previously issued token is self-contained, that older token stays valid by design, so a test asserting it is now rejected asserts a behavior the design does not have. Check what the contract says before writing that case.
-
-An operation that returns nothing needs a public follow-up read to prove its effect. Without one, the test can prove the call succeeded and can prove its rejections, and it cannot claim the state changed.
-
-## Take Accessors From The Generated SDK
-
-Never derive an accessor name from a path, a verb, or a guess. If the one you expect does not exist, find the operation whose method and path match and use the accessor generated for it.
-
-Never cast a namespace to reach a missing member. If neither an accessor nor a helper covers an endpoint, the contract is what needs repairing.
-
-## Random Data
-
-```ts
-typia.random<string & tags.Format<"email">>();
-typia.random<number & tags.Type<"uint32"> & tags.Minimum<1>>();
-RandomGenerator.name();
-RandomGenerator.paragraph({ sentences: 3 });
-RandomGenerator.alphaNumeric(16);
-```
-
-Use the type-driven generator for anything with a format or a numeric constraint, and the text generator for human-readable strings.
-
-Randomize a resource's own data. **Path parameters and foreign keys come from prior responses.** A fabricated identifier refers to no row and fails with a not-found for the wrong reason. Fabricate one only in an explicit not-found test.
+Do not invent negative cases the requirements or public contract do not state.
 
 ## Assertions
 
+Use `typia.assert(response)` for the full response shape, then assert the business fact:
+
 ```ts
 typia.assert(response);
+TestValidator.equals("owner remains seller", response.seller.id, seller.id);
 ```
 
-That validates the whole response: every property, type, format, and constraint. **Do not follow it with redundant type or format checks.** A pattern test on an identifier or a `typeof` comparison adds no proof.
+Every test needs a business assertion. Type validation alone proves only contract shape.
 
-Then assert the business fact, with the title first so a failure names the assertion:
+Assert the exact status or diagnosis when the public contract states it. Otherwise assert a generic refusal. Await both the refusal assertion and the SDK call inside it.
 
-```ts
-TestValidator.equals("unit belongs to the sale", unit.saleId, sale.id);
-TestValidator.predicate("the sale lists the unit", detail.units.some((u) => u.id === unit.id));
-```
+A deliberately malformed wire payload cannot pass through the typed SDK. When a requirement promises runtime boundary refusal, isolate the invalid payload in a raw-HTTP helper and assert the public response without weakening production types.
 
-**Every test needs at least one business assertion.** A test that calls an operation and validates the response type proves the framework works.
+## Test Integrity
 
-## Rejections
+Never:
 
-Assert the exact public error contract when the requirement or controller JSDoc specifies a status or diagnosis.
-Use a generic refusal assertion only when the public contract deliberately leaves the error classification open.
+- cast to reach a missing accessor;
+- use `any`, double casts, or suppression comments;
+- read Prisma directly for setup or proof;
+- decode token internals the DTO does not expose;
+- weaken an assertion to make the suite pass; or
+- run the same target method/path twice in one scenario unless the second call is the behavior under test.
 
-```ts
-await TestValidator.error("another seller cannot edit this sale", async () => {
-  await api.functional.shopping.seller.section.sale.update(
-    otherSellerConnection,
-    { sectionId: section.id, id: sale.id, body },
-  );
-});
-```
-
-When the contract names `401`, `403`, `404`, or `409`, verification order must preserve that observable distinction and the test must pin it.
-Do not weaken a named authorization, existence-hiding, lifecycle, or conflict contract into “some error.”
-When no status or diagnosis is specified, use:
-
-```ts
-await TestValidator.error("request is refused", async () => { ... });
-```
-
-Await both layers: the assertion and the call inside it. A synchronous callback takes no `await` on the outer call; an async one takes it on both.
-
-## Separate Compile-Time Misuse From Runtime Boundary Tests
-
-A deliberately wrong literal passed through a typed SDK call is a compile error, not a test. Do not cast it through the contract or weaken production types to make that call compile.
-
-A requirement that explicitly promises runtime refusal for malformed JSON, a bad format, an out-of-range number, an empty required value, or an unsupported union member still needs an executable boundary test. Send that deliberately invalid wire payload through a small raw-HTTP test helper, assert the public refusal and unchanged state, and keep the unsafe value confined to that helper. The SDK remains the transport for every type-correct scenario.
-
-Positive paths stay clean: valid bodies, a qualified caller, and no manufactured failure. Negative paths cover every observable refusal the requirements name, including authorization, lifecycle, concurrency, and boundary validation.
-
-## Code Discipline
-
-- `const` throughout, with ternaries for conditional values.
-- Declare a body with bare `satisfies`, without a widening annotation.
-- Await every call. A missing await turns a failure into unhandled-rejection noise that reports as a pass.
-- Never suppress the compiler with an ignore comment, `any`, or a double cast. A missing required property usually means a prerequisite call was omitted, and its response supplies the value.
-- Use only properties the DTOs declare.
-
-## What A Test Must Prove
-
-- **The requirement, not the mechanism.** If a rule says two coupons of the same kind cannot stack, stack them and assert the refusal.
-- **Every stated refusal.** Add the adjacent negative case when the requirements or contract define it; never invent a rejection merely to mirror a positive path.
-- **The boundaries.** Empty list, single element, expired window, the threshold on both sides, first page and last.
-- **Authorization explicitly.** A route that leaks another actor's data returns 200 and looks correct in every test written as the owner.
-- **The state after the effect.** An operation whose requirement says it also closes something is not proven by a 200.
-- **History.** Where the schema keeps snapshots, create, reference, mutate the source, then read the reference and assert it still shows what it showed before.
-- **Recovery, end to end.** Where a delete has a restore, delete and then restore, and assert the row came back with its content and its owner intact. A delete test alone passes against an implementation that empties the row on the way out, and the loss surfaces only when someone restores.
-
-## Prove Through The Public Surface
-
-Use public operations for setup and assertions. Do not read the database as a fallback.
-
-When neither the response nor any reachable follow-up read exposes the effect a requirement names, that is a finding about the API. An effect nobody can observe through the product is an effect the product does not deliver.
-
-## Calibrate One Behavioral Proof
-
-Before a backend or overall review that may qualify as clean, select one material behavioral requirement and temporarily remove the production behavior that implements it. Run the relevant test and require it to fail for the missing behavior, then restore the implementation exactly and rerun the test successfully. Complete the mutation and restoration before the review starts; changing either during a review invalidates that review.
-
-If the test does not fail, it is decorative rather than proof. Correct the test, restore the intended implementation, and finish the calibration before beginning the candidate clean review.
+Before a backend or overall review that may qualify as clean, temporarily remove one material behavior, run its test and require failure, restore the behavior exactly, then require success. Complete this mutation calibration before the qualifying review begins.
 
 ## Running
 
-Before realize, the suite is red by design: the stubs answer with random data, so a business assertion fails. A suite that is green while random-answer controller stubs remain unfinished is a suite asserting nothing.
+Before provider realization, tests should fail against random-answer controller stubs. A green suite while material stubs remain means the assertions are insufficient.
 
-From `packages/backend`, run `pnpm test`. The command builds the API package, compiles the test program through its configured lint projection, boots the application against SQLite, runs every exported test function, and closes it. Nothing needs to be started beforehand; [wiring.md](wiring.md) owns the canonical command sequence.
+From `packages/backend`:
+
+```bash
+pnpm test
+```
+
+The command builds the API package, compiles the configured test Program, boots the application against SQLite, runs every exported test function, and closes it.

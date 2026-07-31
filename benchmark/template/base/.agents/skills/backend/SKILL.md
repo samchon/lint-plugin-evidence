@@ -1,94 +1,94 @@
 ---
 name: backend
-description: Indexes the backend conventions for this project and states the rules that apply to all of them: the layer boundaries, the phase order, the source-of-truth stack, and what a completed piece of backend work owes. Use before any backend work, then read the linked topic document for the layer you are touching.
+description: Defines backend layer ownership, implementation order, resident checking, generation boundaries, and the backend gate. Read before backend work, then read every sibling topic.
 ---
 
 # Backend
 
-The backend is the whole product surface that realizes `docs/analysis/`. It owns the schema, the public API, the business logic, and the tests that prove the behavior. The generated SDK in `packages/api` is its output, not a place to work.
-
-Read this file first, then the topic document for the layer you are about to touch.
+The backend realizes the requirements as a schema, public contract, business logic, and executable tests. Work in that order so each layer consumes settled decisions from the layer before it.
 
 ## Topics
 
-- [wiring.md](wiring.md): controller discovery, shared module metadata, the global singleton, the bootstrap, the environment, and the generator commands. **Read this first if the repository is empty**, and again whenever you add a controller, because runtime and generated populations must remain identical.
-- [database.md](database.md): schema organization, naming, the documentation-comment contract, stance, temporal and deletion rules, snapshots, ownership. Read before adding or changing a model.
-- [dtos.md](dtos.md): what a DTO is named, what each variant means, how every property earns its place, and how relations are shaped. **DTOs live in `packages/api/src/structures`, not in this package.** Read before declaring any type a caller will see.
-- [controllers.md](controllers.md): endpoint shape, response cardinality, the request grammar, and the JSDoc that becomes the published contract. Read before adding or changing an endpoint.
-- [transformers.md](transformers.md): the read side, one namespace per DTO, holding the selection and the row-to-DTO mapping. Read before returning any DTO.
-- [collectors.md](collectors.md): the write side, one namespace per creation DTO, holding the payload assembly. Read before writing any row.
-- [providers.md](providers.md): provider structure, pagination, visibility, persistence, error behavior, and the Prisma traps. Read before writing business logic.
-- [authorization.md](authorization.md): actors, sessions, grades, ownership and scope guards, and where each check belongs. Read before anything that reads the caller's identity.
-- [testing.md](testing.md): end-to-end test structure, composition, and what a test must prove beyond its happy path. Read before writing a test.
-- [typescript.md](typescript.md): the recurring TypeScript and typia diagnostics, what causes each, and the one correct fix. Read when a type error repeats, and always before choosing a default for a nullable conversion.
-- [debugging.md](debugging.md): how to assign a failure to the layer that owns it before editing anything. Read when something fails and the cause is not obvious.
+- [database.md](database.md): models, relations, lifecycle, retained state, and schema comments.
+- [dtos.md](dtos.md): public request and response types under `packages/api/src/structures/`.
+- [controllers.md](controllers.md): operation shape, routes, actor guards, and published JSDoc.
+- [providers.md](providers.md): authorization, queries, writes, transformers, collectors, and transactions.
+- [testing.md](testing.md): end-to-end scenarios and behavioral proof.
+- [typescript.md](typescript.md): recurring TypeScript, typia, and Prisma diagnostics.
+- [debugging.md](debugging.md): assigning a failure to its owning layer.
 
-## Layer Boundaries
+## Layer Ownership
 
-Each layer owns one thing, and a defect belongs to the layer that owns it.
+| Layer | Owns |
+| --- | --- |
+| Schema | Stored facts, relations, constraints, and lifecycle representation |
+| DTO | Public request and response shapes |
+| Controller | Route, actor guard, parameters, response, and published contract |
+| Provider | Business rules, visibility, database access, and transactions |
+| Test | Observable proof through public operations |
 
-| Layer     | Owns                                  |
-| --------- | ------------------------------------- |
-| Schema    | stored facts and relations            |
-| Operation | public behavior and the DTO contract  |
-| Provider  | business logic and database access    |
-| Test      | observable proof of business behavior |
+Fix a defect at its owner. A provider must not compensate for a missing column, a controller must not contain business logic, and a test must not weaken a legitimate requirement.
 
-Do not leak a later layer's detail into an earlier one, and do not use a later layer to invent what an earlier one is missing. A provider must not compensate for a column the schema should have; add the column. An endpoint must not exist because a provider needed a place to put code.
+## Implementation Order
 
-When something will not fit, go back to the layer that owns it and fix it there. That direction is the cheap one, and it is cheapest at the moment you notice. Every workaround hides the defect from every layer after it and commits the later work to the mistake.
+1. Read every requirement under `docs/analysis/`.
+2. Design the complete schema under `prisma/schema/`.
+3. Run `pnpm build:prisma` and `pnpm schema`.
+4. Declare every DTO under `../api/src/structures/` and every operation under `src/controllers/` as a complete contract with a temporary typed stub body.
+5. Run `pnpm build:sdk` once after the entire DTO and controller contract settles.
+6. Write tests under `test/features/` from the requirements and generated SDK.
+7. Implement providers, transformers, collectors, and authorization until the runtime suite passes.
 
-## Phase Order
+The temporary controller stub declares the real route, signature, JSDoc, and response type. Its body mentions each parameter and returns `typia.random<T>()`, allowing SDK generation before provider logic exists. Remove every stub marker when replacing the body with one provider call.
 
-Work the layers in order, and let each one read everything the earlier ones decided.
+## Continuous Checking
 
-From `packages/backend`, start `pnpm check:watch` as a persistent background process before authoring, monitor its output, and keep it running throughout the backend phase. Its single Program continuously checks backend source, tests, API DTOs, lint rules, and configured contributors; fix every diagnostic and require its latest rebuild to succeed before accepting any step.
+From `packages/backend`, start this before authoring and keep it resident through Overall Final:
 
-1. Read every requirement document under `docs/analysis/`.
-2. Design the schema under `packages/backend/prisma/schema/`, split by domain, and generate the client from it.
-3. Declare and finish the operations under `packages/backend/src/controllers/` and their DTOs under `packages/api/src/structures/` as stubs: the full contract JSDoc, a body that enumerates each parameter once and returns `typia.random<T>()`, and an implementation-pending sentence on each operation naming what realize owes.
-4. Once every operation and DTO is settled, build the SDK into `packages/api/src/functional/`, then write the tests under `packages/backend/test/features/` from the requirements and that fixed contract.
-5. Write the transformers under `packages/backend/src/transformers/` and the collectors under `packages/backend/src/collectors/`, one namespace per DTO that needs each.
-6. Realize: replace each stub body with its call into a provider under `packages/backend/src/providers/`, remove the implementation-pending sentence, and run the tests until they hold.
+```bash
+pnpm check:watch
+```
 
-**The stub is what makes this order executable.** The SDK generates from controllers, so without stubs the backend tests cannot start until the providers exist; with them, the contract reaches the tests before realization, and the implementation-pending sentences are the exact ledger of what realize still owes. A suite written at step 4 runs red against random stub answers, and that is the point: realize turns it green. The frontend consumes the generated SDK only after the Backend Layer Gate passes.
+The package's single `tsconfig.json` includes backend source, backend tests, and authored API DTOs. The watcher automatically reloads its lint configuration and reports type, lint, and contributor diagnostics. Fix every diagnostic and require a clean rebuild after the latest change.
 
-The read side and the write side come before the provider that composes them. A provider written first inlines a selection and a mapping, and that copy is what the transformer then has to be reconciled with. This section owns the phase order; [wiring.md](wiring.md) owns the discovery, environment, and generation commands used within it.
+Do not create another backend `tsconfig.json` or package-local lint configuration for tests. Do not toggle claim configuration by phase.
 
-Reading an earlier layer is itself a review. Hold what you just read against what you are about to build, and treat a contradiction as a finding rather than an obstacle to route around. Each layer is the first place some kind of defect becomes visible: making a rule concrete enough to store is what exposes a rule no set of rows can satisfy, and building a test from a real journey is what exposes a requirement nothing can exercise.
+## Environment And Runtime
 
-## Source Of Truth
+Create the local environment from the example before tests or server startup:
 
-When facts disagree, this is the order:
+```bash
+cp .env.example .env
+```
 
-1. The requirement documents under `docs/analysis/`.
-2. The Prisma schema under `packages/backend/prisma/schema/`.
-3. The DTOs under `packages/api/src/structures/` and the SDK contract generated into `packages/api/src/functional/`.
-4. Existing patterns in this repository.
-5. Compiler, lint, and test output.
+The database is disposable SQLite. `pnpm schema` force-resets it. Do not add deployment abstractions or a server database.
 
-A convention document teaches the method; it never overrides a contract that already exists. If the schema and a provider disagree, the schema is right and the provider is the defect, unless the schema itself contradicts a requirement.
+The backend server starts with:
 
-## Everything Traces To A Requirement
+```bash
+pnpm dev
+```
 
-Every table, column, endpoint, DTO, provider branch, and test assertion answers one question: which requirement makes this necessary?
+Start it before live frontend integration and keep it running through Overall Final.
 
-If you cannot answer it, either the artifact should not exist or you have not finished reading the requirements. A pattern being common in similar products is not an answer. This is what prevents duplicated tables, unused DTOs, endpoints nothing calls, and tests that prove the framework's validation rather than the product's behavior.
+## Generation Boundaries
 
-## Type-Correct Is Not Correct
+| Authored change | Action |
+| --- | --- |
+| Schema model, field, relation, or comment | Settle the schema, then `pnpm build:prisma` and `pnpm schema` |
+| DTO or controller contract | Wait for a clean watcher rebuild |
+| Complete DTO and controller contract | `pnpm build:sdk` once |
+| Provider or test only | Wait for the watcher; do not regenerate |
 
-A semantically wrong value satisfies every checker. `expiredAt ?? new Date()` reads as a harmless default and means "already expired". Aggregating across the wrong relation direction returns a plausible number. A side effect implemented in one view of a contract and not the other passes both compilations.
+Run generators serially. They replace shared generated trees while the watcher reads them, so wait for the generator and the watcher's next complete rebuild.
 
-After any substantial piece of work, ask what `null` means for each field, which direction each relation aggregates, which effects each consumer expects, and what the test actually proves.
+## Backend Gate
 
-## Backend Layer Gate
+The backend gate requires:
 
-Passing this gate means the backend layer is internally validated at the current repository state. It is not a project-completion claim; frontend delivery remains a separate obligation.
+1. the active arm's backend review;
+2. a clean current `check:watch` rebuild;
+3. settled Prisma and SDK generation; and
+4. `pnpm test` succeeding against the current implementation.
 
-Apply the active arm's Review skill to the API and backend scope. That skill owns the review population, repetition, and stopping condition. Frontend obligations remain pending rather than accepted.
-
-Keep `pnpm check:watch` running from `packages/backend`. Run `pnpm build:prisma` and reset the database with `pnpm schema` after the schema settles. Run `pnpm build:sdk` once after every operation and DTO settles. Then run `pnpm test`, launch `pnpm dev`, and exercise `/health` and representative requirement-backed operations. The gate requires the watcher's latest rebuild to succeed after the final backend change.
-
-Do not use either the backend package's aggregate `pnpm build` or the workspace-root build to judge this gate. The aggregate package build obscures which layer is invalid, and the root build compiles the unfinished frontend. Fix every finding, regenerate only after its authored inputs are settled, wait for the watcher to recheck the resulting state, and apply the active Review skill's stopping condition. Do not begin frontend implementation before this gate passes.
-
-Never report compiled, tested, or complete for something you did not observe. A truthful "blocked on X" outranks a hopeful "done", and it is the one report the next reader can act on.
+Do not use the backend aggregate `pnpm build` or workspace-root build as a substitute. They obscure the failing layer and the root build also compiles the unfinished frontend.

@@ -4,7 +4,7 @@ Did the preceding overall review actually perform the literal, indivisible, full
 
 If any condition below is unproven, return to the preceding overall review objective and continue it. Complete only when every condition is proven.
 
-Ensure backend `pnpm check:watch` and frontend `pnpm dev` are running and report clean current builds. Clean builds are required but are not proof of the review.
+Ensure backend `pnpm check:watch`, backend `pnpm dev`, and frontend `pnpm dev` are running and report clean current builds. Run `pnpm test` from `packages/backend`, then run `pnpm test:e2e` from `packages/frontend` with `VITE_API_SIMULATE=false`. Clean builds and passing live runtime suites are required but are not proof of the review.
 
 | Verify | Required result |
 | --- | --- |

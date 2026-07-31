@@ -1,23 +1,19 @@
 # Screens
 
-This document owns what a screen is and what it owes. A screen is a route's page component in its domain folder, `src/components/<domain>/<name>-page.tsx`, beside the sub-components only it uses.
+A screen is a route page under `src/components/<domain>/<name>-page.tsx`. Every user-facing requirement needs a screen or a recorded requirement-backed omission, and every screen needs a requirement and generated operations.
 
-## A Screen Traces To A Requirement
+## Plan And Declare
 
-Before building anything, write a screen plan in `packages/frontend/wiki/screen-plan.md`: for each screen, the requirement it serves and the operations it consumes.
+Before implementation, write `packages/frontend/wiki/screen-plan.md` with each screen, its requirement, actor, operations, and user journey.
 
-A screen with no requirement is a feature someone invented. A requirement with no screen is a requirement that was built into the backend and never delivered. Both are findings, and the plan is what makes either visible before the work is done rather than after.
-
-## Born A Stub, Cracked One By One
-
-A screen is declared before it works: the page component and its sub-components with their props enumerated, the contract JSDoc, an implementation-pending sentence naming what the screen still owes, and a placeholder body. Enumerating the props first is the design act, and the stub is what the route table mounts, so the whole surface navigates before any screen is real.
+Declare the whole page surface before realizing it:
 
 ```tsx
 /**
- * The seller's own sales, filtered and paged.
+ * Seller sale list with filter, pagination, and ownership actions.
  *
- * Implementation pending: crack against useCatalog once lib/shopping lands;
- * add every state, gallery rows, and the filter in the URL.
+ * Implementation pending: connect useSales, complete every state, and add
+ * gallery fixtures and browser coverage.
  */
 export function CatalogPage(props: { sellerId: string }) {
   props;
@@ -25,87 +21,98 @@ export function CatalogPage(props: { sellerId: string }) {
 }
 ```
 
-The bare `props;` mention keeps the enumerated props from reading as unused while nothing consumes them, the same convention the backend stubs use, and the skeleton return is the whole placeholder body.
+Mount every stub in the route table. Implement one screen at a time, remove its marker only after its hooks, states, fixtures, and interactions are complete.
 
-Crack one screen at a time against simulation for contract-generated success responses and against gallery fixtures for named UI states. Drive both through an available interactive browser tool so the states are seen rather than imagined, and record the fallback when no such tool is available. A screen is cracked when every state renders, its real hooks and gallery rows exist, and its implementation-pending sentence is gone.
-
-A screen that needs an operation the SDK does not expose reveals a gap in the API contract. Send it back there. Do not improvise a frontend-only path around it.
-
-## Walk The Journey, Not The Endpoint
-
-Read the requirement for a workflow before building its screen, then walk the journey the document describes end to end as the actor performing it.
-
-What does the user see before acting? While the request is in flight? When it succeeds? When it is refused? A screen that renders the data but offers no path to the action the requirement names does not satisfy it, and it will pass every check that only looks at whether the data appears.
-
-The journey matters more than the screen. A flow whose every step works individually can still be impossible to complete in sequence: a value the next step needs is never shown, an actor loses their session halfway, a confirmation leaves the user somewhere they cannot continue from. Only performing the whole journey finds those.
-
-## What A Screen Looks Like
-
-A route component reads its data through a hook, branches on the states, and composes primitives.
+## Screen Structure
 
 ```tsx
 export function CatalogPage() {
   const [params, setParams] = useSearchParams();
-  const { data, isPending, error, refetch } = useCatalog(params.toString());
+  const query = useCatalog(params.toString());
 
-  if (isPending) return <CatalogPageFallback />;
-  if (error) return <ErrorState error={error} onRetry={refetch} />;
-  if (data.products.length === 0)
-    return <EmptyState message="No product matches this filter." />;
+  if (query.isPending) return <CatalogPageFallback />;
+  if (query.error)
+    return <ErrorState error={query.error} onRetry={query.refetch} />;
+  if (query.data.data.length === 0)
+    return <EmptyState message="No sale matches this filter." />;
 
   return (
-    <div className="grid gap-4">
-      <CategoryTree
-        nodes={data.categories}
-        current={params.get("category")}
-        onSelect={(value) => setParams(next(params, "category", value))}
-      />
-      {data.products.map((product: ProductCardView) => (
-        <ProductCard key={product.id} product={product} />
-      ))}
-    </div>
+    <SaleList
+      sales={query.data.data}
+      onPage={(page) => setParams(nextPage(params, page))}
+    />
   );
-}
-
-function CatalogPageFallback() {
-  return <Skeleton className="h-64 w-full" />;
 }
 ```
 
-Read what that shape enforces. The four states are branches at the top rather than conditions scattered through the markup, so none can be forgotten silently. The sub-components take view models as props and fetch nothing. Filter state lives in the URL, so a filtered view is a link someone can send.
+Each screen owns loading, initial empty, filtered empty, expected refusal, unexpected error, retry, success, and post-mutation freshness. Children receive data and callbacks; they do not fetch.
 
-Sub-components used only by this page live in this file or beside it in the same domain folder, not in a shared folder pretending to be reusable.
+Walk every requirement journey end to end as its actor. A set of individually working pages can still form an impossible sequence.
 
-## Every State Is Owned
+## Forms
 
-A screen is not the success case with the rest deferred. Each one handles all five:
+The DTO is the validation schema:
 
-| State        | What it owes                                               |
-| ------------ | ---------------------------------------------------------- |
-| loading      | something that says work is happening, not an empty frame  |
-| empty        | the difference between "nothing yet" and "nothing matched" |
-| error        | what failed, in words the user can act on                  |
-| retry        | a way back that does not require a reload                  |
-| invalidation | fresh data after a mutation that changed it                |
+```ts
+const result = typia.validate<IShoppingMember.IJoin>(input);
+if (result.success === false)
+  setDiagnoses(toDiagnoses(result.errors));
+```
 
-The error state is where the requirement usually is. Every rejection the contract states has a visible outcome, and the business rules say what that outcome means. A screen that shows a spinner forever when a request fails is a defect no requirement had to state.
+Use shared diagnosers for cross-field rules both backend and frontend enforce. Do not create a parallel form schema or repeat DTO format checks.
 
-Empty and error are different, and conflating them tells the user their search matched nothing when the request actually failed.
+Map `typia` paths and server `IDiagnosis.accessor` values to the same field messages. Empty accessors belong to the form as a whole.
 
-## Preserve What The Contract Says
+| Outcome | Required behavior |
+| --- | --- |
+| submitting | disable duplicate submit and keep fields readable |
+| client invalid | focus the first invalid field; do not call the server |
+| server refusal | keep all input and render actionable diagnoses |
+| success | invalidate every affected query, then navigate or close |
 
-Nullable and union states come from the contract and mean something. A field the contract says can be absent is absent for a reason the requirements usually state, and rendering a placeholder in its place discards that meaning.
+Send only DTO-declared fields. Omit absent optionals instead of fabricating empty values.
 
-When a value genuinely is not available, say so rather than inventing one. A summary endpoint that does not carry a timestamp is not a reason to fabricate a timestamp; the screen says the timestamp is unavailable, and the architecture note records why.
+## Lists
 
-## Responsive Is Not Optional
+Filter, sort, and page live in the URL so the view survives reload, sharing, and back navigation. Build the request from the DTO:
 
-The interface works on mobile, tablet, and desktop. Build from real parts: lists, tables, forms, detail views, dialogs, pagination.
+```ts
+const body = {
+  page: Number(params.get("page") ?? 1),
+  limit: 20,
+  search: {
+    title: params.get("title") ?? undefined,
+  },
+  sort: ["-sale.opened_at"],
+} satisfies IShoppingSale.IRequest;
+```
 
-Keep the layout content-first and readable, and avoid decoration that costs clarity. [design.md](design.md) owns the dials and the customized primitives that keep even a plain product interface from shipping as library defaults; if the existing product already has a clear visual style, follow that instead.
+Reset page to one when filter or sort changes. Render `IPage.pagination`, not guesses from `data.length`. Keep the previous page visible while the next loads.
 
-## Authorization Shapes The Interface, It Does Not Enforce It
+Distinguish “nothing exists” from “this filter matched nothing” only when the contract provides a reliable signal. Never fetch one detail per row; a missing summary value is a contract finding.
 
-Hide or disable a command the current actor cannot use, because showing it is a usability failure. Then keep the denial path anyway.
+## Values
 
-The server is authoritative and can still refuse: a session goes stale, a role is revoked, ownership changes between the render and the click. An interface built on the assumption that a hidden button is security will show an unhandled failure the first time any of those happens.
+Render contract meaning, not raw transport:
+
+- show money with its currency and documented scale;
+- do not recompute server-owned totals;
+- render instants in the reader's zone;
+- render UTC-normalized calendar dates without timezone shifting;
+- map every enum literal through an exhaustive human label;
+- render each nullable value according to its documented absence meaning; and
+- centralize pure formatters in `src/lib/utils.ts`.
+
+Never display raw ISO strings, enum identifiers, or a generic dash for semantically different null states.
+
+## Authorization And Failures
+
+Hide or disable actions the current actor cannot use, but still handle server refusal because authority may change after render. Interface visibility is usability, not enforcement.
+
+Keep the current route and form input when a session expires or an operation is refused. Render API `403` and `404` in the requesting screen rather than converting them into router redirects.
+
+## Responsive And Accessible
+
+Verify real lists, forms, detail views, dialogs, and pagination at mobile, tablet, and desktop widths. Every control needs a semantic element, visible focus, associated label, sufficient target size, keyboard operation, and understandable status text.
+
+If a screen needs an operation or value the SDK does not expose, repair the contract. Do not invent a frontend-only transport or local DTO.

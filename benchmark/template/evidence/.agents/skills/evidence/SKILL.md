@@ -1,71 +1,159 @@
 ---
 name: evidence
-description: Defines evidence-arm graph claims, automatic TypeScript claim activation, frozen configuration ownership, and acknowledgement tags. Read in full at the start of every Evidence objective and again before responding to an evidence/graph diagnostic or reviewing an acknowledgement.
+description: Defines Evidence Graph claims, zero-host activation, acknowledgement syntax, placement, exclusions, frozen configuration, and compiler gates. Read before Evidence implementation or handling a graph diagnostic.
 ---
 
-# Evidence Lint
+# Evidence Graph
 
-## Graph Contract
+## Tags
 
-An evidence graph claim selects authored declarations that must acknowledge every unit selected by each configured reference. Every claim-reference pair is a separate obligation: satisfying one claim never satisfies another, and one reference in an array never satisfies its neighbors.
+```text
+@evidence <target> <reason>
+@evidenceExclude <target> <reason>
+```
 
-`@evidence <target> <reason>` states that the selected host owns the target. `@evidenceExclude <target> <reason>` states that this claim intentionally does not own the target and names the actual owner or observable alternative. Both forms cover the target's selected descendants, remain claim-local, and require disjoint scopes.
+`@evidence` states that the selected host implements, represents, or proves the target. `@evidenceExclude` states that this claim does not apply and names the actual owner or observable alternative plus the condition that would make the exclusion false.
 
-All claim objects stay configured from the first command onward. A TypeScript claim is inactive while its own `root`, `files`, and `symbol` population contains no selected exported host. The first selected exported host activates the whole claim and every configured reference automatically. A missing or unreadable own population is still an error; only a successfully loaded zero-host population is inactive.
+The target and non-empty reason are mandatory. One acknowledgement covers the selected target and its selected descendants. Keep evidence and exclusion scopes disjoint within one claim-reference obligation.
 
-Inactivity is not proof that no artifact is required. It prevents a future-layer claim from demanding acknowledgements before that layer has a host; the applicable base layer skill still determines whether the requirements demand a host.
+Reasons are reviewed by people. Write a specific responsibility that current code could falsify, not a restatement of the target name.
 
-Use the owning layer document for tag placement and examples:
+## Claim Activation
 
-- [database.md](../backend/database.md) for `schema-models`;
-- [controllers.md](../backend/controllers.md) for `api-operations`;
-- [dtos.md](../backend/dtos.md) for `dto-types` and `dto-properties`;
-- [testing.md](../backend/testing.md) for `backend-tests`;
-- [screens.md](../frontend/screens.md) for `frontend-screens`;
-- [verification.md](../frontend/verification.md) for `frontend-journeys`; and
-- [providers.md](../backend/providers.md) for the residual provider edge, where neither evidence tag belongs.
+A declared claim is active only when its own `root`, `files`, and `symbol` selector materializes at least one selected host. If the successfully loaded host population is empty, the entire claim is inactive and none of its reference obligations runs.
 
-## Acknowledgement Placement
+This rule applies equally to TypeScript, Prisma, and Markdown claims.
 
-Ownership and non-applicability have different homes. Keep every `@evidence` on the actual declaration selected by the claim: a model, DTO type or property, controller method, test function, screen, or journey. Never move ownership evidence into a central ledger.
+For TypeScript, the selector uses semantic exported symbols. With `symbol: "function"`, a file containing only exported non-function variables has zero selected hosts and the claim remains inactive. An exported `const` initialized with an arrow or function expression is a function; an ordinary exported variable is a property.
 
-TypeScript exclusions may be collected on the public const in the matching claim population:
+For Prisma, a claim selecting `model` remains inactive until a matching schema input contains a model. For Markdown, a claim remains inactive until its matching documents contain a host selected by its symbol selector.
 
-- `packages/backend/src/controllers/CONTROLLER_EVIDENCE_EXCLUDE.ts` for `api-operations`;
-- `packages/api/src/structures/DTO_EVIDENCE_EXCLUDE.ts` for `dto-types` and `dto-properties`;
-- `packages/backend/test/features/TEST_EVIDENCE_EXCLUDE.ts` for `backend-tests`;
-- `packages/frontend/src/components/SCREEN_EVIDENCE_EXCLUDE.ts` for `frontend-screens`;
-- `packages/frontend/tests/journeys/JOURNEY_EVIDENCE_EXCLUDE.ts` for `frontend-journeys`.
+An unreadable or invalid configured input is not an empty population. Loader and parse failures remain diagnostics. Inactivity prevents future-layer coverage from firing before that layer has a host; it does not prove the requirements need no host.
 
-The const's property symbol need not match the claim's ownership selector. The file still must match that claim, the export must remain public, and every target remains claim-local and reference-local. The same carrier tag may participate in multiple matching claim-reference pairs: in particular, a Prisma model on `DTO_EVIDENCE_EXCLUDE` is both a `dto-types` model target and an ancestor of that model's selected `dto-properties` columns. Use an exact column target when only the property obligation is excluded.
+Do not add, remove, or toggle claim objects as implementation advances. Activation follows the current selected host population automatically.
 
-Schema exclusions may be collected as unattached top-level `/// @evidenceExclude` lines in `packages/backend/prisma/schema/exclude.schema`. That lint-only file is an explicit input of `schema-models` and is not a Prisma generate, migration, or ERD input. Only exclusions belong there; `@evidence` remains directly above its selected model.
+## Configured Claims
 
-## Configuration Ownership
+| Configuration | Claim | Host | References |
+| --- | --- | --- | --- |
+| `packages/backend/lint.config.ts` | `schema-models` | Prisma models | requirement H2/H3 |
+| same | `dto-types` | exported DTO types | requirement H2/H3 and Prisma models |
+| same | `dto-properties` | exported DTO properties | Prisma columns |
+| same | `api-operations` | exported controller functions | requirement H2/H3 and Prisma models |
+| same | `backend-tests` | exported test functions | requirements, SDK operations, and DTO types |
+| `packages/frontend/lint.config.ts` | `frontend-screens` | exported page functions | requirement H2/H3 |
+| same | `frontend-journeys` | exported journey functions | requirements and page functions |
 
-The complete graph is declared in two canonical package-local files. Open the file that owns the affected population; there is no root graph configuration that replaces them.
+Both configuration files and all claim objects are frozen. Keep `evidence/graph` at `error`. The backend has one `tsconfig.json` containing backend source, tests, and API DTOs. Do not create phase-specific config or compiler files.
 
-| File | Claims |
-| --- | --- |
-| `packages/backend/lint.config.ts` | `schema-models`, `dto-types`, `dto-properties`, `api-operations`, `backend-tests` |
-| `packages/frontend/lint.config.ts` | `frontend-screens`, `frontend-journeys` |
+The sealed `NESTIA_SDK_TRANSFORM=1` guard disables the graph only inside Nestia's private transform. The resident backend watcher remains outside that environment and must report a clean graph rebuild.
 
-The benchmark activates only `evidence/graph`. Do not add `evidence/todo`: the Evidence arm uses `@todo` as its explicit stub ledger and verifies its removal with source-scoped searches, while an additional lint rule would change the measured gate workload.
+## Placement
 
-`packages/backend/lint.config.ts` is the sole canonical owner of all five backend-phase claims. The package's single `tsconfig.json` includes backend source, backend tests, and `packages/api/src/structures`, so every rooted claim population stays inside `ttsc`'s supplied source roots rather than being discovered from imports or the filesystem.
+| Claim | `@evidence` host | Exclusion carrier |
+| --- | --- | --- |
+| `schema-models` | model `///` comment | `prisma/schema/exclude.schema` |
+| `dto-types`, `dto-properties` | exported type or property JSDoc | `packages/api/src/structures/DTO_EVIDENCE_EXCLUDE.ts` |
+| `api-operations` | controller method JSDoc | `src/controllers/CONTROLLER_EVIDENCE_EXCLUDE.ts` |
+| `backend-tests` | exported test function JSDoc | `test/features/TEST_EVIDENCE_EXCLUDE.ts` |
+| `frontend-screens` | exported page function JSDoc | `src/components/SCREEN_EVIDENCE_EXCLUDE.ts` |
+| `frontend-journeys` | exported journey function JSDoc | `tests/journeys/JOURNEY_EVIDENCE_EXCLUDE.ts` |
 
-`pnpm check:watch` runs that one Program throughout the backend phase. It automatically loads the root lint configuration, reloads that configuration and its local dependencies when they change, and reports type, lint, and Evidence diagnostics after every source or project-input change. TypeScript claim activation derives applicability from the Program's actual selected exported hosts; no stage owns a narrower projection.
+Keep ownership evidence on the actual selected host. Exclusion carriers contain only reviewed exclusions. Providers are not selected hosts and carry neither tag.
 
-Nestia sets `NESTIA_SDK_TRANSFORM=1` inside its private transform context, which does not preserve the package root that the graph populations require. The canonical configuration contains one exact, immutable bypass for that environment only. The persistent watcher remains outside that private transform and runs the graph at `error` severity.
+## Examples
 
-The template ships all seven claim objects and `evidence/graph` at `error` severity as frozen configuration. TypeScript claim activation follows the selected exported host population; it is never managed through `lint.config.ts`.
+```prisma
+/// Sale persisted for one seller.
+///
+/// @evidence docs/analysis/02-domain-model.md#sale Stores the required sale
+///           identity, lifecycle, and seller ownership.
+model shopping_sales {
+}
+```
 
-## Phase Gates
+```ts
+/**
+ * Public sale summary.
+ *
+ * @evidence docs/analysis/02-domain-model.md#sale-summary Exposes the summary
+ *           fields customers use while browsing.
+ * @evidence prisma:shopping_sales Represents the persisted sale.
+ */
+export interface IShoppingSale {
+  /**
+   * Current title.
+   *
+   * @evidence prisma:shopping_sales.title Carries the stored title.
+   */
+  title: string;
+}
+```
 
-At the Backend Phase gate, validate all five configured claims in `packages/backend/lint.config.ts`, confirm the sealed Nestia guard and single root `tsconfig.json` are unchanged, and follow the canonical backend gate in [Backend](../backend/SKILL.md). `build:sdk` proves generation, not graph health: the persistent watcher must complete a clean rebuild before and after it with the guard inactive.
+```ts
+/**
+ * Lists sales visible to this seller.
+ *
+ * @evidence docs/analysis/03-functional-requirements.md#browse-sales Provides
+ *           the seller's visibility-filtered browsing operation.
+ * @evidence prisma:shopping_sales Exposes persisted sales.
+ */
+public async index(): Promise<IPage<IShoppingSale.ISummary>> {
+  // ...
+}
+```
 
-At the Frontend Phase gate, confirm all seven claim objects remain configured in the two canonical files with their original populations and `error` severities. Confirm the backend still has one root Program and validate the frontend claims. If frontend work changed an API or backend source, re-pass the affected backend gate first.
+TypeScript targets use imported inline links:
 
-At the Overall Phase gate, confirm all seven exact claim objects remain configured, confirm `evidence/graph` remains at `error` outside the sealed Nestia environment, confirm the single backend Program is unchanged, run the project-wide gates, and execute [Review](../review/SKILL.md) against every populated claim. Configuration and the current host populations, not an agent's prose report, prove enforcement.
+```ts
+/**
+ * @evidence {@link api.functional.shopping.order.create} Calls the published
+ *           order creation operation.
+ * @evidence {@link IShoppingOrder} Validates the returned order contract.
+ */
+export async function test_order_create(): Promise<void> {
+  // ...
+}
+```
 
-A green phase subset is not whole-project completion. Any missing claim object, altered population, disabled rule, remaining phase-owned `@todo`, required host absent from an inactive population, or unreviewed phase edge blocks that phase report.
+Use `import type` for a citation-only type import. Braces in `{@link ...}` are required.
+
+## Exclusions
+
+Use the narrowest truthful target:
+
+```ts
+/**
+ * @evidenceExclude docs/analysis/05-user-experience.md#empty-state-copy
+ *                  CatalogPage owns this presentation-only wording; this
+ *                  exclusion becomes false if the API must return it.
+ */
+export const CONTROLLER_EVIDENCE_EXCLUDE = true;
+```
+
+“Not applicable,” “internal,” “future work,” and “not implemented” are conclusions, not reasons. Name the actual owner or observable alternative and a concrete veto condition.
+
+Schema exclusions are unattached top-level `/// @evidenceExclude` lines in `exclude.schema`. The file is lint-only and is not a Prisma generation input.
+
+## Stub Marker
+
+Only this arm uses:
+
+```text
+@todo <specific remaining implementation>
+```
+
+Place it on temporary controller and page stubs. Remove it when the real provider delegation or completed screen replaces the stub. Do not add `evidence/todo`; the benchmark graph workload is frozen.
+
+Before a phase completes, require no source-owned marker:
+
+```bash
+rg --hidden -n -F '@todo' packages/api packages/backend --glob '*.ts'
+rg --hidden -n -F '@todo' packages/frontend --glob '*.ts' --glob '*.tsx'
+```
+
+## Compiler Gates
+
+Keep backend `pnpm check:watch` and frontend `pnpm dev` running. The compiler owns target resolution, host eligibility, overlap, coverage, and missing acknowledgements.
+
+At each gate, confirm the canonical claim configurations remain unchanged, wait for clean current builds, and run the phase's runtime tests. Never edit a claim population or move a tag merely to silence a diagnostic.

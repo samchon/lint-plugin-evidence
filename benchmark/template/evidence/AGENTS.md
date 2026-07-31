@@ -5,12 +5,8 @@
 
 ### Evidence Graph
 
-The evidence graph turns a missing configured acknowledgement into a compile error; every `@evidence` or `@evidenceExclude` citation must also be true. Its claims, automatic TypeScript activation, tag grammar, frozen configuration, diagnostics, and review limits are defined in `.agents/skills/evidence/SKILL.md`.
+`.agents/skills/evidence/SKILL.md` defines the configured claims, automatic zero-host activation, tag placement, exclusions, and compiler gates. Read it for Evidence implementation and before handling a graph diagnostic.
 
-Claims live in `packages/backend/lint.config.ts` and `packages/frontend/lint.config.ts`. Read the skill in full at the start of every Evidence objective, when a graph diagnostic appears, and again before each phase gate.
+### Evidence Review
 
-### Review
-
-How to review every populated graph acknowledgement as a host-target-reason triple, detect a required artifact hidden by an inactive population, distinguish structural coverage from integrity, and revalidate affected claims without adding a Plain-style unconfigured census, `.agents/skills/review/SKILL.md`.
-
-Read Evidence Lint and Review in full, in that order, at the start of every backend, frontend, and overall review or final turn.
+`.agents/skills/review/SKILL.md` defines the human review of acknowledgement reasons. Read it only for a backend, frontend, or overall review objective. Final objectives run the prescribed compiler and runtime gates; they do not repeat the review.

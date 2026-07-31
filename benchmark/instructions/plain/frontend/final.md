@@ -4,7 +4,9 @@ Did the preceding frontend review actually perform the literal, indivisible, ful
 
 If any condition below is unproven, return to the preceding frontend review objective and continue it. Complete only when every condition is proven.
 
-Require the persistent `pnpm dev` process to report no diagnostic against the current implementation. A clean development build is required but is not proof of the review.
+Ensure backend `pnpm check:watch`, backend `pnpm dev`, and frontend `pnpm dev` are running. Run `pnpm test:e2e` from `packages/frontend` with `VITE_API_SIMULATE=false`. A clean development build, production build, and passing live-backend browser suite are required but are not proof of the review.
+
+Keep the three processes running through Overall Final.
 
 | Verify | Required result |
 | --- | --- |

@@ -1,73 +1,32 @@
 # Debugging
 
-This document owns what to do when something fails.
+Assign a failure to its owner before editing.
 
-The whole discipline is one rule: **assign the failure to its owner before editing anything.** A symptom patch at the wrong layer hides the defect from every layer after it, and it commits the rest of the work to the mistake.
+## Capture
 
-## Collect Before Diagnosing
+Keep the exact command, diagnostic, stack, request and response when applicable, and current diff. Preserve large logs in a file and inspect focused sections. Run one mutating generator or test at a time.
 
-The exact failing command, its exact output, the stack trace, the request and response if there was one, and the current diff.
+## Ownership
 
-Do not debug from memory or from a paraphrase of the error. The line that broke is frequently not the line that is wrong, and the only way to tell is to have the real message in front of you.
-
-Keep the retained log complete and the conversational context bounded. Redirect a large diagnostic to a file, inspect the failing section and a focused summary, and preserve the file path for later review. Do not use unbounded `DEBUG=*`, dump an entire workspace, or feed stale compiler logs back into the context when a named command and focused excerpt identify the owner.
-
-Run one mutating command at a time. A generator, build, lint, or test that shares generated files or compiler caches with another process can manufacture a second failure unrelated to the first.
-
-## Classify First
-
-| Symptom | Owner |
+| Symptom | First owner to inspect |
 | --- | --- |
-| the schema does not compile, or the client does not generate | the schema |
-| a type error where a DTO meets a provider | the contract or the mapping, not the provider body |
-| a route returns 404 that should exist | controller metadata or runtime discovery root |
-| an accessor is missing from the SDK | controller metadata or Nestia source discovery, plus regeneration |
-| a runtime failure inside business logic | the provider |
-| a test fails on state it did not create | test setup, or the shared database |
-| a test fails on a status code | compare the requirement and controller JSDoc with the provider's observable error before assigning the defect |
-| the frontend cannot import something | the API package's index exports |
-| nothing builds after a dependency change | the toolchain |
+| Prisma generation fails | schema |
+| DTO/provider assignment fails | contract, selection, or mapping |
+| expected route returns 404 | controller metadata and discovery |
+| SDK accessor is missing | controller contract and SDK regeneration |
+| business behavior fails | provider |
+| test depends on global state | test setup and shared SQLite assumptions |
+| frontend import is missing | API package entry exports |
+| many failures follow generated-file replacement | wait for the writer and next watcher rebuild |
 
-## The Diagnoses Worth Knowing
+Do not patch generated files, weaken tests, silence diagnostics, or add subject-specific branches.
 
-**A cluster of assignment errors inside a hand-built return object** almost always means an existing transformer was ignored. Look for the transformer before fixing the object.
+## Verify
 
-**A missing property on a query result** means it was not selected, not that the client is wrong.
+After fixing the owner:
 
-**A field that "does not exist" on a create or select input** is usually a table name written where a relation property name belongs.
+1. reproduce the original command successfully;
+2. run the narrowest adjacent check that detects the same cause; and
+3. rerun downstream behavior when the repair crossed a layer.
 
-**A property that "does not exist" on a transformer's payload** means the selection never asked for it. The payload type is derived from `select()`, so it is reporting the truth: add the field there and the mapping compiles, because now the query fetches it.
-
-**A payload type that collapsed to `never`** comes from a null inside a selection, and the errors it produces appear far from the line that caused them.
-
-**A confusing 401 on the second call** means a connection was created and never authenticated.
-
-**A test that passes alone and fails in the suite** is asserting against global state in a database that is not reset between tests.
-
-## Fix At The Owner
-
-Do not patch a generated file. If the generated output is wrong, the thing that generates it is wrong.
-
-Do not silence a diagnostic. A cast, an ignore comment, `any`, or a widened signature converts a compile error into a runtime defect that surfaces somewhere unrelated.
-
-Do not rewrite a test to avoid a legitimate business behavior. If the test is right and the code is wrong, the code is wrong.
-
-**Do not add a special case for one fixture, one subject, or one project name.** A branch that exists to make one input work is the defect this repository is measured on, and it will be found.
-
-Keep the fix scoped. Repairing one provider is not the moment for a broad refactor of its neighbours.
-
-## When The Owner Is Upstream
-
-A provider that cannot be implemented truthfully from what the contract and the schema give it has found a defect upstream, not a reason to return a plausible value.
-
-Go back to the layer that owns it and fix it there, then let the change flow down. That direction is the cheap one and it is cheapest at the moment you notice.
-
-## Verify The Fix
-
-The originally failing command passes, plus the narrowest check that would catch a regression of the same cause.
-
-When the fix crossed layers, re-run the downstream command that first exposed the problem, not only the one at the layer you edited.
-
-## Done Means
-
-The root cause is at its owner, the original failure no longer reproduces, and no feedback was hidden by a cast, an ignored diagnostic, a weakened test, or an edit to a generated file.
+A fix is complete when the root cause is corrected and no cast, ignore, weakened assertion, or generated-file edit hides the failure.
