@@ -204,8 +204,9 @@ const runBenchmark = async (
       throw new Error("Evidence benchmark artifact no longer matches its SHA.");
   }
   const repository: string = path.resolve(import.meta.dirname, "../../..");
-  const environment: NodeJS.ProcessEnv =
-    sanitizeBenchmarkEnvironment(process.env);
+  const environment: NodeJS.ProcessEnv = sanitizeBenchmarkEnvironment(
+    process.env,
+  );
   const eventDescriptor: number = fs.openSync(records.events, "a");
   const rawDescriptor: number = fs.openSync(records.raw, "a");
   try {
