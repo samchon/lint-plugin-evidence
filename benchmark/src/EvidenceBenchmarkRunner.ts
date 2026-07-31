@@ -371,10 +371,13 @@ export namespace EvidenceBenchmarkRunner {
           }
           if (!resumeReconciled && resumeSnapshotPending) {
             const record: IEvidenceBenchmarkGoalRecord = current();
-            const currentOwnsReplay: boolean =
+            const currentHasCheckpoint: boolean =
               record.goal !== null && record.tokenUsageTurnId !== null;
+            const currentCanAdoptReplay: boolean =
+              record.goal !== null &&
+              canOwnInterruptedUsageReplay(record.goal.status);
             const retained: IEvidenceBenchmarkGoalRecord | undefined =
-              currentOwnsReplay
+              currentHasCheckpoint
                 ? record
                 : state.goals.find(
                     (candidate) => candidate.index === record.index - 1,
@@ -383,7 +386,7 @@ export namespace EvidenceBenchmarkRunner {
               retained !== undefined &&
               sameUsage(usage, state.threadTokenUsage) &&
               retained.tokenUsageTurnId === params.turnId &&
-              (currentOwnsReplay ||
+              (currentHasCheckpoint ||
                 (retained.goal?.status === "complete" &&
                   retained.terminalTurnId !== null &&
                   retained.terminalTurnCompleted &&
@@ -396,8 +399,7 @@ export namespace EvidenceBenchmarkRunner {
               return;
             }
             if (
-              currentOwnsReplay &&
-              canOwnInterruptedUsageReplay(record.goal?.status) &&
+              currentCanAdoptReplay &&
               usageAdvanced(usage, state.threadTokenUsage)
             ) {
               if (
@@ -851,12 +853,31 @@ export namespace EvidenceBenchmarkRunner {
       thread: Record<string, unknown>,
     ): void {
       if (resumeUsageReplay === undefined) return;
-      if (
-        !canOwnInterruptedUsageReplay(record.goal?.status) ||
-        record.tokenUsageTurnId === null
-      )
+      if (!canOwnInterruptedUsageReplay(record.goal?.status))
         throw new Error(
           "Codex advanced token replay does not belong to an interrupted Goal.",
+        );
+      const previous: IEvidenceBenchmarkGoalRecord | undefined =
+        record.index === 0
+          ? undefined
+          : state.goals.find(
+              (candidate) => candidate.index === record.index - 1,
+            );
+      const previousOwnsCheckpoint: boolean =
+        record.tokenUsageTurnId === null &&
+        previous?.goal?.status === "complete" &&
+        previous.terminalTurnId !== null &&
+        previous.terminalTurnCompleted &&
+        previous.threadIdle &&
+        previous.tokenUsageTurnId === previous.terminalTurnId &&
+        previous.tokenUsageEnd !== null &&
+        sameUsage(previous.tokenUsageEnd, state.threadTokenUsage);
+      const retainedTurnId: string | null =
+        record.tokenUsageTurnId ??
+        (previousOwnsCheckpoint ? (previous?.tokenUsageTurnId ?? null) : null);
+      if (retainedTurnId === null)
+        throw new Error(
+          "Codex advanced token replay has no exact retained Goal checkpoint.",
         );
       const values: unknown = thread.turns;
       if (!Array.isArray(values))
@@ -867,7 +888,7 @@ export namespace EvidenceBenchmarkRunner {
         object(value),
       );
       const retainedIndex: number = turns.findIndex(
-        (turn) => turn.id === record.tokenUsageTurnId,
+        (turn) => turn.id === retainedTurnId,
       );
       const replayIndex: number = turns.findIndex(
         (turn) =>
@@ -889,7 +910,7 @@ export namespace EvidenceBenchmarkRunner {
         throw new Error(
           `Codex interrupted token replay is not the exact retained or next turn followed only by interrupted turns: ${JSON.stringify(
             {
-              retainedTurnId: record.tokenUsageTurnId,
+              retainedTurnId,
               replayTurnId: resumeUsageReplay.turnId,
               retainedIndex,
               replayIndex,

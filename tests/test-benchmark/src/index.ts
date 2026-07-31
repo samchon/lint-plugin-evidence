@@ -931,6 +931,59 @@ const main = async (): Promise<void> => {
     });
     assert.equal(advancedBlockedResume.status, "completed");
 
+    const uncheckpointedActiveSnapshots: IEvidenceBenchmarkRunState[] = [];
+    const uncheckpointedActiveResume = await EvidenceBenchmarkRunner.run({
+      state: activeCurrentBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--current-active",
+        "--advanced-interrupted-replay",
+      ],
+      onOutput: () => undefined,
+      onState: (state) => {
+        uncheckpointedActiveSnapshots.push(state);
+      },
+    });
+    assert.equal(
+      uncheckpointedActiveResume.status,
+      "completed",
+      JSON.stringify(uncheckpointedActiveResume.interruption),
+    );
+    assert.equal(
+      uncheckpointedActiveSnapshots.some(
+        (snapshot) =>
+          snapshot.threadTokenUsage.totalTokens === 15 &&
+          snapshot.goals[1]?.tokenUsageTurnId === "turn-interrupted",
+      ),
+      true,
+    );
+
+    const unprovenUncheckpointedActiveResume =
+      await EvidenceBenchmarkRunner.run({
+        state: activeCurrentBoundary,
+        cwd: root,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        command: process.execPath,
+        commandPrefixArguments: [
+          ...prefix,
+          "--current-active",
+          "--unproven-interrupted-replay",
+        ],
+        onOutput: () => undefined,
+      });
+    assert.equal(unprovenUncheckpointedActiveResume.status, "interrupted");
+    assert.match(
+      unprovenUncheckpointedActiveResume.interruption?.message ?? "",
+      /exact retained or next turn/,
+    );
+
     const activeInterruptedBoundary = structuredClone(blockedCurrentBoundary);
     activeInterruptedBoundary.goals[1]!.goal!.status = "active";
     const activeInterruptedResume = await EvidenceBenchmarkRunner.run({
@@ -1238,6 +1291,23 @@ const fakeAppServer = (): void => {
             if (wrongThread) return;
             if (previousGoal) {
               if (!undispatched || undispatchedNext) {
+                const advancedTotal = currentActive
+                  ? {
+                      totalTokens: 15,
+                      inputTokens: 9,
+                      cachedInputTokens: 3,
+                      cacheWriteInputTokens: 1,
+                      outputTokens: 6,
+                      reasoningOutputTokens: 4,
+                    }
+                  : {
+                      totalTokens: 25,
+                      inputTokens: 15,
+                      cachedInputTokens: 5,
+                      cacheWriteInputTokens: 2,
+                      outputTokens: 10,
+                      reasoningOutputTokens: 7,
+                    };
                 const replay =
                   advancedInterruptedReplay ||
                   unprovenInterruptedReplay ||
@@ -1246,14 +1316,7 @@ const fakeAppServer = (): void => {
                         turnId: sameTurnInterruptedReplay
                           ? `turn-${goalIndex}`
                           : "turn-interrupted",
-                        total: {
-                          totalTokens: 25,
-                          inputTokens: 15,
-                          cachedInputTokens: 5,
-                          cacheWriteInputTokens: 2,
-                          outputTokens: 10,
-                          reasoningOutputTokens: 7,
-                        },
+                        total: advancedTotal,
                       }
                     : {
                         turnId: `turn-${goalIndex}`,
