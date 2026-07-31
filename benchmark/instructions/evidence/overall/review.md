@@ -2,13 +2,13 @@
 
 Read `AGENTS.md` and the skill documents relevant to this objective before working.
 
-Review every `@evidence` and `@evidenceExclude` acknowledgement in the application for accuracy. Do not perform a general code review.
+Review the written reason on every `@evidence` and `@evidenceExclude` acknowledgement in the application. Do not perform a general code review.
 
-For each `@evidence`, confirm that the target exists, the host actually owns the cited responsibility, and the reason precisely explains that relationship. For each `@evidenceExclude`, confirm that the target belongs to the claim and the reason names the actual owner or observable alternative and a concrete veto condition.
+Do not recheck target resolution, host eligibility, or coverage; compilation owns those structural checks. For each `@evidence`, decide whether the reason specifically and truthfully explains why the host implements, represents, or proves the cited target. For each `@evidenceExclude`, decide whether the reason specifically and truthfully explains the non-applicability, actual owner or observable alternative, and concrete veto condition.
 
-Fix every inaccurate, irrelevant, vague, or false acknowledgement. After any correction, restart from the first acknowledgement. Complete when one pass over every acknowledgement requires no edit.
+Fix every vague, circular, copied, irrelevant, or false reason. After any correction, restart from the first reason. Complete when one pass over every reason requires no edit.
 
-| Claims | Every acknowledgement must match |
+| Claims | Every reason must explain |
 | --- | --- |
 | `schema-models` | The requirement that makes the model necessary |
 | `dto-types`, `dto-properties` | The requirement, model, or column represented by the DTO |

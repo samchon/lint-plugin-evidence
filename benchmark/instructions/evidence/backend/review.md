@@ -2,13 +2,13 @@
 
 Read `AGENTS.md` and the skill documents relevant to this objective before working.
 
-Review every backend `@evidence` and `@evidenceExclude` acknowledgement for accuracy. Do not perform a general code review or review the frontend.
+Review the written reason on every backend `@evidence` and `@evidenceExclude` acknowledgement. Do not perform a general code review or review the frontend.
 
-For each `@evidence`, confirm that the target exists, the host actually owns the cited responsibility, and the reason precisely explains that relationship. For each `@evidenceExclude`, confirm that the target belongs to the claim and the reason names the actual owner or observable alternative and a concrete veto condition.
+Do not recheck target resolution, host eligibility, or coverage; compilation owns those structural checks. For each `@evidence`, decide whether the reason specifically and truthfully explains why the host implements, represents, or proves the cited target. For each `@evidenceExclude`, decide whether the reason specifically and truthfully explains the non-applicability, actual owner or observable alternative, and concrete veto condition.
 
-Fix every inaccurate, irrelevant, vague, or false acknowledgement. After any correction, restart from the first backend acknowledgement. Complete when one pass over every backend acknowledgement requires no edit.
+Fix every vague, circular, copied, irrelevant, or false reason. After any correction, restart from the first backend reason. Complete when one pass over every backend reason requires no edit.
 
-| Claim | Every acknowledgement must match |
+| Claim | Every reason must explain |
 | --- | --- |
 | `schema-models` | The requirement that makes the model necessary |
 | `dto-types` | The requirement and Prisma model represented by the DTO |
