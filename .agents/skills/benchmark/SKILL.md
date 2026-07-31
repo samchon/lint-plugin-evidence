@@ -3,7 +3,7 @@ name: benchmark
 description: Defines authorization, campaign tracking, frozen inputs, launch, native agent operation, interruption recovery, retained measurement, completed-workspace review, comparison, publication boundaries, and truthful reporting for the @samchon/lint-plugin-evidence benchmark. Use before preparing, launching, observing, resuming, accepting, comparing, publishing, or reporting a benchmark run.
 ---
 
-# Benchmark
+# Benchmark Operation
 
 ## Purpose
 
@@ -15,7 +15,7 @@ The runner executes and records the experiment. It does not validate requirement
 
 A model run is expensive. Launch only the exact engine, subject, arm, model, and effort the user authorizes. Authorization for a new cell does not cover a different cell or an unrequested rerun.
 
-Recovery may resume the same retained run identity and native session after an abnormal interruption when that engine retained an exact continuation boundary. A new run ID, changed cell identity, changed model or effort, changed benchmark input, or restarted comparison is a new run and requires explicit authorization.
+Recovery may resume the same retained run identity and native session after an abnormal interruption when that engine retained an exact continuation boundary. Once native model work starts, a new run ID, changed cell identity, changed model or effort, changed benchmark input, or restarted comparison is a new run and requires explicit authorization. A preparation attempt that fails before native model work does not spend the authorized cell; after correcting an external prerequisite without changing the authorized identity or frozen inputs, launch that cell under the existing authorization and retain the preparation failure in the campaign account.
 
 The runner does not publish results. Publication requires separate explicit authorization and a procedure that names the destination and accepted run; never infer either.
 
@@ -29,7 +29,7 @@ As the operator, do not modify a measured workspace, inject implementation advic
 
 ## Campaign Pull Request
 
-Run a benchmark as an issue campaign. Before campaign implementation or measurement begins:
+Run a benchmark as an issue campaign. Before measurement begins:
 
 1. open the campaign issue;
 2. create its branch without changing an active cohort's worktree;
@@ -57,6 +57,8 @@ Keep the dashboard grouped under exactly `## Codex` and `## Claude Code`. Use th
 Edit the dashboard in place. Record causes, recoveries, interventions, completed phases, completed-workspace findings, and whole-PR self-review rounds as formal `COMMENT` pull-request reviews rather than growing the dashboard into a narrative.
 
 Accumulate every verified benchmark runner, template, or instruction correction discovered during the campaign in this same pull request, with prompt commits and pushes. An active cohort remains frozen: prepare corrections only in an isolated campaign worktree, never change the repository worktree from which active cells read later instructions, and never merge the campaign pull request until that cohort closes. A merged correction creates a new benchmark revision for later cohorts or authorized replacement runs; it never changes or silently replaces retained results.
+
+After every campaign correction is committed and pushed, perform the pull-request skill's Overall Self-Review before inspecting CI. Every round covers the complete base-to-head change; never partition a round by file, concern, or earlier coverage. If a round changes anything, commit and push the correction and restart another complete round. Inspect CI only after one complete round finds no improvement.
 
 ## Before Launch
 
@@ -131,7 +133,7 @@ Leave an active cell to its native agent runtime. Questions and partial reports 
 
 Observe every active cell at least once every 30 seconds. Each pass checks `state.json`, benchmark-command and native-process liveness, and `events.jsonl` and `raw.log` recency. When a status, process, and stream disagree, inspect the latest retained protocol event immediately. Do not inspect implementation quality or requirement coverage before the cell completes.
 
-Act only when the command reports an abnormal interruption or the user cancels the run. Interruptions include a failed or interrupted native turn, usage or budget exhaustion, runtime failure, non-zero exit, signal, invalid protocol state, or a retained-state mismatch.
+Intervene only when the command reports an abnormal interruption or the user cancels the run. Observation and investigation do not modify a run. Interruptions include a failed or interrupted native turn, usage or budget exhaustion, runtime failure, non-zero exit, signal, invalid protocol state, or a retained-state mismatch.
 
 On interruption:
 
@@ -142,7 +144,7 @@ On interruption:
 
 Do not add prompts, repair the workspace, substitute a session, or retry automatically.
 
-If the user cancels, stop the active command, preserve its run directory, and report it as incomplete. Do not delete it or mark it complete; resuming later requires renewed authorization.
+If the user cancels, stop the reporting and liveness subagents and every active benchmark command, preserve each run directory, and report every affected cell as incomplete. Do not delete a retained run or mark it complete; resuming later requires renewed authorization.
 
 ## Resume
 

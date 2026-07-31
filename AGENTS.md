@@ -51,7 +51,7 @@ Branch, commit, pull request, check, and merge flow, `.agents/skills/pull-reques
 
 ### Benchmark Operation
 
-Benchmark authorization, frozen inputs, native agent operation, interruption recovery, retained measurement, completed-workspace review, comparison, publication boundaries, and truthful reporting, `.agents/skills/benchmark/SKILL.md`. Read before preparing, launching, observing, resuming, accepting, comparing, publishing, or reporting a run.
+Benchmark authorization, campaign tracking, frozen inputs, native agent operation, interruption recovery, retained measurement, completed-workspace review, comparison, publication boundaries, and truthful reporting, `.agents/skills/benchmark/SKILL.md`. Read before preparing, launching, observing, resuming, accepting, comparing, publishing, or reporting a run.
 
 ## Maintenance
 
