@@ -251,6 +251,66 @@ const main = async (): Promise<void> => {
     assert.equal(forcedCleanup.status, "completed");
     assert.equal(forcedCleanup.nextInstructionIndex, ENTRIES.length);
     assert.equal(forcedCleanup.processes[0]?.shutdownForced, true);
+    assert.equal(
+      Number.isSafeInteger(forcedCleanup.processes[0]?.processId),
+      true,
+    );
+
+    const retainedCleanup = structuredClone(forcedCleanup);
+    retainedCleanup.status = "interrupted";
+    retainedCleanup.interruption = {
+      name: "Error",
+      message: "Codex app-server survived forced process-tree cleanup.",
+    };
+    delete retainedCleanup.processes[0]?.processId;
+    const recoveredCleanup = await EvidenceBenchmarkRunner.run({
+      state: retainedCleanup,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(recoveredCleanup.status, "completed");
+    assert.equal(recoveredCleanup.interruption, undefined);
+
+    const unrelatedInterruption = structuredClone(retainedCleanup);
+    unrelatedInterruption.interruption = {
+      name: "Error",
+      message: "An unrelated terminal failure.",
+    };
+    const retainedInterruption = await EvidenceBenchmarkRunner.run({
+      state: unrelatedInterruption,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(retainedInterruption.status, "interrupted");
+    assert.equal(
+      retainedInterruption.interruption?.message,
+      "An unrelated terminal failure.",
+    );
+
+    const inheritedStream = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--inherit-stream-after-exit"],
+      shutdownGraceMs: 50,
+      onOutput: () => undefined,
+    });
+    assert.equal(inheritedStream.status, "completed");
+    assert.notEqual(inheritedStream.processes[0]?.exitCode, null);
+    assert.notEqual(inheritedStream.processes[0]?.shutdownForced, true);
 
     const terminalLineBreakOutput: IEvidenceBenchmarkOutput[] = [];
     const terminalLineBreak = await EvidenceBenchmarkRunner.run({
@@ -965,6 +1025,9 @@ const readObjective = (
 const fakeAppServer = (): void => {
   const fail: boolean = process.argv.includes("--fail");
   const hangOnClose: boolean = process.argv.includes("--hang-on-close");
+  const inheritStreamAfterExit: boolean = process.argv.includes(
+    "--inherit-stream-after-exit",
+  );
   const lateError: boolean = process.argv.includes("--late-error");
   const blockedThenComplete: boolean = process.argv.includes(
     "--blocked-then-complete",
@@ -1433,6 +1496,12 @@ const fakeAppServer = (): void => {
   input.on("close", () => {
     if (lateError) send({ id: -1, method: "fixture/late-error" });
     if (hangOnClose) setInterval(() => undefined, 1_000);
+    if (inheritStreamAfterExit)
+      spawn(process.execPath, ["-e", "setTimeout(() => undefined, 500)"], {
+        detached: true,
+        stdio: ["ignore", process.stdout, process.stderr],
+        windowsHide: true,
+      }).unref();
   });
 };
 

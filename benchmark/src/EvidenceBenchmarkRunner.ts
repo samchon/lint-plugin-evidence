@@ -22,6 +22,9 @@ import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm.ts";
  * boundaries without judging or editing the measured application.
  */
 export namespace EvidenceBenchmarkRunner {
+  const PROCESS_CLEANUP_ERROR =
+    "Codex app-server survived forced process-tree cleanup.";
+
   /**
    * Creates an empty Codex state for the selected experiment arm.
    *
@@ -47,13 +50,15 @@ export namespace EvidenceBenchmarkRunner {
       typia.assert<IEvidenceBenchmarkRunState>(structuredClone(props.state));
     const entries = instructionEntries(state.arm);
     if (state.nextInstructionIndex >= entries.length) {
-      if (state.interruption !== undefined) {
+      const recoverableCleanup: boolean = isRecoverableCompletedCleanup(state);
+      if (state.interruption !== undefined && !recoverableCleanup) {
         state.status = "interrupted";
         await props.onState?.(structuredClone(state));
         return state;
       }
       try {
         validateCompletedState(state, entries);
+        if (recoverableCleanup) delete state.interruption;
         state.status = "completed";
       } catch (error) {
         state.status = "interrupted";
@@ -209,6 +214,7 @@ export namespace EvidenceBenchmarkRunner {
     });
     if (child.pid === undefined)
       throw new Error("Codex app-server omitted its process ID.");
+    processRecord.processId = child.pid;
     monitorProcess(process.pid, child.pid, (error) =>
       finish("interrupted", error),
     );
@@ -607,32 +613,46 @@ export namespace EvidenceBenchmarkRunner {
       }
     });
 
+    let resolveExited!: () => void;
+    const exited = new Promise<void>((resolve) => {
+      resolveExited = resolve;
+    });
+    let resolveClosed!: () => void;
     const closed = new Promise<void>((resolve) => {
-      child.once("error", (error) => finish("interrupted", error));
-      child.once("close", (exitCode, signal) => {
-        if (stdout.trim().length !== 0) {
-          try {
-            receive(typia.assert<Record<string, unknown>>(JSON.parse(stdout)));
-          } catch {
-            finish("interrupted", stdout);
-          }
+      resolveClosed = resolve;
+    });
+    child.once("error", (error) => {
+      finish("interrupted", error);
+      resolveExited();
+      resolveClosed();
+    });
+    child.once("exit", (exitCode, signal) => {
+      processRecord.elapsedMs = elapsed(started);
+      processRecord.exitCode = exitCode;
+      processRecord.signal = signal;
+      for (const waiter of pending.values())
+        waiter.reject(new Error("Codex app-server exited."));
+      pending.clear();
+      if (
+        outcome === "completed" &&
+        (exitCode !== 0 || signal !== null) &&
+        processRecord.shutdownForced !== true
+      )
+        finish("interrupted", { exitCode, signal });
+      if (outcome === undefined) finish("interrupted", { exitCode, signal });
+      publish();
+      resolveExited();
+    });
+    child.once("close", () => {
+      if (stdout.trim().length !== 0) {
+        try {
+          receive(typia.assert<Record<string, unknown>>(JSON.parse(stdout)));
+        } catch {
+          finish("interrupted", stdout);
         }
-        processRecord.elapsedMs = elapsed(started);
-        processRecord.exitCode = exitCode;
-        processRecord.signal = signal;
-        for (const waiter of pending.values())
-          waiter.reject(new Error("Codex app-server exited."));
-        pending.clear();
-        if (
-          outcome === "completed" &&
-          (exitCode !== 0 || signal !== null) &&
-          processRecord.shutdownForced !== true
-        )
-          finish("interrupted", { exitCode, signal });
-        if (outcome === undefined) finish("interrupted", { exitCode, signal });
-        publish();
-        resolve();
-      });
+      }
+      publish();
+      resolveClosed();
     });
 
     try {
@@ -888,19 +908,21 @@ export namespace EvidenceBenchmarkRunner {
     await notifications;
     await publication;
     child.stdin.end();
-    if (!(await waitFor(closed, shutdownGraceMs))) {
+    if (!(await waitFor(exited, shutdownGraceMs))) {
       processRecord.shutdownForced = true;
       await terminateProcessTree(child.pid);
-      if (!(await waitFor(closed, shutdownGraceMs))) {
-        finish(
-          "interrupted",
-          new Error("Codex app-server survived forced process-tree cleanup."),
-        );
-        processRecord.elapsedMs = elapsed(started);
-        child.stdout.destroy();
-        child.stderr.destroy();
-        child.unref();
+      if (
+        !(await waitFor(exited, shutdownGraceMs)) &&
+        isProcessAlive(child.pid)
+      ) {
+        finish("interrupted", new Error(PROCESS_CLEANUP_ERROR));
       }
+    }
+    processRecord.elapsedMs = elapsed(started);
+    if (!(await waitFor(closed, shutdownGraceMs))) {
+      child.stdout.destroy();
+      child.stderr.destroy();
+      child.unref();
     }
     await notifications;
     await outputPublication;
@@ -1012,6 +1034,18 @@ export namespace EvidenceBenchmarkRunner {
         terminal.shutdownForced !== true)
     )
       throw new Error("Codex retained an invalid terminal process.");
+  }
+
+  function isRecoverableCompletedCleanup(
+    state: IEvidenceBenchmarkRunState,
+  ): boolean {
+    const terminal: IEvidenceBenchmarkProcessRecord | undefined =
+      state.processes.at(-1);
+    return (
+      state.interruption?.message === PROCESS_CLEANUP_ERROR &&
+      terminal?.shutdownForced === true &&
+      (terminal.processId === undefined || !isProcessAlive(terminal.processId))
+    );
   }
 
   /**
@@ -1273,6 +1307,15 @@ export namespace EvidenceBenchmarkRunner {
 
   function elapsed(started: bigint): number {
     return Number(process.hrtime.bigint() - started) / 1_000_000;
+  }
+
+  function isProcessAlive(targetPid: number): boolean {
+    try {
+      process.kill(targetPid, 0);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function monitorProcess(

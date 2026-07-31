@@ -5,6 +5,9 @@
  * arguments, and terminal disposition remain attributable.
  */
 export interface IEvidenceBenchmarkProcessRecord {
+  /** Operating-system process ID when the runner launched the app-server. */
+  processId?: number;
+
   /** Repository revision of the runner that started this native process. */
   runnerRevision?: string;
 
