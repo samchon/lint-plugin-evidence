@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-31T21:02:01.296Z",
+  "generatedAt": "2026-07-31T21:06:19.736Z",
   "cells": [
     {
       "engine": "codex",
@@ -15,10 +15,10 @@
       "launchedAt": "2026-07-31T18:09:03.414Z",
       "tokens": 112250688,
       "workElapsedMs": 6692082.9813,
-      "wallElapsedMs": 10377882,
+      "wallElapsedMs": 10636322,
       "worktree": {
         "files": 42,
-        "additions": 5922,
+        "additions": 5929,
         "deletions": 32
       },
       "stages": [
@@ -53,12 +53,12 @@
       "benchmarkRevision": "184bce715b4ab5af49b4bb8beba5fa7d33457a2a",
       "model": "gpt-5.6-luna",
       "effort": "high",
-      "status": "running",
+      "status": "completed",
       "stage": "overall-final",
       "launchedAt": "2026-07-31T18:09:03.579Z",
-      "tokens": 112238234,
-      "workElapsedMs": 9761973.8523,
-      "wallElapsedMs": 10377717,
+      "tokens": 114542564,
+      "workElapsedMs": 9943891.0114,
+      "wallElapsedMs": 10552677,
       "worktree": {
         "files": 65,
         "additions": 5381,
@@ -69,15 +69,15 @@
           "name": "backend-start",
           "tokens": 51553747,
           "elapsedMs": 4558000,
-          "tokenPercent": 46,
-          "timePercent": 47
+          "tokenPercent": 45,
+          "timePercent": 46
         },
         {
           "name": "backend-review",
           "tokens": 7690993,
           "elapsedMs": 1040000,
           "tokenPercent": 7,
-          "timePercent": 11
+          "timePercent": 10
         },
         {
           "name": "backend-final",
@@ -91,14 +91,14 @@
           "tokens": 22438133,
           "elapsedMs": 2105000,
           "tokenPercent": 20,
-          "timePercent": 22
+          "timePercent": 21
         },
         {
           "name": "frontend-review",
           "tokens": 15381496,
           "elapsedMs": 840000,
-          "tokenPercent": 14,
-          "timePercent": 9
+          "tokenPercent": 13,
+          "timePercent": 8
         },
         {
           "name": "frontend-final",
@@ -116,10 +116,10 @@
         },
         {
           "name": "overall-final",
-          "tokens": 654965,
-          "elapsedMs": 109973.85229999945,
-          "tokenPercent": 1,
-          "timePercent": 1
+          "tokens": 2959295,
+          "elapsedMs": 227000,
+          "tokenPercent": 3,
+          "timePercent": 2
         }
       ]
     },
@@ -136,10 +136,10 @@
       "launchedAt": "2026-07-31T18:09:03.553Z",
       "tokens": 62582547,
       "workElapsedMs": 5025181.4956,
-      "wallElapsedMs": 10377743,
+      "wallElapsedMs": 10636183,
       "worktree": {
         "files": 56,
-        "additions": 9905,
+        "additions": 9909,
         "deletions": 9
       },
       "stages": [
@@ -177,12 +177,12 @@
       "status": "running",
       "stage": "frontend-start",
       "launchedAt": "2026-07-31T18:09:03.553Z",
-      "tokens": 112404726,
-      "workElapsedMs": 10125661.2002,
-      "wallElapsedMs": 10377743,
+      "tokens": 115459208,
+      "workElapsedMs": 10385222.6927,
+      "wallElapsedMs": 10636183,
       "worktree": {
         "files": 77,
-        "additions": 12041,
+        "additions": 12161,
         "deletions": 86
       },
       "stages": [
@@ -190,15 +190,15 @@
           "name": "backend-start",
           "tokens": 92489812,
           "elapsedMs": 7795000,
-          "tokenPercent": 82,
-          "timePercent": 77
+          "tokenPercent": 80,
+          "timePercent": 75
         },
         {
           "name": "backend-review",
           "tokens": 6855643,
           "elapsedMs": 778000,
           "tokenPercent": 6,
-          "timePercent": 8
+          "timePercent": 7
         },
         {
           "name": "backend-final",
@@ -209,10 +209,10 @@
         },
         {
           "name": "frontend-start",
-          "tokens": 9224084,
-          "elapsedMs": 1337661.2002000008,
-          "tokenPercent": 8,
-          "timePercent": 13
+          "tokens": 12278566,
+          "elapsedMs": 1597222.6927000005,
+          "tokenPercent": 11,
+          "timePercent": 15
         }
       ]
     }
