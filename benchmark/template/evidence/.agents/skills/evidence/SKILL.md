@@ -52,20 +52,20 @@ The complete graph is declared in two canonical package-local files. Open the fi
 
 The benchmark activates only `evidence/graph`. Do not add `evidence/todo`: the Evidence arm uses `@todo` as its explicit stub ledger and verifies its removal with source-scoped searches, while an additional lint rule would change the measured gate workload.
 
-`packages/backend/lint.config.ts` is the sole canonical owner of all five backend-phase claims. Its no-emit `tsconfig.lint.json` explicitly includes `packages/api/src/structures`, so the rooted `dto-types` and `dto-properties` populations remain inside `ttsc`'s supplied source roots rather than being discovered from imports or the filesystem.
+`packages/backend/lint.config.ts` is the sole canonical owner of all five backend-phase claims. The package's single `tsconfig.json` includes backend source, backend tests, and `packages/api/src/structures`, so every rooted claim population stays inside `ttsc`'s supplied source roots rather than being discovered from imports or the filesystem.
 
-Backend main, lint, and tool Programs use that root configuration directly. The test Program enters through `packages/backend/test/lint.config.ts`, which only extends the root configuration. TypeScript claim activation derives the applicable projection from each Program's actual selected exported hosts, so no Program-specific file duplicates or edits the graph.
+Build, lint, test, format, and tool checks all use that one backend Program and root lint configuration. TypeScript claim activation derives applicability from the Program's actual selected exported hosts; no stage owns a narrower projection.
 
-Nestia sets `NESTIA_SDK_TRANSFORM=1` while compiling its private config-loader and SDK runtime Programs. Those Programs do not preserve the package root that the graph populations require. The canonical configuration contains one exact, immutable bypass for that environment only. Ordinary `pnpm lint`, main builds outside Nestia's private Programs, and the test Program still run the graph at `error` severity.
+Nestia sets `NESTIA_SDK_TRANSFORM=1` inside its private transform context, which does not preserve the package root that the graph populations require. The canonical configuration contains one exact, immutable bypass for that environment only. Every ordinary backend command runs the graph at `error` severity.
 
 The template ships all seven claim objects and `evidence/graph` at `error` severity as frozen configuration. TypeScript claim activation follows the selected exported host population; it is never managed through `lint.config.ts`.
 
 ## Phase Gates
 
-At the Backend Phase gate, validate all five configured claims in `packages/backend/lint.config.ts`, confirm the sealed Nestia guard and the test config's root extension are unchanged, and follow the canonical backend gate in [Backend](../backend/SKILL.md). `build:sdk` proves generation, not graph health: the ordinary canonical `pnpm lint` immediately before and after it must pass with the guard inactive.
+At the Backend Phase gate, validate all five configured claims in `packages/backend/lint.config.ts`, confirm the sealed Nestia guard and single root `tsconfig.json` are unchanged, and follow the canonical backend gate in [Backend](../backend/SKILL.md). `build:sdk` proves generation, not graph health: the ordinary canonical `pnpm lint` immediately before and after it must pass with the guard inactive.
 
-At the Frontend Phase gate, confirm all seven claim objects remain configured in the two canonical files with their original populations and `error` severities. Confirm the backend test config still extends the canonical root and validate the frontend claims. If frontend work changed an API or backend source, re-pass the affected backend gate first.
+At the Frontend Phase gate, confirm all seven claim objects remain configured in the two canonical files with their original populations and `error` severities. Confirm the backend still has one root Program and validate the frontend claims. If frontend work changed an API or backend source, re-pass the affected backend gate first.
 
-At the Overall Phase gate, confirm all seven exact claim objects remain configured, confirm `evidence/graph` remains at `error` outside the sealed Nestia environment, confirm the backend test config still extends the canonical root, run the project-wide gates, and execute [Review](../review/SKILL.md) against every populated claim. Configuration and the current host populations, not an agent's prose report, prove enforcement.
+At the Overall Phase gate, confirm all seven exact claim objects remain configured, confirm `evidence/graph` remains at `error` outside the sealed Nestia environment, confirm the single backend Program is unchanged, run the project-wide gates, and execute [Review](../review/SKILL.md) against every populated claim. Configuration and the current host populations, not an agent's prose report, prove enforcement.
 
 A green phase subset is not whole-project completion. Any missing claim object, altered population, disabled rule, remaining phase-owned `@todo`, required host absent from an inactive population, or unreviewed phase edge blocks that phase report.
