@@ -921,7 +921,11 @@ export namespace EvidenceBenchmarkRunner {
     goal: Record<string, unknown>,
     threadId: string,
   ): void {
-    if (goal.threadId !== threadId || goal.objective !== record.objectiveText)
+    const objectiveMatches: boolean =
+      goal.objective === record.objectiveText ||
+      (record.objectiveText.endsWith("\n") &&
+        goal.objective === record.objectiveText.slice(0, -1));
+    if (goal.threadId !== threadId || !objectiveMatches)
       throw new Error(
         "Native Goal does not match the retained thread and objective.",
       );
