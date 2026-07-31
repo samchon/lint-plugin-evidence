@@ -15,16 +15,16 @@ Before measurement:
 4. Record the authorized matrix, benchmark revision, engines, models, efforts, CLI versions, Evidence archive digest, and live dashboard in the pull-request body.
 5. Assign one read-only reporting subagent to update that body every 5 minutes and immediately after a state change or anomaly.
 
-Group the dashboard by authorized model. Keep one H2 per model, show only the latest launched run for each cell, and omit cells that have not launched:
+Generate the dashboard with `pnpm --filter @samchon/evidence-benchmark dashboard`; do not inspect workspace source to reconstruct its values. Group it by authorized model, keep one H2 per model, show only the latest launched run for each cell, and omit cells that have not launched:
 
 ```markdown
 ## GPT-5.6-Terra
 
-| Project | Mode | Progress | Cost | Time |
-| ------- | ---- | -------- | ---- | ---- |
+| Project | Mode | Stage | Progress | Cost | Time |
+| ------- | ---- | ----- | -------- | ---- | ---- |
 ```
 
-`Progress` keeps the exact current or last retained instruction name, such as `backend-start`, and appends only its short status, such as `· running` or `· interrupted`; put anomaly details outside the table. `Cost` is retained total token usage rounded to the nearest million and written as an integer with `M`, such as `3M`. `Time` is completed instruction elapsed time plus the active process-relative `elapsedMs` from the latest retained event, rounded to whole minutes and written only in hours and minutes, such as `7m` or `1h 07m`; setup and operator time stay separate. Do not add run-ID, usage-breakdown, or quality columns.
+`Stage` keeps the exact current or last retained instruction name, such as `backend-start`, and appends only its short status, such as `· running` or `· interrupted`; put anomaly details outside the table. `Progress` is the read-only Git delta from the prepared workspace baseline, including tracked and untracked files, written as `27 files · +3.1k/−120 LOC`; it measures implementation volume, not completion percentage. `Cost` is retained total token usage rounded to the nearest million and written as an integer with `M`, such as `3M`. `Time` is finalized native-process elapsed time plus the active process's latest retained event time, rounded to whole minutes and written only in hours and minutes, such as `7m` or `1h 07m`; setup and operator time stay separate. Do not add run-ID, usage-breakdown, or quality columns.
 
 ## Prepare And Launch
 
