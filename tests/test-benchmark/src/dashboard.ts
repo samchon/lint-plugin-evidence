@@ -76,7 +76,7 @@ const main = (): void => {
       nextInstructionIndex: 1,
       totalTokens: 1_600_000,
       goals: [
-        goal(0, "backend-start", 1_000_000, 61_000),
+        goal(0, "backend-start", 1_000_000, 61_000, 120),
         goal(1, "backend-review", 0, 0),
       ],
       processes: [
@@ -136,11 +136,11 @@ const main = (): void => {
     assert.match(dashboard, /^- \*\*Todo Plain stages\*\*$/mu);
     assert.match(
       dashboard,
-      /^  - `backend-start`: 1M · 1m · 63% tokens · 48% time$/mu,
+      /^  - `backend-start`: 1M · 2m · 63% tokens · 95% time$/mu,
     );
     assert.match(
       dashboard,
-      /^  - `backend-review`: 1M · 1m · 38% tokens · 52% time$/mu,
+      /^  - `backend-review`: 1M · 0m · 38% tokens · 5% time$/mu,
     );
     assert.match(
       dashboard,
@@ -200,6 +200,7 @@ const writeRun = (props: {
   totalTokens: number;
   goals: {
     elapsedMs: number;
+    goal?: { timeUsedSeconds: number };
     index: number;
     name: string;
     tokenUsage: { totalTokens: number };
@@ -272,13 +273,16 @@ const goal = (
   name: string,
   totalTokens: number,
   elapsedMs: number,
+  timeUsedSeconds?: number,
 ): {
   elapsedMs: number;
+  goal?: { timeUsedSeconds: number };
   index: number;
   name: string;
   tokenUsage: { totalTokens: number };
 } => ({
   elapsedMs,
+  ...(timeUsedSeconds === undefined ? {} : { goal: { timeUsedSeconds } }),
   index,
   name,
   tokenUsage: { totalTokens },

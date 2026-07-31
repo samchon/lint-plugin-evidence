@@ -226,6 +226,7 @@ const main = async (): Promise<void> => {
         outputTokens: 4,
         reasoningOutputTokens: 3,
       } satisfies IEvidenceBenchmarkTokenUsage);
+      assert.equal(goal.elapsedMs, 1_000);
     });
     assert.deepEqual(completed.threadTokenUsage, {
       totalTokens: ENTRIES.length * 10,

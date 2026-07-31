@@ -49,6 +49,6 @@ export interface IEvidenceBenchmarkGoalRecord {
   /** Nonnegative token delta attributed to this Goal. */
   tokenUsage: IEvidenceBenchmarkTokenUsage;
 
-  /** Native turn duration retained for this Goal. */
+  /** Delta of the native Goal's cumulative active time. */
   elapsedMs: number;
 }

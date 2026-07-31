@@ -21,6 +21,9 @@ interface IDashboardProcess {
 
 interface IDashboardInstruction {
   elapsedMs: number;
+  goal?: {
+    timeUsedSeconds?: number;
+  } | null;
   index: number;
   name: string;
   tokenUsage: {
@@ -264,7 +267,7 @@ const stageMeasurements = (
     0,
   );
   const retainedElapsed: number = state.goals.reduce(
-    (sum, instruction) => sum + instruction.elapsedMs,
+    (sum, instruction) => sum + retainedInstructionElapsed(state, instruction),
     0,
   );
   const activeTokens: number = Math.max(
@@ -278,8 +281,30 @@ const stageMeasurements = (
       instruction.tokenUsage.totalTokens +
       (instruction === current ? activeTokens : 0),
     elapsedMs:
-      instruction.elapsedMs + (instruction === current ? activeElapsed : 0),
+      retainedInstructionElapsed(state, instruction) +
+      (instruction === current ? activeElapsed : 0),
   }));
+};
+
+const retainedInstructionElapsed = (
+  state: IDashboardState,
+  instruction: IDashboardInstruction,
+): number => {
+  if (instruction.index >= state.nextInstructionIndex)
+    return instruction.elapsedMs;
+  const cumulative: number | undefined = instruction.goal?.timeUsedSeconds;
+  const previous: IDashboardInstruction | undefined = state.goals.find(
+    (candidate) => candidate.index === instruction.index - 1,
+  );
+  const baseline: number | undefined =
+    instruction.index === 0 ? 0 : previous?.goal?.timeUsedSeconds;
+  return cumulative !== undefined &&
+    baseline !== undefined &&
+    Number.isFinite(cumulative) &&
+    Number.isFinite(baseline) &&
+    cumulative >= baseline
+    ? (cumulative - baseline) * 1_000
+    : instruction.elapsedMs;
 };
 
 const stage = (state: IDashboardState): string => {

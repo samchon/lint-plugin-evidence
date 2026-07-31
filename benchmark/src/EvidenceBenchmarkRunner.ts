@@ -327,6 +327,7 @@ export namespace EvidenceBenchmarkRunner {
         });
         return;
       }
+      record.elapsedMs = nativeGoalElapsedMs(state, record);
       advancing = true;
       record.tokenUsageEnd = structuredClone(state.threadTokenUsage);
       record.tokenUsage = subtract(
@@ -1034,6 +1035,29 @@ export namespace EvidenceBenchmarkRunner {
         terminal.shutdownForced !== true)
     )
       throw new Error("Codex retained an invalid terminal process.");
+  }
+
+  function nativeGoalElapsedMs(
+    state: IEvidenceBenchmarkRunState,
+    record: IEvidenceBenchmarkGoalRecord,
+  ): number {
+    const cumulative: unknown = record.goal?.timeUsedSeconds;
+    const previous: IEvidenceBenchmarkGoalRecord | undefined =
+      record.index === 0
+        ? undefined
+        : state.goals.find((candidate) => candidate.index === record.index - 1);
+    const baseline: unknown = previous?.goal?.timeUsedSeconds ?? 0;
+    if (
+      typeof cumulative !== "number" ||
+      !Number.isFinite(cumulative) ||
+      cumulative < 0 ||
+      typeof baseline !== "number" ||
+      !Number.isFinite(baseline) ||
+      baseline < 0 ||
+      cumulative < baseline
+    )
+      throw new Error("Codex retained an invalid native Goal time boundary.");
+    return (cumulative - baseline) * 1_000;
   }
 
   function isRecoverableCompletedCleanup(
