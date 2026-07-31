@@ -1,4 +1,4 @@
-# Plain Overall Review
+# Overall Review
 
 Perform a new, exhaustive whole-project review.
 

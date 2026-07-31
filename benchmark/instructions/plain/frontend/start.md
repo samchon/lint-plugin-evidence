@@ -1,4 +1,4 @@
-# Plain Frontend Start
+# Frontend Start
 
 Build the complete frontend against the gated SDK.
 

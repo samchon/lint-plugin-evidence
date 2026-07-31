@@ -1,6 +1,6 @@
-# Plain Backend Review
+# Backend Review
 
-Before reviewing, read `AGENTS.md` and every required document under `.agents/skills/review/` and `.agents/skills/campaign/` in full. Obey them throughout this objective.
+Before reviewing, read `AGENTS.md` and every related document under `.agents/skills/review/` and `.agents/skills/campaign/` in full. Obey them throughout this objective.
 
 Review the complete API and backend by reading the current files yourself. Do not review the frontend.
 

@@ -1,10 +1,10 @@
-# Plain Backend Final
+# Backend Final
 
 Read `AGENTS.md` and every required document under `.agents/skills/review/` and `.agents/skills/campaign/` in full.
 
-This objective audits whether Plain Backend Review was actually completed. Do not perform a substitute review or use searches, summaries, inventories, builds, tests, or Git status as proof.
+This objective audits whether the preceding backend review was actually completed. Do not perform a substitute review or use searches, summaries, inventories, builds, tests, or Git status as proof.
 
-If any condition below is unproven, return to Plain Backend Review and continue it. Complete only when every condition is proven.
+If any condition below is unproven, return to the preceding backend review objective and continue it. Complete only when every condition is proven.
 
 | Verify | Required result |
 | --- | --- |

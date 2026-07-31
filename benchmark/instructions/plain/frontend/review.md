@@ -1,4 +1,4 @@
-# Plain Frontend Review
+# Frontend Review
 
 Perform a new, exhaustive frontend review.
 
