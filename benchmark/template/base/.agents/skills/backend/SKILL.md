@@ -76,11 +76,11 @@ Start it before live frontend integration and keep it running through Overall Fi
 | Authored change | Action |
 | --- | --- |
 | Schema model, field, relation, or comment | Settle the schema, then `pnpm build:prisma` and `pnpm schema` |
-| DTO or controller contract | Settle the complete contract, then run its compiler gate |
-| Complete DTO and controller contract | `pnpm build:sdk` once |
-| Provider or test only | Run the next compiler gate; do not regenerate |
+| Complete DTO and controller contract | Settle the complete contract, then `pnpm build:sdk` once |
+| Provider or test only | Do not regenerate |
+| Complete backend first draft | Run the compiler gate, require a clean rebuild, then stop the watcher |
 
-Run generators, compiler gates, and tests serially. Generators replace shared generated trees, so start the watcher only after the generator finishes.
+Run generators, compiler gates, and tests serially. Do not start the first compiler gate until every backend layer in the first draft is present and no generator is running.
 
 ## Backend Gate
 
