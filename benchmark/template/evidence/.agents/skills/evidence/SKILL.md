@@ -54,7 +54,7 @@ The benchmark activates only `evidence/graph`. Do not add `evidence/todo`: the E
 
 `packages/backend/lint.config.ts` is the sole canonical owner of all five backend-phase claims. The package's single `tsconfig.json` includes backend source, backend tests, and `packages/api/src/structures`, so every rooted claim population stays inside `ttsc`'s supplied source roots rather than being discovered from imports or the filesystem.
 
-Build, lint, test, format, and tool checks all use that one backend Program and root lint configuration. TypeScript claim activation derives applicability from the Program's actual selected exported hosts; no stage owns a narrower projection.
+Every backend command uses that one Program. `pnpm lint` invokes `ttsc check` explicitly, which loads the root lint configuration; build and test commands do not carry lint-plugin settings in `tsconfig.json`. TypeScript claim activation derives applicability from the Program's actual selected exported hosts; no stage owns a narrower projection.
 
 Nestia sets `NESTIA_SDK_TRANSFORM=1` inside its private transform context, which does not preserve the package root that the graph populations require. The canonical configuration contains one exact, immutable bypass for that environment only. Every ordinary backend command runs the graph at `error` severity.
 

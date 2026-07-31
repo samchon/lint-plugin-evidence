@@ -12,7 +12,7 @@
     "build:test": "ttsc -p tsconfig.json --noEmit",
     "dev": "ttsx src/executable/server.ts",
     "format": "ttsc format -p tsconfig.json",
-    "lint": "ttsc -p tsconfig.json --noEmit",
+    "lint": "ttsc check -p tsconfig.json",
     "prepare:database": "prisma db push --schema=prisma/schema",
     "schema": "ttsx src/executable/schema.ts",
     "start": "ttsx src/executable/server.ts",
