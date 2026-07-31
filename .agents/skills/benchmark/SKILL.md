@@ -44,19 +44,18 @@ Run at most one command for a run ID. A preparation failure before native work d
 
 ## Run The Objectives
 
-One native session receives exactly nine objectives:
+One native session receives exactly eight objectives:
 
 | Step | Objective | Evidence | Plain |
 | --: | --- | --- | --- |
-| 1 | Skills contract | `instructions/evidence/skills-contract.md` | `instructions/plain/skills-contract.md` |
-| 2 | Backend start | `instructions/evidence/backend/start.md` | `instructions/plain/backend/start.md` |
-| 3 | Backend review | `instructions/evidence/backend/review.md` | `instructions/plain/backend/review.md` |
-| 4 | Backend final | `instructions/evidence/backend/final.md` | `instructions/plain/backend/final.md` |
-| 5 | Frontend start | `instructions/evidence/frontend/start.md` | `instructions/plain/frontend/start.md` |
-| 6 | Frontend review | `instructions/evidence/frontend/review.md` | `instructions/plain/frontend/review.md` |
-| 7 | Frontend final | `instructions/evidence/frontend/final.md` | `instructions/plain/frontend/final.md` |
-| 8 | Overall review | `instructions/evidence/overall/review.md` | `instructions/plain/overall/review.md` |
-| 9 | Overall final | `instructions/evidence/overall/final.md` | `instructions/plain/overall/final.md` |
+| 1 | Backend start | `instructions/evidence/backend/start.md` | `instructions/plain/backend/start.md` |
+| 2 | Backend review | `instructions/evidence/backend/review.md` | `instructions/plain/backend/review.md` |
+| 3 | Backend final | `instructions/evidence/backend/final.md` | `instructions/plain/backend/final.md` |
+| 4 | Frontend start | `instructions/evidence/frontend/start.md` | `instructions/plain/frontend/start.md` |
+| 5 | Frontend review | `instructions/evidence/frontend/review.md` | `instructions/plain/frontend/review.md` |
+| 6 | Frontend final | `instructions/evidence/frontend/final.md` | `instructions/plain/frontend/final.md` |
+| 7 | Overall review | `instructions/evidence/overall/review.md` | `instructions/plain/overall/review.md` |
+| 8 | Overall final | `instructions/evidence/overall/final.md` | `instructions/plain/overall/final.md` |
 
 At each step, the runner joins that file with the same arm's `instructions/<arm>/continue.md` once and records the exact objective. The arms share no runtime instruction bytes. Do not add operator prose.
 
@@ -90,7 +89,7 @@ On cancellation, stop the reporting subagent and every liveness watcher, then fo
 
 ## Complete The Campaign
 
-Treat a cell as execution-complete only when `state.json` is `completed`, all nine instructions have native terminal checkpoints, and the final process exits zero without a signal.
+Treat a cell as execution-complete only when `state.json` is `completed`, all eight instructions have native terminal checkpoints, and the final process exits zero without a signal.
 
 Review every completed workspace read-only. Accept `docs/analysis/**` as the specification without validating it. Report defects only in the generated application or mismatches between its artifacts and the specification. Requirements are never defect candidates.
 

@@ -7,7 +7,7 @@ import type { IEvidenceBenchmarkTokenUsage } from "./IEvidenceBenchmarkTokenUsag
  * idle checkpoint, token delta, and elapsed time needed for exact recovery.
  */
 export interface IEvidenceBenchmarkGoalRecord {
-  /** Canonical zero-based position in the nine-objective sequence. */
+  /** Canonical zero-based position in the eight-objective sequence. */
   index: number;
 
   /** Stable objective name used in reports. */

@@ -17,7 +17,7 @@ import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm.ts";
 /**
  * Executes the retained Codex Goal sequence for one benchmark cell.
  *
- * The runner sends the nine frozen objectives through one app-server thread,
+ * The runner sends the eight frozen objectives through one app-server thread,
  * retaining native Goal, terminal-turn, idle, token, process, and raw-stream
  * boundaries without judging or editing the measured application.
  */
@@ -847,7 +847,7 @@ export namespace EvidenceBenchmarkRunner {
   }
 
   /**
-   * Returns the frozen nine-objective sequence for an experiment arm.
+   * Returns the frozen eight-objective sequence for an experiment arm.
    *
    * Each arm owns every instruction byte. Paths and positions remain comparable
    * without either arm reading a shared runtime objective.
@@ -856,7 +856,6 @@ export namespace EvidenceBenchmarkRunner {
     arm: EvidenceBenchmarkArm,
   ): readonly (readonly [string, string])[] {
     return [
-      ["skills-contract", `${arm}/skills-contract.md`],
       ["backend-start", `${arm}/backend/start.md`],
       ["backend-review", `${arm}/backend/review.md`],
       ["backend-final", `${arm}/backend/final.md`],

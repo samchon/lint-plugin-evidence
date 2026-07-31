@@ -31,11 +31,10 @@ When launching Evidence cells concurrently, follow the Benchmark skill's shared-
 
 ## Instruction sequence
 
-One native session receives these nine instructions in order:
+One native session receives these eight instructions in order:
 
 | Step | Evidence | Plain |
 | --- | --- | --- |
-| Skills contract | `instructions/evidence/skills-contract.md` | `instructions/plain/skills-contract.md` |
 | Backend start | `instructions/evidence/backend/start.md` | `instructions/plain/backend/start.md` |
 | Backend review | `instructions/evidence/backend/review.md` | `instructions/plain/backend/review.md` |
 | Backend final | `instructions/evidence/backend/final.md` | `instructions/plain/backend/final.md` |

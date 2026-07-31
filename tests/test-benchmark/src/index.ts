@@ -10,7 +10,6 @@ import type { IEvidenceBenchmarkRunState } from "../../../benchmark/src/structur
 import type { IEvidenceBenchmarkTokenUsage } from "../../../benchmark/src/structures/IEvidenceBenchmarkTokenUsage.ts";
 
 const EVIDENCE_ENTRIES = [
-  ["skills-contract", "evidence/skills-contract.md"],
   ["backend-start", "evidence/backend/start.md"],
   ["backend-review", "evidence/backend/review.md"],
   ["backend-final", "evidence/backend/final.md"],
@@ -22,7 +21,6 @@ const EVIDENCE_ENTRIES = [
 ] as const;
 
 const PLAIN_ENTRIES = [
-  ["skills-contract", "plain/skills-contract.md"],
   ["backend-start", "plain/backend/start.md"],
   ["backend-review", "plain/backend/review.md"],
   ["backend-final", "plain/backend/final.md"],
