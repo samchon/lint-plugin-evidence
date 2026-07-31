@@ -19,24 +19,24 @@
 <rect x="118" y="82" width="14" height="14" rx="3" fill="#f58518"/>
 <text x="140" y="94" class="legend">Evidence</text>
 <text x="32" y="148" class="label">GPT-5.6-Luna · Todo Plain · running</text>
-<text x="32" y="167" class="stage">Stage: backend-start</text>
+<text x="32" y="167" class="stage">Stage: backend-review</text>
 <rect x="430" y="137" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="137" width="520" height="28" rx="4" fill="#4c78a8"/>
-<text x="1068" y="157" class="value">867.3k tokens</text>
+<rect x="430" y="137" width="620" height="28" rx="4" fill="#4c78a8"/>
+<text x="1068" y="157" class="value">22M tokens</text>
 <text x="32" y="200" class="label">GPT-5.6-Luna · Todo Evidence · running</text>
 <text x="32" y="219" class="stage">Stage: backend-start</text>
 <rect x="430" y="189" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="189" width="417" height="28" rx="4" fill="#f58518"/>
-<text x="1068" y="209" class="value">695.9k tokens</text>
+<rect x="430" y="189" width="491" height="28" rx="4" fill="#f58518"/>
+<text x="1068" y="209" class="value">17.4M tokens</text>
 <text x="32" y="252" class="label">GPT-5.6-Luna · Reddit Plain · running</text>
-<text x="32" y="271" class="stage">Stage: backend-start</text>
+<text x="32" y="271" class="stage">Stage: backend-review</text>
 <rect x="430" y="241" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="241" width="463" height="28" rx="4" fill="#4c78a8"/>
-<text x="1068" y="261" class="value">772.4k tokens</text>
+<rect x="430" y="241" width="590" height="28" rx="4" fill="#4c78a8"/>
+<text x="1068" y="261" class="value">20.9M tokens</text>
 <text x="32" y="304" class="label">GPT-5.6-Luna · Reddit Evidence · running</text>
 <text x="32" y="323" class="stage">Stage: backend-start</text>
 <rect x="430" y="293" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="293" width="620" height="28" rx="4" fill="#f58518"/>
-<text x="1068" y="313" class="value">1M tokens</text>
-<text x="32" y="358" class="generated">Generated 2026-07-31T18:11:13.281Z</text>
+<rect x="430" y="293" width="553" height="28" rx="4" fill="#f58518"/>
+<text x="1068" y="313" class="value">19.6M tokens</text>
+<text x="32" y="358" class="generated">Generated 2026-07-31T18:44:37.463Z</text>
 </svg>
