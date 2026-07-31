@@ -1,10 +1,17 @@
 # Frontend Review
 
-Perform a new, exhaustive frontend review.
+Before reviewing, read `AGENTS.md` and every required document under `.agents/skills/review/` and `.agents/skills/campaign/` in full. Obey them throughout this objective.
 
-1. Re-read every requirement.
-2. Inspect every route, screen, component, and state transition.
-3. Inspect every form, omission, error path, and SDK call.
-4. Inspect every browser journey and live interaction.
+Review the complete frontend and its live behavior by reading the current files yourself.
 
-Review the actual files and behavior one by one. Searches, summaries, inventories, build results, and previous reviews never replace inspection. Fix every defect at its owner and restart at item 1, without limiting the number of rounds. Complete only when one entire pass finds no problem and needs no edit.
+Full reading is literal: open and read every file in the complete review scope. Never replace it with searches, summaries, inventories, build results, or previous reviews.
+
+Every review round must cover the entire table below as one indivisible full reading. Never partition the scope between rounds or compose partial reviews into a result. If you find even one problem or omission, fix it and restart the complete table. Repeat full-scope rounds without any limit until one entire round has no omitted file, requirement, artifact, journey, or relation, finds no problem, and makes no edit.
+
+| Read in full | Compare with |
+| --- | --- |
+| Requirements | Screens, user journeys, and tests |
+| API operations and DTOs | Frontend behavior, data flow, errors, and tests |
+| Frontend source | Requirements, API contracts, user journeys, and live behavior |
+| Browser tests | Requirements and implemented user journeys |
+| Every implemented artifact | The requirement or API contract that justifies it |

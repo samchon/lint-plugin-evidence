@@ -1,10 +1,14 @@
 # Overall Final
 
-Audit whether the preceding overall review actually completed.
+Did the preceding overall review actually perform the literal, indivisible, full-scope reading required by its instruction? This objective audits only that question. Do not perform a substitute review or use searches, summaries, inventories, builds, tests, or Git status as proof.
 
-1. Confirm that every requirement, file, relationship, and live behavior was inspected directly.
-2. Confirm that every finding was fixed at its owner.
-3. Confirm that each fix restarted the whole-project review from its first item.
-4. Confirm that the last complete review round found no problem and made no edit.
+If any condition below is unproven, return to the preceding overall review objective and continue it. Complete only when every condition is proven.
 
-If any point is unproven, return to the preceding overall review objective. Do not perform a substitute review here.
+| Verify | Required result |
+| --- | --- |
+| Scope | One review round covered the complete review table without partitioning |
+| Direct reading | Every file in scope was actually read in full |
+| Corrections | Every discovered problem was corrected |
+| Restart | Every correction restarted the complete review from the beginning |
+| Final round | The last full-scope round occurred after the final correction |
+| Completion | The last round omitted nothing, found no problem, and made no edit |

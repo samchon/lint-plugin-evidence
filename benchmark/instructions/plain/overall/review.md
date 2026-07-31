@@ -1,9 +1,18 @@
 # Overall Review
 
-Perform a new, exhaustive whole-project review.
+Before reviewing, read `AGENTS.md` and every required document under `.agents/skills/review/` and `.agents/skills/campaign/` in full. Obey them throughout this objective.
 
-1. Re-read every requirement.
-2. Trace each requirement through the database, API, backend, generated SDK, frontend, tests, browser journeys, and live behavior.
-3. Trace every implemented artifact back to a real requirement.
+Review the complete application by reading the current files and live behavior yourself.
 
-Inspect the actual files and behavior one by one. Searches, summaries, inventories, build results, and earlier reviews never replace inspection. Fix every defect at its owner, regenerate downstream output, and restart at item 1, without limiting the number of rounds. Complete only when one entire pass finds no problem and needs no edit.
+Full reading is literal: open and read every file in the complete review scope. Never replace it with searches, summaries, inventories, build results, or previous reviews.
+
+Every review round must cover the entire table below as one indivisible full reading. Never partition the scope between rounds or compose partial reviews into a result. If you find even one problem or omission, fix it and restart the complete table. Repeat full-scope rounds without any limit until one entire round has no omitted file, requirement, artifact, journey, or relation, finds no problem, and makes no edit.
+
+| Read in full | Compare with |
+| --- | --- |
+| Requirements | Database, API, backend, frontend, and tests |
+| Database design | Requirements, API, backend behavior, and tests |
+| API controllers and DTOs | Requirements, database design, backend, frontend, and tests |
+| Backend source and tests | Requirements and API contracts |
+| Frontend source and browser tests | Requirements, API contracts, user journeys, and live behavior |
+| Every implemented artifact | The requirement or contract that justifies it |
