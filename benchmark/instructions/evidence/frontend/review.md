@@ -1,5 +1,10 @@
 # Evidence Frontend Review
 
-Perform a new frontend Evidence review. Re-read the frontend requirements and inspect every active claim from each host through its target and reason. Verify every citation, SDK use, state transition, error path, browser journey, and live interaction against the implementation.
+Perform a new frontend Evidence review.
 
-Fix every defect at its owner and restart from the first active claim. Complete only when one full traversal needs no edits, Evidence reports no diagnostic, and all frontend, browser, and live gates pass.
+1. Re-read every frontend requirement.
+2. Inspect every active claim from each host through its target and reason.
+3. Verify every citation, SDK use, state transition, error path, browser journey, and live interaction.
+4. Run every frontend, browser, and live gate.
+
+Fix every defect at its owner and restart at item 1. Complete only when one full traversal needs no edits, Evidence reports no diagnostic, and every gate passes.

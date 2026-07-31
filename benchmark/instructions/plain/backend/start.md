@@ -1,7 +1,14 @@
 # Plain Backend Start
 
-Before doing anything else, read `AGENTS.md` and every document under `.agents/skills/` in full. Obey them throughout the benchmark.
+Build the complete API and backend. Do not implement the frontend.
 
-Build the complete API and backend required by the requirements. Do not implement the frontend.
+1. Read `AGENTS.md` and every document under `.agents/skills/` in full. Obey them throughout the benchmark.
+2. Read every requirement.
+3. Complete the database design, then run `build:prisma` and `prepare:database`.
+4. Complete the API structures, then run `build:api`.
+5. Complete the backend and every operation, then run `build:main`.
+6. Generate the SDK only after the API is stable.
+7. Write comprehensive backend tests.
+8. Run `build:test`, lint, tests, and live checks.
 
-Work in dependency order: finish the database design and prepare it; finish the API structures; implement the backend and every operation; generate the SDK only after the API is stable; then write comprehensive backend tests. Run the relevant package command after each completed group, not after individual files. Finish with backend lint, tests, and live checks.
+Run commands after completed groups, not after individual files.

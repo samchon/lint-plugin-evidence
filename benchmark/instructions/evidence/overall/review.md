@@ -1,7 +1,11 @@
 # Evidence Overall Review
 
-Perform a new whole-project Evidence review. Re-read every requirement and inspect every active claim from each host through its target and reason across the database, API, backend, generated SDK, frontend, tests, browser journeys, and live behavior.
+Perform a new whole-project Evidence review.
 
-Verify that every citation is true and specific, coverage is complete, exclusions are correct, and the implementation behind every edge is sound. Fix every defect at its owner, regenerate downstream output, and restart from the first active claim.
+1. Re-read every requirement.
+2. Inspect every active claim from each host through its target and reason.
+3. Trace the claims across the database, API, backend, generated SDK, frontend, tests, browser journeys, and live behavior.
+4. Verify coverage, citation truth, specificity, exclusions, and the implementation behind every edge.
+5. Run every project gate.
 
-Complete only when one full traversal needs no edits, Evidence reports no diagnostic, and all project gates pass.
+Fix every defect at its owner, regenerate downstream output, and restart at item 1. Complete only when one full traversal needs no edits, Evidence reports no diagnostic, and every gate passes.

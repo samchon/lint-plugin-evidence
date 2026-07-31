@@ -1,5 +1,13 @@
 # Evidence Frontend Start
 
-Build the complete frontend against the gated SDK. Cover every required route, session, state transition, form, list, error path, responsive screen, browser journey, and live-backend interaction. Add truthful Evidence annotations as real claim hosts appear.
+Build the complete frontend against the gated SDK.
 
-Use frontend-scoped commands. If frontend work proves a backend defect, fix the backend owner, regenerate affected output in dependency order, and rerun the complete backend gate.
+1. Inventory every required user journey.
+2. Implement routes, sessions, and state transitions.
+3. Implement forms, lists, errors, and responsive screens.
+4. Implement SDK integration and live-backend behavior.
+5. Add truthful Evidence annotations as real claim hosts appear.
+6. Implement and run browser journeys.
+7. Run every frontend gate.
+
+Use frontend-scoped commands. If frontend work proves a backend defect, fix the backend owner, regenerate affected output, and rerun the complete backend gate.
