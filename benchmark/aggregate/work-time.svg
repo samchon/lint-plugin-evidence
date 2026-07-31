@@ -22,21 +22,21 @@
 <text x="32" y="167" class="stage">Stage: backend-final</text>
 <rect x="430" y="137" width="620" height="28" rx="4" class="track"/>
 <rect x="430" y="137" width="620" height="28" rx="4" fill="#4c78a8"/>
-<text x="1068" y="157" class="value">1h 48m</text>
+<text x="1068" y="157" class="value">1h 49m</text>
 <text x="32" y="200" class="label">GPT-5.6-Luna · Todo Evidence · running</text>
 <text x="32" y="219" class="stage">Stage: frontend-start</text>
 <rect x="430" y="189" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="189" width="561" height="28" rx="4" fill="#f58518"/>
-<text x="1068" y="209" class="value">1h 38m</text>
+<rect x="430" y="189" width="585" height="28" rx="4" fill="#f58518"/>
+<text x="1068" y="209" class="value">1h 43m</text>
 <text x="32" y="252" class="label">GPT-5.6-Luna · Reddit Plain · interrupted</text>
 <text x="32" y="271" class="stage">Stage: backend-final</text>
 <rect x="430" y="241" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="241" width="481" height="28" rx="4" fill="#4c78a8"/>
+<rect x="430" y="241" width="476" height="28" rx="4" fill="#4c78a8"/>
 <text x="1068" y="261" class="value">1h 24m</text>
 <text x="32" y="304" class="label">GPT-5.6-Luna · Reddit Evidence · running</text>
 <text x="32" y="323" class="stage">Stage: backend-start</text>
 <rect x="430" y="293" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="293" width="596" height="28" rx="4" fill="#f58518"/>
-<text x="1068" y="313" class="value">1h 44m</text>
-<text x="32" y="358" class="generated">Generated 2026-07-31T19:56:56.989Z</text>
+<rect x="430" y="293" width="619" height="28" rx="4" fill="#f58518"/>
+<text x="1068" y="313" class="value">1h 49m</text>
+<text x="32" y="358" class="generated">Generated 2026-07-31T20:02:22.780Z</text>
 </svg>

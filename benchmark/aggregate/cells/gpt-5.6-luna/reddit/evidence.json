@@ -9,9 +9,9 @@
   "status": "running",
   "stage": "backend-start",
   "launchedAt": "2026-07-31T18:09:03.553Z",
-  "tokens": 66626222,
-  "workElapsedMs": 6226833.3006,
-  "wallElapsedMs": 6473436,
+  "tokens": 71699377,
+  "workElapsedMs": 6545902.1962,
+  "wallElapsedMs": 6799227,
   "worktree": {
     "files": 47,
     "additions": 7953,
@@ -20,8 +20,8 @@
   "stages": [
     {
       "name": "backend-start",
-      "tokens": 66626222,
-      "elapsedMs": 6226833.3006,
+      "tokens": 71699377,
+      "elapsedMs": 6545902.1962,
       "tokenPercent": 100,
       "timePercent": 100
     }
