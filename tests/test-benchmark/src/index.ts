@@ -9,7 +9,7 @@ import type { IEvidenceBenchmarkOutput } from "../../../benchmark/src/structures
 import type { IEvidenceBenchmarkRunState } from "../../../benchmark/src/structures/IEvidenceBenchmarkRunState.ts";
 import type { IEvidenceBenchmarkTokenUsage } from "../../../benchmark/src/structures/IEvidenceBenchmarkTokenUsage.ts";
 
-const ENTRIES = [
+const EVIDENCE_ENTRIES = [
   ["skills-contract", "evidence/skills-contract.md"],
   ["backend-start", "evidence/backend/start.md"],
   ["backend-review", "evidence/backend/review.md"],
@@ -21,12 +21,26 @@ const ENTRIES = [
   ["overall-final", "evidence/overall/final.md"],
 ] as const;
 
+const PLAIN_ENTRIES = [
+  ["skills-contract", "plain/skills-contract.md"],
+  ["backend-start", "plain/backend/start.md"],
+  ["backend-review", "plain/backend/review.md"],
+  ["backend-final", "plain/backend/final.md"],
+  ["frontend-start", "plain/frontend/start.md"],
+  ["frontend-review", "plain/frontend/review.md"],
+  ["frontend-final", "plain/frontend/final.md"],
+  ["overall-review", "plain/overall/review.md"],
+  ["overall-final", "plain/overall/final.md"],
+] as const;
+
+const ENTRIES = EVIDENCE_ENTRIES;
+
 /**
  * Verifies the small production runner against a free app-server fixture.
  *
- * Each prescribed instruction and the shared continuation become one active
- * Goal. Native Goal, turn, token, process, and raw-stream facts are recorded;
- * the runner performs no workspace judgment.
+ * Each prescribed instruction and its arm-owned continuation become one
+ * active Goal. Native Goal, turn, token, process, and raw-stream facts are
+ * recorded; the runner performs no workspace judgment.
  *
  * 1. Complete every prescribed Goal through one fake app-server process.
  * 2. Assert exact text, automatic progression, token deltas, and raw records.
@@ -40,6 +54,39 @@ const main = async (): Promise<void> => {
   );
   try {
     const sources: Map<string, Buffer> = writeInstructions(root);
+    assert.deepEqual(
+      EvidenceBenchmarkRunner.instructionEntries("evidence"),
+      EVIDENCE_ENTRIES,
+    );
+    assert.deepEqual(
+      EvidenceBenchmarkRunner.instructionEntries("plain"),
+      PLAIN_ENTRIES,
+    );
+    assert.equal(
+      EvidenceBenchmarkRunner.instructionContinuationPath("evidence"),
+      "evidence/continue.md",
+    );
+    assert.equal(
+      EvidenceBenchmarkRunner.instructionContinuationPath("plain"),
+      "plain/continue.md",
+    );
+    const evidencePaths: Set<string> = new Set(
+      EVIDENCE_ENTRIES.map((entry) => entry[1]),
+    );
+    assert.equal(
+      PLAIN_ENTRIES.some((entry) => evidencePaths.has(entry[1])),
+      false,
+    );
+    PLAIN_ENTRIES.forEach((entry, index) =>
+      assert.notDeepEqual(
+        sources.get(entry[1]),
+        sources.get(EVIDENCE_ENTRIES[index]![1]),
+      ),
+    );
+    assert.notDeepEqual(
+      sources.get("plain/continue.md"),
+      sources.get("evidence/continue.md"),
+    );
     const prefix: string[] = [
       "--experimental-transform-types",
       import.meta.filename,
@@ -757,6 +804,12 @@ const writeInstructions = (root: string): Map<string, Buffer> => {
   ]);
   ENTRIES.forEach(([name, relative]) =>
     sources.set(relative, Buffer.from(`# ${name}\r\n\r\nExecute exactly.\r\n`)),
+  );
+  PLAIN_ENTRIES.forEach(([name, relative]) =>
+    sources.set(
+      relative,
+      Buffer.from(`# Plain ${name}\r\n\r\nExecute only Plain.\r\n`),
+    ),
   );
   for (const [relative, source] of sources) {
     const location: string = path.join(root, ...relative.split("/"));

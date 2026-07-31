@@ -48,17 +48,17 @@ One native session receives exactly nine objectives:
 
 | Step | Objective | Evidence | Plain |
 | --: | --- | --- | --- |
-| 1 | Skills contract | `instructions/skills-contract.md` | same |
-| 2 | Backend start | `instructions/backend/start.md` | same |
-| 3 | Backend review | `instructions/backend/review.md` | same |
-| 4 | Backend final | `instructions/backend/evidence-final.md` | `instructions/backend/plain-final.md` |
-| 5 | Frontend start | `instructions/frontend/start.md` | same |
-| 6 | Frontend review | `instructions/frontend/review.md` | same |
-| 7 | Frontend final | `instructions/frontend/evidence-final.md` | `instructions/frontend/plain-final.md` |
-| 8 | Overall review | `instructions/overall/review.md` | same |
-| 9 | Overall final | `instructions/overall/evidence-final.md` | `instructions/overall/plain-final.md` |
+| 1 | Skills contract | `instructions/evidence/skills-contract.md` | `instructions/plain/skills-contract.md` |
+| 2 | Backend start | `instructions/evidence/backend/start.md` | `instructions/plain/backend/start.md` |
+| 3 | Backend review | `instructions/evidence/backend/review.md` | `instructions/plain/backend/review.md` |
+| 4 | Backend final | `instructions/evidence/backend/final.md` | `instructions/plain/backend/final.md` |
+| 5 | Frontend start | `instructions/evidence/frontend/start.md` | `instructions/plain/frontend/start.md` |
+| 6 | Frontend review | `instructions/evidence/frontend/review.md` | `instructions/plain/frontend/review.md` |
+| 7 | Frontend final | `instructions/evidence/frontend/final.md` | `instructions/plain/frontend/final.md` |
+| 8 | Overall review | `instructions/evidence/overall/review.md` | `instructions/plain/overall/review.md` |
+| 9 | Overall final | `instructions/evidence/overall/final.md` | `instructions/plain/overall/final.md` |
 
-At each step, the runner joins that file with `instructions/continue.md` once and records the exact objective. Do not add operator prose.
+At each step, the runner joins that file with the same arm's `instructions/<arm>/continue.md` once and records the exact objective. The arms share no runtime instruction bytes. Do not add operator prose.
 
 Codex advances after the retained Goal completes, its terminal turn completes, and the thread becomes idle.
 
