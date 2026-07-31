@@ -9,9 +9,9 @@
   "status": "running",
   "stage": "backend-final",
   "launchedAt": "2026-07-31T18:09:03.414Z",
-  "tokens": 67133644,
-  "workElapsedMs": 4472813.0425,
-  "wallElapsedMs": 4473979,
+  "tokens": 69621314,
+  "workElapsedMs": 4636937.7402,
+  "wallElapsedMs": 4638142,
   "worktree": {
     "files": 42,
     "additions": 5875,
@@ -22,22 +22,22 @@
       "name": "backend-start",
       "tokens": 21679956,
       "elapsedMs": 2113000,
-      "tokenPercent": 32,
-      "timePercent": 47
+      "tokenPercent": 31,
+      "timePercent": 46
     },
     {
       "name": "backend-review",
       "tokens": 44565903,
       "elapsedMs": 2285000,
-      "tokenPercent": 66,
-      "timePercent": 51
+      "tokenPercent": 64,
+      "timePercent": 49
     },
     {
       "name": "backend-final",
-      "tokens": 887785,
-      "elapsedMs": 74813.04250000045,
-      "tokenPercent": 1,
-      "timePercent": 2
+      "tokens": 3375455,
+      "elapsedMs": 238937.74019999988,
+      "tokenPercent": 5,
+      "timePercent": 5
     }
   ]
 }
