@@ -1,8 +1,6 @@
 # Backend Final
 
-Read `AGENTS.md` and every required document under `.agents/skills/review/` and `.agents/skills/campaign/` in full.
-
-This objective audits whether the preceding backend review was actually completed. Do not perform a substitute review or use searches, summaries, inventories, builds, tests, or Git status as proof.
+Did the preceding backend review actually perform the literal, indivisible, full-scope reading required by its instruction? This objective audits only that question. Do not perform a substitute review or use searches, summaries, inventories, builds, tests, or Git status as proof.
 
 If any condition below is unproven, return to the preceding backend review objective and continue it. Complete only when every condition is proven.
 
