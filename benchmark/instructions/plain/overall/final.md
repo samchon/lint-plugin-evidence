@@ -1,16 +1,9 @@
 # Overall Final
 
-Did the preceding overall review actually perform the literal, indivisible, full-scope reading required by its instruction? Do not perform a substitute review or use searches, summaries, inventories, builds, tests, or Git status as proof.
+Did the preceding Overall Review actually complete its **review loop until dry**: literal full-scope rounds repeated without exception or limit until one entire round found no problem and made no edit?
 
-If any condition below is unproven, return to the preceding overall review objective and continue it. Complete only when every condition is proven.
+Use the preceding completion report and `.wiki/reviews/overall.md` to answer. Do not redo the review, edit a file, or substitute builds and tests for it. If completion is unproven, report exactly what is unproven and remain active without marking this Goal complete.
 
-Ensure backend `pnpm check:watch`, backend `pnpm dev`, and frontend `pnpm dev` are running and report clean current builds. Run `pnpm test` from `packages/backend`, then run `pnpm test:e2e` from `packages/frontend` with `VITE_API_SIMULATE=false`. Clean builds and passing live runtime suites are required but are not proof of the review.
+Ensure backend `pnpm check:watch`, backend `pnpm dev`, and frontend `pnpm dev` are running and clean. Run `pnpm test` from `packages/backend`, then run `pnpm test:e2e` from `packages/frontend` with `VITE_API_SIMULATE=false`. These gates are required but do not prove the review loop.
 
-| Verify | Required result |
-| --- | --- |
-| Scope | One review round covered the complete review table without partitioning |
-| Direct reading | Every file in scope was actually read in full |
-| Corrections | Every discovered problem was corrected |
-| Restart | Every correction restarted the complete review from the beginning |
-| Final round | The last full-scope round occurred after the final correction |
-| Completion | The last round omitted nothing, found no problem, and made no edit |
+The exact Overall Review instruction is quoted below.

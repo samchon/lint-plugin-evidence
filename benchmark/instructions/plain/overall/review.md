@@ -1,20 +1,18 @@
 # Overall Review
 
-Before reviewing, read `AGENTS.md` and every required document under `.agents/skills/review/` and `.agents/skills/campaign/` in full. Obey them throughout this objective.
+Read `AGENTS.md`, `.agents/skills/review/SKILL.md`, and every detailed procedure under `.agents/skills/review/` in full before reviewing.
 
-Review the complete application by reading the current files and live behavior yourself.
+Review the complete application and every cross-layer relationship. Perform a literal **review loop until dry**:
 
-Full reading is literal: open and read every file in the complete review scope. Never replace it with searches, summaries, inventories, build results, or previous reviews.
+1. Read every requirement in full and propagate each one through the database, API, backend, frontend, and tests.
+2. Read the database, API, backend, frontend, and tests in full. Compare every adjacent layer in both directions and trace every artifact backward to its requirement.
+3. Trace every required user journey from requirement through persistence and API behavior to the live screen and browser proof, then trace it backward.
+4. Finish the full round and record every finding as the Review skill requires. Fix every recorded finding and consequence, then wait for clean backend `pnpm check:watch`, backend `pnpm dev`, and frontend `pnpm dev` processes.
+5. Start the next round from the first requirement. Repeat without a round limit until one full round finds no problem and makes no edit.
 
-Every review round must cover the entire table below as one indivisible full reading. Never partition the scope between rounds or compose partial reviews into a result. If you find even one problem or omission, fix it and restart the complete table. Repeat full-scope rounds without any limit until one entire round has no omitted file, requirement, artifact, journey, or relation, finds no problem, and makes no edit.
+Review loop until dry is literal full reading and unlimited repetition, not a figure of speech. Never replace or shorten it with:
 
-Ensure backend `pnpm check:watch`, backend `pnpm dev`, and frontend `pnpm dev` are running. Fix every diagnostic any process reports and restart the complete review; complete only after both current builds are clean.
-
-| Read in full | Compare with |
-| --- | --- |
-| Requirements | Database, API, backend, frontend, and tests |
-| Database design | Requirements, API, backend behavior, and tests |
-| API controllers and DTOs | Requirements, database design, backend, frontend, and tests |
-| Backend source and tests | Requirements and API contracts |
-| Frontend source and browser tests | Requirements, API contracts, user journeys, and live behavior |
-| Every implemented artifact | The requirement or contract that justifies it |
+- searches, summaries, inventories, builds, tests, samples, partial layer reviews, or earlier rounds;
+- splitting the scope across rounds or assigning different files, layers, requirements, journeys, or review lenses to different rounds; every round must cover the entire scope;
+- a judgment that the review seems sufficient, efficient, comprehensive, repetitive, expensive, or unlikely to find more; or
+- an expectation that the later Final objective will finish or repeat the review.

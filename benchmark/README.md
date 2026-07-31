@@ -44,7 +44,7 @@ One native session receives these eight instructions in order:
 | Overall review | `instructions/evidence/overall/review.md` | `instructions/plain/overall/review.md` |
 | Overall final | `instructions/evidence/overall/final.md` | `instructions/plain/overall/final.md` |
 
-For each step, the runner combines the prescribed instruction and that arm's `instructions/<arm>/continue.md` once as the objective. No runtime instruction bytes are shared across arms.
+For each Final step, the runner appends the matching Review instruction as a Markdown blockquote at the bottom of the prescribed instruction. It then combines the prescribed instruction and that arm's `instructions/<arm>/continue.md` once as the objective. No runtime instruction bytes are shared across arms.
 
 Codex receives each objective as a native Goal in one app-server thread. It advances after Goal completion, terminal-turn completion, and an idle thread.
 

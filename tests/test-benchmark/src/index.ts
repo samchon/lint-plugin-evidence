@@ -204,7 +204,7 @@ const main = async (): Promise<void> => {
     );
     completed.goals.forEach((goal, index) => {
       const [name, relative] = ENTRIES[index]!;
-      const prescribed: string = sources.get(relative)!.toString("utf8");
+      const prescribed: string = readPrescribed(sources, relative);
       const continuation: string = sources
         .get("evidence/continue.md")!
         .toString("utf8");
@@ -237,6 +237,30 @@ const main = async (): Promise<void> => {
       reasoningOutputTokens: ENTRIES.length * 3,
     } satisfies IEvidenceBenchmarkTokenUsage);
     assert.equal(snapshots.at(-1)?.status, "completed");
+
+    const plain = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("plain"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(plain.status, "completed");
+    plain.goals.forEach((goal, index) => {
+      const entry = PLAIN_ENTRIES[index]!;
+      const prescribed: string = readPrescribed(sources, entry[1]);
+      const continuation: string = sources
+        .get("plain/continue.md")!
+        .toString("utf8");
+      assert.equal(goal.relativePath, entry[1]);
+      assert.equal(goal.prescribedText, prescribed);
+      assert.equal(goal.continuationText, continuation);
+      assert.equal(goal.objectiveText, `${prescribed}\n\n${continuation}`);
+      assert.equal(goal.goal?.objective, goal.objectiveText);
+    });
 
     const forcedCleanup = await EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("evidence"),
@@ -1010,17 +1034,34 @@ const readObjective = (
   sources: ReadonlyMap<string, Buffer>,
   entry: (typeof ENTRIES)[number],
 ): string => {
-  const prescribed: Buffer | undefined = sources.get(entry[1]);
+  const prescribed: string = readPrescribed(sources, entry[1]);
   const continuation: Buffer | undefined = sources.get("evidence/continue.md");
-  assert.ok(
-    prescribed,
-    `Missing fixture source: ${path.join(root, ...entry[1].split("/"))}`,
-  );
   assert.ok(
     continuation,
     `Missing fixture source: ${path.join(root, "evidence/continue.md")}`,
   );
-  return `${prescribed.toString("utf8")}\n\n${continuation.toString("utf8")}`;
+  return `${prescribed}\n\n${continuation.toString("utf8")}`;
+};
+
+const readPrescribed = (
+  sources: ReadonlyMap<string, Buffer>,
+  relativePath: string,
+): string => {
+  const source: Buffer | undefined = sources.get(relativePath);
+  assert.ok(source, `Missing fixture source: ${relativePath}`);
+  const prescribed: string = source.toString("utf8");
+  if (!relativePath.endsWith("/final.md")) return prescribed;
+  const reviewPath: string = relativePath.replace(
+    /\/final\.md$/u,
+    "/review.md",
+  );
+  const review: Buffer | undefined = sources.get(reviewPath);
+  assert.ok(review, `Missing fixture source: ${reviewPath}`);
+  const lines: string[] = review.toString("utf8").split(/\r\n|\n|\r/u);
+  if (lines.at(-1) === "") lines.pop();
+  const quote: string = lines.map((line) => `> ${line}`).join("\n");
+  const separator: string = prescribed.endsWith("\n") ? "\n" : "\n\n";
+  return `${prescribed}${separator}${quote}`;
 };
 
 const fakeAppServer = (): void => {

@@ -51,13 +51,8 @@ const main = async (): Promise<void> => {
       "template",
       "plain",
     );
-    fs.mkdirSync(path.join(plainOverlay, ".agents", "skills", "campaign"), {
-      recursive: true,
-    });
-    fs.writeFileSync(
-      path.join(plainOverlay, ".agents", "skills", "campaign", "SKILL.md"),
-      "# Plain campaign\n",
-    );
+    fs.mkdirSync(plainOverlay, { recursive: true });
+    fs.writeFileSync(path.join(plainOverlay, "plain-only.txt"), "plain\n");
     const evidenceOverlay: string = path.join(
       repository,
       "benchmark",
@@ -141,16 +136,8 @@ const main = async (): Promise<void> => {
     assert.equal(fs.existsSync(prepared.workspace), true);
     assert.equal(fs.existsSync(path.join(prepared.workspace, ".git")), true);
     assert.equal(
-      fs.existsSync(
-        path.join(
-          prepared.workspace,
-          ".agents",
-          "skills",
-          "campaign",
-          "SKILL.md",
-        ),
-      ),
-      true,
+      fs.readFileSync(path.join(prepared.workspace, "plain-only.txt"), "utf8"),
+      "plain\n",
     );
     assert.equal(
       fs.existsSync(
@@ -229,15 +216,7 @@ const main = async (): Promise<void> => {
       true,
     );
     assert.equal(
-      fs.existsSync(
-        path.join(
-          evidence.workspace,
-          ".agents",
-          "skills",
-          "campaign",
-          "SKILL.md",
-        ),
-      ),
+      fs.existsSync(path.join(evidence.workspace, "plain-only.txt")),
       false,
     );
     assert.deepEqual(

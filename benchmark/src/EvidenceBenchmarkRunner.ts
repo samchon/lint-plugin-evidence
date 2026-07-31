@@ -87,9 +87,9 @@ export namespace EvidenceBenchmarkRunner {
       const entry = entries[state.nextInstructionIndex];
       if (entry === undefined)
         throw new Error("Instruction cursor is invalid.");
-      const prescribedText: string = fs.readFileSync(
-        path.join(props.instructionsRoot, ...entry[1].split("/")),
-        "utf8",
+      const prescribedText: string = readPrescribedText(
+        props.instructionsRoot,
+        entry[1],
       );
       const continuationText: string = fs.readFileSync(
         path.join(
@@ -969,6 +969,39 @@ export namespace EvidenceBenchmarkRunner {
     arm: EvidenceBenchmarkArm,
   ): string {
     return `${arm}/continue.md`;
+  }
+
+  /**
+   * Reads one instruction and quotes its matching Review at the end of a Final.
+   *
+   * The quote gives Final the exact review contract it must verify without
+   * duplicating that contract across two authored instruction files.
+   */
+  function readPrescribedText(
+    instructionsRoot: string,
+    relativePath: string,
+  ): string {
+    const prescribedText: string = fs.readFileSync(
+      path.join(instructionsRoot, ...relativePath.split("/")),
+      "utf8",
+    );
+    if (!relativePath.endsWith("/final.md")) return prescribedText;
+    const reviewPath: string = relativePath.replace(
+      /\/final\.md$/u,
+      "/review.md",
+    );
+    const reviewText: string = fs.readFileSync(
+      path.join(instructionsRoot, ...reviewPath.split("/")),
+      "utf8",
+    );
+    const separator: string = prescribedText.endsWith("\n") ? "\n" : "\n\n";
+    return `${prescribedText}${separator}${quoteMarkdown(reviewText)}`;
+  }
+
+  function quoteMarkdown(text: string): string {
+    const lines: string[] = text.split(/\r\n|\n|\r/u);
+    if (lines.at(-1) === "") lines.pop();
+    return lines.map((line) => `> ${line}`).join("\n");
   }
 
   function validateCompletedState(
