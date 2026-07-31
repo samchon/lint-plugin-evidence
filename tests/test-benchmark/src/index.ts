@@ -189,12 +189,12 @@ const main = async (): Promise<void> => {
       } satisfies IEvidenceBenchmarkTokenUsage);
     });
     assert.deepEqual(completed.threadTokenUsage, {
-      totalTokens: 90,
-      inputTokens: 54,
-      cachedInputTokens: 18,
-      cacheWriteInputTokens: 9,
-      outputTokens: 36,
-      reasoningOutputTokens: 27,
+      totalTokens: ENTRIES.length * 10,
+      inputTokens: ENTRIES.length * 6,
+      cachedInputTokens: ENTRIES.length * 2,
+      cacheWriteInputTokens: ENTRIES.length,
+      outputTokens: ENTRIES.length * 4,
+      reasoningOutputTokens: ENTRIES.length * 3,
     } satisfies IEvidenceBenchmarkTokenUsage);
     assert.equal(snapshots.at(-1)?.status, "completed");
 

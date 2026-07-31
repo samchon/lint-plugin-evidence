@@ -57,6 +57,33 @@ func TestMarkdownClaimWithoutItsSelectedHeadingIsInactive(t *testing.T) {
 	}]}`))
 }
 
+/**
+ * Verifies the first selected Markdown heading activates its claim.
+ *
+ * The inactive twins above prove file matching alone is insufficient. Adding
+ * one H2 host must restore the existing reference obligation without changing
+ * the claim configuration.
+ *
+ *  1. Match one Markdown file containing the selected H2 host.
+ *  2. Materialize one unacknowledged Markdown heading.
+ *  3. Assert the selected heading activates missing-acknowledgement coverage.
+ */
+func TestFirstSelectedMarkdownHeadingActivatesCoverage(t *testing.T) {
+	assertProblemContains(t, runIndexRule(t, map[string]string{
+		"docs/claim.md":     "## Contract\n",
+		"docs/reference.md": "## Requirement\n",
+	}, `{"claims":[{
+		"type":"markdown",
+		"files":["docs/claim.md"],
+		"symbol":"h2",
+		"reference":{
+			"type":"markdown",
+			"files":["docs/reference.md"],
+			"symbol":"h2"
+		}
+	}]}`), "Missing acknowledgement")
+}
+
 const emptyPrismaScaffold = `generator client {
   provider     = "prisma-client"
   output       = "../../src/prisma"
@@ -78,15 +105,17 @@ generator markdown {
  *
  * `prisma/schema/main.prisma` is a real matched schema file but its generator
  * and datasource blocks materialize no `model` unit. The fixture reproduces
- * the benchmark scaffold exactly and supplies the empty loader result that its
- * model population produces.
+ * the benchmark scaffold exactly and drives the real Prisma loader so a fake
+ * empty inventory cannot make the test pass.
  *
  *  1. Match the exact model-free benchmark scaffold path and contents.
- *  2. Apply a model claim to the resulting healthy empty inventory.
- *  3. Assert the Prisma claim is removed before reference loading.
+ *  2. Apply a model claim with an unreadable Markdown reference behind it.
+ *  3. Assert the real loader leaves the zero-model claim inactive and silent.
  */
 func TestPrismaClaimWithOnlyTheBenchmarkScaffoldIsInactive(t *testing.T) {
-	root := t.TempDir()
+	root := prismaBridgeRoot(t, map[string]string{
+		"prisma/schema/main.prisma": emptyPrismaScaffold,
+	})
 	config := decodeInventoryConfig(t, root, `{"claims":[{
 		"type":"prisma",
 		"files":["prisma/schema/**/*.prisma"],
@@ -98,25 +127,57 @@ func TestPrismaClaimWithOnlyTheBenchmarkScaffoldIsInactive(t *testing.T) {
 			"symbol":"h2"
 		}
 	}]}`)
-	address := config.Claims[0].Base.addressOf("prisma/schema/main.prisma")
-	_ = scanPrismaFile(
-		address.Display,
-		emptyPrismaScaffold,
-		map[string]prismaLocation{},
-	)
-	inventory := &artifactInventory{
-		Address: address.Key,
-		Path:    address.Display,
-		Type:    artifactPrisma,
+	inventories, problems := loadPrismaInventories(root, config)
+	if len(problems) != 0 {
+		t.Fatalf("the benchmark Prisma scaffold must load cleanly: %v", problems)
 	}
 	active := activeGraphConfig(
 		config,
 		map[string]*artifactInventory{},
-		map[string]*artifactInventory{address.Key: inventory},
+		inventories,
 		map[string]*artifactInventory{},
 	)
 	if len(active.Claims) != 0 {
 		t.Fatal("a matched Prisma scaffold with no selected model must be inactive")
+	}
+}
+
+/**
+ * Verifies the first selected Prisma model activates its claim.
+ *
+ * A generator-only scaffold is inactive, but adding one model must restore the
+ * configured Markdown coverage obligation without any lint-config toggle.
+ *
+ *  1. Match one Prisma file containing a selected model.
+ *  2. Apply the activation filter to the real loaded inventory.
+ *  3. Assert the selected model keeps the claim active.
+ */
+func TestFirstSelectedPrismaModelActivatesCoverage(t *testing.T) {
+	root := prismaBridgeRoot(t, map[string]string{
+		"prisma/schema/model.prisma": "model target {\n  id String @id\n}\n",
+	})
+	config := decodeInventoryConfig(t, root, `{"claims":[{
+		"type":"prisma",
+		"files":["prisma/schema/**/*.prisma"],
+		"symbol":"model",
+		"reference":{
+			"type":"markdown",
+			"files":["docs/**/*.md"],
+			"symbol":"h2"
+		}
+	}]}`)
+	inventories, problems := loadPrismaInventories(root, config)
+	if len(problems) != 0 {
+		t.Fatalf("the Prisma model must load cleanly: %v", problems)
+	}
+	active := activeGraphConfig(
+		config,
+		map[string]*artifactInventory{},
+		inventories,
+		map[string]*artifactInventory{},
+	)
+	if len(active.Claims) != 1 {
+		t.Fatal("the first selected Prisma model must activate its claim")
 	}
 }
 

@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import typia from "typia";
 
@@ -56,10 +57,10 @@ const EVIDENCE_BENCHMARK_PACKAGE_NAME = "@samchon/lint-plugin-evidence";
 
 const main = async (): Promise<void> => {
   const repository: string = path.resolve(import.meta.dirname, "../../..");
-  const options: IEvidenceBenchmarkArguments = parseArguments(
+  const options: IEvidenceBenchmarkArguments = parseEvidenceBenchmarkArguments(
     process.argv.slice(2),
   );
-  const runnerRevision: string = readBenchmarkRevision(repository);
+  const runnerRevision: string = readEvidenceBenchmarkRevision(repository);
   const requestedCell: IEvidenceBenchmarkCell = {
     engine: options.engine,
     subject: options.subject,
@@ -85,8 +86,12 @@ const main = async (): Promise<void> => {
       : typia.assert<IEvidenceBenchmarkStateFile>(
           JSON.parse(fs.readFileSync(path.join(output, "state.json"), "utf8")),
         );
-  const records: IEvidenceBenchmarkRecordPaths = recordPaths(output);
-  if (retained !== undefined && !sameRecordPaths(retained.records, records))
+  const records: IEvidenceBenchmarkRecordPaths =
+    evidenceBenchmarkRecordPaths(output);
+  if (
+    retained !== undefined &&
+    !sameEvidenceBenchmarkRecordPaths(retained.records, records)
+  )
     throw new Error("Retained benchmark record paths do not match the run.");
   const cell: IEvidenceBenchmarkCell = retained?.cell ?? requestedCell;
   if (
@@ -99,7 +104,11 @@ const main = async (): Promise<void> => {
   )
     throw new Error("Retained benchmark cell does not match the invocation.");
   if (retained !== undefined)
-    assertRecoveryRevision(repository, cell.benchmarkRevision, runnerRevision);
+    assertEvidenceBenchmarkRecoveryRevision(
+      repository,
+      cell.benchmarkRevision,
+      runnerRevision,
+    );
   if (
     retained !== undefined &&
     ((cell.arm === "evidence" &&
@@ -163,7 +172,12 @@ const main = async (): Promise<void> => {
       fs.rmSync(temporary, { recursive: true, force: true });
   }
 
-  if (!sameRecordPaths(records, recordPaths(prepared.root)))
+  if (
+    !sameEvidenceBenchmarkRecordPaths(
+      records,
+      evidenceBenchmarkRecordPaths(prepared.root),
+    )
+  )
     throw new Error("Prepared benchmark workspace has an invalid path.");
   initializeAppendOnly(records.events);
   initializeAppendOnly(records.raw);
@@ -251,7 +265,7 @@ const runBenchmark = async (
   }
 };
 
-const parseArguments = (
+export const parseEvidenceBenchmarkArguments = (
   input: readonly string[],
 ): IEvidenceBenchmarkArguments => {
   if (input.length < 5 || input.length > 6)
@@ -290,7 +304,7 @@ const parseArguments = (
   return { engine, subject, arm, model, effort, runId };
 };
 
-const readBenchmarkRevision = (repository: string): string => {
+export const readEvidenceBenchmarkRevision = (repository: string): string => {
   const status = spawnSync(
     "git",
     ["status", "--porcelain", "--untracked-files=all"],
@@ -317,7 +331,7 @@ const readBenchmarkRevision = (repository: string): string => {
   return value;
 };
 
-const assertRecoveryRevision = (
+export const assertEvidenceBenchmarkRecoveryRevision = (
   repository: string,
   benchmarkRevision: string,
   runnerRevision: string,
@@ -384,7 +398,9 @@ const initializeAppendOnly = (file: string): void => {
   fs.closeSync(descriptor);
 };
 
-const recordPaths = (root: string): IEvidenceBenchmarkRecordPaths => ({
+export const evidenceBenchmarkRecordPaths = (
+  root: string,
+): IEvidenceBenchmarkRecordPaths => ({
   root: path.resolve(root),
   workspace: path.join(path.resolve(root), "workspace"),
   state: path.join(path.resolve(root), "state.json"),
@@ -392,7 +408,7 @@ const recordPaths = (root: string): IEvidenceBenchmarkRecordPaths => ({
   raw: path.join(path.resolve(root), "raw.log"),
 });
 
-const sameRecordPaths = (
+export const sameEvidenceBenchmarkRecordPaths = (
   left: IEvidenceBenchmarkRecordPaths,
   right: IEvidenceBenchmarkRecordPaths,
 ): boolean => {
@@ -431,7 +447,11 @@ const replaceDurably = (file: string, content: string): void => {
   fs.renameSync(temporary, file);
 };
 
-main().catch((error: unknown) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (
+  process.argv[1] !== undefined &&
+  pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url
+)
+  main().catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  });

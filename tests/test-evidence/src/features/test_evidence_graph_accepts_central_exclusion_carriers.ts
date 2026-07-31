@@ -144,6 +144,7 @@ export const test_evidence_graph_accepts_central_exclusion_carriers =
           " * @evidenceExclude prisma:Sale This fixture intentionally exposes no sale operation.",
           " */",
           "export const CONTROLLER_EVIDENCE_EXCLUDE = true;",
+          "export function selectedController(): void {}",
           "",
         ].join("\n"),
         "src/structures/DTO_EVIDENCE_EXCLUDE.ts": [
@@ -154,6 +155,9 @@ export const test_evidence_graph_accepts_central_exclusion_carriers =
           " * @evidenceExclude prisma:Sale.id This fixture intentionally transports no sale id.",
           " */",
           "export const DTO_EVIDENCE_EXCLUDE = true;",
+          "export interface SelectedDto {",
+          "  id: string;",
+          "}",
           "",
         ].join("\n"),
         "src/contracts.ts": [
@@ -175,6 +179,7 @@ export const test_evidence_graph_accepts_central_exclusion_carriers =
           " * @evidenceExclude {@link IContract} This fixture intentionally validates no response type.",
           " */",
           "export const TEST_EVIDENCE_EXCLUDE = true;",
+          "export function selectedTest(): void {}",
           "",
         ].join("\n"),
       },
@@ -236,6 +241,7 @@ export const test_evidence_graph_accepts_central_exclusion_carriers =
         "src/CONTROLLER_EVIDENCE_EXCLUDE.ts": [
           "/** @evidence docs/contract.md#contract A property cannot own a function claim. */",
           "export const CONTROLLER_EVIDENCE_EXCLUDE = true;",
+          "export function selectedController(): void {}",
           "",
         ].join("\n"),
         "prisma/schema.prisma": [

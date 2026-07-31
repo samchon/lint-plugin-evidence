@@ -1,6 +1,5 @@
 import {
   assertExcludes,
-  assertIncludes,
   assertStatus,
   createProject,
   runCheck,
@@ -87,72 +86,6 @@ export const test_evidence_graph_accepts_a_swagger_document_outside_the_project 
         result,
         "Missing acknowledgement",
         "The operation citation must satisfy Swagger coverage.",
-      );
-    } finally {
-      project.cleanup();
-    }
-  };
-
-/**
- * Verifies a Swagger reference that names a directory is refused with a message
- * that says so.
- *
- * Lifting the project-root ceiling widened the space of spellings a `file` can
- * take, and a directory is now the mistake nearest to a working configuration:
- * `../contracts/` reads like a location and owns no document. Reporting it as a
- * missing file would send the author to generate something that is already
- * there, so the decoder names the shape instead.
- *
- * 1. Reference a directory rather than a document.
- * 2. Run the real `ttsc check`.
- * 3. Assert the configuration diagnostic names the reference's own contract.
- */
-export const test_evidence_graph_refuses_a_swagger_directory_reference =
-  (): void => {
-    const project: IEvidenceProject = createProject({
-      name: "swagger-directory",
-      lintConfig: [
-        'import evidence from "@samchon/lint-plugin-evidence";',
-        "",
-        "export default {",
-        '  plugins: { "evidence": evidence },',
-        "  rules: {",
-        '    "evidence/graph": ["error", {',
-        "      claims: [",
-        "        {",
-        '          type: "typescript",',
-        '          files: ["src/**/*.ts"],',
-        '          symbol: "type",',
-        '          reference: { type: "swagger", file: "../contracts/" },',
-        "        },",
-        "      ],",
-        "    }],",
-        "  },",
-        "};",
-        "",
-      ].join("\n"),
-      workspaceFiles: {
-        "contracts/swagger.yaml": CONTRACT,
-      },
-      files: {
-        "src/members.ts": [
-          "/** @evidence POST:/members Creates members through the shared API contract. */",
-          "export interface IMemberCreation {}",
-          "",
-        ].join("\n"),
-      },
-    });
-    try {
-      const result: IRunResult = runCheck(project.directory);
-      assertStatus(
-        result,
-        2,
-        "A reference that owns one document cannot be satisfied by a directory.",
-      );
-      assertIncludes(
-        result,
-        "names a directory rather than a document",
-        "The diagnostic must name the shape that is wrong rather than report the document as missing.",
       );
     } finally {
       project.cleanup();

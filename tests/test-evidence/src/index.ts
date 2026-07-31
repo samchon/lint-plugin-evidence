@@ -37,16 +37,30 @@ const main = async (): Promise<void> => {
     const module: Record<string, unknown> = await import(
       pathToFileURL(file).href
     );
-    for (const [name, value] of Object.entries(module)) {
-      if (!name.startsWith("test_") || typeof value !== "function") continue;
-      const started: number = Date.now();
-      try {
-        await (value as () => unknown | Promise<unknown>)();
-        console.log(`  - ${name}: ${Date.now() - started} ms`);
-      } catch (error) {
-        console.log(`  - ${name}: FAILED`);
-        failures.push(error as Error);
-      }
+    const tests: [string, () => unknown | Promise<unknown>][] = Object.entries(
+      module,
+    ).filter(
+      (entry): entry is [string, () => unknown | Promise<unknown>] =>
+        entry[0].startsWith("test_") && typeof entry[1] === "function",
+    );
+    const expected: string = path.basename(file, ".ts");
+    if (tests.length !== 1 || tests[0]?.[0] !== expected) {
+      failures.push(
+        new Error(
+          `${path.relative(directory, file)} must export exactly one test function named ${expected}; found ${tests.map(([name]) => name).join(", ") || "none"}.`,
+        ),
+      );
+      continue;
+    }
+
+    const [[name, test]] = tests;
+    const started: number = Date.now();
+    try {
+      await test();
+      console.log(`  - ${name}: ${Date.now() - started} ms`);
+    } catch (error) {
+      console.log(`  - ${name}: FAILED`);
+      failures.push(error as Error);
     }
   }
 

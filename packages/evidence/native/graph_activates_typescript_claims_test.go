@@ -192,43 +192,55 @@ func TestUnreadableTypeScriptClaimRootDoesNotBecomeInactive(t *testing.T) {
 }
 
 /**
- * Verifies activation filtering leaves non-TypeScript claim kinds unchanged.
+ * Verifies a function claim ignores an exported non-function variable.
  *
- * Markdown and Prisma claims already have established empty-population
- * diagnostics and loaders. The new host gate belongs only to TypeScript, even
- * when another claim currently has no materialized unit.
+ * Matching a TypeScript file or any exported declaration is insufficient.
+ * The own population must contain the symbol kind selected by the claim, so a
+ * scalar `const` cannot activate a function obligation.
  *
- *  1. Configure one Markdown and one Prisma claim.
- *  2. Apply the TypeScript activation filter with no TypeScript inventory.
- *  3. Assert both original claims remain active.
+ *  1. Export one scalar variable from a matched TypeScript file.
+ *  2. Select only function hosts and configure an unreadable reference root.
+ *  3. Assert the healthy zero-function claim remains inactive and silent.
  */
-func TestTypeScriptActivationDoesNotFilterMarkdownOrPrismaClaims(t *testing.T) {
-	root := t.TempDir()
-	config := decodeInventoryConfig(t, root, `{"claims":[
-		{
+func TestFunctionClaimIgnoresExportedNonFunctionVariable(t *testing.T) {
+	assertNoProblems(t, runIndexRule(t, map[string]string{
+		"src/value.ts": "export const value = 1;\n",
+	}, `{"claims":[{
+		"type":"typescript",
+		"files":["src/**/*.ts"],
+		"symbol":"function",
+		"reference":{
+			"type":"markdown",
+			"root":"missing-docs",
+			"files":["**/*.md"],
+			"symbol":"h2"
+		}
+	}]}`))
+}
+
+/**
+ * Verifies an exported callable variable activates a function claim.
+ *
+ * The negative twin above proves ordinary exported data stays outside the
+ * function population. Replacing only its initializer with an arrow function
+ * must open the existing obligation without a configuration change.
+ *
+ *  1. Export one arrow-function variable from a matched TypeScript file.
+ *  2. Materialize one unacknowledged Markdown heading.
+ *  3. Assert the selected callable activates missing-acknowledgement coverage.
+ */
+func TestCallableVariableActivatesFunctionClaim(t *testing.T) {
+	assertProblemContains(t, runIndexRule(t, map[string]string{
+		"docs/spec.md": "## Contract\n",
+		"src/run.ts":   "export const run = (): void => {};\n",
+	}, `{"claims":[{
+		"type":"typescript",
+		"files":["src/**/*.ts"],
+		"symbol":"function",
+		"reference":{
 			"type":"markdown",
 			"files":["docs/**/*.md"],
-			"symbol":"h2",
-			"reference":{"type":"prisma","files":["prisma/**/*.prisma"],"symbol":"model"}
-		},
-		{
-			"type":"prisma",
-			"files":["prisma/**/*.prisma"],
-			"symbol":"model",
-			"reference":{"type":"markdown","files":["docs/**/*.md"],"symbol":"h2"}
+			"symbol":"h2"
 		}
-	]}`)
-	active := activeGraphConfig(
-		config,
-		map[string]*artifactInventory{},
-		map[string]*artifactInventory{},
-		map[string]*artifactInventory{},
-	)
-	if len(active.Claims) != len(config.Claims) {
-		t.Fatalf(
-			"TypeScript activation changed non-TypeScript claims: got %d, want %d",
-			len(active.Claims),
-			len(config.Claims),
-		)
-	}
+	}]}`), "Missing acknowledgement for 'docs/spec.md#contract'")
 }

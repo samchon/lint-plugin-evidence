@@ -134,18 +134,17 @@ func TestGlobRejectsWindowsDrivePaths(t *testing.T) {
 }
 
 /**
- * Verifies empty glob matches: a claim or reference population that selects no
- * files produces a direct configuration diagnostic instead of vacuous success.
+ * Verifies empty glob matches respect claim activation and reference health.
  *
- * An empty match is indistinguishable from a typo unless the rule says which
- * population failed. The claim and reference cases are separate because each
- * has a different repair boundary.
+ * A healthy claim with no selected host is inactive, including when its glob
+ * matches no file. An active claim's empty reference is different: the host
+ * exists and its configured proof population must therefore diagnose emptiness.
  *
- *  1. Point a claim glob at no TypeScript file.
- *  2. Point a reference glob at no Markdown file.
- *  3. Assert both populations report their own empty match.
+ *  1. Point one claim glob at no TypeScript file and require silence.
+ *  2. Activate its twin with one selected export and match no reference file.
+ *  3. Assert only the active claim reports its empty reference population.
  */
-func TestGlobEmptyMatchesReportClaimAndReferencePopulation(t *testing.T) {
+func TestGlobEmptyClaimIsInactiveWhileEmptyReferenceReports(t *testing.T) {
 	claimMessages := runIndexRule(t, map[string]string{
 		"docs/spec.md": "## Spec",
 	}, `{"claims":[{
@@ -153,7 +152,7 @@ func TestGlobEmptyMatchesReportClaimAndReferencePopulation(t *testing.T) {
 		"files":["src/**/*.ts"],
 		"reference":{"type":"markdown","files":["docs/**/*.md"],"symbol":"h2"}
 	}]}`)
-	assertProblemContains(t, claimMessages, "Claim 1 matched no typescript files")
+	assertNoProblems(t, claimMessages)
 
 	referenceMessages := runIndexRule(t, map[string]string{
 		"src/ref.ts": "export interface Ref {}",
