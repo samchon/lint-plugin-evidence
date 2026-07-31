@@ -31,7 +31,7 @@ Fix a defect at its owner. A provider must not compensate for a missing column, 
 
 ## API Package Entry
 
-In this pnpm TypeScript monorepo, keep this exact split in `packages/api/package.json`:
+This pnpm TypeScript monorepo uses source files during development and build files when the package is packed or published. Keep this shape in `packages/api/package.json`:
 
 ```json
 {
@@ -52,9 +52,9 @@ In this pnpm TypeScript monorepo, keep this exact split in `packages/api/package
 }
 ```
 
-`main` and `exports` let pnpm workspace packages consume the same live TypeScript contract before publication. `publishConfig` replaces that root entry with compiled JavaScript and declarations only when the package is packed or published.
+`main` and `exports` point every workspace package to the current TypeScript source. `publishConfig` switches the same package root to compiled JavaScript and declarations when the package is packed or published.
 
-Redirecting the source entries makes local consumers depend on stale or missing build output. Adding a subpath export creates a second contract surface.
+If `main` or `exports` points to `lib`, local packages can read a missing or stale build. If another subpath is exported, the API package has two public entry points.
 
 ## Implementation Order
 
