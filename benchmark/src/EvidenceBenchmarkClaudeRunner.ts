@@ -23,7 +23,7 @@ import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm.ts";
  * nine processes retain the same Claude session, measurements, and exact
  * instruction boundary.
  */
-namespace EvidenceBenchmarkClaudeRunnerModule {
+export namespace EvidenceBenchmarkClaudeRunner {
   /**
    * Creates an empty Claude Code state with one retained native session ID.
    *
@@ -678,14 +678,3 @@ namespace EvidenceBenchmarkClaudeRunnerModule {
     return Number(process.hrtime.bigint() - started) / 1_000_000;
   }
 }
-
-/**
- * Executes and resumes the Claude Code sequence for one benchmark cell.
- *
- * The facade exposes only state creation and execution while native stream,
- * measurement, and recovery helpers remain private to this file.
- */
-export const EvidenceBenchmarkClaudeRunner = {
-  create: EvidenceBenchmarkClaudeRunnerModule.create,
-  run: EvidenceBenchmarkClaudeRunnerModule.run,
-} as const;

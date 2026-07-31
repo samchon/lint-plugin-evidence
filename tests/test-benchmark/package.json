@@ -5,7 +5,7 @@
   "description": "Deterministic benchmark runner contract test.",
   "type": "module",
   "scripts": {
-    "check": "ttsc --noEmit -p tsconfig.json",
+    "check": "tsc --noEmit -p tsconfig.json",
     "start": "ttsx --project tsconfig.json src/workspace.ts && ttsx --project tsconfig.json src/template.ts && ttsx --project tsconfig.json src/index.ts && ttsx --project tsconfig.json src/claude.ts"
   },
   "devDependencies": {

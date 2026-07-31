@@ -21,7 +21,7 @@ import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm.ts";
  * retaining native Goal, terminal-turn, idle, token, process, and raw-stream
  * boundaries without judging or editing the measured application.
  */
-namespace EvidenceBenchmarkRunnerModule {
+export namespace EvidenceBenchmarkRunner {
   /**
    * Creates an empty Codex state for the selected experiment arm.
    *
@@ -1048,16 +1048,3 @@ namespace EvidenceBenchmarkRunnerModule {
     return Number(process.hrtime.bigint() - started) / 1_000_000;
   }
 }
-
-/**
- * Executes and resumes the Codex Goal sequence for one benchmark cell.
- *
- * The facade exposes only the four operations needed by the command line and
- * Claude adapter while all protocol helpers remain private to this file.
- */
-export const EvidenceBenchmarkRunner = {
-  create: EvidenceBenchmarkRunnerModule.create,
-  instructionEntries: EvidenceBenchmarkRunnerModule.instructionEntries,
-  resolveExecutable: EvidenceBenchmarkRunnerModule.resolveExecutable,
-  run: EvidenceBenchmarkRunnerModule.run,
-} as const;

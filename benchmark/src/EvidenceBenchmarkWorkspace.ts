@@ -16,7 +16,7 @@ import type { IEvidenceBenchmarkWorkspaceVariables } from "./structures/IEvidenc
  * installs dependencies, commits the neutral baseline, and publishes the
  * workspace with one atomic rename.
  */
-namespace EvidenceBenchmarkWorkspaceModule {
+export namespace EvidenceBenchmarkWorkspace {
   /**
    * Builds and atomically publishes the prepared workspace for one cell.
    *
@@ -209,13 +209,3 @@ namespace EvidenceBenchmarkWorkspaceModule {
     });
   }
 }
-
-/**
- * Materializes the frozen workspace consumed by a measured benchmark cell.
- *
- * The single facade keeps staging, rendering, dependency installation, and
- * baseline commit details private to this file.
- */
-export const EvidenceBenchmarkWorkspace = {
-  prepareWorkspace: EvidenceBenchmarkWorkspaceModule.prepareWorkspace,
-} as const;

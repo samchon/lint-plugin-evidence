@@ -11,7 +11,7 @@
   },
   "scripts": {
     "start": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkCommandLine.ts",
-    "check": "ttsc --noEmit -p tsconfig.json"
+    "check": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
     "@types/node": "catalog:utils",
