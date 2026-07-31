@@ -190,4 +190,3 @@ func TestUnreadableTypeScriptClaimRootDoesNotBecomeInactive(t *testing.T) {
 		t.Fatal("an unreadable TypeScript root must remain active for its population diagnostic")
 	}
 }
-
