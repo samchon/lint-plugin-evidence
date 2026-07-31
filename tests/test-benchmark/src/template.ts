@@ -13,7 +13,7 @@ import { sanitizeBenchmarkEnvironment } from "../../../benchmark/src/sanitizeBen
  *
  * 1. Inspect every file that can be copied or prompted into a Plain cell.
  * 2. Reject Evidence-only tags, package names, graph terms, paths, and config.
- * 3. Verify database preparation remains an explicit non-install step.
+ * 3. Verify the disposable database and source-first API package contracts.
  */
 const main = (): void => {
   const repositoryRoot: string = path.resolve(import.meta.dirname, "../../..");
@@ -63,6 +63,28 @@ const main = (): void => {
       "utf8",
     ),
   ) as { scripts: Record<string, string> };
+  const apiPackage = JSON.parse(
+    fs.readFileSync(
+      path.join(
+        repositoryRoot,
+        "benchmark",
+        "template",
+        "base",
+        "packages",
+        "api",
+        "package.json",
+      ),
+      "utf8",
+    ),
+  ) as {
+    main: string;
+    exports: Record<string, string>;
+    publishConfig: {
+      main: string;
+      types: string;
+      exports: Record<string, { types: string; default: string }>;
+    };
+  };
   const compilerConfig = JSON.parse(
     fs.readFileSync(
       path.join(
@@ -78,14 +100,30 @@ const main = (): void => {
   ) as { compilerOptions: Record<string, unknown> };
 
   assert.equal(backendPackage.scripts.prepare, undefined);
+  assert.equal(backendPackage.scripts["prepare:database"], undefined);
+  assert.equal(workspacePackage.scripts["prepare:database"], undefined);
+  assert.equal(backendPackage.scripts["build:api"], undefined);
+  assert.equal(backendPackage.scripts.schema, "ttsx src/executable/schema.ts");
   assert.equal(
-    backendPackage.scripts["prepare:database"],
-    "prisma db push --schema=prisma/schema",
+    backendPackage.scripts["build:sdk"],
+    "nestia all && pnpm --dir ../api build",
   );
   assert.equal(
-    workspacePackage.scripts["prepare:database"],
-    "pnpm --filter {{backendPackageName}} --fail-if-no-match prepare:database",
+    workspacePackage.scripts["schema:database"],
+    "pnpm --filter {{backendPackageName}} --fail-if-no-match schema",
   );
+  assert.equal(apiPackage.main, "./src/index.ts");
+  assert.deepEqual(apiPackage.exports, { ".": "./src/index.ts" });
+  assert.deepEqual(apiPackage.publishConfig, {
+    main: "./lib/index.js",
+    types: "./lib/index.d.ts",
+    exports: {
+      ".": {
+        types: "./lib/index.d.ts",
+        default: "./lib/index.js",
+      },
+    },
+  });
   assert.equal(compilerConfig.compilerOptions.noErrorTruncation, true);
 
   assert.deepEqual(

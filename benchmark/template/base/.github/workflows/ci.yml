@@ -39,8 +39,8 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Prepare database
-        run: pnpm prepare:database
+      - name: Reset database
+        run: pnpm schema:database
 
       - name: Test backend
         run: pnpm test:backend

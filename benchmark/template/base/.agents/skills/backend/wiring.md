@@ -53,7 +53,7 @@ The frontend already has working defaults. Copy `packages/frontend/.env.example`
 
 The executable imports one class and calls one method. Parsing, orchestration, and setup live in the class, never in the entry point.
 
-Database preparation is a separate explicit step. `pnpm prepare:database` pushes the Prisma schema to the SQLite file without resetting existing data. `pnpm schema` enters the guarded `MySetupWizard` path and force-resets the local database. `MyBackend.open()` does neither.
+Database setup is a separate explicit step. `pnpm schema` enters the guarded `MySetupWizard` path and force-resets the disposable SQLite database. `MyBackend.open()` does not alter the schema.
 
 ## Database Errors Are Mapped At The Boundary, Once
 
@@ -85,7 +85,7 @@ Two generators produce code that the rest of the repository imports, and both re
 
 **Prisma** is configured in two places, and the split is not optional. `main.prisma` declares the datasource provider and the two generators. **The connection lives in `prisma.config.ts` at the backend root**, because a schema file no longer accepts a `url`.
 
-Its `schema` points at the folder rather than a file, which is what makes the split-by-domain layout work. The url is the SQLite file, so running `prepare:database` after authoring the schema is the whole database setup. Writing `url` into `main.prisma` instead is rejected, and the message names the property rather than the mistake.
+Its `schema` points at the folder rather than a file, which is what makes the split-by-domain layout work. The url is the disposable SQLite file, so running `schema` after authoring the schema is the whole database setup. Writing `url` into `main.prisma` instead is rejected, and the message names the property rather than the mistake.
 
 **Nestia** is configured in `nestia.config.ts` at the backend root.
 
@@ -100,16 +100,15 @@ Three of its settings matter beyond the paths.
 ```bash
 cd packages/backend
 pnpm build:prisma   # generate the client and the ERD
-pnpm prepare:database # push the schema to the database
+pnpm schema         # reset the SQLite database to the schema
 
-pnpm build:api      # compile authored DTOs through the backend-owned command
-pnpm build:main     # compile controllers and backend source
+pnpm build:main     # compile DTOs, controllers, and backend source
 pnpm build:sdk      # after every operation and DTO is settled
 pnpm build:test     # compile tests against the generated SDK
 pnpm test           # run the e2e suite
 ```
 
-The order is a dependency chain, not a preference. Nothing that imports the database client compiles before `build:prisma`. The backend-owned `build:api` command proves the authored DTOs before SDK generation. `build:main` proves the controller contract against those DTOs. Run `build:sdk` only after every operation and DTO is settled; it generates the SDK and compiles the complete API package, then tests consume that fixed output.
+The order is a dependency chain, not a preference. Nothing that imports the database client compiles before `build:prisma`. The single backend `build:main` program proves the DTO and controller contract together. Run `build:sdk` only after every operation and DTO is settled; it generates the SDK and compiles the complete API package, then tests consume that fixed output.
 
 Do not use the backend package's aggregate `pnpm build` while developing this phase, and do not run the workspace-root build. The aggregate command hides which authored layer failed, while the root command also compiles the unfinished frontend.
 
@@ -123,14 +122,14 @@ A generator temporarily owns its output. Wait for it to finish before another co
 
 | Change                                   | Run during authoring                                      |
 | ---------------------------------------- | --------------------------------------------------------- |
-| a model, a column, or a schema comment   | backend `build:prisma`, then `prepare:database`           |
-| a DTO in `packages/api/src/structures`   | backend `build:api`                                       |
+| a model, a column, or a schema comment   | backend `build:prisma`, then `schema`                     |
+| a DTO in `packages/api/src/structures`   | backend `build:main`                                      |
 | a controller signature, route, or method | backend `build:main`                                      |
 | JSDoc on a controller method             | backend `build:main`                                      |
 | a provider body only                     | backend `build:main`                                      |
 | the complete DTO/operation contract      | backend `build:sdk`, then `build:test`                    |
 
-When a DTO or operation changes after SDK generation, finish the complete contract correction first, rerun backend `build:api` and `build:main`, then regenerate the SDK once. Do not use a root build as a substitute for assigning the failure to its package.
+When a DTO or operation changes after SDK generation, finish the complete contract correction first, rerun backend `build:main`, then regenerate the SDK once. Do not use a root build as a substitute for assigning the failure to its package.
 
 ## Consuming The SDK
 

@@ -399,4 +399,4 @@ A per-actor visibility rule lives in the provider's query, keyed by the actor th
 
 ## After Changing An Endpoint
 
-During contract authoring, run the backend `build:api` and `build:main` checks. Once the complete DTO and operation contract is settled, regenerate the SDK once and rebuild its consumers. [wiring.md](wiring.md) owns that boundary and its commands.
+During contract authoring, run the backend `build:main` check, which includes the authored DTO sources. Once the complete DTO and operation contract is settled, regenerate the SDK once and rebuild its consumers. [wiring.md](wiring.md) owns that boundary and its commands.

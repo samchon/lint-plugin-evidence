@@ -44,7 +44,7 @@ Work the layers in order, and let each one read everything the earlier ones deci
 
 1. Read every requirement document under `docs/analysis/`.
 2. Design the schema under `packages/backend/prisma/schema/`, split by domain, and generate the client from it.
-3. Declare and finish the operations under `packages/backend/src/controllers/` and their DTOs under `packages/api/src/structures/` as stubs: the full contract JSDoc, a body that enumerates each parameter once and returns `typia.random<T>()`, and an implementation-pending sentence on each operation naming what realize owes. From the backend package, compile the authored DTO package with `pnpm build:api` and the backend source with `pnpm build:main` while this contract is still changing.
+3. Declare and finish the operations under `packages/backend/src/controllers/` and their DTOs under `packages/api/src/structures/` as stubs: the full contract JSDoc, a body that enumerates each parameter once and returns `typia.random<T>()`, and an implementation-pending sentence on each operation naming what realize owes. From the backend package, run `pnpm build:main`, whose single TypeScript program includes the authored DTO sources, while this contract is still changing.
 4. Once every operation and DTO is settled, build the SDK into `packages/api/src/functional/`, then write the tests under `packages/backend/test/features/` from the requirements and that fixed contract.
 5. Write the transformers under `packages/backend/src/transformers/` and the collectors under `packages/backend/src/collectors/`, one namespace per DTO that needs each.
 6. Realize: replace each stub body with its call into a provider under `packages/backend/src/providers/`, remove the implementation-pending sentence, and run the tests until they hold.
@@ -85,7 +85,7 @@ Passing this gate means the backend layer is internally validated at the current
 
 Apply the active arm's Review skill to the API and backend scope. That skill owns the review population, repetition, and stopping condition. Frontend obligations remain pending rather than accepted.
 
-From `packages/backend`, run `pnpm build:prisma`, prepare the database, run `pnpm build:api`, and run `pnpm build:main`. Only after every operation and DTO is settled, run `pnpm build:sdk` followed by `pnpm build:test`. Then run `pnpm lint`, `pnpm test`, launch `pnpm dev`, and exercise `/health` and representative requirement-backed operations.
+From `packages/backend`, run `pnpm build:prisma`, reset the database with `pnpm schema`, and run `pnpm build:main`. Only after every operation and DTO is settled, run `pnpm build:sdk` followed by `pnpm build:test`. Then run `pnpm lint`, `pnpm test`, launch `pnpm dev`, and exercise `/health` and representative requirement-backed operations.
 
 Do not use either the backend package's aggregate `pnpm build` or the workspace-root build to judge this gate. The aggregate package build obscures which layer is invalid, and the root build compiles the unfinished frontend. Fix every finding, regenerate only after its authored inputs are settled, rerun the invalidated package command, and apply the active Review skill's stopping condition. Do not begin frontend implementation before this gate passes.
 
