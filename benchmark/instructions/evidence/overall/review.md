@@ -1,6 +1,6 @@
 # Evidence Overall Review
 
-Read `AGENTS.md` and the skill documents relevant to this objective before working.
+Read `.agents/skills/review/SKILL.md` before working.
 
 Review the written reason on every `@evidence` and `@evidenceExclude` acknowledgement in the application. Do not perform a general code review.
 

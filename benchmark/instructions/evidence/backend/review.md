@@ -1,6 +1,6 @@
 # Evidence Backend Review
 
-Read `AGENTS.md` and the skill documents relevant to this objective before working.
+Read `.agents/skills/review/SKILL.md` before working.
 
 Review the written reason on every backend `@evidence` and `@evidenceExclude` acknowledgement. Do not perform a general code review or review the frontend.
 
