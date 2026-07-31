@@ -46,7 +46,7 @@ Do not add, remove, or toggle claim objects as implementation advances. Activati
 
 Both configuration files and all claim objects are frozen. Keep `evidence/graph` at `error`. The backend has one `tsconfig.json` containing backend source, tests, and API DTOs. Do not create phase-specific config or compiler files.
 
-The sealed `NESTIA_SDK_TRANSFORM=1` guard disables the graph only inside Nestia's private transform. The resident backend watcher remains outside that environment and must report a clean graph rebuild.
+The sealed `NESTIA_SDK_TRANSFORM=1` guard disables the graph only inside Nestia's private transform. A backend watcher runs outside that environment and must report a clean graph rebuild at each compiler gate.
 
 ## Placement
 
@@ -154,6 +154,8 @@ rg --hidden -n -F '@todo' packages/frontend --glob '*.ts' --glob '*.tsx'
 
 ## Compiler Gates
 
-Keep backend `pnpm check:watch` and frontend `pnpm dev` running. The compiler owns target resolution, host eligibility, overlap, coverage, and missing acknowledgements.
+Do not start backend `pnpm check:watch` while the first backend draft is still being populated. The first selected host activates its complete claim, so an incomplete draft can produce graph-wide diagnostics for artifacts that are about to be created.
+
+Complete the first backend draft, then start `pnpm check:watch`. The compiler owns target resolution, host eligibility, overlap, coverage, and missing acknowledgements. Fix the complete diagnostic batch, wait for a clean rebuild, and stop the watcher before running the next command or phase.
 
 At each gate, confirm the canonical claim configurations remain unchanged, wait for clean current builds, and run the phase's runtime tests. Never edit a claim population or move a tag merely to silence a diagnostic.

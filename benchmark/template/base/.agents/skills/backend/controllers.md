@@ -126,4 +126,4 @@ Use typed Nestia route, body, and parameter decorators. One actor/resource contr
 
 ## After Contract Changes
 
-Let `pnpm check:watch` validate the authored DTO and controller population. When the complete contract settles, run `pnpm build:sdk` once and inspect the generated accessors and Swagger paths before tests or frontend code consume them.
+When the complete contract settles, run `pnpm build:sdk` once and inspect the generated accessors before tests or frontend code consume them. Validate the complete backend draft at the prescribed compiler gate.

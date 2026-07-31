@@ -1,6 +1,6 @@
 ---
 name: backend
-description: Defines backend layer ownership, implementation order, resident checking, generation boundaries, and the backend gate. Read before backend work, then read every sibling topic.
+description: Defines backend layer ownership, implementation order, compiler gates, generation boundaries, and the backend gate. Read before backend work, then read every sibling topic.
 ---
 
 # Backend
@@ -41,15 +41,15 @@ Fix a defect at its owner. A provider must not compensate for a missing column, 
 
 The temporary controller stub declares the real route, signature, JSDoc, and response type. Its body mentions each parameter and returns `typia.random<T>()`, allowing SDK generation before provider logic exists. Remove every stub marker when replacing the body with one provider call.
 
-## Continuous Checking
+## Compiler Gate
 
-From `packages/backend`, start this before authoring and keep it resident through Overall Final:
+Complete the first draft of the schema, contract, tests, and implementation before starting:
 
 ```bash
 pnpm check:watch
 ```
 
-The package's single `tsconfig.json` includes backend source, backend tests, and authored API DTOs. The watcher automatically reloads its lint configuration and reports type, lint, and contributor diagnostics. Fix every diagnostic and require a clean rebuild after the latest change.
+The package's single `tsconfig.json` includes backend source, backend tests, and authored API DTOs. The watcher automatically reloads its lint configuration and reports type, lint, and contributor diagnostics. Fix the complete diagnostic batch, require a clean rebuild after the latest change, and stop the watcher before the next command or phase. Start a fresh watcher at each later compiler gate.
 
 Do not create another backend `tsconfig.json` or package-local lint configuration for tests. Do not toggle claim configuration by phase.
 
@@ -76,11 +76,11 @@ Start it before live frontend integration and keep it running through Overall Fi
 | Authored change | Action |
 | --- | --- |
 | Schema model, field, relation, or comment | Settle the schema, then `pnpm build:prisma` and `pnpm schema` |
-| DTO or controller contract | Wait for a clean watcher rebuild |
+| DTO or controller contract | Settle the complete contract, then run its compiler gate |
 | Complete DTO and controller contract | `pnpm build:sdk` once |
-| Provider or test only | Wait for the watcher; do not regenerate |
+| Provider or test only | Run the next compiler gate; do not regenerate |
 
-Run generators serially. They replace shared generated trees while the watcher reads them, so wait for the generator and the watcher's next complete rebuild.
+Run generators, compiler gates, and tests serially. Generators replace shared generated trees, so start the watcher only after the generator finishes.
 
 ## Backend Gate
 

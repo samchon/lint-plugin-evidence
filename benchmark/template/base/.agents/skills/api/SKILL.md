@@ -15,7 +15,6 @@ description: Defines the authored and generated parts of packages/api, its publi
 | `src/typings/**` | Authored transport primitives such as `IEntity`, `IPage`, and `IDiagnosis` |
 | `src/diagnosers/**` | Authored pure rules shared by client and server |
 | `src/functional/**` | Generated Nestia accessors |
-| `swagger.json` | Generated OpenAPI document |
 
 Never edit generated paths. Change controllers or DTOs, then run backend `pnpm build:sdk`.
 
