@@ -2,7 +2,7 @@
 
 Before reviewing, read `AGENTS.md` and every document under `.agents/skills/evidence/` and `.agents/skills/review/` in full. Obey them throughout this objective.
 
-Review only the configured frontend Evidence claims and their acknowledgements in the current files.
+Review only the configured frontend Evidence claims and their acknowledgements in the current files. Do not perform a general code review.
 
 Full traversal is literal: inspect every configured claim, its current population, every selected host, and every `@evidence` and `@evidenceExclude` acknowledgement. Never replace that traversal with lint output, searches, inventories, summaries, or a previous review.
 
