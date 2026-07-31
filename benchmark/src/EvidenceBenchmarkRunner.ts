@@ -377,7 +377,7 @@ export namespace EvidenceBenchmarkRunner {
             }
             if (
               currentOwnsReplay &&
-              isInterruptedGoalStatus(record.goal?.status) &&
+              canOwnInterruptedUsageReplay(record.goal?.status) &&
               usageAdvanced(usage, state.threadTokenUsage)
             ) {
               if (
@@ -741,12 +741,17 @@ export namespace EvidenceBenchmarkRunner {
                 tokenUsageTurnId: record.tokenUsageTurnId,
               });
             else {
-              reconcileInterruptedUsageReplay(record, thread);
+              const interruptedReplay: boolean =
+                reconcileInterruptedUsageReplay(record, thread);
               resumeReconciled = true;
               publish();
               await flushResumeLifecycle();
               if (outcome === undefined) {
-                if (isInterruptedGoalStatus(goal.status)) await beginGoal();
+                if (
+                  interruptedReplay ||
+                  isInterruptedGoalStatus(goal.status)
+                )
+                  await beginGoal();
                 else await advance();
               }
             }
@@ -760,10 +765,10 @@ export namespace EvidenceBenchmarkRunner {
     function reconcileInterruptedUsageReplay(
       record: IEvidenceBenchmarkGoalRecord,
       thread: Record<string, unknown>,
-    ): void {
-      if (resumeUsageReplay === undefined) return;
+    ): boolean {
+      if (resumeUsageReplay === undefined) return false;
       if (
-        !isInterruptedGoalStatus(record.goal?.status) ||
+        !canOwnInterruptedUsageReplay(record.goal?.status) ||
         record.tokenUsageTurnId === null
       )
         throw new Error(
@@ -785,17 +790,23 @@ export namespace EvidenceBenchmarkRunner {
           turn.id === resumeUsageReplay?.turnId &&
           turn.status === "interrupted",
       );
+      const sameInterruptedTurn: boolean =
+        resumeUsageReplay.turnId === record.tokenUsageTurnId &&
+        replayIndex === retainedIndex;
+      const nextInterruptedTurn: boolean =
+        replayIndex === retainedIndex + 1;
       if (
         retainedIndex === -1 ||
-        replayIndex !== retainedIndex + 1 ||
+        (!sameInterruptedTurn && !nextInterruptedTurn) ||
         replayIndex !== turns.length - 1
       )
         throw new Error(
-          "Codex interrupted token replay is not the exact next retained turn.",
+          "Codex interrupted token replay is not the exact retained or next turn.",
         );
       state.threadTokenUsage = structuredClone(resumeUsageReplay.usage);
       record.tokenUsageTurnId = resumeUsageReplay.turnId;
       resumeUsageReplay = undefined;
+      return true;
     }
 
     const result: "completed" | "interrupted" = await outcomePromise;
@@ -990,6 +1001,10 @@ export namespace EvidenceBenchmarkRunner {
       value === "usageLimited" ||
       value === "budgetLimited"
     );
+  }
+
+  function canOwnInterruptedUsageReplay(value: unknown): boolean {
+    return value === "active" || isInterruptedGoalStatus(value);
   }
 
   function locateWindowsCommand(

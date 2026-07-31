@@ -672,6 +672,26 @@ const main = async (): Promise<void> => {
     });
     assert.equal(advancedBlockedResume.status, "completed");
 
+    const activeInterruptedBoundary = structuredClone(
+      blockedCurrentBoundary,
+    );
+    activeInterruptedBoundary.goals[1]!.goal!.status = "active";
+    const activeInterruptedResume = await EvidenceBenchmarkRunner.run({
+      state: activeInterruptedBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--current-interrupted-active",
+        "--same-turn-interrupted-replay",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(activeInterruptedResume.status, "completed");
+
     const unprovenBlockedResume = await EvidenceBenchmarkRunner.run({
       state: blockedCurrentBoundary,
       cwd: root,
@@ -766,6 +786,9 @@ const fakeAppServer = (): void => {
   const advancedInterruptedReplay: boolean = process.argv.includes(
     "--advanced-interrupted-replay",
   );
+  const sameTurnInterruptedReplay: boolean = process.argv.includes(
+    "--same-turn-interrupted-replay",
+  );
   const unprovenInterruptedReplay: boolean = process.argv.includes(
     "--unproven-interrupted-replay",
   );
@@ -776,8 +799,14 @@ const fakeAppServer = (): void => {
   );
   const currentActive: boolean = process.argv.includes("--current-active");
   const currentBlocked: boolean = process.argv.includes("--current-blocked");
+  const currentInterruptedActive: boolean = process.argv.includes(
+    "--current-interrupted-active",
+  );
   const currentGoal: boolean =
-    currentActive || currentBlocked || process.argv.includes("--current-goal");
+    currentActive ||
+    currentBlocked ||
+    currentInterruptedActive ||
+    process.argv.includes("--current-goal");
   const lateResumeSnapshot: boolean = process.argv.includes(
     "--late-resume-snapshot",
   );
@@ -851,7 +880,14 @@ const fakeAppServer = (): void => {
                 cliVersion: "fixture-cli",
                 status: { type: "idle" },
                 turns:
-                  advancedInterruptedReplay || unprovenInterruptedReplay
+                  sameTurnInterruptedReplay
+                    ? [
+                        {
+                          id: `turn-${goalIndex}`,
+                          status: "interrupted",
+                        },
+                      ]
+                    : advancedInterruptedReplay || unprovenInterruptedReplay
                     ? [
                         { id: `turn-${goalIndex}`, status: "completed" },
                         ...(advancedInterruptedReplay
@@ -871,9 +907,13 @@ const fakeAppServer = (): void => {
             if (wrongThread) return;
             if (previousGoal) {
               const replay =
-                advancedInterruptedReplay || unprovenInterruptedReplay
+                advancedInterruptedReplay ||
+                unprovenInterruptedReplay ||
+                sameTurnInterruptedReplay
                   ? {
-                      turnId: "turn-interrupted",
+                      turnId: sameTurnInterruptedReplay
+                        ? `turn-${goalIndex}`
+                        : "turn-interrupted",
                       total: {
                         totalTokens: 25,
                         inputTokens: 15,
@@ -972,14 +1012,18 @@ const fakeAppServer = (): void => {
                         retainedObjective(),
                         currentBlocked
                           ? "blocked"
-                          : previousActive || currentActive
+                          : previousActive ||
+                              currentActive ||
+                              currentInterruptedActive
                             ? "active"
                             : "complete",
                       ),
                       turnId: null,
                     },
                   },
-                  currentActive ? continueCurrentGoal : undefined,
+                  currentActive && !sameTurnInterruptedReplay
+                    ? continueCurrentGoal
+                    : undefined,
                 );
               if (lateResumeSnapshot) setTimeout(emitSnapshot, 10);
               else emitSnapshot();
@@ -1010,7 +1054,10 @@ const fakeAppServer = (): void => {
                   retainedObjective(),
                   currentBlocked
                     ? "blocked"
-                    : activeGoalGet || previousActive || currentActive
+                    : activeGoalGet ||
+                        previousActive ||
+                        currentActive ||
+                        currentInterruptedActive
                       ? "active"
                       : "complete",
                 )
