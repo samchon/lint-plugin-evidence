@@ -54,7 +54,7 @@ This pnpm TypeScript monorepo uses source files during development and build fil
 
 `main` and `exports` point every workspace package to the current TypeScript source. `publishConfig` switches the same package root to compiled JavaScript and declarations when the package is packed or published.
 
-If `main` or `exports` points to `lib`, local packages can read a missing or stale build. If another subpath is exported, the API package has two public entry points.
+If `main` or `exports` points to `lib`, local packages can read a missing or stale build.
 
 ## Implementation Order
 
