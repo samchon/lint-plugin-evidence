@@ -187,6 +187,8 @@ Every Markdown, Prisma, or TypeScript `files` property takes glob patterns, not 
 - `frontend/src/components/**/*.tsx` selects every React component.
 - `test/features/**/*.ts` selects every feature test function.
 
+A claim activates only after its own population loads successfully and contains at least one unit selected by its `symbol`. A healthy Markdown, Prisma, or TypeScript claim with zero selected units is inactive and does not load or enforce its references; the first selected unit activates the complete configured claim automatically. A missing, unreadable, or rejected own population remains an error rather than being treated as empty.
+
 A pattern resolves against its population's base — the `ttsc` project root unless the population declares a `root` — and it may not escape that base: `..` and an absolute path are both refused inside a pattern, because a base spread across every pattern is a base nobody can read off the configuration. Declare it once instead.
 
 ### Populations above the project
@@ -207,7 +209,7 @@ A monorepo usually keeps one requirements set that several packages implement to
 
 **Moving the root moves the addresses with it.** Under the configuration above, a section is cited as `requirements/pricing.md#discounts` — not through the citing package's distance from the documents. That is what lets two packages share one document set: they declare the same base and write the same citation, so adopting the set costs a `root` line and nothing else. Prisma and TypeScript targets carry no path, so a root there changes which files join the population and where a diagnostic points, never how a model or symbol is cited.
 
-Diagnostics name the resolved base, so a population that selects nothing says which directory it looked in, and a unit above the project is located through it: `Missing acknowledgement for 'requirements/pricing.md#discounts' (Markdown H2 'Discount Policy' at ../../docs/requirements/pricing.md:12)`. A root that names no directory is reported as a root, with the spelling you wrote and the path it resolved to.
+Diagnostics name the resolved base, so an active reference population that selects nothing says which directory it looked in, and a unit above the project is located through it: `Missing acknowledgement for 'requirements/pricing.md#discounts' (Markdown H2 'Discount Policy' at ../../docs/requirements/pricing.md:12)`. A root that names no directory is reported as a root, with the spelling you wrote and the path it resolved to.
 
 Everything a rooted Markdown or Prisma population reads is published to the `ttsc` host as a watched dependency, so editing a document two directories up starts the next `ttsc check --watch` cycle exactly as editing one inside the project does.
 
