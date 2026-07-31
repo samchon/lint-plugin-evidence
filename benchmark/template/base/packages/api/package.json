@@ -18,9 +18,9 @@
     }
   },
   "scripts": {
-    "build": "rimraf lib && ttsc -p tsconfig.json",
-    "format": "ttsc format -p tsconfig.json",
-    "lint": "ttsc -p tsconfig.json --noEmit"
+    "build": "rimraf lib && ttsc",
+    "format": "ttsc format",
+    "lint": "ttsc --noEmit"
   },
   "dependencies": {
     "@nestia/fetcher": "catalog:samchon",
