@@ -690,7 +690,11 @@ const main = async (): Promise<void> => {
       ],
       onOutput: () => undefined,
     });
-    assert.equal(activeInterruptedResume.status, "completed");
+    assert.equal(
+      activeInterruptedResume.status,
+      "completed",
+      JSON.stringify(activeInterruptedResume.interruption),
+    );
 
     const unprovenBlockedResume = await EvidenceBenchmarkRunner.run({
       state: blockedCurrentBoundary,

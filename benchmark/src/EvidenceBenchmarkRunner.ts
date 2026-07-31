@@ -406,6 +406,10 @@ export namespace EvidenceBenchmarkRunner {
               "Codex resume token replay lacks an exact retained boundary.",
             );
           }
+          if (!resumeReconciled) {
+            resumeLifecycle.push(structuredClone(message));
+            return;
+          }
           state.threadTokenUsage = usage;
           current().tokenUsageTurnId = params.turnId;
         }
@@ -799,7 +803,18 @@ export namespace EvidenceBenchmarkRunner {
         !trailingTurnsInterrupted
       )
         throw new Error(
-          "Codex interrupted token replay is not the exact retained or next turn followed only by interrupted turns.",
+          `Codex interrupted token replay is not the exact retained or next turn followed only by interrupted turns: ${JSON.stringify(
+            {
+              retainedTurnId: record.tokenUsageTurnId,
+              replayTurnId: resumeUsageReplay.turnId,
+              retainedIndex,
+              replayIndex,
+              turns: turns.map((turn) => ({
+                id: turn.id,
+                status: turn.status,
+              })),
+            },
+          )}`,
         );
       state.threadTokenUsage = structuredClone(resumeUsageReplay.usage);
       record.tokenUsageTurnId = resumeUsageReplay.turnId;
