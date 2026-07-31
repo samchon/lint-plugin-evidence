@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-31T20:40:59.143Z",
+  "generatedAt": "2026-07-31T20:45:50.005Z",
   "cells": [
     {
       "engine": "codex",
@@ -15,7 +15,7 @@
       "launchedAt": "2026-07-31T18:09:03.414Z",
       "tokens": 112250688,
       "workElapsedMs": 6692082.9813,
-      "wallElapsedMs": 9115729,
+      "wallElapsedMs": 9406591,
       "worktree": {
         "files": 42,
         "additions": 5916,
@@ -54,11 +54,11 @@
       "model": "gpt-5.6-luna",
       "effort": "high",
       "status": "running",
-      "stage": "frontend-review",
+      "stage": "frontend-final",
       "launchedAt": "2026-07-31T18:09:03.579Z",
-      "tokens": 95639321,
-      "workElapsedMs": 8501986.6677,
-      "wallElapsedMs": 9115564,
+      "tokens": 100958483,
+      "workElapsedMs": 8789328.200199999,
+      "wallElapsedMs": 9406426,
       "worktree": {
         "files": 65,
         "additions": 5383,
@@ -69,8 +69,8 @@
           "name": "backend-start",
           "tokens": 51553747,
           "elapsedMs": 4558000,
-          "tokenPercent": 54,
-          "timePercent": 54
+          "tokenPercent": 51,
+          "timePercent": 52
         },
         {
           "name": "backend-review",
@@ -90,15 +90,22 @@
           "name": "frontend-start",
           "tokens": 22438133,
           "elapsedMs": 2105000,
-          "tokenPercent": 23,
-          "timePercent": 25
+          "tokenPercent": 22,
+          "timePercent": 24
         },
         {
           "name": "frontend-review",
-          "tokens": 10675902,
-          "elapsedMs": 629986.6677000001,
-          "tokenPercent": 11,
-          "timePercent": 7
+          "tokens": 15381496,
+          "elapsedMs": 840000,
+          "tokenPercent": 15,
+          "timePercent": 10
+        },
+        {
+          "name": "frontend-final",
+          "tokens": 613568,
+          "elapsedMs": 77328.20019999892,
+          "tokenPercent": 1,
+          "timePercent": 1
         }
       ]
     },
@@ -115,7 +122,7 @@
       "launchedAt": "2026-07-31T18:09:03.553Z",
       "tokens": 62582547,
       "workElapsedMs": 5025181.4956,
-      "wallElapsedMs": 9115590,
+      "wallElapsedMs": 9406452,
       "worktree": {
         "files": 56,
         "additions": 9901,
@@ -156,12 +163,12 @@
       "status": "running",
       "stage": "frontend-start",
       "launchedAt": "2026-07-31T18:09:03.553Z",
-      "tokens": 104151661,
-      "workElapsedMs": 8868630.7388,
-      "wallElapsedMs": 9115590,
+      "tokens": 106994829,
+      "workElapsedMs": 9148350.5274,
+      "wallElapsedMs": 9406452,
       "worktree": {
-        "files": 52,
-        "additions": 8227,
+        "files": 59,
+        "additions": 8524,
         "deletions": 22
       },
       "stages": [
@@ -169,14 +176,14 @@
           "name": "backend-start",
           "tokens": 92489812,
           "elapsedMs": 7795000,
-          "tokenPercent": 89,
-          "timePercent": 88
+          "tokenPercent": 86,
+          "timePercent": 85
         },
         {
           "name": "backend-review",
           "tokens": 6855643,
           "elapsedMs": 778000,
-          "tokenPercent": 7,
+          "tokenPercent": 6,
           "timePercent": 9
         },
         {
@@ -188,10 +195,10 @@
         },
         {
           "name": "frontend-start",
-          "tokens": 971019,
-          "elapsedMs": 80630.7388000004,
-          "tokenPercent": 1,
-          "timePercent": 1
+          "tokens": 3814187,
+          "elapsedMs": 360350.5274,
+          "tokenPercent": 4,
+          "timePercent": 4
         }
       ]
     }
