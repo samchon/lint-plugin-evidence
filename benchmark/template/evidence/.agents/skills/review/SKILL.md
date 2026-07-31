@@ -70,7 +70,9 @@ Complete the common mutation calibration owned by [the base Testing skill](../ba
 
 A verdict belongs to one meaning at one source digest. Changing a tag, its host, its target, its reason, or the represented contract invalidates the affected acknowledgement.
 
-Record the finding, repair its owning artifact, regenerate affected output after the authored contract settles, and rerun the affected graph and package gates. Review every changed acknowledgement again, and restart the current host census after any correction or population change. Do not invalidate unrelated graph claims.
+Record the finding, repair its owning artifact, regenerate affected output after the authored contract settles, and rerun the affected graph and package gates. Affected-claim checks are repair feedback, not a phase verdict.
+
+Any finding, correction, generated-output change, formatting change, failed gate, or population change invalidates the candidate active-phase review. After resolving it, restart at the first current host and repeat the complete host census, every active acknowledgement review, every common residual population, and the phase gates against the resulting source digest. Do not carry unchanged acknowledgements or reads from before the invalidating event into the qualifying review.
 
 Keep a concise review record in `wiki/review.md`: the source digest, confirmed findings, repairs, restored claim inventory, and exact gate results. Do not create a per-artifact ledger outside the graph's selected acknowledgements.
 
@@ -94,4 +96,4 @@ An Evidence phase is complete when:
 - every affected package, test, and live gate is current and green; and
 - no phase-owned `@todo` remains.
 
-One successful current-digest host census and acknowledgement pass is sufficient; do not require a second clean pass. Do not edit frozen instructions, change an immutable projection, or narrow a lint configuration to manufacture completion.
+The successful current-digest host census and acknowledgement pass must both begin after the last invalidating event and run against the same unchanged source digest. One such complete pass is sufficient; do not require a second clean pass. A matching digest, green graph, inventory count, or source-scoped search does not substitute for the host and acknowledgement review. Do not edit frozen instructions, change an immutable projection, or narrow a lint configuration to manufacture completion.

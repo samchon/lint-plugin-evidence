@@ -14,7 +14,9 @@ Complete final verification with a full-project Restart Until Dry. Each complete
 4. from the workspace root, run `pnpm build`, `pnpm lint`, `pnpm prepare:database`, and `pnpm test`; and
 5. from `packages/frontend`, run `pnpm ui:review`, then complete the required live backend and browser verification.
 
-Any finding, correction, generated-output change, or failed gate makes the round non-dry. Format the corrected state, then restart the complete overall round at the resulting source digest. Stop after one entire current-digest round finds zero actionable defect and leaves every gate current and green; one dry round is sufficient.
+The qualifying dry round begins only after the most recent finding, correction, generated-output change, formatting change, or failed gate has been resolved. Work performed before that event belongs to an invalidated round and cannot be reused. Record the full-project source-population digest at the beginning of each candidate round and recompute it at the end. Equal digests prove only that the round used one stable state; they never substitute for rereading or reviewing that state.
+
+Any finding, correction, generated-output change, formatting change, or failed gate makes the round non-dry. Stop the traversal, format the corrected state, and restart at item 1 against the resulting source digest. Do not continue from the artifact after the finding, reread only changed files, or count a post-gate digest, route count, placeholder scan, or partial audit as the restart. Stop after one entire current-digest round finds zero actionable defect and leaves every gate current and green; one dry round is sufficient.
 
 Any failed command, review finding, unfinished stub, remaining implementation marker, stale verdict, uncovered requirement, unowned artifact, or unverified assumption means the application is incomplete. Keep fixing and repeating the complete overall round until every gate is green.
 
