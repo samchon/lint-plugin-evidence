@@ -15,16 +15,19 @@ Before measurement:
 4. Record the authorized matrix, benchmark revision, engines, models, efforts, CLI versions, Evidence archive digest, and live dashboard in the pull-request body.
 5. Assign one read-only reporting subagent to update that body every 5 minutes and immediately after a state change or anomaly.
 
-Generate the dashboard with `pnpm --filter @samchon/evidence-benchmark dashboard`; do not inspect workspace source to reconstruct its values. Group it by authorized model, keep one H2 per model, show only the latest launched run for each cell, and omit cells that have not launched:
+Generate the dashboard with `pnpm --filter @samchon/evidence-benchmark dashboard`; do not inspect workspace source to reconstruct its values. Group it by authorized model, keep one H2 per model, show only the latest launched run for each cell, and omit cells that have not launched. Render each cell as one list item followed by its progress, total consumption, and retained per-stage consumption:
 
 ```markdown
 ## GPT-5.6-Terra
 
-| Project | Mode | Stage | Progress | Cost | Time |
-| ------- | ---- | ----- | -------- | ---- | ---- |
+- Todo Plain — `backend-review` · running
+  - Progress: 27 files · +3.1k/−20 LOC
+  - Total: 7M · 1h 07m
+  - `backend-start`: 3M · 42m
+  - `backend-review`: 4M · 25m
 ```
 
-`Stage` keeps the exact current or last retained instruction name, such as `backend-start`, and appends only its short status, such as `· running` or `· interrupted`; put anomaly details outside the table. `Progress` is the read-only Git delta from the prepared workspace baseline, including tracked and untracked files, written as `27 files · +3.1k/−120 LOC`; it measures implementation volume, not completion percentage. `Cost` is retained total token usage rounded to the nearest million and written as an integer with `M`, such as `3M`. `Time` is finalized native-process elapsed time plus the active process's latest retained event time, rounded to whole minutes and written only in hours and minutes, such as `7m` or `1h 07m`; setup and operator time stay separate. Do not add run-ID, usage-breakdown, or quality columns.
+The cell heading keeps the exact current or last retained instruction name, such as `backend-start`, and appends only its short status, such as `· running` or `· interrupted`; put anomaly details outside the list. `Progress` is the read-only Git delta from the prepared workspace baseline, including tracked and untracked files, written as `27 files · +3.1k/−20 LOC`; it measures implementation volume, not completion percentage. `Total` and every stage report retained token usage rounded to the nearest million as an integer with `M`, and retained work time rounded to whole minutes in hours and minutes, such as `7m` or `1h 07m`. Derive an active stage only from the retained thread total and process elapsed time after subtracting finalized stages; never reconstruct a missing measurement. Report wall-clock elapsed time separately so a silent stall remains visible. Setup and operator time stay separate. Do not add run IDs, token-category breakdowns, or quality judgments.
 
 ## Prepare And Launch
 
@@ -63,7 +66,7 @@ Codex advances after the retained Goal completes, its terminal turn completes, a
 
 ## Supervise The Run
 
-Observe every active cell at least every 30 seconds. Check `state.json`, benchmark and native process liveness, and `events.jsonl` and `raw.log` recency. Investigate any disagreement immediately and correct the dashboard without waiting for its 10-minute interval.
+Observe every active cell at least every 30 seconds. Check `state.json`, benchmark and native process liveness, and `events.jsonl` and `raw.log` recency. Investigate any disagreement immediately and correct the dashboard without waiting for its 5-minute interval.
 
 Do not edit a measured workspace, prompt the measured agent, inject advice, weaken a gate, hard-code a subject answer, or expose Evidence material to Plain. Questions and partial reports do not invite operator input.
 

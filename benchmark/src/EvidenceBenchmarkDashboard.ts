@@ -20,8 +20,12 @@ interface IDashboardProcess {
 }
 
 interface IDashboardInstruction {
+  elapsedMs: number;
   index: number;
   name: string;
+  tokenUsage: {
+    totalTokens: number;
+  };
 }
 
 interface IDashboardState {
@@ -150,16 +154,10 @@ const selectLatestRuns = (runs: IDashboardRun[]): IDashboardRun[] => {
 };
 
 const renderModel = (model: string, runs: IDashboardRun[]): string => {
-  const rows: string[] = runs
+  const cells: string[] = runs
     .sort(compareRuns)
-    .map((run) => renderRun(run.file));
-  return [
-    `## ${displayModel(model)}`,
-    "",
-    "| Project | Mode | Stage | Progress | Cost | Time |",
-    "| ------- | ---- | ----- | -------- | ---- | ---- |",
-    ...rows,
-  ].join("\n");
+    .flatMap((run) => renderRun(run));
+  return [`## ${displayModel(model)}`, "", ...cells].join("\n");
 };
 
 const compareRuns = (left: IDashboardRun, right: IDashboardRun): number => {
@@ -175,16 +173,100 @@ const compareRuns = (left: IDashboardRun, right: IDashboardRun): number => {
   );
 };
 
-const renderRun = (file: IDashboardStateFile): string => {
+const renderRun = (run: IDashboardRun): string[] => {
+  const file: IDashboardStateFile = run.file;
   const delta: IWorktreeDelta = inspectWorktree(file.records.workspace);
-  return `| ${[
-    title(file.cell.subject),
-    title(file.cell.arm),
-    stage(file.state),
-    formatDelta(delta),
-    formatCost(file.state),
-    formatTime(elapsed(file)),
-  ].join(" | ")} |`;
+  const totalElapsed: number = elapsed(file);
+  return [
+    `- **${title(file.cell.subject)} ${title(file.cell.arm)}** — ${stage(file.state)}`,
+    `  - Progress: ${formatDelta(delta)}`,
+    `  - Elapsed: ${formatTime(wallElapsed(run))}`,
+    `  - Total: ${formatCost(file.state.threadTokenUsage.totalTokens)} · ${formatTime(totalElapsed)}`,
+    ...stageMeasurements(file.state, totalElapsed).map(
+      (measurement) =>
+        `  - \`${measurement.name}\`: ${formatCost(measurement.tokens)} · ${formatTime(measurement.elapsedMs)}`,
+    ),
+  ];
+};
+
+const wallElapsed = (run: IDashboardRun): number => {
+  const stoppedAt: number | undefined =
+    run.file.state.status === "completed"
+      ? readLastRecordedTime(run.file.records.events)
+      : Date.now();
+  return Math.max(0, (stoppedAt ?? run.launchedAt) - run.launchedAt);
+};
+
+const readLastRecordedTime = (file: string): number | undefined => {
+  if (!fs.existsSync(file)) return undefined;
+  const descriptor: number = fs.openSync(file, "r");
+  try {
+    const size: number = fs.fstatSync(descriptor).size;
+    let position: number = size;
+    let suffix: string = "";
+    while (position > 0) {
+      const length: number = Math.min(64 * 1024, position);
+      position -= length;
+      const buffer: Buffer = Buffer.alloc(length);
+      fs.readSync(descriptor, buffer, 0, length, position);
+      const lines: string[] = `${buffer.toString("utf8")}${suffix}`.split("\n");
+      const firstComplete: number = position === 0 ? 0 : 1;
+      for (let i: number = lines.length - 1; i >= firstComplete; --i) {
+        const candidate: string = lines[i]!.trim();
+        if (candidate.length === 0) continue;
+        try {
+          const value: unknown = JSON.parse(candidate);
+          if (isRecord(value) && typeof value.recordedAt === "string") {
+            const parsed: number = Date.parse(value.recordedAt);
+            if (Number.isFinite(parsed)) return parsed;
+          }
+        } catch {
+          // The writer may have an incomplete final line; use the last complete event.
+        }
+      }
+      suffix = lines[0]!;
+    }
+    return undefined;
+  } finally {
+    fs.closeSync(descriptor);
+  }
+};
+
+interface IStageMeasurement {
+  name: string;
+  tokens: number;
+  elapsedMs: number;
+}
+
+const stageMeasurements = (
+  state: IDashboardState,
+  totalElapsed: number,
+): IStageMeasurement[] => {
+  const current: IDashboardInstruction | undefined =
+    state.goals.find(
+      (instruction) => instruction.index === state.nextInstructionIndex,
+    ) ?? (state.status === "completed" ? undefined : state.goals.at(-1));
+  const retainedTokens: number = state.goals.reduce(
+    (sum, instruction) => sum + instruction.tokenUsage.totalTokens,
+    0,
+  );
+  const retainedElapsed: number = state.goals.reduce(
+    (sum, instruction) => sum + instruction.elapsedMs,
+    0,
+  );
+  const activeTokens: number = Math.max(
+    0,
+    state.threadTokenUsage.totalTokens - retainedTokens,
+  );
+  const activeElapsed: number = Math.max(0, totalElapsed - retainedElapsed);
+  return state.goals.map((instruction) => ({
+    name: instruction.name,
+    tokens:
+      instruction.tokenUsage.totalTokens +
+      (instruction === current ? activeTokens : 0),
+    elapsedMs:
+      instruction.elapsedMs + (instruction === current ? activeElapsed : 0),
+  }));
 };
 
 const stage = (state: IDashboardState): string => {
@@ -273,9 +355,8 @@ const git = (
 const formatDelta = (delta: IWorktreeDelta): string =>
   `${delta.files} files · +${compact(delta.additions)}/−${compact(delta.deletions)} LOC`;
 
-const formatCost = (state: IDashboardState): string => {
-  return `${Math.round(state.threadTokenUsage.totalTokens / 1_000_000)}M`;
-};
+const formatCost = (tokens: number): string =>
+  `${Math.round(tokens / 1_000_000)}M`;
 
 const elapsed = (file: IDashboardStateFile): number => {
   const unresolved: Set<number> = new Set(

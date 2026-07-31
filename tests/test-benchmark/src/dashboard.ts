@@ -16,7 +16,7 @@ import { renderEvidenceBenchmarkDashboard } from "../../../benchmark/src/Evidenc
  *
  * 1. Create two real benchmark worktrees and retained run records.
  * 2. Give one cell an older run and a newer active run with later output.
- * 3. Render the dashboard and assert stage, Git delta, cost, time, and ordering.
+ * 3. Render the dashboard and assert each cell's stage-level cost and time.
  * 4. Assert stale and unlaunched cells never appear.
  */
 const main = (): void => {
@@ -46,7 +46,7 @@ const main = (): void => {
       status: "completed",
       nextInstructionIndex: 8,
       totalTokens: 900_000,
-      goals: [{ index: 7, name: "overall-final" }],
+      goals: [goal(7, "overall-final", 900_000, 60_000)],
       processes: [{ elapsedMs: 60_000, exitCode: 0, signal: null }],
       outputEvents: [],
     });
@@ -60,7 +60,7 @@ const main = (): void => {
       status: "interrupted",
       nextInstructionIndex: 0,
       totalTokens: 1_100_000,
-      goals: [{ index: 0, name: "backend-start" }],
+      goals: [goal(0, "backend-start", 1_100_000, 120_000)],
       processes: [{ elapsedMs: 120_000, exitCode: 1, signal: null }],
       outputEvents: [],
       model: "gpt-5.6-terra",
@@ -76,8 +76,8 @@ const main = (): void => {
       nextInstructionIndex: 1,
       totalTokens: 1_600_000,
       goals: [
-        { index: 0, name: "backend-start" },
-        { index: 1, name: "backend-review" },
+        goal(0, "backend-start", 1_000_000, 61_000),
+        goal(1, "backend-review", 0, 0),
       ],
       processes: [
         { elapsedMs: 61_000, exitCode: 0, signal: null },
@@ -95,7 +95,7 @@ const main = (): void => {
       status: "completed",
       nextInstructionIndex: 8,
       totalTokens: 400_000,
-      goals: [{ index: 7, name: "overall-final" }],
+      goals: [goal(7, "overall-final", 400_000, 3_660_000)],
       processes: [{ elapsedMs: 3_660_000, exitCode: 0, signal: null }],
       outputEvents: [],
     });
@@ -119,21 +119,28 @@ const main = (): void => {
     assert.match(dashboard, /^## GPT-5\.6-Terra$/mu);
     assert.match(
       dashboard,
-      /^\| Todo \| Plain \| `backend-review` · running \| 2 files · \+2\/−0 LOC \| 2M \| 2m \|$/mu,
+      /^- \*\*Todo Plain\*\* — `backend-review` · running$/mu,
     );
+    assert.match(dashboard, /^  - Progress: 2 files · \+2\/−0 LOC$/mu);
+    assert.match(dashboard, /^  - Elapsed: (?:\d+h )?\d{1,2}m$/mu);
+    assert.match(dashboard, /^  - Total: 2M · 2m$/mu);
+    assert.match(dashboard, /^  - `backend-start`: 1M · 1m$/mu);
+    assert.match(dashboard, /^  - `backend-review`: 1M · 1m$/mu);
     assert.match(
       dashboard,
-      /^\| Todo \| Evidence \| `overall-final` · completed \| 0 files · \+0\/−0 LOC \| 0M \| 1h 01m \|$/mu,
+      /^- \*\*Todo Evidence\*\* — `overall-final` · completed$/mu,
     );
+    assert.match(dashboard, /^  - `overall-final`: 0M · 1h 01m$/mu);
     assert.match(
       dashboard,
-      /^\| Reddit \| Plain \| `backend-start` · interrupted \| 0 files · \+0\/−0 LOC \| 1M \| 2m \|$/mu,
+      /^- \*\*Reddit Plain\*\* — `backend-start` · interrupted$/mu,
     );
+    assert.match(dashboard, /^  - `backend-start`: 1M · 2m$/mu);
     assert.equal(dashboard.includes("900000"), false);
     assert.equal(dashboard.includes("Shopping"), false);
     assert.ok(
-      dashboard.indexOf("| Todo | Plain |") <
-        dashboard.indexOf("| Todo | Evidence |"),
+      dashboard.indexOf("**Todo Plain**") <
+        dashboard.indexOf("**Todo Evidence**"),
     );
     assert.ok(
       dashboard.indexOf("## GPT-5.6-Luna") <
@@ -177,7 +184,12 @@ const writeRun = (props: {
   status: "ready" | "running" | "interrupted" | "completed";
   nextInstructionIndex: number;
   totalTokens: number;
-  goals: { index: number; name: string }[];
+  goals: {
+    elapsedMs: number;
+    index: number;
+    name: string;
+    tokenUsage: { totalTokens: number };
+  }[];
   processes: {
     elapsedMs: number;
     exitCode: number | null;
@@ -240,6 +252,23 @@ const writeRun = (props: {
     )}\n`,
   );
 };
+
+const goal = (
+  index: number,
+  name: string,
+  totalTokens: number,
+  elapsedMs: number,
+): {
+  elapsedMs: number;
+  index: number;
+  name: string;
+  tokenUsage: { totalTokens: number };
+} => ({
+  elapsedMs,
+  index,
+  name,
+  tokenUsage: { totalTokens },
+});
 
 const git = (cwd: string, args: string[]): void => {
   const result = spawnSync("git", args, {
