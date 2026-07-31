@@ -112,32 +112,32 @@ const main = (): void => {
     );
 
     const records = evidenceBenchmarkRecordPaths(
-      path.join(repository, "benchmark", "result", runId),
+      path.join(repository, "benchmark", "output", runId),
     );
     assert.deepEqual(records, {
-      root: path.resolve(repository, "benchmark", "result", runId),
+      root: path.resolve(repository, "benchmark", "output", runId),
       workspace: path.resolve(
         repository,
         "benchmark",
-        "result",
+        "output",
         runId,
         "workspace",
       ),
       state: path.resolve(
         repository,
         "benchmark",
-        "result",
+        "output",
         runId,
         "state.json",
       ),
       events: path.resolve(
         repository,
         "benchmark",
-        "result",
+        "output",
         runId,
         "events.jsonl",
       ),
-      raw: path.resolve(repository, "benchmark", "result", runId, "raw.log"),
+      raw: path.resolve(repository, "benchmark", "output", runId, "raw.log"),
     });
     assert.equal(
       sameEvidenceBenchmarkRecordPaths(

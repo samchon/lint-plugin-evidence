@@ -109,7 +109,7 @@ const main = (): void => {
       path.join(
         repository,
         "benchmark",
-        "result",
+        "output",
         "shopping",
         "codex",
         "plain",
@@ -316,7 +316,7 @@ const writeRun = (props: {
   const root: string = path.join(
     props.repository,
     "benchmark",
-    "result",
+    "output",
     props.subject,
     "codex",
     props.arm,

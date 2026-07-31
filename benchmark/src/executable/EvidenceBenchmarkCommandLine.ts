@@ -73,7 +73,7 @@ const main = async (): Promise<void> => {
   const output: string = path.join(
     repository,
     "benchmark",
-    "result",
+    "output",
     requestedCell.subject,
     requestedCell.engine,
     requestedCell.arm,

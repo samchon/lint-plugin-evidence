@@ -90,7 +90,7 @@ export const collectEvidenceBenchmarkReport = (
   generatedAt: Date = new Date(),
 ): IEvidenceBenchmarkReport => {
   const latest: IDashboardRun[] = selectLatestRuns(
-    scanRuns(path.join(repository, "benchmark", "result")),
+    scanRuns(path.join(repository, "benchmark", "output")),
   );
   const models: Map<string, IDashboardRun[]> = Map.groupBy(
     latest,

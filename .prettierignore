@@ -4,4 +4,4 @@
 benchmark/requirements/
 benchmark/instructions/
 benchmark/template/
-benchmark/result/
+benchmark/output/
