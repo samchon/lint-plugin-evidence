@@ -6,5 +6,5 @@ This stage owns only the complete first implementation of the API and backend. D
 
 1. Read every file under `docs/analysis/` in full, without omitting a single file, section, or requirement.
 2. Design the complete requirement-derived database under `packages/backend/prisma/schema/`. When the whole schema is settled, run `pnpm build:prisma` and `pnpm schema` from `packages/backend`.
-3. Design every API operation under `packages/backend/src/controllers/` and every request and response DTO under `packages/api/src/structures/`. Compare them with the complete requirement inventory and do not proceed while any requirement, API operation, request, response, or contract detail is omitted.
+3. Based on the requirements under `docs/analysis/` and the database design under `packages/backend/prisma/schema/`, design every API controller under `packages/backend/src/controllers/` and every DTO under `packages/api/src/structures/` without omitting any required operation or data contract.
 4. When the API is ready, run `pnpm build:sdk` from `packages/backend`, then write test programs under `packages/backend/test/features/` that cover every requirement and API operation without a single omission.
