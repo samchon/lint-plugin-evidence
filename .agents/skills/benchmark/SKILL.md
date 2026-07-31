@@ -66,6 +66,8 @@ At each step, the runner joins that file with the same arm's `instructions/<arm>
 
 Codex advances after the retained Goal completes, its terminal turn completes, and the thread becomes idle.
 
+The runner gives app-server a bounded shutdown grace after closing its input, then force-stops the owned process tree and records that cleanup if app-server does not exit. A detached owner monitor performs the same cleanup if the runner itself disappears, so a disconnected app-server cannot survive indefinitely.
+
 ## Supervise The Run
 
 Observe every active cell at least every 30 seconds. Check `state.json`, benchmark and native process liveness, and `events.jsonl` and `raw.log` recency. Investigate any disagreement immediately and correct the dashboard without waiting for its 5-minute interval.
@@ -94,7 +96,7 @@ On cancellation, stop the reporting subagent and every liveness watcher, then fo
 
 ## Complete The Campaign
 
-Treat a cell as execution-complete only when `state.json` is `completed`, all eight instructions have native terminal checkpoints, and the final process exits zero without a signal.
+Treat a cell as execution-complete only when `state.json` is `completed`, all eight instructions have native terminal checkpoints, and the final process either exits zero without a signal or records runner-owned forced shutdown after those checkpoints completed.
 
 Review every completed workspace read-only. Accept `docs/analysis/**` as the specification without validating it. Report defects only in the generated application or mismatches between its artifacts and the specification. Requirements are never defect candidates.
 

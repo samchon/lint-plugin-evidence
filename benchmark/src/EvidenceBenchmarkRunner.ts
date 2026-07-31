@@ -62,6 +62,9 @@ export namespace EvidenceBenchmarkRunner {
       await props.onState?.(structuredClone(state));
       return state;
     }
+    const shutdownGraceMs: number = props.shutdownGraceMs ?? 5_000;
+    if (!Number.isSafeInteger(shutdownGraceMs) || shutdownGraceMs <= 0)
+      throw new Error("App-server shutdown grace must be a positive integer.");
 
     const current = (): IEvidenceBenchmarkGoalRecord => {
       const record: IEvidenceBenchmarkGoalRecord | undefined = state.goals.find(
@@ -197,12 +200,18 @@ export namespace EvidenceBenchmarkRunner {
     const started: bigint = process.hrtime.bigint();
     const child = spawn(command, arguments_, {
       cwd: props.cwd,
+      detached: process.platform !== "win32",
       env: props.environment ?? process.env,
       shell: false,
       windowsVerbatimArguments: executable.windowsVerbatimArguments,
       windowsHide: true,
       stdio: "pipe",
     });
+    if (child.pid === undefined)
+      throw new Error("Codex app-server omitted its process ID.");
+    monitorProcess(process.pid, child.pid, (error) =>
+      finish("interrupted", error),
+    );
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
 
@@ -614,7 +623,11 @@ export namespace EvidenceBenchmarkRunner {
         for (const waiter of pending.values())
           waiter.reject(new Error("Codex app-server exited."));
         pending.clear();
-        if (outcome === "completed" && (exitCode !== 0 || signal !== null))
+        if (
+          outcome === "completed" &&
+          (exitCode !== 0 || signal !== null) &&
+          processRecord.shutdownForced !== true
+        )
           finish("interrupted", { exitCode, signal });
         if (outcome === undefined) finish("interrupted", { exitCode, signal });
         publish();
@@ -875,14 +888,27 @@ export namespace EvidenceBenchmarkRunner {
     await notifications;
     await publication;
     child.stdin.end();
-    await closed;
+    if (!(await waitFor(closed, shutdownGraceMs))) {
+      processRecord.shutdownForced = true;
+      await terminateProcessTree(child.pid);
+      if (!(await waitFor(closed, shutdownGraceMs))) {
+        finish(
+          "interrupted",
+          new Error("Codex app-server survived forced process-tree cleanup."),
+        );
+        processRecord.elapsedMs = elapsed(started);
+        child.stdout.destroy();
+        child.stderr.destroy();
+        child.unref();
+      }
+    }
     await notifications;
     await outputPublication;
     await publication;
     state.status =
       result === "completed" &&
-      processRecord.exitCode === 0 &&
-      processRecord.signal === null &&
+      ((processRecord.exitCode === 0 && processRecord.signal === null) ||
+        processRecord.shutdownForced === true) &&
       state.interruption === undefined &&
       !outputFailed &&
       !publicationFailed
@@ -982,8 +1008,8 @@ export namespace EvidenceBenchmarkRunner {
       state.processes.at(-1);
     if (
       terminal === undefined ||
-      terminal.exitCode !== 0 ||
-      terminal.signal !== null
+      ((terminal.exitCode !== 0 || terminal.signal !== null) &&
+        terminal.shutdownForced !== true)
     )
       throw new Error("Codex retained an invalid terminal process.");
   }
@@ -1247,5 +1273,77 @@ export namespace EvidenceBenchmarkRunner {
 
   function elapsed(started: bigint): number {
     return Number(process.hrtime.bigint() - started) / 1_000_000;
+  }
+
+  function monitorProcess(
+    ownerPid: number,
+    targetPid: number,
+    onError: (error: Error) => void,
+  ): void {
+    const monitor = spawn(
+      process.execPath,
+      [
+        path.join(
+          import.meta.dirname,
+          "executable",
+          "EvidenceBenchmarkProcessMonitor.mjs",
+        ),
+        String(ownerPid),
+        String(targetPid),
+      ],
+      {
+        detached: true,
+        shell: false,
+        stdio: "ignore",
+        windowsHide: true,
+      },
+    );
+    monitor.once("error", onError);
+    monitor.unref();
+  }
+
+  async function terminateProcessTree(targetPid: number): Promise<void> {
+    if (process.platform !== "win32") {
+      try {
+        process.kill(-targetPid, "SIGKILL");
+      } catch {
+        try {
+          process.kill(targetPid, "SIGKILL");
+        } catch {
+          // The app-server exited between the timeout and cleanup.
+        }
+      }
+      return;
+    }
+    await new Promise<void>((resolve) => {
+      const cleanup = spawn(
+        "taskkill.exe",
+        ["/pid", String(targetPid), "/T", "/F"],
+        {
+          shell: false,
+          stdio: "ignore",
+          windowsHide: true,
+        },
+      );
+      cleanup.once("error", () => resolve());
+      cleanup.once("close", () => resolve());
+    });
+  }
+
+  async function waitFor(
+    promise: Promise<void>,
+    timeoutMs: number,
+  ): Promise<boolean> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        promise.then(() => true),
+        new Promise<false>((resolve) => {
+          timer = setTimeout(() => resolve(false), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
   }
 }

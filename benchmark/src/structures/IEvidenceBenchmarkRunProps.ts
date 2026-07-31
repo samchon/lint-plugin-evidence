@@ -36,6 +36,9 @@ export interface IEvidenceBenchmarkRunProps {
   /** Arguments placed before the native Codex arguments. */
   commandPrefixArguments?: readonly string[];
 
+  /** Grace period for app-server to exit after its standard input closes. */
+  shutdownGraceMs?: number;
+
   /** Append-only observer for native stream chunks. */
   onOutput: (
     processIndex: number,

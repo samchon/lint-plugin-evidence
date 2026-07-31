@@ -22,4 +22,7 @@ export interface IEvidenceBenchmarkProcessRecord {
 
   /** Terminating signal, or null when none was reported. */
   signal: NodeJS.Signals | null;
+
+  /** True when exact work completed but app-server required forced cleanup. */
+  shutdownForced?: boolean;
 }

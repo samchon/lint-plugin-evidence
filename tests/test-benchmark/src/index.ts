@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -85,6 +86,44 @@ const main = async (): Promise<void> => {
       sources.get("plain/continue.md"),
       sources.get("evidence/continue.md"),
     );
+    const orphan = spawn(
+      process.execPath,
+      ["-e", "setInterval(() => undefined, 1000)"],
+      {
+        detached: process.platform !== "win32",
+        stdio: "ignore",
+        windowsHide: true,
+      },
+    );
+    assert.notEqual(orphan.pid, undefined);
+    const orphanClosed = new Promise<void>((resolve) => {
+      orphan.once("close", () => resolve());
+    });
+    spawn(
+      process.execPath,
+      [
+        path.join(
+          import.meta.dirname,
+          "../../../benchmark/src/executable/EvidenceBenchmarkProcessMonitor.mjs",
+        ),
+        "999999999",
+        String(orphan.pid),
+      ],
+      {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
+      },
+    ).unref();
+    await Promise.race([
+      orphanClosed,
+      new Promise<never>((_resolve, reject) =>
+        setTimeout(
+          () => reject(new Error("Owner monitor left an orphan process.")),
+          5_000,
+        ),
+      ),
+    ]);
     const prefix: string[] = [
       "--experimental-transform-types",
       import.meta.filename,
@@ -197,6 +236,21 @@ const main = async (): Promise<void> => {
       reasoningOutputTokens: ENTRIES.length * 3,
     } satisfies IEvidenceBenchmarkTokenUsage);
     assert.equal(snapshots.at(-1)?.status, "completed");
+
+    const forcedCleanup = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--hang-on-close"],
+      shutdownGraceMs: 50,
+      onOutput: () => undefined,
+    });
+    assert.equal(forcedCleanup.status, "completed");
+    assert.equal(forcedCleanup.nextInstructionIndex, ENTRIES.length);
+    assert.equal(forcedCleanup.processes[0]?.shutdownForced, true);
 
     const terminalLineBreakOutput: IEvidenceBenchmarkOutput[] = [];
     const terminalLineBreak = await EvidenceBenchmarkRunner.run({
@@ -910,6 +964,7 @@ const readObjective = (
 
 const fakeAppServer = (): void => {
   const fail: boolean = process.argv.includes("--fail");
+  const hangOnClose: boolean = process.argv.includes("--hang-on-close");
   const lateError: boolean = process.argv.includes("--late-error");
   const blockedThenComplete: boolean = process.argv.includes(
     "--blocked-then-complete",
@@ -1377,6 +1432,7 @@ const fakeAppServer = (): void => {
   });
   input.on("close", () => {
     if (lateError) send({ id: -1, method: "fixture/late-error" });
+    if (hangOnClose) setInterval(() => undefined, 1_000);
   });
 };
 
