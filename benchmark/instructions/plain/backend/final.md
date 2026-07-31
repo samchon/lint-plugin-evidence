@@ -1,15 +1,10 @@
 # Plain Backend Final
 
-Run these gates in order:
+Audit whether the Plain Backend Review actually completed.
 
-1. `build:prisma`
-2. `prepare:database`
-3. `build:api`
-4. `build:main`
-5. `build:sdk`
-6. `build:test`
-7. lint
-8. tests
-9. live-server checks
+1. Confirm that every backend requirement and artifact was read directly.
+2. Confirm that every finding was fixed at its owner.
+3. Confirm that each fix restarted the review from its first item.
+4. Confirm that the last complete review round found no problem and made no edit.
 
-If a gate changes generated output or exposes a defect, fix the owner and repeat the complete backend review before rerunning the gates. Finish only when every backend requirement is implemented, no correction remains, and every gate passes.
+If any point is unproven, return to Plain Backend Review. Do not perform a substitute review here.

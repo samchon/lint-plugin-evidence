@@ -1,15 +1,10 @@
 # Evidence Backend Final
 
-Run these gates in order:
+Audit whether the Evidence Backend Review actually completed.
 
-1. `build:prisma`
-2. `prepare:database`
-3. `build:api`
-4. `build:main`
-5. `build:sdk`
-6. `build:test`
-7. lint
-8. tests
-9. live-server checks
+1. Confirm that every active backend claim and annotation was inspected.
+2. Confirm that every host, target, and reason was checked for truth and relevance.
+3. Confirm that every annotation defect was corrected.
+4. Confirm that the last complete traversal needed no edit.
 
-If a gate changes generated output or exposes a defect, fix the owner and repeat the complete backend Evidence review before rerunning the gates. Finish only when every backend requirement is implemented, no backend or API `@todo` remains, Evidence reports no diagnostic, and every backend gate passes.
+If any point is unproven, return to Evidence Backend Review. Do not perform a substitute review here.

@@ -1,14 +1,10 @@
 # Plain Overall Final
 
-Run these gates in order:
+Audit whether the Plain Overall Review actually completed.
 
-1. format
-2. root build
-3. lint
-4. database preparation
-5. tests
-6. UI review
-7. browser journeys
-8. live checks
+1. Confirm that every requirement, file, relationship, and live behavior was inspected directly.
+2. Confirm that every finding was fixed at its owner.
+3. Confirm that each fix restarted the whole-project review from its first item.
+4. Confirm that the last complete review round found no problem and made no edit.
 
-If formatting or a gate changes output or exposes a defect, fix the owner and repeat the complete whole-project review before rerunning every affected gate. Finish only when every requirement is implemented, no correction remains, and every gate passes.
+If any point is unproven, return to Plain Overall Review. Do not perform a substitute review here.

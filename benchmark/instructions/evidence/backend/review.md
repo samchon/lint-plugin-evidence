@@ -1,10 +1,10 @@
 # Evidence Backend Review
 
-Perform a new backend Evidence review.
+Review the backend Evidence annotations claim by claim.
 
-1. Re-read every backend requirement.
-2. Inspect every active claim from each host through its target and reason.
-3. Verify coverage, citation truth, specificity, exclusions, and the implementation behind every edge.
-4. Run every backend gate.
+1. Enumerate every active backend claim and every annotation that belongs to it.
+2. Inspect each annotation's host, target, and written reason.
+3. Verify that the target exists and the reason truthfully explains the host's responsibility.
+4. Verify that the annotations cover the claim without irrelevant, vague, false, or missing citations.
 
-Fix every defect at its owner, regenerate affected output, and restart at item 1. Complete only when one full traversal needs no edits, Evidence reports no diagnostic, and every backend gate passes. Do not review the frontend.
+Fix every annotation defect and restart at item 1. Complete only when one full traversal needs no edit. Do not perform a general code review or review the frontend.
