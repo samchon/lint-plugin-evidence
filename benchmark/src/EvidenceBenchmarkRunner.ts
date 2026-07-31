@@ -898,7 +898,10 @@ export namespace EvidenceBenchmarkRunner {
         record.objectiveText !==
           `${record.prescribedText}\n\n${record.continuationText}` ||
         record.goal?.threadId !== state.sessionId ||
-        record.goal?.objective !== record.objectiveText ||
+        !sameNativeGoalObjective(
+          record.goal?.objective,
+          record.objectiveText,
+        ) ||
         record.goal?.status !== "complete" ||
         record.terminalTurnId === null ||
         !record.terminalTurnCompleted ||
@@ -996,14 +999,20 @@ export namespace EvidenceBenchmarkRunner {
     goal: Record<string, unknown>,
     threadId: string,
   ): void {
-    const objectiveMatches: boolean =
-      goal.objective === record.objectiveText ||
-      (record.objectiveText.endsWith("\n") &&
-        goal.objective === record.objectiveText.slice(0, -1));
-    if (goal.threadId !== threadId || !objectiveMatches)
+    if (
+      goal.threadId !== threadId ||
+      !sameNativeGoalObjective(goal.objective, record.objectiveText)
+    )
       throw new Error(
         "Native Goal does not match the retained thread and objective.",
       );
+  }
+
+  function sameNativeGoalObjective(actual: unknown, expected: string): boolean {
+    if (typeof actual !== "string") return false;
+    const canonicalize = (value: string): string =>
+      value.replace(/\r\n/gu, "\n").replace(/[\r\n]+$/u, "");
+    return canonicalize(actual) === canonicalize(expected);
   }
 
   function isRetainedGoalStatus(value: unknown): boolean {

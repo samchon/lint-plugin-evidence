@@ -198,58 +198,65 @@ const main = async (): Promise<void> => {
     } satisfies IEvidenceBenchmarkTokenUsage);
     assert.equal(snapshots.at(-1)?.status, "completed");
 
-    const terminalLfOutput: IEvidenceBenchmarkOutput[] = [];
-    const terminalLf = await EvidenceBenchmarkRunner.run({
+    const terminalLineBreakOutput: IEvidenceBenchmarkOutput[] = [];
+    const terminalLineBreak = await EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("evidence"),
       cwd: root,
       instructionsRoot: root,
       model: "fixture-model",
       effort: "high",
       command: process.execPath,
-      commandPrefixArguments: [...prefix, "--terminal-lf"],
+      commandPrefixArguments: [...prefix, "--trim-terminal-line-breaks"],
       onOutput: (_processIndex, output) => {
-        terminalLfOutput.push(output);
+        terminalLineBreakOutput.push(output);
       },
     });
-    assert.equal(terminalLf.status, "completed");
-    assert.equal(terminalLf.nextInstructionIndex, ENTRIES.length);
-    assert.equal(terminalLf.goals.length, ENTRIES.length);
-    const terminalLfRequests = terminalLfOutput
+    assert.equal(terminalLineBreak.status, "completed");
+    assert.equal(terminalLineBreak.nextInstructionIndex, ENTRIES.length);
+    assert.equal(terminalLineBreak.goals.length, ENTRIES.length);
+    const terminalLineBreakRequests = terminalLineBreakOutput
       .filter((output) => output.stream === "stdin")
       .map((output) => JSON.parse(output.text) as Record<string, unknown>)
       .filter((request) => request.method === "thread/goal/set");
-    assert.equal(terminalLfRequests.length, ENTRIES.length);
-    terminalLf.goals.forEach((goal, index) => {
+    assert.equal(terminalLineBreakRequests.length, ENTRIES.length);
+    terminalLineBreak.goals.forEach((goal, index) => {
       const objective: string = readObjective(root, sources, ENTRIES[index]!);
-      assert.ok(objective.endsWith("\n"));
+      assert.ok(objective.endsWith("\r\n"));
       assert.equal(goal.objectiveText, objective);
       assert.deepEqual(Buffer.from(goal.objectiveText), Buffer.from(objective));
       assert.equal(
-        (terminalLfRequests[index]?.params as Record<string, unknown>)
+        (terminalLineBreakRequests[index]?.params as Record<string, unknown>)
           ?.objective,
         objective,
       );
-      assert.equal(goal.goal?.objective, objective.slice(0, -1));
+      assert.equal(goal.goal?.objective, objective.replace(/[\r\n]+$/u, ""));
     });
 
-    const terminalLfBoundary = structuredClone(terminalLf);
-    terminalLfBoundary.status = "interrupted";
-    terminalLfBoundary.nextInstructionIndex = 1;
-    terminalLfBoundary.goals = terminalLfBoundary.goals.slice(0, 1);
-    terminalLfBoundary.threadTokenUsage = structuredClone(
-      terminalLfBoundary.goals[0]!.tokenUsageEnd!,
+    const terminalLineBreakBoundary = structuredClone(terminalLineBreak);
+    terminalLineBreakBoundary.status = "interrupted";
+    terminalLineBreakBoundary.nextInstructionIndex = 1;
+    terminalLineBreakBoundary.goals = terminalLineBreakBoundary.goals.slice(
+      0,
+      1,
     );
-    const terminalLfResume = await EvidenceBenchmarkRunner.run({
-      state: terminalLfBoundary,
+    terminalLineBreakBoundary.threadTokenUsage = structuredClone(
+      terminalLineBreakBoundary.goals[0]!.tokenUsageEnd!,
+    );
+    const terminalLineBreakResume = await EvidenceBenchmarkRunner.run({
+      state: terminalLineBreakBoundary,
       cwd: root,
       instructionsRoot: root,
       model: "fixture-model",
       effort: "high",
       command: process.execPath,
-      commandPrefixArguments: [...prefix, "--previous-goal", "--terminal-lf"],
+      commandPrefixArguments: [
+        ...prefix,
+        "--previous-goal",
+        "--trim-terminal-line-breaks",
+      ],
       onOutput: () => undefined,
     });
-    assert.equal(terminalLfResume.status, "completed");
+    assert.equal(terminalLineBreakResume.status, "completed");
 
     if (process.platform === "win32") {
       const shimDirectory: string = path.join(root, "command shims");
@@ -878,7 +885,9 @@ const fakeAppServer = (): void => {
   );
   const wrongGoal: boolean = process.argv.includes("--wrong-goal");
   const wrongThread: boolean = process.argv.includes("--wrong-thread");
-  const terminalLf: boolean = process.argv.includes("--terminal-lf");
+  const trimTerminalLineBreaks: boolean = process.argv.includes(
+    "--trim-terminal-line-breaks",
+  );
   let goalIndex = currentActive ? 1 : currentGoal ? 2 : previousGoal ? 1 : 0;
   let waitingForTurnCompletion = false;
   const send = (value: unknown, callback?: () => void): void => {
@@ -889,10 +898,9 @@ const fakeAppServer = (): void => {
     status: "active" | "blocked" | "complete",
   ) => ({
     threadId: "fixture-thread",
-    objective:
-      terminalLf && objective.endsWith("\n")
-        ? objective.slice(0, -1)
-        : objective,
+    objective: trimTerminalLineBreaks
+      ? objective.replace(/[\r\n]+$/u, "")
+      : objective,
     status,
     tokenBudget: null,
     tokensUsed: goalIndex * 10,
