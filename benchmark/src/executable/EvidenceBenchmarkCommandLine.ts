@@ -102,11 +102,7 @@ const main = async (): Promise<void> => {
   )
     throw new Error("Retained benchmark cell does not match the invocation.");
   if (retained !== undefined)
-    assertRecoveryRevision(
-      repository,
-      cell.benchmarkRevision,
-      runnerRevision,
-    );
+    assertRecoveryRevision(repository, cell.benchmarkRevision, runnerRevision);
   if (
     retained !== undefined &&
     ((cell.arm === "evidence" &&

@@ -128,7 +128,10 @@ const readFirstJson = (file: string): unknown => {
   try {
     const buffer: Buffer = Buffer.alloc(64 * 1024);
     const length: number = fs.readSync(descriptor, buffer, 0, buffer.length, 0);
-    const line: string = buffer.subarray(0, length).toString("utf8").split("\n")[0]!;
+    const line: string = buffer
+      .subarray(0, length)
+      .toString("utf8")
+      .split("\n")[0]!;
     return line.length === 0 ? undefined : JSON.parse(line);
   } finally {
     fs.closeSync(descriptor);
@@ -250,7 +253,14 @@ const git = (
 ): string => {
   const result = spawnSync(
     "git",
-    ["-c", "core.quotepath=false", "--no-optional-locks", "-C", workspace, ...args],
+    [
+      "-c",
+      "core.quotepath=false",
+      "--no-optional-locks",
+      "-C",
+      workspace,
+      ...args,
+    ],
     {
       encoding: "utf8",
       env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", ...environment },
@@ -275,9 +285,7 @@ const formatCost = (state: IDashboardState): string => {
 
 const elapsed = (file: IDashboardStateFile): number => {
   const finished: number = file.state.processes
-    .filter(
-      (process) => process.exitCode !== null || process.signal !== null,
-    )
+    .filter((process) => process.exitCode !== null || process.signal !== null)
     .reduce((sum, process) => sum + process.elapsedMs, 0);
   const activeIndex: number = file.state.processes.findLastIndex(
     (process) => process.exitCode === null && process.signal === null,
@@ -350,8 +358,8 @@ const title = (value: string): string =>
   `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 
 const displayModel = (model: string): string =>
-  model.replace(/^gpt-/iu, "GPT-").replace(/-([^-]+)$/u, (_, family: string) =>
-    `-${title(family)}`,
-  );
+  model
+    .replace(/^gpt-/iu, "GPT-")
+    .replace(/-([^-]+)$/u, (_, family: string) => `-${title(family)}`);
 
 main();

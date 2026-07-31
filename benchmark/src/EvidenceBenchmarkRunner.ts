@@ -370,10 +370,7 @@ export namespace EvidenceBenchmarkRunner {
                   retained.threadIdle &&
                   retained.tokenUsageTurnId === retained.terminalTurnId &&
                   retained.tokenUsageEnd !== null &&
-                  sameUsage(
-                    retained.tokenUsageEnd,
-                    state.threadTokenUsage,
-                  )));
+                  sameUsage(retained.tokenUsageEnd, state.threadTokenUsage)));
             if (exact) {
               publish();
               return;

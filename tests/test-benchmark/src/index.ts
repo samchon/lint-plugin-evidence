@@ -870,30 +870,30 @@ const fakeAppServer = (): void => {
           () => {
             if (wrongThread) return;
             if (previousGoal) {
-              const replay = advancedInterruptedReplay ||
-                unprovenInterruptedReplay
-                ? {
-                    turnId: "turn-interrupted",
-                    total: {
-                      totalTokens: 25,
-                      inputTokens: 15,
-                      cachedInputTokens: 5,
-                      cacheWriteInputTokens: 2,
-                      outputTokens: 10,
-                      reasoningOutputTokens: 7,
-                    },
-                  }
-                : {
-                    turnId: `turn-${goalIndex}`,
-                    total: {
-                      totalTokens: goalIndex * 10,
-                      inputTokens: goalIndex * 6,
-                      cachedInputTokens: goalIndex * 2,
-                      cacheWriteInputTokens: goalIndex,
-                      outputTokens: goalIndex * 4,
-                      reasoningOutputTokens: goalIndex * 3,
-                    },
-                  };
+              const replay =
+                advancedInterruptedReplay || unprovenInterruptedReplay
+                  ? {
+                      turnId: "turn-interrupted",
+                      total: {
+                        totalTokens: 25,
+                        inputTokens: 15,
+                        cachedInputTokens: 5,
+                        cacheWriteInputTokens: 2,
+                        outputTokens: 10,
+                        reasoningOutputTokens: 7,
+                      },
+                    }
+                  : {
+                      turnId: `turn-${goalIndex}`,
+                      total: {
+                        totalTokens: goalIndex * 10,
+                        inputTokens: goalIndex * 6,
+                        cachedInputTokens: goalIndex * 2,
+                        cacheWriteInputTokens: goalIndex,
+                        outputTokens: goalIndex * 4,
+                        reasoningOutputTokens: goalIndex * 3,
+                      },
+                    };
               send({
                 method: "thread/tokenUsage/updated",
                 params: {
