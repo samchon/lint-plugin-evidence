@@ -284,24 +284,31 @@ const formatCost = (state: IDashboardState): string => {
 };
 
 const elapsed = (file: IDashboardStateFile): number => {
-  const finished: number = file.state.processes
-    .filter((process) => process.exitCode !== null || process.signal !== null)
-    .reduce((sum, process) => sum + process.elapsedMs, 0);
-  const activeIndex: number = file.state.processes.findLastIndex(
-    (process) => process.exitCode === null && process.signal === null,
+  const unresolved: Set<number> = new Set(
+    file.state.processes.flatMap((process, index) =>
+      process.exitCode === null && process.signal === null ? [index] : [],
+    ),
   );
-  if (activeIndex === -1) return finished;
-  const latest: unknown = readLastJson(file.records.events);
-  return (
-    finished +
-    (isOutputEvent(latest) && latest.processIndex === activeIndex
-      ? latest.elapsedMs
-      : 0)
+  const observed: Map<number, IOutputEvent> = readLastOutputEvents(
+    file.records.events,
+    unresolved,
+  );
+  return file.state.processes.reduce(
+    (sum, process, index) =>
+      sum +
+      (process.exitCode !== null || process.signal !== null
+        ? process.elapsedMs
+        : Math.max(process.elapsedMs, observed.get(index)?.elapsedMs ?? 0)),
+    0,
   );
 };
 
-const readLastJson = (file: string): unknown => {
-  if (!fs.existsSync(file)) return undefined;
+const readLastOutputEvents = (
+  file: string,
+  targets: ReadonlySet<number>,
+): Map<number, IOutputEvent> => {
+  const found: Map<number, IOutputEvent> = new Map();
+  if (!fs.existsSync(file) || targets.size === 0) return found;
   const descriptor: number = fs.openSync(file, "r");
   try {
     const size: number = fs.fstatSync(descriptor).size;
@@ -318,14 +325,21 @@ const readLastJson = (file: string): unknown => {
         const candidate: string = lines[i]!.trim();
         if (candidate.length === 0) continue;
         try {
-          return JSON.parse(candidate);
+          const value: unknown = JSON.parse(candidate);
+          if (
+            isOutputEvent(value) &&
+            targets.has(value.processIndex) &&
+            !found.has(value.processIndex)
+          )
+            found.set(value.processIndex, value);
+          if (found.size === targets.size) return found;
         } catch {
           // The writer may have an incomplete final line; use the last complete event.
         }
       }
       suffix = lines[0]!;
     }
-    return undefined;
+    return found;
   } finally {
     fs.closeSync(descriptor);
   }
