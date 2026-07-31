@@ -1,10 +1,11 @@
 # Plain Backend Review
 
-Perform a new, exhaustive backend review.
+Review the complete API and backend by reading the current files yourself. Do not review the frontend.
 
-1. Re-read every requirement.
-2. Inspect every database model and relation.
-3. Inspect every DTO, property, operation, branch, authorization rule, and error path.
-4. Inspect every test, generated contract, and connection between artifacts.
+1. Read every file under `docs/analysis/` in full, without omitting a single file, section, or requirement.
+2. Read every file under `packages/backend/prisma/schema/`, `packages/api/src/structures/`, `packages/api/src/functional/`, `packages/backend/src/`, and `packages/backend/test/` in full, without sampling or skipping generated contracts.
+3. Trace every requirement forward through the database, DTOs, API operations, backend logic, generated SDK, and tests.
+4. Trace every database model, DTO, API operation, logic branch, SDK contract, and test backward to the requirement that justifies it.
+5. Check every relation, property, authorization rule, state transition, error path, side effect, and test assertion for omissions, contradictions, and incorrect behavior.
 
-Review the actual files one by one. Searches, summaries, inventories, build results, and previous reviews never replace inspection. Fix every defect at its owner and restart at item 1, without limiting the number of rounds. Complete only when one entire pass finds no problem and needs no edit. Do not review the frontend.
+Searches, summaries, inventories, build results, and previous reviews never replace this full reading. If you find even one problem, fix it and restart at item 1. Repeat without any round limit. Complete only when one entire round finds no problem and makes no edit.
