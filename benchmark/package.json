@@ -11,6 +11,7 @@
   "scripts": {
     "start": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkCommandLine.ts",
     "dashboard": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkDashboard.ts",
+    "report": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkReport.ts",
     "check": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {

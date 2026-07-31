@@ -21,7 +21,7 @@ coverage/
 *.tsbuildinfo
 *.log
 
-# Benchmark runs and generated results are local measurement output.
+# Raw benchmark runs and measured workspaces are local measurement output.
 /benchmark/result/
 
 # AI assistant data

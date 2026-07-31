@@ -29,6 +29,16 @@ Omit `run-id` to create a cell under `benchmark/result/<project>/<engine>/<arm>/
 
 When launching Evidence cells concurrently, follow the Benchmark skill's shared-archive procedure. Every Evidence cell copies that archive and records its SHA-256. Without `EVIDENCE_BENCHMARK_ARCHIVE`, a standalone Evidence cell packs its own archive.
 
+## Publishable reports
+
+Raw run records and measured workspaces stay under the ignored `benchmark/result/` directory. Generate the tracked latest-run aggregate and comparison charts with:
+
+```bash
+pnpm --filter @samchon/evidence-benchmark report
+```
+
+The command writes `benchmark/reports/latest/summary.json` plus `tokens.svg`, `work-time.svg`, and `wall-time.svg`. The JSON preserves raw aggregate values and per-stage shares; the SVG files render the same cells without recalculating them.
+
 ## Instruction sequence
 
 One native session receives these eight instructions in order:

@@ -5,12 +5,22 @@ import path from "node:path";
 
 import typia from "typia";
 
+import type {
+  IEvidenceBenchmarkReport,
+  IEvidenceBenchmarkReportCell,
+  IEvidenceBenchmarkReportStage,
+  IEvidenceBenchmarkReportWorktree,
+} from "./structures/IEvidenceBenchmarkReport.ts";
+import type { EvidenceBenchmarkEffort } from "./typings/EvidenceBenchmarkEffort.ts";
+
 interface IDashboardCell {
   engine: "codex";
   subject: string;
   arm: "plain" | "evidence";
   runId: string;
+  benchmarkRevision: string;
   model: string;
+  effort: EvidenceBenchmarkEffort;
 }
 
 interface IDashboardProcess {
@@ -55,12 +65,6 @@ interface IDashboardRun {
   launchedAt: number;
 }
 
-interface IWorktreeDelta {
-  files: number;
-  additions: number;
-  deletions: number;
-}
-
 interface IOutputEvent {
   processIndex: number;
   elapsedMs: number;
@@ -69,10 +73,25 @@ interface IOutputEvent {
 export const renderEvidenceBenchmarkDashboard = (
   repository: string,
 ): string => {
-  const runs: IDashboardRun[] = scanRuns(
-    path.join(repository, "benchmark", "result"),
+  const report: IEvidenceBenchmarkReport =
+    collectEvidenceBenchmarkReport(repository);
+  const models: Map<string, IEvidenceBenchmarkReportCell[]> = Map.groupBy(
+    report.cells,
+    (cell) => cell.model,
   );
-  const latest: IDashboardRun[] = selectLatestRuns(runs);
+  return `${[...models]
+    .map(([model, group]) => renderModel(model, group))
+    .join("\n\n")}\n`;
+};
+
+/** Collects the publishable latest-run aggregate used by every report view. */
+export const collectEvidenceBenchmarkReport = (
+  repository: string,
+  generatedAt: Date = new Date(),
+): IEvidenceBenchmarkReport => {
+  const latest: IDashboardRun[] = selectLatestRuns(
+    scanRuns(path.join(repository, "benchmark", "result")),
+  );
   const models: Map<string, IDashboardRun[]> = Map.groupBy(
     latest,
     (run) => run.file.cell.model,
@@ -83,9 +102,15 @@ export const renderEvidenceBenchmarkDashboard = (
         Math.min(...rightRuns.map((run) => run.launchedAt)) ||
       leftModel.localeCompare(rightModel),
   );
-  return `${ordered
-    .map(([model, group]) => renderModel(model, group))
-    .join("\n\n")}\n`;
+  return {
+    schemaVersion: 1,
+    generatedAt: generatedAt.toISOString(),
+    cells: ordered.flatMap(([, runs]) =>
+      runs
+        .sort(compareRuns)
+        .map((run) => summarizeRun(run, generatedAt.getTime())),
+    ),
+  };
 };
 
 const scanRuns = (result: string): IDashboardRun[] => {
@@ -156,8 +181,11 @@ const selectLatestRuns = (runs: IDashboardRun[]): IDashboardRun[] => {
   return [...latest.values()];
 };
 
-const renderModel = (model: string, runs: IDashboardRun[]): string => {
-  const cells: IRenderedRun[] = runs.sort(compareRuns).map(renderRun);
+const renderModel = (
+  model: string,
+  runs: IEvidenceBenchmarkReportCell[],
+): string => {
+  const cells: IRenderedRun[] = runs.map(renderRun);
   return [
     `## ${displayModel(model)}`,
     "",
@@ -187,29 +215,59 @@ interface IRenderedRun {
   details: string[];
 }
 
-const renderRun = (run: IDashboardRun): IRenderedRun => {
-  const file: IDashboardStateFile = run.file;
-  const delta: IWorktreeDelta = inspectWorktree(file.records.workspace);
-  const totalElapsed: number = elapsed(file);
-  const cell: string = `${title(file.cell.subject)} ${title(file.cell.arm)}`;
-  const totalTokens: number = file.state.threadTokenUsage.totalTokens;
+const renderRun = (run: IEvidenceBenchmarkReportCell): IRenderedRun => {
+  const cell: string = `${title(run.subject)} ${title(run.arm)}`;
   return {
-    summary: `| ${cell} | ${stage(file.state)} | ${formatDelta(delta)} | ${formatTime(wallElapsed(run))} | ${formatCost(totalTokens)} | ${formatTime(totalElapsed)} |`,
+    summary: `| ${cell} | ${formatStage(run)} | ${formatDelta(run.worktree)} | ${formatTime(run.wallElapsedMs)} | ${formatCost(run.tokens)} | ${formatTime(run.workElapsedMs)} |`,
     details: [
       `- **${cell} stages**`,
-      ...stageMeasurements(file.state, totalElapsed).map(
+      ...run.stages.map(
         (measurement) =>
-          `  - \`${measurement.name}\`: ${formatCost(measurement.tokens)} · ${formatTime(measurement.elapsedMs)} · ${formatPercent(measurement.tokens, totalTokens)} tokens · ${formatPercent(measurement.elapsedMs, totalElapsed)} time`,
+          `  - \`${measurement.name}\`: ${formatCost(measurement.tokens)} · ${formatTime(measurement.elapsedMs)} · ${measurement.tokenPercent}% tokens · ${measurement.timePercent}% time`,
       ),
     ],
   };
 };
 
-const wallElapsed = (run: IDashboardRun): number => {
+const summarizeRun = (
+  run: IDashboardRun,
+  generatedAt: number,
+): IEvidenceBenchmarkReportCell => {
+  const file: IDashboardStateFile = run.file;
+  const workElapsedMs: number = elapsed(file);
+  const totalTokens: number = file.state.threadTokenUsage.totalTokens;
+  const stages: IEvidenceBenchmarkReportStage[] = stageMeasurements(
+    file.state,
+    workElapsedMs,
+  ).map((measurement) => ({
+    ...measurement,
+    tokenPercent: percent(measurement.tokens, totalTokens),
+    timePercent: percent(measurement.elapsedMs, workElapsedMs),
+  }));
+  return {
+    engine: file.cell.engine,
+    subject: file.cell.subject,
+    arm: file.cell.arm,
+    runId: file.cell.runId,
+    benchmarkRevision: file.cell.benchmarkRevision,
+    model: file.cell.model,
+    effort: file.cell.effort,
+    status: file.state.status,
+    stage: stageName(file.state),
+    launchedAt: new Date(run.launchedAt).toISOString(),
+    tokens: totalTokens,
+    workElapsedMs,
+    wallElapsedMs: wallElapsed(run, generatedAt),
+    worktree: inspectWorktree(file.records.workspace),
+    stages,
+  };
+};
+
+const wallElapsed = (run: IDashboardRun, generatedAt: number): number => {
   const stoppedAt: number | undefined =
     run.file.state.status === "completed"
       ? readLastRecordedTime(run.file.records.events)
-      : Date.now();
+      : generatedAt;
   return Math.max(0, (stoppedAt ?? run.launchedAt) - run.launchedAt);
 };
 
@@ -307,17 +365,20 @@ const retainedInstructionElapsed = (
     : instruction.elapsedMs;
 };
 
-const stage = (state: IDashboardState): string => {
+const stageName = (state: IDashboardState): string | null => {
   const records: IDashboardInstruction[] = state.goals;
   const instruction: IDashboardInstruction | undefined =
     records.find((record) => record.index === state.nextInstructionIndex) ??
     records.at(-1);
-  return instruction === undefined
-    ? state.status
-    : `\`${instruction.name}\` · ${state.status}`;
+  return instruction?.name ?? null;
 };
 
-const inspectWorktree = (workspace: string): IWorktreeDelta => {
+const formatStage = (cell: IEvidenceBenchmarkReportCell): string =>
+  cell.stage === null ? cell.status : `\`${cell.stage}\` · ${cell.status}`;
+
+const inspectWorktree = (
+  workspace: string,
+): IEvidenceBenchmarkReportWorktree => {
   const baseline: string = git(workspace, [
     "rev-list",
     "--max-parents=0",
@@ -390,14 +451,14 @@ const git = (
   return result.stdout;
 };
 
-const formatDelta = (delta: IWorktreeDelta): string =>
+const formatDelta = (delta: IEvidenceBenchmarkReportWorktree): string =>
   `${delta.files} files · +${compact(delta.additions)}/−${compact(delta.deletions)} LOC`;
 
 const formatCost = (tokens: number): string =>
   `${Math.round(tokens / 1_000_000)}M`;
 
-const formatPercent = (part: number, total: number): string =>
-  `${total === 0 ? 0 : Math.round((part / total) * 100)}%`;
+const percent = (part: number, total: number): number =>
+  total === 0 ? 0 : Math.round((part / total) * 100);
 
 const elapsed = (file: IDashboardStateFile): number => {
   const unresolved: Set<number> = new Set(

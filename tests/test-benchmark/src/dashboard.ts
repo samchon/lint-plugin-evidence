@@ -5,6 +5,11 @@ import os from "node:os";
 import path from "node:path";
 
 import { renderEvidenceBenchmarkDashboard } from "../../../benchmark/src/EvidenceBenchmarkDashboard.ts";
+import { writeEvidenceBenchmarkReport } from "../../../benchmark/src/EvidenceBenchmarkReport.ts";
+import type {
+  IEvidenceBenchmarkReport,
+  IEvidenceBenchmarkReportCell,
+} from "../../../benchmark/src/structures/IEvidenceBenchmarkReport.ts";
 
 /**
  * Verifies the dashboard reports only the latest launched run for each cell.
@@ -17,7 +22,8 @@ import { renderEvidenceBenchmarkDashboard } from "../../../benchmark/src/Evidenc
  * 1. Create two real benchmark worktrees and retained run records.
  * 2. Give one cell an older run and a newer active run with later output.
  * 3. Render the summary table and stage-level cost, time, and shares.
- * 4. Assert stale and unlaunched cells never appear.
+ * 4. Publish deterministic JSON and SVG charts from the same aggregate.
+ * 5. Assert stale and unlaunched cells never appear.
  */
 const main = (): void => {
   const repository: string = fs.mkdtempSync(
@@ -160,6 +166,100 @@ const main = (): void => {
       dashboard.indexOf("## GPT-5.6-Luna") <
         dashboard.indexOf("## GPT-5.6-Terra"),
     );
+
+    const generatedAt: Date = new Date("2026-07-31T04:00:00.000Z");
+    const reportOutput: string = path.join(repository, "published");
+    const report: IEvidenceBenchmarkReport = writeEvidenceBenchmarkReport({
+      repository,
+      output: reportOutput,
+      generatedAt,
+    });
+    assert.equal(report.schemaVersion, 1);
+    assert.equal(report.generatedAt, generatedAt.toISOString());
+    assert.equal(report.cells.length, 3);
+    const todoPlain: IEvidenceBenchmarkReportCell | undefined =
+      report.cells.find(
+        (cell) => cell.subject === "todo" && cell.arm === "plain",
+      );
+    assert.ok(todoPlain);
+    assert.equal(todoPlain.runId, "latest");
+    assert.equal(todoPlain.benchmarkRevision, "fixture-revision");
+    assert.equal(todoPlain.effort, "high");
+    assert.equal(todoPlain.status, "running");
+    assert.equal(todoPlain.stage, "backend-review");
+    assert.equal(todoPlain.tokens, 1_600_000);
+    assert.equal(todoPlain.workElapsedMs, 126_000);
+    assert.equal(todoPlain.wallElapsedMs, 3 * 60 * 60 * 1_000);
+    assert.deepEqual(todoPlain.worktree, {
+      files: 2,
+      additions: 2,
+      deletions: 0,
+    });
+    assert.deepEqual(todoPlain.stages, [
+      {
+        name: "backend-start",
+        tokens: 1_000_000,
+        elapsedMs: 120_000,
+        tokenPercent: 63,
+        timePercent: 95,
+      },
+      {
+        name: "backend-review",
+        tokens: 600_000,
+        elapsedMs: 6_000,
+        tokenPercent: 38,
+        timePercent: 5,
+      },
+    ]);
+    assert.deepEqual(
+      JSON.parse(
+        fs.readFileSync(path.join(reportOutput, "summary.json"), "utf8"),
+      ),
+      report,
+    );
+    const chartFiles: readonly string[] = [
+      "tokens.svg",
+      "work-time.svg",
+      "wall-time.svg",
+    ];
+    for (const file of chartFiles) {
+      const svg: string = fs.readFileSync(
+        path.join(reportOutput, file),
+        "utf8",
+      );
+      assert.match(svg, /^<svg /u);
+      assert.match(svg, /Todo Plain · running/u);
+      assert.match(svg, /Todo Evidence · completed/u);
+      assert.match(svg, /Reddit Plain · interrupted/u);
+      assert.match(svg, /Stage: backend-review/u);
+      assert.match(svg, /#4c78a8/u);
+      assert.match(svg, /#f58518/u);
+      assert.equal(svg.includes("old"), false);
+      assert.equal(svg.includes("Shopping"), false);
+    }
+    const repeatedOutput: string = path.join(repository, "published-again");
+    writeEvidenceBenchmarkReport({
+      repository,
+      output: repeatedOutput,
+      generatedAt,
+    });
+    for (const file of ["summary.json", ...chartFiles])
+      assert.deepEqual(
+        fs.readFileSync(path.join(repeatedOutput, file)),
+        fs.readFileSync(path.join(reportOutput, file)),
+      );
+    assert.match(
+      fs.readFileSync(path.join(reportOutput, "tokens.svg"), "utf8"),
+      /1\.6M tokens/u,
+    );
+    assert.match(
+      fs.readFileSync(path.join(reportOutput, "work-time.svg"), "utf8"),
+      />2m</u,
+    );
+    assert.match(
+      fs.readFileSync(path.join(reportOutput, "wall-time.svg"), "utf8"),
+      />3h 00m</u,
+    );
   } finally {
     fs.rmSync(repository, { recursive: true, force: true });
   }
@@ -246,7 +346,9 @@ const writeRun = (props: {
           subject: props.subject,
           arm: props.arm,
           runId: props.runId,
+          benchmarkRevision: "fixture-revision",
           model: props.model ?? "gpt-5.6-luna",
+          effort: "high",
         },
         records: {
           workspace: props.workspace,
