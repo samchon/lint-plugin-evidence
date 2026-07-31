@@ -615,6 +615,47 @@ const main = async (): Promise<void> => {
       /resume Goal snapshot/,
     );
 
+    const blockedCurrentBoundary = structuredClone(activeCurrentBoundary);
+    const blockedCurrentRecord = blockedCurrentBoundary.goals[1]!;
+    blockedCurrentRecord.goal!.status = "blocked";
+    blockedCurrentRecord.tokenUsageTurnId = "turn-2";
+    blockedCurrentBoundary.threadTokenUsage = {
+      totalTokens: 20,
+      inputTokens: 12,
+      cachedInputTokens: 4,
+      cacheWriteInputTokens: 2,
+      outputTokens: 8,
+      reasoningOutputTokens: 6,
+    };
+    const blockedCurrentOutput: IEvidenceBenchmarkOutput[] = [];
+    const blockedCurrentResume = await EvidenceBenchmarkRunner.run({
+      state: blockedCurrentBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--current-blocked",
+        "--resume-status-before-response",
+      ],
+      onOutput: (_processIndex, output) => {
+        blockedCurrentOutput.push(output);
+      },
+    });
+    assert.equal(blockedCurrentResume.status, "completed");
+    const blockedResumedGoalRequests = blockedCurrentOutput
+      .filter((output) => output.stream === "stdin")
+      .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+      .filter((request) => request.method === "thread/goal/set");
+    assert.equal(blockedResumedGoalRequests.length, ENTRIES.length - 1);
+    assert.equal(
+      (blockedResumedGoalRequests[0]?.params as Record<string, unknown>)
+        ?.objective,
+      readObjective(root, sources, ENTRIES[1]!),
+    );
+
     const outputFailure = await EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("evidence"),
       cwd: root,
@@ -692,8 +733,9 @@ const fakeAppServer = (): void => {
     "--omit-terminal-token",
   );
   const currentActive: boolean = process.argv.includes("--current-active");
+  const currentBlocked: boolean = process.argv.includes("--current-blocked");
   const currentGoal: boolean =
-    currentActive || process.argv.includes("--current-goal");
+    currentActive || currentBlocked || process.argv.includes("--current-goal");
   const lateResumeSnapshot: boolean = process.argv.includes(
     "--late-resume-snapshot",
   );
@@ -701,6 +743,9 @@ const fakeAppServer = (): void => {
   const previousActive: boolean = process.argv.includes("--previous-active");
   const previousGoal: boolean =
     currentGoal || previousActive || process.argv.includes("--previous-goal");
+  const resumeStatusBeforeResponse: boolean = process.argv.includes(
+    "--resume-status-before-response",
+  );
   const wrongGoal: boolean = process.argv.includes("--wrong-goal");
   const wrongThread: boolean = process.argv.includes("--wrong-thread");
   const terminalLf: boolean = process.argv.includes("--terminal-lf");
@@ -753,118 +798,136 @@ const fakeAppServer = (): void => {
           },
         },
       });
-    if (request.method === "thread/resume")
-      return send(
-        {
-          id: request.id,
-          result: {
-            thread: {
-              id: wrongThread ? "fixture-other-thread" : "fixture-thread",
-              cliVersion: "fixture-cli",
-              status: { type: "idle" },
+    if (request.method === "thread/resume") {
+      const respond = (): void =>
+        send(
+          {
+            id: request.id,
+            result: {
+              thread: {
+                id: wrongThread ? "fixture-other-thread" : "fixture-thread",
+                cliVersion: "fixture-cli",
+                status: { type: "idle" },
+              },
             },
           },
-        },
-        () => {
-          if (wrongThread) return;
-          if (previousGoal) {
-            send({
-              method: "thread/tokenUsage/updated",
-              params: {
-                threadId: "fixture-thread",
-                turnId: `turn-${goalIndex}`,
-                tokenUsage: {
-                  total: {
-                    totalTokens: goalIndex * 10,
-                    inputTokens: goalIndex * 6,
-                    cachedInputTokens: goalIndex * 2,
-                    cacheWriteInputTokens: goalIndex,
-                    outputTokens: goalIndex * 4,
-                    reasoningOutputTokens: goalIndex * 3,
-                  },
-                },
-              },
-            });
-            const continueCurrentGoal = (): void => {
-              goalIndex++;
-              const turnId: string = `turn-${goalIndex}`;
-              const total = {
-                totalTokens: goalIndex * 10,
-                inputTokens: goalIndex * 6,
-                cachedInputTokens: goalIndex * 2,
-                cacheWriteInputTokens: goalIndex,
-                outputTokens: goalIndex * 4,
-                reasoningOutputTokens: goalIndex * 3,
-              };
-              send({
-                method: "thread/status/changed",
-                params: {
-                  threadId: "fixture-thread",
-                  status: { type: "active" },
-                },
-              });
-              send({
-                method: "turn/started",
-                params: {
-                  threadId: "fixture-thread",
-                  turn: { id: turnId },
-                },
-              });
-              send({
-                method: "thread/goal/updated",
-                params: {
-                  threadId: "fixture-thread",
-                  goal: goal(retainedObjective(), "complete"),
-                  turnId,
-                },
-              });
+          () => {
+            if (wrongThread) return;
+            if (previousGoal) {
               send({
                 method: "thread/tokenUsage/updated",
                 params: {
                   threadId: "fixture-thread",
-                  turnId,
-                  tokenUsage: { total },
+                  turnId: `turn-${goalIndex}`,
+                  tokenUsage: {
+                    total: {
+                      totalTokens: goalIndex * 10,
+                      inputTokens: goalIndex * 6,
+                      cachedInputTokens: goalIndex * 2,
+                      cacheWriteInputTokens: goalIndex,
+                      outputTokens: goalIndex * 4,
+                      reasoningOutputTokens: goalIndex * 3,
+                    },
+                  },
                 },
               });
-              waitingForTurnCompletion = true;
-              send({
-                method: "thread/status/changed",
-                params: {
-                  threadId: "fixture-thread",
-                  status: { type: "idle" },
-                },
-              });
-              setTimeout(() => {
-                waitingForTurnCompletion = false;
+              const continueCurrentGoal = (): void => {
+                goalIndex++;
+                const turnId: string = `turn-${goalIndex}`;
+                const total = {
+                  totalTokens: goalIndex * 10,
+                  inputTokens: goalIndex * 6,
+                  cachedInputTokens: goalIndex * 2,
+                  cacheWriteInputTokens: goalIndex,
+                  outputTokens: goalIndex * 4,
+                  reasoningOutputTokens: goalIndex * 3,
+                };
                 send({
-                  method: "turn/completed",
+                  method: "thread/status/changed",
                   params: {
                     threadId: "fixture-thread",
-                    turn: { id: turnId, status: "completed", durationMs: 1 },
+                    status: { type: "active" },
                   },
                 });
-              }, 10);
-            };
-            const emitSnapshot = (): void =>
-              send(
-                {
+                send({
+                  method: "turn/started",
+                  params: {
+                    threadId: "fixture-thread",
+                    turn: { id: turnId },
+                  },
+                });
+                send({
                   method: "thread/goal/updated",
                   params: {
                     threadId: "fixture-thread",
-                    goal: goal(
-                      retainedObjective(),
-                      previousActive || currentActive ? "active" : "complete",
-                    ),
-                    turnId: null,
+                    goal: goal(retainedObjective(), "complete"),
+                    turnId,
                   },
-                },
-                currentActive ? continueCurrentGoal : undefined,
-              );
-            if (lateResumeSnapshot) setTimeout(emitSnapshot, 10);
-            else emitSnapshot();
-          }
-        },
-      );
+                });
+                send({
+                  method: "thread/tokenUsage/updated",
+                  params: {
+                    threadId: "fixture-thread",
+                    turnId,
+                    tokenUsage: { total },
+                  },
+                });
+                waitingForTurnCompletion = true;
+                send({
+                  method: "thread/status/changed",
+                  params: {
+                    threadId: "fixture-thread",
+                    status: { type: "idle" },
+                  },
+                });
+                setTimeout(() => {
+                  waitingForTurnCompletion = false;
+                  send({
+                    method: "turn/completed",
+                    params: {
+                      threadId: "fixture-thread",
+                      turn: { id: turnId, status: "completed", durationMs: 1 },
+                    },
+                  });
+                }, 10);
+              };
+              const emitSnapshot = (): void =>
+                send(
+                  {
+                    method: "thread/goal/updated",
+                    params: {
+                      threadId: "fixture-thread",
+                      goal: goal(
+                        retainedObjective(),
+                        currentBlocked
+                          ? "blocked"
+                          : previousActive || currentActive
+                            ? "active"
+                            : "complete",
+                      ),
+                      turnId: null,
+                    },
+                  },
+                  currentActive ? continueCurrentGoal : undefined,
+                );
+              if (lateResumeSnapshot) setTimeout(emitSnapshot, 10);
+              else emitSnapshot();
+            }
+          },
+        );
+      if (resumeStatusBeforeResponse)
+        return send(
+          {
+            method: "thread/status/changed",
+            params: {
+              threadId: "fixture-thread",
+              status: { type: "idle" },
+            },
+          },
+          respond,
+        );
+      return respond();
+    }
     if (request.method === "thread/goal/get")
       return send({
         id: request.id,
@@ -874,9 +937,11 @@ const fakeAppServer = (): void => {
             : previousGoal
               ? goal(
                   retainedObjective(),
-                  activeGoalGet || previousActive || currentActive
-                    ? "active"
-                    : "complete",
+                  currentBlocked
+                    ? "blocked"
+                    : activeGoalGet || previousActive || currentActive
+                      ? "active"
+                      : "complete",
                 )
               : null,
         },

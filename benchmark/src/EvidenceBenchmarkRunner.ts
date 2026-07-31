@@ -114,6 +114,7 @@ export namespace EvidenceBenchmarkRunner {
     let resumeSnapshotPending: boolean = !fresh;
     let resumeSnapshot: Record<string, unknown> | undefined;
     let resumeSnapshotRecordIndex: number | undefined;
+    const resumeLifecycle: Record<string, unknown>[] = [];
     let resolveResumeSnapshot!: () => void;
     const resumeSnapshotPromise = new Promise<void>((resolve) => {
       resolveResumeSnapshot = resolve;
@@ -379,12 +380,11 @@ export namespace EvidenceBenchmarkRunner {
       }
       if (
         !resumeReconciled &&
-        resumeSnapshotPending &&
         !(message.method === "thread/goal/updated" && params.turnId === null)
-      )
-        throw new Error(
-          "Codex emitted resume lifecycle before its Goal snapshot.",
-        );
+      ) {
+        resumeLifecycle.push(structuredClone(message));
+        return;
+      }
       if (message.method === "turn/started") {
         current().threadIdle = false;
         publish();
@@ -465,6 +465,13 @@ export namespace EvidenceBenchmarkRunner {
         if (status.type === "systemError" || status.type === "notLoaded")
           finish("interrupted", message);
         else await advance();
+      }
+    };
+    const flushResumeLifecycle = async (): Promise<void> => {
+      const buffered: Record<string, unknown>[] = resumeLifecycle.splice(0);
+      for (const message of buffered) {
+        if (outcome !== undefined) return;
+        await notify(message);
       }
     };
 
@@ -608,7 +615,10 @@ export namespace EvidenceBenchmarkRunner {
                 instructionIndex: record.index,
                 nativeGoal: goal,
               });
-            else await beginGoal();
+            else {
+              await flushResumeLifecycle();
+              if (outcome === undefined) await beginGoal();
+            }
           } else if (
             resumeSnapshot === undefined ||
             resumeSnapshotRecordIndex === undefined
@@ -655,7 +665,8 @@ export namespace EvidenceBenchmarkRunner {
               validateNativeGoal(previous, resumeSnapshot, sessionId);
               validateNativeGoal(previous, goal, sessionId);
               resumeReconciled = true;
-              await beginGoal();
+              await flushResumeLifecycle();
+              if (outcome === undefined) await beginGoal();
             }
           } else {
             validateNativeGoal(record, record.goal, sessionId);
@@ -663,11 +674,10 @@ export namespace EvidenceBenchmarkRunner {
             validateNativeGoal(record, goal, sessionId);
             if (
               resumeSnapshotRecordIndex !== record.index ||
-              (goal.status !== "active" && goal.status !== "complete") ||
+              !isRetainedGoalStatus(goal.status) ||
               (resumeSnapshot.status === "complete" &&
                 goal.status !== "complete") ||
-              (record.goal.status !== "active" &&
-                record.goal.status !== "complete")
+              !isRetainedGoalStatus(record.goal.status)
             )
               finish("interrupted", {
                 name: "EvidenceBenchmarkResumeInterruption",
@@ -697,7 +707,11 @@ export namespace EvidenceBenchmarkRunner {
               });
             else {
               resumeReconciled = true;
-              await advance();
+              await flushResumeLifecycle();
+              if (outcome === undefined) {
+                if (isInterruptedGoalStatus(goal.status)) await beginGoal();
+                else await advance();
+              }
             }
           }
         }
@@ -881,6 +895,23 @@ export namespace EvidenceBenchmarkRunner {
       throw new Error(
         "Native Goal does not match the retained thread and objective.",
       );
+  }
+
+  function isRetainedGoalStatus(value: unknown): boolean {
+    return (
+      value === "active" ||
+      value === "complete" ||
+      isInterruptedGoalStatus(value)
+    );
+  }
+
+  function isInterruptedGoalStatus(value: unknown): boolean {
+    return (
+      value === "paused" ||
+      value === "blocked" ||
+      value === "usageLimited" ||
+      value === "budgetLimited"
+    );
   }
 
   function locateWindowsCommand(
