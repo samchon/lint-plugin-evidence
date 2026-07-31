@@ -56,7 +56,7 @@ The benchmark activates only `evidence/graph`. Do not add `evidence/todo`: the E
 
 Every backend command uses that one Program. `pnpm lint` invokes `ttsc check` explicitly, which loads the root lint configuration; build and test commands do not carry lint-plugin settings in `tsconfig.json`. TypeScript claim activation derives applicability from the Program's actual selected exported hosts; no stage owns a narrower projection.
 
-Nestia sets `NESTIA_SDK_TRANSFORM=1` inside its private transform context, which does not preserve the package root that the graph populations require. The canonical configuration contains one exact, immutable bypass for that environment only. Every ordinary backend command runs the graph at `error` severity.
+Nestia sets `NESTIA_SDK_TRANSFORM=1` inside its private transform context, which does not preserve the package root that the graph populations require. The canonical configuration contains one exact, immutable bypass for that environment only. The ordinary `pnpm lint` gate runs the graph at `error` severity.
 
 The template ships all seven claim objects and `evidence/graph` at `error` severity as frozen configuration. TypeScript claim activation follows the selected exported host population; it is never managed through `lint.config.ts`.
 

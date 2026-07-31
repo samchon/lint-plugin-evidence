@@ -9,7 +9,7 @@ description: Defines integrity review for populated evidence claims: enumerating
 
 Read [Evidence Lint](../evidence/SKILL.md) in full before every review and apply the phase named by the current user turn. An earlier objective's read or verdict never substitutes for this fresh read.
 
-- **Backend Phase.** Review `schema-models`, `api-operations`, `backend-tests`, `dto-types`, and `dto-properties` in `packages/backend/lint.config.ts`. Confirm every backend command uses the single root `tsconfig.json` and root lint configuration.
+- **Backend Phase.** Review `schema-models`, `api-operations`, `backend-tests`, `dto-types`, and `dto-properties` in `packages/backend/lint.config.ts`. Confirm every backend command uses the single root `tsconfig.json` and only `pnpm lint` loads the root lint configuration.
 - **Frontend Phase.** Confirm all seven claims remain configured, then review `frontend-screens` and `frontend-journeys`. If frontend work changed API or backend sources, re-pass the affected Backend Phase gates first; otherwise retain the current-digest backend verdict.
 - **Overall Phase.** Confirm both canonical configurations and the single backend Program are unchanged, then review all seven claims.
 
