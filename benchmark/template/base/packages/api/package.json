@@ -3,7 +3,7 @@
   "name": "{{apiPackageName}}",
   "version": "0.1.0",
   "description": "Generated API SDK and authored DTO package for {{name}}",
-  "main": "src/index.ts",
+  "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts"
   },
