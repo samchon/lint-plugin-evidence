@@ -6,7 +6,7 @@ import path from "node:path";
 import typia from "typia";
 
 interface IDashboardCell {
-  engine: "codex" | "claude-code";
+  engine: "codex";
   subject: string;
   arm: "plain" | "evidence";
   runId: string;
@@ -27,14 +27,10 @@ interface IDashboardInstruction {
 interface IDashboardState {
   status: "ready" | "running" | "interrupted" | "completed";
   nextInstructionIndex: number;
-  threadTokenUsage?: {
+  threadTokenUsage: {
     totalTokens: number;
   };
-  tokenUsage?: {
-    totalTokens: number;
-  };
-  goals?: IDashboardInstruction[];
-  instructions?: IDashboardInstruction[];
+  goals: IDashboardInstruction[];
   processes: IDashboardProcess[];
 }
 
@@ -191,8 +187,7 @@ const renderRun = (file: IDashboardStateFile): string => {
 };
 
 const stage = (state: IDashboardState): string => {
-  const records: IDashboardInstruction[] =
-    state.goals ?? state.instructions ?? [];
+  const records: IDashboardInstruction[] = state.goals;
   const instruction: IDashboardInstruction | undefined =
     records.find((record) => record.index === state.nextInstructionIndex) ??
     records.at(-1);
@@ -278,9 +273,7 @@ const formatDelta = (delta: IWorktreeDelta): string =>
   `${delta.files} files · +${compact(delta.additions)}/−${compact(delta.deletions)} LOC`;
 
 const formatCost = (state: IDashboardState): string => {
-  const total: number =
-    state.threadTokenUsage?.totalTokens ?? state.tokenUsage?.totalTokens ?? 0;
-  return `${Math.round(total / 1_000_000)}M`;
+  return `${Math.round(state.threadTokenUsage.totalTokens / 1_000_000)}M`;
 };
 
 const elapsed = (file: IDashboardStateFile): number => {

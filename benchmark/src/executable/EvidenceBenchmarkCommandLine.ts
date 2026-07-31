@@ -6,21 +6,17 @@ import path from "node:path";
 
 import typia from "typia";
 
-import { EvidenceBenchmarkClaudeRunner } from "../EvidenceBenchmarkClaudeRunner.ts";
 import { EvidenceBenchmarkRunner } from "../EvidenceBenchmarkRunner.ts";
 import { EvidenceBenchmarkWorkspace } from "../EvidenceBenchmarkWorkspace.ts";
 import { sanitizeBenchmarkEnvironment } from "../sanitizeBenchmarkEnvironment.ts";
-import type { IEvidenceBenchmarkClaudeRunState } from "../structures/IEvidenceBenchmarkClaudeRunState.ts";
 import type { IEvidenceBenchmarkOutput } from "../structures/IEvidenceBenchmarkOutput.ts";
 import type { IEvidenceBenchmarkRunState } from "../structures/IEvidenceBenchmarkRunState.ts";
 import type { IEvidenceBenchmarkWorkspaceResult } from "../structures/IEvidenceBenchmarkWorkspaceResult.ts";
 import type { EvidenceBenchmarkArm } from "../typings/EvidenceBenchmarkArm.ts";
-import type { EvidenceBenchmarkClaudeEffort } from "../typings/EvidenceBenchmarkClaudeEffort.ts";
 import type { EvidenceBenchmarkEffort } from "../typings/EvidenceBenchmarkEffort.ts";
 
-type EvidenceBenchmarkEngine = "codex" | "claude-code";
-type EvidenceBenchmarkState =
-  IEvidenceBenchmarkRunState | IEvidenceBenchmarkClaudeRunState;
+type EvidenceBenchmarkEngine = "codex";
+type EvidenceBenchmarkState = IEvidenceBenchmarkRunState;
 
 interface IEvidenceBenchmarkArguments {
   engine: EvidenceBenchmarkEngine;
@@ -174,9 +170,7 @@ const main = async (): Promise<void> => {
   await runBenchmark(
     cell,
     records,
-    cell.engine === "codex"
-      ? EvidenceBenchmarkRunner.create(cell.arm)
-      : EvidenceBenchmarkClaudeRunner.create(cell.arm),
+    EvidenceBenchmarkRunner.create(cell.arm),
     runnerRevision,
   );
 };
@@ -234,38 +228,17 @@ const runBenchmark = async (
       );
     };
     onState(initialState);
-    const result =
-      cell.engine === "codex"
-        ? await EvidenceBenchmarkRunner.run({
-            state: codexState(initialState),
-            cwd: records.workspace,
-            instructionsRoot: path.join(
-              repository,
-              "benchmark",
-              "instructions",
-            ),
-            model: cell.model,
-            effort: cell.effort,
-            runnerRevision,
-            environment,
-            onOutput,
-            onState,
-          })
-        : await EvidenceBenchmarkClaudeRunner.run({
-            state: claudeState(initialState),
-            cwd: records.workspace,
-            instructionsRoot: path.join(
-              repository,
-              "benchmark",
-              "instructions",
-            ),
-            model: cell.model,
-            effort: claudeEffort(cell.effort),
-            runnerRevision,
-            environment,
-            onOutput,
-            onState,
-          });
+    const result = await EvidenceBenchmarkRunner.run({
+      state: initialState,
+      cwd: records.workspace,
+      instructionsRoot: path.join(repository, "benchmark", "instructions"),
+      model: cell.model,
+      effort: cell.effort,
+      runnerRevision,
+      environment,
+      onOutput,
+      onState,
+    });
     if (result.status !== "completed")
       throw new Error(
         "Benchmark run was interrupted; resume the retained run.",
@@ -283,10 +256,10 @@ const parseArguments = (
 ): IEvidenceBenchmarkArguments => {
   if (input.length < 5 || input.length > 6)
     throw new Error(
-      "Usage: pnpm start <codex|claude-code> <subject> <evidence|plain> <model> <effort> [run-id]",
+      "Usage: pnpm start codex <subject> <evidence|plain> <model> <effort> [run-id]",
     );
   const engine: string = input[0]!;
-  if (engine !== "codex" && engine !== "claude-code")
+  if (engine !== "codex")
     throw new Error(`Invalid benchmark engine: ${engine}.`);
   const subject: string = input[1]!;
   if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(subject))
@@ -306,8 +279,6 @@ const parseArguments = (
     effort !== "ultra"
   )
     throw new Error(`Invalid benchmark effort: ${effort}.`);
-  if (engine === "claude-code" && effort === "ultra")
-    throw new Error("Claude Code does not support ultra effort.");
   const runId: string | undefined = input[5];
   if (
     runId !== undefined &&
@@ -317,30 +288,6 @@ const parseArguments = (
   )
     throw new Error(`Invalid benchmark run ID: ${runId}.`);
   return { engine, subject, arm, model, effort, runId };
-};
-
-const codexState = (
-  state: EvidenceBenchmarkState,
-): IEvidenceBenchmarkRunState => {
-  if (!("threadTokenUsage" in state))
-    throw new Error("Retained benchmark state does not belong to Codex.");
-  return state;
-};
-
-const claudeState = (
-  state: EvidenceBenchmarkState,
-): IEvidenceBenchmarkClaudeRunState => {
-  if ("threadTokenUsage" in state)
-    throw new Error("Retained benchmark state does not belong to Claude Code.");
-  return state;
-};
-
-const claudeEffort = (
-  effort: EvidenceBenchmarkEffort,
-): EvidenceBenchmarkClaudeEffort => {
-  if (effort === "ultra")
-    throw new Error("Claude Code does not support ultra effort.");
-  return effort;
 };
 
 const readBenchmarkRevision = (repository: string): string => {

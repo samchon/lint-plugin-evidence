@@ -35,7 +35,7 @@ Treat `benchmark/requirements/**` as opaque, authoritative bytes. Never edit, re
 Start a cell with every identity field explicit:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark start <codex|claude-code> <subject> <evidence|plain> <model> <effort>
+pnpm --filter @samchon/evidence-benchmark start codex <subject> <evidence|plain> <model> <effort>
 ```
 
 Before native work, the runner copies the base template, applies only the selected arm overlay, copies the selected requirements byte-for-byte, installs dependencies, and commits the workspace baseline. Evidence additionally installs one immutable locally packed archive shared by parallel Evidence cells. Plain never reads or installs it.
@@ -60,7 +60,7 @@ One native session receives exactly nine objectives:
 
 At each step, the runner joins that file with `instructions/continue.md` once and records the exact objective. Do not add operator prose.
 
-Codex advances after the retained Goal completes, its terminal turn completes, and the thread becomes idle. Claude Code advances after one successful noninteractive terminal result in the retained session.
+Codex advances after the retained Goal completes, its terminal turn completes, and the thread becomes idle.
 
 ## Supervise The Run
 
@@ -82,7 +82,7 @@ pnpm --filter @samchon/evidence-benchmark start <engine> <subject> <arm> <model>
 
 Keep the cell's original `benchmarkRevision` frozen. When recovery requires a committed runner correction, resume only from a clean descendant revision; retain that correction as the new process's `runnerRevision` while the runner revalidates the stored cell, instruction bytes, workspace, artifact digest, CLI, session, Goal, and token boundary.
 
-Codex may resume an exact retained Goal checkpoint. Claude Code may resume only at a successful instruction boundary or before an undispatched instruction; a dispatched instruction without a successful terminal result is not resumable.
+Codex may resume an exact retained Goal checkpoint.
 
 Start an eligible resume immediately after diagnosis and any required runner correction. If the resume itself fails, preserve that attempt, diagnose the new failure, and recover again from the last exact checkpoint; never abandon a cell or loop without evidence.
 

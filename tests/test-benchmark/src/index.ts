@@ -10,15 +10,15 @@ import type { IEvidenceBenchmarkRunState } from "../../../benchmark/src/structur
 import type { IEvidenceBenchmarkTokenUsage } from "../../../benchmark/src/structures/IEvidenceBenchmarkTokenUsage.ts";
 
 const ENTRIES = [
-  ["skills-contract", "skills-contract.md"],
-  ["backend-start", "backend/start.md"],
-  ["backend-review", "backend/review.md"],
-  ["backend-final", "backend/evidence-final.md"],
-  ["frontend-start", "frontend/start.md"],
-  ["frontend-review", "frontend/review.md"],
-  ["frontend-final", "frontend/evidence-final.md"],
-  ["overall-review", "overall/review.md"],
-  ["overall-final", "overall/evidence-final.md"],
+  ["skills-contract", "evidence/skills-contract.md"],
+  ["backend-start", "evidence/backend/start.md"],
+  ["backend-review", "evidence/backend/review.md"],
+  ["backend-final", "evidence/backend/final.md"],
+  ["frontend-start", "evidence/frontend/start.md"],
+  ["frontend-review", "evidence/frontend/review.md"],
+  ["frontend-final", "evidence/frontend/final.md"],
+  ["overall-review", "evidence/overall/review.md"],
+  ["overall-final", "evidence/overall/final.md"],
 ] as const;
 
 /**
@@ -121,7 +121,9 @@ const main = async (): Promise<void> => {
     completed.goals.forEach((goal, index) => {
       const [name, relative] = ENTRIES[index]!;
       const prescribed: string = sources.get(relative)!.toString("utf8");
-      const continuation: string = sources.get("continue.md")!.toString("utf8");
+      const continuation: string = sources
+        .get("evidence/continue.md")!
+        .toString("utf8");
       assert.equal(goal.name, name);
       assert.equal(goal.relativePath, relative);
       assert.equal(goal.prescribedText, prescribed);
@@ -747,7 +749,11 @@ const main = async (): Promise<void> => {
 
 const writeInstructions = (root: string): Map<string, Buffer> => {
   const sources: Map<string, Buffer> = new Map([
-    ["continue.md", Buffer.from("Continue until this Goal is complete.\r\n")],
+    [
+      "evidence/continue.md",
+      Buffer.from("Continue until this Goal is complete.\r\n"),
+    ],
+    ["plain/continue.md", Buffer.from("Finish the Plain Goal.\r\n")],
   ]);
   ENTRIES.forEach(([name, relative]) =>
     sources.set(relative, Buffer.from(`# ${name}\r\n\r\nExecute exactly.\r\n`)),
@@ -766,14 +772,16 @@ const readObjective = (
   entry: (typeof ENTRIES)[number],
 ): string => {
   const prescribed: Buffer | undefined = sources.get(entry[1]);
-  const continuation: Buffer | undefined = sources.get("continue.md");
+  const continuation: Buffer | undefined = sources.get(
+    "evidence/continue.md",
+  );
   assert.ok(
     prescribed,
     `Missing fixture source: ${path.join(root, ...entry[1].split("/"))}`,
   );
   assert.ok(
     continuation,
-    `Missing fixture source: ${path.join(root, "continue.md")}`,
+    `Missing fixture source: ${path.join(root, "evidence/continue.md")}`,
   );
   return `${prescribed.toString("utf8")}\n\n${continuation.toString("utf8")}`;
 };
@@ -849,7 +857,10 @@ const fakeAppServer = (): void => {
     return `${fs.readFileSync(
       path.join(process.cwd(), ...relativePath.split("/")),
       "utf8",
-    )}\n\n${fs.readFileSync(path.join(process.cwd(), "continue.md"), "utf8")}`;
+    )}\n\n${fs.readFileSync(
+      path.join(process.cwd(), "evidence", "continue.md"),
+      "utf8",
+    )}`;
   };
   input.on("line", (line: string) => {
     const request = JSON.parse(line) as {

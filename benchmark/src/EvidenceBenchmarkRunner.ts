@@ -84,7 +84,10 @@ export namespace EvidenceBenchmarkRunner {
         "utf8",
       );
       const continuationText: string = fs.readFileSync(
-        path.join(props.instructionsRoot, "continue.md"),
+        path.join(
+          props.instructionsRoot,
+          ...instructionContinuationPath(state.arm).split("/"),
+        ),
         "utf8",
       );
       const record: IEvidenceBenchmarkGoalRecord = {
@@ -846,23 +849,32 @@ export namespace EvidenceBenchmarkRunner {
   /**
    * Returns the frozen nine-objective sequence for an experiment arm.
    *
-   * Only the arm-specific final files differ; every shared objective retains
-   * the same path and position for a comparable pair.
+   * Each arm owns every instruction byte. Paths and positions remain
+   * comparable without either arm reading a shared runtime objective.
    */
   export function instructionEntries(
     arm: EvidenceBenchmarkArm,
   ): readonly (readonly [string, string])[] {
     return [
-      ["skills-contract", "skills-contract.md"],
-      ["backend-start", "backend/start.md"],
-      ["backend-review", "backend/review.md"],
-      ["backend-final", `backend/${arm}-final.md`],
-      ["frontend-start", "frontend/start.md"],
-      ["frontend-review", "frontend/review.md"],
-      ["frontend-final", `frontend/${arm}-final.md`],
-      ["overall-review", "overall/review.md"],
-      ["overall-final", `overall/${arm}-final.md`],
+      ["skills-contract", `${arm}/skills-contract.md`],
+      ["backend-start", `${arm}/backend/start.md`],
+      ["backend-review", `${arm}/backend/review.md`],
+      ["backend-final", `${arm}/backend/final.md`],
+      ["frontend-start", `${arm}/frontend/start.md`],
+      ["frontend-review", `${arm}/frontend/review.md`],
+      ["frontend-final", `${arm}/frontend/final.md`],
+      ["overall-review", `${arm}/overall/review.md`],
+      ["overall-final", `${arm}/overall/final.md`],
     ];
+  }
+
+  /**
+   * Returns the arm-owned continuation appended to every objective.
+   */
+  export function instructionContinuationPath(
+    arm: EvidenceBenchmarkArm,
+  ): string {
+    return `${arm}/continue.md`;
   }
 
   function validateCompletedState(
@@ -935,7 +947,7 @@ export namespace EvidenceBenchmarkRunner {
    * receive one correctly escaped `cmd.exe` command line.
    */
   export function resolveExecutable(props: {
-    name: "codex" | "claude";
+    name: "codex";
     environment: NodeJS.ProcessEnv;
     command?: string;
     commandPrefixArguments?: readonly string[];

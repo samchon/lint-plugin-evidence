@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit -p tsconfig.json",
-    "start": "ttsx --project tsconfig.json src/workspace.ts && ttsx --project tsconfig.json src/template.ts && ttsx --project tsconfig.json src/index.ts && ttsx --project tsconfig.json src/claude.ts"
+    "start": "ttsx --project tsconfig.json src/workspace.ts && ttsx --project tsconfig.json src/template.ts && ttsx --project tsconfig.json src/index.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:utils",

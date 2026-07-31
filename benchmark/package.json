@@ -2,10 +2,9 @@
   "private": true,
   "name": "@samchon/evidence-benchmark",
   "version": "0.4.4",
-  "description": "Minimal Codex and Claude Code runner for the Evidence benchmark.",
+  "description": "Minimal Codex runner for the Evidence benchmark.",
   "type": "module",
   "exports": {
-    "./claude-runner": "./src/EvidenceBenchmarkClaudeRunner.ts",
     "./runner": "./src/EvidenceBenchmarkRunner.ts",
     "./workspace": "./src/EvidenceBenchmarkWorkspace.ts"
   },
