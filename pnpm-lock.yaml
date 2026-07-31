@@ -122,9 +122,15 @@ importers:
       "@types/node":
         specifier: catalog:utils
         version: 25.9.5
+      ttsc:
+        specifier: catalog:typescript
+        version: 0.22.0
       typescript:
         specifier: catalog:typescript
         version: 7.0.2
+      typia:
+        specifier: catalog:samchon
+        version: 13.2.0(@types/node@25.9.5)(ttsc@0.22.0)
 
   tests/test-evidence:
     devDependencies:
