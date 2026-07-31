@@ -133,10 +133,10 @@ func typeScriptClaimPopulationConfig(config graphConfig) graphConfig {
 // activeGraphConfig omits only healthy TypeScript claims whose matched own
 // population contains no exported unit selected by the claim's symbol set.
 //
-// Zero matched files stays active so a misspelled glob remains an error.
-// Unhealthy populations stay active because failed input cannot prove the
-// selected population is empty. Other artifact kinds retain their existing
-// activation and evaluation semantics.
+// A healthy zero-file match is empty and therefore inactive, including when a
+// typo caused the empty match. Unhealthy or unreadable populations stay active
+// because failed input cannot prove the selected population is empty. Other
+// artifact kinds retain their existing activation and evaluation semantics.
 func activeGraphConfig(
 	config graphConfig,
 	typescript map[string]*artifactInventory,
@@ -158,8 +158,8 @@ func typeScriptClaimIsInactive(
 	inventories map[string]*artifactInventory,
 ) bool {
 	paths := matchingInventoryPaths(inventories, claim.Base, claim.Files)
-	if len(paths) == 0 ||
-		!populationIsHealthy(inventories, claim.Base, paths) {
+	if !populationIsHealthy(inventories, claim.Base, paths) ||
+		unreadableBaseProblem(claim.Base, artifactTypeScript) != "" {
 		return false
 	}
 	for _, path := range paths {

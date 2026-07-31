@@ -59,19 +59,19 @@ func TestFirstSelectedTypeScriptExportActivatesCoverage(t *testing.T) {
 }
 
 /**
- * Verifies a claim glob matching zero files is not vacuously inactive.
+ * Verifies a healthy claim glob matching zero files is inactive.
  *
- * Treating every zero-host population as inactive would make a misspelled
- * claim glob indistinguishable from an intentionally empty source folder. The
- * reference failure beside the claim miss proves the loader boundary remains
- * open when no own file matched at all.
+ * A typo and an intentionally empty folder are indistinguishable from the
+ * selected Program population alone. Both therefore have the same activation
+ * semantics: without one matching selected export, no reference is loaded and
+ * no acknowledgement diagnostic is emitted.
  *
  *  1. Miss every TypeScript source with a typo in the claim glob.
- *  2. Give the still-active claim an unreadable Markdown root.
- *  3. Assert both configuration boundaries remain diagnostic.
+ *  2. Give the empty claim an unreadable Markdown reference root.
+ *  3. Assert the whole claim remains inactive and silent.
  */
-func TestTypeScriptClaimMatchingZeroFilesKeepsDiagnosticsActive(t *testing.T) {
-	messages := runIndexRule(t, map[string]string{
+func TestTypeScriptClaimMatchingZeroFilesIsInactive(t *testing.T) {
+	assertNoProblems(t, runIndexRule(t, map[string]string{
 		"src/contract.ts": "export interface Contract {}\n",
 	}, `{"claims":[{
 		"type":"typescript",
@@ -83,9 +83,43 @@ func TestTypeScriptClaimMatchingZeroFilesKeepsDiagnosticsActive(t *testing.T) {
 			"files":["**/*.md"],
 			"symbol":"h2"
 		}
-	}]}`)
-	assertProblemContains(t, messages, "matched no typescript files")
-	assertProblemContains(t, messages, "could not read the markdown root 'missing-docs'")
+	}]}`))
+}
+
+/**
+ * Verifies exclusions can leave a TypeScript claim with zero matched paths.
+ *
+ * This is the benchmark controller boundary: `HealthController.ts` is a real
+ * exported controller but is intentionally outside the evidence claim. Once
+ * that exact exclusion removes the only path, its references must not load.
+ *
+ *  1. Match all controller files and exclude exactly `HealthController.ts`.
+ *  2. Supply HealthController as the only controller and an unreadable reference.
+ *  3. Assert the resulting healthy zero-path claim is inactive and silent.
+ */
+func TestTypeScriptClaimWithOnlyExcludedHealthControllerIsInactive(t *testing.T) {
+	assertNoProblems(t, runIndexRule(t, map[string]string{
+		"src/controllers/HealthController.ts": `
+export class HealthController {
+  public get(): string {
+    return "ok";
+  }
+}
+`,
+	}, `{"claims":[{
+		"type":"typescript",
+		"files":[
+			"src/controllers/**/*.ts",
+			"!src/controllers/HealthController.ts"
+		],
+		"symbol":"function",
+		"reference":{
+			"type":"markdown",
+			"root":"missing-docs",
+			"files":["**/*.md"],
+			"symbol":"h2"
+		}
+	}]}`))
 }
 
 /**
@@ -118,6 +152,32 @@ func TestFailedTypeScriptClaimPopulationDoesNotBecomeInactive(t *testing.T) {
 	})
 	if len(active.Claims) != 1 {
 		t.Fatal("a failed TypeScript population must remain active until its contents are knowable")
+	}
+}
+
+/**
+ * Verifies an unreadable TypeScript root is not treated as healthy emptiness.
+ *
+ * A missing root yields the same zero matched paths as an intentionally empty
+ * population, but the filesystem failure means the absence is not evidence.
+ * Keeping the claim active preserves its existing root/population diagnostic.
+ *
+ *  1. Resolve a TypeScript claim against a root that does not exist.
+ *  2. Apply activation with no materialized inventory.
+ *  3. Assert the unreadable claim remains active for diagnostic evaluation.
+ */
+func TestUnreadableTypeScriptClaimRootDoesNotBecomeInactive(t *testing.T) {
+	root := t.TempDir()
+	config := decodeInventoryConfig(t, root, `{"claims":[{
+		"type":"typescript",
+		"root":"missing-source-root",
+		"files":["src/**/*.ts"],
+		"symbol":"type",
+		"reference":{"type":"markdown","files":["docs/spec.md"],"symbol":"h2"}
+	}]}`)
+	active := activeGraphConfig(config, map[string]*artifactInventory{})
+	if len(active.Claims) != 1 {
+		t.Fatal("an unreadable TypeScript root must remain active for its population diagnostic")
 	}
 }
 
