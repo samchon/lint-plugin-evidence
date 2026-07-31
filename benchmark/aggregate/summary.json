@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-31T21:28:31.467Z",
+  "generatedAt": "2026-07-31T21:31:23.549Z",
   "cells": [
     {
       "engine": "codex",
@@ -15,10 +15,10 @@
       "launchedAt": "2026-07-31T18:09:03.414Z",
       "tokens": 112250688,
       "workElapsedMs": 6692082.9813,
-      "wallElapsedMs": 11968053,
+      "wallElapsedMs": 12140135,
       "worktree": {
         "files": 42,
-        "additions": 5941,
+        "additions": 5947,
         "deletions": 32
       },
       "stages": [
@@ -136,10 +136,10 @@
       "launchedAt": "2026-07-31T18:09:03.553Z",
       "tokens": 62582547,
       "workElapsedMs": 5025181.4956,
-      "wallElapsedMs": 11967914,
+      "wallElapsedMs": 12139996,
       "worktree": {
         "files": 56,
-        "additions": 9917,
+        "additions": 9922,
         "deletions": 9
       },
       "stages": [
@@ -175,11 +175,11 @@
       "model": "gpt-5.6-luna",
       "effort": "high",
       "status": "running",
-      "stage": "frontend-final",
+      "stage": "overall-review",
       "launchedAt": "2026-07-31T18:09:03.553Z",
-      "tokens": 137917773,
-      "workElapsedMs": 11720747.8246,
-      "wallElapsedMs": 11967914,
+      "tokens": 141979320,
+      "workElapsedMs": 11858875.4873,
+      "wallElapsedMs": 12139996,
       "worktree": {
         "files": 79,
         "additions": 12343,
@@ -190,8 +190,8 @@
           "name": "backend-start",
           "tokens": 92489812,
           "elapsedMs": 7795000,
-          "tokenPercent": 67,
-          "timePercent": 67
+          "tokenPercent": 65,
+          "timePercent": 66
         },
         {
           "name": "backend-review",
@@ -223,10 +223,17 @@
         },
         {
           "name": "frontend-final",
-          "tokens": 703383,
-          "elapsedMs": 72747.82459999993,
-          "tokenPercent": 1,
+          "tokens": 4521754,
+          "elapsedMs": 155000,
+          "tokenPercent": 3,
           "timePercent": 1
+        },
+        {
+          "name": "overall-review",
+          "tokens": 243176,
+          "elapsedMs": 55875.48729999922,
+          "tokenPercent": 0,
+          "timePercent": 0
         }
       ]
     }
