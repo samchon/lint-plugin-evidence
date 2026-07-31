@@ -38,7 +38,7 @@ const graph: IEvidenceGraphConfig = {
     },
     // A DTO type answers to the requirement it serves and the table it
     // represents. The rooted claim changes only the population base; the
-    // backend lint tsconfig explicitly supplies the API source files.
+    // backend root tsconfig explicitly supplies the API source files.
     {
       name: "dto-types",
       type: "typescript",
