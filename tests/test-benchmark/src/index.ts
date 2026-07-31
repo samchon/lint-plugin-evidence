@@ -672,9 +672,7 @@ const main = async (): Promise<void> => {
     });
     assert.equal(advancedBlockedResume.status, "completed");
 
-    const activeInterruptedBoundary = structuredClone(
-      blockedCurrentBoundary,
-    );
+    const activeInterruptedBoundary = structuredClone(blockedCurrentBoundary);
     activeInterruptedBoundary.goals[1]!.goal!.status = "active";
     const activeInterruptedResume = await EvidenceBenchmarkRunner.run({
       state: activeInterruptedBoundary,
@@ -883,19 +881,18 @@ const fakeAppServer = (): void => {
                 id: wrongThread ? "fixture-other-thread" : "fixture-thread",
                 cliVersion: "fixture-cli",
                 status: { type: "idle" },
-                turns:
-                  sameTurnInterruptedReplay
-                    ? [
-                        {
-                          id: `turn-${goalIndex}`,
-                          status: "interrupted",
-                        },
-                        {
-                          id: "turn-empty-interrupted",
-                          status: "interrupted",
-                        },
-                      ]
-                    : advancedInterruptedReplay || unprovenInterruptedReplay
+                turns: sameTurnInterruptedReplay
+                  ? [
+                      {
+                        id: `turn-${goalIndex}`,
+                        status: "interrupted",
+                      },
+                      {
+                        id: "turn-empty-interrupted",
+                        status: "interrupted",
+                      },
+                    ]
+                  : advancedInterruptedReplay || unprovenInterruptedReplay
                     ? [
                         { id: `turn-${goalIndex}`, status: "completed" },
                         ...(advancedInterruptedReplay

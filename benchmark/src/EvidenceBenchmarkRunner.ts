@@ -792,8 +792,7 @@ export namespace EvidenceBenchmarkRunner {
       const sameInterruptedTurn: boolean =
         resumeUsageReplay.turnId === record.tokenUsageTurnId &&
         replayIndex === retainedIndex;
-      const nextInterruptedTurn: boolean =
-        replayIndex === retainedIndex + 1;
+      const nextInterruptedTurn: boolean = replayIndex === retainedIndex + 1;
       const trailingTurnsInterrupted: boolean = turns
         .slice(replayIndex)
         .every((turn) => turn.status === "interrupted");
