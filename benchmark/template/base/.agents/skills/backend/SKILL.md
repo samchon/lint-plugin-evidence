@@ -56,6 +56,8 @@ This pnpm TypeScript monorepo uses source files during development and build fil
 
 If `main` or `exports` points to `lib`, local packages can read a missing or stale build.
 
+For these reasons, never change `main`, `exports`, or `publishConfig`.
+
 ## Implementation Order
 
 1. Read every requirement under `docs/analysis/`.

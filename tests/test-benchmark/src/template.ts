@@ -178,6 +178,10 @@ const main = (): void => {
   assert.match(backendSkill, /"types": "\.\/lib\/index\.d\.ts"/u);
   assert.match(backendSkill, /pnpm TypeScript monorepo/u);
   assert.match(backendSkill, /missing or stale build/u);
+  assert.match(
+    backendSkill,
+    /never change `main`, `exports`, or `publishConfig`/u,
+  );
   assert.deepEqual(apiPackage.publishConfig, {
     main: "./lib/index.js",
     types: "./lib/index.d.ts",
