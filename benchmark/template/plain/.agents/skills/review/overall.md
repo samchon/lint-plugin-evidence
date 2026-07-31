@@ -38,23 +38,23 @@ Record orphaned artifacts, invented behavior, unused operations, unproved effect
 Compare every adjacent boundary in both directions.
 
 1. Requirements and database:
-   1. verify full concept, field, relation, lifecycle, ownership, ordering, concurrency, and deletion coverage;
-   2. verify that every persisted element is required or technically necessary.
+   - verify full concept, field, relation, lifecycle, ownership, ordering, concurrency, and deletion coverage;
+   - verify that every persisted element is required or technically necessary.
 2. Database and API:
-   1. verify DTO types, units, optionality, null meanings, validation, ownership, and derivation;
-   2. verify complete create, read, change, delete, list, aggregate, authorization, and refusal behavior.
+   - verify DTO types, units, optionality, null meanings, validation, ownership, and derivation;
+   - verify complete create, read, change, delete, list, aggregate, authorization, and refusal behavior.
 3. API and backend:
-   1. verify every controller contract against authorization, provider branches, transactions, side effects, errors, and returned values;
-   2. verify every implementation path remains inside the public contract.
+   - verify every controller contract against authorization, provider branches, transactions, side effects, errors, and returned values;
+   - verify every implementation path remains inside the public contract.
 4. API and frontend:
-   1. verify request construction, response interpretation, errors, cache behavior, navigation, and deletion cleanup;
-   2. verify every required operation is usable and every used operation is required.
+   - verify request construction, response interpretation, errors, cache behavior, navigation, and deletion cleanup;
+   - verify every required operation is usable and every used operation is required.
 5. Backend and tests:
-   1. verify success, refusal, boundaries, persistence, rollback, cascade, ordering, isolation, and concurrency;
-   2. verify that assertions fail when the named behavior disappears.
+   - verify success, refusal, boundaries, persistence, rollback, cascade, ordering, isolation, and concurrency;
+   - verify that assertions fail when the named behavior disappears.
 6. Frontend and browser tests:
-   1. verify every required live state, action, refusal, recovery, responsive behavior, and user-visible consequence;
-   2. verify that journeys exercise the current live application rather than a simulated substitute.
+   - verify every required live state, action, refusal, recovery, responsive behavior, and user-visible consequence;
+   - verify that journeys exercise the current live application rather than a simulated substitute.
 
 ## End-To-End Closure
 

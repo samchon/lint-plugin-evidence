@@ -18,16 +18,16 @@ The complete frontend scope contains:
 Read every requirement in full. Treat each individual requirement as a root and independently follow every applicable branch.
 
 1. Propagate the requirement into the API used by the frontend.
-   1. Identify every operation, actor, input, output, effect, refusal, error, pagination rule, ordering rule, and lifecycle state the interface must represent.
-   2. Verify that the current SDK exposes the exact contract the requirement needs.
+   - Identify every operation, actor, input, output, effect, refusal, error, pagination rule, ordering rule, and lifecycle state the interface must represent.
+   - Verify that the current SDK exposes the exact contract the requirement needs.
 2. Propagate the requirement into screens and interactions.
-   1. Verify that the user can discover and complete the whole behavior through the interface.
-   2. Verify loading, empty, success, error, refused, stale, retry, disabled, and responsive states wherever the requirement makes them possible.
-   3. Verify authorization, navigation, confirmation, form validation, optimistic updates, cache invalidation, and deletion consequences.
+   - Verify that the user can discover and complete the whole behavior through the interface.
+   - Verify loading, empty, success, error, refused, stale, retry, disabled, and responsive states wherever the requirement makes them possible.
+   - Verify authorization, navigation, confirmation, form validation, optimistic updates, cache invalidation, and deletion consequences.
 3. Propagate the requirement into browser tests and live journeys.
-   1. Verify every required actor, setup, action, visible result, refusal, recovery, and persistent consequence.
-   2. Verify that a live journey proves the actual backend and frontend behavior instead of a simulated substitute.
-   3. Verify that the journey would fail if the named requirement disappeared.
+   - Verify every required actor, setup, action, visible result, refusal, recovery, and persistent consequence.
+   - Verify that a live journey proves the actual backend and frontend behavior instead of a simulated substitute.
+   - Verify that the journey would fail if the named requirement disappeared.
 
 Complete all branches for one requirement before treating that requirement as reviewed. Similar screens or journeys never share credit.
 
@@ -36,14 +36,14 @@ Complete all branches for one requirement before treating that requirement as re
 Read every operation and DTO in full. Treat each operation and property as a root.
 
 1. Find every frontend consumer.
-   1. Verify the exact request construction, actor context, path parameter, query, body, and optional value.
-   2. Verify response decoding, null and empty meanings, errors, refusals, retries, and stale data behavior.
+   - Verify the exact request construction, actor context, path parameter, query, body, and optional value.
+   - Verify response decoding, null and empty meanings, errors, refusals, retries, and stale data behavior.
 2. Follow every operation through state and presentation.
-   1. Verify cache keys, invalidation, optimistic state, pagination, sorting, filters, route transitions, and deletion cleanup.
-   2. Verify that all promised values and states become visible at the right time and to the right actor.
+   - Verify cache keys, invalidation, optimistic state, pagination, sorting, filters, route transitions, and deletion cleanup.
+   - Verify that all promised values and states become visible at the right time and to the right actor.
 3. Follow every operation into browser tests.
-   1. Verify that tests use the real operation and assert the complete visible consequence.
-   2. Record unconsumed operations, invented client behavior, missing error handling, and unproved branches as findings.
+   - Verify that tests use the real operation and assert the complete visible consequence.
+   - Record unconsumed operations, invented client behavior, missing error handling, and unproved branches as findings.
 
 ## Frontend Source Propagation
 

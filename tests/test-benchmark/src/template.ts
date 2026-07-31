@@ -73,6 +73,7 @@ const main = (): void => {
     validateMaterializedSkillLinks(templateRoot, arm);
   }
   validateEvidenceWatcherLifecycle(benchmarkRoot, templateRoot);
+  validateReviewListHierarchy(benchmarkRoot, templateRoot);
   assert.notEqual(
     fs.readFileSync(
       path.join(benchmarkRoot, "instructions", "plain", "continue.md"),
@@ -232,6 +233,25 @@ const main = (): void => {
     }),
     { KEEP_ME: "yes" },
   );
+};
+
+const validateReviewListHierarchy = (
+  benchmarkRoot: string,
+  templateRoot: string,
+): void => {
+  const roots: readonly string[] = [
+    path.join(benchmarkRoot, "instructions"),
+    path.join(templateRoot, "plain", ".agents", "skills", "review"),
+  ];
+  for (const root of roots)
+    visitFiles(root, (file) => {
+      if (!file.endsWith(".md")) return;
+      assert.doesNotMatch(
+        fs.readFileSync(file, "utf8"),
+        /^[ \t]{2,}\d+\.[ \t]/mu,
+        `${path.relative(benchmarkRoot, file)} must use bullets below numbered steps.`,
+      );
+    });
 };
 
 const validateEvidenceWatcherLifecycle = (
