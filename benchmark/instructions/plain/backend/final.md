@@ -1,8 +1,10 @@
 # Backend Final
 
-Did the preceding backend review actually perform the literal, indivisible, full-scope reading required by its instruction? This objective audits only that question. Do not perform a substitute review or use searches, summaries, inventories, builds, tests, or Git status as proof.
+Did the preceding backend review actually perform the literal, indivisible, full-scope reading required by its instruction? Do not perform a substitute review or use searches, summaries, inventories, builds, tests, or Git status as proof.
 
 If any condition below is unproven, return to the preceding backend review objective and continue it. Complete only when every condition is proven.
+
+Run `pnpm build:test` from `packages/backend` against the current implementation and fix every failure. A successful build is required but is not proof of the review.
 
 | Verify | Required result |
 | --- | --- |

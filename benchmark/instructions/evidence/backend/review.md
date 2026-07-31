@@ -3,3 +3,5 @@
 Read `.agents/skills/review/SKILL.md` before working.
 
 Review whether every backend `@evidence` and `@evidenceExclude` reason precisely and truthfully explains why it applies. Do not review the frontend.
+
+Run `pnpm build:test` from `packages/backend` so the compiler catches invalid evidence references and missing coverage, and fix every failure.
