@@ -523,6 +523,72 @@ const main = async (): Promise<void> => {
         .filter((request) => request.method === "thread/goal/set").length,
       0,
     );
+    const undispatchedBoundary = structuredClone(stateFailure);
+    const usedUndispatchedBoundary = structuredClone(stateFailure);
+    const adoptedUndispatchedGoal = await EvidenceBenchmarkRunner.run({
+      state: undispatchedBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--undispatched-active"],
+      onOutput: () => undefined,
+    });
+    assert.equal(adoptedUndispatchedGoal.status, "completed");
+    assert.equal(adoptedUndispatchedGoal.nextInstructionIndex, ENTRIES.length);
+    const rejectedUsedUndispatchedGoal = await EvidenceBenchmarkRunner.run({
+      state: usedUndispatchedBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--undispatched-used"],
+      onOutput: () => undefined,
+    });
+    assert.equal(rejectedUsedUndispatchedGoal.status, "interrupted");
+    assert.match(
+      rejectedUsedUndispatchedGoal.interruption?.message ?? "",
+      /exact retained boundary/,
+    );
+    const nextUndispatchedBoundary = structuredClone(completed);
+    nextUndispatchedBoundary.status = "interrupted";
+    nextUndispatchedBoundary.nextInstructionIndex = 1;
+    nextUndispatchedBoundary.goals = nextUndispatchedBoundary.goals.slice(0, 2);
+    const nextUndispatchedRecord = nextUndispatchedBoundary.goals[1]!;
+    nextUndispatchedRecord.goal = null;
+    nextUndispatchedRecord.terminalTurnId = null;
+    nextUndispatchedRecord.terminalTurnCompleted = false;
+    nextUndispatchedRecord.threadIdle = false;
+    nextUndispatchedRecord.tokenUsageTurnId = null;
+    nextUndispatchedRecord.tokenUsageEnd = null;
+    nextUndispatchedRecord.tokenUsage = {
+      totalTokens: 0,
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
+      outputTokens: 0,
+      reasoningOutputTokens: 0,
+    };
+    nextUndispatchedBoundary.threadTokenUsage = structuredClone(
+      nextUndispatchedBoundary.goals[0]!.tokenUsageEnd!,
+    );
+    const adoptedNextUndispatchedGoal = await EvidenceBenchmarkRunner.run({
+      state: nextUndispatchedBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--undispatched-next"],
+      onOutput: () => undefined,
+    });
+    assert.equal(adoptedNextUndispatchedGoal.status, "completed");
+    assert.equal(
+      adoptedNextUndispatchedGoal.nextInstructionIndex,
+      ENTRIES.length,
+    );
     const firstBoundaryResume = await EvidenceBenchmarkRunner.run({
       state: stateFailure,
       cwd: root,
@@ -878,8 +944,22 @@ const fakeAppServer = (): void => {
   );
   const missingThreadId: boolean = process.argv.includes("--missing-thread-id");
   const previousActive: boolean = process.argv.includes("--previous-active");
+  const undispatchedActive: boolean = process.argv.includes(
+    "--undispatched-active",
+  );
+  const undispatchedUsed: boolean = process.argv.includes(
+    "--undispatched-used",
+  );
+  const undispatchedNext: boolean = process.argv.includes(
+    "--undispatched-next",
+  );
+  const undispatched: boolean =
+    undispatchedActive || undispatchedUsed || undispatchedNext;
   const previousGoal: boolean =
-    currentGoal || previousActive || process.argv.includes("--previous-goal");
+    currentGoal ||
+    previousActive ||
+    undispatched ||
+    process.argv.includes("--previous-goal");
   const resumeStatusBeforeResponse: boolean = process.argv.includes(
     "--resume-status-before-response",
   );
@@ -888,7 +968,16 @@ const fakeAppServer = (): void => {
   const trimTerminalLineBreaks: boolean = process.argv.includes(
     "--trim-terminal-line-breaks",
   );
-  let goalIndex = currentActive ? 1 : currentGoal ? 2 : previousGoal ? 1 : 0;
+  let goalIndex = undispatchedActive
+    ? 0
+    : currentActive || undispatchedNext
+      ? 1
+      : currentGoal
+        ? 2
+        : previousGoal
+          ? 1
+          : 0;
+  let undispatchedSnapshotPending = undispatched;
   let waitingForTurnCompletion = false;
   const send = (value: unknown, callback?: () => void): void => {
     process.stdout.write(`${JSON.stringify(value)}\n`, callback);
@@ -903,14 +992,23 @@ const fakeAppServer = (): void => {
       : objective,
     status,
     tokenBudget: null,
-    tokensUsed: goalIndex * 10,
-    timeUsedSeconds: goalIndex,
+    tokensUsed: undispatchedSnapshotPending
+      ? undispatchedUsed
+        ? 10
+        : 0
+      : goalIndex * 10,
+    timeUsedSeconds: undispatchedSnapshotPending
+      ? undispatchedUsed
+        ? 1
+        : 0
+      : goalIndex,
     createdAt: 1,
     updatedAt: goalIndex + 1,
   });
   const input = readline.createInterface({ input: process.stdin });
   const retainedObjective = (): string => {
-    const relativePath: string = ENTRIES[currentGoal ? 1 : 0]![1];
+    const relativePath: string =
+      ENTRIES[currentGoal || undispatchedNext ? 1 : 0]![1];
     return `${fs.readFileSync(
       path.join(process.cwd(), ...relativePath.split("/")),
       "utf8",
@@ -979,42 +1077,44 @@ const fakeAppServer = (): void => {
           () => {
             if (wrongThread) return;
             if (previousGoal) {
-              const replay =
-                advancedInterruptedReplay ||
-                unprovenInterruptedReplay ||
-                sameTurnInterruptedReplay
-                  ? {
-                      turnId: sameTurnInterruptedReplay
-                        ? `turn-${goalIndex}`
-                        : "turn-interrupted",
-                      total: {
-                        totalTokens: 25,
-                        inputTokens: 15,
-                        cachedInputTokens: 5,
-                        cacheWriteInputTokens: 2,
-                        outputTokens: 10,
-                        reasoningOutputTokens: 7,
-                      },
-                    }
-                  : {
-                      turnId: `turn-${goalIndex}`,
-                      total: {
-                        totalTokens: goalIndex * 10,
-                        inputTokens: goalIndex * 6,
-                        cachedInputTokens: goalIndex * 2,
-                        cacheWriteInputTokens: goalIndex,
-                        outputTokens: goalIndex * 4,
-                        reasoningOutputTokens: goalIndex * 3,
-                      },
-                    };
-              send({
-                method: "thread/tokenUsage/updated",
-                params: {
-                  threadId: "fixture-thread",
-                  turnId: replay.turnId,
-                  tokenUsage: { total: replay.total },
-                },
-              });
+              if (!undispatched || undispatchedNext) {
+                const replay =
+                  advancedInterruptedReplay ||
+                  unprovenInterruptedReplay ||
+                  sameTurnInterruptedReplay
+                    ? {
+                        turnId: sameTurnInterruptedReplay
+                          ? `turn-${goalIndex}`
+                          : "turn-interrupted",
+                        total: {
+                          totalTokens: 25,
+                          inputTokens: 15,
+                          cachedInputTokens: 5,
+                          cacheWriteInputTokens: 2,
+                          outputTokens: 10,
+                          reasoningOutputTokens: 7,
+                        },
+                      }
+                    : {
+                        turnId: `turn-${goalIndex}`,
+                        total: {
+                          totalTokens: goalIndex * 10,
+                          inputTokens: goalIndex * 6,
+                          cachedInputTokens: goalIndex * 2,
+                          cacheWriteInputTokens: goalIndex,
+                          outputTokens: goalIndex * 4,
+                          reasoningOutputTokens: goalIndex * 3,
+                        },
+                      };
+                send({
+                  method: "thread/tokenUsage/updated",
+                  params: {
+                    threadId: "fixture-thread",
+                    turnId: replay.turnId,
+                    tokenUsage: { total: replay.total },
+                  },
+                });
+              }
               const continueCurrentGoal = (): void => {
                 goalIndex++;
                 const turnId: string = `turn-${goalIndex}`;
@@ -1086,6 +1186,7 @@ const fakeAppServer = (): void => {
                         currentBlocked
                           ? "blocked"
                           : previousActive ||
+                              undispatched ||
                               currentActive ||
                               currentInterruptedActive
                             ? "active"
@@ -1129,6 +1230,7 @@ const fakeAppServer = (): void => {
                     ? "blocked"
                     : activeGoalGet ||
                         previousActive ||
+                        undispatched ||
                         currentActive ||
                         currentInterruptedActive
                       ? "active"
@@ -1148,6 +1250,7 @@ const fakeAppServer = (): void => {
         error: { message: `Unexpected request: ${request.method}` },
       });
     const objective: string = request.params.objective;
+    undispatchedSnapshotPending = false;
     goalIndex++;
     if (fail) {
       process.stderr.write("fixture interruption\n");

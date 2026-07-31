@@ -117,6 +117,7 @@ export namespace EvidenceBenchmarkRunner {
     let resumeSnapshotPending: boolean = !fresh;
     let resumeSnapshot: Record<string, unknown> | undefined;
     let resumeSnapshotRecordIndex: number | undefined;
+    let resumeAdoptedUndispatchedGoal = false;
     let resumeUsageReplay:
       | {
           turnId: string;
@@ -440,12 +441,55 @@ export namespace EvidenceBenchmarkRunner {
         if (!resumeReconciled && params.turnId === null) {
           if (!resumeSnapshotPending || resumeSnapshot !== undefined)
             throw new Error("Codex emitted duplicate resume Goal snapshots.");
+          const previous: IEvidenceBenchmarkGoalRecord | undefined =
+            state.goals.find(
+              (candidate) => candidate.index === record.index - 1,
+            );
           const retained: IEvidenceBenchmarkGoalRecord | undefined =
-            record.goal !== null
-              ? record
-              : state.goals.find(
-                  (candidate) => candidate.index === record.index - 1,
-                );
+            record.goal !== null ? record : previous;
+          const previousBoundaryComplete: boolean =
+            record.index === 0
+              ? previous === undefined
+              : previous?.goal?.status === "complete" &&
+                previous.terminalTurnId !== null &&
+                previous.terminalTurnCompleted &&
+                previous.threadIdle &&
+                previous.tokenUsageTurnId === previous.terminalTurnId &&
+                previous.tokenUsageEnd !== null &&
+                usageAdvanced(
+                  previous.tokenUsageEnd,
+                  previous.tokenUsageStart,
+                ) &&
+                sameUsage(
+                  previous.tokenUsage,
+                  subtract(previous.tokenUsageEnd, previous.tokenUsageStart),
+                ) &&
+                sameUsage(previous.tokenUsageEnd, state.threadTokenUsage);
+          const undispatched: boolean =
+            record.goal === null &&
+            previousBoundaryComplete &&
+            record.terminalTurnId === null &&
+            !record.terminalTurnCompleted &&
+            record.tokenUsageTurnId === null &&
+            record.tokenUsageEnd === null &&
+            sameUsage(record.tokenUsageStart, state.threadTokenUsage) &&
+            sameUsage(record.tokenUsage, zeroUsage()) &&
+            goal.status === "active" &&
+            goal.tokensUsed === 0 &&
+            goal.timeUsedSeconds === 0;
+          if (undispatched) {
+            if (previous?.goal !== null && previous?.goal !== undefined)
+              validateNativeGoal(previous, previous.goal, state.sessionId);
+            validateNativeGoal(record, goal, state.sessionId);
+            record.goal = structuredClone(goal);
+            resumeSnapshot = structuredClone(goal);
+            resumeSnapshotRecordIndex = record.index;
+            resumeAdoptedUndispatchedGoal = true;
+            resumeSnapshotPending = false;
+            resolveResumeSnapshot();
+            publish();
+            return;
+          }
           if (
             retained?.goal === null ||
             retained?.goal === undefined ||
@@ -753,7 +797,11 @@ export namespace EvidenceBenchmarkRunner {
               publish();
               await flushResumeLifecycle();
               if (outcome === undefined) {
-                if (isInterruptedGoalStatus(goal.status)) await beginGoal();
+                if (
+                  resumeAdoptedUndispatchedGoal ||
+                  isInterruptedGoalStatus(goal.status)
+                )
+                  await beginGoal();
                 else await advance();
               }
             }
