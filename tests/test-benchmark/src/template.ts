@@ -300,6 +300,33 @@ const validateEvidenceWatcherLifecycle = (
     );
   }
 
+  const evidenceSkill = fs.readFileSync(
+    path.join(
+      templateRoot,
+      "evidence",
+      ".agents",
+      "skills",
+      "evidence",
+      "SKILL.md",
+    ),
+    "utf8",
+  );
+  assert.match(
+    evidenceSkill,
+    /Complete the first backend draft, then start `pnpm check:watch`[\s\S]*Stop the watcher afterward/u,
+    "The Evidence skill must prescribe its delayed, bounded watcher lifecycle.",
+  );
+
+  const plainBackendStart = fs.readFileSync(
+    path.join(benchmarkRoot, "instructions", "plain", "backend", "start.md"),
+    "utf8",
+  );
+  assert.match(
+    plainBackendStart,
+    /persistent background process before implementation[\s\S]*keep it running through Overall Final/u,
+    "Plain backend-start must retain its resident watcher lifecycle.",
+  );
+
   const sharedSkills = collectFiles(
     path.join(templateRoot, "base", ".agents", "skills"),
   )
@@ -308,8 +335,13 @@ const validateEvidenceWatcherLifecycle = (
     .join("\n");
   assert.doesNotMatch(
     sharedSkills,
-    /Start .*check:watch.*before .*authoring|Keep .*check:watch.*running through Overall Final/iu,
-    "Base skills must not revive a pre-authoring or resident backend watcher.",
+    /Complete the backend first draft before starting `pnpm check:watch`|Waiting for the complete first draft|stop the watcher so it cannot overlap/iu,
+    "Base skills must not impose the Evidence watcher lifecycle on Plain.",
+  );
+  assert.match(
+    sharedSkills,
+    /benchmark arms intentionally use different watcher lifecycles/iu,
+    "Base skills must keep the arm-specific watcher lifecycles explicit.",
   );
 };
 

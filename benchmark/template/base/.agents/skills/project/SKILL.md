@@ -37,7 +37,7 @@ Do not begin frontend implementation before the backend contract and tests pass.
 
 ## Compiler Gates And Development Processes
 
-- Complete the backend first draft before starting `pnpm check:watch` from `packages/backend`. At each backend compiler gate, fix the complete diagnostic batch, wait for a clean current rebuild, and stop the watcher before the next command or phase. It checks backend source, backend tests, API DTOs, lint rules, and configured contributors through the package's single `tsconfig.json`.
+- Run `pnpm check:watch` from `packages/backend` with the lifecycle prescribed by the current arm's instruction. It checks backend source, backend tests, API DTOs, lint rules, and configured contributors through the package's single `tsconfig.json`. The benchmark arms intentionally use different watcher lifecycles; never carry one arm's lifecycle into another.
 - Start `pnpm dev` from `packages/frontend` before frontend authoring. Keep it running through Overall Final. Vite and `@ttsc/unplugin` report type, lint, and contributor diagnostics on reload.
 - Start the backend server with `pnpm dev` from `packages/backend` before live frontend integration. Keep it running through Overall Final.
 
@@ -75,7 +75,7 @@ pnpm test:e2e
 
 `pnpm build:prisma` generates the client and ERD. `pnpm schema` resets the disposable SQLite database. `pnpm build:sdk` generates the SDK and compiles the API package. `pnpm test` runs the backend suite. Frontend `pnpm test:e2e` builds the production bundle and runs browser journeys.
 
-Use `check:watch` only at the prescribed compiler gates. Run generators only after their complete authored input settles, and run mutating generators, compiler gates, and tests serially because they share generated files and the SQLite database.
+Follow the current arm's instruction for `check:watch`. Run generators only after their complete authored input settles, and run mutating generators and runtime tests one at a time because they share generated files and the SQLite database.
 
 The workspace-root `pnpm build` and `pnpm test` are Overall-phase commands. Do not use a root build to judge an unfinished layer.
 

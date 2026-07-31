@@ -1,6 +1,6 @@
 ---
 name: backend
-description: Defines backend layer ownership, implementation order, compiler gates, generation boundaries, and the backend gate. Read before backend work, then read every sibling topic.
+description: Defines backend layer ownership, implementation order, compiler checking, generation boundaries, and the backend gate. Read before backend work, then read every sibling topic.
 ---
 
 # Backend
@@ -68,15 +68,15 @@ If `main` or `exports` points to `lib`, local packages can read a missing or sta
 
 The temporary controller stub declares the real route, signature, JSDoc, and response type. Its body mentions each parameter and returns `typia.random<T>()`, allowing SDK generation before provider logic exists. Remove every stub marker when replacing the body with one provider call.
 
-## Compiler Gate
+## Compiler Checking
 
-Complete the first draft of the schema, contract, tests, and implementation before starting:
+The backend compiler process is:
 
 ```bash
 pnpm check:watch
 ```
 
-The package's single `tsconfig.json` includes backend source, backend tests, and authored API DTOs. The watcher automatically reloads its lint configuration and reports type, lint, and contributor diagnostics. Waiting for the complete first draft prevents not-yet-authored artifacts from appearing as defects. Fix the complete diagnostic batch, require a clean rebuild after the latest change, and stop the watcher so it cannot overlap a generator, runtime test, or later phase. Start a fresh watcher at each later compiler gate.
+The package's single `tsconfig.json` includes backend source, backend tests, and authored API DTOs. The watcher automatically reloads its lint configuration and reports type, lint, and contributor diagnostics. The current arm's instruction owns when the watcher starts and stops. The benchmark arms intentionally use different lifecycles; never infer one arm's lifecycle from another. A compiler check is clean only after the latest change rebuilds without a diagnostic.
 
 Do not create another backend `tsconfig.json` or package-local lint configuration for tests. Do not toggle claim configuration by phase.
 
@@ -105,9 +105,9 @@ Start it before live frontend integration and keep it running through Overall Fi
 | Schema model, field, relation, or comment | Settle the schema, then `pnpm build:prisma` and `pnpm schema` |
 | Complete DTO and controller contract | Settle the complete contract, then `pnpm build:sdk` once |
 | Provider or test only | Do not regenerate |
-| Complete backend first draft | Run the compiler gate, require a clean rebuild, then stop the watcher |
+| Complete backend change | Require a clean watcher rebuild under the current arm's prescribed lifecycle |
 
-Run generators, compiler gates, and tests serially. Do not start the first compiler gate until every backend layer in the first draft is present and no generator is running.
+Run mutating generators and runtime tests one at a time. Do not start a second backend watcher.
 
 ## Backend Gate
 
