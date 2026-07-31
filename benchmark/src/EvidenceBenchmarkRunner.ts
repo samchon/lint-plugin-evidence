@@ -741,17 +741,12 @@ export namespace EvidenceBenchmarkRunner {
                 tokenUsageTurnId: record.tokenUsageTurnId,
               });
             else {
-              const interruptedReplay: boolean =
-                reconcileInterruptedUsageReplay(record, thread);
+              reconcileInterruptedUsageReplay(record, thread);
               resumeReconciled = true;
               publish();
               await flushResumeLifecycle();
               if (outcome === undefined) {
-                if (
-                  interruptedReplay ||
-                  isInterruptedGoalStatus(goal.status)
-                )
-                  await beginGoal();
+                if (isInterruptedGoalStatus(goal.status)) await beginGoal();
                 else await advance();
               }
             }
@@ -765,8 +760,8 @@ export namespace EvidenceBenchmarkRunner {
     function reconcileInterruptedUsageReplay(
       record: IEvidenceBenchmarkGoalRecord,
       thread: Record<string, unknown>,
-    ): boolean {
-      if (resumeUsageReplay === undefined) return false;
+    ): void {
+      if (resumeUsageReplay === undefined) return;
       if (
         !canOwnInterruptedUsageReplay(record.goal?.status) ||
         record.tokenUsageTurnId === null
@@ -795,18 +790,20 @@ export namespace EvidenceBenchmarkRunner {
         replayIndex === retainedIndex;
       const nextInterruptedTurn: boolean =
         replayIndex === retainedIndex + 1;
+      const trailingTurnsInterrupted: boolean = turns
+        .slice(replayIndex)
+        .every((turn) => turn.status === "interrupted");
       if (
         retainedIndex === -1 ||
         (!sameInterruptedTurn && !nextInterruptedTurn) ||
-        replayIndex !== turns.length - 1
+        !trailingTurnsInterrupted
       )
         throw new Error(
-          "Codex interrupted token replay is not the exact retained or next turn.",
+          "Codex interrupted token replay is not the exact retained or next turn followed only by interrupted turns.",
         );
       state.threadTokenUsage = structuredClone(resumeUsageReplay.usage);
       record.tokenUsageTurnId = resumeUsageReplay.turnId;
       resumeUsageReplay = undefined;
-      return true;
     }
 
     const result: "completed" | "interrupted" = await outcomePromise;

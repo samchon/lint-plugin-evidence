@@ -886,6 +886,10 @@ const fakeAppServer = (): void => {
                           id: `turn-${goalIndex}`,
                           status: "interrupted",
                         },
+                        {
+                          id: "turn-empty-interrupted",
+                          status: "interrupted",
+                        },
                       ]
                     : advancedInterruptedReplay || unprovenInterruptedReplay
                     ? [
@@ -1021,7 +1025,7 @@ const fakeAppServer = (): void => {
                       turnId: null,
                     },
                   },
-                  currentActive && !sameTurnInterruptedReplay
+                  currentActive || currentInterruptedActive
                     ? continueCurrentGoal
                     : undefined,
                 );
