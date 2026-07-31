@@ -16,7 +16,7 @@ import { renderEvidenceBenchmarkDashboard } from "../../../benchmark/src/Evidenc
  *
  * 1. Create two real benchmark worktrees and retained run records.
  * 2. Give one cell an older run and a newer active run with later output.
- * 3. Render the dashboard and assert each cell's stage-level cost and time.
+ * 3. Render the summary table and stage-level cost, time, and shares.
  * 4. Assert stale and unlaunched cells never appear.
  */
 const main = (): void => {
@@ -119,28 +119,42 @@ const main = (): void => {
     assert.match(dashboard, /^## GPT-5\.6-Terra$/mu);
     assert.match(
       dashboard,
-      /^- \*\*Todo Plain\*\* — `backend-review` · running$/mu,
+      /^\| Cell \| Stage \| Progress \| Elapsed \| Cost \| Work time \|$/mu,
     );
-    assert.match(dashboard, /^  - Progress: 2 files · \+2\/−0 LOC$/mu);
-    assert.match(dashboard, /^  - Elapsed: (?:\d+h )?\d{1,2}m$/mu);
-    assert.match(dashboard, /^  - Total: 2M · 2m$/mu);
-    assert.match(dashboard, /^  - `backend-start`: 1M · 1m$/mu);
-    assert.match(dashboard, /^  - `backend-review`: 1M · 1m$/mu);
     assert.match(
       dashboard,
-      /^- \*\*Todo Evidence\*\* — `overall-final` · completed$/mu,
+      /^\| Todo Plain \| `backend-review` · running \| 2 files · \+2\/−0 LOC \| (?:\d+h )?\d{1,2}m \| 2M \| 2m \|$/mu,
     );
-    assert.match(dashboard, /^  - `overall-final`: 0M · 1h 01m$/mu);
     assert.match(
       dashboard,
-      /^- \*\*Reddit Plain\*\* — `backend-start` · interrupted$/mu,
+      /^\| Todo Evidence \| `overall-final` · completed \| 0 files · \+0\/−0 LOC \| 0m \| 0M \| 1h 01m \|$/mu,
     );
-    assert.match(dashboard, /^  - `backend-start`: 1M · 2m$/mu);
+    assert.match(
+      dashboard,
+      /^\| Reddit Plain \| `backend-start` · interrupted \| 0 files · \+0\/−0 LOC \| 2m \| 1M \| 2m \|$/mu,
+    );
+    assert.match(dashboard, /^- \*\*Todo Plain stages\*\*$/mu);
+    assert.match(
+      dashboard,
+      /^  - `backend-start`: 1M · 1m · 63% tokens · 48% time$/mu,
+    );
+    assert.match(
+      dashboard,
+      /^  - `backend-review`: 1M · 1m · 38% tokens · 52% time$/mu,
+    );
+    assert.match(
+      dashboard,
+      /^  - `overall-final`: 0M · 1h 01m · 100% tokens · 100% time$/mu,
+    );
+    assert.match(
+      dashboard,
+      /^  - `backend-start`: 1M · 2m · 100% tokens · 100% time$/mu,
+    );
     assert.equal(dashboard.includes("900000"), false);
     assert.equal(dashboard.includes("Shopping"), false);
     assert.ok(
-      dashboard.indexOf("**Todo Plain**") <
-        dashboard.indexOf("**Todo Evidence**"),
+      dashboard.indexOf("| Todo Plain |") <
+        dashboard.indexOf("| Todo Evidence |"),
     );
     assert.ok(
       dashboard.indexOf("## GPT-5.6-Luna") <

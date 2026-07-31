@@ -154,10 +154,16 @@ const selectLatestRuns = (runs: IDashboardRun[]): IDashboardRun[] => {
 };
 
 const renderModel = (model: string, runs: IDashboardRun[]): string => {
-  const cells: string[] = runs
-    .sort(compareRuns)
-    .flatMap((run) => renderRun(run));
-  return [`## ${displayModel(model)}`, "", ...cells].join("\n");
+  const cells: IRenderedRun[] = runs.sort(compareRuns).map(renderRun);
+  return [
+    `## ${displayModel(model)}`,
+    "",
+    "| Cell | Stage | Progress | Elapsed | Cost | Work time |",
+    "| --- | --- | --- | ---: | ---: | ---: |",
+    ...cells.map((cell) => cell.summary),
+    "",
+    ...cells.flatMap((cell) => cell.details),
+  ].join("\n");
 };
 
 const compareRuns = (left: IDashboardRun, right: IDashboardRun): number => {
@@ -173,20 +179,27 @@ const compareRuns = (left: IDashboardRun, right: IDashboardRun): number => {
   );
 };
 
-const renderRun = (run: IDashboardRun): string[] => {
+interface IRenderedRun {
+  summary: string;
+  details: string[];
+}
+
+const renderRun = (run: IDashboardRun): IRenderedRun => {
   const file: IDashboardStateFile = run.file;
   const delta: IWorktreeDelta = inspectWorktree(file.records.workspace);
   const totalElapsed: number = elapsed(file);
-  return [
-    `- **${title(file.cell.subject)} ${title(file.cell.arm)}** — ${stage(file.state)}`,
-    `  - Progress: ${formatDelta(delta)}`,
-    `  - Elapsed: ${formatTime(wallElapsed(run))}`,
-    `  - Total: ${formatCost(file.state.threadTokenUsage.totalTokens)} · ${formatTime(totalElapsed)}`,
-    ...stageMeasurements(file.state, totalElapsed).map(
-      (measurement) =>
-        `  - \`${measurement.name}\`: ${formatCost(measurement.tokens)} · ${formatTime(measurement.elapsedMs)}`,
-    ),
-  ];
+  const cell: string = `${title(file.cell.subject)} ${title(file.cell.arm)}`;
+  const totalTokens: number = file.state.threadTokenUsage.totalTokens;
+  return {
+    summary: `| ${cell} | ${stage(file.state)} | ${formatDelta(delta)} | ${formatTime(wallElapsed(run))} | ${formatCost(totalTokens)} | ${formatTime(totalElapsed)} |`,
+    details: [
+      `- **${cell} stages**`,
+      ...stageMeasurements(file.state, totalElapsed).map(
+        (measurement) =>
+          `  - \`${measurement.name}\`: ${formatCost(measurement.tokens)} · ${formatTime(measurement.elapsedMs)} · ${formatPercent(measurement.tokens, totalTokens)} tokens · ${formatPercent(measurement.elapsedMs, totalElapsed)} time`,
+      ),
+    ],
+  };
 };
 
 const wallElapsed = (run: IDashboardRun): number => {
@@ -357,6 +370,9 @@ const formatDelta = (delta: IWorktreeDelta): string =>
 
 const formatCost = (tokens: number): string =>
   `${Math.round(tokens / 1_000_000)}M`;
+
+const formatPercent = (part: number, total: number): string =>
+  `${total === 0 ? 0 : Math.round((part / total) * 100)}%`;
 
 const elapsed = (file: IDashboardStateFile): number => {
   const unresolved: Set<number> = new Set(
