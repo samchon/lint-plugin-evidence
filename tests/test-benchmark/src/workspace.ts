@@ -6,7 +6,7 @@ import path from "node:path";
 import { EvidenceBenchmarkWorkspace } from "../../../benchmark/src/EvidenceBenchmarkWorkspace.ts";
 
 /**
- * Verifies workspace preparation keeps its sibling stage path bounded.
+ * Verifies Plain workspace preparation keeps staging and treatment bounded.
  *
  * The former stage name embedded the requested UUID, PID, and another UUID,
  * producing an 84-85 character basename before dependency installation. The
@@ -17,6 +17,7 @@ import { EvidenceBenchmarkWorkspace } from "../../../benchmark/src/EvidenceBench
  * 2. Let the real production path install through the fake entrypoint and create
  *    the git baseline.
  * 3. Assert the stage was renamed atomically to the exact requested output.
+ * 4. Assert only the Plain overlay was copied and no Evidence artifact exists.
  */
 const main = async (): Promise<void> => {
   const root: string = fs.mkdtempSync(
@@ -38,9 +39,32 @@ const main = async (): Promise<void> => {
         2,
       )}\n`,
     );
-    fs.mkdirSync(path.join(repository, "benchmark", "template", "plain"), {
+    const plainOverlay: string = path.join(
+      repository,
+      "benchmark",
+      "template",
+      "plain",
+    );
+    fs.mkdirSync(path.join(plainOverlay, ".agents", "skills", "campaign"), {
       recursive: true,
     });
+    fs.writeFileSync(
+      path.join(plainOverlay, ".agents", "skills", "campaign", "SKILL.md"),
+      "# Plain campaign\n",
+    );
+    const evidenceOverlay: string = path.join(
+      repository,
+      "benchmark",
+      "template",
+      "evidence",
+    );
+    fs.mkdirSync(path.join(evidenceOverlay, ".agents", "skills", "evidence"), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(evidenceOverlay, ".agents", "skills", "evidence", "SKILL.md"),
+      "# Evidence graph\n\n@evidence forbidden\n",
+    );
     fs.mkdirSync(
       path.join(repository, "benchmark", "requirements", "fixture"),
       { recursive: true },
@@ -90,6 +114,34 @@ const main = async (): Promise<void> => {
     assert.equal(fs.existsSync(prepared.root), true);
     assert.equal(fs.existsSync(prepared.workspace), true);
     assert.equal(fs.existsSync(path.join(prepared.workspace, ".git")), true);
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          prepared.workspace,
+          ".agents",
+          "skills",
+          "campaign",
+          "SKILL.md",
+        ),
+      ),
+      true,
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          prepared.workspace,
+          ".agents",
+          "skills",
+          "evidence",
+          "SKILL.md",
+        ),
+      ),
+      false,
+    );
+    assert.equal(
+      fs.existsSync(path.join(prepared.workspace, ".benchmark-deps")),
+      false,
+    );
     const install = JSON.parse(
       fs.readFileSync(
         path.join(prepared.workspace, ".fixture-install.json"),
