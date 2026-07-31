@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-07-31T21:06:19.736Z",
+  "generatedAt": "2026-07-31T21:16:36.245Z",
   "cells": [
     {
       "engine": "codex",
@@ -15,10 +15,10 @@
       "launchedAt": "2026-07-31T18:09:03.414Z",
       "tokens": 112250688,
       "workElapsedMs": 6692082.9813,
-      "wallElapsedMs": 10636322,
+      "wallElapsedMs": 11252831,
       "worktree": {
         "files": 42,
-        "additions": 5929,
+        "additions": 5937,
         "deletions": 32
       },
       "stages": [
@@ -136,10 +136,10 @@
       "launchedAt": "2026-07-31T18:09:03.553Z",
       "tokens": 62582547,
       "workElapsedMs": 5025181.4956,
-      "wallElapsedMs": 10636183,
+      "wallElapsedMs": 11252692,
       "worktree": {
         "files": 56,
-        "additions": 9909,
+        "additions": 9913,
         "deletions": 9
       },
       "stages": [
@@ -175,29 +175,29 @@
       "model": "gpt-5.6-luna",
       "effort": "high",
       "status": "running",
-      "stage": "frontend-start",
+      "stage": "frontend-review",
       "launchedAt": "2026-07-31T18:09:03.553Z",
-      "tokens": 115459208,
-      "workElapsedMs": 10385222.6927,
-      "wallElapsedMs": 10636183,
+      "tokens": 125009324,
+      "workElapsedMs": 11006969.0232,
+      "wallElapsedMs": 11252692,
       "worktree": {
-        "files": 77,
-        "additions": 12161,
-        "deletions": 86
+        "files": 79,
+        "additions": 12153,
+        "deletions": 88
       },
       "stages": [
         {
           "name": "backend-start",
           "tokens": 92489812,
           "elapsedMs": 7795000,
-          "tokenPercent": 80,
-          "timePercent": 75
+          "tokenPercent": 74,
+          "timePercent": 71
         },
         {
           "name": "backend-review",
           "tokens": 6855643,
           "elapsedMs": 778000,
-          "tokenPercent": 6,
+          "tokenPercent": 5,
           "timePercent": 7
         },
         {
@@ -209,10 +209,17 @@
         },
         {
           "name": "frontend-start",
-          "tokens": 12278566,
-          "elapsedMs": 1597222.6927000005,
-          "tokenPercent": 11,
-          "timePercent": 15
+          "tokens": 20955773,
+          "elapsedMs": 2148000,
+          "tokenPercent": 17,
+          "timePercent": 20
+        },
+        {
+          "name": "frontend-review",
+          "tokens": 872909,
+          "elapsedMs": 70969.0231999997,
+          "tokenPercent": 1,
+          "timePercent": 1
         }
       ]
     }
