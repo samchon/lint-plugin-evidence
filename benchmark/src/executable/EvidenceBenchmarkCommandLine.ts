@@ -340,6 +340,7 @@ const runFromBackendStartCheckpoint = async (props: {
       "Checkpoint recovery cannot change backend-start or its continuation instruction.",
     );
 
+  requested.benchmarkRevision = sourceCell.benchmarkRevision;
   requested.evidenceArtifactSha256 = sourceCell.evidenceArtifactSha256;
   requested.checkpointSource = {
     runId: sourceCell.runId,
