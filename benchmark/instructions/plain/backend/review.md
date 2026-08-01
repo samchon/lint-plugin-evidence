@@ -21,7 +21,7 @@ Review loop until dry is literal full reading and unlimited repetition, not a fi
 
 - [ ] Review skill gate followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
 - [ ] Every required instruction was read in full.
-- [ ] Every round began with one new complete sorted manifest; each command read only one in-scope backend file, and every file was fully covered in order.
+- [ ] Every round began with one new complete sorted manifest; each command read only one manifest file, and every file was fully covered in order.
 - [ ] Every correction or later scoped change, including a gate fix, triggered a new full round from the first requirement.
 - [ ] Every finding and consequence fixed; derived artifacts regenerated.
 - [ ] Final full round dry and edit-free; the clean current backend gate left it unchanged.
