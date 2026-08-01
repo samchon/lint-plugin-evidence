@@ -313,10 +313,24 @@ const main = async (): Promise<void> => {
     assert.equal(forked.goals.length, ENTRIES.length);
     assert.equal(forked.goals[0]?.goal?.threadId, "fixture-fork");
     assert.equal(forked.threadTokenUsage.totalTokens, ENTRIES.length * 10);
-    const forkRequest = forkOutput
+    const forkRequests = forkOutput
       .filter((output) => output.stream === "stdin")
-      .map((output) => JSON.parse(output.text) as Record<string, unknown>)
-      .find((request) => request.method === "thread/fork");
+      .map((output) => JSON.parse(output.text) as Record<string, unknown>);
+    const initializeRequest = forkRequests.find(
+      (request) => request.method === "initialize",
+    );
+    assert.deepEqual(initializeRequest?.params, {
+      clientInfo: {
+        name: "@samchon/evidence-benchmark",
+        version: "0.4.4",
+      },
+      capabilities: {
+        experimentalApi: true,
+      },
+    });
+    const forkRequest = forkRequests.find(
+      (request) => request.method === "thread/fork",
+    );
     assert.ok(forkRequest);
     assert.deepEqual(forkRequest.params, {
       threadId: "fixture-thread",

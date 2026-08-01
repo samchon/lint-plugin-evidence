@@ -745,7 +745,9 @@ export namespace EvidenceBenchmarkRunner {
           name: "@samchon/evidence-benchmark",
           version: "0.4.4",
         },
-        capabilities: {},
+        capabilities: {
+          experimentalApi: true,
+        },
       });
       send({ method: "initialized" });
       const retainedSessionId: string | undefined = state.sessionId;
