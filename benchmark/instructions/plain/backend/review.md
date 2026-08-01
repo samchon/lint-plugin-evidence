@@ -19,11 +19,11 @@ Review loop until dry is literal full reading and unlimited repetition, not a fi
 
 ## Final Checklist
 
-- [ ] Review skill gate complete without split, shortened, or substituted rounds.
+- [ ] Review skill gate followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
 - [ ] Required instructions and full backend scope read.
 - [ ] Latest correction followed by a new full round from the first requirement.
 - [ ] Every finding and consequence fixed; derived artifacts regenerated.
 - [ ] Final full round dry and edit-free.
 - [ ] Backend watcher rebuilt cleanly.
 
-Any unchecked or uncertain item restarts the full Backend Review from the first requirement.
+Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the literal full-reading Backend Review round from the first requirement.

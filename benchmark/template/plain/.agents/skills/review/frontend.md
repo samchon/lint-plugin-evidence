@@ -68,10 +68,11 @@ Read every browser test in full and perform every required journey against the l
 
 ## Final Checklist
 
+- [ ] Review skill gate followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
 - [ ] Every requirement propagated through API, screens, interactions, states, tests, and journeys.
 - [ ] Every operation and DTO checked against all consumers, data flow, failures, cache and route transitions, and browser proof.
 - [ ] Every frontend source and browser test read and traced backward to requirements and forward to live behavior.
 - [ ] Every applicable user-visible, responsive, and accessible state checked.
 - [ ] Every required journey exercised against the live application.
 
-Any unchecked or uncertain item restarts the full Frontend Review from the first requirement.
+Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the literal full-reading Frontend Review from the first requirement.

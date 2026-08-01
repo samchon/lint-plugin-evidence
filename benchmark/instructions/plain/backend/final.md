@@ -10,9 +10,9 @@ The exact Backend Review instruction is quoted below.
 
 ## Final Checklist
 
-- [ ] Review skill gate and quoted Backend Review complete.
+- [ ] Review skill gate and quoted Backend Review followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
 - [ ] Every finding and consequence fixed; derived artifacts regenerated.
 - [ ] Latest correction followed by a dry, edit-free full round.
 - [ ] Backend watcher clean, tests passed, and dev server running.
 
-Any unchecked or uncertain review item triggers the quoted Backend Review now. Repeat from the first requirement until every item is checked; builds and tests alone do not qualify.
+Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Perform the quoted Backend Review as a literal full-reading round from the first requirement now, and repeat until every item is checked. Builds and tests alone do not qualify.

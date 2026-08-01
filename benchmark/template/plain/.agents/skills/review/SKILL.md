@@ -84,6 +84,7 @@ None of these satisfy review loop until dry. When a literal dry round is not pro
 ## Final Checklist
 
 - [ ] Detailed procedure and full current scope read literally.
+- [ ] No discretionary judgment changed the prescribed scope, round boundaries, stopping conditions, or review procedure.
 - [ ] Every round covered the first requirement through the final artifact and every propagation branch.
 - [ ] No split rounds, composed partial passes, omissions, or search/build/test substitutes.
 - [ ] Every finding and consequence fixed after the complete round.
@@ -91,4 +92,4 @@ None of these satisfy review loop until dry. When a literal dry round is not pro
 - [ ] Unlimited repetition reached one dry, edit-free round.
 - [ ] Scope checklist complete and gates clean.
 
-Any unchecked or uncertain item restarts the full Review from the first requirement. In a Final Goal, perform the quoted Review immediately when the preceding Review does not prove every item.
+Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the applicable literal full-reading Review from the first requirement. In a Final Goal, perform the quoted Review immediately.

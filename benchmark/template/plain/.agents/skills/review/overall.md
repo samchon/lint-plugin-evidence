@@ -64,10 +64,11 @@ Record each failed edge separately in the current Overall finding list, even whe
 
 ## Final Checklist
 
+- [ ] Review skill gate followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
 - [ ] Backend and Frontend procedures read and their union reviewed as one indivisible round.
 - [ ] Every requirement propagated forward through all layers, tests, states, and journeys.
 - [ ] Every artifact and behavior traced backward to requirements, ownership, consumers, and proof.
 - [ ] Every adjacent layer compared in both directions.
 - [ ] Every journey traced end to end and backward, with each failed edge recorded separately.
 
-Any unchecked or uncertain item restarts the full Overall Review from the first requirement.
+Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the literal full-reading Overall Review from the first requirement.
