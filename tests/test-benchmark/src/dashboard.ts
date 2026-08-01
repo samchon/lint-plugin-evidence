@@ -124,19 +124,20 @@ const main = (): void => {
     assert.match(dashboard, /^## GPT-5\.6-Terra$/mu);
     assert.match(
       dashboard,
-      /^\| Cell \| Stage \| Progress \| Elapsed \| Cost \| Work time \|$/mu,
+      /^\| Cell \| Stage \| Progress \| Cost \| Work time \|$/mu,
+    );
+    assert.doesNotMatch(dashboard, /\| Elapsed \|/u);
+    assert.match(
+      dashboard,
+      /^\| Todo Plain \| `backend-review` · running \| 2 files · \+2\/−0 LOC \| 2M \| 2m \|$/mu,
     );
     assert.match(
       dashboard,
-      /^\| Todo Plain \| `backend-review` · running \| 2 files · \+2\/−0 LOC \| (?:\d+h )?\d{1,2}m \| 2M \| 2m \|$/mu,
+      /^\| Todo Evidence \| `overall-final` · completed \| 0 files · \+0\/−0 LOC \| 0M \| 1h 01m \|$/mu,
     );
     assert.match(
       dashboard,
-      /^\| Todo Evidence \| `overall-final` · completed \| 0 files · \+0\/−0 LOC \| 0m \| 0M \| 1h 01m \|$/mu,
-    );
-    assert.match(
-      dashboard,
-      /^\| Reddit Plain \| `backend-start` · interrupted \| 0 files · \+0\/−0 LOC \| (?:\d+h )?\d{1,2}m \| 1M \| 2m \|$/mu,
+      /^\| Reddit Plain \| `backend-start` · interrupted \| 0 files · \+0\/−0 LOC \| 1M \| 2m \|$/mu,
     );
     assert.match(dashboard, /^- \*\*Todo Plain stages\*\*$/mu);
     assert.match(

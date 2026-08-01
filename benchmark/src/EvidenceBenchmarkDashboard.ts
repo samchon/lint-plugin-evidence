@@ -193,8 +193,8 @@ const renderModel = (
   return [
     `## ${displayModel(model)}`,
     "",
-    "| Cell | Stage | Progress | Elapsed | Cost | Work time |",
-    "| --- | --- | --- | ---: | ---: | ---: |",
+    "| Cell | Stage | Progress | Cost | Work time |",
+    "| --- | --- | --- | ---: | ---: |",
     ...cells.map((cell) => cell.summary),
     "",
     ...cells.flatMap((cell) => cell.details),
@@ -222,7 +222,7 @@ interface IRenderedRun {
 const renderRun = (run: IEvidenceBenchmarkReportCell): IRenderedRun => {
   const cell: string = `${title(run.subject)} ${title(run.arm)}`;
   return {
-    summary: `| ${cell} | ${formatStage(run)} | ${formatDelta(run.worktree)} | ${formatTime(run.wallElapsedMs)} | ${formatCost(run.tokens)} | ${formatTime(run.workElapsedMs)} |`,
+    summary: `| ${cell} | ${formatStage(run)} | ${formatDelta(run.worktree)} | ${formatCost(run.tokens)} | ${formatTime(run.workElapsedMs)} |`,
     details: [
       `- **${cell} stages**`,
       ...run.stages.map(

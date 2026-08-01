@@ -20,16 +20,16 @@ Generate the dashboard with `pnpm --filter @samchon/evidence-benchmark dashboard
 ```markdown
 ## GPT-5.6-Terra
 
-| Cell | Stage | Progress | Elapsed | Cost | Work time |
-| --- | --- | --- | ---: | ---: | ---: |
-| Todo Plain | `backend-review` · running | 27 files · +3.1k/−20 LOC | 1h 12m | 7M | 1h 07m |
+| Cell | Stage | Progress | Cost | Work time |
+| --- | --- | --- | ---: | ---: |
+| Todo Plain | `backend-review` · running | 27 files · +3.1k/−20 LOC | 7M | 1h 07m |
 
 - **Todo Plain stages**
   - `backend-start`: 3M · 42m · 43% tokens · 63% time
   - `backend-review`: 4M · 25m · 57% tokens · 37% time
 ```
 
-The table's Stage keeps the exact current or last retained instruction name, such as `backend-start`, and appends only its short status, such as `· running` or `· interrupted`; put anomaly details outside the dashboard. `Progress` is the read-only Git delta from the prepared workspace baseline, including tracked and untracked files, written as `27 files · +3.1k/−20 LOC`; it measures implementation volume, not completion percentage. `Cost`, `Work time`, and every stage report retained token usage rounded to the nearest million as an integer with `M`, and retained work time rounded to whole minutes in hours and minutes, such as `7m` or `1h 07m`. Every stage also reports its unrounded token and work-time shares of that cell, rounded to whole percentages. Derive an active stage only from the retained thread total and process elapsed time after subtracting finalized stages; never reconstruct a missing measurement. `Elapsed` is wall-clock time so a silent stall remains visible. Setup and operator time stay separate. Do not add run IDs, token-category breakdowns, or quality judgments.
+The table's Stage keeps the exact current or last retained instruction name, such as `backend-start`, and appends only its short status, such as `· running` or `· interrupted`; put anomaly details outside the dashboard. `Progress` is the read-only Git delta from the prepared workspace baseline, including tracked and untracked files, written as `27 files · +3.1k/−20 LOC`; it measures implementation volume, not completion percentage. `Cost`, `Work time`, and every stage report retained token usage rounded to the nearest million as an integer with `M`, and retained work time rounded to whole minutes in hours and minutes, such as `7m` or `1h 07m`. Every stage also reports its unrounded token and work-time shares of that cell, rounded to whole percentages. Derive an active stage only from the retained thread total and process elapsed time after subtracting finalized stages; never reconstruct a missing measurement. Do not display wall-clock elapsed time; retained Work time is the only duration in the dashboard. Setup and operator time stay separate. Do not add run IDs, token-category breakdowns, or quality judgments.
 
 ## Prepare And Launch
 
