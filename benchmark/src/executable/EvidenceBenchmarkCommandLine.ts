@@ -101,12 +101,18 @@ const main = async (): Promise<void> => {
     "runs",
     requestedCell.runId,
   );
+  const retainedState: string = path.join(output, "state.json");
+  const stateExists: boolean = fs.existsSync(retainedState);
   const retained: IEvidenceBenchmarkStateFile | undefined =
-    options.runId === undefined
-      ? undefined
-      : typia.assert<IEvidenceBenchmarkStateFile>(
-          JSON.parse(fs.readFileSync(path.join(output, "state.json"), "utf8")),
-        );
+    shouldResumeEvidenceBenchmark({
+      runId: options.runId,
+      stopAfter: options.stopAfter,
+      stateExists,
+    })
+      ? typia.assert<IEvidenceBenchmarkStateFile>(
+          JSON.parse(fs.readFileSync(retainedState, "utf8")),
+        )
+      : undefined;
   const checkpointSource: IEvidenceBenchmarkStateFile | undefined =
     options.checkpointRunId === undefined
       ? undefined
@@ -576,6 +582,18 @@ export const parseEvidenceBenchmarkArguments = (
     checkpointRunId,
     stopAfter,
   };
+};
+
+/** Distinguishes an explicit checkpoint-source launch ID from a retained run. */
+export const shouldResumeEvidenceBenchmark = (props: {
+  runId?: string;
+  stopAfter?: "backend-start";
+  stateExists: boolean;
+}): boolean => {
+  if (props.runId === undefined) return false;
+  if (props.stateExists) return true;
+  if (props.stopAfter === "backend-start") return false;
+  throw new Error("Explicit run ID does not name a retained benchmark.");
 };
 
 export const readEvidenceBenchmarkRevision = (repository: string): string => {

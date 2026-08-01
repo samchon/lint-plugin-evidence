@@ -10,6 +10,7 @@ import {
   parseEvidenceBenchmarkArguments,
   readEvidenceBenchmarkRevision,
   sameEvidenceBenchmarkRecordPaths,
+  shouldResumeEvidenceBenchmark,
 } from "../../../benchmark/src/executable/EvidenceBenchmarkCommandLine.ts";
 
 /**
@@ -160,6 +161,24 @@ const main = (): void => {
       () => parseEvidenceBenchmarkArguments(input),
       `Invalid launch identity was accepted: ${input.join(" ")}`,
     );
+
+  assert.equal(
+    shouldResumeEvidenceBenchmark({
+      runId,
+      stopAfter: "backend-start",
+      stateExists: false,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldResumeEvidenceBenchmark({ runId, stateExists: true }),
+    true,
+  );
+  assert.equal(shouldResumeEvidenceBenchmark({ stateExists: false }), false);
+  assert.throws(
+    () => shouldResumeEvidenceBenchmark({ runId, stateExists: false }),
+    /does not name a retained benchmark/u,
+  );
 
   const repository: string = fs.mkdtempSync(
     path.join(os.tmpdir(), "evidence-benchmark-command-"),
