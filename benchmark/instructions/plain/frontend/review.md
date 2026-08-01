@@ -7,7 +7,7 @@ Review the complete frontend and its live behavior. Perform a literal **review l
 1. Read every requirement in full and compare each one with the API, screens, user journeys, and browser tests.
 2. Read every API operation and DTO in full and compare each one with frontend behavior, data flow, errors, and tests.
 3. Read every frontend source file and browser test in full. Compare each artifact with its requirement, API contract, live behavior, and journey.
-4. Finish the full round and record every finding as the Review skill requires. Fix every recorded finding and consequence, then wait for clean backend and frontend `pnpm dev` reloads.
+4. Finish the full round and collect every finding as the Review skill requires. Fix every finding and consequence, then wait for clean backend and frontend `pnpm dev` reloads.
 5. Start the next round from the first requirement. Repeat without a round limit until one full round finds no problem and makes no edit.
 
 Review loop until dry is literal full reading and unlimited repetition, not a figure of speech. Never replace or shorten it with:
@@ -16,3 +16,14 @@ Review loop until dry is literal full reading and unlimited repetition, not a fi
 - splitting the scope across rounds or assigning different files, layers, requirements, or review lenses to different rounds; every round must cover the entire scope;
 - a judgment that the review seems sufficient, efficient, comprehensive, repetitive, expensive, or unlikely to find more; or
 - an expectation that the later Final objective will finish or repeat the review.
+
+## Final Checklist
+
+- [ ] Review skill gate complete without split, shortened, or substituted rounds.
+- [ ] Required instructions and full frontend scope read.
+- [ ] Latest correction followed by a new full round from the first requirement.
+- [ ] Every finding and consequence fixed; derived artifacts regenerated.
+- [ ] Final full round dry and edit-free.
+- [ ] Backend and frontend dev servers reloaded cleanly.
+
+Any unchecked or uncertain item restarts the full Frontend Review from the first requirement.

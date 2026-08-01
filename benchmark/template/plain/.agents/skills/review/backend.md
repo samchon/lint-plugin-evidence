@@ -79,3 +79,13 @@ Read every backend source and test file in full.
 3. Record over-implementation, invented restrictions, unrequired exposure, missing tests, and tests that preserve a defect as findings.
 
 Names, types, compilation, internal consistency, and passing tests do not establish semantic correctness.
+
+## Final Checklist
+
+- [ ] Every requirement propagated through database, API, behavior, and tests.
+- [ ] Every schema element checked against operations, DTOs, behavior, effects, and tests.
+- [ ] Every operation and DTO traced backward to requirements and storage and forward to behavior and tests.
+- [ ] Every backend source and test read across all success, refusal, boundary, lifecycle, ownership, atomicity, ordering, and concurrency paths.
+- [ ] Every finding followed through its full consequence surface.
+
+Any unchecked or uncertain item restarts the full Backend Review from the first requirement.
