@@ -46,8 +46,8 @@ For each finding, retain the requirement or upstream contract, the exact conflic
 A file counts as read only when its complete current contents are returned and examined during the current round.
 
 1. Build and return one complete sorted current-scope manifest before every round. Reusing or splitting an earlier manifest does not count.
-2. Start at the first requirement and continue in manifest order through the final scoped artifact.
-3. Read exactly one manifest file per command. A command that reads multiple files counts as reading none of them.
+2. Use the instruction's canonical section order, sort paths within each section, start at the first requirement, and continue through the final scoped artifact.
+3. Read exactly one manifest file per command or tool call. Never combine manifest paths with semicolons, pipelines, loops, arrays, scripts, or multi-file calls. A command that reads multiple manifest files is an irreversible run-level protocol violation: keep the Goal active and report it for external rejection instead of restarting and self-crediting the run.
 4. Return the file in full without truncation. Consecutive ranges for one large file count only when they cover the first through final line with no gap.
 5. Searches, match excerpts, summaries, inventories, diffs, Git status, line counts, builds, lint output, test output, and previous reads count as zero.
 6. Track the current position and completed propagation roots in the current objective. Never call a round full, complete, clean, final, or finished before both reach their end.
@@ -62,7 +62,7 @@ When a completed round has findings:
 
 1. fix every finding at its owning layer and every downstream consequence;
 2. regenerate every affected derived artifact;
-3. run the gates named by the instruction and fix every failure;
+3. run every generator and gate as its own bounded command, wait for all descendants to stop, and fix every failure;
 4. reconcile every finding with the actual correction; and
 5. begin a new full round at the first requirement.
 
