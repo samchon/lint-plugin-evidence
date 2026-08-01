@@ -1,6 +1,6 @@
 ---
 name: evidence
-description: Defines Evidence Graph claims, zero-host activation, acknowledgement syntax, placement, exclusions, frozen configuration, and compiler gates. Read before Evidence implementation or handling a graph diagnostic.
+description: Defines Evidence Graph claims, zero-host activation, truthful behavioral proof, acknowledgement syntax, placement, exclusions, frozen configuration, and compiler gates. Read before Evidence implementation or handling a graph diagnostic.
 ---
 
 # Evidence Graph
@@ -17,6 +17,10 @@ description: Defines Evidence Graph claims, zero-host activation, acknowledgemen
 The target and non-empty reason are mandatory. One acknowledgement covers the selected target and its selected descendants. Keep evidence and exclusion scopes disjoint within one claim-reference obligation.
 
 Reasons are reviewed by people. Write a specific responsibility that current code could falsify, not a restatement of the target name.
+
+Every `@evidence` and `@evidenceExclude` must truthfully describe the current host's relation to the target. Never write, move, consolidate, or invent an acknowledgement only to pass the compiler. A clean graph proves structure, not truth.
+
+Several hosts may cite the same target when each independently implements or proves it. One host cites one resolved target once. Within one claim-reference obligation, `@evidenceExclude` scopes must never overlap, even across carriers, and must never overlap `@evidence`. A parent target is truthful only when the host owns the complete selected subtree.
 
 ## Claim Activation
 
@@ -59,7 +63,7 @@ The sealed `NESTIA_SDK_TRANSFORM=1` guard disables the graph only inside Nestia'
 | `frontend-screens` | exported page function JSDoc | `src/components/SCREEN_EVIDENCE_EXCLUDE.ts` |
 | `frontend-journeys` | exported journey function JSDoc | `tests/journeys/JOURNEY_EVIDENCE_EXCLUDE.ts` |
 
-Keep ownership evidence on the actual selected host. Exclusion carriers contain only reviewed exclusions. Providers are not selected hosts and carry neither tag.
+Keep ownership evidence on the actual selected host. Exclusion carriers contain only one reviewed exclusion per target scope and never contain ownership evidence. Providers are not selected hosts and carry neither tag.
 
 ## Examples
 
@@ -158,4 +162,4 @@ Do not start backend `pnpm check:watch` while the first backend draft is still b
 
 Complete the first backend draft, then start `pnpm check:watch`. The compiler owns target resolution, host eligibility, overlap, coverage, and missing acknowledgements. Fix the complete diagnostic batch and wait for a clean rebuild. Stop the watcher afterward so this compiler gate remains a bounded check of the current graph and cannot overlap the next generator, runtime command, or phase.
 
-At each gate, confirm the canonical claim configurations remain unchanged, wait for clean current builds, and run the phase's runtime tests. Never edit a claim population or move a tag merely to silence a diagnostic.
+At each gate, confirm the canonical claim configurations remain unchanged, wait for clean current builds, and run the phase's runtime tests. Never weaken the graph or falsify an acknowledgement to silence a diagnostic.

@@ -89,10 +89,10 @@ Only public identities materialize. A top-level declaration needs an export modi
 
 **A re-export decides reachability, never identity.** The rule splits in two, and both halves are load-bearing.
 
-- **Identity stays with the declaring file.** A re-export whose declaration lives in another file creates no second unit. A symbol exposed through two barrels is one unit with one ID, acknowledged once — this is what stops a barrel from doubling every obligation beneath it.
+- **Identity stays with the declaring file.** A re-export whose declaration lives in another file creates no second unit. A symbol exposed through two barrels is one unit with one ID and one coverage obligation — this is what stops a barrel from doubling every obligation beneath it.
 - **Reachability comes from the entry.** Under entry selection, traversal follows `export *`, `export * as ns`, and `export { A as B }` to decide _membership_ in the population, and gives each reached symbol its accessor path from the entry. `export * as functional` nests a segment, `export * from` flattens one, and an alias is addressed by its public name.
 
-A symbol reached by two paths therefore answers to two addresses and still owes one acknowledgement. Build those addresses from identity segments rather than by rewriting a joined target, or a literal dot inside a name collapses into qualification.
+A symbol reached by two paths therefore answers to two addresses and still materializes one coverage unit. Build those addresses from identity segments rather than by rewriting a joined target, or a literal dot inside a name collapses into qualification.
 
 A mixed variable statement can carry both function and property host kinds because TypeScript attaches one leading JSDoc block to the statement wrapper. Every public leaf of an object or array binding pattern is a property under its local binding name. Preserve the host set; choosing one kind makes the other selector spuriously out of scope.
 
@@ -102,11 +102,13 @@ A mixed variable statement can carry both function and property host kinds becau
 
 - **Resolution.** Does every declaration target resolve to exactly one selected unit or structural ancestor?
 - **Host eligibility.** Does `@evidence` live on a symbol kind selected by its claim, or does `@evidenceExclude` live on an eligible carrier in a matching claim file?
-- **Coverage.** Does every selected reference unit have one acknowledgement in this claim?
+- **Coverage.** Does every selected reference unit have at least one acknowledgement in this claim?
 
 Keep claim and reference state separate. A declaration that satisfies one claim or reference never leaks coverage into another, even when the physical target is the same.
 
-An acknowledgement scope may discharge many descendant units, but scopes within one claim-reference obligation must be disjoint. Report one duplicate diagnostic when a later scope overlaps an earlier one. This preserves the contradiction when `@evidence` and `@evidenceExclude` overlap without flooding one finding per descendant.
+Several declaration hosts may acknowledge the same unit with `@evidence`; one requirement can need several implementations or proofs. One declaration host may state one resolved evidence scope only once.
+
+`@evidenceExclude` is one reviewed non-applicability decision per scope in one claim-reference obligation. Exclusion scopes must not overlap each other. An evidence scope and exclusion scope must not overlap because they state opposite intent. Report one duplicate or conflict diagnostic per later overlapping scope rather than one per descendant.
 
 ## Exclusions
 
@@ -116,7 +118,7 @@ Three properties are load-bearing.
 
 - **The reason is mandatory.** A blank exclusion is not a decision anyone can review.
 - **It belongs to one claim.** Another claim referencing the same source still owes its own acknowledgement.
-- **It follows hierarchy.** Excluding a parent excludes every selected descendant, and an overlapping evidence scope is a duplicate rather than a silent override.
+- **It follows hierarchy.** Excluding a parent excludes every selected descendant. Another exclusion covering any of those units is a duplicate, while overlapping evidence is a conflict.
 
 Carrier eligibility is intentionally wider than ownership evidence and no wider than the claim's file population.
 

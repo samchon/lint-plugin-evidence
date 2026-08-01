@@ -6,6 +6,8 @@ Implement the complete API and backend from the requirements. Do not implement t
 
 Add each `@evidence` acknowledgement to the artifact that actually owns the cited target, and state the exact responsibility that connects them. Use `@evidenceExclude` only when the target does not belong to the claim; name the actual owner or observable alternative and the condition that would invalidate the exclusion.
 
+Every acknowledgement must be truthful. Never write, move, consolidate, or invent `@evidence` or `@evidenceExclude` only to pass the compiler.
+
 1. Design the complete requirement-derived database under `packages/backend/prisma/schema/`. Each model must cite the exact requirement it stores. When the schema is settled, run `pnpm build:prisma` and `pnpm schema` from `packages/backend`.
 2. Design every API controller under `packages/backend/src/controllers/` and every DTO under `packages/api/src/structures/`. Each DTO type must cite its requirement and model, each DTO property its column, and each operation its requirement and model.
 3. Run `pnpm build:sdk` from `packages/backend`.
