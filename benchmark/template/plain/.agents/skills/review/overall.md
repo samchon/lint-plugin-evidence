@@ -65,6 +65,7 @@ Record each failed edge separately in the current Overall finding list, even whe
 ## Final Checklist
 
 - [ ] Review skill gate followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
+- [ ] Literal full reading covered every required instruction and in-scope application artifact.
 - [ ] Backend and Frontend procedures read and their union reviewed as one indivisible round.
 - [ ] Every requirement propagated forward through all layers, tests, states, and journeys.
 - [ ] Every artifact and behavior traced backward to requirements, ownership, consumers, and proof.

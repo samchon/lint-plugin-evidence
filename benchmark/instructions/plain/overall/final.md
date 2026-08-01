@@ -11,6 +11,7 @@ The exact Overall Review instruction is quoted below.
 ## Final Checklist
 
 - [ ] Review skill gate and quoted Overall Review followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
+- [ ] Literal full reading covered every required instruction and in-scope application artifact.
 - [ ] Every finding and consequence fixed; derived artifacts regenerated.
 - [ ] Latest correction followed by a dry, edit-free full round.
 - [ ] Watcher and dev servers clean; backend and live browser tests passed.

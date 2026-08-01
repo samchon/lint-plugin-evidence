@@ -20,7 +20,7 @@ Review loop until dry is literal full reading and unlimited repetition, not a fi
 ## Final Checklist
 
 - [ ] Review skill gate followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
-- [ ] Required instructions and full frontend scope read.
+- [ ] Literal full reading covered every required instruction and in-scope frontend artifact.
 - [ ] Latest correction followed by a new full round from the first requirement.
 - [ ] Every finding and consequence fixed; derived artifacts regenerated.
 - [ ] Final full round dry and edit-free.

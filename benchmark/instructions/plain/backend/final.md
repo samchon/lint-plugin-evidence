@@ -11,6 +11,7 @@ The exact Backend Review instruction is quoted below.
 ## Final Checklist
 
 - [ ] Review skill gate and quoted Backend Review followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
+- [ ] Literal full reading covered every required instruction and in-scope backend artifact.
 - [ ] Every finding and consequence fixed; derived artifacts regenerated.
 - [ ] Latest correction followed by a dry, edit-free full round.
 - [ ] Backend watcher clean, tests passed, and dev server running.

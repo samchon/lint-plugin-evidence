@@ -83,7 +83,7 @@ None of these satisfy review loop until dry. When a literal dry round is not pro
 
 ## Final Checklist
 
-- [ ] Detailed procedure and full current scope read literally.
+- [ ] Literal full reading covered the detailed procedure and every in-scope artifact.
 - [ ] No discretionary judgment changed the prescribed scope, round boundaries, stopping conditions, or review procedure.
 - [ ] Every round covered the first requirement through the final artifact and every propagation branch.
 - [ ] No split rounds, composed partial passes, omissions, or search/build/test substitutes.

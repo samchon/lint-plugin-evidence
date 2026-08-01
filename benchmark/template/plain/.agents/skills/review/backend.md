@@ -83,6 +83,7 @@ Names, types, compilation, internal consistency, and passing tests do not establ
 ## Final Checklist
 
 - [ ] Review skill gate followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
+- [ ] Literal full reading covered every required instruction and in-scope backend artifact.
 - [ ] Every requirement propagated through database, API, behavior, and tests.
 - [ ] Every schema element checked against operations, DTOs, behavior, effects, and tests.
 - [ ] Every operation and DTO traced backward to requirements and storage and forward to behavior and tests.

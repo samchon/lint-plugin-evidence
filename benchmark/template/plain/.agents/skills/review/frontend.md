@@ -69,6 +69,7 @@ Read every browser test in full and perform every required journey against the l
 ## Final Checklist
 
 - [ ] Review skill gate followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
+- [ ] Literal full reading covered every required instruction and in-scope frontend artifact.
 - [ ] Every requirement propagated through API, screens, interactions, states, tests, and journeys.
 - [ ] Every operation and DTO checked against all consumers, data flow, failures, cache and route transitions, and browser proof.
 - [ ] Every frontend source and browser test read and traced backward to requirements and forward to live behavior.
