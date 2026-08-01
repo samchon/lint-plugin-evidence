@@ -45,10 +45,10 @@ For each finding, retain the requirement or upstream contract, the exact conflic
 
 A file counts as read only when its complete current contents are returned and examined during the current round.
 
-1. Build the sorted current-scope manifest before the round. An inventory defines navigation and reads no file.
+1. Build and return one complete sorted current-scope manifest before every round. Reusing or splitting an earlier manifest does not count.
 2. Start at the first requirement and continue in manifest order through the final scoped artifact.
-3. Read every file without truncation. Consecutive ranges count only when they cover the first through final line with no gap.
-4. A multi-file command counts only files returned in full with unambiguous boundaries.
+3. Read exactly one manifest file per command. A command that reads multiple files counts as reading none of them.
+4. Return the file in full without truncation. Consecutive ranges for one large file count only when they cover the first through final line with no gap.
 5. Searches, match excerpts, summaries, inventories, diffs, Git status, line counts, builds, lint output, test output, and previous reads count as zero.
 6. Track the current position and completed propagation roots in the current objective. Never call a round full, complete, clean, final, or finished before both reach their end.
 7. If a product or generated file changes during the round, invalidate the round and restart it from the first requirement against a new manifest.
@@ -86,6 +86,8 @@ None of these satisfy review loop until dry. When a literal dry round is not pro
 ## Final Checklist
 
 - [ ] Literal full reading covered the detailed procedure and every in-scope artifact.
+- [ ] Every round began with one new complete sorted manifest; none was reused or split.
+- [ ] Every command returned content from only one manifest file; every file was fully covered in order, and no truncated read received credit.
 - [ ] No discretionary judgment changed the prescribed scope, round boundaries, stopping conditions, or review procedure.
 - [ ] Every round covered the first requirement through the final artifact and every propagation branch.
 - [ ] No split rounds, composed partial passes, omissions, or search/build/test substitutes.
