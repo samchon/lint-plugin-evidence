@@ -8,6 +8,7 @@ import type {
   IEvidenceBenchmarkReviewLedger,
   IEvidenceBenchmarkReviewCalibration,
   IEvidenceBenchmarkReviewCommand,
+  IEvidenceBenchmarkReviewEdit,
   IEvidenceBenchmarkReviewManifestEntry,
   IEvidenceBenchmarkReviewRound,
 } from "./structures/IEvidenceBenchmarkReviewLedger.ts";
@@ -27,6 +28,12 @@ interface IToolResult {
 
 type ReviewCommand = IEvidenceBenchmarkReviewCommand["command"];
 type ReviewCommandPhase = IEvidenceBenchmarkReviewCommand["phase"];
+type ReviewEditPhase = IEvidenceBenchmarkReviewEdit["phase"];
+
+interface IReviewReplacement {
+  oldText: string;
+  newText: string;
+}
 
 interface ICommandResult {
   exitCode: number | null;
@@ -58,7 +65,7 @@ const CONFIGURATION_PATHS = [
   "pnpm-workspace.yaml",
 ] as const;
 
-/** Owns canonical manifests and exact one-file reads outside agent self-report. */
+/** Owns backend review reads, edits, processes, and proof outside self-report. */
 export namespace EvidenceBenchmarkReviewLedger {
   export const tools = (): Record<string, unknown>[] => [
     {
@@ -114,6 +121,44 @@ export namespace EvidenceBenchmarkReviewLedger {
         type: "object",
         additionalProperties: false,
         properties: {},
+      },
+    },
+    {
+      type: "function",
+      name: "review_edit_file",
+      description:
+        "Apply one runner-validated direct backend source edit. This is the only direct edit mechanism during backend review; it is blocked until a full round is sealed with findings or calibration authorizes it.",
+      inputSchema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          operation: {
+            type: "string",
+            enum: ["replace", "create", "delete"],
+          },
+          phase: {
+            type: "string",
+            enum: ["correction", "calibration-break", "calibration-restore"],
+          },
+          path: { type: "string" },
+          expectedSha256: { type: "string" },
+          replacements: {
+            type: "array",
+            minItems: 1,
+            maxItems: 32,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                oldText: { type: "string" },
+                newText: { type: "string" },
+              },
+              required: ["oldText", "newText"],
+            },
+          },
+          content: { type: "string" },
+        },
+        required: ["operation", "phase", "path"],
       },
     },
     {
@@ -174,6 +219,7 @@ export namespace EvidenceBenchmarkReviewLedger {
     if (props.call.tool === "review_finish_round") return finishRound(props);
     if (props.call.tool === "review_start_calibration")
       return startCalibration(props);
+    if (props.call.tool === "review_edit_file") return editFile(props);
     if (props.call.tool === "review_run_backend_command")
       return runBackendCommand(props);
     return failure(`Unknown review ledger tool: ${props.call.tool}`);
@@ -298,7 +344,7 @@ export namespace EvidenceBenchmarkReviewLedger {
         return failure(
           `Round ${previous.index} is still active at ${previous.reads.length}/${previous.manifest.length} reads. Finish it before starting another round.`,
         );
-      invalidate(
+      fatalRound(
         previous,
         "The scoped workspace changed before the active round finished.",
       );
@@ -307,7 +353,7 @@ export namespace EvidenceBenchmarkReviewLedger {
         return failure(
           `Round ${previous.index} is already dry. Run unchanged final gates and complete the Goal.`,
         );
-      invalidate(
+      fatalRound(
         previous,
         "The scoped workspace changed after the round was declared dry.",
       );
@@ -324,7 +370,7 @@ export namespace EvidenceBenchmarkReviewLedger {
           `Round ${previous.index} is a clean candidate. Complete fail-restore-pass calibration before starting the qualifying round.`,
         );
       if (previous.manifestSha256 !== current.sha256)
-        invalidate(
+        fatalRound(
           previous,
           "The scoped workspace changed after the round was declared clean.",
         );
@@ -370,12 +416,9 @@ export namespace EvidenceBenchmarkReviewLedger {
       return failure("No runner-owned review round is active.");
     const current = manifest(props.cwd);
     if (current.sha256 !== round.manifestSha256) {
-      invalidate(
+      fatalRound(
         round,
         "The scoped workspace changed during the reading phase.",
-      );
-      return failure(
-        "The active round is invalid because the scoped workspace changed. Correct as needed, then call review_start_round for a fresh manifest.",
       );
     }
     const expected = round.manifest[round.reads.length];
@@ -391,10 +434,7 @@ export namespace EvidenceBenchmarkReviewLedger {
     const bytes: Buffer = fs.readFileSync(absolute);
     const digest: string = sha256(bytes);
     if (bytes.length !== expected.bytes || digest !== expected.sha256) {
-      invalidate(round, `Manifest file changed before read: ${expected.path}`);
-      return failure(
-        "The active round is invalid because its next file changed. Call review_start_round after corrections.",
-      );
+      fatalRound(round, `Manifest file changed before read: ${expected.path}`);
     }
     round.reads.push({
       path: expected.path,
@@ -461,12 +501,9 @@ export namespace EvidenceBenchmarkReviewLedger {
       );
     const current = manifest(props.cwd);
     if (current.sha256 !== round.manifestSha256) {
-      invalidate(
+      fatalRound(
         round,
         "The scoped workspace changed before the round finished.",
-      );
-      return failure(
-        "The active round is invalid because the scoped workspace changed. Correct as needed, then start a fresh round.",
       );
     }
     if (result === "dry") {
@@ -490,7 +527,7 @@ export namespace EvidenceBenchmarkReviewLedger {
         ? `Round ${round.index} is externally sealed dry at ${round.manifestSha256}. Keep the scoped workspace unchanged through final gates and Goal completion.`
         : result === "clean"
           ? `Round ${round.index} is a pre-calibration clean candidate at ${round.manifestSha256}. Calibrate, then perform a fresh full round that may be sealed dry.`
-          : `Round ${round.index} is sealed with ${normalized.length} finding(s). Fix every consequence, run affected generators and gates separately, then calibrate and start a new full round.`,
+          : `Round ${round.index} is sealed with ${normalized.length} finding(s). Fix every authored consequence only through review_edit_file, run affected generators and gates separately, then calibrate and start a new full round.`,
     );
   };
 
@@ -524,12 +561,9 @@ export namespace EvidenceBenchmarkReviewLedger {
       );
     const current = manifest(props.cwd);
     if (round.status === "clean" && round.manifestSha256 !== current.sha256) {
-      invalidate(
+      fatalRound(
         round,
         "The scoped workspace changed after the round was declared clean.",
-      );
-      return failure(
-        "The clean candidate changed before calibration. Complete a fresh full review round.",
       );
     }
     const previous: IEvidenceBenchmarkReviewCalibration | undefined =
@@ -554,8 +588,145 @@ export namespace EvidenceBenchmarkReviewLedger {
       [
         `RUNNER CALIBRATION ${calibration.index}`,
         `baseline-manifest-sha256: ${calibration.baselineManifestSha256}`,
-        "Temporarily break one material reviewed behavior, then call review_run_backend_command with command=test and phase=calibration-fail.",
-        "Restore the exact baseline bytes, then call the same tool with command=test and phase=calibration-pass before starting a fresh full round.",
+        "Use exactly one review_edit_file call with phase=calibration-break to break one material reviewed behavior, then call review_run_backend_command with command=test and phase=calibration-fail.",
+        "Use review_edit_file with phase=calibration-restore to restore the exact baseline manifest, then call the command tool with command=test and phase=calibration-pass before starting a fresh full round.",
+      ].join("\n"),
+    );
+  };
+
+  const editFile = async (props: {
+    cwd: string;
+    state: IEvidenceBenchmarkRunState;
+    goal: IEvidenceBenchmarkGoalRecord;
+    call: IToolCall;
+    onChange?: () => Promise<void>;
+  }): Promise<IToolResult> => {
+    const values: Record<string, unknown> | undefined = record(
+      props.call.arguments,
+    );
+    const operation: unknown = values?.operation;
+    const phase: unknown = values?.phase;
+    const relative: unknown = values?.path;
+    if (
+      !isReviewEditOperation(operation) ||
+      !isReviewEditPhase(phase) ||
+      typeof relative !== "string"
+    )
+      return failure(
+        "review_edit_file requires one allowed operation, phase, and path.",
+      );
+    const ledger: IEvidenceBenchmarkReviewLedger = getLedger(
+      props.state,
+      props.goal,
+    );
+    const round: IEvidenceBenchmarkReviewRound | undefined =
+      ledger.rounds.at(-1);
+    const calibration: IEvidenceBenchmarkReviewCalibration | undefined =
+      ledger.calibrations?.at(-1);
+    const currentManifestSha256: string = manifest(props.cwd).sha256;
+    if (
+      round?.status === "reading" &&
+      round.manifestSha256 !== currentManifestSha256
+    )
+      fatalRound(
+        round,
+        "The scoped workspace changed before a forbidden reading-phase edit request.",
+      );
+    const phaseFailure: string | undefined = validateEditPhase({
+      phase,
+      round,
+      calibration,
+      edits: ledger.edits!,
+      currentManifestSha256,
+      path: relative,
+    });
+    if (phaseFailure !== undefined) return failure(phaseFailure);
+    let absolute: string;
+    try {
+      absolute = resolveEditablePath(props.cwd, relative);
+    } catch (error) {
+      return failure(errorMessage(error));
+    }
+    const before: Buffer | undefined = fs.existsSync(absolute)
+      ? fs.readFileSync(absolute)
+      : undefined;
+    const expectedSha256: unknown = values?.expectedSha256;
+    const replacements: IReviewReplacement[] | undefined = reviewReplacements(
+      values?.replacements,
+    );
+    const content: unknown = values?.content;
+    const argumentFailure: string | undefined = validateEditArguments({
+      operation,
+      before,
+      expectedSha256,
+      replacements,
+      content,
+    });
+    if (argumentFailure !== undefined) return failure(argumentFailure);
+    let after: Buffer | undefined;
+    if (operation === "replace") {
+      let output: string = before!.toString("utf8");
+      if (!Buffer.from(output, "utf8").equals(before!))
+        return failure("review_edit_file replace requires a UTF-8 text file.");
+      for (const replacement of replacements!) {
+        const occurrences: number = countOccurrences(
+          output,
+          replacement.oldText,
+        );
+        if (occurrences !== 1)
+          return failure(
+            `Replacement oldText must occur exactly once; observed ${occurrences}.`,
+          );
+        output = output.replace(replacement.oldText, replacement.newText);
+      }
+      after = Buffer.from(output, "utf8");
+    } else if (operation === "create")
+      after = Buffer.from(content as string, "utf8");
+    if ((after?.length ?? 0) > 4 * 1024 * 1024)
+      return failure("review_edit_file output exceeds the 4 MiB limit.");
+    try {
+      writeEdit(absolute, after);
+      const current = manifest(props.cwd);
+      if (
+        phase === "calibration-restore" &&
+        current.sha256 !== calibration!.baselineManifestSha256
+      )
+        throw new Error(
+          "Calibration restore did not reproduce the exact sealed manifest.",
+        );
+    } catch (error) {
+      writeEdit(absolute, before);
+      return failure(errorMessage(error));
+    }
+    const entry: IEvidenceBenchmarkReviewEdit = {
+      index: ledger.edits!.length + 1,
+      operation,
+      phase,
+      path: relative,
+      roundIndex: round!.index,
+      ...(phase === "correction" || calibration === undefined
+        ? {}
+        : { calibrationIndex: calibration.index }),
+      callId: props.call.callId,
+      turnId: props.call.turnId,
+      editedAt: new Date().toISOString(),
+      ...(before === undefined
+        ? {}
+        : { beforeBytes: before.length, beforeSha256: sha256(before) }),
+      ...(after === undefined
+        ? {}
+        : { afterBytes: after.length, afterSha256: sha256(after) }),
+    };
+    ledger.edits!.push(entry);
+    await props.onChange?.();
+    return success(
+      [
+        `RUNNER REVIEW EDIT ${entry.index}`,
+        `operation: ${entry.operation}`,
+        `phase: ${entry.phase}`,
+        `path: ${entry.path}`,
+        `before-sha256: ${entry.beforeSha256 ?? "absent"}`,
+        `after-sha256: ${entry.afterSha256 ?? "absent"}`,
       ].join("\n"),
     );
   };
@@ -583,10 +754,17 @@ export namespace EvidenceBenchmarkReviewLedger {
     );
     const round: IEvidenceBenchmarkReviewRound | undefined =
       ledger.rounds.at(-1);
-    if (round?.status === "reading")
+    if (round?.status === "reading") {
+      const current = manifest(props.cwd);
+      if (current.sha256 !== round.manifestSha256)
+        fatalRound(
+          round,
+          "The scoped workspace changed before a forbidden reading-phase backend command.",
+        );
       return failure(
         "Runner-owned backend commands are forbidden during a reading phase.",
       );
+    }
     const current = manifest(props.cwd);
     const calibration: IEvidenceBenchmarkReviewCalibration | undefined =
       ledger.calibrations?.at(-1);
@@ -715,11 +893,13 @@ export namespace EvidenceBenchmarkReviewLedger {
         goalIndex: goal.index,
         goalName: goal.name as "backend-review" | "backend-final",
         rounds: [],
+        edits: [],
         commands: [],
         calibrations: [],
       };
       state.reviewLedgers.push(ledger);
     }
+    ledger.edits ??= [];
     ledger.commands ??= [];
     ledger.calibrations ??= [];
     return ledger;
@@ -824,6 +1004,46 @@ export namespace EvidenceBenchmarkReviewLedger {
     return absolute;
   };
 
+  const resolveEditablePath = (cwd: string, relative: string): string => {
+    const allowed: boolean =
+      relative.startsWith("packages/backend/prisma/schema/") ||
+      relative.startsWith("packages/api/src/structures/") ||
+      relative.startsWith("packages/api/src/typings/") ||
+      (relative.startsWith("packages/backend/src/") &&
+        !relative.startsWith("packages/backend/src/prisma/") &&
+        !relative.includes("/prisma/generated/")) ||
+      relative.startsWith("packages/backend/test/") ||
+      (CONFIGURATION_PATHS as readonly string[]).includes(relative);
+    if (!allowed)
+      throw new Error(
+        `review_edit_file path is outside the authored backend correction scope: ${relative}`,
+      );
+    const absolute: string = resolveManifestPath(cwd, relative);
+    const root: string = path.resolve(cwd);
+    const parent: string = path.dirname(absolute);
+    if (!fs.existsSync(parent) || !fs.statSync(parent).isDirectory())
+      throw new Error(
+        `review_edit_file requires an existing parent directory: ${relative}`,
+      );
+    let cursor: string = root;
+    for (const segment of path.relative(root, parent).split(path.sep)) {
+      if (segment.length === 0) continue;
+      cursor = path.join(cursor, segment);
+      if (fs.lstatSync(cursor).isSymbolicLink())
+        throw new Error(
+          `review_edit_file rejects symbolic-link parents: ${relative}`,
+        );
+    }
+    if (fs.existsSync(absolute)) {
+      const stats: fs.Stats = fs.lstatSync(absolute);
+      if (stats.isSymbolicLink() || !stats.isFile())
+        throw new Error(
+          `review_edit_file target must be a regular file: ${relative}`,
+        );
+    }
+    return absolute;
+  };
+
   const invalidate = (
     round: IEvidenceBenchmarkReviewRound,
     reason: string,
@@ -831,6 +1051,14 @@ export namespace EvidenceBenchmarkReviewLedger {
     round.status = "invalid";
     round.invalidatedAt = new Date().toISOString();
     round.invalidation = reason;
+  };
+
+  const fatalRound = (
+    round: IEvidenceBenchmarkReviewRound,
+    reason: string,
+  ): never => {
+    invalidate(round, reason);
+    throw new Error(`Fatal backend review protocol violation: ${reason}`);
   };
 
   const invalidateCalibration = (
@@ -899,6 +1127,114 @@ export namespace EvidenceBenchmarkReviewLedger {
     if (finalCommands.length >= 2)
       return "The unchanged final check-watch and test sequence is already recorded.";
     return undefined;
+  };
+
+  const validateEditPhase = (props: {
+    phase: ReviewEditPhase;
+    round: IEvidenceBenchmarkReviewRound | undefined;
+    calibration: IEvidenceBenchmarkReviewCalibration | undefined;
+    edits: IEvidenceBenchmarkReviewEdit[];
+    currentManifestSha256: string;
+    path: string;
+  }): string | undefined => {
+    if (props.round === undefined)
+      return "Complete and seal a full review round before editing.";
+    if (props.round.status === "reading")
+      return "File edits are forbidden during the runner-owned reading phase.";
+    if (props.round.status === "invalid")
+      return "The latest review round is invalid; this benchmark run cannot receive edit credit.";
+    if (props.round.status === "dry")
+      return "File edits are forbidden after a dry round.";
+    const calibrationForRound: boolean =
+      props.calibration !== undefined &&
+      props.calibration.startedAt >= (props.round.finishedAt ?? "");
+    if (props.phase === "correction") {
+      if (props.round.status !== "findings")
+        return "Correction edits require the latest completed round to contain findings.";
+      if (calibrationForRound && props.calibration?.status !== "invalid")
+        return "Correction edits are closed after calibration starts; begin the next full round.";
+      return undefined;
+    }
+    if (!calibrationForRound || props.calibration === undefined)
+      return "Call review_start_calibration after the latest completed round before calibration edits.";
+    const calibrationEdits: IEvidenceBenchmarkReviewEdit[] = props.edits.filter(
+      (edit) => edit.calibrationIndex === props.calibration!.index,
+    );
+    const broken: IEvidenceBenchmarkReviewEdit | undefined =
+      calibrationEdits.find((edit) => edit.phase === "calibration-break");
+    const restored: IEvidenceBenchmarkReviewEdit | undefined =
+      calibrationEdits.find((edit) => edit.phase === "calibration-restore");
+    if (props.phase === "calibration-break") {
+      if (props.calibration.status !== "sealed")
+        return "Calibration break is allowed only immediately after the baseline is sealed.";
+      if (broken !== undefined)
+        return "Exactly one runner-owned calibration break edit is allowed.";
+      if (
+        props.currentManifestSha256 !== props.calibration.baselineManifestSha256
+      )
+        return "The workspace no longer matches the sealed calibration baseline.";
+      return undefined;
+    }
+    if (props.calibration.status !== "failure-proven")
+      return "Calibration restore requires a runner-proven failing test.";
+    if (broken === undefined || restored !== undefined)
+      return "Calibration restore requires exactly one unrestored runner-owned break edit.";
+    if (broken.path !== props.path)
+      return `Calibration restore must target the broken file: ${broken.path}`;
+    return undefined;
+  };
+
+  const validateEditArguments = (props: {
+    operation: IEvidenceBenchmarkReviewEdit["operation"];
+    before: Buffer | undefined;
+    expectedSha256: unknown;
+    replacements: IReviewReplacement[] | undefined;
+    content: unknown;
+  }): string | undefined => {
+    if (props.operation === "create") {
+      if (props.before !== undefined)
+        return "review_edit_file create requires an absent target.";
+      if (
+        props.expectedSha256 !== undefined ||
+        props.replacements !== undefined ||
+        typeof props.content !== "string"
+      )
+        return "Create requires content and forbids expectedSha256 and replacements.";
+      return undefined;
+    }
+    if (props.before === undefined)
+      return `${props.operation} requires an existing regular file.`;
+    if (
+      typeof props.expectedSha256 !== "string" ||
+      !/^[0-9a-f]{64}$/u.test(props.expectedSha256)
+    )
+      return `${props.operation} requires an exact lowercase SHA-256 precondition.`;
+    if (sha256(props.before) !== props.expectedSha256)
+      return "review_edit_file rejected a stale expectedSha256 precondition.";
+    if (props.operation === "delete")
+      return props.replacements === undefined && props.content === undefined
+        ? undefined
+        : "Delete forbids replacements and content.";
+    if (props.replacements === undefined || props.content !== undefined)
+      return "Replace requires 1-32 exact replacements and forbids content.";
+    if (
+      props.replacements.some(
+        (replacement) =>
+          replacement.oldText.length === 0 ||
+          replacement.oldText === replacement.newText,
+      )
+    )
+      return "Every replacement requires non-empty oldText different from newText.";
+    const payloadBytes: number = props.replacements.reduce(
+      (sum, replacement) =>
+        sum +
+        Buffer.byteLength(replacement.oldText, "utf8") +
+        Buffer.byteLength(replacement.newText, "utf8"),
+      0,
+    );
+    return payloadBytes <= 1024 * 1024
+      ? undefined
+      : "Replacement payload exceeds the 1 MiB limit.";
   };
 
   const executeBackendCommand = async (
@@ -1070,6 +1406,74 @@ export namespace EvidenceBenchmarkReviewLedger {
     value === "lint" ||
     value === "format" ||
     value === "test";
+
+  const isReviewEditOperation = (
+    value: unknown,
+  ): value is IEvidenceBenchmarkReviewEdit["operation"] =>
+    value === "replace" || value === "create" || value === "delete";
+
+  const isReviewEditPhase = (value: unknown): value is ReviewEditPhase =>
+    value === "correction" ||
+    value === "calibration-break" ||
+    value === "calibration-restore";
+
+  const reviewReplacements = (
+    value: unknown,
+  ): IReviewReplacement[] | undefined => {
+    if (!Array.isArray(value) || value.length === 0 || value.length > 32)
+      return undefined;
+    const output: IReviewReplacement[] = [];
+    for (const candidate of value) {
+      const entry: Record<string, unknown> | undefined = record(candidate);
+      if (
+        entry === undefined ||
+        Object.keys(entry).some(
+          (key) => key !== "oldText" && key !== "newText",
+        ) ||
+        typeof entry.oldText !== "string" ||
+        typeof entry.newText !== "string"
+      )
+        return undefined;
+      output.push({ oldText: entry.oldText, newText: entry.newText });
+    }
+    return output;
+  };
+
+  const countOccurrences = (text: string, needle: string): number => {
+    let count = 0;
+    let cursor = 0;
+    while (cursor <= text.length - needle.length) {
+      const found: number = text.indexOf(needle, cursor);
+      if (found === -1) break;
+      count++;
+      cursor = found + needle.length;
+    }
+    return count;
+  };
+
+  const writeEdit = (absolute: string, bytes: Buffer | undefined): void => {
+    if (bytes === undefined) {
+      fs.rmSync(absolute);
+      return;
+    }
+    if (!fs.existsSync(absolute)) {
+      fs.writeFileSync(absolute, bytes, { flag: "wx" });
+      return;
+    }
+    const temporary: string = path.join(
+      path.dirname(absolute),
+      `.benchmark-edit-${crypto.randomUUID()}.tmp`,
+    );
+    try {
+      fs.writeFileSync(temporary, bytes, {
+        flag: "wx",
+        mode: fs.statSync(absolute).mode,
+      });
+      fs.renameSync(temporary, absolute);
+    } finally {
+      fs.rmSync(temporary, { force: true });
+    }
+  };
 
   const isReviewCommandPhase = (value: unknown): value is ReviewCommandPhase =>
     value === "correction" ||
@@ -1274,6 +1678,9 @@ export namespace EvidenceBenchmarkReviewLedger {
     typeof value === "object" && value !== null
       ? (value as Record<string, unknown>)
       : undefined;
+
+  const errorMessage = (error: unknown): string =>
+    error instanceof Error ? error.message : String(error);
 
   const comparePaths = (x: string, y: string): number =>
     x < y ? -1 : x > y ? 1 : 0;

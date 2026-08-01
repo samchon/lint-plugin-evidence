@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -652,6 +653,40 @@ const main = async (): Promise<void> => {
       inheritedProcessElapsedMs: 1_000,
       processes: [],
     };
+    await assert.rejects(
+      EvidenceBenchmarkRunner.run({
+        state: structuredClone(detachedStart),
+        cwd: path.join(root, "review-workspace"),
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        reviewLedger: "backend",
+        pauseAfterGoals: ["backend-review"],
+        command: process.execPath,
+        commandPrefixArguments: [...prefix, "--plain-arm", "--ledger-tools"],
+        onOutput: () => undefined,
+      }),
+      /both backend-review and backend-final/u,
+    );
+    await assert.rejects(
+      EvidenceBenchmarkRunner.run({
+        state: structuredClone(detachedStart),
+        cwd: path.join(root, "review-workspace"),
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        reviewLedger: "backend",
+        pauseAfterGoals: ["backend-review", "backend-final"],
+        fork: {
+          sourceSessionId: backendCheckpoint.sourceSessionId,
+          terminalTurnId: backendCheckpoint.terminalTurnId,
+        },
+        command: process.execPath,
+        commandPrefixArguments: [...prefix, "--plain-arm", "--ledger-tools"],
+        onOutput: () => undefined,
+      }),
+      /fresh detached review thread/u,
+    );
     const ledgerOutput: IEvidenceBenchmarkOutput[] = [];
     const detachedLedger = await EvidenceBenchmarkRunner.run({
       state: structuredClone(detachedStart),
@@ -660,7 +695,7 @@ const main = async (): Promise<void> => {
       model: "fixture-model",
       effort: "high",
       reviewLedger: "backend",
-      pauseAfterGoals: ["backend-review"],
+      pauseAfterGoals: ["backend-review", "backend-final"],
       command: process.execPath,
       commandPrefixArguments: [...prefix, "--plain-arm", "--ledger-tools"],
       onOutput: (_processIndex, output) => {
@@ -701,6 +736,10 @@ const main = async (): Promise<void> => {
       "passed",
     );
     assert.deepEqual(
+      detachedLedger.reviewLedgers?.[0]?.edits?.map((entry) => entry.phase),
+      ["correction", "calibration-break", "calibration-restore"],
+    );
+    assert.deepEqual(
       detachedLedger.reviewLedgers?.[0]?.commands?.map((entry) => [
         entry.command,
         entry.phase,
@@ -730,8 +769,13 @@ const main = async (): Promise<void> => {
         "review_read_file",
         "review_finish_round",
         "review_start_calibration",
+        "review_edit_file",
         "review_run_backend_command",
       ],
+    );
+    assert.equal(
+      (ledgerThreadStart.params as Record<string, unknown>).sandbox,
+      "read-only",
     );
     assert.equal(
       ledgerRequests.some((request) => request.method === "thread/fork"),
@@ -744,7 +788,7 @@ const main = async (): Promise<void> => {
       model: "fixture-model",
       effort: "high",
       reviewLedger: "backend",
-      pauseAfterGoals: ["backend-review"],
+      pauseAfterGoals: ["backend-review", "backend-final"],
       command: process.execPath,
       commandPrefixArguments: [
         ...prefix,
@@ -766,7 +810,7 @@ const main = async (): Promise<void> => {
       model: "fixture-model",
       effort: "high",
       reviewLedger: "backend",
-      pauseAfterGoals: ["backend-review"],
+      pauseAfterGoals: ["backend-review", "backend-final"],
       command: process.execPath,
       commandPrefixArguments: [
         ...prefix,
@@ -789,7 +833,7 @@ const main = async (): Promise<void> => {
         model: "fixture-model",
         effort: "high",
         reviewLedger: "backend",
-        pauseAfterGoals: ["backend-review"],
+        pauseAfterGoals: ["backend-review", "backend-final"],
         command: process.execPath,
         commandPrefixArguments: [
           ...prefix,
@@ -2068,20 +2112,36 @@ const testReviewLedger = async (workspace: string): Promise<void> => {
       "utf8",
     ),
   );
-  const changedDuringRound = first.manifest[1]!.path;
-  fs.appendFileSync(
-    path.join(workspace, ...changedDuringRound.split("/")),
-    "changed\n",
-    "utf8",
-  );
   assert.equal(
-    (await invoke("review_read_file", { path: changedDuringRound })).success,
+    (
+      await invoke("review_edit_file", {
+        operation: "create",
+        phase: "correction",
+        path: "packages/backend/test/forbidden.test.ts",
+        content: "forbidden\n",
+      })
+    ).success,
     false,
   );
+  const changedDuringRound = first.manifest[1]!.path;
+  const changedDuringRoundAbsolute = path.join(
+    workspace,
+    ...changedDuringRound.split("/"),
+  );
+  const changedDuringRoundBaseline = fs.readFileSync(
+    changedDuringRoundAbsolute,
+  );
+  fs.appendFileSync(changedDuringRoundAbsolute, "changed\n", "utf8");
+  await assert.rejects(
+    invoke("review_read_file", { path: changedDuringRound }),
+    /Fatal backend review protocol violation/u,
+  );
   assert.equal(first.status, "invalid");
+  fs.writeFileSync(changedDuringRoundAbsolute, changedDuringRoundBaseline);
+  state.reviewLedgers = [];
 
   assert.equal((await invoke("review_start_round", {})).success, true);
-  const findingsRound = state.reviewLedgers![0]!.rounds[1]!;
+  const findingsRound = state.reviewLedgers![0]!.rounds[0]!;
   for (const entry of findingsRound.manifest)
     assert.equal(
       (await invoke("review_read_file", { path: entry.path })).success,
@@ -2096,11 +2156,88 @@ const testReviewLedger = async (workspace: string): Promise<void> => {
     ).success,
     true,
   );
-  fs.appendFileSync(
-    path.join(workspace, "packages/backend/src/backend.ts"),
-    "fixed\n",
-    "utf8",
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "replace",
+        phase: "correction",
+        path: "docs/analysis/requirements.md",
+        expectedSha256: sha256(
+          fs.readFileSync(
+            path.join(workspace, "docs/analysis/requirements.md"),
+          ),
+        ),
+        replacements: [{ oldText: "requirements\n", newText: "wrong\n" }],
+      })
+    ).success,
+    false,
   );
+  const corrected: string = path.join(
+    workspace,
+    "packages/backend/src/backend.ts",
+  );
+  const correctionBaseline: Buffer = fs.readFileSync(corrected);
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "replace",
+        phase: "correction",
+        path: "packages/backend/src/backend.ts",
+        expectedSha256: "0".repeat(64),
+        replacements: [
+          {
+            oldText: correctionBaseline.toString("utf8"),
+            newText: `${correctionBaseline.toString("utf8")}fixed\n`,
+          },
+        ],
+      })
+    ).success,
+    false,
+  );
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "replace",
+        phase: "correction",
+        path: "packages/backend/src/backend.ts",
+        expectedSha256: sha256(correctionBaseline),
+        replacements: [
+          {
+            oldText: correctionBaseline.toString("utf8"),
+            newText: `${correctionBaseline.toString("utf8")}fixed\n`,
+          },
+        ],
+      })
+    ).success,
+    true,
+  );
+  const createdRelative = "packages/backend/test/created.test.ts";
+  const createdAbsolute = path.join(workspace, ...createdRelative.split("/"));
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "create",
+        phase: "correction",
+        path: createdRelative,
+        content: "created\n",
+      })
+    ).success,
+    true,
+  );
+  assert.equal(fs.readFileSync(createdAbsolute, "utf8"), "created\n");
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "delete",
+        phase: "correction",
+        path: createdRelative,
+        expectedSha256: sha256(fs.readFileSync(createdAbsolute)),
+      })
+    ).success,
+    true,
+  );
+  assert.equal(fs.existsSync(createdAbsolute), false);
+  assert.equal(state.reviewLedgers![0]!.edits?.length, 3);
   for (const command of [
     "build-prisma",
     "build-main",
@@ -2140,7 +2277,23 @@ const testReviewLedger = async (workspace: string): Promise<void> => {
     "packages/backend/src/backend.ts",
   );
   const baseline: Buffer = fs.readFileSync(calibrated);
-  fs.appendFileSync(calibrated, "broken\n", "utf8");
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "replace",
+        phase: "calibration-break",
+        path: "packages/backend/src/backend.ts",
+        expectedSha256: sha256(baseline),
+        replacements: [
+          {
+            oldText: baseline.toString("utf8"),
+            newText: `${baseline.toString("utf8")}broken\n`,
+          },
+        ],
+      })
+    ).success,
+    true,
+  );
   assert.equal(
     (
       await invoke("review_run_backend_command", {
@@ -2150,7 +2303,42 @@ const testReviewLedger = async (workspace: string): Promise<void> => {
     ).success,
     true,
   );
-  fs.writeFileSync(calibrated, baseline);
+  const broken: Buffer = fs.readFileSync(calibrated);
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "replace",
+        phase: "calibration-restore",
+        path: "packages/backend/src/backend.ts",
+        expectedSha256: sha256(broken),
+        replacements: [
+          {
+            oldText: broken.toString("utf8"),
+            newText: `${baseline.toString("utf8")}not-exact\n`,
+          },
+        ],
+      })
+    ).success,
+    false,
+  );
+  assert.deepEqual(fs.readFileSync(calibrated), broken);
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "replace",
+        phase: "calibration-restore",
+        path: "packages/backend/src/backend.ts",
+        expectedSha256: sha256(broken),
+        replacements: [
+          {
+            oldText: broken.toString("utf8"),
+            newText: baseline.toString("utf8"),
+          },
+        ],
+      })
+    ).success,
+    true,
+  );
   assert.equal(
     (
       await invoke("review_run_backend_command", {
@@ -2162,7 +2350,7 @@ const testReviewLedger = async (workspace: string): Promise<void> => {
   );
 
   assert.equal((await invoke("review_start_round", {})).success, true);
-  const dryRound = state.reviewLedgers![0]!.rounds[2]!;
+  const dryRound = state.reviewLedgers![0]!.rounds[1]!;
   for (const entry of dryRound.manifest)
     assert.equal(
       (await invoke("review_read_file", { path: entry.path })).success,
@@ -2176,6 +2364,17 @@ const testReviewLedger = async (workspace: string): Promise<void> => {
       })
     ).success,
     true,
+  );
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "create",
+        phase: "correction",
+        path: "packages/backend/test/too-late.test.ts",
+        content: "too late\n",
+      })
+    ).success,
+    false,
   );
   assert.equal(
     (
@@ -2275,6 +2474,9 @@ const isProcessAlive = (processId: number): boolean => {
     return false;
   }
 };
+
+const sha256 = (value: Buffer): string =>
+  crypto.createHash("sha256").update(value).digest("hex");
 
 const writeInstructions = (root: string): Map<string, Buffer> => {
   const sources: Map<string, Buffer> = new Map([
@@ -2546,9 +2748,11 @@ const fakeAppServer = (): void => {
             "review_read_file",
             "review_finish_round",
             "review_start_calibration",
+            "review_edit_file",
             "review_run_backend_command",
           ],
         );
+        assert.equal(request.params?.sandbox, "read-only");
       }
       return send({
         id: request.id,
@@ -2565,6 +2769,7 @@ const fakeAppServer = (): void => {
       request.method === "thread/resume" ||
       request.method === "thread/fork"
     ) {
+      if (ledgerTools) assert.equal(request.params?.sandbox, "read-only");
       const respond = (): void =>
         send(
           {
@@ -2975,7 +3180,24 @@ const fakeAppServer = (): void => {
           process.cwd(),
           "packages/backend/src/backend.ts",
         );
-        fs.appendFileSync(backendSource, `fixed-${goalIndex}\n`, "utf8");
+        const correctionBaseline = fs.readFileSync(backendSource);
+        const corrected = Buffer.from(
+          `${correctionBaseline.toString("utf8")}fixed-${goalIndex}\n`,
+          "utf8",
+        );
+        const correction = await requestTool(turnId, "review_edit_file", {
+          operation: "replace",
+          phase: "correction",
+          path: "packages/backend/src/backend.ts",
+          expectedSha256: sha256(correctionBaseline),
+          replacements: [
+            {
+              oldText: correctionBaseline.toString("utf8"),
+              newText: corrected.toString("utf8"),
+            },
+          ],
+        });
+        assert.equal(correction.success, true);
         const calibration = await requestTool(
           turnId,
           "review_start_calibration",
@@ -2983,13 +3205,41 @@ const fakeAppServer = (): void => {
         );
         assert.equal(calibration.success, true);
         const baseline = fs.readFileSync(backendSource);
-        fs.appendFileSync(backendSource, "broken\n", "utf8");
+        const broken = Buffer.from(
+          `${baseline.toString("utf8")}broken\n`,
+          "utf8",
+        );
+        const breakEdit = await requestTool(turnId, "review_edit_file", {
+          operation: "replace",
+          phase: "calibration-break",
+          path: "packages/backend/src/backend.ts",
+          expectedSha256: sha256(baseline),
+          replacements: [
+            {
+              oldText: baseline.toString("utf8"),
+              newText: broken.toString("utf8"),
+            },
+          ],
+        });
+        assert.equal(breakEdit.success, true);
         const failed = await requestTool(turnId, "review_run_backend_command", {
           command: "test",
           phase: "calibration-fail",
         });
         assert.equal(failed.success, true);
-        fs.writeFileSync(backendSource, baseline);
+        const restoreEdit = await requestTool(turnId, "review_edit_file", {
+          operation: "replace",
+          phase: "calibration-restore",
+          path: "packages/backend/src/backend.ts",
+          expectedSha256: sha256(broken),
+          replacements: [
+            {
+              oldText: broken.toString("utf8"),
+              newText: baseline.toString("utf8"),
+            },
+          ],
+        });
+        assert.equal(restoreEdit.success, true);
         const passed = await requestTool(turnId, "review_run_backend_command", {
           command: "test",
           phase: "calibration-pass",

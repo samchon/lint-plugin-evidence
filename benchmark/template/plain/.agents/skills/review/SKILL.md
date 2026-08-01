@@ -45,7 +45,7 @@ For each finding, retain the requirement or upstream contract, the exact conflic
 
 A file counts as read only when its complete current contents are returned and examined during the current round.
 
-For Backend Review and Backend Final, the runner owns the manifest, reading ledger, calibration, generators, and gates. Start a round with `review_start_round`, read its paths only with `review_read_file`, and close it only with `review_finish_round`. Before calibration, finish a zero-finding round as `clean`, not `dry`. Use `review_start_calibration` and `review_run_backend_command` for fail-restore-pass and every backend process. Shell reads, self-authored manifests, and native-shell backend processes receive zero credit. The runner rejects missing, stale, duplicate, out-of-order, changed, incomplete, concurrent, or uncalibrated proof and will not accept Goal completion without its dry seal and unchanged final gates. Never forge or bypass that ledger.
+For Backend Review and Backend Final, the runner owns the manifest, reading ledger, edits, calibration, generators, and gates while Codex itself runs in a read-only OS sandbox. Start a round with `review_start_round`, read its paths only with `review_read_file`, and close it only with `review_finish_round`. Before calibration, finish a zero-finding round as `clean`, not `dry`. Only after sealing findings, correct files through hash-preconditioned `review_edit_file` calls with `phase=correction`. Use `review_start_calibration`, exactly one `phase=calibration-break` edit, one exact `phase=calibration-restore` edit, and `review_run_backend_command` for fail-restore-pass and every backend process. Built-in patches, shell writes, shell reads, self-authored manifests, and native-shell backend processes receive zero credit. A scoped mutation while a round is being read is an irreversible run failure. The runner rejects missing, stale, duplicate, out-of-order, changed, incomplete, concurrent, or uncalibrated proof and will not accept Goal completion without its dry seal and unchanged final gates. Never forge or bypass that ledger.
 
 For Frontend and Overall review, follow this manual protocol:
 
@@ -62,7 +62,7 @@ Never partition a round by file, package, layer, requirement subset, review lens
 
 When a completed round has findings:
 
-1. fix every finding at its owning layer and every downstream consequence;
+1. fix every finding at its owning layer and every downstream consequence; for Backend Review or Backend Final, use only `review_edit_file` after the findings round is sealed;
 2. regenerate every affected derived artifact;
 3. for Backend Review or Backend Final, run every generator and gate through `review_run_backend_command`; for Frontend or Overall, run each as its own bounded command and wait for all descendants to stop; fix every failure;
 4. reconcile every finding with the actual correction; and
@@ -72,7 +72,7 @@ For Backend Review or Backend Final, close a pre-calibration zero-finding round 
 
 There is no small-fix exception. Any scoped change caused by a compiler, generator, test, browser, runtime check, or temporary calibration invalidates the round. Restore temporary changes, then start a new full round. Gates must describe the workspace after its last scoped change.
 
-Before the qualifying dry round, seal the calibration baseline with the runner tool, break one material behavior, prove the runner-owned test fails, restore the exact sealed bytes, and prove the same test passes. The review Goal is complete only after a fresh dry round and runner-owned unchanged `check:watch` and test gates.
+Before the qualifying dry round, seal the calibration baseline with the runner tool, break one material behavior through the runner-owned edit tool, prove the runner-owned test fails, restore the exact sealed bytes through that edit tool, and prove the same test passes. The review Goal is complete only after a fresh dry round and runner-owned unchanged `check:watch` and test gates.
 
 ## No Discretionary Stop
 
@@ -94,6 +94,7 @@ None of these satisfy review loop until dry. When a literal dry round is not pro
 - [ ] Every round covered the first requirement through the final artifact and every propagation branch.
 - [ ] No split rounds, composed partial passes, omissions, or search/build/test substitutes.
 - [ ] Every finding and consequence fixed after the complete round.
+- [ ] Every backend edit was runner-owned and occurred only after findings were sealed or during the exact calibration window.
 - [ ] Every correction or gate-driven change followed by a new full round.
 - [ ] Unlimited repetition reached one dry, edit-free round.
 - [ ] The qualifying dry round remained unchanged through clean current gates.

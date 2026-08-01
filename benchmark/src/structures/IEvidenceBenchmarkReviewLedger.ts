@@ -24,6 +24,23 @@ export interface IEvidenceBenchmarkReviewRead {
   readAt: string;
 }
 
+/** One scoped source edit executed and attested by the benchmark runner. */
+export interface IEvidenceBenchmarkReviewEdit {
+  index: number;
+  operation: "replace" | "create" | "delete";
+  phase: "correction" | "calibration-break" | "calibration-restore";
+  path: string;
+  roundIndex: number;
+  calibrationIndex?: number;
+  callId: string;
+  turnId: string;
+  editedAt: string;
+  beforeBytes?: number;
+  beforeSha256?: string;
+  afterBytes?: number;
+  afterSha256?: string;
+}
+
 /** One externally enforced full-review round. */
 export interface IEvidenceBenchmarkReviewRound {
   index: number;
@@ -84,6 +101,7 @@ export interface IEvidenceBenchmarkReviewLedger {
   goalIndex: number;
   goalName: "backend-review" | "backend-final";
   rounds: IEvidenceBenchmarkReviewRound[];
+  edits?: IEvidenceBenchmarkReviewEdit[];
   commands?: IEvidenceBenchmarkReviewCommand[];
   calibrations?: IEvidenceBenchmarkReviewCalibration[];
 }

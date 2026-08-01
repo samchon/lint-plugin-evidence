@@ -110,6 +110,18 @@ export namespace EvidenceBenchmarkRunner {
       throw new Error(
         "Runner-owned backend review tools require a detached backend-start checkpoint thread.",
       );
+    if (props.reviewLedger !== undefined && props.fork !== undefined)
+      throw new Error(
+        "Runner-owned backend review tools require a fresh detached review thread, not a conversation fork.",
+      );
+    if (
+      props.reviewLedger === "backend" &&
+      (!props.pauseAfterGoals?.includes("backend-review") ||
+        !props.pauseAfterGoals.includes("backend-final"))
+    )
+      throw new Error(
+        "Runner-owned backend review requires supervision pauses after both backend-review and backend-final.",
+      );
 
     const current = (): IEvidenceBenchmarkGoalRecord => {
       const record: IEvidenceBenchmarkGoalRecord | undefined = state.goals.find(
@@ -155,6 +167,12 @@ export namespace EvidenceBenchmarkRunner {
     };
 
     prepare();
+    const sandbox = (): "read-only" | "danger-full-access" =>
+      props.reviewLedger === "backend" &&
+      (current().name === "backend-review" ||
+        current().name === "backend-final")
+        ? "read-only"
+        : "danger-full-access";
     if (props.fork !== undefined && state.sessionId !== undefined)
       throw new Error("Checkpoint fork state must not retain a session ID.");
     const forking: boolean = props.fork !== undefined;
@@ -802,7 +820,8 @@ export namespace EvidenceBenchmarkRunner {
                   "Codex emitted an invalid runner-owned review tool request.",
                 );
               if (
-                params.tool === "review_run_backend_command" &&
+                (params.tool === "review_run_backend_command" ||
+                  params.tool === "review_edit_file") &&
                 activeNativeCommands.size !== 0
               )
                 throw new Error(
@@ -925,7 +944,7 @@ export namespace EvidenceBenchmarkRunner {
               model: props.model,
               cwd: props.cwd,
               approvalPolicy: "never",
-              sandbox: "danger-full-access",
+              sandbox: sandbox(),
               ephemeral: false,
               ...(props.reviewLedger === "backend"
                 ? { dynamicTools: EvidenceBenchmarkReviewLedger.tools() }
@@ -939,7 +958,7 @@ export namespace EvidenceBenchmarkRunner {
                 cwd: props.cwd,
                 runtimeWorkspaceRoots: [props.cwd],
                 approvalPolicy: "never",
-                sandbox: "danger-full-access",
+                sandbox: sandbox(),
                 deferGoalContinuation: true,
                 ephemeral: false,
               })
@@ -948,7 +967,7 @@ export namespace EvidenceBenchmarkRunner {
                 model: props.model,
                 cwd: props.cwd,
                 approvalPolicy: "never",
-                sandbox: "danger-full-access",
+                sandbox: sandbox(),
               }),
       );
       const thread: Record<string, unknown> = object(response.thread);
