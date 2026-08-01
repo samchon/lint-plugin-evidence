@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { collectEvidenceBenchmarkApiCost } from "../../../benchmark/src/EvidenceBenchmarkApiCost.ts";
 import { renderEvidenceBenchmarkDashboard } from "../../../benchmark/src/EvidenceBenchmarkDashboard.ts";
 import { writeEvidenceBenchmarkReport } from "../../../benchmark/src/EvidenceBenchmarkReport.ts";
 import type {
@@ -22,7 +23,7 @@ import type {
  * 1. Create two real benchmark worktrees and retained run records.
  * 2. Give one cell an older run and a newer active run with later output.
  * 3. Render the summary table and stage-level cost, time, and shares.
- * 4. Publish deterministic aggregate and per-cell JSON plus SVG/PNG charts.
+ * 4. Publish deterministic aggregate and per-cell JSON plus SVG charts.
  * 5. Assert stale and unlaunched cells never appear.
  */
 const main = (): void => {
@@ -58,6 +59,21 @@ const main = (): void => {
     });
     writeRun({
       repository,
+      subject: "todo",
+      arm: "plain",
+      runId: "mismatched-cost",
+      workspace: plainWorkspace,
+      launchedAt: "2026-07-30T00:00:00.000Z",
+      status: "completed",
+      nextInstructionIndex: 8,
+      totalTokens: 100_000,
+      requests: [tokenUsage(90_000)],
+      goals: [goal(7, "overall-final", 100_000, 60_000)],
+      processes: [{ elapsedMs: 60_000, exitCode: 0, signal: null }],
+      outputEvents: [],
+    });
+    writeRun({
+      repository,
       subject: "reddit",
       arm: "plain",
       runId: "terra",
@@ -81,14 +97,17 @@ const main = (): void => {
       status: "running",
       nextInstructionIndex: 1,
       totalTokens: 1_600_000,
+      initialTokenUsage: tokenUsage(900_000),
+      requests: [tokenUsage(700_000)],
       goals: [
-        goal(0, "backend-start", 1_000_000, 61_000, 120),
+        goal(0, "backend-start", 900_000, 61_000, 120, tokenUsage(900_000)),
         goal(1, "backend-review", 0, 0),
       ],
       processes: [{ elapsedMs: 10_000, exitCode: null, signal: null }],
       outputEvents: [{ processIndex: 0, elapsedMs: 65_000 }],
       inheritedProcessElapsedMs: 61_000,
       inheritedWallElapsedMs: 30 * 60 * 1_000,
+      checkpointSourceRunId: "old",
     });
     writeRun({
       repository,
@@ -100,7 +119,42 @@ const main = (): void => {
       status: "completed",
       nextInstructionIndex: 8,
       totalTokens: 400_000,
-      goals: [goal(7, "overall-final", 400_000, 3_660_000)],
+      tokenUsage: {
+        totalTokens: 400_000,
+        inputTokens: 300_000,
+        cachedInputTokens: 190_000,
+        cacheWriteInputTokens: 10_000,
+        outputTokens: 100_000,
+        reasoningOutputTokens: 25_000,
+      },
+      requests: [
+        {
+          totalTokens: 53_000,
+          inputTokens: 28_000,
+          cachedInputTokens: 10_000,
+          cacheWriteInputTokens: 0,
+          outputTokens: 25_000,
+          reasoningOutputTokens: 5_000,
+        },
+        {
+          totalTokens: 347_000,
+          inputTokens: 272_000,
+          cachedInputTokens: 180_000,
+          cacheWriteInputTokens: 10_000,
+          outputTokens: 75_000,
+          reasoningOutputTokens: 20_000,
+        },
+      ],
+      goals: [
+        goal(0, "backend-start", 50_000, 300_000),
+        goal(1, "backend-review", 50_000, 400_000),
+        goal(2, "backend-final", 25_000, 200_000),
+        goal(3, "frontend-start", 75_000, 500_000),
+        goal(4, "frontend-review", 50_000, 600_000),
+        goal(5, "frontend-final", 25_000, 300_000),
+        goal(6, "overall-review", 75_000, 800_000),
+        goal(7, "overall-final", 50_000, 560_000),
+      ],
       processes: [{ elapsedMs: 3_660_000, exitCode: 0, signal: null }],
       outputEvents: [],
     });
@@ -118,7 +172,21 @@ const main = (): void => {
       { recursive: true },
     );
 
+    const evidenceRaw: string = path.join(
+      repository,
+      "benchmark",
+      "output",
+      "todo",
+      "codex",
+      "evidence",
+      "runs",
+      "evidence",
+      "raw.log",
+    );
+    const heldRaw: string = `${evidenceRaw}.held`;
+    fs.renameSync(evidenceRaw, heldRaw);
     const dashboard: string = renderEvidenceBenchmarkDashboard(repository);
+    fs.renameSync(heldRaw, evidenceRaw);
     assert.equal((dashboard.match(/^## /gmu) ?? []).length, 2);
     assert.match(dashboard, /^## GPT-5\.6-Luna$/mu);
     assert.match(dashboard, /^## GPT-5\.6-Terra$/mu);
@@ -142,15 +210,15 @@ const main = (): void => {
     assert.match(dashboard, /^- \*\*Todo Plain stages\*\*$/mu);
     assert.match(
       dashboard,
-      /^  - `backend-start`: 1M · 2m · 63% tokens · 95% time$/mu,
+      /^  - `backend-start`: 1M · 2m · 56% tokens · 95% time$/mu,
     );
     assert.match(
       dashboard,
-      /^  - `backend-review`: 1M · 0m · 38% tokens · 5% time$/mu,
+      /^  - `backend-review`: 1M · 0m · 44% tokens · 5% time$/mu,
     );
     assert.match(
       dashboard,
-      /^  - `overall-final`: 0M · 1h 01m · 100% tokens · 100% time$/mu,
+      /^  - `overall-final`: 0M · 9m · 13% tokens · 15% time$/mu,
     );
     assert.match(
       dashboard,
@@ -169,12 +237,15 @@ const main = (): void => {
 
     const generatedAt: Date = new Date("2026-07-31T04:00:00.000Z");
     const reportOutput: string = path.join(repository, "published");
+    fs.mkdirSync(reportOutput);
+    for (const file of ["tokens.png", "work-time.png", "wall-time.png"])
+      fs.writeFileSync(path.join(reportOutput, file), "stale");
     const report: IEvidenceBenchmarkReport = writeEvidenceBenchmarkReport({
       repository,
       output: reportOutput,
       generatedAt,
     });
-    assert.equal(report.schemaVersion, 1);
+    assert.equal(report.schemaVersion, 2);
     assert.equal(report.generatedAt, generatedAt.toISOString());
     assert.equal(report.cells.length, 3);
     const todoPlain: IEvidenceBenchmarkReportCell | undefined =
@@ -188,6 +259,47 @@ const main = (): void => {
     assert.equal(todoPlain.status, "running");
     assert.equal(todoPlain.stage, "backend-review");
     assert.equal(todoPlain.tokens, 1_600_000);
+    assert.deepEqual(todoPlain.tokenUsage, {
+      totalTokens: 1_600_000,
+      inputTokens: 1_200_000,
+      cachedInputTokens: 800_000,
+      cacheWriteInputTokens: 0,
+      outputTokens: 400_000,
+      reasoningOutputTokens: 100_000,
+    });
+    assert.deepEqual(todoPlain.apiCost, {
+      provider: "openrouter",
+      pricingAsOf: "2026-08-01",
+      priceSource: "https://openrouter.ai/api/v1/models",
+      currency: "USD",
+      amountUsd: 0.456,
+      requests: 2,
+      shortContextRequests: 0,
+      longContextRequests: 2,
+      longContextThresholdTokens: 272_000,
+    });
+    const todoEvidence: IEvidenceBenchmarkReportCell | undefined =
+      report.cells.find(
+        (cell) => cell.subject === "todo" && cell.arm === "evidence",
+      );
+    assert.ok(todoEvidence);
+    assert.deepEqual(todoEvidence.apiCost, {
+      provider: "openrouter",
+      pricingAsOf: "2026-08-01",
+      priceSource: "https://openrouter.ai/api/v1/models",
+      currency: "USD",
+      amountUsd: 0.1069,
+      requests: 2,
+      shortContextRequests: 1,
+      longContextRequests: 1,
+      longContextThresholdTokens: 272_000,
+    });
+    const redditPlain: IEvidenceBenchmarkReportCell | undefined =
+      report.cells.find(
+        (cell) => cell.subject === "reddit" && cell.arm === "plain",
+      );
+    assert.ok(redditPlain);
+    assert.equal(redditPlain.apiCost?.amountUsd, 3.135);
     assert.equal(todoPlain.workElapsedMs, 126_000);
     assert.equal(todoPlain.wallElapsedMs, 3.5 * 60 * 60 * 1_000);
     assert.deepEqual(todoPlain.worktree, {
@@ -198,16 +310,16 @@ const main = (): void => {
     assert.deepEqual(todoPlain.stages, [
       {
         name: "backend-start",
-        tokens: 1_000_000,
+        tokens: 900_000,
         elapsedMs: 120_000,
-        tokenPercent: 63,
+        tokenPercent: 56,
         timePercent: 95,
       },
       {
         name: "backend-review",
-        tokens: 600_000,
+        tokens: 700_000,
         elapsedMs: 6_000,
-        tokenPercent: 38,
+        tokenPercent: 44,
         timePercent: 5,
       },
     ]);
@@ -232,12 +344,8 @@ const main = (): void => {
       ),
       todoPlain,
     );
-    const svgChartFiles: readonly string[] = [
-      "tokens.svg",
-      "work-time.svg",
-      "wall-time.svg",
-    ];
-    for (const file of svgChartFiles) {
+    const ordinarySvgChartFiles: readonly string[] = ["wall-time.svg"];
+    for (const file of ordinarySvgChartFiles) {
       const svg: string = fs.readFileSync(
         path.join(reportOutput, file),
         "utf8",
@@ -252,16 +360,91 @@ const main = (): void => {
       assert.equal(svg.includes("old"), false);
       assert.equal(svg.includes("Shopping"), false);
     }
-    const pngChartFiles: readonly string[] = [
-      "tokens.png",
-      "work-time.png",
-      "wall-time.png",
+    const tokensSvg: string = fs.readFileSync(
+      path.join(reportOutput, "tokens.svg"),
+      "utf8",
+    );
+    assert.match(tokensSvg, /^<svg /u);
+    assert.match(tokensSvg, /Benchmark token usage by project/u);
+    assert.match(tokensSvg, />Todo</u);
+    assert.match(tokensSvg, />Reddit</u);
+    assert.match(tokensSvg, />Plain</u);
+    assert.match(tokensSvg, />Evidence</u);
+    assert.match(tokensSvg, />Backend Dev</u);
+    assert.match(tokensSvg, />Backend Review</u);
+    assert.match(tokensSvg, />Frontend Dev</u);
+    assert.match(tokensSvg, />Frontend Review</u);
+    assert.match(tokensSvg, />Overall Review</u);
+    assert.match(
+      tokensSvg,
+      /data-phase="backend-development" data-tokens="900000"/u,
+    );
+    assert.match(
+      tokensSvg,
+      /data-phase="backend-review" data-tokens="700000"/u,
+    );
+    assert.match(
+      tokensSvg,
+      /data-phase="frontend-development" data-tokens="75000"/u,
+    );
+    assert.match(
+      tokensSvg,
+      /data-phase="frontend-review" data-tokens="75000"/u,
+    );
+    assert.match(
+      tokensSvg,
+      /data-phase="overall-review" data-tokens="125000"/u,
+    );
+    assert.match(tokensSvg, /1\.6M tokens/u);
+    assert.match(tokensSvg, /400k tokens \(-75%\)/u);
+    assert.match(tokensSvg, /Token counter details/u);
+    assert.match(tokensSvg, />API cost</u);
+    assert.match(tokensSvg, />\$0\.46</u);
+    assert.match(tokensSvg, />\$0\.11</u);
+    assert.match(tokensSvg, /API cost \$0\.11</u);
+    assert.doesNotMatch(tokensSvg, /API cost [^<]* vs /u);
+    assert.match(tokensSvg, />Cached input</u);
+    assert.match(tokensSvg, />1,600,000</u);
+    assert.match(tokensSvg, />1,200,000</u);
+    assert.match(tokensSvg, />800,000</u);
+    assert.match(tokensSvg, />400,000</u);
+    assert.match(tokensSvg, />100,000</u);
+    assert.match(tokensSvg, />10,000</u);
+    assert.match(tokensSvg, /#4c78a8/u);
+    assert.match(tokensSvg, /#f58518/u);
+    assert.equal(tokensSvg.includes("old"), false);
+    assert.equal(tokensSvg.includes("Shopping"), false);
+    const workTimeSvg: string = fs.readFileSync(
+      path.join(reportOutput, "work-time.svg"),
+      "utf8",
+    );
+    assert.match(workTimeSvg, /^<svg /u);
+    assert.match(workTimeSvg, /Benchmark work time by project/u);
+    assert.match(workTimeSvg, /Work Time details/u);
+    assert.match(workTimeSvg, />API cost</u);
+    assert.match(workTimeSvg, />\$0\.46</u);
+    assert.match(workTimeSvg, /API cost \$0\.11</u);
+    assert.doesNotMatch(workTimeSvg, /API cost [^<]* vs /u);
+    assert.match(
+      workTimeSvg,
+      /data-phase="backend-development" data-ms="300000"/u,
+    );
+    assert.match(workTimeSvg, /data-phase="backend-review" data-ms="600000"/u);
+    assert.match(
+      workTimeSvg,
+      /data-phase="frontend-development" data-ms="500000"/u,
+    );
+    assert.match(workTimeSvg, /data-phase="frontend-review" data-ms="900000"/u);
+    assert.match(workTimeSvg, /data-phase="overall-review" data-ms="1360000"/u);
+    assert.match(workTimeSvg, />1h 01m</u);
+    assert.equal(workTimeSvg.includes("Stage: backend-review"), false);
+    const svgChartFiles: readonly string[] = [
+      "tokens.svg",
+      "work-time.svg",
+      ...ordinarySvgChartFiles,
     ];
-    for (const file of pngChartFiles)
-      assert.deepEqual(
-        fs.readFileSync(path.join(reportOutput, file)).subarray(0, 8),
-        Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-      );
+    for (const file of ["tokens.png", "work-time.png", "wall-time.png"])
+      assert.equal(fs.existsSync(path.join(reportOutput, file)), false);
     const repeatedOutput: string = path.join(repository, "published-again");
     writeEvidenceBenchmarkReport({
       repository,
@@ -271,7 +454,6 @@ const main = (): void => {
     for (const file of [
       "summary.json",
       ...svgChartFiles,
-      ...pngChartFiles,
       path.join("cells", "gpt-5.6-luna", "todo", "plain.json"),
     ])
       assert.deepEqual(
@@ -289,6 +471,103 @@ const main = (): void => {
     assert.match(
       fs.readFileSync(path.join(reportOutput, "wall-time.svg"), "utf8"),
       />3h 30m</u,
+    );
+    const historicalOutput: string = path.join(repository, "historical");
+    const historical: IEvidenceBenchmarkReport = writeEvidenceBenchmarkReport({
+      repository,
+      output: historicalOutput,
+      generatedAt,
+      runIds: ["old", "evidence"],
+    });
+    assert.deepEqual(
+      historical.cells.map((cell) => cell.runId),
+      ["old", "evidence"],
+    );
+    assert.equal(
+      fs.existsSync(path.join(historicalOutput, "tokens.svg")),
+      true,
+    );
+    assert.throws(
+      () =>
+        writeEvidenceBenchmarkReport({
+          repository,
+          output: path.join(repository, "missing-run"),
+          generatedAt,
+          runIds: ["missing"],
+        }),
+      /Unknown benchmark report run IDs: missing/u,
+    );
+    assert.throws(
+      () =>
+        writeEvidenceBenchmarkReport({
+          repository,
+          output: path.join(repository, "duplicate-run"),
+          generatedAt,
+          runIds: ["old", "old"],
+        }),
+      /run IDs must be unique/u,
+    );
+    assert.throws(
+      () =>
+        writeEvidenceBenchmarkReport({
+          repository,
+          output: path.join(repository, "mismatched-cost"),
+          generatedAt,
+          runIds: ["mismatched-cost"],
+        }),
+      /Cannot calculate exact API cost: per-request usage .* does not match retained usage/u,
+    );
+
+    const solRaw: string = path.join(repository, "sol-raw.log");
+    const solUsage: ReturnType<typeof tokenUsage> = tokenUsage(100_000);
+    writeRawUsage(solRaw, [solUsage]);
+    fs.appendFileSync(
+      solRaw,
+      `${JSON.stringify({
+        method: "thread/tokenUsage/updated",
+        params: {
+          tokenUsage: {
+            total: solUsage,
+            last: {
+              totalTokens: 14_448,
+              inputTokens: 0,
+              cachedInputTokens: 0,
+              cacheWriteInputTokens: 0,
+              outputTokens: 0,
+              reasoningOutputTokens: 0,
+            },
+            modelContextWindow: 258_400,
+          },
+        },
+      })}\n`,
+    );
+    assert.deepEqual(
+      collectEvidenceBenchmarkApiCost({
+        rawLog: solRaw,
+        model: "gpt-5.6-sol",
+        expected: solUsage,
+        strict: true,
+      }),
+      {
+        provider: "openrouter",
+        pricingAsOf: "2026-08-01",
+        priceSource: "https://openrouter.ai/api/v1/models",
+        currency: "USD",
+        amountUsd: 0.9,
+        requests: 1,
+        shortContextRequests: 1,
+        longContextRequests: 0,
+        longContextThresholdTokens: 272_000,
+      },
+    );
+    assert.equal(
+      collectEvidenceBenchmarkApiCost({
+        rawLog: solRaw,
+        model: "gpt-5.6-sol",
+        expected: tokenUsage(90_000),
+        strict: false,
+      }),
+      null,
     );
   } finally {
     fs.rmSync(repository, { recursive: true, force: true });
@@ -328,12 +607,16 @@ const writeRun = (props: {
   status: "ready" | "running" | "interrupted" | "completed";
   nextInstructionIndex: number;
   totalTokens: number;
+  tokenUsage?: ReturnType<typeof tokenUsage>;
+  initialTokenUsage?: ReturnType<typeof tokenUsage>;
+  requests?: ReturnType<typeof tokenUsage>[];
   goals: {
     elapsedMs: number;
     goal?: { timeUsedSeconds: number };
     index: number;
     name: string;
     tokenUsage: { totalTokens: number };
+    tokenUsageEnd?: ReturnType<typeof tokenUsage>;
   }[];
   processes: {
     elapsedMs: number;
@@ -344,6 +627,7 @@ const writeRun = (props: {
   model?: string;
   inheritedProcessElapsedMs?: number;
   inheritedWallElapsedMs?: number;
+  checkpointSourceRunId?: string;
 }): void => {
   const root: string = path.join(
     props.repository,
@@ -357,6 +641,14 @@ const writeRun = (props: {
   );
   fs.mkdirSync(root, { recursive: true });
   const events: string = path.join(root, "events.jsonl");
+  const raw: string = path.join(root, "raw.log");
+  const expectedUsage: ReturnType<typeof tokenUsage> =
+    props.tokenUsage ?? tokenUsage(props.totalTokens);
+  writeRawUsage(
+    raw,
+    props.requests ?? [expectedUsage],
+    props.initialTokenUsage,
+  );
   fs.writeFileSync(
     events,
     [
@@ -385,6 +677,7 @@ const writeRun = (props: {
             ? {}
             : {
                 checkpointSource: {
+                  runId: props.checkpointSourceRunId,
                   inheritedWallElapsedMs: props.inheritedWallElapsedMs,
                 },
               }),
@@ -392,13 +685,12 @@ const writeRun = (props: {
         records: {
           workspace: props.workspace,
           events,
+          raw,
         },
         state: {
           status: props.status,
           nextInstructionIndex: props.nextInstructionIndex,
-          threadTokenUsage: {
-            totalTokens: props.totalTokens,
-          },
+          threadTokenUsage: expectedUsage,
           goals: props.goals,
           processes: props.processes,
           ...(props.inheritedProcessElapsedMs === undefined
@@ -414,25 +706,88 @@ const writeRun = (props: {
   );
 };
 
+const writeRawUsage = (
+  file: string,
+  requests: readonly ReturnType<typeof tokenUsage>[],
+  initial: ReturnType<typeof tokenUsage> = zeroTokenUsage(),
+): void => {
+  const cumulative: ReturnType<typeof tokenUsage> = structuredClone(initial);
+  fs.writeFileSync(
+    file,
+    `${requests
+      .map((last) => {
+        addTokenUsage(cumulative, last);
+        return JSON.stringify({
+          method: "thread/tokenUsage/updated",
+          params: {
+            tokenUsage: {
+              total: structuredClone(cumulative),
+              last,
+              modelContextWindow: 258_400,
+            },
+          },
+        });
+      })
+      .join("\n")}\n`,
+  );
+};
+
 const goal = (
   index: number,
   name: string,
   totalTokens: number,
   elapsedMs: number,
   timeUsedSeconds?: number,
+  tokenUsageEnd?: ReturnType<typeof tokenUsage>,
 ): {
   elapsedMs: number;
   goal?: { timeUsedSeconds: number };
   index: number;
   name: string;
   tokenUsage: { totalTokens: number };
+  tokenUsageEnd?: ReturnType<typeof tokenUsage>;
 } => ({
   elapsedMs,
   ...(timeUsedSeconds === undefined ? {} : { goal: { timeUsedSeconds } }),
   index,
   name,
   tokenUsage: { totalTokens },
+  ...(tokenUsageEnd === undefined ? {} : { tokenUsageEnd }),
 });
+
+const tokenUsage = (totalTokens: number) => {
+  const inputTokens: number = Math.round(totalTokens * 0.75);
+  const outputTokens: number = totalTokens - inputTokens;
+  return {
+    totalTokens,
+    inputTokens,
+    cachedInputTokens: Math.round(totalTokens * 0.5),
+    cacheWriteInputTokens: 0,
+    outputTokens,
+    reasoningOutputTokens: Math.round(outputTokens * 0.25),
+  };
+};
+
+const zeroTokenUsage = (): ReturnType<typeof tokenUsage> => ({
+  totalTokens: 0,
+  inputTokens: 0,
+  cachedInputTokens: 0,
+  cacheWriteInputTokens: 0,
+  outputTokens: 0,
+  reasoningOutputTokens: 0,
+});
+
+const addTokenUsage = (
+  target: ReturnType<typeof tokenUsage>,
+  source: ReturnType<typeof tokenUsage>,
+): void => {
+  target.totalTokens += source.totalTokens;
+  target.inputTokens += source.inputTokens;
+  target.cachedInputTokens += source.cachedInputTokens;
+  target.cacheWriteInputTokens += source.cacheWriteInputTokens;
+  target.outputTokens += source.outputTokens;
+  target.reasoningOutputTokens += source.reasoningOutputTokens;
+};
 
 const git = (cwd: string, args: string[]): void => {
   const result = spawnSync("git", args, {

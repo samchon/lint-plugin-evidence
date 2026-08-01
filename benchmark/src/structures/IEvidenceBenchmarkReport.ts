@@ -1,9 +1,11 @@
 import type { EvidenceBenchmarkArm } from "../typings/EvidenceBenchmarkArm.ts";
 import type { EvidenceBenchmarkEffort } from "../typings/EvidenceBenchmarkEffort.ts";
+import type { IEvidenceBenchmarkTokenUsage } from "./IEvidenceBenchmarkTokenUsage.ts";
+import type { IEvidenceBenchmarkApiCost } from "./IEvidenceBenchmarkApiCost.ts";
 
 /** Publishable aggregate of the latest launched benchmark cells. */
 export interface IEvidenceBenchmarkReport {
-  schemaVersion: 1;
+  schemaVersion: 2;
   generatedAt: string;
   cells: IEvidenceBenchmarkReportCell[];
 }
@@ -21,6 +23,8 @@ export interface IEvidenceBenchmarkReportCell {
   stage: string | null;
   launchedAt: string;
   tokens: number;
+  tokenUsage: IEvidenceBenchmarkTokenUsage;
+  apiCost: IEvidenceBenchmarkApiCost | null;
   workElapsedMs: number;
   wallElapsedMs: number;
   worktree: IEvidenceBenchmarkReportWorktree;

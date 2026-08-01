@@ -1,42 +1,157 @@
-<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title description" viewBox="0 0 1200 370" width="1200" height="370">
-<title id="title">Benchmark work time</title>
-<desc id="description">Retained native process time for the latest launched benchmark cells</desc>
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title description" viewBox="0 0 1440 782" width="1440" height="782">
+<title id="title">Benchmark work time by project</title>
+<desc id="description">Plain and Evidence share one work-time axis. Stacked shades separate backend development and review, frontend development and review, and overall review.</desc>
 <style>
   text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #172033; }
-  .title { font-size: 24px; font-weight: 700; }
-  .subtitle, .stage, .generated { font-size: 13px; fill: #667085; }
-  .label { font-size: 14px; font-weight: 650; }
-  .value { font-size: 14px; font-weight: 700; }
-  .legend { font-size: 13px; font-weight: 600; }
+  .title { font-size: 27px; font-weight: 700; }
+  .subtitle, .generated, .group-meta, .row-status { font-size: 13px; fill: #667085; }
+  .group { fill: #e8f2fb; }
+  .group-title { font-size: 21px; font-weight: 700; }
+  .row-label { font-size: 17px; font-weight: 700; }
+  .value { font-size: 16px; font-weight: 700; }
+  .cost-value { font-size: 13px; font-weight: 600; fill: #526b82; }
+  .legend { font-size: 12px; fill: #526b82; }
+  .segment-label { font-size: 10px; font-weight: 700; fill: #ffffff; paint-order: stroke; stroke: #172033; stroke-opacity: 0.28; stroke-width: 1px; }
+  .phase-segment { stroke: #ffffff; stroke-opacity: 0.86; stroke-width: 1px; }
+  .track { fill: #e7edf4; stroke: #d5dee9; stroke-width: 1px; }
   .empty { font-size: 15px; fill: #667085; }
-  .track { fill: #eef1f6; }
+  .table-title { font-size: 15px; font-weight: 600; }
+  .table-header { font-size: 11px; font-weight: 600; fill: #667085; }
+  .table-cell { font-size: 12px; fill: #334155; }
+  .table-rule { stroke: #dbe4ee; stroke-width: 1px; }
+  .table-note { font-size: 11px; fill: #667085; }
 </style>
-<rect width="1200" height="370" fill="#ffffff"/>
-<text x="32" y="38" class="title">Benchmark work time</text>
-<text x="32" y="62" class="subtitle">Retained native process time for the latest launched benchmark cells</text>
-<rect x="32" y="82" width="14" height="14" rx="3" fill="#4c78a8"/>
-<text x="54" y="94" class="legend">Plain</text>
-<rect x="118" y="82" width="14" height="14" rx="3" fill="#f58518"/>
-<text x="140" y="94" class="legend">Evidence</text>
-<text x="32" y="148" class="label">GPT-5.6-Luna · Todo Plain · running</text>
-<text x="32" y="167" class="stage">Stage: backend-final</text>
-<rect x="430" y="137" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="137" width="321" height="28" rx="4" fill="#4c78a8"/>
-<text x="1068" y="157" class="value">1h 52m</text>
-<text x="32" y="200" class="label">GPT-5.6-Luna · Todo Evidence · completed</text>
-<text x="32" y="219" class="stage">Stage: overall-final</text>
-<rect x="430" y="189" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="189" width="477" height="28" rx="4" fill="#f58518"/>
-<text x="1068" y="209" class="value">2h 46m</text>
-<text x="32" y="252" class="label">GPT-5.6-Luna · Reddit Plain · interrupted</text>
-<text x="32" y="271" class="stage">Stage: backend-final</text>
-<rect x="430" y="241" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="241" width="241" height="28" rx="4" fill="#4c78a8"/>
-<text x="1068" y="261" class="value">1h 24m</text>
-<text x="32" y="304" class="label">GPT-5.6-Luna · Reddit Evidence · completed</text>
-<text x="32" y="323" class="stage">Stage: overall-final</text>
-<rect x="430" y="293" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="293" width="620" height="28" rx="4" fill="#f58518"/>
-<text x="1068" y="313" class="value">3h 35m</text>
-<text x="32" y="358" class="generated">Generated 2026-07-31T21:49:05.469Z</text>
+<rect width="1440" height="782" fill="#ffffff"/>
+<text x="36" y="38" class="title">Benchmark work time by project</text>
+<text x="36" y="62" class="subtitle">Plain and Evidence share one Work Time axis; stacked shades show development and review phases (lower is better).</text>
+<rect x="36" y="82" width="18" height="12" rx="3" fill="#4c78a8" fill-opacity="0.44"/>
+<text x="61" y="93" class="legend">Backend Dev</text>
+<rect x="286" y="82" width="18" height="12" rx="3" fill="#4c78a8" fill-opacity="0.58"/>
+<text x="311" y="93" class="legend">Backend Review</text>
+<rect x="536" y="82" width="18" height="12" rx="3" fill="#4c78a8" fill-opacity="0.7"/>
+<text x="561" y="93" class="legend">Frontend Dev</text>
+<rect x="786" y="82" width="18" height="12" rx="3" fill="#4c78a8" fill-opacity="0.84"/>
+<text x="811" y="93" class="legend">Frontend Review</text>
+<rect x="1036" y="82" width="18" height="12" rx="3" fill="#4c78a8" fill-opacity="1"/>
+<text x="1061" y="93" class="legend">Overall Review</text>
+<rect x="28" y="124" width="1384" height="194" rx="10" class="group" fill-opacity="0.78"/>
+<text x="60" y="153" class="group-title">Todo</text>
+<text x="1404" y="152" text-anchor="end" class="group-meta">GPT-5.6-Luna</text>
+<text x="60" y="189" class="row-label" fill="#4c78a8">Plain</text>
+<text x="60" y="212" class="row-status">completed</text>
+<rect x="210" y="171" width="900" height="36" rx="7" class="track"/>
+<rect x="210.00" y="171" width="76.54" height="36" fill="#4c78a8" fill-opacity="0.44" class="phase-segment" data-phase="backend-development" data-ms="2156000"/>
+<text x="248.27" y="195" text-anchor="middle" class="segment-label">BE Dev</text>
+<rect x="286.54" y="171" width="167.18" height="36" fill="#4c78a8" fill-opacity="0.58" class="phase-segment" data-phase="backend-review" data-ms="4709000"/>
+<text x="370.13" y="195" text-anchor="middle" class="segment-label">BE Rev</text>
+<rect x="453.72" y="171" width="95.18" height="36" fill="#4c78a8" fill-opacity="0.7" class="phase-segment" data-phase="frontend-development" data-ms="2681000"/>
+<text x="501.31" y="195" text-anchor="middle" class="segment-label">FE Dev</text>
+<rect x="548.90" y="171" width="146.52" height="36" fill="#4c78a8" fill-opacity="0.84" class="phase-segment" data-phase="frontend-review" data-ms="4127000"/>
+<text x="622.16" y="195" text-anchor="middle" class="segment-label">FE Rev</text>
+<rect x="695.42" y="171" width="115.24" height="36" fill="#4c78a8" fill-opacity="1" class="phase-segment" data-phase="overall-review" data-ms="3246000"/>
+<text x="753.04" y="195" text-anchor="middle" class="segment-label">Overall</text>
+<text x="1404" y="187" text-anchor="end" class="value">4h 44m</text>
+<text x="1404" y="211" text-anchor="end" class="cost-value">API cost $3.36</text>
+<text x="60" y="257" class="row-label" fill="#f58518">Evidence</text>
+<text x="60" y="280" class="row-status">completed</text>
+<rect x="210" y="239" width="900" height="36" rx="7" class="track"/>
+<rect x="210.00" y="239" width="127.17" height="36" fill="#f58518" fill-opacity="0.44" class="phase-segment" data-phase="backend-development" data-ms="3582000"/>
+<text x="273.58" y="263" text-anchor="middle" class="segment-label">BE Dev</text>
+<rect x="337.17" y="239" width="64.97" height="36" fill="#f58518" fill-opacity="0.58" class="phase-segment" data-phase="backend-review" data-ms="1830000"/>
+<text x="369.65" y="263" text-anchor="middle" class="segment-label">BE Rev</text>
+<rect x="402.14" y="239" width="132.56" height="36" fill="#f58518" fill-opacity="0.7" class="phase-segment" data-phase="frontend-development" data-ms="3734000"/>
+<text x="468.42" y="263" text-anchor="middle" class="segment-label">FE Dev</text>
+<rect x="534.70" y="239" width="72.10" height="36" fill="#f58518" fill-opacity="0.84" class="phase-segment" data-phase="frontend-review" data-ms="2031000"/>
+<text x="570.75" y="263" text-anchor="middle" class="segment-label">FE Rev</text>
+<rect x="606.80" y="239" width="69.34" height="36" fill="#f58518" fill-opacity="1" class="phase-segment" data-phase="overall-review" data-ms="1953000"/>
+<text x="641.47" y="263" text-anchor="middle" class="segment-label">Overall</text>
+<text x="1404" y="255" text-anchor="end" class="value">3h 41m (-22%)</text>
+<text x="1404" y="279" text-anchor="end" class="cost-value">API cost $1.81</text>
+<rect x="28" y="334" width="1384" height="194" rx="10" class="group" fill-opacity="0.42"/>
+<text x="60" y="363" class="group-title">Reddit</text>
+<text x="1404" y="362" text-anchor="end" class="group-meta">GPT-5.6-Luna</text>
+<text x="60" y="399" class="row-label" fill="#4c78a8">Plain</text>
+<text x="60" y="422" class="row-status">completed</text>
+<rect x="210" y="381" width="900" height="36" rx="7" class="track"/>
+<rect x="210.00" y="381" width="301.87" height="36" fill="#4c78a8" fill-opacity="0.44" class="phase-segment" data-phase="backend-development" data-ms="8503000"/>
+<text x="360.94" y="405" text-anchor="middle" class="segment-label">BE Dev</text>
+<rect x="511.87" y="381" width="206.90" height="36" fill="#4c78a8" fill-opacity="0.58" class="phase-segment" data-phase="backend-review" data-ms="5828000"/>
+<text x="615.32" y="405" text-anchor="middle" class="segment-label">BE Rev</text>
+<rect x="718.78" y="381" width="115.95" height="36" fill="#4c78a8" fill-opacity="0.7" class="phase-segment" data-phase="frontend-development" data-ms="3266000"/>
+<text x="776.75" y="405" text-anchor="middle" class="segment-label">FE Dev</text>
+<rect x="834.73" y="381" width="159.79" height="36" fill="#4c78a8" fill-opacity="0.84" class="phase-segment" data-phase="frontend-review" data-ms="4501000"/>
+<text x="914.62" y="405" text-anchor="middle" class="segment-label">FE Rev</text>
+<rect x="994.52" y="381" width="112.19" height="36" fill="#4c78a8" fill-opacity="1" class="phase-segment" data-phase="overall-review" data-ms="3160000"/>
+<text x="1050.61" y="405" text-anchor="middle" class="segment-label">Overall</text>
+<text x="1404" y="397" text-anchor="end" class="value">7h 03m</text>
+<text x="1404" y="421" text-anchor="end" class="cost-value">API cost $4.31</text>
+<text x="60" y="467" class="row-label" fill="#f58518">Evidence</text>
+<text x="60" y="490" class="row-status">completed</text>
+<rect x="210" y="449" width="900" height="36" rx="7" class="track"/>
+<rect x="210.00" y="449" width="236.09" height="36" fill="#f58518" fill-opacity="0.44" class="phase-segment" data-phase="backend-development" data-ms="6650000"/>
+<text x="328.04" y="473" text-anchor="middle" class="segment-label">BE Dev</text>
+<rect x="446.09" y="449" width="52.68" height="36" fill="#f58518" fill-opacity="0.58" class="phase-segment" data-phase="backend-review" data-ms="1484000"/>
+<text x="472.43" y="473" text-anchor="middle" class="segment-label">BE Rev</text>
+<rect x="498.77" y="449" width="115.31" height="36" fill="#f58518" fill-opacity="0.7" class="phase-segment" data-phase="frontend-development" data-ms="3248000"/>
+<text x="556.43" y="473" text-anchor="middle" class="segment-label">FE Dev</text>
+<rect x="614.08" y="449" width="96.92" height="36" fill="#f58518" fill-opacity="0.84" class="phase-segment" data-phase="frontend-review" data-ms="2730000"/>
+<text x="662.54" y="473" text-anchor="middle" class="segment-label">FE Rev</text>
+<rect x="711.00" y="449" width="56.84" height="36" fill="#f58518" fill-opacity="1" class="phase-segment" data-phase="overall-review" data-ms="1601000"/>
+<text x="1404" y="465" text-anchor="end" class="value">4h 24m (-38%)</text>
+<text x="1404" y="489" text-anchor="end" class="cost-value">API cost $2.70</text>
+<text x="36" y="554" class="table-title">Work Time details</text>
+<line x1="36" y1="570" x2="1404" y2="570" class="table-rule"/>
+<text x="60" y="592" class="table-header">Project</text>
+<text x="145" y="592" class="table-header">Arm</text>
+<text x="300" y="592" text-anchor="end" class="table-header">API cost</text>
+<text x="430" y="592" text-anchor="end" class="table-header">Total</text>
+<text x="620" y="592" text-anchor="end" class="table-header">Backend Dev</text>
+<text x="815" y="592" text-anchor="end" class="table-header">Backend Review</text>
+<text x="1000" y="592" text-anchor="end" class="table-header">Frontend Dev</text>
+<text x="1190" y="592" text-anchor="end" class="table-header">Frontend Review</text>
+<text x="1395" y="592" text-anchor="end" class="table-header">Overall Review</text>
+<line x1="36" y1="601" x2="1404" y2="601" class="table-rule"/>
+<text x="60" y="621" class="table-cell">Todo</text>
+<text x="145" y="621" class="table-cell">Plain</text>
+<text x="300" y="621" text-anchor="end" class="table-cell">$3.36</text>
+<text x="430" y="621" text-anchor="end" class="table-cell">4h 44m</text>
+<text x="620" y="621" text-anchor="end" class="table-cell">36m</text>
+<text x="815" y="621" text-anchor="end" class="table-cell">1h 18m</text>
+<text x="1000" y="621" text-anchor="end" class="table-cell">45m</text>
+<text x="1190" y="621" text-anchor="end" class="table-cell">1h 09m</text>
+<text x="1395" y="621" text-anchor="end" class="table-cell">54m</text>
+<line x1="36" y1="630" x2="1404" y2="630" class="table-rule"/>
+<text x="60" y="649" class="table-cell">Todo</text>
+<text x="145" y="649" class="table-cell">Evidence</text>
+<text x="300" y="649" text-anchor="end" class="table-cell">$1.81</text>
+<text x="430" y="649" text-anchor="end" class="table-cell">3h 41m</text>
+<text x="620" y="649" text-anchor="end" class="table-cell">1h 00m</text>
+<text x="815" y="649" text-anchor="end" class="table-cell">31m</text>
+<text x="1000" y="649" text-anchor="end" class="table-cell">1h 02m</text>
+<text x="1190" y="649" text-anchor="end" class="table-cell">34m</text>
+<text x="1395" y="649" text-anchor="end" class="table-cell">33m</text>
+<line x1="36" y1="658" x2="1404" y2="658" class="table-rule"/>
+<text x="60" y="677" class="table-cell">Reddit</text>
+<text x="145" y="677" class="table-cell">Plain</text>
+<text x="300" y="677" text-anchor="end" class="table-cell">$4.31</text>
+<text x="430" y="677" text-anchor="end" class="table-cell">7h 03m</text>
+<text x="620" y="677" text-anchor="end" class="table-cell">2h 22m</text>
+<text x="815" y="677" text-anchor="end" class="table-cell">1h 37m</text>
+<text x="1000" y="677" text-anchor="end" class="table-cell">54m</text>
+<text x="1190" y="677" text-anchor="end" class="table-cell">1h 15m</text>
+<text x="1395" y="677" text-anchor="end" class="table-cell">53m</text>
+<line x1="36" y1="686" x2="1404" y2="686" class="table-rule"/>
+<text x="60" y="705" class="table-cell">Reddit</text>
+<text x="145" y="705" class="table-cell">Evidence</text>
+<text x="300" y="705" text-anchor="end" class="table-cell">$2.70</text>
+<text x="430" y="705" text-anchor="end" class="table-cell">4h 24m</text>
+<text x="620" y="705" text-anchor="end" class="table-cell">1h 51m</text>
+<text x="815" y="705" text-anchor="end" class="table-cell">25m</text>
+<text x="1000" y="705" text-anchor="end" class="table-cell">54m</text>
+<text x="1190" y="705" text-anchor="end" class="table-cell">46m</text>
+<text x="1395" y="705" text-anchor="end" class="table-cell">27m</text>
+<line x1="36" y1="714" x2="1404" y2="714" class="table-rule"/>
+<text x="36" y="731" class="table-note">Each Final is included in Review; the gray remainder is native process overhead. All values are retained Work Time.</text>
+<text x="36" y="746" class="table-note">API cost uses OpenRouter rates from 2026-08-01 and is emitted only after raw requests reconcile with retained counters.</text>
+<text x="36" y="768" class="generated">Generated 2026-08-01T13:17:53.425Z</text>
 </svg>

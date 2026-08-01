@@ -45,7 +45,11 @@ Raw run records and measured workspaces stay under the ignored `benchmark/output
 pnpm --filter @samchon/evidence-benchmark report
 ```
 
-The command writes `benchmark/aggregate/summary.json`, stable per-cell JSON under `benchmark/aggregate/cells/<model>/<project>/<arm>.json`, and SVG/PNG pairs for tokens, work time, and wall time. Every artifact renders or copies values from the same retained aggregate without recalculating them.
+The command writes `benchmark/aggregate/summary.json`, stable per-cell JSON under `benchmark/aggregate/cells/<model>/<project>/<arm>.json`, and SVG charts for tokens, work time, and wall time. Every artifact renders or copies values from the same retained aggregate without recalculating them.
+
+The report reconstructs OpenRouter API-equivalent USD cost from each native request's token categories and context tier, then publishes it only when those requests exactly match the retained total. The live dashboard does not scan raw logs.
+
+Pass repeated `--run-id <run-id>` arguments to publish an explicit historical cohort instead of the latest launched cell for each project and arm.
 
 ## Instruction sequence
 

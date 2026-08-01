@@ -18,25 +18,25 @@
 <text x="54" y="94" class="legend">Plain</text>
 <rect x="118" y="82" width="14" height="14" rx="3" fill="#f58518"/>
 <text x="140" y="94" class="legend">Evidence</text>
-<text x="32" y="148" class="label">GPT-5.6-Luna · Todo Plain · running</text>
-<text x="32" y="167" class="stage">Stage: backend-final</text>
+<text x="32" y="148" class="label">GPT-5.6-Luna · Todo Plain · completed</text>
+<text x="32" y="167" class="stage">Stage: overall-final</text>
 <rect x="430" y="137" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="137" width="620" height="28" rx="4" fill="#4c78a8"/>
-<text x="1068" y="157" class="value">3h 40m</text>
+<rect x="430" y="137" width="401" height="28" rx="4" fill="#4c78a8"/>
+<text x="1068" y="157" class="value">4h 45m</text>
 <text x="32" y="200" class="label">GPT-5.6-Luna · Todo Evidence · completed</text>
 <text x="32" y="219" class="stage">Stage: overall-final</text>
 <rect x="430" y="189" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="189" width="496" height="28" rx="4" fill="#f58518"/>
-<text x="1068" y="209" class="value">2h 56m</text>
-<text x="32" y="252" class="label">GPT-5.6-Luna · Reddit Plain · interrupted</text>
-<text x="32" y="271" class="stage">Stage: backend-final</text>
+<rect x="430" y="189" width="356" height="28" rx="4" fill="#f58518"/>
+<text x="1068" y="209" class="value">4h 13m</text>
+<text x="32" y="252" class="label">GPT-5.6-Luna · Reddit Plain · completed</text>
+<text x="32" y="271" class="stage">Stage: overall-final</text>
 <rect x="430" y="241" width="620" height="28" rx="4" class="track"/>
 <rect x="430" y="241" width="620" height="28" rx="4" fill="#4c78a8"/>
-<text x="1068" y="261" class="value">3h 40m</text>
+<text x="1068" y="261" class="value">7h 21m</text>
 <text x="32" y="304" class="label">GPT-5.6-Luna · Reddit Evidence · completed</text>
 <text x="32" y="323" class="stage">Stage: overall-final</text>
 <rect x="430" y="293" width="620" height="28" rx="4" class="track"/>
-<rect x="430" y="293" width="618" height="28" rx="4" fill="#f58518"/>
-<text x="1068" y="313" class="value">3h 39m</text>
-<text x="32" y="358" class="generated">Generated 2026-07-31T21:49:05.469Z</text>
+<rect x="430" y="293" width="370" height="28" rx="4" fill="#f58518"/>
+<text x="1068" y="313" class="value">4h 23m</text>
+<text x="32" y="358" class="generated">Generated 2026-08-01T13:17:53.425Z</text>
 </svg>
