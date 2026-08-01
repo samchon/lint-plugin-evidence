@@ -10,6 +10,7 @@
   },
   "scripts": {
     "start": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkCommandLine.ts",
+    "supervise": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkSupervision.ts",
     "dashboard": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkDashboard.ts",
     "report": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkReport.ts",
     "check": "tsc --noEmit -p tsconfig.json"

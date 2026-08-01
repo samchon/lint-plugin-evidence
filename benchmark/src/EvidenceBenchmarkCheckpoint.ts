@@ -7,6 +7,7 @@ import typia from "typia";
 
 import type { IEvidenceBenchmarkCheckpointStorage } from "./structures/IEvidenceBenchmarkCheckpointStorage.ts";
 import type { IEvidenceBenchmarkInputIdentity } from "./structures/IEvidenceBenchmarkInputIdentity.ts";
+import type { IEvidenceBenchmarkWorkspaceIdentity } from "./structures/IEvidenceBenchmarkWorkspaceIdentity.ts";
 import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm.ts";
 
 interface IWorkspaceSnapshotManifest {
@@ -23,6 +24,24 @@ interface IWorkspaceSnapshotManifest {
 
 /** Creates and restores immutable benchmark recovery points. */
 export namespace EvidenceBenchmarkCheckpoint {
+  /** Identifies the exact material workspace state at an audit boundary. */
+  export function identifyWorkspace(
+    workspace: string,
+  ): IEvidenceBenchmarkWorkspaceIdentity {
+    const resolved: string = path.resolve(workspace);
+    const files: string[] = materialWorkspaceFiles(resolved);
+    return {
+      materialSha256: hashFileSet(resolved, files),
+      fileCount: files.length,
+      gitHead: git(resolved, ["rev-parse", "HEAD"]).trim(),
+      gitStatus: git(resolved, [
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+      ]),
+    };
+  }
+
   /** Hashes the exact selected template, requirements, and instruction trees. */
   export function identifyInputs(props: {
     repository: string;

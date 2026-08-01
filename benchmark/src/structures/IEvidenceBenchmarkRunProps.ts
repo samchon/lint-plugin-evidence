@@ -3,6 +3,7 @@ import type { IEvidenceBenchmarkGoalRecord } from "./IEvidenceBenchmarkGoalRecor
 import type { IEvidenceBenchmarkOutput } from "./IEvidenceBenchmarkOutput.ts";
 import type { IEvidenceBenchmarkRunState } from "./IEvidenceBenchmarkRunState.ts";
 import type { EvidenceBenchmarkEffort } from "../typings/EvidenceBenchmarkEffort.ts";
+import type { EvidenceBenchmarkSupervisionGoal } from "../typings/EvidenceBenchmarkSupervisionGoal.ts";
 
 /**
  * Inputs and append-only observers for a Codex benchmark execution.
@@ -16,6 +17,9 @@ export interface IEvidenceBenchmarkRunProps {
 
   /** Prepared measured workspace. */
   cwd: string;
+
+  /** Retained run root needed to verify external supervision evidence. */
+  runRoot?: string;
 
   /** Frozen directory containing prescribed instructions. */
   instructionsRoot: string;
@@ -46,6 +50,9 @@ export interface IEvidenceBenchmarkRunProps {
 
   /** Ends cleanly after retaining the named recovery boundary. */
   stopAfterGoal?: "backend-start";
+
+  /** Ends cleanly at Goal boundaries that require external verification. */
+  pauseAfterGoals?: readonly EvidenceBenchmarkSupervisionGoal[];
 
   /** Grace period for app-server to exit after its standard input closes. */
   shutdownGraceMs?: number;

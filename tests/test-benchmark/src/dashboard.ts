@@ -108,6 +108,12 @@ const main = (): void => {
       inheritedProcessElapsedMs: 61_000,
       inheritedWallElapsedMs: 30 * 60 * 1_000,
       checkpointSourceRunId: "old",
+      supervisionPauses: [
+        {
+          pausedAt: "2026-07-31T02:00:00.000Z",
+          resumedAt: "2026-07-31T02:15:00.000Z",
+        },
+      ],
     });
     writeRun({
       repository,
@@ -299,7 +305,7 @@ const main = (): void => {
     assert.ok(redditPlain);
     assert.equal(redditPlain.apiCost?.amountUsd, 3.135);
     assert.equal(todoPlain.workElapsedMs, 126_000);
-    assert.equal(todoPlain.wallElapsedMs, 3.5 * 60 * 60 * 1_000);
+    assert.equal(todoPlain.wallElapsedMs, 3.25 * 60 * 60 * 1_000);
     assert.deepEqual(todoPlain.worktree, {
       files: 2,
       additions: 2,
@@ -466,7 +472,7 @@ const main = (): void => {
     );
     assert.match(
       fs.readFileSync(path.join(reportOutput, "wall-time.svg"), "utf8"),
-      />3h 30m</u,
+      />3h 15m</u,
     );
     const historicalOutput: string = path.join(repository, "historical");
     const historical: IEvidenceBenchmarkReport = writeEvidenceBenchmarkReport({
@@ -600,7 +606,14 @@ const writeRun = (props: {
   runId: string;
   workspace: string;
   launchedAt: string;
-  status: "ready" | "running" | "checkpointed" | "interrupted" | "completed";
+  status:
+    | "ready"
+    | "running"
+    | "checkpointed"
+    | "awaiting-supervision"
+    | "rejected"
+    | "interrupted"
+    | "completed";
   nextInstructionIndex: number;
   totalTokens: number;
   tokenUsage?: ReturnType<typeof tokenUsage>;
@@ -624,6 +637,10 @@ const writeRun = (props: {
   inheritedProcessElapsedMs?: number;
   inheritedWallElapsedMs?: number;
   checkpointSourceRunId?: string;
+  supervisionPauses?: {
+    pausedAt: string;
+    resumedAt?: string;
+  }[];
 }): void => {
   const root: string = path.join(
     props.repository,
@@ -689,6 +706,7 @@ const writeRun = (props: {
           threadTokenUsage: expectedUsage,
           goals: props.goals,
           processes: props.processes,
+          supervisionPauses: props.supervisionPauses,
           ...(props.inheritedProcessElapsedMs === undefined
             ? {}
             : {

@@ -19,7 +19,14 @@ export interface IEvidenceBenchmarkReportCell {
   benchmarkRevision: string;
   model: string;
   effort: EvidenceBenchmarkEffort;
-  status: "ready" | "running" | "checkpointed" | "interrupted" | "completed";
+  status:
+    | "ready"
+    | "running"
+    | "checkpointed"
+    | "awaiting-supervision"
+    | "rejected"
+    | "interrupted"
+    | "completed";
   stage: string | null;
   launchedAt: string;
   tokens: number;

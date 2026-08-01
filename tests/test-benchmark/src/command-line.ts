@@ -45,6 +45,7 @@ const main = (): void => {
       runId,
       checkpointRunId: undefined,
       stopAfter: undefined,
+      supervision: undefined,
     },
   );
   assert.deepEqual(
@@ -64,6 +65,7 @@ const main = (): void => {
       runId: undefined,
       checkpointRunId: undefined,
       stopAfter: undefined,
+      supervision: undefined,
     },
   );
   assert.deepEqual(
@@ -85,6 +87,7 @@ const main = (): void => {
       runId: undefined,
       checkpointRunId: runId,
       stopAfter: undefined,
+      supervision: undefined,
     },
   );
   assert.deepEqual(
@@ -106,6 +109,7 @@ const main = (): void => {
       runId,
       checkpointRunId: undefined,
       stopAfter: "backend-start",
+      supervision: undefined,
     },
   );
   assert.deepEqual(
@@ -126,6 +130,52 @@ const main = (): void => {
       runId: undefined,
       checkpointRunId: undefined,
       stopAfter: "backend-start",
+      supervision: undefined,
+    },
+  );
+  assert.deepEqual(
+    parseEvidenceBenchmarkArguments([
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      "--from-backend-start",
+      runId,
+      "--supervise-backend",
+    ]),
+    {
+      engine: "codex",
+      subject: "todo",
+      arm: "plain",
+      model: "gpt-5.6-luna",
+      effort: "high",
+      runId: undefined,
+      checkpointRunId: runId,
+      stopAfter: undefined,
+      supervision: "backend",
+    },
+  );
+  assert.deepEqual(
+    parseEvidenceBenchmarkArguments([
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      runId,
+      "--supervise-backend",
+    ]),
+    {
+      engine: "codex",
+      subject: "todo",
+      arm: "plain",
+      model: "gpt-5.6-luna",
+      effort: "high",
+      runId,
+      checkpointRunId: undefined,
+      stopAfter: undefined,
+      supervision: "backend",
     },
   );
   for (const input of [
@@ -147,6 +197,33 @@ const main = (): void => {
     ["codex", "todo", "plain", "gpt-5.6-luna", "extreme"],
     ["codex", "todo", "plain", "gpt-5.6-luna", "high", "not-a-run"],
     ["codex", "todo", "plain", "gpt-5.6-luna", "high", "--from-backend-start"],
+    [
+      "codex",
+      "todo",
+      "evidence",
+      "gpt-5.6-luna",
+      "high",
+      "--supervise-backend",
+    ],
+    [
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      "--stop-after-backend-start",
+      "--supervise-backend",
+    ],
+    [
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      runId,
+      "--from-backend-start",
+      runId,
+    ],
     [
       "codex",
       "todo",

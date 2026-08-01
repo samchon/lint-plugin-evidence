@@ -4,6 +4,7 @@ import path from "node:path";
 
 import typia from "typia";
 
+import { EvidenceBenchmarkSupervision } from "./EvidenceBenchmarkSupervision.ts";
 import type { IEvidenceBenchmarkCheckpointStorage } from "./structures/IEvidenceBenchmarkCheckpointStorage.ts";
 import type { IEvidenceBenchmarkExecutable } from "./structures/IEvidenceBenchmarkExecutable.ts";
 import type { IEvidenceBenchmarkGoalRecord } from "./structures/IEvidenceBenchmarkGoalRecord.ts";
@@ -14,6 +15,7 @@ import type { IEvidenceBenchmarkRunProps } from "./structures/IEvidenceBenchmark
 import type { IEvidenceBenchmarkRunState } from "./structures/IEvidenceBenchmarkRunState.ts";
 import type { IEvidenceBenchmarkTokenUsage } from "./structures/IEvidenceBenchmarkTokenUsage.ts";
 import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm.ts";
+import type { EvidenceBenchmarkSupervisionGoal } from "./typings/EvidenceBenchmarkSupervisionGoal.ts";
 
 /**
  * Executes the retained Codex Goal sequence for one benchmark cell.
@@ -51,6 +53,33 @@ export namespace EvidenceBenchmarkRunner {
     const state: IEvidenceBenchmarkRunState =
       typia.assert<IEvidenceBenchmarkRunState>(structuredClone(props.state));
     const entries = instructionEntries(state.arm);
+    if (state.status === "awaiting-supervision") {
+      if (props.runRoot === undefined)
+        throw new Error(
+          "Externally supervised resume lacks its retained root.",
+        );
+      EvidenceBenchmarkSupervision.assertApproved({
+        runRoot: props.runRoot,
+        workspace: props.cwd,
+        state,
+      });
+      const pause = state.supervisionPauses?.at(-1);
+      const previous = state.goals.find(
+        (goal) => goal.index === state.nextInstructionIndex - 1,
+      );
+      if (
+        pause === undefined ||
+        pause.resumedAt !== undefined ||
+        pause.verdict?.decision !== "approved" ||
+        previous === undefined ||
+        pause.afterGoal !== previous.name ||
+        !props.pauseAfterGoals?.includes(pause.afterGoal)
+      )
+        throw new Error(
+          "Externally supervised resume lacks its exact retained Goal boundary.",
+        );
+      pause.resumedAt = new Date().toISOString();
+    }
     if (state.nextInstructionIndex >= entries.length) {
       const recoverableCleanup: boolean = isRecoverableCompletedCleanup(state);
       if (state.interruption !== undefined && !recoverableCleanup) {
@@ -173,7 +202,9 @@ export namespace EvidenceBenchmarkRunner {
     };
     state.processes.push(processRecord);
 
-    type Outcome = "completed" | "checkpointed" | "interrupted";
+    type Outcome =
+      "completed" | "checkpointed" | "awaiting-supervision" | "interrupted";
+    let supervisionGoal: EvidenceBenchmarkSupervisionGoal | undefined;
     let outcome: Outcome | undefined;
     let resolveOutcome!: (value: Outcome) => void;
     const outcomePromise = new Promise<Outcome>((resolve) => {
@@ -401,6 +432,13 @@ export namespace EvidenceBenchmarkRunner {
             "Requested benchmark stop lacks its durable recovery checkpoint.",
           );
         finish("checkpointed");
+      } else if (
+        props.pauseAfterGoals?.includes(
+          record.name as EvidenceBenchmarkSupervisionGoal,
+        )
+      ) {
+        supervisionGoal = record.name as EvidenceBenchmarkSupervisionGoal;
+        finish("awaiting-supervision");
       } else if (state.nextInstructionIndex === entries.length)
         finish("completed");
       else {
@@ -1174,10 +1212,21 @@ export namespace EvidenceBenchmarkRunner {
     state.status = cleanExit
       ? result === "checkpointed"
         ? "checkpointed"
-        : result === "completed"
-          ? "completed"
-          : "interrupted"
+        : result === "awaiting-supervision"
+          ? "awaiting-supervision"
+          : result === "completed"
+            ? "completed"
+            : "interrupted"
       : "interrupted";
+    if (state.status === "awaiting-supervision") {
+      if (supervisionGoal === undefined)
+        throw new Error("Supervision pause omitted its completed Goal.");
+      state.supervisionPauses ??= [];
+      state.supervisionPauses.push({
+        afterGoal: supervisionGoal,
+        pausedAt: new Date().toISOString(),
+      });
+    }
     publish();
     await publication;
     if (publicationFailed) state.status = "interrupted";

@@ -50,11 +50,22 @@ interface IDashboardInstruction {
 }
 
 interface IDashboardState {
-  status: "ready" | "running" | "checkpointed" | "interrupted" | "completed";
+  status:
+    | "ready"
+    | "running"
+    | "checkpointed"
+    | "awaiting-supervision"
+    | "rejected"
+    | "interrupted"
+    | "completed";
   nextInstructionIndex: number;
   threadTokenUsage: IEvidenceBenchmarkTokenUsage;
   goals: IDashboardInstruction[];
   processes: IDashboardProcess[];
+  supervisionPauses?: {
+    pausedAt: string;
+    resumedAt?: string;
+  }[];
   inheritedProcessElapsedMs?: number;
 }
 
@@ -311,7 +322,10 @@ const collectRunApiCost = (
 ): IEvidenceBenchmarkApiCost | null => {
   const file: IDashboardStateFile = run.file;
   const strict: boolean =
-    file.state.status === "completed" || file.state.status === "checkpointed";
+    file.state.status === "completed" ||
+    file.state.status === "checkpointed" ||
+    file.state.status === "awaiting-supervision" ||
+    file.state.status === "rejected";
   if (file.cell.checkpointSource === undefined)
     return collectEvidenceBenchmarkApiCost({
       rawLog: file.records.raw,
@@ -399,12 +413,47 @@ const findCheckpointOrigin = (
 const wallElapsed = (run: IDashboardRun, generatedAt: number): number => {
   const stoppedAt: number | undefined =
     run.file.state.status === "completed" ||
-    run.file.state.status === "checkpointed"
+    run.file.state.status === "checkpointed" ||
+    run.file.state.status === "awaiting-supervision" ||
+    run.file.state.status === "rejected"
       ? readLastRecordedTime(run.file.records.events)
       : generatedAt;
+  const effectiveStoppedAt: number = stoppedAt ?? run.launchedAt;
+  const supervisionElapsedMs: number =
+    run.file.state.supervisionPauses?.reduce(
+      (sum, pause) =>
+        sum +
+        intervalOverlap(
+          run.launchedAt,
+          effectiveStoppedAt,
+          Date.parse(pause.pausedAt),
+          pause.resumedAt === undefined
+            ? effectiveStoppedAt
+            : Date.parse(pause.resumedAt),
+        ),
+      0,
+    ) ?? 0;
   return (
-    Math.max(0, (stoppedAt ?? run.launchedAt) - run.launchedAt) +
+    Math.max(0, effectiveStoppedAt - run.launchedAt - supervisionElapsedMs) +
     (run.file.cell.checkpointSource?.inheritedWallElapsedMs ?? 0)
+  );
+};
+
+const intervalOverlap = (
+  outerStart: number,
+  outerEnd: number,
+  innerStart: number,
+  innerEnd: number,
+): number => {
+  if (
+    [outerStart, outerEnd, innerStart, innerEnd].some(
+      (value) => Number.isFinite(value) === false,
+    )
+  )
+    return 0;
+  return Math.max(
+    0,
+    Math.min(outerEnd, innerEnd) - Math.max(outerStart, innerStart),
   );
 };
 
@@ -457,7 +506,10 @@ const stageMeasurements = (
     state.goals.find(
       (instruction) => instruction.index === state.nextInstructionIndex,
     ) ??
-    (state.status === "completed" || state.status === "checkpointed"
+    (state.status === "completed" ||
+    state.status === "checkpointed" ||
+    state.status === "awaiting-supervision" ||
+    state.status === "rejected"
       ? undefined
       : state.goals.at(-1));
   const retainedTokens: number = state.goals.reduce(

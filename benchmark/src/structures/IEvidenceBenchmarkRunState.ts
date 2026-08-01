@@ -2,8 +2,10 @@ import type { IEvidenceBenchmarkCheckpoint } from "./IEvidenceBenchmarkCheckpoin
 import type { IEvidenceBenchmarkGoalRecord } from "./IEvidenceBenchmarkGoalRecord.ts";
 import type { IEvidenceBenchmarkInterruption } from "./IEvidenceBenchmarkInterruption.ts";
 import type { IEvidenceBenchmarkProcessRecord } from "./IEvidenceBenchmarkProcessRecord.ts";
+import type { IEvidenceBenchmarkSupervisionVerdict } from "./IEvidenceBenchmarkSupervisionVerdict.ts";
 import type { IEvidenceBenchmarkTokenUsage } from "./IEvidenceBenchmarkTokenUsage.ts";
 import type { EvidenceBenchmarkArm } from "../typings/EvidenceBenchmarkArm.ts";
+import type { EvidenceBenchmarkSupervisionGoal } from "../typings/EvidenceBenchmarkSupervisionGoal.ts";
 
 /**
  * Complete resumable Codex state for one benchmark cell.
@@ -25,7 +27,14 @@ export interface IEvidenceBenchmarkRunState {
   nextInstructionIndex: number;
 
   /** Current runner lifecycle state. */
-  status: "ready" | "running" | "checkpointed" | "interrupted" | "completed";
+  status:
+    | "ready"
+    | "running"
+    | "checkpointed"
+    | "awaiting-supervision"
+    | "rejected"
+    | "interrupted"
+    | "completed";
 
   /** Latest cumulative thread token counters. */
   threadTokenUsage: IEvidenceBenchmarkTokenUsage;
@@ -35,6 +44,14 @@ export interface IEvidenceBenchmarkRunState {
 
   /** Durable recovery points created at prescribed Goal boundaries. */
   checkpoints?: IEvidenceBenchmarkCheckpoint[];
+
+  /** Clean external-supervision boundaries retained outside agent self-report. */
+  supervisionPauses?: {
+    afterGoal: EvidenceBenchmarkSupervisionGoal;
+    pausedAt: string;
+    verdict?: IEvidenceBenchmarkSupervisionVerdict;
+    resumedAt?: string;
+  }[];
 
   /** Process time inherited by a checkpoint-derived run. */
   inheritedProcessElapsedMs?: number;

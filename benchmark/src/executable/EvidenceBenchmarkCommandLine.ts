@@ -31,6 +31,7 @@ interface IEvidenceBenchmarkArguments {
   runId?: string;
   checkpointRunId?: string;
   stopAfter?: "backend-start";
+  supervision?: "backend";
 }
 
 interface IEvidenceBenchmarkCell {
@@ -50,6 +51,7 @@ interface IEvidenceBenchmarkCell {
     inheritedWallElapsedMs: number;
   };
   stopAfter?: "backend-start";
+  supervision?: "backend";
 }
 
 interface IEvidenceBenchmarkRecordPaths {
@@ -90,6 +92,7 @@ const main = async (): Promise<void> => {
     effort: options.effort,
     inputIdentity,
     stopAfter: options.stopAfter,
+    supervision: options.supervision,
   };
   const output: string = path.join(
     repository,
@@ -140,7 +143,8 @@ const main = async (): Promise<void> => {
     cell.model !== requestedCell.model ||
     cell.effort !== requestedCell.effort ||
     cell.runId !== requestedCell.runId ||
-    cell.stopAfter !== requestedCell.stopAfter
+    cell.stopAfter !== requestedCell.stopAfter ||
+    cell.supervision !== requestedCell.supervision
   )
     throw new Error("Retained benchmark cell does not match the invocation.");
   if (retained !== undefined)
@@ -170,6 +174,8 @@ const main = async (): Promise<void> => {
       throw new Error(
         "Checkpoint-only runs cannot resume; derive a run from backend-start.",
       );
+    if (retained.state.status === "rejected")
+      throw new Error("Externally rejected benchmark runs cannot resume.");
     assertRegularFile(records.state);
     await runBenchmark(cell, records, retained.state, runnerRevision);
     return;
@@ -436,12 +442,17 @@ const runBenchmark = async (
     const result = await EvidenceBenchmarkRunner.run({
       state: initialState,
       cwd: records.workspace,
+      runRoot: records.root,
       instructionsRoot: path.join(repository, "benchmark", "instructions"),
       model: cell.model,
       effort: cell.effort,
       runnerRevision,
       fork,
       stopAfterGoal: cell.stopAfter,
+      pauseAfterGoals:
+        cell.supervision === "backend"
+          ? ["backend-review", "backend-final"]
+          : undefined,
       environment,
       onOutput,
       onState,
@@ -458,7 +469,13 @@ const runBenchmark = async (
     });
     if (
       result.status !== "completed" &&
-      !(result.status === "checkpointed" && cell.stopAfter === "backend-start")
+      !(
+        result.status === "checkpointed" && cell.stopAfter === "backend-start"
+      ) &&
+      !(
+        result.status === "awaiting-supervision" &&
+        cell.supervision === "backend"
+      )
     )
       throw new Error(
         "Benchmark run was interrupted; resume the retained run.",
@@ -511,9 +528,9 @@ const assertSameInputIdentity = (
 export const parseEvidenceBenchmarkArguments = (
   input: readonly string[],
 ): IEvidenceBenchmarkArguments => {
-  if (input.length < 5 || input.length > 7)
+  if (input.length < 5 || input.length > 8)
     throw new Error(
-      "Usage: pnpm start codex <subject> <evidence|plain> <model> <effort> [run-id [--stop-after-backend-start] | --stop-after-backend-start | --from-backend-start source-run-id]",
+      "Usage: pnpm start codex <subject> <evidence|plain> <model> <effort> [run-id] [--stop-after-backend-start | --from-backend-start source-run-id] [--supervise-backend]",
     );
   const engine: string = input[0]!;
   if (engine !== "codex")
@@ -537,27 +554,34 @@ export const parseEvidenceBenchmarkArguments = (
   )
     throw new Error(`Invalid benchmark effort: ${effort}.`);
   const optional: readonly string[] = input.slice(5);
-  const checkpointRunId: string | undefined =
-    optional[0] === "--from-backend-start" ? optional[1] : undefined;
-  const stopAfter: "backend-start" | undefined =
-    optional[0] === "--stop-after-backend-start" ||
-    optional[1] === "--stop-after-backend-start"
-      ? "backend-start"
-      : undefined;
-  const runId: string | undefined =
-    optional[0] !== "--from-backend-start" &&
-    optional[0] !== "--stop-after-backend-start"
-      ? optional[0]
-      : undefined;
-  const validOptional: boolean =
-    optional.length === 0 ||
-    (optional.length === 1 &&
-      (runId !== undefined || stopAfter !== undefined)) ||
-    (optional.length === 2 &&
-      ((checkpointRunId !== undefined && stopAfter === undefined) ||
-        (runId !== undefined && stopAfter !== undefined)));
-  if (!validOptional)
-    throw new Error("Invalid backend-start checkpoint invocation.");
+  let runId: string | undefined;
+  let checkpointRunId: string | undefined;
+  let stopAfter: "backend-start" | undefined;
+  let supervision: "backend" | undefined;
+  for (let i = 0; i < optional.length; ++i) {
+    const argument: string = optional[i]!;
+    if (argument === "--from-backend-start") {
+      if (checkpointRunId !== undefined || optional[i + 1] === undefined)
+        throw new Error("Invalid backend-start checkpoint invocation.");
+      checkpointRunId = optional[++i];
+    } else if (argument === "--stop-after-backend-start") {
+      if (stopAfter !== undefined)
+        throw new Error("Duplicate backend-start stop option.");
+      stopAfter = "backend-start";
+    } else if (argument === "--supervise-backend") {
+      if (supervision !== undefined)
+        throw new Error("Duplicate backend supervision option.");
+      supervision = "backend";
+    } else if (runId === undefined) runId = argument;
+    else throw new Error(`Unexpected benchmark argument: ${argument}.`);
+  }
+  if (
+    (checkpointRunId !== undefined && stopAfter !== undefined) ||
+    (checkpointRunId !== undefined && runId !== undefined) ||
+    (stopAfter !== undefined && supervision !== undefined) ||
+    (supervision !== undefined && arm !== "plain")
+  )
+    throw new Error("Invalid benchmark checkpoint or supervision options.");
   if (
     runId !== undefined &&
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -581,6 +605,7 @@ export const parseEvidenceBenchmarkArguments = (
     runId,
     checkpointRunId,
     stopAfter,
+    supervision,
   };
 };
 

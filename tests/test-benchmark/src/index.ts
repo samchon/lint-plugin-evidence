@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
 
 import { EvidenceBenchmarkRunner } from "../../../benchmark/src/EvidenceBenchmarkRunner.ts";
+import { EvidenceBenchmarkSupervision } from "../../../benchmark/src/EvidenceBenchmarkSupervision.ts";
 import type { IEvidenceBenchmarkOutput } from "../../../benchmark/src/structures/IEvidenceBenchmarkOutput.ts";
 import type { IEvidenceBenchmarkRunState } from "../../../benchmark/src/structures/IEvidenceBenchmarkRunState.ts";
 import type { IEvidenceBenchmarkTokenUsage } from "../../../benchmark/src/structures/IEvidenceBenchmarkTokenUsage.ts";
@@ -316,6 +317,212 @@ const main = async (): Promise<void> => {
     const backendStart = structuredClone(completed.goals[0]!);
     assert.ok(backendCheckpoint);
     assert.ok(backendStart.tokenUsageEnd);
+    backendStart.relativePath = "plain/backend/start.md";
+    const supervisedRunRoot: string = path.join(root, "supervised-run");
+    const supervisedWorkspace: string = path.join(
+      supervisedRunRoot,
+      "workspace",
+    );
+    fs.mkdirSync(supervisedWorkspace, { recursive: true });
+    fs.cpSync(
+      path.join(root, "plain"),
+      path.join(supervisedWorkspace, "plain"),
+      {
+        recursive: true,
+      },
+    );
+    fs.cpSync(
+      path.join(root, "evidence"),
+      path.join(supervisedWorkspace, "evidence"),
+      { recursive: true },
+    );
+    fs.writeFileSync(path.join(supervisedWorkspace, "tracked.txt"), "base\n");
+    git(supervisedWorkspace, ["init", "-b", "benchmark"]);
+    git(supervisedWorkspace, ["add", "-A"]);
+    git(supervisedWorkspace, [
+      "-c",
+      "user.name=Benchmark Fixture",
+      "-c",
+      "user.email=fixture@example.com",
+      "commit",
+      "-m",
+      "baseline",
+    ]);
+    const supervisedStatePath: string = path.join(
+      supervisedRunRoot,
+      "state.json",
+    );
+    const expectations: string = path.join(root, "expectations.md");
+    const report: string = path.join(root, "report.md");
+    fs.writeFileSync(expectations, "# Independent expectations\n\nComplete.\n");
+    fs.writeFileSync(report, "# External audit\n\nApproved.\n");
+    const supervisedOutput: IEvidenceBenchmarkOutput[] = [];
+    const supervised = await EvidenceBenchmarkRunner.run({
+      state: {
+        arm: "plain",
+        cliVersion: "fixture-cli",
+        nextInstructionIndex: 1,
+        status: "ready",
+        threadTokenUsage: structuredClone(backendStart.tokenUsageEnd),
+        goals: [structuredClone(backendStart)],
+        checkpoints: [structuredClone(backendCheckpoint)],
+        inheritedProcessElapsedMs: 1_000,
+        processes: [],
+      },
+      cwd: supervisedWorkspace,
+      runRoot: supervisedRunRoot,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      fork: {
+        sourceSessionId: backendCheckpoint.sourceSessionId,
+        terminalTurnId: backendCheckpoint.terminalTurnId,
+      },
+      pauseAfterGoals: ["backend-review", "backend-final"],
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--plain-arm",
+        "--previous-goal",
+        "--fork",
+      ],
+      onOutput: (_processIndex, output) => {
+        supervisedOutput.push(output);
+      },
+    });
+    assert.equal(
+      supervised.status,
+      "awaiting-supervision",
+      JSON.stringify({
+        interruption: supervised.interruption,
+        stderr: supervisedOutput
+          .filter((output) => output.stream === "stderr")
+          .map((output) => output.text),
+      }),
+    );
+    assert.equal(supervised.nextInstructionIndex, 2);
+    assert.equal(supervised.goals.length, 2);
+    assert.equal(supervised.goals[1]?.name, "backend-review");
+    assert.equal(supervised.goals[1]?.goal?.status, "complete");
+    assert.equal(supervised.supervisionPauses?.length, 1);
+    assert.equal(
+      supervised.supervisionPauses?.[0]?.afterGoal,
+      "backend-review",
+    );
+    assert.equal(supervised.supervisionPauses?.[0]?.resumedAt, undefined);
+    assert.equal(
+      supervisedOutput
+        .filter((output) => output.stream === "stdin")
+        .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+        .filter((request) => request.method === "thread/goal/set").length,
+      1,
+    );
+    writeSupervisedState({
+      root: supervisedRunRoot,
+      workspace: supervisedWorkspace,
+      state: supervised,
+    });
+    const rejectedRunRoot: string = path.join(root, "rejected-run");
+    const rejectedWorkspace: string = path.join(rejectedRunRoot, "workspace");
+    fs.cpSync(supervisedWorkspace, rejectedWorkspace, { recursive: true });
+    writeSupervisedState({
+      root: rejectedRunRoot,
+      workspace: rejectedWorkspace,
+      state: structuredClone(supervised),
+    });
+    const rejectedVerdict = EvidenceBenchmarkSupervision.decide({
+      runRoot: rejectedRunRoot,
+      decision: "rejected",
+      expectations,
+      report,
+    });
+    assert.equal(rejectedVerdict.decision, "rejected");
+    assert.equal(
+      readSupervisedState(path.join(rejectedRunRoot, "state.json")).status,
+      "rejected",
+    );
+    const firstVerdict = EvidenceBenchmarkSupervision.decide({
+      runRoot: supervisedRunRoot,
+      decision: "approved",
+      expectations,
+      report,
+    });
+    assert.equal(firstVerdict.decision, "approved");
+    const approved = readSupervisedState(supervisedStatePath);
+    fs.appendFileSync(
+      path.join(supervisedWorkspace, "tracked.txt"),
+      "tamper\n",
+    );
+    await assert.rejects(
+      EvidenceBenchmarkRunner.run({
+        state: approved,
+        cwd: supervisedWorkspace,
+        runRoot: supervisedRunRoot,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        pauseAfterGoals: ["backend-review", "backend-final"],
+        command: process.execPath,
+        commandPrefixArguments: prefix,
+        onOutput: () => undefined,
+      }),
+      /Workspace changed after its external approval/u,
+    );
+    fs.writeFileSync(path.join(supervisedWorkspace, "tracked.txt"), "base\n");
+
+    const resumedSupervised = await EvidenceBenchmarkRunner.run({
+      state: approved,
+      cwd: supervisedWorkspace,
+      runRoot: supervisedRunRoot,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      pauseAfterGoals: ["backend-review", "backend-final"],
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--plain-arm",
+        "--fork",
+        "--current-goal",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(resumedSupervised.status, "awaiting-supervision");
+    assert.equal(resumedSupervised.nextInstructionIndex, 3);
+    assert.equal(resumedSupervised.goals.length, 3);
+    assert.equal(resumedSupervised.goals[2]?.name, "backend-final");
+    assert.equal(resumedSupervised.goals[2]?.goal?.status, "complete");
+    assert.equal(resumedSupervised.supervisionPauses?.length, 2);
+    assert.equal(
+      resumedSupervised.supervisionPauses?.[0]?.afterGoal,
+      "backend-review",
+    );
+    assert.ok(resumedSupervised.supervisionPauses?.[0]?.resumedAt);
+    assert.equal(
+      resumedSupervised.supervisionPauses?.[1]?.afterGoal,
+      "backend-final",
+    );
+    assert.equal(
+      resumedSupervised.supervisionPauses?.[1]?.resumedAt,
+      undefined,
+    );
+    writeSupervisedState({
+      root: supervisedRunRoot,
+      workspace: supervisedWorkspace,
+      state: resumedSupervised,
+    });
+    const finalVerdict = EvidenceBenchmarkSupervision.decide({
+      runRoot: supervisedRunRoot,
+      decision: "approved",
+      expectations,
+      report,
+    });
+    assert.equal(finalVerdict.decision, "approved");
+    const finalApproved = readSupervisedState(supervisedStatePath);
+    assert.equal(
+      finalApproved.supervisionPauses?.[1]?.verdict?.decision,
+      "approved",
+    );
     const forkOutput: IEvidenceBenchmarkOutput[] = [];
     const forked = await EvidenceBenchmarkRunner.run({
       state: {
@@ -1412,6 +1619,12 @@ const fakeAppServer = (): void => {
     previousActive ||
     undispatched ||
     process.argv.includes("--previous-goal");
+  const fixtureEntries = process.argv.includes("--plain-arm")
+    ? PLAIN_ENTRIES
+    : ENTRIES;
+  const fixtureArm: "plain" | "evidence" = process.argv.includes("--plain-arm")
+    ? "plain"
+    : "evidence";
   const resumeStatusBeforeResponse: boolean = process.argv.includes(
     "--resume-status-before-response",
   );
@@ -1461,12 +1674,12 @@ const fakeAppServer = (): void => {
   const input = readline.createInterface({ input: process.stdin });
   const retainedObjective = (): string => {
     const relativePath: string =
-      ENTRIES[currentGoal || undispatchedNext ? 1 : 0]![1];
+      fixtureEntries[currentGoal || undispatchedNext ? 1 : 0]![1];
     return `${fs.readFileSync(
       path.join(process.cwd(), ...relativePath.split("/")),
       "utf8",
     )}\n\n${fs.readFileSync(
-      path.join(process.cwd(), "evidence", "continue.md"),
+      path.join(process.cwd(), fixtureArm, "continue.md"),
       "utf8",
     )}`;
   };
@@ -1874,6 +2087,46 @@ const fakeAppServer = (): void => {
         windowsHide: true,
       }).unref();
   });
+};
+
+const writeSupervisedState = (props: {
+  root: string;
+  workspace: string;
+  state: IEvidenceBenchmarkRunState;
+}): void => {
+  const state: string = path.join(props.root, "state.json");
+  fs.writeFileSync(
+    state,
+    `${JSON.stringify(
+      {
+        cell: { arm: "plain", runId: "fixture-supervised" },
+        records: { root: props.root, workspace: props.workspace, state },
+        state: props.state,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+};
+
+const readSupervisedState = (file: string): IEvidenceBenchmarkRunState =>
+  (
+    JSON.parse(fs.readFileSync(file, "utf8")) as {
+      state: IEvidenceBenchmarkRunState;
+    }
+  ).state;
+
+const git = (cwd: string, arguments_: readonly string[]): void => {
+  const result = spawnSync("git", arguments_, {
+    cwd,
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  assert.equal(
+    result.status,
+    0,
+    `${result.stdout ?? ""}${result.stderr ?? ""}`,
+  );
 };
 
 if (process.argv.includes("--fake-app-server")) fakeAppServer();
