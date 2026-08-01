@@ -208,17 +208,18 @@ export function second(): void {}
 }
 
 /**
- * Verifies disjoint exclusions and claim-local exclusions remain independent.
+ * Verifies disjoint, claim-local, and reference-local exclusions remain
+ * independent.
  *
  * Exclusion uniqueness belongs to one claim-reference obligation and only to
  * scopes sharing a selected unit. Separate requirements or separate claims
  * express separate reviewed decisions.
  *
  *  1. Exclude two disjoint targets in one claim.
- *  2. Exclude one physical target from two separately named claims.
- *  3. Assert neither arrangement creates a duplicate.
+ *  2. Exclude one physical target from separate claims and reference entries.
+ *  3. Assert none of the arrangements creates a duplicate.
  */
-func TestDisjointAndClaimLocalExclusionsAreAllowed(t *testing.T) {
+func TestDisjointClaimAndReferenceLocalExclusionsAreAllowed(t *testing.T) {
 	t.Run("disjoint scopes", func(t *testing.T) {
 		messages := runIndexRule(t, map[string]string{
 			"docs/spec.md": "## Create {#create}\n## Cancel {#cancel}\n",
@@ -244,6 +245,23 @@ export function frontend(): void {}
 			{"name":"backend","type":"typescript","files":["src/backend.ts"],"symbol":"function","reference":{"type":"markdown","files":["docs/spec.md"],"symbol":"h2"}},
 			{"name":"frontend","type":"typescript","files":["src/frontend.ts"],"symbol":"function","reference":{"type":"markdown","files":["docs/spec.md"],"symbol":"h2"}}
 		]}`)
+		assertNoProblems(t, messages)
+	})
+	t.Run("separate references", func(t *testing.T) {
+		messages := runIndexRule(t, map[string]string{
+			"docs/spec.md": "## Contract {#contract}\n",
+			"src/claim.ts": `/** @evidenceExclude docs/spec.md#contract This claim does not own the contract. */
+export function claim(): void {}
+`,
+		}, `{"claims":[{
+			"type":"typescript",
+			"files":["src/claim.ts"],
+			"symbol":"function",
+			"reference":[
+				{"type":"markdown","files":["docs/spec.md"],"symbol":"h2"},
+				{"type":"markdown","files":["docs/spec.md"],"symbol":"h2"}
+			]
+		}]}`)
 		assertNoProblems(t, messages)
 	})
 }
