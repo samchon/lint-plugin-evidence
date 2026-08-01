@@ -46,8 +46,8 @@ export interface IEvidenceGraphTypeScriptReference {
    * flattens one, and `export { A as B }` addresses the symbol as `B`.
    *
    * Identity still belongs to the declaring file. A symbol an entry exposes
-   * through two paths is one unit answering to two addresses, so it is
-   * acknowledged once rather than owed twice.
+   * through two paths answers to two addresses but remains one coverage unit
+   * rather than two obligations.
    *
    * Mutually exclusive with {@link files}: they select the same population two
    * different ways. Project-relative, or package-relative when {@link package}

@@ -101,7 +101,7 @@ export function detail(): void {}
 }
 
 /**
- * Verifies a symbol an entry exposes twice is one unit acknowledged once.
+ * Verifies a symbol an entry exposes twice remains one coverage unit.
  *
  * Both addresses have to resolve, because both are real to an importer, and
  * neither may create a second obligation — a barrel that also re-exports a
@@ -109,7 +109,7 @@ export function detail(): void {}
  * citations for one contract.
  *
  *  1. Expose one declaration flat and under a namespace from the same entry.
- *  2. Acknowledge it exactly once, through one of the two addresses.
+ *  2. Acknowledge its one coverage obligation through either address.
  *  3. Assert silence, so the other address created no second obligation.
  */
 func TestGraphCountsATwiceReachedSymbolOnce(t *testing.T) {

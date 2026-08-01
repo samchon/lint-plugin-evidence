@@ -372,8 +372,8 @@ func evaluateEvidenceGraph(
 						owner = addressPath
 					}
 					// Every address the unit answers to indexes the same unit, so
-					// a symbol an entry exposes by two paths is one obligation
-					// acknowledged once rather than two competing candidates.
+					// a symbol an entry exposes by two paths remains one coverage
+					// unit rather than two competing candidates.
 					for _, address := range append([]string{unit.Target}, unit.Aliases...) {
 						key := scopedTargetKey(owner, address)
 						if scopedTargets[key] == nil {

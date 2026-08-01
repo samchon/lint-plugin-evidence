@@ -229,7 +229,7 @@ A TypeScript reference selects its population three ways, and the choice decides
 
 `files` and `file` are mutually exclusive, and a local reference must set one of them; there is no implicit project entry.
 
-An entry-selected population is addressed the way a consumer reaches it, not the way the declaring file spells it: `export * as functional` nests a path segment, `export * from` flattens one, and `export { A as B }` addresses the symbol as `B`. That is what makes `api.functional.questions.get` nameable. Identity still belongs to the declaring file, so a symbol an entry exposes through two paths is one unit answering to two addresses — acknowledged once rather than owed twice.
+An entry-selected population is addressed the way a consumer reaches it, not the way the declaring file spells it: `export * as functional` nests a path segment, `export * from` flattens one, and `export { A as B }` addresses the symbol as `B`. That is what makes `api.functional.questions.get` nameable. Identity still belongs to the declaring file, so a symbol an entry exposes through two paths answers to two addresses but remains one coverage unit rather than two obligations.
 
 A `package` population is read from disk rather than from the `ttsc` program, which is the point: a symbol nothing imports is absent from the program by definition, and it is exactly the symbol an obligation needs to name. Without `file` or `files`, the package's declaration entry is the population, resolved through the `types` condition of its `exports` map, then `typesVersions`, then `types` or `typings` — never `main`, which names the JavaScript a consumer runs rather than the declarations a citation can address. With `files`, the globs are package-relative.
 

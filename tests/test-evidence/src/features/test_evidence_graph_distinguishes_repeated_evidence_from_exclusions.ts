@@ -7,6 +7,7 @@ import {
   runCheck,
   type ICreateProjectProps,
   type IEvidenceProject,
+  type IRunResult,
 } from "../internal/index.ts";
 
 const lintConfig: string = [
@@ -34,7 +35,9 @@ const lintConfig: string = [
   "",
 ].join("\n");
 
-const runProject = (props: Omit<ICreateProjectProps, "lintConfig">) => {
+const runProject = (
+  props: Omit<ICreateProjectProps, "lintConfig">,
+): IRunResult => {
   const project: IEvidenceProject = createProject({ ...props, lintConfig });
   try {
     return runCheck(project.directory);

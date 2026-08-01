@@ -11,7 +11,7 @@ import (
  *
  * These failures share one tag grammar but have different repairs. Collapsing
  * them into "not covered" would hide whether the author must add a reason,
- * correct a target, or remove a second acknowledgement.
+ * correct a target, or remove a contradictory acknowledgement.
  *
  *  1. Add one valid declaration and three adjacent invalid declarations.
  *  2. Evaluate them against one configured source unit.
