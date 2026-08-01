@@ -18,9 +18,9 @@ import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm.ts";
 /**
  * Executes the retained Codex Goal sequence for one benchmark cell.
  *
- * The runner sends the eight frozen objectives through one app-server thread,
- * retaining native Goal, terminal-turn, idle, token, process, and raw-stream
- * boundaries without judging or editing the measured application.
+ * The runner sends the arm-owned frozen objectives through one app-server
+ * thread, retaining native Goal, terminal-turn, idle, token, process, and
+ * raw-stream boundaries without judging or editing the measured application.
  */
 export namespace EvidenceBenchmarkRunner {
   const PROCESS_CLEANUP_ERROR =
@@ -173,17 +173,13 @@ export namespace EvidenceBenchmarkRunner {
     };
     state.processes.push(processRecord);
 
-    let outcome: "completed" | "interrupted" | undefined;
-    let resolveOutcome!: (value: "completed" | "interrupted") => void;
-    const outcomePromise = new Promise<"completed" | "interrupted">(
-      (resolve) => {
-        resolveOutcome = resolve;
-      },
-    );
-    const finish = (
-      value: "completed" | "interrupted",
-      interruption?: unknown,
-    ): void => {
+    type Outcome = "completed" | "checkpointed" | "interrupted";
+    let outcome: Outcome | undefined;
+    let resolveOutcome!: (value: Outcome) => void;
+    const outcomePromise = new Promise<Outcome>((resolve) => {
+      resolveOutcome = resolve;
+    });
+    const finish = (value: Outcome, interruption?: unknown): void => {
       if (interruption !== undefined && state.interruption === undefined)
         state.interruption = normalizeInterruption(interruption);
       if (outcome !== undefined) return;
@@ -394,7 +390,19 @@ export namespace EvidenceBenchmarkRunner {
       publish();
       await publication;
       if (outcome !== undefined) return;
-      if (state.nextInstructionIndex === entries.length) finish("completed");
+      if (props.stopAfterGoal === record.name) {
+        if (
+          record.name !== "backend-start" ||
+          !(state.checkpoints ?? []).some(
+            (checkpoint) => checkpoint.name === "backend-start",
+          )
+        )
+          throw new Error(
+            "Requested benchmark stop lacks its durable recovery checkpoint.",
+          );
+        finish("checkpointed");
+      } else if (state.nextInstructionIndex === entries.length)
+        finish("completed");
       else {
         await beginGoal();
         advancing = false;
@@ -1134,7 +1142,7 @@ export namespace EvidenceBenchmarkRunner {
         );
     }
 
-    const result: "completed" | "interrupted" = await outcomePromise;
+    const result: Outcome = await outcomePromise;
     await notifications;
     await publication;
     child.stdin.end();
@@ -1157,15 +1165,19 @@ export namespace EvidenceBenchmarkRunner {
     await notifications;
     await outputPublication;
     await publication;
-    state.status =
-      result === "completed" &&
+    const cleanExit: boolean =
       ((processRecord.exitCode === 0 && processRecord.signal === null) ||
         processRecord.shutdownForced === true) &&
       state.interruption === undefined &&
       !outputFailed &&
-      !publicationFailed
-        ? "completed"
-        : "interrupted";
+      !publicationFailed;
+    state.status = cleanExit
+      ? result === "checkpointed"
+        ? "checkpointed"
+        : result === "completed"
+          ? "completed"
+          : "interrupted"
+      : "interrupted";
     publish();
     await publication;
     if (publicationFailed) state.status = "interrupted";
@@ -1173,7 +1185,7 @@ export namespace EvidenceBenchmarkRunner {
   }
 
   /**
-   * Returns the frozen eight-objective sequence for an experiment arm.
+   * Returns the frozen objective sequence for an experiment arm.
    *
    * Each arm owns every instruction byte. Paths and positions remain comparable
    * without either arm reading a shared runtime objective.
@@ -1181,16 +1193,21 @@ export namespace EvidenceBenchmarkRunner {
   export function instructionEntries(
     arm: EvidenceBenchmarkArm,
   ): readonly (readonly [string, string])[] {
-    return [
+    const scoped: readonly (readonly [string, string])[] = [
       ["backend-start", `${arm}/backend/start.md`],
       ["backend-review", `${arm}/backend/review.md`],
       ["backend-final", `${arm}/backend/final.md`],
       ["frontend-start", `${arm}/frontend/start.md`],
       ["frontend-review", `${arm}/frontend/review.md`],
       ["frontend-final", `${arm}/frontend/final.md`],
-      ["overall-review", `${arm}/overall/review.md`],
-      ["overall-final", `${arm}/overall/final.md`],
     ];
+    return arm === "evidence"
+      ? scoped
+      : [
+          ...scoped,
+          ["overall-review", `${arm}/overall/review.md`],
+          ["overall-final", `${arm}/overall/final.md`],
+        ];
   }
 
   /** Returns the arm-owned continuation appended to every objective. */

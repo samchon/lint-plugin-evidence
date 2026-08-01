@@ -43,6 +43,7 @@ const main = (): void => {
       effort: "high",
       runId,
       checkpointRunId: undefined,
+      stopAfter: undefined,
     },
   );
   assert.deepEqual(
@@ -61,6 +62,7 @@ const main = (): void => {
       effort: "medium",
       runId: undefined,
       checkpointRunId: undefined,
+      stopAfter: undefined,
     },
   );
   assert.deepEqual(
@@ -81,11 +83,62 @@ const main = (): void => {
       effort: "high",
       runId: undefined,
       checkpointRunId: runId,
+      stopAfter: undefined,
+    },
+  );
+  assert.deepEqual(
+    parseEvidenceBenchmarkArguments([
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      runId,
+      "--stop-after-backend-start",
+    ]),
+    {
+      engine: "codex",
+      subject: "todo",
+      arm: "plain",
+      model: "gpt-5.6-luna",
+      effort: "high",
+      runId,
+      checkpointRunId: undefined,
+      stopAfter: "backend-start",
+    },
+  );
+  assert.deepEqual(
+    parseEvidenceBenchmarkArguments([
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      "--stop-after-backend-start",
+    ]),
+    {
+      engine: "codex",
+      subject: "todo",
+      arm: "plain",
+      model: "gpt-5.6-luna",
+      effort: "high",
+      runId: undefined,
+      checkpointRunId: undefined,
+      stopAfter: "backend-start",
     },
   );
   for (const input of [
     ["codex", "todo", "plain", "gpt-5.6-luna"],
     ["codex", "todo", "plain", "gpt-5.6-luna", "high", runId, "extra"],
+    [
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      "--from-backend-start",
+      "--stop-after-backend-start",
+    ],
     ["claude-code", "todo", "plain", "gpt-5.6-luna", "high"],
     ["codex", "../todo", "plain", "gpt-5.6-luna", "high"],
     ["codex", "todo", "unknown", "gpt-5.6-luna", "high"],

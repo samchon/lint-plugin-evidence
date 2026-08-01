@@ -44,6 +44,9 @@ export interface IEvidenceBenchmarkRunProps {
     terminalTurnId: string;
   };
 
+  /** Ends cleanly after retaining the named recovery boundary. */
+  stopAfterGoal?: "backend-start";
+
   /** Grace period for app-server to exit after its standard input closes. */
   shutdownGraceMs?: number;
 

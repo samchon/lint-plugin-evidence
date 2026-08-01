@@ -50,7 +50,7 @@ interface IDashboardInstruction {
 }
 
 interface IDashboardState {
-  status: "ready" | "running" | "interrupted" | "completed";
+  status: "ready" | "running" | "checkpointed" | "interrupted" | "completed";
   nextInstructionIndex: number;
   threadTokenUsage: IEvidenceBenchmarkTokenUsage;
   goals: IDashboardInstruction[];
@@ -310,7 +310,8 @@ const collectRunApiCost = (
   byRunId: ReadonlyMap<string, IDashboardRun>,
 ): IEvidenceBenchmarkApiCost | null => {
   const file: IDashboardStateFile = run.file;
-  const strict: boolean = file.state.status === "completed";
+  const strict: boolean =
+    file.state.status === "completed" || file.state.status === "checkpointed";
   if (file.cell.checkpointSource === undefined)
     return collectEvidenceBenchmarkApiCost({
       rawLog: file.records.raw,
@@ -397,7 +398,8 @@ const findCheckpointOrigin = (
 
 const wallElapsed = (run: IDashboardRun, generatedAt: number): number => {
   const stoppedAt: number | undefined =
-    run.file.state.status === "completed"
+    run.file.state.status === "completed" ||
+    run.file.state.status === "checkpointed"
       ? readLastRecordedTime(run.file.records.events)
       : generatedAt;
   return (
@@ -454,7 +456,10 @@ const stageMeasurements = (
   const current: IDashboardInstruction | undefined =
     state.goals.find(
       (instruction) => instruction.index === state.nextInstructionIndex,
-    ) ?? (state.status === "completed" ? undefined : state.goals.at(-1));
+    ) ??
+    (state.status === "completed" || state.status === "checkpointed"
+      ? undefined
+      : state.goals.at(-1));
   const retainedTokens: number = state.goals.reduce(
     (sum, instruction) => sum + instruction.tokenUsage.totalTokens,
     0,

@@ -323,8 +323,8 @@ const validateEvidenceWatcherLifecycle = (
   );
   assert.match(
     plainBackendStart,
-    /persistent background process before implementation[\s\S]*keep it running through Overall Final/u,
-    "Plain backend-start must retain its resident watcher lifecycle.",
+    /complete first implementation exists[\s\S]*start `pnpm check:watch`[\s\S]*stop the watcher/u,
+    "Plain backend-start must retain its delayed, bounded watcher lifecycle.",
   );
 
   const sharedSkills = collectFiles(
@@ -335,13 +335,8 @@ const validateEvidenceWatcherLifecycle = (
     .join("\n");
   assert.doesNotMatch(
     sharedSkills,
-    /Complete the backend first draft before starting `pnpm check:watch`|Waiting for the complete first draft|stop the watcher so it cannot overlap/iu,
-    "Base skills must not impose the Evidence watcher lifecycle on Plain.",
-  );
-  assert.match(
-    sharedSkills,
-    /benchmark arms intentionally use different watcher lifecycles/iu,
-    "Base skills must keep the arm-specific watcher lifecycles explicit.",
+    /keep (?:it|the watcher) running through Overall Final|persistent background process before implementation/iu,
+    "Base skills must not impose a resident process lifecycle on either arm.",
   );
 };
 

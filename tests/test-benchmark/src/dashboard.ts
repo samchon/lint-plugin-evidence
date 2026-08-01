@@ -117,7 +117,7 @@ const main = (): void => {
       workspace: evidenceWorkspace,
       launchedAt: "2026-07-31T02:00:00.000Z",
       status: "completed",
-      nextInstructionIndex: 8,
+      nextInstructionIndex: 6,
       totalTokens: 400_000,
       tokenUsage: {
         totalTokens: 400_000,
@@ -151,9 +151,7 @@ const main = (): void => {
         goal(2, "backend-final", 25_000, 200_000),
         goal(3, "frontend-start", 75_000, 500_000),
         goal(4, "frontend-review", 50_000, 600_000),
-        goal(5, "frontend-final", 25_000, 300_000),
-        goal(6, "overall-review", 75_000, 800_000),
-        goal(7, "overall-final", 50_000, 560_000),
+        goal(5, "frontend-final", 150_000, 1_660_000),
       ],
       processes: [{ elapsedMs: 3_660_000, exitCode: 0, signal: null }],
       outputEvents: [],
@@ -201,7 +199,7 @@ const main = (): void => {
     );
     assert.match(
       dashboard,
-      /^\| Todo Evidence \| `overall-final` · completed \| 0 files · \+0\/−0 LOC \| 0M \| 1h 01m \|$/mu,
+      /^\| Todo Evidence \| `frontend-final` · completed \| 0 files · \+0\/−0 LOC \| 0M \| 1h 01m \|$/mu,
     );
     assert.match(
       dashboard,
@@ -218,7 +216,7 @@ const main = (): void => {
     );
     assert.match(
       dashboard,
-      /^  - `overall-final`: 0M · 9m · 13% tokens · 15% time$/mu,
+      /^  - `frontend-final`: 0M · 28m · 38% tokens · 45% time$/mu,
     );
     assert.match(
       dashboard,
@@ -389,11 +387,7 @@ const main = (): void => {
     );
     assert.match(
       tokensSvg,
-      /data-phase="frontend-review" data-tokens="75000"/u,
-    );
-    assert.match(
-      tokensSvg,
-      /data-phase="overall-review" data-tokens="125000"/u,
+      /data-phase="frontend-review" data-tokens="200000"/u,
     );
     assert.match(tokensSvg, /1\.6M tokens/u);
     assert.match(tokensSvg, /400k tokens \(-75%\)/u);
@@ -434,8 +428,10 @@ const main = (): void => {
       workTimeSvg,
       /data-phase="frontend-development" data-ms="500000"/u,
     );
-    assert.match(workTimeSvg, /data-phase="frontend-review" data-ms="900000"/u);
-    assert.match(workTimeSvg, /data-phase="overall-review" data-ms="1360000"/u);
+    assert.match(
+      workTimeSvg,
+      /data-phase="frontend-review" data-ms="2260000"/u,
+    );
     assert.match(workTimeSvg, />1h 01m</u);
     assert.equal(workTimeSvg.includes("Stage: backend-review"), false);
     const svgChartFiles: readonly string[] = [
@@ -604,7 +600,7 @@ const writeRun = (props: {
   runId: string;
   workspace: string;
   launchedAt: string;
-  status: "ready" | "running" | "interrupted" | "completed";
+  status: "ready" | "running" | "checkpointed" | "interrupted" | "completed";
   nextInstructionIndex: number;
   totalTokens: number;
   tokenUsage?: ReturnType<typeof tokenUsage>;

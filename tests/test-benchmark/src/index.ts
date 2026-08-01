@@ -17,8 +17,6 @@ const EVIDENCE_ENTRIES = [
   ["frontend-start", "evidence/frontend/start.md"],
   ["frontend-review", "evidence/frontend/review.md"],
   ["frontend-final", "evidence/frontend/final.md"],
-  ["overall-review", "evidence/overall/review.md"],
-  ["overall-final", "evidence/overall/final.md"],
 ] as const;
 
 const PLAIN_ENTRIES = [
@@ -77,7 +75,7 @@ const main = async (): Promise<void> => {
       PLAIN_ENTRIES.some((entry) => evidencePaths.has(entry[1])),
       false,
     );
-    PLAIN_ENTRIES.forEach((entry, index) =>
+    PLAIN_ENTRIES.slice(0, EVIDENCE_ENTRIES.length).forEach((entry, index) =>
       assert.notDeepEqual(
         sources.get(entry[1]),
         sources.get(EVIDENCE_ENTRIES[index]![1]),
@@ -224,6 +222,43 @@ const main = async (): Promise<void> => {
     assert.equal(completed.checkpoints?.length, 1);
     assert.equal(completed.checkpoints?.[0]?.sourceSessionId, "fixture-thread");
     assert.equal(completed.checkpoints?.[0]?.terminalTurnId, "turn-1");
+    const checkpointOnlyOutput: IEvidenceBenchmarkOutput[] = [];
+    const checkpointOnly = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      stopAfterGoal: "backend-start",
+      onOutput: (_processIndex, output) => {
+        checkpointOnlyOutput.push(output);
+      },
+      onCheckpoint: () => ({
+        createdAt: "2026-08-01T00:00:00.000Z",
+        workspaceRelativePath: "checkpoints/backend-start/workspace",
+        workspaceSha256: "checkpoint-only-workspace",
+        workspaceMaterialSha256: "checkpoint-only-material",
+        workspaceFileCount: 3,
+        workspaceGitHead: "checkpoint-only-head",
+        workspaceGitStatus: " M backend.ts\n",
+        inheritedWallElapsedMs: 1_500,
+      }),
+    });
+    assert.equal(checkpointOnly.status, "checkpointed");
+    assert.equal(checkpointOnly.nextInstructionIndex, 1);
+    assert.equal(checkpointOnly.goals.length, 1);
+    assert.equal(checkpointOnly.goals[0]?.goal?.status, "complete");
+    assert.equal(checkpointOnly.checkpoints?.length, 1);
+    assert.equal(checkpointOnly.processes.length, 1);
+    assert.equal(
+      checkpointOnlyOutput
+        .filter((output) => output.stream === "stdin")
+        .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+        .filter((request) => request.method === "thread/goal/set").length,
+      1,
+    );
     const requests = completedOutput
       .filter((output) => output.stream === "stdin")
       .map((output) => JSON.parse(output.text) as Record<string, unknown>);

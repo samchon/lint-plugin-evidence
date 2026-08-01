@@ -30,6 +30,7 @@ interface IEvidenceBenchmarkArguments {
   effort: EvidenceBenchmarkEffort;
   runId?: string;
   checkpointRunId?: string;
+  stopAfter?: "backend-start";
 }
 
 interface IEvidenceBenchmarkCell {
@@ -48,6 +49,7 @@ interface IEvidenceBenchmarkCell {
     name: "backend-start";
     inheritedWallElapsedMs: number;
   };
+  stopAfter?: "backend-start";
 }
 
 interface IEvidenceBenchmarkRecordPaths {
@@ -87,6 +89,7 @@ const main = async (): Promise<void> => {
     model: options.model,
     effort: options.effort,
     inputIdentity,
+    stopAfter: options.stopAfter,
   };
   const output: string = path.join(
     repository,
@@ -130,7 +133,8 @@ const main = async (): Promise<void> => {
     cell.arm !== requestedCell.arm ||
     cell.model !== requestedCell.model ||
     cell.effort !== requestedCell.effort ||
-    cell.runId !== requestedCell.runId
+    cell.runId !== requestedCell.runId ||
+    cell.stopAfter !== requestedCell.stopAfter
   )
     throw new Error("Retained benchmark cell does not match the invocation.");
   if (retained !== undefined)
@@ -156,6 +160,10 @@ const main = async (): Promise<void> => {
     );
 
   if (retained !== undefined) {
+    if (retained.state.status === "checkpointed")
+      throw new Error(
+        "Checkpoint-only runs cannot resume; derive a run from backend-start.",
+      );
     assertRegularFile(records.state);
     await runBenchmark(cell, records, retained.state, runnerRevision);
     return;
@@ -427,6 +435,7 @@ const runBenchmark = async (
       effort: cell.effort,
       runnerRevision,
       fork,
+      stopAfterGoal: cell.stopAfter,
       environment,
       onOutput,
       onState,
@@ -441,7 +450,10 @@ const runBenchmark = async (
           ),
         }),
     });
-    if (result.status !== "completed")
+    if (
+      result.status !== "completed" &&
+      !(result.status === "checkpointed" && cell.stopAfter === "backend-start")
+    )
       throw new Error(
         "Benchmark run was interrupted; resume the retained run.",
       );
@@ -495,7 +507,7 @@ export const parseEvidenceBenchmarkArguments = (
 ): IEvidenceBenchmarkArguments => {
   if (input.length < 5 || input.length > 7)
     throw new Error(
-      "Usage: pnpm start codex <subject> <evidence|plain> <model> <effort> [run-id | --from-backend-start source-run-id]",
+      "Usage: pnpm start codex <subject> <evidence|plain> <model> <effort> [run-id [--stop-after-backend-start] | --stop-after-backend-start | --from-backend-start source-run-id]",
     );
   const engine: string = input[0]!;
   if (engine !== "codex")
@@ -518,12 +530,28 @@ export const parseEvidenceBenchmarkArguments = (
     effort !== "ultra"
   )
     throw new Error(`Invalid benchmark effort: ${effort}.`);
+  const optional: readonly string[] = input.slice(5);
   const checkpointRunId: string | undefined =
-    input[5] === "--from-backend-start" ? input[6] : undefined;
-  if (input.length === 7 && checkpointRunId === undefined)
-    throw new Error("Invalid backend-start checkpoint invocation.");
+    optional[0] === "--from-backend-start" ? optional[1] : undefined;
+  const stopAfter: "backend-start" | undefined =
+    optional[0] === "--stop-after-backend-start" ||
+    optional[1] === "--stop-after-backend-start"
+      ? "backend-start"
+      : undefined;
   const runId: string | undefined =
-    checkpointRunId === undefined ? input[5] : undefined;
+    optional[0] !== "--from-backend-start" &&
+    optional[0] !== "--stop-after-backend-start"
+      ? optional[0]
+      : undefined;
+  const validOptional: boolean =
+    optional.length === 0 ||
+    (optional.length === 1 &&
+      (runId !== undefined || stopAfter !== undefined)) ||
+    (optional.length === 2 &&
+      ((checkpointRunId !== undefined && stopAfter === undefined) ||
+        (runId !== undefined && stopAfter !== undefined)));
+  if (!validOptional)
+    throw new Error("Invalid backend-start checkpoint invocation.");
   if (
     runId !== undefined &&
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -546,6 +574,7 @@ export const parseEvidenceBenchmarkArguments = (
     effort,
     runId,
     checkpointRunId,
+    stopAfter,
   };
 };
 

@@ -25,7 +25,7 @@ export interface IEvidenceBenchmarkRunState {
   nextInstructionIndex: number;
 
   /** Current runner lifecycle state. */
-  status: "ready" | "running" | "interrupted" | "completed";
+  status: "ready" | "running" | "checkpointed" | "interrupted" | "completed";
 
   /** Latest cumulative thread token counters. */
   threadTokenUsage: IEvidenceBenchmarkTokenUsage;

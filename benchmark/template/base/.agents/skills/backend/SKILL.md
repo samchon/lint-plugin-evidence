@@ -96,7 +96,7 @@ The backend server starts with:
 pnpm dev
 ```
 
-Start it before live frontend integration and keep it running through Overall Final.
+Start it for live frontend integration and stop it after the integration window prescribed by the current instruction.
 
 ## Generation Boundaries
 
