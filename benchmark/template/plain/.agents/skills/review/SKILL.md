@@ -45,14 +45,16 @@ For each finding, retain the requirement or upstream contract, the exact conflic
 
 A file counts as read only when its complete current contents are returned and examined during the current round.
 
-1. Build and return one complete sorted current-scope manifest from fresh file inventories before every round. Before returning it, verify that every listed path exists, every scoped path is present, and each path appears once. Reusing or splitting an earlier manifest does not count.
-2. Use the instruction's canonical section order, sort paths within each section, start at the first requirement, and continue through the final scoped artifact. A stale, missing, duplicate, or incomplete manifest is an irreversible run-level protocol violation: keep the Goal active and report it for external rejection instead of repairing and self-crediting the run.
-3. Read exactly one manifest file per command or tool call. Never combine manifest paths with semicolons, pipelines, loops, arrays, scripts, or multi-file calls. A command that reads multiple manifest files is the same irreversible violation.
-4. Visibly return the complete file contents to the current turn without truncation. Redirection, suppression, capture (`>`, `$null`, `Out-Null`, or variables), hashes, line counts, searches, summaries, or any other substitute give zero reading credit and irreversibly fail the run. Consecutive ranges for one large file count only when they cover the first through final line with no gap.
-5. Searches, match excerpts, summaries, inventories, diffs, Git status, line counts, builds, lint output, test output, and previous reads count as zero.
-6. Track the current position and completed propagation roots in the current objective. Never call a round full, complete, clean, final, or finished before both reach their end.
-7. If a product or generated file changes during the round, invalidate the round and restart it from the first requirement against a new manifest.
-8. After compaction or resume, continue only when the exact manifest, round, next item, and completed propagation roots are known. Otherwise restart the round from the first requirement.
+For Backend Review and Backend Final, the runner owns the manifest and reading ledger. Start only with `review_start_round`, read the returned paths in order only with `review_read_file`, and close only with `review_finish_round`. Shell reads and self-authored manifests receive zero credit. The runner rejects missing, stale, duplicate, out-of-order, changed, or incomplete rounds and will not accept Goal completion without its dry seal. Never forge or bypass that ledger.
+
+For Frontend and Overall review, follow this manual protocol:
+
+1. Build and return one complete sorted current-scope manifest from fresh file inventories before every round. Verify that every path exists, every scoped path is present, and each appears once.
+2. Follow canonical section and path order from the first requirement through the final artifact.
+3. Read exactly one manifest file per command or tool call and visibly return all contents. Never combine paths or use redirection, suppression, capture, hashes, line counts, searches, summaries, or another substitute.
+4. Searches, excerpts, inventories, diffs, Git status, builds, tests, and previous reads count as zero.
+5. Track the current position and propagation roots. A scoped change invalidates the round and requires a fresh manifest from the first requirement.
+6. After compaction or resume, restart unless the exact manifest, round, next item, and propagation roots are known.
 
 Never partition a round by file, package, layer, requirement subset, review lens, time window, or agent. Never compose partial passes into a round.
 

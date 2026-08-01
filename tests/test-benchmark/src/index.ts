@@ -6,7 +6,9 @@ import path from "node:path";
 import readline from "node:readline";
 
 import { EvidenceBenchmarkRunner } from "../../../benchmark/src/EvidenceBenchmarkRunner.ts";
+import { EvidenceBenchmarkReviewLedger } from "../../../benchmark/src/EvidenceBenchmarkReviewLedger.ts";
 import { EvidenceBenchmarkSupervision } from "../../../benchmark/src/EvidenceBenchmarkSupervision.ts";
+import type { IEvidenceBenchmarkGoalRecord } from "../../../benchmark/src/structures/IEvidenceBenchmarkGoalRecord.ts";
 import type { IEvidenceBenchmarkOutput } from "../../../benchmark/src/structures/IEvidenceBenchmarkOutput.ts";
 import type { IEvidenceBenchmarkRunState } from "../../../benchmark/src/structures/IEvidenceBenchmarkRunState.ts";
 import type { IEvidenceBenchmarkTokenUsage } from "../../../benchmark/src/structures/IEvidenceBenchmarkTokenUsage.ts";
@@ -53,6 +55,7 @@ const main = async (): Promise<void> => {
   );
   try {
     const sources: Map<string, Buffer> = writeInstructions(root);
+    testReviewLedger(path.join(root, "review-workspace"));
     assert.deepEqual(
       EvidenceBenchmarkRunner.instructionEntries("evidence"),
       EVIDENCE_ENTRIES,
@@ -629,6 +632,157 @@ const main = async (): Promise<void> => {
       assert.equal(goal.objectiveText, `${prescribed}\n\n${continuation}`);
       assert.equal(goal.goal?.objective, goal.objectiveText);
     });
+
+    const ledgerOutput: IEvidenceBenchmarkOutput[] = [];
+    const detachedLedger = await EvidenceBenchmarkRunner.run({
+      state: {
+        arm: "plain",
+        cliVersion: "fixture-cli",
+        nextInstructionIndex: 1,
+        status: "ready",
+        threadTokenUsage: {
+          totalTokens: 0,
+          inputTokens: 0,
+          cachedInputTokens: 0,
+          cacheWriteInputTokens: 0,
+          outputTokens: 0,
+          reasoningOutputTokens: 0,
+        },
+        nativeThreadStartInstructionIndex: 1,
+        goals: [structuredClone(plain.goals[0]!)],
+        checkpoints: [structuredClone(backendCheckpoint)],
+        inheritedProcessElapsedMs: 1_000,
+        processes: [],
+      },
+      cwd: path.join(root, "review-workspace"),
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      reviewLedger: "backend",
+      pauseAfterGoals: ["backend-review"],
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--plain-arm", "--ledger-tools"],
+      onOutput: (_processIndex, output) => {
+        ledgerOutput.push(output);
+      },
+    });
+    assert.equal(
+      detachedLedger.status,
+      "awaiting-supervision",
+      `${JSON.stringify(detachedLedger.interruption)}\n${ledgerOutput
+        .filter((output) => output.stream === "stderr")
+        .map((output) => output.text)
+        .join("")}`,
+    );
+    assert.equal(detachedLedger.sessionId, "fixture-ledger-thread");
+    assert.equal(detachedLedger.nextInstructionIndex, 2);
+    assert.equal(detachedLedger.goals[0]?.goal?.threadId, "fixture-thread");
+    assert.equal(
+      detachedLedger.goals[1]?.goal?.threadId,
+      "fixture-ledger-thread",
+    );
+    assert.equal(detachedLedger.goals[1]?.tokenUsageStart.totalTokens, 0);
+    assert.equal(detachedLedger.goals[1]?.tokenUsage.totalTokens, 10);
+    assert.equal(detachedLedger.threadTokenUsage.totalTokens, 10);
+    assert.equal(detachedLedger.reviewLedgers?.length, 1);
+    assert.equal(detachedLedger.reviewLedgers?.[0]?.rounds.length, 1);
+    assert.equal(detachedLedger.reviewLedgers?.[0]?.rounds[0]?.status, "dry");
+    assert.equal(
+      detachedLedger.reviewLedgers?.[0]?.rounds[0]?.reads.length,
+      detachedLedger.reviewLedgers?.[0]?.rounds[0]?.manifest.length,
+    );
+    const ledgerRequests = ledgerOutput
+      .filter((output) => output.stream === "stdin")
+      .map((output) => JSON.parse(output.text) as Record<string, unknown>);
+    const ledgerThreadStart = ledgerRequests.find(
+      (request) => request.method === "thread/start",
+    );
+    assert.ok(ledgerThreadStart);
+    assert.deepEqual(
+      (
+        (ledgerThreadStart.params as Record<string, unknown>)
+          .dynamicTools as Record<string, unknown>[]
+      ).map((tool) => tool.name),
+      ["review_start_round", "review_read_file", "review_finish_round"],
+    );
+    assert.equal(
+      ledgerRequests.some((request) => request.method === "thread/fork"),
+      false,
+    );
+
+    const ledgerRunRoot: string = path.join(root, "ledger-supervision");
+    fs.mkdirSync(ledgerRunRoot, { recursive: true });
+    const ledgerWorkspace: string = path.join(ledgerRunRoot, "workspace");
+    fs.cpSync(path.join(root, "review-workspace"), ledgerWorkspace, {
+      recursive: true,
+    });
+    fs.cpSync(path.join(root, "plain"), path.join(ledgerWorkspace, "plain"), {
+      recursive: true,
+    });
+    git(ledgerWorkspace, ["init", "-b", "benchmark"]);
+    git(ledgerWorkspace, ["config", "user.name", "Benchmark Fixture"]);
+    git(ledgerWorkspace, ["config", "user.email", "fixture@example.com"]);
+    git(ledgerWorkspace, ["add", "-A"]);
+    git(ledgerWorkspace, ["commit", "-m", "Prepare ledger workspace"]);
+    const ledgerExpectations: string = path.join(
+      root,
+      "ledger-expectations.md",
+    );
+    const ledgerReport: string = path.join(root, "ledger-report.md");
+    fs.writeFileSync(ledgerExpectations, "ledger expectations\n", "utf8");
+    fs.writeFileSync(ledgerReport, "ledger report\n", "utf8");
+    writeSupervisedState({
+      root: ledgerRunRoot,
+      workspace: ledgerWorkspace,
+      state: detachedLedger,
+    });
+    EvidenceBenchmarkSupervision.decide({
+      runRoot: ledgerRunRoot,
+      decision: "approved",
+      expectations: ledgerExpectations,
+      report: ledgerReport,
+    });
+    const approvedLedger = readSupervisedState(
+      path.join(ledgerRunRoot, "state.json"),
+    );
+    const finalLedgerOutput: IEvidenceBenchmarkOutput[] = [];
+    const detachedFinal = await EvidenceBenchmarkRunner.run({
+      state: approvedLedger,
+      cwd: ledgerWorkspace,
+      runRoot: ledgerRunRoot,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      reviewLedger: "backend",
+      pauseAfterGoals: ["backend-review", "backend-final"],
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--plain-arm",
+        "--ledger-tools",
+        "--current-goal",
+      ],
+      onOutput: (_processIndex, output) => {
+        finalLedgerOutput.push(output);
+      },
+    });
+    assert.equal(
+      detachedFinal.status,
+      "awaiting-supervision",
+      `${JSON.stringify(detachedFinal.interruption)}\n${finalLedgerOutput
+        .filter((output) => output.stream === "stderr")
+        .map((output) => output.text)
+        .join("")}`,
+    );
+    assert.equal(detachedFinal.nextInstructionIndex, 3);
+    assert.equal(detachedFinal.reviewLedgers?.length, 2);
+    assert.equal(detachedFinal.reviewLedgers?.[0]?.goalName, "backend-review");
+    assert.equal(detachedFinal.reviewLedgers?.[0]?.rounds[0]?.status, "dry");
+    assert.equal(detachedFinal.reviewLedgers?.[1]?.goalName, "backend-final");
+    assert.equal(detachedFinal.reviewLedgers?.[1]?.rounds[0]?.status, "dry");
+    assert.equal(detachedFinal.goals[2]?.tokenUsageStart.totalTokens, 10);
+    assert.equal(detachedFinal.goals[2]?.tokenUsage.totalTokens, 10);
+    assert.equal(detachedFinal.threadTokenUsage.totalTokens, 20);
 
     const forcedCleanup = await EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("evidence"),
@@ -1491,6 +1645,180 @@ const main = async (): Promise<void> => {
   }
 };
 
+const testReviewLedger = (workspace: string): void => {
+  writeReviewWorkspace(workspace);
+  const zeroUsage = (): IEvidenceBenchmarkTokenUsage => ({
+    totalTokens: 0,
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    cacheWriteInputTokens: 0,
+    outputTokens: 0,
+    reasoningOutputTokens: 0,
+  });
+  const state: IEvidenceBenchmarkRunState =
+    EvidenceBenchmarkRunner.create("plain");
+  state.nextInstructionIndex = 1;
+  const goal: IEvidenceBenchmarkGoalRecord = {
+    index: 1,
+    name: "backend-review",
+    relativePath: "plain/backend/review.md",
+    prescribedText: "review",
+    continuationText: "continue",
+    objectiveText: "review\n\ncontinue",
+    goal: null,
+    terminalTurnId: null,
+    terminalTurnCompleted: false,
+    threadIdle: false,
+    tokenUsageTurnId: null,
+    tokenUsageStart: zeroUsage(),
+    tokenUsageEnd: null,
+    tokenUsage: zeroUsage(),
+    elapsedMs: 0,
+  };
+  let callIndex = 0;
+  const invoke = (tool: string, arguments_: unknown) =>
+    EvidenceBenchmarkReviewLedger.handle({
+      cwd: workspace,
+      state,
+      goal,
+      call: {
+        tool,
+        arguments: arguments_,
+        callId: `ledger-call-${++callIndex}`,
+        turnId: "ledger-turn",
+      },
+    });
+
+  assert.equal(invoke("review_start_round", {}).success, true);
+  const first = state.reviewLedgers?.[0]?.rounds[0];
+  assert.ok(first);
+  assert.equal(first.status, "reading");
+  assert.deepEqual(
+    first.manifest.map((entry) => entry.section),
+    [...first.manifest.map((entry) => entry.section)].sort(
+      (left, right) =>
+        [
+          "requirements",
+          "schema",
+          "api",
+          "backend",
+          "tests",
+          "configuration",
+        ].indexOf(left) -
+        [
+          "requirements",
+          "schema",
+          "api",
+          "backend",
+          "tests",
+          "configuration",
+        ].indexOf(right),
+    ),
+  );
+  assert.equal(
+    invoke("review_read_file", {
+      path: first.manifest.at(-1)!.path,
+    }).success,
+    false,
+  );
+  const firstRead = invoke("review_read_file", {
+    path: first.manifest[0]!.path,
+  });
+  assert.equal(firstRead.success, true);
+  assert.equal(
+    firstRead.contentItems[1]?.text,
+    fs.readFileSync(
+      path.join(workspace, ...first.manifest[0]!.path.split("/")),
+      "utf8",
+    ),
+  );
+  const changedDuringRound = first.manifest[1]!.path;
+  fs.appendFileSync(
+    path.join(workspace, ...changedDuringRound.split("/")),
+    "changed\n",
+    "utf8",
+  );
+  assert.equal(
+    invoke("review_read_file", { path: changedDuringRound }).success,
+    false,
+  );
+  assert.equal(first.status, "invalid");
+
+  assert.equal(invoke("review_start_round", {}).success, true);
+  const findingsRound = state.reviewLedgers![0]!.rounds[1]!;
+  for (const entry of findingsRound.manifest)
+    assert.equal(
+      invoke("review_read_file", { path: entry.path }).success,
+      true,
+    );
+  assert.equal(
+    invoke("review_finish_round", {
+      result: "findings",
+      findings: ["fixture finding"],
+    }).success,
+    true,
+  );
+  fs.appendFileSync(
+    path.join(workspace, "packages/backend/src/backend.ts"),
+    "fixed\n",
+    "utf8",
+  );
+
+  assert.equal(invoke("review_start_round", {}).success, true);
+  const dryRound = state.reviewLedgers![0]!.rounds[2]!;
+  for (const entry of dryRound.manifest)
+    assert.equal(
+      invoke("review_read_file", { path: entry.path }).success,
+      true,
+    );
+  assert.equal(
+    invoke("review_finish_round", {
+      result: "dry",
+      findings: [],
+    }).success,
+    true,
+  );
+  assert.doesNotThrow(() =>
+    EvidenceBenchmarkReviewLedger.assertDry({ cwd: workspace, state, goal }),
+  );
+  fs.appendFileSync(
+    path.join(workspace, "config/tsconfig.json"),
+    "changed\n",
+    "utf8",
+  );
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.assertDry({ cwd: workspace, state, goal }),
+  );
+};
+
+const writeReviewWorkspace = (workspace: string): void => {
+  const files: Readonly<Record<string, string>> = {
+    "docs/analysis/requirements.md": "requirements\n",
+    "packages/backend/prisma/schema/main.prisma": "schema\n",
+    "packages/api/src/api.ts": "api\n",
+    "packages/api/swagger.json": "{}\n",
+    "packages/backend/src/backend.ts": "backend\n",
+    "packages/backend/test/backend.test.ts": "test\n",
+    "config/tsconfig.json": "{}\n",
+    "package.json": "{}\n",
+    "packages/api/lint.config.ts": "export {};\n",
+    "packages/api/package.json": "{}\n",
+    "packages/api/tsconfig.json": "{}\n",
+    "packages/backend/.env.example": "FIXTURE=1\n",
+    "packages/backend/lint.config.ts": "export {};\n",
+    "packages/backend/nestia.config.ts": "export {};\n",
+    "packages/backend/package.json": "{}\n",
+    "packages/backend/prisma.config.ts": "export {};\n",
+    "packages/backend/tsconfig.json": "{}\n",
+    "pnpm-workspace.yaml": "packages: []\n",
+  };
+  for (const [relative, content] of Object.entries(files)) {
+    const location: string = path.join(workspace, ...relative.split("/"));
+    fs.mkdirSync(path.dirname(location), { recursive: true });
+    fs.writeFileSync(location, content, "utf8");
+  }
+};
+
 const writeInstructions = (root: string): Map<string, Buffer> => {
   const sources: Map<string, Buffer> = new Map([
     [
@@ -1554,7 +1882,12 @@ const readPrescribed = (
 
 const fakeAppServer = (): void => {
   const fork: boolean = process.argv.includes("--fork");
-  const threadId: string = fork ? "fixture-fork" : "fixture-thread";
+  const ledgerTools: boolean = process.argv.includes("--ledger-tools");
+  const threadId: string = ledgerTools
+    ? "fixture-ledger-thread"
+    : fork
+      ? "fixture-fork"
+      : "fixture-thread";
   const fail: boolean = process.argv.includes("--fail");
   const hangOnClose: boolean = process.argv.includes("--hang-on-close");
   const inheritStreamAfterExit: boolean = process.argv.includes(
@@ -1633,20 +1966,53 @@ const fakeAppServer = (): void => {
   const trimTerminalLineBreaks: boolean = process.argv.includes(
     "--trim-terminal-line-breaks",
   );
-  let goalIndex = undispatchedActive
-    ? 0
-    : currentActive || nativeComplete || undispatchedNext
+  let goalIndex =
+    ledgerTools && currentGoal
       ? 1
-      : currentGoal
-        ? 2
-        : previousGoal
+      : undispatchedActive
+        ? 0
+        : currentActive || nativeComplete || undispatchedNext
           ? 1
-          : 0;
+          : currentGoal
+            ? 2
+            : previousGoal
+              ? 1
+              : 0;
   let undispatchedSnapshotPending = undispatched;
   let goalCleared = false;
   let waitingForTurnCompletion = false;
   const send = (value: unknown, callback?: () => void): void => {
     process.stdout.write(`${JSON.stringify(value)}\n`, callback);
+  };
+  let serverRequestId = 1_000;
+  const serverRequests = new Map<
+    number,
+    {
+      resolve: (value: Record<string, unknown>) => void;
+      reject: (reason: unknown) => void;
+    }
+  >();
+  const requestTool = (
+    turnId: string,
+    tool: string,
+    arguments_: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> => {
+    const id: number = ++serverRequestId;
+    return new Promise((resolve, reject) => {
+      serverRequests.set(id, { resolve, reject });
+      send({
+        id,
+        method: "item/tool/call",
+        params: {
+          threadId,
+          turnId,
+          callId: `fixture-tool-${id}`,
+          namespace: null,
+          tool,
+          arguments: arguments_,
+        },
+      });
+    });
   };
   const goal = (
     objective: string,
@@ -1686,13 +2052,33 @@ const fakeAppServer = (): void => {
   input.on("line", (line: string) => {
     const request = JSON.parse(line) as {
       id?: number;
-      method: string;
+      method?: string;
       params?: Record<string, unknown>;
+      result?: Record<string, unknown>;
+      error?: unknown;
     };
     if (request.id === undefined) return;
+    if (request.method === undefined) {
+      const waiter = serverRequests.get(request.id);
+      if (waiter === undefined) return;
+      serverRequests.delete(request.id);
+      if (request.error !== undefined) waiter.reject(request.error);
+      else if (request.result !== undefined) waiter.resolve(request.result);
+      else
+        waiter.reject(new Error("Fixture tool response omitted its result."));
+      return;
+    }
     if (request.method === "initialize")
       return send({ id: request.id, result: {} });
-    if (request.method === "thread/start")
+    if (request.method === "thread/start") {
+      if (ledgerTools) {
+        const tools = request.params?.dynamicTools;
+        assert.ok(Array.isArray(tools));
+        assert.deepEqual(
+          tools.map((tool) => (tool as Record<string, unknown>).name),
+          ["review_start_round", "review_read_file", "review_finish_round"],
+        );
+      }
       return send({
         id: request.id,
         result: {
@@ -1703,6 +2089,7 @@ const fakeAppServer = (): void => {
           },
         },
       });
+    }
     if (
       request.method === "thread/resume" ||
       request.method === "thread/fork"
@@ -1994,6 +2381,78 @@ const fakeAppServer = (): void => {
         status: { type: "active" },
       },
     });
+    if (ledgerTools) {
+      send({
+        method: "turn/started",
+        params: {
+          threadId,
+          turn: { id: turnId },
+        },
+      });
+      void (async (): Promise<void> => {
+        const started = await requestTool(turnId, "review_start_round", {});
+        assert.equal(started.success, true);
+        const startItems = started.contentItems;
+        assert.ok(Array.isArray(startItems));
+        const manifestText = (startItems[0] as Record<string, unknown>).text;
+        assert.equal(typeof manifestText, "string");
+        const manifestPaths = (manifestText as string).split("\n").slice(4);
+        assert.ok(manifestPaths.length > 0);
+        for (const manifestPath of manifestPaths) {
+          const read = await requestTool(turnId, "review_read_file", {
+            path: manifestPath,
+          });
+          assert.equal(read.success, true);
+          const contentItems = read.contentItems;
+          assert.ok(Array.isArray(contentItems));
+          assert.equal(contentItems.length, 2);
+        }
+        const finished = await requestTool(turnId, "review_finish_round", {
+          result: "dry",
+          findings: [],
+        });
+        assert.equal(finished.success, true);
+        send({
+          method: "thread/goal/updated",
+          params: {
+            threadId,
+            goal: goal(objective, "complete"),
+            turnId,
+          },
+        });
+        send({
+          method: "thread/tokenUsage/updated",
+          params: {
+            threadId,
+            turnId,
+            tokenUsage: { total },
+          },
+        });
+        waitingForTurnCompletion = true;
+        send({
+          method: "thread/status/changed",
+          params: {
+            threadId,
+            status: { type: "idle" },
+          },
+        });
+        setTimeout(() => {
+          waitingForTurnCompletion = false;
+          send({
+            method: "turn/completed",
+            params: {
+              threadId,
+              turn: { id: turnId, status: "completed", durationMs: 1 },
+            },
+          });
+        }, 10);
+      })().catch((error: unknown) => {
+        console.error(error);
+        process.exitCode = 1;
+        input.close();
+      });
+      return;
+    }
     if (blockedThenComplete)
       send({
         method: "thread/goal/updated",

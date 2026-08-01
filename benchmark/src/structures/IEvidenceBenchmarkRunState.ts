@@ -2,6 +2,7 @@ import type { IEvidenceBenchmarkCheckpoint } from "./IEvidenceBenchmarkCheckpoin
 import type { IEvidenceBenchmarkGoalRecord } from "./IEvidenceBenchmarkGoalRecord.ts";
 import type { IEvidenceBenchmarkInterruption } from "./IEvidenceBenchmarkInterruption.ts";
 import type { IEvidenceBenchmarkProcessRecord } from "./IEvidenceBenchmarkProcessRecord.ts";
+import type { IEvidenceBenchmarkReviewLedger } from "./IEvidenceBenchmarkReviewLedger.ts";
 import type { IEvidenceBenchmarkSupervisionVerdict } from "./IEvidenceBenchmarkSupervisionVerdict.ts";
 import type { IEvidenceBenchmarkTokenUsage } from "./IEvidenceBenchmarkTokenUsage.ts";
 import type { EvidenceBenchmarkArm } from "../typings/EvidenceBenchmarkArm.ts";
@@ -39,6 +40,9 @@ export interface IEvidenceBenchmarkRunState {
   /** Latest cumulative thread token counters. */
   threadTokenUsage: IEvidenceBenchmarkTokenUsage;
 
+  /** First Goal owned by the current native thread after a detached checkpoint. */
+  nativeThreadStartInstructionIndex?: number;
+
   /** Ordered retained Goal records. */
   goals: IEvidenceBenchmarkGoalRecord[];
 
@@ -58,6 +62,9 @@ export interface IEvidenceBenchmarkRunState {
 
   /** Every native process used by launch or resume. */
   processes: IEvidenceBenchmarkProcessRecord[];
+
+  /** Runner-owned manifests and reads for externally enforced review Goals. */
+  reviewLedgers?: IEvidenceBenchmarkReviewLedger[];
 
   /** Failure detail when exact continuation stopped. */
   interruption?: IEvidenceBenchmarkInterruption;

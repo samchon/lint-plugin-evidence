@@ -46,6 +46,31 @@ const main = (): void => {
       checkpointRunId: undefined,
       stopAfter: undefined,
       supervision: undefined,
+      reviewLedger: undefined,
+    },
+  );
+  assert.deepEqual(
+    parseEvidenceBenchmarkArguments([
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      runId,
+      "--supervise-backend",
+      "--review-ledger",
+    ]),
+    {
+      engine: "codex",
+      subject: "todo",
+      arm: "plain",
+      model: "gpt-5.6-luna",
+      effort: "high",
+      runId,
+      checkpointRunId: undefined,
+      stopAfter: undefined,
+      supervision: "backend",
+      reviewLedger: "backend",
     },
   );
   assert.deepEqual(
@@ -66,6 +91,7 @@ const main = (): void => {
       checkpointRunId: undefined,
       stopAfter: undefined,
       supervision: undefined,
+      reviewLedger: undefined,
     },
   );
   assert.deepEqual(
@@ -88,6 +114,7 @@ const main = (): void => {
       checkpointRunId: runId,
       stopAfter: undefined,
       supervision: undefined,
+      reviewLedger: undefined,
     },
   );
   assert.deepEqual(
@@ -110,6 +137,7 @@ const main = (): void => {
       checkpointRunId: undefined,
       stopAfter: "backend-start",
       supervision: undefined,
+      reviewLedger: undefined,
     },
   );
   assert.deepEqual(
@@ -131,6 +159,7 @@ const main = (): void => {
       checkpointRunId: undefined,
       stopAfter: "backend-start",
       supervision: undefined,
+      reviewLedger: undefined,
     },
   );
   assert.deepEqual(
@@ -154,6 +183,7 @@ const main = (): void => {
       checkpointRunId: runId,
       stopAfter: undefined,
       supervision: "backend",
+      reviewLedger: undefined,
     },
   );
   assert.deepEqual(
@@ -176,6 +206,32 @@ const main = (): void => {
       checkpointRunId: undefined,
       stopAfter: undefined,
       supervision: "backend",
+      reviewLedger: undefined,
+    },
+  );
+  assert.deepEqual(
+    parseEvidenceBenchmarkArguments([
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      "--from-backend-start",
+      runId,
+      "--supervise-backend",
+      "--review-ledger",
+    ]),
+    {
+      engine: "codex",
+      subject: "todo",
+      arm: "plain",
+      model: "gpt-5.6-luna",
+      effort: "high",
+      runId: undefined,
+      checkpointRunId: runId,
+      stopAfter: undefined,
+      supervision: "backend",
+      reviewLedger: "backend",
     },
   );
   for (const input of [
@@ -232,6 +288,28 @@ const main = (): void => {
       "high",
       "--from-backend-start",
       "not-a-run",
+    ],
+    ["codex", "todo", "plain", "gpt-5.6-luna", "high", "--review-ledger"],
+    [
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      "--from-backend-start",
+      runId,
+      "--review-ledger",
+    ],
+    [
+      "codex",
+      "todo",
+      "evidence",
+      "gpt-5.6-luna",
+      "high",
+      "--from-backend-start",
+      runId,
+      "--supervise-backend",
+      "--review-ledger",
     ],
   ])
     assert.throws(

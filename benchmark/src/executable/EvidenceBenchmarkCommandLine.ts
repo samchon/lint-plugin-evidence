@@ -32,6 +32,7 @@ interface IEvidenceBenchmarkArguments {
   checkpointRunId?: string;
   stopAfter?: "backend-start";
   supervision?: "backend";
+  reviewLedger?: "backend";
 }
 
 interface IEvidenceBenchmarkCell {
@@ -52,6 +53,7 @@ interface IEvidenceBenchmarkCell {
   };
   stopAfter?: "backend-start";
   supervision?: "backend";
+  reviewLedger?: "backend";
 }
 
 interface IEvidenceBenchmarkRecordPaths {
@@ -93,6 +95,7 @@ const main = async (): Promise<void> => {
     inputIdentity,
     stopAfter: options.stopAfter,
     supervision: options.supervision,
+    reviewLedger: options.reviewLedger,
   };
   const output: string = path.join(
     repository,
@@ -144,7 +147,8 @@ const main = async (): Promise<void> => {
     cell.effort !== requestedCell.effort ||
     cell.runId !== requestedCell.runId ||
     cell.stopAfter !== requestedCell.stopAfter ||
-    cell.supervision !== requestedCell.supervision
+    cell.supervision !== requestedCell.supervision ||
+    cell.reviewLedger !== requestedCell.reviewLedger
   )
     throw new Error("Retained benchmark cell does not match the invocation.");
   if (retained !== undefined)
@@ -363,7 +367,12 @@ const runFromBackendStartCheckpoint = async (props: {
     cliVersion: checkpoint.cliVersion,
     nextInstructionIndex: 1,
     status: "ready",
-    threadTokenUsage: structuredClone(start.tokenUsageEnd),
+    threadTokenUsage:
+      requested.reviewLedger === "backend"
+        ? emptyTokenUsage()
+        : structuredClone(start.tokenUsageEnd),
+    nativeThreadStartInstructionIndex:
+      requested.reviewLedger === "backend" ? 1 : undefined,
     goals: [structuredClone(start)],
     checkpoints: [structuredClone(checkpoint)],
     inheritedProcessElapsedMs: checkpoint.inheritedProcessElapsedMs,
@@ -374,10 +383,12 @@ const runFromBackendStartCheckpoint = async (props: {
     props.records,
     initialState,
     props.runnerRevision,
-    {
-      sourceSessionId: checkpoint.sourceSessionId,
-      terminalTurnId: checkpoint.terminalTurnId,
-    },
+    requested.reviewLedger === "backend"
+      ? undefined
+      : {
+          sourceSessionId: checkpoint.sourceSessionId,
+          terminalTurnId: checkpoint.terminalTurnId,
+        },
   );
 };
 
@@ -453,6 +464,7 @@ const runBenchmark = async (
         cell.supervision === "backend"
           ? ["backend-review", "backend-final"]
           : undefined,
+      reviewLedger: cell.reviewLedger,
       environment,
       onOutput,
       onState,
@@ -528,9 +540,9 @@ const assertSameInputIdentity = (
 export const parseEvidenceBenchmarkArguments = (
   input: readonly string[],
 ): IEvidenceBenchmarkArguments => {
-  if (input.length < 5 || input.length > 8)
+  if (input.length < 5 || input.length > 9)
     throw new Error(
-      "Usage: pnpm start codex <subject> <evidence|plain> <model> <effort> [run-id] [--stop-after-backend-start | --from-backend-start source-run-id] [--supervise-backend]",
+      "Usage: pnpm start codex <subject> <evidence|plain> <model> <effort> [run-id] [--stop-after-backend-start | --from-backend-start source-run-id] [--supervise-backend] [--review-ledger]",
     );
   const engine: string = input[0]!;
   if (engine !== "codex")
@@ -558,6 +570,7 @@ export const parseEvidenceBenchmarkArguments = (
   let checkpointRunId: string | undefined;
   let stopAfter: "backend-start" | undefined;
   let supervision: "backend" | undefined;
+  let reviewLedger: "backend" | undefined;
   for (let i = 0; i < optional.length; ++i) {
     const argument: string = optional[i]!;
     if (argument === "--from-backend-start") {
@@ -572,6 +585,10 @@ export const parseEvidenceBenchmarkArguments = (
       if (supervision !== undefined)
         throw new Error("Duplicate backend supervision option.");
       supervision = "backend";
+    } else if (argument === "--review-ledger") {
+      if (reviewLedger !== undefined)
+        throw new Error("Duplicate backend review ledger option.");
+      reviewLedger = "backend";
     } else if (runId === undefined) runId = argument;
     else throw new Error(`Unexpected benchmark argument: ${argument}.`);
   }
@@ -579,7 +596,11 @@ export const parseEvidenceBenchmarkArguments = (
     (checkpointRunId !== undefined && stopAfter !== undefined) ||
     (checkpointRunId !== undefined && runId !== undefined) ||
     (stopAfter !== undefined && supervision !== undefined) ||
-    (supervision !== undefined && arm !== "plain")
+    (supervision !== undefined && arm !== "plain") ||
+    (reviewLedger !== undefined &&
+      (arm !== "plain" ||
+        (checkpointRunId === undefined && runId === undefined) ||
+        supervision !== "backend"))
   )
     throw new Error("Invalid benchmark checkpoint or supervision options.");
   if (
@@ -606,8 +627,18 @@ export const parseEvidenceBenchmarkArguments = (
     checkpointRunId,
     stopAfter,
     supervision,
+    reviewLedger,
   };
 };
+
+const emptyTokenUsage = (): IEvidenceBenchmarkRunState["threadTokenUsage"] => ({
+  totalTokens: 0,
+  inputTokens: 0,
+  cachedInputTokens: 0,
+  cacheWriteInputTokens: 0,
+  outputTokens: 0,
+  reasoningOutputTokens: 0,
+});
 
 /** Distinguishes an explicit checkpoint-source launch ID from a retained run. */
 export const shouldResumeEvidenceBenchmark = (props: {

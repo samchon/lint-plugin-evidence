@@ -96,9 +96,9 @@ const main = (): void => {
       launchedAt: "2026-07-31T01:00:00.000Z",
       status: "running",
       nextInstructionIndex: 1,
-      totalTokens: 1_600_000,
-      initialTokenUsage: tokenUsage(900_000),
+      totalTokens: 700_000,
       requests: [tokenUsage(700_000)],
+      nativeThreadStartInstructionIndex: 1,
       goals: [
         goal(0, "backend-start", 900_000, 61_000, 120, tokenUsage(900_000)),
         goal(1, "backend-review", 0, 0),
@@ -624,7 +624,7 @@ const writeRun = (props: {
     goal?: { timeUsedSeconds: number };
     index: number;
     name: string;
-    tokenUsage: { totalTokens: number };
+    tokenUsage: { totalTokens: number } | ReturnType<typeof tokenUsage>;
     tokenUsageEnd?: ReturnType<typeof tokenUsage>;
   }[];
   processes: {
@@ -637,6 +637,7 @@ const writeRun = (props: {
   inheritedProcessElapsedMs?: number;
   inheritedWallElapsedMs?: number;
   checkpointSourceRunId?: string;
+  nativeThreadStartInstructionIndex?: number;
   supervisionPauses?: {
     pausedAt: string;
     resumedAt?: string;
@@ -704,6 +705,8 @@ const writeRun = (props: {
           status: props.status,
           nextInstructionIndex: props.nextInstructionIndex,
           threadTokenUsage: expectedUsage,
+          nativeThreadStartInstructionIndex:
+            props.nativeThreadStartInstructionIndex,
           goals: props.goals,
           processes: props.processes,
           supervisionPauses: props.supervisionPauses,
@@ -758,14 +761,14 @@ const goal = (
   goal?: { timeUsedSeconds: number };
   index: number;
   name: string;
-  tokenUsage: { totalTokens: number };
+  tokenUsage: { totalTokens: number } | ReturnType<typeof tokenUsage>;
   tokenUsageEnd?: ReturnType<typeof tokenUsage>;
 } => ({
   elapsedMs,
   ...(timeUsedSeconds === undefined ? {} : { goal: { timeUsedSeconds } }),
   index,
   name,
-  tokenUsage: { totalTokens },
+  tokenUsage: tokenUsageEnd ?? { totalTokens },
   ...(tokenUsageEnd === undefined ? {} : { tokenUsageEnd }),
 });
 

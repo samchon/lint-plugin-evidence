@@ -4,21 +4,19 @@ Read `AGENTS.md`, `.agents/skills/review/SKILL.md`, and `.agents/skills/review/b
 
 ## Acceptance Protocol
 
-1. Before every round, build a new manifest from fresh file inventories in this section order, sorting paths inside each section: `docs/analysis/`; `packages/backend/prisma/schema/`; API source and generated SDK under `packages/api/src/` plus `packages/api/swagger.json`; `packages/backend/src/` excluding generated Prisma clients; `packages/backend/test/`; affecting API and backend configuration. Before returning it, verify that every listed path exists, every scoped path is present, and each path appears once. Never reuse or split a manifest.
-2. Read from the first manifest path through the last. One command or tool call must visibly return the complete contents of exactly one manifest file to this turn. Never combine paths with semicolons, pipelines, loops, arrays, scripts, or multi-file calls. Never redirect, suppress, capture, or replace contents with hashes, line counts, searches, or summaries. Large-file ranges must cover one file from first through last line without gaps.
-3. Keep the reading phase read-only and retain every finding until the last file. A scoped change invalidates the round.
-4. After a complete round with findings, fix every finding and consequence. Run each generator and gate as a separate bounded command; wait for it and its descendants to stop before the next one.
-5. Before a round can qualify as dry, temporarily break one material reviewed behavior, prove its relevant test fails, restore the exact bytes, and prove it passes. Then start a new full round.
-6. Start a new manifest and full round after every correction, generated-file change, gate change, or calibration. Repeat without a round limit.
-7. A round qualifies only after every backend propagation root and manifest file is covered with zero findings and zero scoped edits. Then run a bounded clean `pnpm check:watch` from `packages/backend`, stop it completely, and run `pnpm test` separately. Any failure or change requires correction and another full round.
+1. Start every round with `review_start_round`. The runner, not you, owns the fresh canonical manifest and its hashes.
+2. Read every returned path in order only through one `review_read_file` call with that exact path. The tool returns one complete file and advances the external ledger. Shell reads, self-authored manifests, searches, excerpts, summaries, diffs, builds, tests, earlier reads, and partial passes count as zero.
+3. Keep the tool-owned reading phase read-only and retain every finding until its last file. The runner invalidates a round whose scoped workspace changes.
+4. Finish the round with `review_finish_round`, reporting `findings` and every concrete finding, or `dry` and an empty list. Never claim a round outside this tool.
+5. After a findings round, fix every finding and consequence. Run each generator and gate as a separate bounded command, waiting for it and descendants to stop before the next one. Then call `review_start_round` again.
+6. Before reporting `dry`, temporarily break one material reviewed behavior, prove its relevant test fails, restore the exact bytes, prove it passes, and start a new full tool-owned round.
+7. Repeat without a round limit. After the runner seals a dry round, run a bounded clean `pnpm check:watch` from `packages/backend`, stop it completely, and run `pnpm test` separately. Any failure or scoped change requires correction and a new round.
 
-Reading two manifest files in one command, using a stale, missing, duplicate, or incomplete manifest, or hiding any read output with `>`, `$null`, `Out-Null`, capture, or another substitute irreversibly fails this run. Keep the Goal active and report the exact act for external rejection; do not restart and self-credit it.
-
-Searches, excerpts, summaries, diffs, builds, tests, earlier reads, and partial passes count as zero. Cost, repetition, context pressure, or Final never permits a shorter round.
+Never read manifest files through shell or another tool during a tool-owned round, combine their paths, hide output, forge ledger state, or complete the Goal without the runner's dry seal. Report such an act for external rejection. Cost, repetition, compaction, context pressure, or Final never permits a shorter round.
 
 ## Final Checklist
 
-- [ ] Every instruction and scoped file visibly read in full through one verified canonical manifest per round and exactly one file per command.
+- [ ] Every instruction read in full and every scoped file returned in order through the runner-owned manifest and one-file read tool.
 - [ ] Every requirement, schema element, operation, DTO, implementation branch, and test propagated through every branch in `backend.md`.
 - [ ] Every finding and consequence fixed only after its full round; every change followed by a new full round.
 - [ ] Material behavior passed fail-restore-pass calibration before the qualifying round.

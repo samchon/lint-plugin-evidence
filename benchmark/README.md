@@ -2,7 +2,7 @@
 
 This benchmark compares the same coding engine building the same application with and without `@samchon/lint-plugin-evidence`. Both arms receive the same requirements, shared template, engine, model, and effort. Only the Evidence arm receives the package, Evidence overlay, and Evidence-specific guidance. Plain adds the product-wide Overall Review pair; Evidence ends after its backend and frontend tag reviews and final gates.
 
-The runner prepares an isolated workspace, drives the prescribed instructions in one native session, and retains the native execution record. It does not validate requirements, judge the generated application, or repair a measured workspace.
+The runner prepares an isolated workspace, drives the prescribed instructions, and retains the native execution record. It does not judge requirements or repair a measured workspace. A supervised Plain checkpoint experiment may use a detached review thread and a runner-owned file ledger as an explicitly recorded treatment.
 
 ## Workspace preparation
 
@@ -43,6 +43,16 @@ pnpm --filter @samchon/evidence-benchmark start codex <project> <evidence|plain>
 
 The derived run verifies the retained cell and exact completed `backend-start` boundary, restores that workspace, applies the current arm's Review skill, and reads the current downstream instructions. An explicit operator launch does not reject the checkpoint because repository inputs changed after it was created.
 
+For a supervised Plain experiment whose independent variable is an external review ledger, launch the restored checkpoint in a new review thread:
+
+```bash
+pnpm --filter @samchon/evidence-benchmark start codex <project> plain <model> <effort> --from-backend-start <source-run-id> --supervise-backend --review-ledger
+```
+
+Codex cannot add dynamic tools to an existing fork or resumed thread. This mode therefore restores the exact backend-start workspace and inherited measurements but starts a new native thread at `backend-review`. The runner registers `review_start_round`, `review_read_file`, and `review_finish_round`; owns the canonical manifest, order, hashes, and one-file returns; rejects Goal completion without a current dry seal; and pauses after Backend Review and Backend Final for external verification. The cell and retained state identify this treatment explicitly.
+
+Resume an approved ledger run with its run ID, `--supervise-backend`, and `--review-ledger`; the latter must remain part of the retained cell identity.
+
 When launching Evidence cells concurrently, follow the Benchmark skill's shared-archive procedure. Every Evidence cell copies that archive and records its SHA-256. Without `EVIDENCE_BENCHMARK_ARCHIVE`, a standalone Evidence cell packs its own archive.
 
 ## Publishable reports
@@ -76,7 +86,7 @@ Plain receives eight instructions. Evidence receives the first six and has no Ov
 
 For each Plain Final step, the runner appends the matching Review instruction as a Markdown blockquote at the bottom of the prescribed instruction. Evidence Final owns only its current gate. The runner combines the prescribed instruction and that arm's `instructions/<arm>/continue.md` once as the objective. No runtime instruction bytes are shared across arms.
 
-Codex receives each objective as a native Goal in one app-server thread. It advances after Goal completion, terminal-turn completion, and an idle thread.
+Codex normally receives each objective as a native Goal in one app-server thread. A `--review-ledger` checkpoint treatment begins a new thread at Backend Review as described above. The runner advances after Goal completion, terminal-turn completion, and an idle thread.
 
 Engine completion is recorded execution behavior, not a quality verdict.
 
@@ -90,6 +100,7 @@ The runner retains facts in delivery order:
 - the current instruction cursor and engine-specific terminal checkpoints;
 - native token categories, process elapsed time, exit code, and signal.
 - the durable `backend-start` workspace and native-turn checkpoint, plus source lineage and inherited timing for a derived run.
+- runner-owned review manifests, file hashes, credited tool reads, findings or dry state, and invalidation evidence when `--review-ledger` is active.
 
 Setup time remains separate from model-process time. The retained record does not add build, lint, requirement, graph, quality, publication, or completion verdicts.
 

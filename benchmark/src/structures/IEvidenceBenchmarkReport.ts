@@ -19,6 +19,8 @@ export interface IEvidenceBenchmarkReportCell {
   benchmarkRevision: string;
   model: string;
   effort: EvidenceBenchmarkEffort;
+  /** Explicit external review-ledger treatment, when selected. */
+  reviewLedger?: "backend";
   status:
     | "ready"
     | "running"

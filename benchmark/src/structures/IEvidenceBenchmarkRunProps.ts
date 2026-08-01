@@ -54,6 +54,9 @@ export interface IEvidenceBenchmarkRunProps {
   /** Ends cleanly at Goal boundaries that require external verification. */
   pauseAfterGoals?: readonly EvidenceBenchmarkSupervisionGoal[];
 
+  /** Registers runner-owned backend review ledger tools on a fresh thread. */
+  reviewLedger?: "backend";
+
   /** Grace period for app-server to exit after its standard input closes. */
   shutdownGraceMs?: number;
 

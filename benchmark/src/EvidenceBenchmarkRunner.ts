@@ -4,6 +4,7 @@ import path from "node:path";
 
 import typia from "typia";
 
+import { EvidenceBenchmarkReviewLedger } from "./EvidenceBenchmarkReviewLedger.ts";
 import { EvidenceBenchmarkSupervision } from "./EvidenceBenchmarkSupervision.ts";
 import type { IEvidenceBenchmarkCheckpointStorage } from "./structures/IEvidenceBenchmarkCheckpointStorage.ts";
 import type { IEvidenceBenchmarkExecutable } from "./structures/IEvidenceBenchmarkExecutable.ts";
@@ -102,6 +103,13 @@ export namespace EvidenceBenchmarkRunner {
     const shutdownGraceMs: number = props.shutdownGraceMs ?? 5_000;
     if (!Number.isSafeInteger(shutdownGraceMs) || shutdownGraceMs <= 0)
       throw new Error("App-server shutdown grace must be a positive integer.");
+    if (
+      props.reviewLedger !== undefined &&
+      state.nativeThreadStartInstructionIndex !== 1
+    )
+      throw new Error(
+        "Runner-owned backend review tools require a detached backend-start checkpoint thread.",
+      );
 
     const current = (): IEvidenceBenchmarkGoalRecord => {
       const record: IEvidenceBenchmarkGoalRecord | undefined = state.goals.find(
@@ -337,6 +345,18 @@ export namespace EvidenceBenchmarkRunner {
         !record.threadIdle
       )
         return;
+      if (props.reviewLedger === "backend") {
+        try {
+          EvidenceBenchmarkReviewLedger.assertDry({
+            cwd: props.cwd,
+            state,
+            goal: record,
+          });
+        } catch (error) {
+          finish("interrupted", error);
+          return;
+        }
+      }
       if (!usageAdvanced(state.threadTokenUsage, record.tokenUsageStart)) {
         finish("interrupted", {
           name: "EvidenceBenchmarkTokenCheckpointError",
@@ -732,11 +752,48 @@ export namespace EvidenceBenchmarkRunner {
     };
 
     let notifications: Promise<void> = Promise.resolve();
+    let toolRequests: Promise<void> = Promise.resolve();
     const receive = (value: unknown): void => {
       const message: Record<string, unknown> = object(value);
       if (typeof message.method === "string") {
-        if ("id" in message) finish("interrupted", message);
-        else
+        if ("id" in message) {
+          if (
+            message.method !== "item/tool/call" ||
+            props.reviewLedger !== "backend" ||
+            typeof message.id !== "number"
+          ) {
+            finish("interrupted", message);
+            return;
+          }
+          toolRequests = toolRequests
+            .then(async () => {
+              const params: Record<string, unknown> = object(message.params);
+              if (
+                params.threadId !== state.sessionId ||
+                typeof params.turnId !== "string" ||
+                typeof params.callId !== "string" ||
+                typeof params.tool !== "string"
+              )
+                throw new Error(
+                  "Codex emitted an invalid runner-owned review tool request.",
+                );
+              const result = EvidenceBenchmarkReviewLedger.handle({
+                cwd: props.cwd,
+                state,
+                goal: current(),
+                call: {
+                  tool: params.tool,
+                  arguments: params.arguments,
+                  callId: params.callId,
+                  turnId: params.turnId,
+                },
+              });
+              publish();
+              await publication;
+              if (outcome === undefined) send({ id: message.id, result });
+            })
+            .catch((error: unknown) => finish("interrupted", error));
+        } else
           notifications = notifications
             .then(() => notify(message))
             .catch((error: unknown) => finish("interrupted", error));
@@ -830,6 +887,9 @@ export namespace EvidenceBenchmarkRunner {
               approvalPolicy: "never",
               sandbox: "danger-full-access",
               ephemeral: false,
+              ...(props.reviewLedger === "backend"
+                ? { dynamicTools: EvidenceBenchmarkReviewLedger.tools() }
+                : {}),
             })
           : forking
             ? await request("thread/fork", {
@@ -1177,6 +1237,7 @@ export namespace EvidenceBenchmarkRunner {
     }
 
     const result: Outcome = await outcomePromise;
+    await toolRequests;
     await notifications;
     await publication;
     child.stdin.end();
@@ -1338,6 +1399,18 @@ export namespace EvidenceBenchmarkRunner {
       state.goals.length !== entries.length
     )
       throw new Error("Codex retained an invalid completed cursor.");
+    const nativeStart: number = state.nativeThreadStartInstructionIndex ?? 0;
+    if (
+      !Number.isSafeInteger(nativeStart) ||
+      nativeStart < 0 ||
+      nativeStart >= entries.length ||
+      (nativeStart !== 0 &&
+        (nativeStart !== 1 ||
+          state.checkpoints?.some(
+            (checkpoint) => checkpoint.name === "backend-start",
+          ) !== true))
+    )
+      throw new Error("Codex retained an invalid native thread boundary.");
     entries.forEach((entry, index) => {
       const record: IEvidenceBenchmarkGoalRecord | undefined = state.goals.find(
         (candidate) => candidate.index === index,
@@ -1352,7 +1425,9 @@ export namespace EvidenceBenchmarkRunner {
         record.relativePath !== entry[1] ||
         record.objectiveText !==
           `${record.prescribedText}\n\n${record.continuationText}` ||
-        record.goal?.threadId !== state.sessionId ||
+        (index >= nativeStart
+          ? record.goal?.threadId !== state.sessionId
+          : typeof record.goal?.threadId !== "string") ||
         !sameNativeGoalObjective(
           record.goal?.objective,
           record.objectiveText,
@@ -1368,7 +1443,7 @@ export namespace EvidenceBenchmarkRunner {
           record.tokenUsage,
           subtract(record.tokenUsageEnd, record.tokenUsageStart),
         ) ||
-        (index === 0
+        (index === 0 || index === nativeStart
           ? !sameUsage(record.tokenUsageStart, zeroUsage())
           : previous?.tokenUsageEnd === null ||
             previous?.tokenUsageEnd === undefined ||
@@ -1404,7 +1479,10 @@ export namespace EvidenceBenchmarkRunner {
       record.index === 0
         ? undefined
         : state.goals.find((candidate) => candidate.index === record.index - 1);
-    const baseline: unknown = previous?.goal?.timeUsedSeconds ?? 0;
+    const baseline: unknown =
+      record.index === state.nativeThreadStartInstructionIndex
+        ? 0
+        : (previous?.goal?.timeUsedSeconds ?? 0);
     if (
       typeof cumulative !== "number" ||
       !Number.isFinite(cumulative) ||

@@ -28,6 +28,7 @@ interface IDashboardCell {
     runId: string;
     inheritedWallElapsedMs: number;
   };
+  reviewLedger?: "backend";
 }
 
 interface IDashboardProcess {
@@ -45,6 +46,11 @@ interface IDashboardInstruction {
   name: string;
   tokenUsage: {
     totalTokens: number;
+    inputTokens?: number;
+    cachedInputTokens?: number;
+    cacheWriteInputTokens?: number;
+    outputTokens?: number;
+    reasoningOutputTokens?: number;
   };
   tokenUsageEnd?: IEvidenceBenchmarkTokenUsage | null;
 }
@@ -60,6 +66,7 @@ interface IDashboardState {
     | "completed";
   nextInstructionIndex: number;
   threadTokenUsage: IEvidenceBenchmarkTokenUsage;
+  nativeThreadStartInstructionIndex?: number;
   goals: IDashboardInstruction[];
   processes: IDashboardProcess[];
   supervisionPauses?: {
@@ -286,7 +293,8 @@ const summarizeRun = (
 ): IEvidenceBenchmarkReportCell => {
   const file: IDashboardStateFile = run.file;
   const workElapsedMs: number = elapsed(file);
-  const totalTokens: number = file.state.threadTokenUsage.totalTokens;
+  const totalUsage: IEvidenceBenchmarkTokenUsage = totalTokenUsage(file.state);
+  const totalTokens: number = totalUsage.totalTokens;
   const stages: IEvidenceBenchmarkReportStage[] = stageMeasurements(
     file.state,
     workElapsedMs,
@@ -303,11 +311,14 @@ const summarizeRun = (
     benchmarkRevision: file.cell.benchmarkRevision,
     model: file.cell.model,
     effort: file.cell.effort,
+    ...(file.cell.reviewLedger === undefined
+      ? {}
+      : { reviewLedger: file.cell.reviewLedger }),
     status: file.state.status,
     stage: stageName(file.state),
     launchedAt: new Date(run.launchedAt).toISOString(),
     tokens: totalTokens,
-    tokenUsage: structuredClone(file.state.threadTokenUsage),
+    tokenUsage: totalUsage,
     apiCost: includeApiCost ? collectRunApiCost(run, byRunId) : null,
     workElapsedMs,
     wallElapsedMs: wallElapsed(run, generatedAt),
@@ -375,7 +386,10 @@ const collectRunApiCost = (
     collectEvidenceBenchmarkApiCost({
       rawLog: file.records.raw,
       model: file.cell.model,
-      initial,
+      initial:
+        (file.state.nativeThreadStartInstructionIndex ?? 0) > 0
+          ? emptyTokenUsage()
+          : initial,
       expected: file.state.threadTokenUsage,
       strict,
     });
@@ -498,6 +512,65 @@ interface IStageMeasurement {
   elapsedMs: number;
 }
 
+const totalTokenUsage = (
+  state: IDashboardState,
+): IEvidenceBenchmarkTokenUsage => {
+  const nativeStart: number = state.nativeThreadStartInstructionIndex ?? 0;
+  return state.goals
+    .filter((goal) => goal.index < nativeStart)
+    .reduce(
+      (total, goal) => addTokenUsage(total, completeGoalUsage(goal)),
+      structuredClone(state.threadTokenUsage),
+    );
+};
+
+const completeGoalUsage = (
+  goal: IDashboardInstruction,
+): IEvidenceBenchmarkTokenUsage => {
+  const usage = goal.tokenUsage;
+  if (
+    typeof usage.inputTokens !== "number" ||
+    typeof usage.cachedInputTokens !== "number" ||
+    typeof usage.cacheWriteInputTokens !== "number" ||
+    typeof usage.outputTokens !== "number" ||
+    typeof usage.reasoningOutputTokens !== "number"
+  )
+    throw new Error(
+      "Detached checkpoint stage lacks complete inherited token usage.",
+    );
+  return {
+    totalTokens: usage.totalTokens,
+    inputTokens: usage.inputTokens,
+    cachedInputTokens: usage.cachedInputTokens,
+    cacheWriteInputTokens: usage.cacheWriteInputTokens,
+    outputTokens: usage.outputTokens,
+    reasoningOutputTokens: usage.reasoningOutputTokens,
+  };
+};
+
+const addTokenUsage = (
+  left: IEvidenceBenchmarkTokenUsage,
+  right: IEvidenceBenchmarkTokenUsage,
+): IEvidenceBenchmarkTokenUsage => ({
+  totalTokens: left.totalTokens + right.totalTokens,
+  inputTokens: left.inputTokens + right.inputTokens,
+  cachedInputTokens: left.cachedInputTokens + right.cachedInputTokens,
+  cacheWriteInputTokens:
+    left.cacheWriteInputTokens + right.cacheWriteInputTokens,
+  outputTokens: left.outputTokens + right.outputTokens,
+  reasoningOutputTokens:
+    left.reasoningOutputTokens + right.reasoningOutputTokens,
+});
+
+const emptyTokenUsage = (): IEvidenceBenchmarkTokenUsage => ({
+  totalTokens: 0,
+  inputTokens: 0,
+  cachedInputTokens: 0,
+  cacheWriteInputTokens: 0,
+  outputTokens: 0,
+  reasoningOutputTokens: 0,
+});
+
 const stageMeasurements = (
   state: IDashboardState,
   totalElapsed: number,
@@ -513,7 +586,11 @@ const stageMeasurements = (
       ? undefined
       : state.goals.at(-1));
   const retainedTokens: number = state.goals.reduce(
-    (sum, instruction) => sum + instruction.tokenUsage.totalTokens,
+    (sum, instruction) =>
+      sum +
+      (instruction.index >= (state.nativeThreadStartInstructionIndex ?? 0)
+        ? instruction.tokenUsage.totalTokens
+        : 0),
     0,
   );
   const retainedElapsed: number = state.goals.reduce(
@@ -547,7 +624,10 @@ const retainedInstructionElapsed = (
     (candidate) => candidate.index === instruction.index - 1,
   );
   const baseline: number | undefined =
-    instruction.index === 0 ? 0 : previous?.goal?.timeUsedSeconds;
+    instruction.index === 0 ||
+    instruction.index === state.nativeThreadStartInstructionIndex
+      ? 0
+      : previous?.goal?.timeUsedSeconds;
   return cumulative !== undefined &&
     baseline !== undefined &&
     Number.isFinite(cumulative) &&
