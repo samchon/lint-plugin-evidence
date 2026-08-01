@@ -1,19 +1,20 @@
 # Frontend Final
 
-Did the preceding Frontend Review actually complete its **review loop until dry**: literal full-scope rounds repeated without exception or limit until one entire round found no problem and made no edit?
+Did the preceding Frontend Review satisfy every sentence of the exact Frontend Review instruction quoted below?
 
-Use the preceding completion report and the exact Frontend Review instruction quoted below to answer. If any required review work is absent, incomplete, or uncertain, perform the quoted Frontend Review from the first requirement now, fix every finding and consequence, and repeat full rounds until dry. Do not wait for another objective.
+Audit the preceding work against the quoted instruction. Treat its completion report as evidence, not proof by itself.
 
-Ensure backend `pnpm check:watch`, backend `pnpm dev`, and frontend `pnpm dev` are running. Run `pnpm test:e2e` from `packages/frontend` with `VITE_API_SIMULATE=false`, and keep the three processes running through Overall Final. These gates are required but do not prove the review loop.
+If any requirement is absent, incomplete, or uncertain, perform the quoted Frontend Review now. Start at the first requirement, read the full scope literally, fix every finding and consequence, and repeat without limit until one full round is dry and edit-free.
 
-The exact Frontend Review instruction is quoted below.
+After the Review is proven complete, ensure backend `pnpm check:watch`, backend `pnpm dev`, and frontend `pnpm dev` are running, then run `pnpm test:e2e` from `packages/frontend` with `VITE_API_SIMULATE=false`. Keep all three processes running through Overall Final. These gates do not replace the Review.
 
 ## Final Checklist
 
-- [ ] Review skill gate and quoted Frontend Review followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
-- [ ] Literal full reading covered every required instruction and in-scope frontend artifact.
+- [ ] Preceding or repeated Frontend Review satisfies every quoted instruction and Review skill checklist item.
+- [ ] No discretionary judgment changed scope, round boundaries, stopping conditions, or procedure.
+- [ ] Literal full reading covered every required instruction and frontend artifact.
 - [ ] Every finding and consequence fixed; derived artifacts regenerated.
-- [ ] Latest correction followed by a dry, edit-free full round.
+- [ ] Every correction followed by a new full round; final full round dry and edit-free.
 - [ ] Watcher and dev servers running; live browser tests passed without simulation.
 
-Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Perform the quoted Frontend Review as a literal full-reading round from the first requirement now, and repeat until every item is checked. Builds and tests alone do not qualify.
+Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Perform the quoted Frontend Review again from the first requirement. Mark this Goal complete only after every item is checked.
