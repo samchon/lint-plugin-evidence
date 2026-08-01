@@ -60,6 +60,24 @@ export function claim(): void {}
 			assertNoProblems(t, runIndexRule(t, files, acknowledgementIntentConfig))
 		})
 	}
+
+	t.Run("same target across merged identity declarations", func(t *testing.T) {
+		messages := runIndexRule(t, map[string]string{
+			"docs/spec.md": "## Contract {#contract}\n",
+			"src/claim.ts": `/** @evidence docs/spec.md#contract Defines the contract shape. */
+export interface Claim {}
+
+/** @evidence docs/spec.md#contract Defines the contract namespace. */
+export namespace Claim {}
+`,
+		}, `{"claims":[{
+			"type":"typescript",
+			"files":["src/claim.ts"],
+			"symbol":"type",
+			"reference":{"type":"markdown","files":["docs/spec.md"],"symbol":"h2"}
+		}]}`)
+		assertNoProblems(t, messages)
+	})
 }
 
 /**
