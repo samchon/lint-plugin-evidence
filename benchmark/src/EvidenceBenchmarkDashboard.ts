@@ -21,6 +21,9 @@ interface IDashboardCell {
   benchmarkRevision: string;
   model: string;
   effort: EvidenceBenchmarkEffort;
+  checkpointSource?: {
+    inheritedWallElapsedMs: number;
+  };
 }
 
 interface IDashboardProcess {
@@ -49,6 +52,7 @@ interface IDashboardState {
   };
   goals: IDashboardInstruction[];
   processes: IDashboardProcess[];
+  inheritedProcessElapsedMs?: number;
 }
 
 interface IDashboardStateFile {
@@ -268,7 +272,10 @@ const wallElapsed = (run: IDashboardRun, generatedAt: number): number => {
     run.file.state.status === "completed"
       ? readLastRecordedTime(run.file.records.events)
       : generatedAt;
-  return Math.max(0, (stoppedAt ?? run.launchedAt) - run.launchedAt);
+  return (
+    Math.max(0, (stoppedAt ?? run.launchedAt) - run.launchedAt) +
+    (run.file.cell.checkpointSource?.inheritedWallElapsedMs ?? 0)
+  );
 };
 
 const readLastRecordedTime = (file: string): number | undefined => {
@@ -470,13 +477,16 @@ const elapsed = (file: IDashboardStateFile): number => {
     file.records.events,
     unresolved,
   );
-  return file.state.processes.reduce(
-    (sum, process, index) =>
-      sum +
-      (process.exitCode !== null || process.signal !== null
-        ? process.elapsedMs
-        : Math.max(process.elapsedMs, observed.get(index)?.elapsedMs ?? 0)),
-    0,
+  return (
+    (file.state.inheritedProcessElapsedMs ?? 0) +
+    file.state.processes.reduce(
+      (sum, process, index) =>
+        sum +
+        (process.exitCode !== null || process.signal !== null
+          ? process.elapsedMs
+          : Math.max(process.elapsedMs, observed.get(index)?.elapsedMs ?? 0)),
+      0,
+    )
   );
 };
 

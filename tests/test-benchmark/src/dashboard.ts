@@ -85,11 +85,10 @@ const main = (): void => {
         goal(0, "backend-start", 1_000_000, 61_000, 120),
         goal(1, "backend-review", 0, 0),
       ],
-      processes: [
-        { elapsedMs: 61_000, exitCode: 0, signal: null },
-        { elapsedMs: 10_000, exitCode: null, signal: null },
-      ],
-      outputEvents: [{ processIndex: 1, elapsedMs: 65_000 }],
+      processes: [{ elapsedMs: 10_000, exitCode: null, signal: null }],
+      outputEvents: [{ processIndex: 0, elapsedMs: 65_000 }],
+      inheritedProcessElapsedMs: 61_000,
+      inheritedWallElapsedMs: 30 * 60 * 1_000,
     });
     writeRun({
       repository,
@@ -189,7 +188,7 @@ const main = (): void => {
     assert.equal(todoPlain.stage, "backend-review");
     assert.equal(todoPlain.tokens, 1_600_000);
     assert.equal(todoPlain.workElapsedMs, 126_000);
-    assert.equal(todoPlain.wallElapsedMs, 3 * 60 * 60 * 1_000);
+    assert.equal(todoPlain.wallElapsedMs, 3.5 * 60 * 60 * 1_000);
     assert.deepEqual(todoPlain.worktree, {
       files: 2,
       additions: 2,
@@ -288,7 +287,7 @@ const main = (): void => {
     );
     assert.match(
       fs.readFileSync(path.join(reportOutput, "wall-time.svg"), "utf8"),
-      />3h 00m</u,
+      />3h 30m</u,
     );
   } finally {
     fs.rmSync(repository, { recursive: true, force: true });
@@ -342,6 +341,8 @@ const writeRun = (props: {
   }[];
   outputEvents: { processIndex: number; elapsedMs: number }[];
   model?: string;
+  inheritedProcessElapsedMs?: number;
+  inheritedWallElapsedMs?: number;
 }): void => {
   const root: string = path.join(
     props.repository,
@@ -379,6 +380,13 @@ const writeRun = (props: {
           benchmarkRevision: "fixture-revision",
           model: props.model ?? "gpt-5.6-luna",
           effort: "high",
+          ...(props.inheritedWallElapsedMs === undefined
+            ? {}
+            : {
+                checkpointSource: {
+                  inheritedWallElapsedMs: props.inheritedWallElapsedMs,
+                },
+              }),
         },
         records: {
           workspace: props.workspace,
@@ -392,6 +400,11 @@ const writeRun = (props: {
           },
           goals: props.goals,
           processes: props.processes,
+          ...(props.inheritedProcessElapsedMs === undefined
+            ? {}
+            : {
+                inheritedProcessElapsedMs: props.inheritedProcessElapsedMs,
+              }),
         },
       },
       null,

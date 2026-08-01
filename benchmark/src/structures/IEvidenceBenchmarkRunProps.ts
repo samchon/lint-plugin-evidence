@@ -1,3 +1,5 @@
+import type { IEvidenceBenchmarkCheckpointStorage } from "./IEvidenceBenchmarkCheckpointStorage.ts";
+import type { IEvidenceBenchmarkGoalRecord } from "./IEvidenceBenchmarkGoalRecord.ts";
 import type { IEvidenceBenchmarkOutput } from "./IEvidenceBenchmarkOutput.ts";
 import type { IEvidenceBenchmarkRunState } from "./IEvidenceBenchmarkRunState.ts";
 import type { EvidenceBenchmarkEffort } from "../typings/EvidenceBenchmarkEffort.ts";
@@ -36,6 +38,12 @@ export interface IEvidenceBenchmarkRunProps {
   /** Arguments placed before the native Codex arguments. */
   commandPrefixArguments?: readonly string[];
 
+  /** Exact source boundary used to create a checkpoint-derived thread. */
+  fork?: {
+    sourceSessionId: string;
+    terminalTurnId: string;
+  };
+
   /** Grace period for app-server to exit after its standard input closes. */
   shutdownGraceMs?: number;
 
@@ -47,4 +55,13 @@ export interface IEvidenceBenchmarkRunProps {
 
   /** Durable observer for each retained state transition. */
   onState?: (state: IEvidenceBenchmarkRunState) => void | Promise<void>;
+
+  /** Persists a workspace checkpoint before the next Goal is dispatched. */
+  onCheckpoint?: (request: {
+    state: IEvidenceBenchmarkRunState;
+    goal: IEvidenceBenchmarkGoalRecord;
+    processElapsedMs: number;
+  }) =>
+    | IEvidenceBenchmarkCheckpointStorage
+    | Promise<IEvidenceBenchmarkCheckpointStorage>;
 }

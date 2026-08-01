@@ -27,6 +27,14 @@ pnpm --filter @samchon/evidence-benchmark start codex <project> <evidence|plain>
 
 Omit `run-id` to create a cell under `benchmark/output/<project>/<engine>/<arm>/runs/<run-id>/`. Pass an existing run ID only to resume that exact engine, project, arm, model, effort, workspace, and session.
 
+After `backend-start` completes, the runner stores a workspace and native-turn checkpoint before starting `backend-review`. If a later instruction proves defective, create a new run from that point:
+
+```bash
+pnpm --filter @samchon/evidence-benchmark start codex <project> <evidence|plain> <model> <effort> --from-backend-start <source-run-id>
+```
+
+The derived run may contain committed changes to that arm's seven downstream instruction files only. It refuses the checkpoint when the selected template, embedded skills, requirements, Evidence archive, model, effort, CLI, `backend-start`, continuation instruction, or any other committed file changed.
+
 When launching Evidence cells concurrently, follow the Benchmark skill's shared-archive procedure. Every Evidence cell copies that archive and records its SHA-256. Without `EVIDENCE_BENCHMARK_ARCHIVE`, a standalone Evidence cell packs its own archive.
 
 ## Publishable reports
@@ -69,6 +77,7 @@ The runner retains facts in delivery order:
 - project, engine, arm, benchmark Git revision, Evidence artifact SHA-256 when applicable, requested model, effort, CLI version, session, instruction, and process identity;
 - the current instruction cursor and engine-specific terminal checkpoints;
 - native token categories, process elapsed time, exit code, and signal.
+- the durable `backend-start` workspace and native-turn checkpoint, plus source lineage and inherited timing for a derived run.
 
 Setup time remains separate from model-process time. The retained record does not add build, lint, requirement, graph, quality, publication, or completion verdicts.
 

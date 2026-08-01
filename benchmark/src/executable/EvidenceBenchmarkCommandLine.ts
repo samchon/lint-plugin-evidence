@@ -7,9 +7,12 @@ import { pathToFileURL } from "node:url";
 
 import typia from "typia";
 
+import { EvidenceBenchmarkCheckpoint } from "../EvidenceBenchmarkCheckpoint.ts";
 import { EvidenceBenchmarkRunner } from "../EvidenceBenchmarkRunner.ts";
 import { EvidenceBenchmarkWorkspace } from "../EvidenceBenchmarkWorkspace.ts";
 import { sanitizeBenchmarkEnvironment } from "../sanitizeBenchmarkEnvironment.ts";
+import type { IEvidenceBenchmarkCheckpoint } from "../structures/IEvidenceBenchmarkCheckpoint.ts";
+import type { IEvidenceBenchmarkInputIdentity } from "../structures/IEvidenceBenchmarkInputIdentity.ts";
 import type { IEvidenceBenchmarkOutput } from "../structures/IEvidenceBenchmarkOutput.ts";
 import type { IEvidenceBenchmarkRunState } from "../structures/IEvidenceBenchmarkRunState.ts";
 import type { IEvidenceBenchmarkWorkspaceResult } from "../structures/IEvidenceBenchmarkWorkspaceResult.ts";
@@ -26,6 +29,7 @@ interface IEvidenceBenchmarkArguments {
   model: string;
   effort: EvidenceBenchmarkEffort;
   runId?: string;
+  checkpointRunId?: string;
 }
 
 interface IEvidenceBenchmarkCell {
@@ -37,6 +41,13 @@ interface IEvidenceBenchmarkCell {
   evidenceArtifactSha256?: string;
   model: string;
   effort: EvidenceBenchmarkEffort;
+  launchedAt?: string;
+  inputIdentity?: IEvidenceBenchmarkInputIdentity;
+  checkpointSource?: {
+    runId: string;
+    name: "backend-start";
+    inheritedWallElapsedMs: number;
+  };
 }
 
 interface IEvidenceBenchmarkRecordPaths {
@@ -61,6 +72,12 @@ const main = async (): Promise<void> => {
     process.argv.slice(2),
   );
   const runnerRevision: string = readEvidenceBenchmarkRevision(repository);
+  const inputIdentity: IEvidenceBenchmarkInputIdentity =
+    EvidenceBenchmarkCheckpoint.identifyInputs({
+      repository,
+      subject: options.subject,
+      arm: options.arm,
+    });
   const requestedCell: IEvidenceBenchmarkCell = {
     engine: options.engine,
     subject: options.subject,
@@ -69,6 +86,7 @@ const main = async (): Promise<void> => {
     benchmarkRevision: runnerRevision,
     model: options.model,
     effort: options.effort,
+    inputIdentity,
   };
   const output: string = path.join(
     repository,
@@ -85,6 +103,18 @@ const main = async (): Promise<void> => {
       ? undefined
       : typia.assert<IEvidenceBenchmarkStateFile>(
           JSON.parse(fs.readFileSync(path.join(output, "state.json"), "utf8")),
+        );
+  const checkpointSource: IEvidenceBenchmarkStateFile | undefined =
+    options.checkpointRunId === undefined
+      ? undefined
+      : readStateFile(
+          evidenceBenchmarkOutputPath(
+            repository,
+            options.subject,
+            options.engine,
+            options.arm,
+            options.checkpointRunId,
+          ),
         );
   const records: IEvidenceBenchmarkRecordPaths =
     evidenceBenchmarkRecordPaths(output);
@@ -109,6 +139,12 @@ const main = async (): Promise<void> => {
       cell.benchmarkRevision,
       runnerRevision,
     );
+  if (retained !== undefined)
+    assertSameInputIdentity(
+      retained.cell.inputIdentity,
+      inputIdentity,
+      "Retained benchmark inputs changed after launch.",
+    );
   if (
     retained !== undefined &&
     ((cell.arm === "evidence" &&
@@ -122,6 +158,18 @@ const main = async (): Promise<void> => {
   if (retained !== undefined) {
     assertRegularFile(records.state);
     await runBenchmark(cell, records, retained.state, runnerRevision);
+    return;
+  }
+
+  if (checkpointSource !== undefined) {
+    await runFromBackendStartCheckpoint({
+      repository,
+      runnerRevision,
+      requestedCell,
+      inputIdentity,
+      source: checkpointSource,
+      records,
+    });
     return;
   }
 
@@ -189,12 +237,173 @@ const main = async (): Promise<void> => {
   );
 };
 
+const runFromBackendStartCheckpoint = async (props: {
+  repository: string;
+  runnerRevision: string;
+  requestedCell: IEvidenceBenchmarkCell;
+  inputIdentity: IEvidenceBenchmarkInputIdentity;
+  source: IEvidenceBenchmarkStateFile;
+  records: IEvidenceBenchmarkRecordPaths;
+}): Promise<void> => {
+  const sourceCell: IEvidenceBenchmarkCell = props.source.cell;
+  const requested: IEvidenceBenchmarkCell = props.requestedCell;
+  if (
+    sourceCell.engine !== requested.engine ||
+    sourceCell.subject !== requested.subject ||
+    sourceCell.arm !== requested.arm ||
+    sourceCell.model !== requested.model ||
+    sourceCell.effort !== requested.effort
+  )
+    throw new Error("Checkpoint source cell does not match the invocation.");
+  const sourceRoot: string = evidenceBenchmarkOutputPath(
+    props.repository,
+    sourceCell.subject,
+    sourceCell.engine,
+    sourceCell.arm,
+    sourceCell.runId,
+  );
+  if (
+    !sameEvidenceBenchmarkRecordPaths(
+      props.source.records,
+      evidenceBenchmarkRecordPaths(sourceRoot),
+    )
+  )
+    throw new Error("Checkpoint source record paths do not match the run.");
+  assertEvidenceBenchmarkRecoveryRevision(
+    props.repository,
+    sourceCell.benchmarkRevision,
+    props.runnerRevision,
+  );
+  assertBackendStartRecoveryChanges(
+    props.repository,
+    sourceCell.benchmarkRevision,
+    props.runnerRevision,
+    requested.arm,
+  );
+  const sourceIdentity: IEvidenceBenchmarkInputIdentity | undefined =
+    sourceCell.inputIdentity;
+  if (sourceIdentity === undefined)
+    throw new Error("Checkpoint source predates frozen input identities.");
+  if (
+    sourceIdentity.templateSha256 !== props.inputIdentity.templateSha256 ||
+    sourceIdentity.requirementsSha256 !== props.inputIdentity.requirementsSha256
+  )
+    throw new Error(
+      "Checkpoint recovery permits downstream instruction changes only; template, skills, or requirements changed.",
+    );
+  if (
+    (sourceCell.arm === "evidence" &&
+      !/^[0-9a-f]{64}$/i.test(sourceCell.evidenceArtifactSha256 ?? "")) ||
+    (sourceCell.arm === "plain" &&
+      sourceCell.evidenceArtifactSha256 !== undefined)
+  )
+    throw new Error("Checkpoint source has an invalid artifact identity.");
+
+  const checkpoint: IEvidenceBenchmarkCheckpoint | undefined =
+    props.source.state.checkpoints?.find(
+      (candidate) => candidate.name === "backend-start",
+    );
+  const start = props.source.state.goals.find((goal) => goal.index === 0);
+  if (
+    checkpoint === undefined ||
+    start === undefined ||
+    start.name !== "backend-start" ||
+    start.goal?.status !== "complete" ||
+    start.goal.threadId !== checkpoint.sourceSessionId ||
+    start.terminalTurnId !== checkpoint.terminalTurnId ||
+    !start.terminalTurnCompleted ||
+    !start.threadIdle ||
+    start.tokenUsageTurnId !== start.terminalTurnId ||
+    start.tokenUsageEnd === null ||
+    props.source.state.sessionId !== checkpoint.sourceSessionId ||
+    checkpoint.cliVersion !== props.source.state.cliVersion
+  )
+    throw new Error("Checkpoint source lacks an exact backend-start boundary.");
+  const instructionsRoot: string = path.join(
+    props.repository,
+    "benchmark",
+    "instructions",
+  );
+  const currentStart: string = fs.readFileSync(
+    path.join(instructionsRoot, requested.arm, "backend", "start.md"),
+    "utf8",
+  );
+  const currentContinuation: string = fs.readFileSync(
+    path.join(instructionsRoot, requested.arm, "continue.md"),
+    "utf8",
+  );
+  if (
+    start.prescribedText !== currentStart ||
+    start.continuationText !== currentContinuation
+  )
+    throw new Error(
+      "Checkpoint recovery cannot change backend-start or its continuation instruction.",
+    );
+
+  requested.evidenceArtifactSha256 = sourceCell.evidenceArtifactSha256;
+  requested.checkpointSource = {
+    runId: sourceCell.runId,
+    name: "backend-start",
+    inheritedWallElapsedMs: checkpoint.inheritedWallElapsedMs,
+  };
+  let workspace: string;
+  let restored = false;
+  try {
+    workspace = EvidenceBenchmarkCheckpoint.restoreWorkspaceSnapshot({
+      sourceRunRoot: sourceRoot,
+      workspaceRelativePath: checkpoint.workspaceRelativePath,
+      workspaceSha256: checkpoint.workspaceSha256,
+      destinationRunRoot: props.records.root,
+    });
+    restored = true;
+    await EvidenceBenchmarkWorkspace.installDependencies(workspace);
+    EvidenceBenchmarkCheckpoint.assertRestoredWorkspace({
+      workspace,
+      materialSha256: checkpoint.workspaceMaterialSha256,
+      gitHead: checkpoint.workspaceGitHead,
+      gitStatus: checkpoint.workspaceGitStatus,
+    });
+    initializeAppendOnly(props.records.events);
+    initializeAppendOnly(props.records.raw);
+  } catch (error) {
+    if (restored)
+      fs.rmSync(props.records.root, { recursive: true, force: true });
+    throw error;
+  }
+  const initialState: EvidenceBenchmarkState = {
+    arm: requested.arm,
+    cliVersion: checkpoint.cliVersion,
+    nextInstructionIndex: 1,
+    status: "ready",
+    threadTokenUsage: structuredClone(start.tokenUsageEnd),
+    goals: [structuredClone(start)],
+    checkpoints: [structuredClone(checkpoint)],
+    inheritedProcessElapsedMs: checkpoint.inheritedProcessElapsedMs,
+    processes: [],
+  };
+  await runBenchmark(
+    requested,
+    props.records,
+    initialState,
+    props.runnerRevision,
+    {
+      sourceSessionId: checkpoint.sourceSessionId,
+      terminalTurnId: checkpoint.terminalTurnId,
+    },
+  );
+};
+
 const runBenchmark = async (
   cell: IEvidenceBenchmarkCell,
   records: IEvidenceBenchmarkRecordPaths,
   initialState: EvidenceBenchmarkState,
   runnerRevision: string,
+  fork?: {
+    sourceSessionId: string;
+    terminalTurnId: string;
+  },
 ): Promise<void> => {
+  cell.launchedAt ??= new Date().toISOString();
   if (initialState.arm !== cell.arm)
     throw new Error("Retained benchmark state uses a different arm.");
   assertDirectory(records.root);
@@ -249,9 +458,20 @@ const runBenchmark = async (
       model: cell.model,
       effort: cell.effort,
       runnerRevision,
+      fork,
       environment,
       onOutput,
       onState,
+      onCheckpoint: () =>
+        EvidenceBenchmarkCheckpoint.createWorkspaceSnapshot({
+          runRoot: records.root,
+          workspace: records.workspace,
+          inheritedWallElapsedMs: Math.max(
+            0,
+            Date.now() -
+              Date.parse(cell.launchedAt ?? new Date().toISOString()),
+          ),
+        }),
     });
     if (result.status !== "completed")
       throw new Error(
@@ -265,12 +485,49 @@ const runBenchmark = async (
   }
 };
 
+const evidenceBenchmarkOutputPath = (
+  repository: string,
+  subject: string,
+  engine: EvidenceBenchmarkEngine,
+  arm: EvidenceBenchmarkArm,
+  runId: string,
+): string =>
+  path.join(
+    repository,
+    "benchmark",
+    "output",
+    subject,
+    engine,
+    arm,
+    "runs",
+    runId,
+  );
+
+const readStateFile = (root: string): IEvidenceBenchmarkStateFile =>
+  typia.assert<IEvidenceBenchmarkStateFile>(
+    JSON.parse(fs.readFileSync(path.join(root, "state.json"), "utf8")),
+  );
+
+const assertSameInputIdentity = (
+  retained: IEvidenceBenchmarkInputIdentity | undefined,
+  current: IEvidenceBenchmarkInputIdentity,
+  message: string,
+): void => {
+  if (
+    retained === undefined ||
+    retained.templateSha256 !== current.templateSha256 ||
+    retained.requirementsSha256 !== current.requirementsSha256 ||
+    retained.instructionsSha256 !== current.instructionsSha256
+  )
+    throw new Error(message);
+};
+
 export const parseEvidenceBenchmarkArguments = (
   input: readonly string[],
 ): IEvidenceBenchmarkArguments => {
-  if (input.length < 5 || input.length > 6)
+  if (input.length < 5 || input.length > 7)
     throw new Error(
-      "Usage: pnpm start codex <subject> <evidence|plain> <model> <effort> [run-id]",
+      "Usage: pnpm start codex <subject> <evidence|plain> <model> <effort> [run-id | --from-backend-start source-run-id]",
     );
   const engine: string = input[0]!;
   if (engine !== "codex")
@@ -293,7 +550,12 @@ export const parseEvidenceBenchmarkArguments = (
     effort !== "ultra"
   )
     throw new Error(`Invalid benchmark effort: ${effort}.`);
-  const runId: string | undefined = input[5];
+  const checkpointRunId: string | undefined =
+    input[5] === "--from-backend-start" ? input[6] : undefined;
+  if (input.length === 7 && checkpointRunId === undefined)
+    throw new Error("Invalid backend-start checkpoint invocation.");
+  const runId: string | undefined =
+    checkpointRunId === undefined ? input[5] : undefined;
   if (
     runId !== undefined &&
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -301,7 +563,22 @@ export const parseEvidenceBenchmarkArguments = (
     )
   )
     throw new Error(`Invalid benchmark run ID: ${runId}.`);
-  return { engine, subject, arm, model, effort, runId };
+  if (
+    checkpointRunId !== undefined &&
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      checkpointRunId,
+    )
+  )
+    throw new Error(`Invalid checkpoint source run ID: ${checkpointRunId}.`);
+  return {
+    engine,
+    subject,
+    arm,
+    model,
+    effort,
+    runId,
+    checkpointRunId,
+  };
 };
 
 export const readEvidenceBenchmarkRevision = (repository: string): string => {
@@ -350,6 +627,39 @@ export const assertEvidenceBenchmarkRecoveryRevision = (
   if (ancestry.status !== 0)
     throw new Error(
       "Recovery runner revision must descend from the frozen benchmark revision.",
+    );
+};
+
+export const assertBackendStartRecoveryChanges = (
+  repository: string,
+  benchmarkRevision: string,
+  runnerRevision: string,
+  arm: EvidenceBenchmarkArm,
+): void => {
+  if (benchmarkRevision === runnerRevision) return;
+  const changed = spawnSync(
+    "git",
+    ["diff", "--name-only", "-z", benchmarkRevision, runnerRevision],
+    {
+      cwd: repository,
+      encoding: "utf8",
+      shell: false,
+      windowsHide: true,
+    },
+  );
+  if (changed.status !== 0)
+    throw new Error("Unable to inspect checkpoint recovery changes.");
+  const allowed: Set<string> = new Set(
+    EvidenceBenchmarkRunner.instructionEntries(arm)
+      .slice(1)
+      .map((entry) => `benchmark/instructions/${entry[1]}`),
+  );
+  const paths: string[] = (changed.stdout ?? "")
+    .split("\0")
+    .filter((file) => file.length !== 0);
+  if (paths.some((file) => !allowed.has(file)))
+    throw new Error(
+      "Checkpoint recovery permits committed changes to downstream instructions only.",
     );
 };
 

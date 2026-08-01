@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { EvidenceBenchmarkCheckpoint } from "../../../benchmark/src/EvidenceBenchmarkCheckpoint.ts";
 import { EvidenceBenchmarkWorkspace } from "../../../benchmark/src/EvidenceBenchmarkWorkspace.ts";
 
 /**
@@ -19,7 +20,8 @@ import { EvidenceBenchmarkWorkspace } from "../../../benchmark/src/EvidenceBench
  *    the git baseline.
  * 3. Assert variables, requirements, overlays, and Markdown splicing are exact.
  * 4. Assert only Evidence receives the immutable package archive and dependency.
- * 5. Assert each bounded stage is atomically renamed to its requested output.
+ * 5. Snapshot and restore material files without dependencies or runtime noise.
+ * 6. Assert each bounded stage is atomically renamed to its requested output.
  */
 const main = async (): Promise<void> => {
   const root: string = fs.mkdtempSync(
@@ -90,6 +92,20 @@ const main = async (): Promise<void> => {
       path.join(repository, "benchmark", "requirements", "fixture", "spec.md"),
       requirement,
     );
+    for (const arm of ["plain", "evidence"] as const) {
+      const instructions: string = path.join(
+        repository,
+        "benchmark",
+        "instructions",
+        arm,
+      );
+      fs.mkdirSync(path.join(instructions, "backend"), { recursive: true });
+      fs.writeFileSync(path.join(instructions, "continue.md"), "Continue.\n");
+      fs.writeFileSync(
+        path.join(instructions, "backend", "start.md"),
+        "# Backend Start\n",
+      );
+    }
 
     const fakePnpm: string = path.join(root, "fake-pnpm.mjs");
     fs.writeFileSync(
@@ -98,10 +114,11 @@ const main = async (): Promise<void> => {
         'import fs from "node:fs";',
         'import path from "node:path";',
         "const stage = path.basename(path.dirname(process.cwd()));",
-        'if (!stage.startsWith(".tmp-") || stage.length !== 11) {',
+        'const restored = fs.existsSync(path.join(process.cwd(), ".git"));',
+        'if (!restored && (!stage.startsWith(".tmp-") || stage.length !== 11)) {',
         "  console.error(`Rejected unbounded stage basename: ${stage}`);",
         "  process.exitCode = 73;",
-        "} else {",
+        "} else if (!restored) {",
         '  fs.writeFileSync(path.join(process.cwd(), ".fixture-install.json"), JSON.stringify({ stage }));',
         "}",
         "",
@@ -254,6 +271,83 @@ const main = async (): Promise<void> => {
         "",
       ].join("\n"),
     );
+
+    const inputBefore = EvidenceBenchmarkCheckpoint.identifyInputs({
+      repository,
+      subject: "fixture",
+      arm: "plain",
+    });
+    fs.writeFileSync(path.join(plainOverlay, "plain-only.txt"), "changed\n");
+    const inputAfter = EvidenceBenchmarkCheckpoint.identifyInputs({
+      repository,
+      subject: "fixture",
+      arm: "plain",
+    });
+    assert.notEqual(inputAfter.templateSha256, inputBefore.templateSha256);
+    assert.equal(inputAfter.requirementsSha256, inputBefore.requirementsSha256);
+    assert.equal(inputAfter.instructionsSha256, inputBefore.instructionsSha256);
+
+    fs.writeFileSync(
+      path.join(prepared.workspace, "AGENTS.md"),
+      "# AGENTS.md\n\nCheckpoint guidance.\n",
+    );
+    fs.rmSync(path.join(prepared.workspace, "plain-only.txt"));
+    fs.writeFileSync(
+      path.join(prepared.workspace, "feature.ts"),
+      "export {};\n",
+    );
+    fs.appendFileSync(
+      path.join(prepared.workspace, ".git", "info", "exclude"),
+      ".env\nignored.log\nnode_modules/\n",
+    );
+    fs.writeFileSync(path.join(prepared.workspace, ".env"), "SECRET=test\n");
+    fs.writeFileSync(path.join(prepared.workspace, "ignored.log"), "noise\n");
+    fs.mkdirSync(path.join(prepared.workspace, "node_modules"));
+    fs.writeFileSync(
+      path.join(prepared.workspace, "node_modules", "dependency.js"),
+      "ignored\n",
+    );
+    const checkpoint = EvidenceBenchmarkCheckpoint.createWorkspaceSnapshot({
+      runRoot: prepared.root,
+      workspace: prepared.workspace,
+      inheritedWallElapsedMs: 2_000,
+    });
+    assert.equal(checkpoint.workspaceFileCount > 0, true);
+    assert.equal(checkpoint.inheritedWallElapsedMs, 2_000);
+    fs.writeFileSync(path.join(prepared.workspace, "feature.ts"), "changed\n");
+    const restoredRoot: string = path.join(outputParent, "checkpoint-restored");
+    const restored: string =
+      EvidenceBenchmarkCheckpoint.restoreWorkspaceSnapshot({
+        sourceRunRoot: prepared.root,
+        workspaceRelativePath: checkpoint.workspaceRelativePath,
+        workspaceSha256: checkpoint.workspaceSha256,
+        destinationRunRoot: restoredRoot,
+      });
+    await EvidenceBenchmarkWorkspace.installDependencies(restored);
+    EvidenceBenchmarkCheckpoint.assertRestoredWorkspace({
+      workspace: restored,
+      materialSha256: checkpoint.workspaceMaterialSha256,
+      gitHead: checkpoint.workspaceGitHead,
+      gitStatus: checkpoint.workspaceGitStatus,
+    });
+    assert.equal(
+      fs.readFileSync(path.join(restored, "feature.ts"), "utf8"),
+      "export {};\n",
+    );
+    assert.equal(
+      fs.readFileSync(path.join(restored, ".env"), "utf8"),
+      "SECRET=test\n",
+    );
+    assert.equal(fs.existsSync(path.join(restored, "ignored.log")), false);
+    assert.equal(fs.existsSync(path.join(restored, "node_modules")), false);
+    assert.equal(fs.existsSync(path.join(restored, "plain-only.txt")), false);
+    const repeated = EvidenceBenchmarkCheckpoint.createWorkspaceSnapshot({
+      runRoot: prepared.root,
+      workspace: prepared.workspace,
+      inheritedWallElapsedMs: 3_000,
+    });
+    assert.equal(repeated.workspaceSha256, checkpoint.workspaceSha256);
+    assert.equal(repeated.inheritedWallElapsedMs, 2_000);
     await assert.rejects(
       EvidenceBenchmarkWorkspace.prepareWorkspace({
         repository,
@@ -276,6 +370,7 @@ const main = async (): Promise<void> => {
     assert.deepEqual(fs.readdirSync(outputParent).sort(), [
       path.basename(plainOutput),
       path.basename(evidenceOutput),
+      "checkpoint-restored",
     ]);
   } finally {
     if (originalEntrypoint === undefined) delete process.env.npm_execpath;

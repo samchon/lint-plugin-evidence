@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  assertBackendStartRecoveryChanges,
   assertEvidenceBenchmarkRecoveryRevision,
   evidenceBenchmarkRecordPaths,
   parseEvidenceBenchmarkArguments,
@@ -22,7 +23,8 @@ import {
  * 1. Accept one complete cell identity and reject every malformed dimension.
  * 2. Resolve a clean Git revision and reject the same repository when dirty.
  * 3. Accept a descendant recovery revision and reject an unknown lineage.
- * 4. Assert retained record paths are deterministic and exact.
+ * 4. Permit only the selected arm's downstream instructions after a checkpoint.
+ * 5. Assert retained record paths are deterministic and exact.
  */
 const main = (): void => {
   const runId: string = "00000000-0000-4000-8000-000000000000";
@@ -42,6 +44,7 @@ const main = (): void => {
       model: "gpt-5.6-luna",
       effort: "high",
       runId,
+      checkpointRunId: undefined,
     },
   );
   assert.deepEqual(
@@ -59,6 +62,27 @@ const main = (): void => {
       model: "gpt-5.6-luna",
       effort: "medium",
       runId: undefined,
+      checkpointRunId: undefined,
+    },
+  );
+  assert.deepEqual(
+    parseEvidenceBenchmarkArguments([
+      "codex",
+      "shopping",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      "--from-backend-start",
+      runId,
+    ]),
+    {
+      engine: "codex",
+      subject: "shopping",
+      arm: "plain",
+      model: "gpt-5.6-luna",
+      effort: "high",
+      runId: undefined,
+      checkpointRunId: runId,
     },
   );
   for (const input of [
@@ -70,6 +94,16 @@ const main = (): void => {
     ["codex", "todo", "plain", "", "high"],
     ["codex", "todo", "plain", "gpt-5.6-luna", "extreme"],
     ["codex", "todo", "plain", "gpt-5.6-luna", "high", "not-a-run"],
+    ["codex", "todo", "plain", "gpt-5.6-luna", "high", "--from-backend-start"],
+    [
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      "--from-backend-start",
+      "not-a-run",
+    ],
   ])
     assert.throws(
       () => parseEvidenceBenchmarkArguments(input),
@@ -109,6 +143,43 @@ const main = (): void => {
           second,
         ),
       /must descend/u,
+    );
+
+    const review: string = path.join(
+      repository,
+      "benchmark",
+      "instructions",
+      "plain",
+      "backend",
+      "review.md",
+    );
+    fs.mkdirSync(path.dirname(review), { recursive: true });
+    fs.writeFileSync(review, "Review.\n");
+    git(repository, ["add", "-A"]);
+    git(repository, ["commit", "-m", "correct downstream instruction"]);
+    const instructionOnly: string = git(repository, [
+      "rev-parse",
+      "HEAD",
+    ]).trim();
+    assertBackendStartRecoveryChanges(
+      repository,
+      second,
+      instructionOnly,
+      "plain",
+    );
+    fs.writeFileSync(path.join(repository, "fixture.txt"), "third\n");
+    git(repository, ["add", "-A"]);
+    git(repository, ["commit", "-m", "change unrelated input"]);
+    const unrelated: string = git(repository, ["rev-parse", "HEAD"]).trim();
+    assert.throws(
+      () =>
+        assertBackendStartRecoveryChanges(
+          repository,
+          second,
+          unrelated,
+          "plain",
+        ),
+      /downstream instructions only/u,
     );
 
     const records = evidenceBenchmarkRecordPaths(

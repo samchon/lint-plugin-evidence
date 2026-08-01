@@ -4,6 +4,7 @@ import path from "node:path";
 
 import typia from "typia";
 
+import type { IEvidenceBenchmarkCheckpointStorage } from "./structures/IEvidenceBenchmarkCheckpointStorage.ts";
 import type { IEvidenceBenchmarkExecutable } from "./structures/IEvidenceBenchmarkExecutable.ts";
 import type { IEvidenceBenchmarkGoalRecord } from "./structures/IEvidenceBenchmarkGoalRecord.ts";
 import type { IEvidenceBenchmarkInterruption } from "./structures/IEvidenceBenchmarkInterruption.ts";
@@ -39,6 +40,7 @@ export namespace EvidenceBenchmarkRunner {
       status: "ready",
       threadTokenUsage: zeroUsage(),
       goals: [],
+      checkpoints: [],
       processes: [],
     };
   }
@@ -120,7 +122,10 @@ export namespace EvidenceBenchmarkRunner {
     };
 
     prepare();
-    const fresh: boolean = state.sessionId === undefined;
+    if (props.fork !== undefined && state.sessionId !== undefined)
+      throw new Error("Checkpoint fork state must not retain a session ID.");
+    const forking: boolean = props.fork !== undefined;
+    const fresh: boolean = state.sessionId === undefined && !forking;
     let resumeReconciled: boolean = fresh;
     let resumeSnapshotPending: boolean = !fresh;
     let resumeSnapshot: Record<string, unknown> | undefined;
@@ -334,6 +339,55 @@ export namespace EvidenceBenchmarkRunner {
         record.tokenUsageEnd,
         record.tokenUsageStart,
       );
+      if (
+        record.index === 0 &&
+        record.name === "backend-start" &&
+        !(state.checkpoints ?? []).some(
+          (checkpoint) => checkpoint.name === "backend-start",
+        ) &&
+        props.onCheckpoint !== undefined
+      ) {
+        const storage: IEvidenceBenchmarkCheckpointStorage =
+          typia.assert<IEvidenceBenchmarkCheckpointStorage>(
+            structuredClone(
+              await props.onCheckpoint({
+                state: structuredClone(state),
+                goal: structuredClone(record),
+                processElapsedMs:
+                  (state.inheritedProcessElapsedMs ?? 0) +
+                  state.processes
+                    .slice(0, -1)
+                    .reduce((sum, process) => sum + process.elapsedMs, 0) +
+                  elapsed(started),
+              }),
+            ),
+          );
+        if (
+          state.sessionId === undefined ||
+          state.cliVersion === undefined ||
+          record.terminalTurnId === null
+        )
+          throw new Error("Backend-start checkpoint lacks a native boundary.");
+        state.checkpoints ??= [];
+        state.checkpoints.push({
+          name: "backend-start",
+          instructionIndex: 0,
+          nextInstructionIndex: 1,
+          sourceSessionId: state.sessionId,
+          terminalTurnId: record.terminalTurnId,
+          cliVersion: state.cliVersion,
+          ...storage,
+          inheritedProcessElapsedMs:
+            (state.inheritedProcessElapsedMs ?? 0) +
+            state.processes
+              .slice(0, -1)
+              .reduce((sum, process) => sum + process.elapsedMs, 0) +
+            elapsed(started),
+        });
+        publish();
+        await publication;
+        if (outcome !== undefined) return;
+      }
       state.nextInstructionIndex++;
       publish();
       await publication;
@@ -677,20 +731,41 @@ export namespace EvidenceBenchmarkRunner {
               sandbox: "danger-full-access",
               ephemeral: false,
             })
-          : await request("thread/resume", {
-              threadId: state.sessionId,
-              model: props.model,
-              cwd: props.cwd,
-              approvalPolicy: "never",
-              sandbox: "danger-full-access",
-            }),
+          : forking
+            ? await request("thread/fork", {
+                threadId: props.fork!.sourceSessionId,
+                lastTurnId: props.fork!.terminalTurnId,
+                model: props.model,
+                cwd: props.cwd,
+                runtimeWorkspaceRoots: [props.cwd],
+                approvalPolicy: "never",
+                sandbox: "danger-full-access",
+                deferGoalContinuation: true,
+                ephemeral: false,
+              })
+            : await request("thread/resume", {
+                threadId: state.sessionId,
+                model: props.model,
+                cwd: props.cwd,
+                approvalPolicy: "never",
+                sandbox: "danger-full-access",
+              }),
       );
       const thread: Record<string, unknown> = object(response.thread);
       if (typeof thread.id !== "string")
         throw new Error("Codex app-server omitted the thread ID.");
-      if (!fresh && thread.id !== retainedSessionId)
+      if (!fresh && !forking && thread.id !== retainedSessionId)
         throw new Error(
           "Codex app-server resumed a different retained thread.",
+        );
+      if (
+        forking &&
+        (thread.id === props.fork!.sourceSessionId ||
+          (typeof thread.forkedFromId === "string" &&
+            thread.forkedFromId !== props.fork!.sourceSessionId))
+      )
+        throw new Error(
+          "Codex app-server returned an invalid checkpoint fork.",
         );
       if (typeof thread.cliVersion !== "string")
         throw new Error("Codex app-server omitted the CLI version.");
@@ -702,6 +777,14 @@ export namespace EvidenceBenchmarkRunner {
           "Retained benchmark cell uses a different CLI version.",
         );
       const sessionId: string = thread.id;
+      if (forking)
+        for (const record of state.goals)
+          if (record.index < state.nextInstructionIndex && record.goal !== null)
+            record.goal.threadId = sessionId;
+      if (forking)
+        for (const checkpoint of state.checkpoints ?? [])
+          if (checkpoint.terminalTurnId === props.fork!.terminalTurnId)
+            checkpoint.sourceSessionId = sessionId;
       state.sessionId = sessionId;
       state.cliVersion = thread.cliVersion;
       if (fresh)

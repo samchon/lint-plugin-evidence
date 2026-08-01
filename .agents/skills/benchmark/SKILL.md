@@ -66,6 +66,8 @@ At each step, the runner joins that file with the same arm's `instructions/<arm>
 
 Codex advances after the retained Goal completes, its terminal turn completes, and the thread becomes idle.
 
+After `backend-start` reaches that exact boundary, the runner creates a durable checkpoint before dispatching `backend-review`. The checkpoint retains the material workspace, prepared Git baseline, native session and terminal turn, CLI version, token boundary, input digests, and inherited timing. Reinstallable dependencies, caches, and untracked runtime logs are excluded; Git-visible files are always retained. It is a recovery point for a later downstream-instruction correction, not permission to modify an active measured workspace.
+
 The runner gives app-server a bounded shutdown grace after closing its input, then force-stops the owned process tree and records that cleanup if app-server does not exit. A detached owner monitor performs the same cleanup if the runner itself disappears, so a disconnected app-server cannot survive indefinitely.
 
 ## Supervise The Run
@@ -89,6 +91,16 @@ pnpm --filter @samchon/evidence-benchmark start <engine> <subject> <arm> <model>
 Keep the cell's original `benchmarkRevision` frozen. When recovery requires a committed runner correction, resume only from a clean descendant revision; retain that correction as the new process's `runnerRevision` while the runner revalidates the stored cell, instruction bytes, workspace, artifact digest, CLI, session, Goal, and token boundary.
 
 Codex may resume an exact retained Goal checkpoint.
+
+When a defect is confined to an instruction after `backend-start`, preserve the source run and create a new checkpoint-derived run:
+
+```bash
+pnpm --filter @samchon/evidence-benchmark start codex <subject> <arm> <model> <effort> --from-backend-start <source-run-id>
+```
+
+This command restores the retained workspace, forks the native thread through the completed `backend-start` terminal turn, and starts the new run at `backend-review`. It permits committed changes to that arm's seven downstream instruction files only. The selected base and arm template, every embedded skill and AGENTS.md, requirements, Evidence archive when applicable, model, effort, CLI, `backend-start`, and continuation instruction must still match; otherwise start the cell again from the beginning. Never edit a checkpoint, its source run, or its retained state to force eligibility.
+
+A checkpoint-derived run has a new run ID and records its source lineage. Report inherited and continuation measurements together, and do not describe it as resuming the original run.
 
 Start an eligible resume immediately after diagnosis and any required runner correction. If the resume itself fails, preserve that attempt, diagnose the new failure, and recover again from the last exact checkpoint; never abandon a cell or loop without evidence.
 

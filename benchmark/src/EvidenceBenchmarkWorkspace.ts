@@ -17,6 +17,19 @@ import type { IEvidenceBenchmarkWorkspaceVariables } from "./structures/IEvidenc
  * workspace with one atomic rename.
  */
 export namespace EvidenceBenchmarkWorkspace {
+  /** Reinstalls ignored dependencies after a checkpoint workspace is restored. */
+  export async function installDependencies(workspace: string): Promise<void> {
+    const environment: NodeJS.ProcessEnv = { ...process.env };
+    for (const name of Object.keys(environment))
+      if (name.toUpperCase() === "EVIDENCE_BENCHMARK_ARCHIVE")
+        delete environment[name];
+    await pnpm(
+      ["install", "--no-frozen-lockfile"],
+      path.resolve(workspace),
+      environment,
+    );
+  }
+
   /**
    * Builds and atomically publishes the prepared workspace for one cell.
    *

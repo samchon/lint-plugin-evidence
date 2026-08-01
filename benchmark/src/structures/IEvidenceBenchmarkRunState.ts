@@ -1,3 +1,4 @@
+import type { IEvidenceBenchmarkCheckpoint } from "./IEvidenceBenchmarkCheckpoint.ts";
 import type { IEvidenceBenchmarkGoalRecord } from "./IEvidenceBenchmarkGoalRecord.ts";
 import type { IEvidenceBenchmarkInterruption } from "./IEvidenceBenchmarkInterruption.ts";
 import type { IEvidenceBenchmarkProcessRecord } from "./IEvidenceBenchmarkProcessRecord.ts";
@@ -31,6 +32,12 @@ export interface IEvidenceBenchmarkRunState {
 
   /** Ordered retained Goal records. */
   goals: IEvidenceBenchmarkGoalRecord[];
+
+  /** Durable recovery points created at prescribed Goal boundaries. */
+  checkpoints?: IEvidenceBenchmarkCheckpoint[];
+
+  /** Process time inherited by a checkpoint-derived run. */
+  inheritedProcessElapsedMs?: number;
 
   /** Every native process used by launch or resume. */
   processes: IEvidenceBenchmarkProcessRecord[];

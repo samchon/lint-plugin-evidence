@@ -43,9 +43,10 @@ const ENTRIES = EVIDENCE_ENTRIES;
  *
  * 1. Complete every prescribed Goal through one fake app-server process.
  * 2. Assert exact text, automatic progression, token deltas, and raw records.
- * 3. Assert a late protocol error cannot survive as completed.
- * 4. Assert a non-zero native exit is retained as an interruption.
- * 5. Assert callback errors retain serializable Error identity and context.
+ * 3. Retain backend-start and fork a new thread from its exact boundary.
+ * 4. Assert a late protocol error cannot survive as completed.
+ * 5. Assert a non-zero native exit is retained as an interruption.
+ * 6. Assert callback errors retain serializable Error identity and context.
  */
 const main = async (): Promise<void> => {
   const root: string = fs.mkdtempSync(
@@ -140,6 +141,8 @@ const main = async (): Promise<void> => {
       releaseSessionCheckpoint = resolve;
     });
     let sessionCheckpointBlocked = false;
+    let backendCheckpointCalls = 0;
+    let backendCheckpointGoalRequests = -1;
     const completedPromise = EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("evidence"),
       cwd: root,
@@ -163,6 +166,29 @@ const main = async (): Promise<void> => {
           await sessionCheckpointReleased;
         }
       },
+      onCheckpoint: ({ goal, processElapsedMs }) => {
+        backendCheckpointCalls++;
+        assert.equal(goal.index, 0);
+        assert.equal(goal.goal?.status, "complete");
+        assert.equal(goal.terminalTurnCompleted, true);
+        assert.equal(goal.threadIdle, true);
+        assert.equal(goal.tokenUsageTurnId, goal.terminalTurnId);
+        assert.ok(processElapsedMs >= 0);
+        backendCheckpointGoalRequests = completedOutput
+          .filter((output) => output.stream === "stdin")
+          .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+          .filter((request) => request.method === "thread/goal/set").length;
+        return {
+          createdAt: "2026-08-01T00:00:00.000Z",
+          workspaceRelativePath: "checkpoints/backend-start/workspace",
+          workspaceSha256: "checkpoint-workspace",
+          workspaceMaterialSha256: "checkpoint-material",
+          workspaceFileCount: 3,
+          workspaceGitHead: "checkpoint-head",
+          workspaceGitStatus: " M backend.ts\n",
+          inheritedWallElapsedMs: 1_500,
+        };
+      },
     });
     await sessionCheckpointEntered;
     await new Promise<void>((resolve) => setImmediate(resolve));
@@ -185,6 +211,11 @@ const main = async (): Promise<void> => {
     assert.equal(completed.processes[0]!.signal, null);
     assert.equal("output" in completed.processes[0]!, false);
     assert.ok(completedOutput.length > 0);
+    assert.equal(backendCheckpointCalls, 1);
+    assert.equal(backendCheckpointGoalRequests, 1);
+    assert.equal(completed.checkpoints?.length, 1);
+    assert.equal(completed.checkpoints?.[0]?.sourceSessionId, "fixture-thread");
+    assert.equal(completed.checkpoints?.[0]?.terminalTurnId, "turn-1");
     const requests = completedOutput
       .filter((output) => output.stream === "stdin")
       .map((output) => JSON.parse(output.text) as Record<string, unknown>);
@@ -237,6 +268,59 @@ const main = async (): Promise<void> => {
       reasoningOutputTokens: ENTRIES.length * 3,
     } satisfies IEvidenceBenchmarkTokenUsage);
     assert.equal(snapshots.at(-1)?.status, "completed");
+
+    const backendCheckpoint = completed.checkpoints?.[0];
+    const backendStart = structuredClone(completed.goals[0]!);
+    assert.ok(backendCheckpoint);
+    assert.ok(backendStart.tokenUsageEnd);
+    const forkOutput: IEvidenceBenchmarkOutput[] = [];
+    const forked = await EvidenceBenchmarkRunner.run({
+      state: {
+        arm: "evidence",
+        cliVersion: "fixture-cli",
+        nextInstructionIndex: 1,
+        status: "ready",
+        threadTokenUsage: structuredClone(backendStart.tokenUsageEnd),
+        goals: [backendStart],
+        checkpoints: [structuredClone(backendCheckpoint)],
+        inheritedProcessElapsedMs: 1_000,
+        processes: [],
+      },
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      fork: {
+        sourceSessionId: backendCheckpoint.sourceSessionId,
+        terminalTurnId: backendCheckpoint.terminalTurnId,
+      },
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--previous-goal", "--fork"],
+      onOutput: (_processIndex, output) => {
+        forkOutput.push(output);
+      },
+    });
+    assert.equal(forked.status, "completed");
+    assert.equal(forked.sessionId, "fixture-fork");
+    assert.equal(forked.goals.length, ENTRIES.length);
+    assert.equal(forked.goals[0]?.goal?.threadId, "fixture-fork");
+    assert.equal(forked.threadTokenUsage.totalTokens, ENTRIES.length * 10);
+    const forkRequest = forkOutput
+      .filter((output) => output.stream === "stdin")
+      .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+      .find((request) => request.method === "thread/fork");
+    assert.ok(forkRequest);
+    assert.deepEqual(forkRequest.params, {
+      threadId: "fixture-thread",
+      lastTurnId: "turn-1",
+      model: "fixture-model",
+      cwd: root,
+      runtimeWorkspaceRoots: [root],
+      approvalPolicy: "never",
+      sandbox: "danger-full-access",
+      deferGoalContinuation: true,
+      ephemeral: false,
+    });
 
     const plain = await EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("plain"),
@@ -1118,6 +1202,8 @@ const readPrescribed = (
 };
 
 const fakeAppServer = (): void => {
+  const fork: boolean = process.argv.includes("--fork");
+  const threadId: string = fork ? "fixture-fork" : "fixture-thread";
   const fail: boolean = process.argv.includes("--fail");
   const hangOnClose: boolean = process.argv.includes("--hang-on-close");
   const inheritStreamAfterExit: boolean = process.argv.includes(
@@ -1199,7 +1285,7 @@ const fakeAppServer = (): void => {
     objective: string,
     status: "active" | "blocked" | "complete",
   ) => ({
-    threadId: "fixture-thread",
+    threadId,
     objective: trimTerminalLineBreaks
       ? objective.replace(/[\r\n]+$/u, "")
       : objective,
@@ -1244,22 +1330,26 @@ const fakeAppServer = (): void => {
         id: request.id,
         result: {
           thread: {
-            id: "fixture-thread",
+            id: threadId,
             cliVersion: "fixture-cli",
             status: { type: "idle" },
           },
         },
       });
-    if (request.method === "thread/resume") {
+    if (
+      request.method === "thread/resume" ||
+      request.method === "thread/fork"
+    ) {
       const respond = (): void =>
         send(
           {
             id: request.id,
             result: {
               thread: {
-                id: wrongThread ? "fixture-other-thread" : "fixture-thread",
+                id: wrongThread ? "fixture-other-thread" : threadId,
                 cliVersion: "fixture-cli",
                 status: { type: "idle" },
+                ...(fork ? { forkedFromId: "fixture-thread" } : {}),
                 turns: sameTurnInterruptedReplay
                   ? [
                       {
@@ -1332,7 +1422,7 @@ const fakeAppServer = (): void => {
                 send({
                   method: "thread/tokenUsage/updated",
                   params: {
-                    threadId: "fixture-thread",
+                    threadId,
                     turnId: replay.turnId,
                     tokenUsage: { total: replay.total },
                   },
@@ -1352,21 +1442,21 @@ const fakeAppServer = (): void => {
                 send({
                   method: "thread/status/changed",
                   params: {
-                    threadId: "fixture-thread",
+                    threadId,
                     status: { type: "active" },
                   },
                 });
                 send({
                   method: "turn/started",
                   params: {
-                    threadId: "fixture-thread",
+                    threadId,
                     turn: { id: turnId },
                   },
                 });
                 send({
                   method: "thread/goal/updated",
                   params: {
-                    threadId: "fixture-thread",
+                    threadId,
                     goal: goal(retainedObjective(), "complete"),
                     turnId,
                   },
@@ -1374,7 +1464,7 @@ const fakeAppServer = (): void => {
                 send({
                   method: "thread/tokenUsage/updated",
                   params: {
-                    threadId: "fixture-thread",
+                    threadId,
                     turnId,
                     tokenUsage: { total },
                   },
@@ -1383,7 +1473,7 @@ const fakeAppServer = (): void => {
                 send({
                   method: "thread/status/changed",
                   params: {
-                    threadId: "fixture-thread",
+                    threadId,
                     status: { type: "idle" },
                   },
                 });
@@ -1392,7 +1482,7 @@ const fakeAppServer = (): void => {
                   send({
                     method: "turn/completed",
                     params: {
-                      threadId: "fixture-thread",
+                      threadId,
                       turn: { id: turnId, status: "completed", durationMs: 1 },
                     },
                   });
@@ -1403,7 +1493,7 @@ const fakeAppServer = (): void => {
                   {
                     method: "thread/goal/updated",
                     params: {
-                      threadId: "fixture-thread",
+                      threadId,
                       goal: goal(
                         retainedObjective(),
                         currentBlocked
@@ -1432,7 +1522,7 @@ const fakeAppServer = (): void => {
           {
             method: "thread/status/changed",
             params: {
-              threadId: "fixture-thread",
+              threadId,
               status: { type: "idle" },
             },
           },
@@ -1503,7 +1593,7 @@ const fakeAppServer = (): void => {
     send({
       method: "thread/goal/updated",
       params: {
-        threadId: "fixture-thread",
+        threadId,
         goal: goal(objective, "active"),
         turnId: null,
       },
@@ -1511,7 +1601,7 @@ const fakeAppServer = (): void => {
     send({
       method: "thread/status/changed",
       params: {
-        threadId: "fixture-thread",
+        threadId,
         status: { type: "active" },
       },
     });
@@ -1519,7 +1609,7 @@ const fakeAppServer = (): void => {
       send({
         method: "thread/goal/updated",
         params: {
-          threadId: "fixture-thread",
+          threadId,
           goal: goal(objective, "blocked"),
         },
       });
@@ -1528,14 +1618,14 @@ const fakeAppServer = (): void => {
       send({
         method: "turn/started",
         params: {
-          threadId: "fixture-thread",
+          threadId,
           turn: { id: previousTurnId },
         },
       });
       send({
         method: "thread/tokenUsage/updated",
         params: {
-          threadId: "fixture-thread",
+          threadId,
           turnId: previousTurnId,
           tokenUsage: { total },
         },
@@ -1543,14 +1633,14 @@ const fakeAppServer = (): void => {
       send({
         method: "thread/status/changed",
         params: {
-          threadId: "fixture-thread",
+          threadId,
           status: { type: "idle" },
         },
       });
       send({
         method: "turn/completed",
         params: {
-          threadId: "fixture-thread",
+          threadId,
           turn: { id: previousTurnId, status: "completed", durationMs: 1 },
         },
       });
@@ -1558,14 +1648,14 @@ const fakeAppServer = (): void => {
     send({
       method: "turn/started",
       params: {
-        threadId: "fixture-thread",
+        threadId,
         turn: { id: turnId },
       },
     });
     send({
       method: "thread/goal/updated",
       params: {
-        threadId: "fixture-thread",
+        threadId,
         goal: goal(objective, "complete"),
         turnId,
       },
@@ -1574,7 +1664,7 @@ const fakeAppServer = (): void => {
       send({
         method: "thread/tokenUsage/updated",
         params: {
-          ...(missingThreadId ? {} : { threadId: "fixture-thread" }),
+          ...(missingThreadId ? {} : { threadId }),
           turnId,
           tokenUsage: { total },
         },
@@ -1583,7 +1673,7 @@ const fakeAppServer = (): void => {
     send({
       method: "thread/status/changed",
       params: {
-        threadId: "fixture-thread",
+        threadId,
         status: { type: "idle" },
       },
     });
@@ -1592,7 +1682,7 @@ const fakeAppServer = (): void => {
       send({
         method: "turn/completed",
         params: {
-          threadId: "fixture-thread",
+          threadId,
           turn: { id: turnId, status: "completed", durationMs: 1 },
         },
       });
