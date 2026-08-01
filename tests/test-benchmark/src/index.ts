@@ -343,6 +343,26 @@ const main = async (): Promise<void> => {
       deferGoalContinuation: true,
       ephemeral: false,
     });
+    const clearRequest = forkRequests.find(
+      (request) => request.method === "thread/goal/clear",
+    );
+    assert.deepEqual(clearRequest?.params, {
+      threadId: "fixture-fork",
+    });
+    assert.ok(
+      forkRequests.findIndex((request) => request.method === "thread/fork") <
+        forkRequests.findIndex(
+          (request) => request.method === "thread/goal/clear",
+        ),
+    );
+    assert.ok(
+      forkRequests.findIndex(
+        (request) => request.method === "thread/goal/clear",
+      ) <
+        forkRequests.findIndex(
+          (request) => request.method === "thread/goal/set",
+        ),
+    );
 
     const plain = await EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("plain"),
@@ -1375,6 +1395,7 @@ const fakeAppServer = (): void => {
           ? 1
           : 0;
   let undispatchedSnapshotPending = undispatched;
+  let goalCleared = false;
   let waitingForTurnCompletion = false;
   const send = (value: unknown, callback?: () => void): void => {
     process.stdout.write(`${JSON.stringify(value)}\n`, callback);
@@ -1645,26 +1666,31 @@ const fakeAppServer = (): void => {
         );
       return respond();
     }
+    if (request.method === "thread/goal/clear") {
+      goalCleared = true;
+      return send({ id: request.id, result: { cleared: true } });
+    }
     if (request.method === "thread/goal/get")
       return send({
         id: request.id,
         result: {
-          goal: emptyGoal
-            ? null
-            : previousGoal
-              ? goal(
-                  retainedObjective(),
-                  currentBlocked
-                    ? "blocked"
-                    : activeGoalGet ||
-                        previousActive ||
-                        undispatched ||
-                        currentActive ||
-                        currentInterruptedActive
-                      ? "active"
-                      : "complete",
-                )
-              : null,
+          goal:
+            emptyGoal || goalCleared
+              ? null
+              : previousGoal
+                ? goal(
+                    retainedObjective(),
+                    currentBlocked
+                      ? "blocked"
+                      : activeGoalGet ||
+                          previousActive ||
+                          undispatched ||
+                          currentActive ||
+                          currentInterruptedActive
+                        ? "active"
+                        : "complete",
+                  )
+                : null,
         },
       });
     if (

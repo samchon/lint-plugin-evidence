@@ -126,6 +126,7 @@ export namespace EvidenceBenchmarkRunner {
       throw new Error("Checkpoint fork state must not retain a session ID.");
     const forking: boolean = props.fork !== undefined;
     const fresh: boolean = state.sessionId === undefined && !forking;
+    let forkGoalResetPending: boolean = forking;
     let resumeReconciled: boolean = fresh;
     let resumeSnapshotPending: boolean = !fresh;
     let resumeSnapshot: Record<string, unknown> | undefined;
@@ -415,6 +416,34 @@ export namespace EvidenceBenchmarkRunner {
       if (state.sessionId === undefined)
         throw new Error("Codex app-server omitted the thread ID.");
       if (params.threadId !== state.sessionId) return;
+      if (forkGoalResetPending) {
+        if (message.method === "thread/tokenUsage/updated") {
+          const usage: IEvidenceBenchmarkTokenUsage | undefined =
+            tokenUsage(params);
+          const previous: IEvidenceBenchmarkGoalRecord | undefined =
+            state.goals.find(
+              (candidate) => candidate.index === state.nextInstructionIndex - 1,
+            );
+          if (
+            usage !== undefined &&
+            (!sameUsage(usage, state.threadTokenUsage) ||
+              params.turnId !== previous?.tokenUsageTurnId)
+          )
+            throw new Error(
+              "Checkpoint fork token replay does not match its retained boundary.",
+            );
+          return;
+        }
+        if (message.method === "thread/goal/updated" && params.turnId === null)
+          return;
+        if (message.method === "thread/status/changed") {
+          const status: Record<string, unknown> = object(params.status);
+          if (status.type === "idle") return;
+        }
+        throw new Error(
+          "Checkpoint fork continued the source Goal before it was reset.",
+        );
+      }
 
       if (message.method === "thread/tokenUsage/updated") {
         const usage: IEvidenceBenchmarkTokenUsage | undefined =
@@ -821,7 +850,14 @@ export namespace EvidenceBenchmarkRunner {
       publish();
       await publication;
 
-      if (outcome === undefined && fresh) await beginGoal();
+      if (outcome === undefined && forking) {
+        await request("thread/goal/clear", { threadId: sessionId });
+        await notifications;
+        forkGoalResetPending = false;
+        resumeSnapshotPending = false;
+        resumeReconciled = true;
+        if (outcome === undefined) await beginGoal();
+      } else if (outcome === undefined && fresh) await beginGoal();
       else if (outcome === undefined) {
         const goalResponse: Record<string, unknown> = object(
           await request("thread/goal/get", {
