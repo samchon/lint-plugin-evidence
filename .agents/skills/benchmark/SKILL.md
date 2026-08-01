@@ -76,6 +76,8 @@ Observe every active cell at least every 30 seconds. Check `state.json`, benchma
 
 Do not edit a measured workspace, prompt the measured agent, inject advice, weaken a gate, hard-code a subject answer, or expose Evidence material to Plain. Questions and partial reports do not invite operator input.
 
+When a supervised Plain run uses `--review-ledger`, verify all five runner tools at thread start. Credit backend reads only from `review_start_round`, ordered `review_read_file`, and `review_finish_round`; credit calibration and backend processes only from `review_start_calibration` and `review_run_backend_command`. Reject native-shell backend lifecycle commands, overlapping command executions, a dry round without runner-proven fail-restore-pass, or Goal completion without unchanged runner-owned `check:watch` and test gates.
+
 Intervene immediately for an abnormal interruption or explicit cancellation. Diagnose the retained state, process, events, and raw stream first; when the exact recovery conditions below match, resume the same run without waiting for operator prose or the next reporting interval. Never blind-retry before diagnosis, repair a measured workspace, edit retained state, or substitute a session.
 
 ## Recover Or Cancel

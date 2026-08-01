@@ -55,7 +55,7 @@ const main = async (): Promise<void> => {
   );
   try {
     const sources: Map<string, Buffer> = writeInstructions(root);
-    testReviewLedger(path.join(root, "review-workspace"));
+    await testReviewLedger(path.join(root, "review-workspace"));
     assert.deepEqual(
       EvidenceBenchmarkRunner.instructionEntries("evidence"),
       EVIDENCE_ENTRIES,
@@ -633,27 +633,28 @@ const main = async (): Promise<void> => {
       assert.equal(goal.goal?.objective, goal.objectiveText);
     });
 
+    const detachedStart: IEvidenceBenchmarkRunState = {
+      arm: "plain",
+      cliVersion: "fixture-cli",
+      nextInstructionIndex: 1,
+      status: "ready",
+      threadTokenUsage: {
+        totalTokens: 0,
+        inputTokens: 0,
+        cachedInputTokens: 0,
+        cacheWriteInputTokens: 0,
+        outputTokens: 0,
+        reasoningOutputTokens: 0,
+      },
+      nativeThreadStartInstructionIndex: 1,
+      goals: [structuredClone(plain.goals[0]!)],
+      checkpoints: [structuredClone(backendCheckpoint)],
+      inheritedProcessElapsedMs: 1_000,
+      processes: [],
+    };
     const ledgerOutput: IEvidenceBenchmarkOutput[] = [];
     const detachedLedger = await EvidenceBenchmarkRunner.run({
-      state: {
-        arm: "plain",
-        cliVersion: "fixture-cli",
-        nextInstructionIndex: 1,
-        status: "ready",
-        threadTokenUsage: {
-          totalTokens: 0,
-          inputTokens: 0,
-          cachedInputTokens: 0,
-          cacheWriteInputTokens: 0,
-          outputTokens: 0,
-          reasoningOutputTokens: 0,
-        },
-        nativeThreadStartInstructionIndex: 1,
-        goals: [structuredClone(plain.goals[0]!)],
-        checkpoints: [structuredClone(backendCheckpoint)],
-        inheritedProcessElapsedMs: 1_000,
-        processes: [],
-      },
+      state: structuredClone(detachedStart),
       cwd: path.join(root, "review-workspace"),
       instructionsRoot: root,
       model: "fixture-model",
@@ -685,11 +686,32 @@ const main = async (): Promise<void> => {
     assert.equal(detachedLedger.goals[1]?.tokenUsage.totalTokens, 10);
     assert.equal(detachedLedger.threadTokenUsage.totalTokens, 10);
     assert.equal(detachedLedger.reviewLedgers?.length, 1);
-    assert.equal(detachedLedger.reviewLedgers?.[0]?.rounds.length, 1);
-    assert.equal(detachedLedger.reviewLedgers?.[0]?.rounds[0]?.status, "dry");
+    assert.equal(detachedLedger.reviewLedgers?.[0]?.rounds.length, 2);
     assert.equal(
-      detachedLedger.reviewLedgers?.[0]?.rounds[0]?.reads.length,
-      detachedLedger.reviewLedgers?.[0]?.rounds[0]?.manifest.length,
+      detachedLedger.reviewLedgers?.[0]?.rounds[0]?.status,
+      "findings",
+    );
+    assert.equal(detachedLedger.reviewLedgers?.[0]?.rounds[1]?.status, "dry");
+    assert.equal(
+      detachedLedger.reviewLedgers?.[0]?.rounds[1]?.reads.length,
+      detachedLedger.reviewLedgers?.[0]?.rounds[1]?.manifest.length,
+    );
+    assert.equal(
+      detachedLedger.reviewLedgers?.[0]?.calibrations?.[0]?.status,
+      "passed",
+    );
+    assert.deepEqual(
+      detachedLedger.reviewLedgers?.[0]?.commands?.map((entry) => [
+        entry.command,
+        entry.phase,
+        entry.status,
+      ]),
+      [
+        ["test", "calibration-fail", "expected-failure"],
+        ["test", "calibration-pass", "succeeded"],
+        ["check-watch", "final", "succeeded"],
+        ["test", "final", "succeeded"],
+      ],
     );
     const ledgerRequests = ledgerOutput
       .filter((output) => output.stream === "stdin")
@@ -703,12 +725,83 @@ const main = async (): Promise<void> => {
         (ledgerThreadStart.params as Record<string, unknown>)
           .dynamicTools as Record<string, unknown>[]
       ).map((tool) => tool.name),
-      ["review_start_round", "review_read_file", "review_finish_round"],
+      [
+        "review_start_round",
+        "review_read_file",
+        "review_finish_round",
+        "review_start_calibration",
+        "review_run_backend_command",
+      ],
     );
     assert.equal(
       ledgerRequests.some((request) => request.method === "thread/fork"),
       false,
     );
+    const nativeGate = await EvidenceBenchmarkRunner.run({
+      state: structuredClone(detachedStart),
+      cwd: path.join(root, "review-workspace"),
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      reviewLedger: "backend",
+      pauseAfterGoals: ["backend-review"],
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--plain-arm",
+        "--ledger-tools",
+        "--native-gate",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(nativeGate.status, "interrupted");
+    assert.match(
+      nativeGate.interruption?.message ?? "",
+      /review_run_backend_command/u,
+    );
+    const nativeOverlap = await EvidenceBenchmarkRunner.run({
+      state: structuredClone(detachedStart),
+      cwd: path.join(root, "review-workspace"),
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      reviewLedger: "backend",
+      pauseAfterGoals: ["backend-review"],
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--plain-arm",
+        "--ledger-tools",
+        "--native-overlap",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(nativeOverlap.status, "interrupted");
+    assert.match(nativeOverlap.interruption?.message ?? "", /remained active/u);
+    for (const [flag, message] of [
+      ["--native-then-runner", /runner-owned backend command/u],
+      ["--runner-then-native", /runner-owned backend command/u],
+    ] as const) {
+      const crossOverlap = await EvidenceBenchmarkRunner.run({
+        state: structuredClone(detachedStart),
+        cwd: path.join(root, "review-workspace"),
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        reviewLedger: "backend",
+        pauseAfterGoals: ["backend-review"],
+        command: process.execPath,
+        commandPrefixArguments: [
+          ...prefix,
+          "--plain-arm",
+          "--ledger-tools",
+          flag,
+        ],
+        onOutput: () => undefined,
+      });
+      assert.equal(crossOverlap.status, "interrupted");
+      assert.match(crossOverlap.interruption?.message ?? "", message);
+    }
 
     const ledgerRunRoot: string = path.join(root, "ledger-supervision");
     fs.mkdirSync(ledgerRunRoot, { recursive: true });
@@ -777,9 +870,9 @@ const main = async (): Promise<void> => {
     assert.equal(detachedFinal.nextInstructionIndex, 3);
     assert.equal(detachedFinal.reviewLedgers?.length, 2);
     assert.equal(detachedFinal.reviewLedgers?.[0]?.goalName, "backend-review");
-    assert.equal(detachedFinal.reviewLedgers?.[0]?.rounds[0]?.status, "dry");
+    assert.equal(detachedFinal.reviewLedgers?.[0]?.rounds[1]?.status, "dry");
     assert.equal(detachedFinal.reviewLedgers?.[1]?.goalName, "backend-final");
-    assert.equal(detachedFinal.reviewLedgers?.[1]?.rounds[0]?.status, "dry");
+    assert.equal(detachedFinal.reviewLedgers?.[1]?.rounds[1]?.status, "dry");
     assert.equal(detachedFinal.goals[2]?.tokenUsageStart.totalTokens, 10);
     assert.equal(detachedFinal.goals[2]?.tokenUsage.totalTokens, 10);
     assert.equal(detachedFinal.threadTokenUsage.totalTokens, 20);
@@ -1645,7 +1738,7 @@ const main = async (): Promise<void> => {
   }
 };
 
-const testReviewLedger = (workspace: string): void => {
+const testReviewLedger = async (workspace: string): Promise<void> => {
   writeReviewWorkspace(workspace);
   const zeroUsage = (): IEvidenceBenchmarkTokenUsage => ({
     totalTokens: 0,
@@ -1675,6 +1768,198 @@ const testReviewLedger = (workspace: string): void => {
     tokenUsage: zeroUsage(),
     elapsedMs: 0,
   };
+  const activeCommands: Set<string> = new Set();
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal,
+    method: "item/started",
+    item: {
+      type: "commandExecution",
+      id: "native-read",
+      command: "Get-Content package.json",
+    },
+    active: activeCommands,
+  });
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-overlap",
+        command: "Get-Process node",
+      },
+      active: activeCommands,
+    }),
+  );
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal,
+    method: "item/completed",
+    item: {
+      type: "commandExecution",
+      id: "native-read",
+      command: "Get-Content package.json",
+    },
+    active: activeCommands,
+  });
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-posix-wrapped-gate",
+        command: 'bash -lc "pnpm --dir packages/backend test"',
+      },
+      active: activeCommands,
+    }),
+  );
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal,
+    method: "item/started",
+    item: {
+      type: "commandExecution",
+      id: "native-quoted-search",
+      command: 'pnpm exec rg "x; pnpm test" benchmark',
+    },
+    active: activeCommands,
+  });
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal,
+    method: "item/completed",
+    item: {
+      type: "commandExecution",
+      id: "native-quoted-search",
+      command: 'pnpm exec rg "x; pnpm test" benchmark',
+    },
+    active: activeCommands,
+  });
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-wrapped-gate",
+        command: 'powershell.exe -Command "pnpm --dir=packages/backend test"',
+      },
+      active: activeCommands,
+    }),
+  );
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-exec-generator",
+        command: "pnpm --dir packages/backend exec nestia all",
+      },
+      active: activeCommands,
+    }),
+  );
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal,
+    method: "item/started",
+    item: {
+      type: "commandExecution",
+      id: "native-search",
+      command: 'rg -n "pnpm test" benchmark',
+    },
+    active: activeCommands,
+  });
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal,
+    method: "item/completed",
+    item: {
+      type: "commandExecution",
+      id: "native-search",
+      command: 'rg -n "pnpm test" benchmark',
+    },
+    active: activeCommands,
+  });
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-gate",
+        command: "pnpm test",
+      },
+      active: activeCommands,
+    }),
+  );
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-chained-gate",
+        command: "Get-Content package.json; pnpm test",
+      },
+      active: activeCommands,
+    }),
+  );
+  state.reviewLedgers = [
+    {
+      goalIndex: goal.index,
+      goalName: "backend-review",
+      rounds: [],
+      commands: [
+        {
+          index: 1,
+          command: "test",
+          phase: "correction",
+          callId: "runner-command",
+          turnId: "ledger-turn",
+          startedAt: new Date().toISOString(),
+          manifestSha256: "fixture-manifest",
+          status: "running",
+        },
+      ],
+      calibrations: [],
+    },
+  ];
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-during-runner",
+        command: "Get-Process node",
+      },
+      active: activeCommands,
+    }),
+  );
+  state.reviewLedgers = [];
   let callIndex = 0;
   const invoke = (tool: string, arguments_: unknown) =>
     EvidenceBenchmarkReviewLedger.handle({
@@ -1689,10 +1974,59 @@ const testReviewLedger = (workspace: string): void => {
       },
     });
 
-  assert.equal(invoke("review_start_round", {}).success, true);
+  const cleanState: IEvidenceBenchmarkRunState =
+    EvidenceBenchmarkRunner.create("plain");
+  cleanState.nextInstructionIndex = 1;
+  let cleanCallIndex = 0;
+  const cleanInvoke = (tool: string, arguments_: unknown) =>
+    EvidenceBenchmarkReviewLedger.handle({
+      cwd: workspace,
+      state: cleanState,
+      goal,
+      call: {
+        tool,
+        arguments: arguments_,
+        callId: `clean-ledger-call-${++cleanCallIndex}`,
+        turnId: "clean-ledger-turn",
+      },
+    });
+  assert.equal(
+    (await cleanInvoke("review_start_calibration", {})).success,
+    false,
+  );
+  assert.equal((await cleanInvoke("review_start_round", {})).success, true);
+  const cleanRound = cleanState.reviewLedgers![0]!.rounds[0]!;
+  for (const entry of cleanRound.manifest)
+    assert.equal(
+      (await cleanInvoke("review_read_file", { path: entry.path })).success,
+      true,
+    );
+  assert.equal(
+    (
+      await cleanInvoke("review_finish_round", {
+        result: "clean",
+        findings: [],
+      })
+    ).success,
+    true,
+  );
+  assert.equal(cleanRound.status, "clean");
+  assert.equal((await cleanInvoke("review_start_round", {})).success, false);
+  assert.equal(
+    (await cleanInvoke("review_start_calibration", {})).success,
+    true,
+  );
+
+  assert.equal((await invoke("review_start_round", {})).success, true);
   const first = state.reviewLedgers?.[0]?.rounds[0];
   assert.ok(first);
   assert.equal(first.status, "reading");
+  assert.equal(
+    first.manifest.some((entry) =>
+      entry.path.startsWith("packages/backend/src/prisma/"),
+    ),
+    false,
+  );
   assert.deepEqual(
     first.manifest.map((entry) => entry.section),
     [...first.manifest.map((entry) => entry.section)].sort(
@@ -1716,12 +2050,14 @@ const testReviewLedger = (workspace: string): void => {
     ),
   );
   assert.equal(
-    invoke("review_read_file", {
-      path: first.manifest.at(-1)!.path,
-    }).success,
+    (
+      await invoke("review_read_file", {
+        path: first.manifest.at(-1)!.path,
+      })
+    ).success,
     false,
   );
-  const firstRead = invoke("review_read_file", {
+  const firstRead = await invoke("review_read_file", {
     path: first.manifest[0]!.path,
   });
   assert.equal(firstRead.success, true);
@@ -1739,23 +2075,25 @@ const testReviewLedger = (workspace: string): void => {
     "utf8",
   );
   assert.equal(
-    invoke("review_read_file", { path: changedDuringRound }).success,
+    (await invoke("review_read_file", { path: changedDuringRound })).success,
     false,
   );
   assert.equal(first.status, "invalid");
 
-  assert.equal(invoke("review_start_round", {}).success, true);
+  assert.equal((await invoke("review_start_round", {})).success, true);
   const findingsRound = state.reviewLedgers![0]!.rounds[1]!;
   for (const entry of findingsRound.manifest)
     assert.equal(
-      invoke("review_read_file", { path: entry.path }).success,
+      (await invoke("review_read_file", { path: entry.path })).success,
       true,
     );
   assert.equal(
-    invoke("review_finish_round", {
-      result: "findings",
-      findings: ["fixture finding"],
-    }).success,
+    (
+      await invoke("review_finish_round", {
+        result: "findings",
+        findings: ["fixture finding"],
+      })
+    ).success,
     true,
   );
   fs.appendFileSync(
@@ -1763,24 +2101,117 @@ const testReviewLedger = (workspace: string): void => {
     "fixed\n",
     "utf8",
   );
+  for (const command of [
+    "build-prisma",
+    "build-main",
+    "schema",
+    "build-sdk",
+    "build-test",
+    "lint",
+    "format",
+  ] as const)
+    assert.equal(
+      (
+        await invoke("review_run_backend_command", {
+          command,
+          phase: "correction",
+        })
+      ).success,
+      true,
+    );
+  const correctionWatcher = await invoke("review_run_backend_command", {
+    command: "check-watch",
+    phase: "correction",
+  });
+  assert.equal(correctionWatcher.success, true);
+  const childMatch = /CHILD_PID=(\d+)/u.exec(
+    correctionWatcher.contentItems[0]?.text ?? "",
+  );
+  assert.ok(childMatch);
+  const childProcessId = Number(childMatch[1]);
+  const deadline = Date.now() + 2_000;
+  while (isProcessAlive(childProcessId) && Date.now() < deadline)
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  assert.equal(isProcessAlive(childProcessId), false);
 
-  assert.equal(invoke("review_start_round", {}).success, true);
+  assert.equal((await invoke("review_start_calibration", {})).success, true);
+  const calibrated: string = path.join(
+    workspace,
+    "packages/backend/src/backend.ts",
+  );
+  const baseline: Buffer = fs.readFileSync(calibrated);
+  fs.appendFileSync(calibrated, "broken\n", "utf8");
+  assert.equal(
+    (
+      await invoke("review_run_backend_command", {
+        command: "test",
+        phase: "calibration-fail",
+      })
+    ).success,
+    true,
+  );
+  fs.writeFileSync(calibrated, baseline);
+  assert.equal(
+    (
+      await invoke("review_run_backend_command", {
+        command: "test",
+        phase: "calibration-pass",
+      })
+    ).success,
+    true,
+  );
+
+  assert.equal((await invoke("review_start_round", {})).success, true);
   const dryRound = state.reviewLedgers![0]!.rounds[2]!;
   for (const entry of dryRound.manifest)
     assert.equal(
-      invoke("review_read_file", { path: entry.path }).success,
+      (await invoke("review_read_file", { path: entry.path })).success,
       true,
     );
   assert.equal(
-    invoke("review_finish_round", {
-      result: "dry",
-      findings: [],
-    }).success,
+    (
+      await invoke("review_finish_round", {
+        result: "dry",
+        findings: [],
+      })
+    ).success,
+    true,
+  );
+  assert.equal(
+    (
+      await invoke("review_run_backend_command", {
+        command: "check-watch",
+        phase: "final",
+      })
+    ).success,
+    true,
+  );
+  assert.equal(
+    (
+      await invoke("review_run_backend_command", {
+        command: "test",
+        phase: "final",
+      })
+    ).success,
     true,
   );
   assert.doesNotThrow(() =>
     EvidenceBenchmarkReviewLedger.assertDry({ cwd: workspace, state, goal }),
   );
+  const residentCommands: Set<string> = new Set();
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal: { ...goal, name: "backend-final" },
+    method: "item/started",
+    item: {
+      type: "commandExecution",
+      id: "resident-backend-dev",
+      command: "pnpm dev",
+    },
+    active: residentCommands,
+  });
+  assert.equal(residentCommands.size, 0);
   fs.appendFileSync(
     path.join(workspace, "config/tsconfig.json"),
     "changed\n",
@@ -1798,7 +2229,11 @@ const writeReviewWorkspace = (workspace: string): void => {
     "packages/api/src/api.ts": "api\n",
     "packages/api/swagger.json": "{}\n",
     "packages/backend/src/backend.ts": "backend\n",
+    "packages/backend/src/prisma/client.ts": "generated prisma client\n",
     "packages/backend/test/backend.test.ts": "test\n",
+    ".node-version": "22\n",
+    "config/lint.config.ts": "export {};\n",
+    "config/package.json": "{}\n",
     "config/tsconfig.json": "{}\n",
     "package.json": "{}\n",
     "packages/api/lint.config.ts": "export {};\n",
@@ -1807,7 +2242,20 @@ const writeReviewWorkspace = (workspace: string): void => {
     "packages/backend/.env.example": "FIXTURE=1\n",
     "packages/backend/lint.config.ts": "export {};\n",
     "packages/backend/nestia.config.ts": "export {};\n",
-    "packages/backend/package.json": "{}\n",
+    "packages/backend/package.json": `${JSON.stringify({
+      scripts: {
+        "build:prisma": 'node -e ""',
+        "build:main": 'node -e ""',
+        "build:sdk": 'node -e ""',
+        "build:test": 'node -e ""',
+        "check:watch":
+          "node -e \"const {spawn}=require('node:child_process'); const child=spawn(process.execPath,['-e','setInterval(() => {}, 1000)'],{stdio:'ignore'}); console.log('CHILD_PID='+child.pid); console.log('Found 0 errors. Watching for file changes.'); setInterval(() => {}, 1000)\"",
+        format: 'node -e ""',
+        lint: 'node -e ""',
+        schema: 'node -e ""',
+        test: "node -e \"const fs=require('node:fs'); process.exit(fs.readFileSync('src/backend.ts','utf8').includes('broken') ? 1 : 0)\"",
+      },
+    })}\n`,
     "packages/backend/prisma.config.ts": "export {};\n",
     "packages/backend/tsconfig.json": "{}\n",
     "pnpm-workspace.yaml": "packages: []\n",
@@ -1816,6 +2264,15 @@ const writeReviewWorkspace = (workspace: string): void => {
     const location: string = path.join(workspace, ...relative.split("/"));
     fs.mkdirSync(path.dirname(location), { recursive: true });
     fs.writeFileSync(location, content, "utf8");
+  }
+};
+
+const isProcessAlive = (processId: number): boolean => {
+  try {
+    process.kill(processId, 0);
+    return true;
+  } catch {
+    return false;
   }
 };
 
@@ -1883,6 +2340,14 @@ const readPrescribed = (
 const fakeAppServer = (): void => {
   const fork: boolean = process.argv.includes("--fork");
   const ledgerTools: boolean = process.argv.includes("--ledger-tools");
+  const nativeGate: boolean = process.argv.includes("--native-gate");
+  const nativeOverlap: boolean = process.argv.includes("--native-overlap");
+  const nativeThenRunner: boolean = process.argv.includes(
+    "--native-then-runner",
+  );
+  const runnerThenNative: boolean = process.argv.includes(
+    "--runner-then-native",
+  );
   const threadId: string = ledgerTools
     ? "fixture-ledger-thread"
     : fork
@@ -2076,7 +2541,13 @@ const fakeAppServer = (): void => {
         assert.ok(Array.isArray(tools));
         assert.deepEqual(
           tools.map((tool) => (tool as Record<string, unknown>).name),
-          ["review_start_round", "review_read_file", "review_finish_round"],
+          [
+            "review_start_round",
+            "review_read_file",
+            "review_finish_round",
+            "review_start_calibration",
+            "review_run_backend_command",
+          ],
         );
       }
       return send({
@@ -2389,29 +2860,153 @@ const fakeAppServer = (): void => {
           turn: { id: turnId },
         },
       });
-      void (async (): Promise<void> => {
-        const started = await requestTool(turnId, "review_start_round", {});
-        assert.equal(started.success, true);
-        const startItems = started.contentItems;
-        assert.ok(Array.isArray(startItems));
-        const manifestText = (startItems[0] as Record<string, unknown>).text;
-        assert.equal(typeof manifestText, "string");
-        const manifestPaths = (manifestText as string).split("\n").slice(4);
-        assert.ok(manifestPaths.length > 0);
-        for (const manifestPath of manifestPaths) {
-          const read = await requestTool(turnId, "review_read_file", {
-            path: manifestPath,
-          });
-          assert.equal(read.success, true);
-          const contentItems = read.contentItems;
-          assert.ok(Array.isArray(contentItems));
-          assert.equal(contentItems.length, 2);
-        }
-        const finished = await requestTool(turnId, "review_finish_round", {
-          result: "dry",
-          findings: [],
+      if (nativeGate) {
+        send({
+          method: "item/started",
+          params: {
+            threadId,
+            turnId,
+            item: {
+              type: "commandExecution",
+              id: "native-gate-command",
+              command: "pnpm test",
+              status: "inProgress",
+            },
+          },
         });
-        assert.equal(finished.success, true);
+        return;
+      }
+      if (nativeOverlap) {
+        send({
+          method: "item/started",
+          params: {
+            threadId,
+            turnId,
+            item: {
+              type: "commandExecution",
+              id: "native-first-command",
+              command: "Get-Content package.json",
+              status: "inProgress",
+            },
+          },
+        });
+        send({
+          method: "item/started",
+          params: {
+            threadId,
+            turnId,
+            item: {
+              type: "commandExecution",
+              id: "native-overlap-command",
+              command: "Get-Process node",
+              status: "inProgress",
+            },
+          },
+        });
+        return;
+      }
+      void (async (): Promise<void> => {
+        const readRound = async (result: "findings" | "dry"): Promise<void> => {
+          const started = await requestTool(turnId, "review_start_round", {});
+          assert.equal(started.success, true);
+          const startItems = started.contentItems;
+          assert.ok(Array.isArray(startItems));
+          const manifestText = (startItems[0] as Record<string, unknown>).text;
+          assert.equal(typeof manifestText, "string");
+          const manifestPaths = (manifestText as string).split("\n").slice(4);
+          assert.ok(manifestPaths.length > 0);
+          for (const manifestPath of manifestPaths) {
+            const read = await requestTool(turnId, "review_read_file", {
+              path: manifestPath,
+            });
+            assert.equal(read.success, true);
+            const contentItems = read.contentItems;
+            assert.ok(Array.isArray(contentItems));
+            assert.equal(contentItems.length, 2);
+          }
+          const finished = await requestTool(turnId, "review_finish_round", {
+            result,
+            findings: result === "findings" ? ["fixture finding"] : [],
+          });
+          assert.equal(finished.success, true);
+        };
+        await readRound("findings");
+        if (nativeThenRunner) {
+          send({
+            method: "item/started",
+            params: {
+              threadId,
+              turnId,
+              item: {
+                type: "commandExecution",
+                id: "native-before-runner-command",
+                command: "Get-Process node",
+                status: "inProgress",
+              },
+            },
+          });
+          void requestTool(turnId, "review_run_backend_command", {
+            command: "test",
+            phase: "correction",
+          });
+          return;
+        }
+        if (runnerThenNative) {
+          void requestTool(turnId, "review_run_backend_command", {
+            command: "test",
+            phase: "correction",
+          });
+          send({
+            method: "item/started",
+            params: {
+              threadId,
+              turnId,
+              item: {
+                type: "commandExecution",
+                id: "native-after-runner-command",
+                command: "Get-Process node",
+                status: "inProgress",
+              },
+            },
+          });
+          return;
+        }
+        const backendSource = path.join(
+          process.cwd(),
+          "packages/backend/src/backend.ts",
+        );
+        fs.appendFileSync(backendSource, `fixed-${goalIndex}\n`, "utf8");
+        const calibration = await requestTool(
+          turnId,
+          "review_start_calibration",
+          {},
+        );
+        assert.equal(calibration.success, true);
+        const baseline = fs.readFileSync(backendSource);
+        fs.appendFileSync(backendSource, "broken\n", "utf8");
+        const failed = await requestTool(turnId, "review_run_backend_command", {
+          command: "test",
+          phase: "calibration-fail",
+        });
+        assert.equal(failed.success, true);
+        fs.writeFileSync(backendSource, baseline);
+        const passed = await requestTool(turnId, "review_run_backend_command", {
+          command: "test",
+          phase: "calibration-pass",
+        });
+        assert.equal(passed.success, true);
+        await readRound("dry");
+        const watcher = await requestTool(
+          turnId,
+          "review_run_backend_command",
+          { command: "check-watch", phase: "final" },
+        );
+        assert.equal(watcher.success, true);
+        const tested = await requestTool(turnId, "review_run_backend_command", {
+          command: "test",
+          phase: "final",
+        });
+        assert.equal(tested.success, true);
         send({
           method: "thread/goal/updated",
           params: {

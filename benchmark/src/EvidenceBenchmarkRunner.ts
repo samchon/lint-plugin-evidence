@@ -210,6 +210,7 @@ export namespace EvidenceBenchmarkRunner {
       "completed" | "checkpointed" | "awaiting-supervision" | "interrupted";
     let supervisionGoal: EvidenceBenchmarkSupervisionGoal | undefined;
     let outcome: Outcome | undefined;
+    const reviewCommandAbort = new AbortController();
     let resolveOutcome!: (value: Outcome) => void;
     const outcomePromise = new Promise<Outcome>((resolve) => {
       resolveOutcome = resolve;
@@ -219,6 +220,7 @@ export namespace EvidenceBenchmarkRunner {
         state.interruption = normalizeInterruption(interruption);
       if (outcome !== undefined) return;
       outcome = value;
+      reviewCommandAbort.abort();
       resolveOutcome(value);
     };
 
@@ -347,6 +349,10 @@ export namespace EvidenceBenchmarkRunner {
         return;
       if (props.reviewLedger === "backend") {
         try {
+          if (activeNativeCommands.size !== 0)
+            throw new Error(
+              `Codex completed ${record.name} while native commands ${[...activeNativeCommands].join(", ")} remained active.`,
+            );
           EvidenceBenchmarkReviewLedger.assertDry({
             cwd: props.cwd,
             state,
@@ -463,13 +469,16 @@ export namespace EvidenceBenchmarkRunner {
       }
     };
 
+    const activeNativeCommands: Set<string> = new Set();
     const notify = async (message: Record<string, unknown>): Promise<void> => {
       if (
         message.method !== "thread/tokenUsage/updated" &&
         message.method !== "turn/started" &&
         message.method !== "thread/goal/updated" &&
         message.method !== "turn/completed" &&
-        message.method !== "thread/status/changed"
+        message.method !== "thread/status/changed" &&
+        message.method !== "item/started" &&
+        message.method !== "item/completed"
       )
         return;
       const params: Record<string, unknown> = object(message.params);
@@ -478,6 +487,21 @@ export namespace EvidenceBenchmarkRunner {
       if (state.sessionId === undefined)
         throw new Error("Codex app-server omitted the thread ID.");
       if (params.threadId !== state.sessionId) return;
+      if (
+        message.method === "item/started" ||
+        message.method === "item/completed"
+      ) {
+        if (props.reviewLedger === "backend")
+          EvidenceBenchmarkReviewLedger.observeNativeCommand({
+            cwd: props.cwd,
+            state,
+            goal: current(),
+            method: message.method,
+            item: object(params.item),
+            active: activeNativeCommands,
+          });
+        return;
+      }
       if (forkGoalResetPending) {
         if (message.method === "thread/tokenUsage/updated") {
           const usage: IEvidenceBenchmarkTokenUsage | undefined =
@@ -777,7 +801,14 @@ export namespace EvidenceBenchmarkRunner {
                 throw new Error(
                   "Codex emitted an invalid runner-owned review tool request.",
                 );
-              const result = EvidenceBenchmarkReviewLedger.handle({
+              if (
+                params.tool === "review_run_backend_command" &&
+                activeNativeCommands.size !== 0
+              )
+                throw new Error(
+                  `Codex requested a runner-owned backend command while native commands ${[...activeNativeCommands].join(", ")} remained active.`,
+                );
+              const result = await EvidenceBenchmarkReviewLedger.handle({
                 cwd: props.cwd,
                 state,
                 goal: current(),
@@ -787,6 +818,15 @@ export namespace EvidenceBenchmarkRunner {
                   callId: params.callId,
                   turnId: params.turnId,
                 },
+                onChange: async () => {
+                  publish();
+                  await publication;
+                  if (outcome !== undefined)
+                    throw new Error(
+                      "The benchmark ended while a runner-owned backend command was active.",
+                    );
+                },
+                signal: reviewCommandAbort.signal,
               });
               publish();
               await publication;

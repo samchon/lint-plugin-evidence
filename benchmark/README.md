@@ -49,7 +49,7 @@ For a supervised Plain experiment whose independent variable is an external revi
 pnpm --filter @samchon/evidence-benchmark start codex <project> plain <model> <effort> --from-backend-start <source-run-id> --supervise-backend --review-ledger
 ```
 
-Codex cannot add dynamic tools to an existing fork or resumed thread. This mode therefore restores the exact backend-start workspace and inherited measurements but starts a new native thread at `backend-review`. The runner registers `review_start_round`, `review_read_file`, and `review_finish_round`; owns the canonical manifest, order, hashes, and one-file returns; rejects Goal completion without a current dry seal; and pauses after Backend Review and Backend Final for external verification. The cell and retained state identify this treatment explicitly.
+Codex cannot add dynamic tools to an existing fork or resumed thread. This mode therefore restores the exact backend-start workspace and inherited measurements but starts a new native thread at `backend-review`. The runner registers `review_start_round`, `review_read_file`, `review_finish_round`, `review_start_calibration`, and `review_run_backend_command`; owns the canonical manifest, order, hashes, one-file returns, fail-restore-pass boundary, serialized backend process trees, and final gates; rejects Goal completion without a current dry seal and unchanged runner-owned watcher and test; and pauses after Backend Review and Backend Final for external verification. The cell and retained state identify this treatment explicitly.
 
 Resume an approved ledger run with its run ID, `--supervise-backend`, and `--review-ledger`; the latter must remain part of the retained cell identity.
 
@@ -100,7 +100,7 @@ The runner retains facts in delivery order:
 - the current instruction cursor and engine-specific terminal checkpoints;
 - native token categories, process elapsed time, exit code, and signal.
 - the durable `backend-start` workspace and native-turn checkpoint, plus source lineage and inherited timing for a derived run.
-- runner-owned review manifests, file hashes, credited tool reads, findings or dry state, and invalidation evidence when `--review-ledger` is active.
+- runner-owned review manifests, file hashes, credited tool reads, calibration boundaries, serialized command results, findings or dry state, and invalidation evidence when `--review-ledger` is active.
 
 Setup time remains separate from model-process time. The retained record does not add build, lint, requirement, graph, quality, publication, or completion verdicts.
 

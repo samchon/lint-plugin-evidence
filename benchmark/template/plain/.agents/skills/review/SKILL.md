@@ -45,7 +45,7 @@ For each finding, retain the requirement or upstream contract, the exact conflic
 
 A file counts as read only when its complete current contents are returned and examined during the current round.
 
-For Backend Review and Backend Final, the runner owns the manifest and reading ledger. Start only with `review_start_round`, read the returned paths in order only with `review_read_file`, and close only with `review_finish_round`. Shell reads and self-authored manifests receive zero credit. The runner rejects missing, stale, duplicate, out-of-order, changed, or incomplete rounds and will not accept Goal completion without its dry seal. Never forge or bypass that ledger.
+For Backend Review and Backend Final, the runner owns the manifest, reading ledger, calibration, generators, and gates. Start a round with `review_start_round`, read its paths only with `review_read_file`, and close it only with `review_finish_round`. Before calibration, finish a zero-finding round as `clean`, not `dry`. Use `review_start_calibration` and `review_run_backend_command` for fail-restore-pass and every backend process. Shell reads, self-authored manifests, and native-shell backend processes receive zero credit. The runner rejects missing, stale, duplicate, out-of-order, changed, incomplete, concurrent, or uncalibrated proof and will not accept Goal completion without its dry seal and unchanged final gates. Never forge or bypass that ledger.
 
 For Frontend and Overall review, follow this manual protocol:
 
@@ -64,15 +64,15 @@ When a completed round has findings:
 
 1. fix every finding at its owning layer and every downstream consequence;
 2. regenerate every affected derived artifact;
-3. run every generator and gate as its own bounded command, wait for all descendants to stop, and fix every failure;
+3. for Backend Review or Backend Final, run every generator and gate through `review_run_backend_command`; for Frontend or Overall, run each as its own bounded command and wait for all descendants to stop; fix every failure;
 4. reconcile every finding with the actual correction; and
 5. begin a new full round at the first requirement.
 
-When a completed round has no finding and made no scoped edit, run the instruction's final gates. A failure or resulting change invalidates the round and requires correction followed by another full round.
+For Backend Review or Backend Final, close a pre-calibration zero-finding round as `clean`, complete runner-owned calibration, and perform a fresh full round. Only a post-calibration zero-finding round is `dry`; run its runner-owned final gates. For Frontend or Overall, run the instruction's final gates after a zero-finding round. A failure or resulting change invalidates the round and requires correction followed by another full round.
 
 There is no small-fix exception. Any scoped change caused by a compiler, generator, test, browser, runtime check, or temporary calibration invalidates the round. Restore temporary changes, then start a new full round. Gates must describe the workspace after its last scoped change.
 
-The review Goal is complete only after one dry round and unchanged clean gates.
+Before the qualifying dry round, seal the calibration baseline with the runner tool, break one material behavior, prove the runner-owned test fails, restore the exact sealed bytes, and prove the same test passes. The review Goal is complete only after a fresh dry round and runner-owned unchanged `check:watch` and test gates.
 
 ## No Discretionary Stop
 
