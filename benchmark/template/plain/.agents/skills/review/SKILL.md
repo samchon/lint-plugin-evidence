@@ -68,6 +68,8 @@ When a completed round has findings:
 
 When a completed round has no finding and made no scoped edit, run the instruction's final gates. A failure or resulting change invalidates the round and requires correction followed by another full round.
 
+There is no small-fix exception. Any scoped change caused by a compiler, generator, test, browser, runtime check, or temporary calibration invalidates the round. Restore temporary changes, then start a new full round. Gates must describe the workspace after its last scoped change.
+
 The review Goal is complete only after one dry round and unchanged clean gates.
 
 ## No Discretionary Stop
@@ -88,8 +90,9 @@ None of these satisfy review loop until dry. When a literal dry round is not pro
 - [ ] Every round covered the first requirement through the final artifact and every propagation branch.
 - [ ] No split rounds, composed partial passes, omissions, or search/build/test substitutes.
 - [ ] Every finding and consequence fixed after the complete round.
-- [ ] Every correction followed by a new full round.
+- [ ] Every correction or gate-driven change followed by a new full round.
 - [ ] Unlimited repetition reached one dry, edit-free round.
-- [ ] Scope checklist complete and gates clean.
+- [ ] The qualifying dry round remained unchanged through clean current gates.
+- [ ] Scope checklist complete.
 
 Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the applicable literal full-reading Review from the first requirement. In a Final Goal, perform the quoted Review immediately.

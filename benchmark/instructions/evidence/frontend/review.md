@@ -2,6 +2,13 @@
 
 Read `.agents/skills/review/SKILL.md` before working.
 
-Review whether every frontend `@evidence` and `@evidenceExclude` reason precisely and truthfully explains why it applies. Read each complete `@evidence` host and each exclusion's claimed owner or observable alternative, not only its reason, and reject every acknowledgement created only to pass the compiler.
+The scope is the frontend only. Inspect every active `@evidence` and `@evidenceExclude`, including each target, reason, and complete host. Correct every fake citation or exclusion created solely to evade compiler errors.
 
-Ensure backend `pnpm dev` and frontend `pnpm dev` are running so the current application uses the live backend and the compiler catches invalid evidence references and missing coverage. Fix every diagnostic, and complete only after the current application reloads without error.
+Ensure both development processes are running and require clean frontend `pnpm lint`.
+
+## Final Checklist
+
+- [ ] Every active frontend acknowledgement inspected; every fake citation or exclusion created solely to evade compiler errors corrected.
+- [ ] Canonical graph configuration stayed active and current development and lint gates passed.
+
+Any unchecked item leaves the Goal active. Complete the missing review or correction.

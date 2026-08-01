@@ -87,6 +87,14 @@ const main = async (): Promise<void> => {
       sources.get("plain/continue.md"),
       sources.get("evidence/continue.md"),
     );
+    assert.equal(
+      readPrescribed(sources, "evidence/backend/final.md"),
+      sources.get("evidence/backend/final.md")!.toString("utf8"),
+    );
+    assert.notEqual(
+      readPrescribed(sources, "plain/backend/final.md"),
+      sources.get("plain/backend/final.md")!.toString("utf8"),
+    );
     const orphan = spawn(
       process.execPath,
       ["-e", "setInterval(() => undefined, 1000)"],
@@ -1253,7 +1261,8 @@ const readPrescribed = (
   const source: Buffer | undefined = sources.get(relativePath);
   assert.ok(source, `Missing fixture source: ${relativePath}`);
   const prescribed: string = source.toString("utf8");
-  if (!relativePath.endsWith("/final.md")) return prescribed;
+  if (!relativePath.startsWith("plain/") || !relativePath.endsWith("/final.md"))
+    return prescribed;
   const reviewPath: string = relativePath.replace(
     /\/final\.md$/u,
     "/review.md",

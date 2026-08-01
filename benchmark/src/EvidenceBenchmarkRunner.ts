@@ -1163,10 +1163,11 @@ export namespace EvidenceBenchmarkRunner {
   }
 
   /**
-   * Reads one instruction and quotes its matching Review at the end of a Final.
+   * Reads one instruction and quotes its matching Review at the end of a Plain
+   * Final.
    *
-   * The quote gives Final the exact review contract it must verify without
-   * duplicating that contract across two authored instruction files.
+   * Plain Final verifies the exact exhaustive-review contract without
+   * duplicating it. Evidence Final owns only its prescribed current gates.
    */
   function readPrescribedText(
     instructionsRoot: string,
@@ -1176,7 +1177,11 @@ export namespace EvidenceBenchmarkRunner {
       path.join(instructionsRoot, ...relativePath.split("/")),
       "utf8",
     );
-    if (!relativePath.endsWith("/final.md")) return prescribedText;
+    if (
+      !relativePath.startsWith("plain/") ||
+      !relativePath.endsWith("/final.md")
+    )
+      return prescribedText;
     const reviewPath: string = relativePath.replace(
       /\/final\.md$/u,
       "/review.md",

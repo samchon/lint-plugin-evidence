@@ -2,6 +2,13 @@
 
 Read `.agents/skills/review/SKILL.md` before working.
 
-Review whether every backend `@evidence` and `@evidenceExclude` reason precisely and truthfully explains why it applies. Read each complete `@evidence` host and each exclusion's claimed owner or observable alternative, not only its reason, and reject every acknowledgement created only to pass the compiler. Do not review the frontend.
+The scope is the backend only. Inspect every active `@evidence` and `@evidenceExclude`, including each target, reason, and complete host. Correct every fake citation or exclusion created solely to evade compiler errors.
 
-Start `pnpm check:watch` from `packages/backend` so the compiler catches invalid evidence references and missing coverage. Fix every diagnostic, wait for a clean rebuild, then stop the watcher before completing.
+Start backend `pnpm check:watch` with the canonical graph active, wait for a clean rebuild, then stop the watcher.
+
+## Final Checklist
+
+- [ ] Every active backend acknowledgement inspected; every fake citation or exclusion created solely to evade compiler errors corrected.
+- [ ] Canonical graph configuration stayed active and the current compiler gate passed.
+
+Any unchecked item leaves the Goal active. Complete the missing review or correction.
