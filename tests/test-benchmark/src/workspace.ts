@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -55,6 +56,14 @@ const main = async (): Promise<void> => {
     );
     fs.mkdirSync(plainOverlay, { recursive: true });
     fs.writeFileSync(path.join(plainOverlay, "plain-only.txt"), "plain\n");
+    const plainReview: string = path.join(
+      plainOverlay,
+      ".agents",
+      "skills",
+      "review",
+    );
+    fs.mkdirSync(plainReview, { recursive: true });
+    fs.writeFileSync(path.join(plainReview, "SKILL.md"), "Old review.\n");
     const evidenceOverlay: string = path.join(
       repository,
       "benchmark",
@@ -330,6 +339,38 @@ const main = async (): Promise<void> => {
       gitHead: checkpoint.workspaceGitHead,
       gitStatus: checkpoint.workspaceGitStatus,
     });
+    fs.writeFileSync(path.join(plainReview, "SKILL.md"), "Current review.\n");
+    fs.writeFileSync(path.join(plainReview, "backend.md"), "Backend review.\n");
+    EvidenceBenchmarkCheckpoint.applyReviewSkill({
+      workspace: restored,
+      source: plainReview,
+    });
+    assert.equal(
+      fs.readFileSync(
+        path.join(restored, ".agents", "skills", "review", "SKILL.md"),
+        "utf8",
+      ),
+      "Current review.\n",
+    );
+    assert.equal(
+      fs.readFileSync(
+        path.join(restored, ".agents", "skills", "review", "backend.md"),
+        "utf8",
+      ),
+      "Backend review.\n",
+    );
+    const restoredStatus = spawnSync(
+      "git",
+      ["status", "--porcelain=v1", "--untracked-files=all"],
+      {
+        cwd: restored,
+        encoding: "utf8",
+        shell: false,
+        windowsHide: true,
+      },
+    );
+    assert.equal(restoredStatus.status, 0);
+    assert.equal(restoredStatus.stdout, checkpoint.workspaceGitStatus);
     assert.equal(
       fs.readFileSync(path.join(restored, "feature.ts"), "utf8"),
       "export {};\n",

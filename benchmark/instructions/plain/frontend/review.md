@@ -4,6 +4,8 @@ Read `AGENTS.md`, `.agents/skills/review/SKILL.md`, and `.agents/skills/review/f
 
 Review the complete frontend and its live behavior. Perform a literal **review loop until dry**:
 
+In every round, read every product-scope file in one complete sorted manifest covering `docs/analysis/`, `packages/api/src/`, `packages/frontend/src/`, and `packages/frontend/tests/`, plus every frontend configuration file that affects compilation, SDK use, Vite, Playwright, or runtime behavior.
+
 1. Read every requirement in full and compare each one with the API, screens, user journeys, and browser tests.
 2. Read every API operation and DTO in full and compare each one with frontend behavior, data flow, errors, and tests.
 3. Read every frontend source file and browser test in full. Compare each artifact with its requirement, API contract, live behavior, and journey.

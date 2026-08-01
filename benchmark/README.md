@@ -33,7 +33,7 @@ After `backend-start` completes, the runner stores a workspace and native-turn c
 pnpm --filter @samchon/evidence-benchmark start codex <project> <evidence|plain> <model> <effort> --from-backend-start <source-run-id>
 ```
 
-The derived run may contain committed changes to that arm's seven downstream instruction files only. It refuses the checkpoint when the selected template, embedded skills, requirements, Evidence archive, model, effort, CLI, `backend-start`, continuation instruction, or any other committed file changed.
+The derived run verifies the retained cell and exact completed `backend-start` boundary, restores that workspace, applies the current arm's Review skill, and reads the current downstream instructions. An explicit operator launch does not reject the checkpoint because repository inputs changed after it was created.
 
 When launching Evidence cells concurrently, follow the Benchmark skill's shared-archive procedure. Every Evidence cell copies that archive and records its SHA-256. Without `EVIDENCE_BENCHMARK_ARCHIVE`, a standalone Evidence cell packs its own archive.
 

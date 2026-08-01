@@ -200,6 +200,46 @@ export namespace EvidenceBenchmarkCheckpoint {
       throw new Error("Restored checkpoint workspace bytes have changed.");
   }
 
+  /** Applies the current review procedure without counting it as product work. */
+  export function applyReviewSkill(props: {
+    workspace: string;
+    source: string;
+  }): void {
+    const workspace: string = path.resolve(props.workspace);
+    const source: string = path.resolve(props.source);
+    if (!fs.statSync(source).isDirectory())
+      throw new Error(`Review skill is not a directory: ${source}.`);
+    const relative: string = ".agents/skills/review";
+    const target: string = resolveWithin(workspace, relative);
+    const tracked: string[] = git(workspace, ["ls-files", "-z", "--", relative])
+      .split("\0")
+      .filter((file) => file.length !== 0);
+
+    fs.rmSync(target, { recursive: true, force: true });
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.cpSync(source, target, {
+      recursive: true,
+      dereference: false,
+      preserveTimestamps: true,
+    });
+    for (const file of tracked)
+      git(workspace, ["update-index", "--skip-worktree", "--", file]);
+
+    const exclude: string = path.join(workspace, ".git", "info", "exclude");
+    const pattern: string = "/.agents/skills/review/";
+    const contents: string = fs.existsSync(exclude)
+      ? fs.readFileSync(exclude, "utf8")
+      : "";
+    if (!contents.split(/\r?\n/u).includes(pattern)) {
+      fs.mkdirSync(path.dirname(exclude), { recursive: true });
+      fs.appendFileSync(
+        exclude,
+        `${contents.length !== 0 && !contents.endsWith("\n") ? "\n" : ""}${pattern}\n`,
+        "utf8",
+      );
+    }
+  }
+
   function readWorkspaceSnapshot(
     runRoot: string,
     checkpointRoot: string,

@@ -5,7 +5,6 @@ import os from "node:os";
 import path from "node:path";
 
 import {
-  assertBackendStartRecoveryChanges,
   assertEvidenceBenchmarkRecoveryRevision,
   evidenceBenchmarkRecordPaths,
   parseEvidenceBenchmarkArguments,
@@ -23,8 +22,7 @@ import {
  * 1. Accept one complete cell identity and reject every malformed dimension.
  * 2. Resolve a clean Git revision and reject the same repository when dirty.
  * 3. Accept a descendant recovery revision and reject an unknown lineage.
- * 4. Permit only the selected arm's downstream instructions after a checkpoint.
- * 5. Assert retained record paths are deterministic and exact.
+ * 4. Assert retained record paths are deterministic and exact.
  */
 const main = (): void => {
   const runId: string = "00000000-0000-4000-8000-000000000000";
@@ -143,43 +141,6 @@ const main = (): void => {
           second,
         ),
       /must descend/u,
-    );
-
-    const review: string = path.join(
-      repository,
-      "benchmark",
-      "instructions",
-      "plain",
-      "backend",
-      "review.md",
-    );
-    fs.mkdirSync(path.dirname(review), { recursive: true });
-    fs.writeFileSync(review, "Review.\n");
-    git(repository, ["add", "-A"]);
-    git(repository, ["commit", "-m", "correct downstream instruction"]);
-    const instructionOnly: string = git(repository, [
-      "rev-parse",
-      "HEAD",
-    ]).trim();
-    assertBackendStartRecoveryChanges(
-      repository,
-      second,
-      instructionOnly,
-      "plain",
-    );
-    fs.writeFileSync(path.join(repository, "fixture.txt"), "third\n");
-    git(repository, ["add", "-A"]);
-    git(repository, ["commit", "-m", "change unrelated input"]);
-    const unrelated: string = git(repository, ["rev-parse", "HEAD"]).trim();
-    assert.throws(
-      () =>
-        assertBackendStartRecoveryChanges(
-          repository,
-          second,
-          unrelated,
-          "plain",
-        ),
-      /downstream instructions only/u,
     );
 
     const records = evidenceBenchmarkRecordPaths(

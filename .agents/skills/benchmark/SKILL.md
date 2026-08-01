@@ -98,7 +98,7 @@ When a defect is confined to an instruction after `backend-start`, preserve the 
 pnpm --filter @samchon/evidence-benchmark start codex <subject> <arm> <model> <effort> --from-backend-start <source-run-id>
 ```
 
-This command restores the retained workspace, forks the native thread through the completed `backend-start` terminal turn, and starts the new run at `backend-review`. It permits committed changes to that arm's seven downstream instruction files only. The selected base and arm template, every embedded skill and AGENTS.md, requirements, Evidence archive when applicable, model, effort, CLI, `backend-start`, and continuation instruction must still match; otherwise start the cell again from the beginning. Never edit a checkpoint, its source run, or its retained state to force eligibility.
+This command verifies the retained cell and exact completed `backend-start` boundary, restores that workspace, applies the current arm's Review skill, forks the native thread through the retained terminal turn, and starts the new run at `backend-review` with the current downstream instructions. An explicit operator launch does not reject the checkpoint because repository inputs changed after it was created. Never edit a checkpoint, its source run, or its retained state.
 
 A checkpoint-derived run has a new run ID and records its source lineage. Report inherited and continuation measurements together, and do not describe it as resuming the original run.
 

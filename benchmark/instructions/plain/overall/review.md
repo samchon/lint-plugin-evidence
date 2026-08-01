@@ -4,6 +4,8 @@ Read `AGENTS.md`, `.agents/skills/review/SKILL.md`, and every detailed procedure
 
 Review the complete application and every cross-layer relationship. Perform a literal **review loop until dry**:
 
+In every round, read every product-scope file in one complete sorted manifest covering `docs/analysis/`, `packages/backend/prisma/schema/`, `packages/api/src/`, `packages/backend/src/`, `packages/backend/test/`, `packages/frontend/src/`, and `packages/frontend/tests/`, plus every application configuration file covered by the Backend or Frontend Review.
+
 1. Read every requirement in full and propagate each one through the database, API, backend, frontend, and tests.
 2. Read the database, API, backend, frontend, and tests in full. Compare every adjacent layer in both directions and trace every artifact backward to its requirement.
 3. Trace every required user journey from requirement through persistence and API behavior to the live screen and browser proof, then trace it backward.

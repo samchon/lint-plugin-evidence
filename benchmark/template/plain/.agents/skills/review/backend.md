@@ -6,9 +6,9 @@ Apply the Review skill's review loop until dry to every file and relationship in
 
 The complete backend scope contains:
 
-- every requirement under `docs/analysis/` and `docs/ERD.md` when present;
+- every requirement under `docs/analysis/`;
 - every schema under `packages/backend/prisma/schema/`;
-- every authored and generated API contract under `packages/api/src/`;
+- every authored API contract under `packages/api/src/structures/`;
 - every authored and generated backend file under `packages/backend/src/`;
 - every backend test under `packages/backend/test/`; and
 - every API or backend configuration file that affects compilation, generation, persistence, or runtime behavior.

@@ -4,6 +4,8 @@ Read `AGENTS.md`, `.agents/skills/review/SKILL.md`, and `.agents/skills/review/b
 
 Review the complete API and backend, not the frontend. Perform a literal **review loop until dry**:
 
+In every round, read every product-scope file in one complete sorted manifest covering `docs/analysis/`, `packages/backend/prisma/schema/`, `packages/api/src/structures/`, `packages/backend/src/`, and `packages/backend/test/`, plus every API or backend configuration file that affects compilation, generation, persistence, or runtime behavior.
+
 1. Read every requirement in full and compare each one with the database, API, and backend tests.
 2. Read the complete database design and compare every model, field, and relation with the API operations and DTOs.
 3. Read every API operation, DTO, backend implementation, and backend test in full. Compare the API with its implementation and tests, and trace every implementation and test backward to its requirement.

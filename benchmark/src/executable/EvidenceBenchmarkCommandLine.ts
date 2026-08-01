@@ -166,7 +166,6 @@ const main = async (): Promise<void> => {
       repository,
       runnerRevision,
       requestedCell,
-      inputIdentity,
       source: checkpointSource,
       records,
     });
@@ -241,7 +240,6 @@ const runFromBackendStartCheckpoint = async (props: {
   repository: string;
   runnerRevision: string;
   requestedCell: IEvidenceBenchmarkCell;
-  inputIdentity: IEvidenceBenchmarkInputIdentity;
   source: IEvidenceBenchmarkStateFile;
   records: IEvidenceBenchmarkRecordPaths;
 }): Promise<void> => {
@@ -269,28 +267,6 @@ const runFromBackendStartCheckpoint = async (props: {
     )
   )
     throw new Error("Checkpoint source record paths do not match the run.");
-  assertEvidenceBenchmarkRecoveryRevision(
-    props.repository,
-    sourceCell.benchmarkRevision,
-    props.runnerRevision,
-  );
-  assertBackendStartRecoveryChanges(
-    props.repository,
-    sourceCell.benchmarkRevision,
-    props.runnerRevision,
-    requested.arm,
-  );
-  const sourceIdentity: IEvidenceBenchmarkInputIdentity | undefined =
-    sourceCell.inputIdentity;
-  if (sourceIdentity === undefined)
-    throw new Error("Checkpoint source predates frozen input identities.");
-  if (
-    sourceIdentity.templateSha256 !== props.inputIdentity.templateSha256 ||
-    sourceIdentity.requirementsSha256 !== props.inputIdentity.requirementsSha256
-  )
-    throw new Error(
-      "Checkpoint recovery permits downstream instruction changes only; template, skills, or requirements changed.",
-    );
   if (
     (sourceCell.arm === "evidence" &&
       !/^[0-9a-f]{64}$/i.test(sourceCell.evidenceArtifactSha256 ?? "")) ||
@@ -319,27 +295,6 @@ const runFromBackendStartCheckpoint = async (props: {
     checkpoint.cliVersion !== props.source.state.cliVersion
   )
     throw new Error("Checkpoint source lacks an exact backend-start boundary.");
-  const instructionsRoot: string = path.join(
-    props.repository,
-    "benchmark",
-    "instructions",
-  );
-  const currentStart: string = fs.readFileSync(
-    path.join(instructionsRoot, requested.arm, "backend", "start.md"),
-    "utf8",
-  );
-  const currentContinuation: string = fs.readFileSync(
-    path.join(instructionsRoot, requested.arm, "continue.md"),
-    "utf8",
-  );
-  if (
-    start.prescribedText !== currentStart ||
-    start.continuationText !== currentContinuation
-  )
-    throw new Error(
-      "Checkpoint recovery cannot change backend-start or its continuation instruction.",
-    );
-
   requested.benchmarkRevision = sourceCell.benchmarkRevision;
   requested.evidenceArtifactSha256 = sourceCell.evidenceArtifactSha256;
   requested.checkpointSource = {
@@ -363,6 +318,18 @@ const runFromBackendStartCheckpoint = async (props: {
       materialSha256: checkpoint.workspaceMaterialSha256,
       gitHead: checkpoint.workspaceGitHead,
       gitStatus: checkpoint.workspaceGitStatus,
+    });
+    EvidenceBenchmarkCheckpoint.applyReviewSkill({
+      workspace,
+      source: path.join(
+        props.repository,
+        "benchmark",
+        "template",
+        requested.arm,
+        ".agents",
+        "skills",
+        "review",
+      ),
     });
     initializeAppendOnly(props.records.events);
     initializeAppendOnly(props.records.raw);
@@ -628,39 +595,6 @@ export const assertEvidenceBenchmarkRecoveryRevision = (
   if (ancestry.status !== 0)
     throw new Error(
       "Recovery runner revision must descend from the frozen benchmark revision.",
-    );
-};
-
-export const assertBackendStartRecoveryChanges = (
-  repository: string,
-  benchmarkRevision: string,
-  runnerRevision: string,
-  arm: EvidenceBenchmarkArm,
-): void => {
-  if (benchmarkRevision === runnerRevision) return;
-  const changed = spawnSync(
-    "git",
-    ["diff", "--name-only", "-z", benchmarkRevision, runnerRevision],
-    {
-      cwd: repository,
-      encoding: "utf8",
-      shell: false,
-      windowsHide: true,
-    },
-  );
-  if (changed.status !== 0)
-    throw new Error("Unable to inspect checkpoint recovery changes.");
-  const allowed: Set<string> = new Set(
-    EvidenceBenchmarkRunner.instructionEntries(arm)
-      .slice(1)
-      .map((entry) => `benchmark/instructions/${entry[1]}`),
-  );
-  const paths: string[] = (changed.stdout ?? "")
-    .split("\0")
-    .filter((file) => file.length !== 0);
-  if (paths.some((file) => !allowed.has(file)))
-    throw new Error(
-      "Checkpoint recovery permits committed changes to downstream instructions only.",
     );
 };
 
