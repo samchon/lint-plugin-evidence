@@ -1,14 +1,13 @@
 # Evidence Backend Final
 
-With the canonical graph active, start `pnpm check:watch` from `packages/backend`, fix every diagnostic, wait for a clean rebuild, then stop the watcher. Run `pnpm test` against the current implementation and fix every failure.
+Do not edit `lint.config.ts` or lower `evidence/graph` from `error`.
 
-Start `pnpm dev` from `packages/backend` after the runtime suite passes, and keep it running through Overall Final.
+Use the backend `pnpm check:watch` process kept running by Backend Start. Fix every diagnostic and wait for a rebuild without diagnostics. Keep it running.
 
 ## Final Checklist
 
-- [ ] Current watcher rebuild passed with canonical graph configuration active.
-- [ ] Current `pnpm test` passed.
-- [ ] Backend development process is running from the current workspace.
-- [ ] Every gate was rerun after the latest scoped change.
+- [ ] `lint.config.ts` remained unchanged and `evidence/graph` remained `error`.
+- [ ] After the last backend file change, `check:watch` completed a rebuild without diagnostics.
+- [ ] Backend `check:watch` remains running.
 
-Any unchecked item leaves the Goal active. Fix its cause and rerun every affected gate.
+Any unchecked item leaves the Goal active. Complete that item.

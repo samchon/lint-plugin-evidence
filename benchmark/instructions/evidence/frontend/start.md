@@ -4,20 +4,45 @@ Read `AGENTS.md` and every document under `.agents/skills/frontend/` and `.agent
 
 Implement the complete frontend against the fixed SDK and live backend. Do not perform the review yet.
 
-Add each `@evidence` acknowledgement to the screen or journey that actually owns the cited target, and state the exact responsibility that connects them. Use `@evidenceExclude` only when the target does not belong to the claim; name the actual owner or observable alternative and the condition that would invalidate the exclusion. Never create a fake citation or exclusion solely to evade compiler errors.
+Write every `@evidence` and `@evidenceExclude` as the Evidence skill requires. Do not add either tag only to remove a compiler diagnostic.
 
-Ensure `pnpm dev` is running from `packages/backend`. Start `pnpm dev` from `packages/frontend` before implementation and keep both processes running through Overall Final because the live application and Vite's incremental compiler are the frontend execution and diagnostic environment. Do not chase graph-wide missing-coverage diagnostics one by one while the first draft is still gaining screens and journeys; after the complete first draft exists, fix the current diagnostic batch and require an error-free reload.
+## Development Stages
 
-1. Implement every required screen and user journey under `packages/frontend/src/`. Each screen must cite the exact requirement it delivers.
-2. Write test programs under `packages/frontend/tests/journeys/` for every requirement-backed user journey. Each journey must cite the requirement and screens it exercises.
-3. After the complete frontend draft, start a bounded backend `pnpm check:watch` with the canonical graph active, wait for a clean rebuild, then stop the watcher. Require clean frontend `pnpm lint`.
-4. Complete the live-backend integration, then run `pnpm test:e2e` from `packages/frontend` with `VITE_API_SIMULATE=false` and fix every failure.
+Complete these stages in order.
+
+1. Implement every required screen, state, and interaction under `packages/frontend/src/`.
+2. Write every requirement-backed journey under `packages/frontend/tests/journeys/`.
+
+## Compiler Check
+
+`evidence/graph` starts checking `@evidence` and `@evidenceExclude` when the first page or journey function exists.
+
+Starting before that layer is complete emits hundreds or thousands of errors for tags not written yet. The output fills context and impairs implementation decisions.
+
+1. After every screen is complete, start frontend `pnpm dev`.
+   - Fix every diagnostic.
+   - Stop it after a reload without diagnostics.
+2. After every journey is complete, start frontend `pnpm dev` again.
+   - Fix every diagnostic and wait for a reload without diagnostics.
+   - Keep it running through Overall Final.
+
+Run frontend `pnpm lint` and fix every diagnostic. Require exit code 0.
+
+## Runtime Check
+
+Remove every source-owned `@todo` under `packages/frontend`.
+
+Start `pnpm dev` from `packages/backend`. Frontend `pnpm dev` is already running. Keep both running through Overall Final.
+
+Run `pnpm test:e2e` with `VITE_API_SIMULATE=false`. Fix every failure. After the last fix, require a frontend reload without diagnostics and an E2E exit code of 0.
 
 ## Final Checklist
 
 - [ ] Every required screen, state, interaction, and journey implemented.
-- [ ] Every `@evidence` is a justified citation and every `@evidenceExclude` a genuine exclusion; none was created solely to evade compiler errors.
-- [ ] Canonical graph configuration stayed active and current backend graph and frontend lint gates passed.
-- [ ] Live-backend `pnpm test:e2e` passes against the current implementation.
+- [ ] The screen check finished before journey implementation began.
+- [ ] Every `@evidence` is on a page or journey that delivers or proves its linked requirement or page function.
+- [ ] Every `@evidenceExclude` names its owner or alternative and invalidating condition; none exists only to remove a diagnostic.
+- [ ] The screen-stage `pnpm dev` stopped after a reload without diagnostics; the journey-stage process remains running without diagnostics and frontend lint passes.
+- [ ] Live-backend `pnpm test:e2e` exits with code 0 after the last frontend change.
 
-Any unchecked item leaves the Goal active. Complete it and rerun every affected current-state gate.
+Any unchecked item leaves the Goal active. Complete that item before proceeding.

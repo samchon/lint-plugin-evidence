@@ -9,4 +9,4 @@
 
 ### Evidence Review
 
-`.agents/skills/review/SKILL.md` defines the human review of acknowledgement reasons and the behavior their hosts actually perform. Read it only for a backend, frontend, or overall review objective. Final objectives run the prescribed compiler and runtime gates; they do not repeat the review.
+`.agents/skills/review/SKILL.md` defines the review of `@evidence`, `@evidenceExclude`, and their hosts. Read it only for a backend, frontend, or overall Review objective.
