@@ -236,10 +236,10 @@ export namespace ISale {
 /**
  * Verifies both halves may carry a citation without colliding.
  *
- * Two tags for one identity are two independent acknowledgements of two
- * different targets, not a duplicate: duplicate detection is about overlapping
- * scopes within one obligation, which this is not. Reporting it would make the
- * graph disagree with itself about what one identity is allowed to say.
+ * Two tags for one identity are independent acknowledgements of two different
+ * targets. A positive duplicate requires the same resolved scope on the same
+ * declaration host, so reporting either tag would make the graph disagree with
+ * itself about what one identity is allowed to say.
  *
  *  1. Cite one section from each half of a merged identity.
  *  2. Run the graph over a claim owing both sections.

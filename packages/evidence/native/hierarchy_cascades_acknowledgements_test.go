@@ -269,9 +269,9 @@ export interface ILedger {}
  *
  *  1. Acknowledge a complete Markdown file.
  *  2. Exclude one H2 subtree in a second declaration.
- *  3. Assert the overlap produces one duplicate acknowledgement diagnostic.
+ *  3. Assert the overlap produces one conflict diagnostic.
  */
-func TestOverlappingAcknowledgementScopesAreRejectedOnce(t *testing.T) {
+func TestEvidenceAndExclusionScopesConflictOnce(t *testing.T) {
 	messages := runIndexRule(t, map[string]string{
 		"docs/spec.md": `## Create
 ### Validate
