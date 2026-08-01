@@ -45,10 +45,10 @@ For each finding, retain the requirement or upstream contract, the exact conflic
 
 A file counts as read only when its complete current contents are returned and examined during the current round.
 
-1. Build and return one complete sorted current-scope manifest before every round. Reusing or splitting an earlier manifest does not count.
-2. Use the instruction's canonical section order, sort paths within each section, start at the first requirement, and continue through the final scoped artifact.
-3. Read exactly one manifest file per command or tool call. Never combine manifest paths with semicolons, pipelines, loops, arrays, scripts, or multi-file calls. A command that reads multiple manifest files is an irreversible run-level protocol violation: keep the Goal active and report it for external rejection instead of restarting and self-crediting the run.
-4. Return the file in full without truncation. Consecutive ranges for one large file count only when they cover the first through final line with no gap.
+1. Build and return one complete sorted current-scope manifest from fresh file inventories before every round. Before returning it, verify that every listed path exists, every scoped path is present, and each path appears once. Reusing or splitting an earlier manifest does not count.
+2. Use the instruction's canonical section order, sort paths within each section, start at the first requirement, and continue through the final scoped artifact. A stale, missing, duplicate, or incomplete manifest is an irreversible run-level protocol violation: keep the Goal active and report it for external rejection instead of repairing and self-crediting the run.
+3. Read exactly one manifest file per command or tool call. Never combine manifest paths with semicolons, pipelines, loops, arrays, scripts, or multi-file calls. A command that reads multiple manifest files is the same irreversible violation.
+4. Visibly return the complete file contents to the current turn without truncation. Redirection, suppression, capture (`>`, `$null`, `Out-Null`, or variables), hashes, line counts, searches, summaries, or any other substitute give zero reading credit and irreversibly fail the run. Consecutive ranges for one large file count only when they cover the first through final line with no gap.
 5. Searches, match excerpts, summaries, inventories, diffs, Git status, line counts, builds, lint output, test output, and previous reads count as zero.
 6. Track the current position and completed propagation roots in the current objective. Never call a round full, complete, clean, final, or finished before both reach their end.
 7. If a product or generated file changes during the round, invalidate the round and restart it from the first requirement against a new manifest.
