@@ -967,14 +967,14 @@ export namespace EvidenceBenchmarkReviewLedger {
             -65_536,
           );
           if (
-            /Found\s+0\s+errors?\.\s+Watching for file changes\./iu.test(
+            /(?:^|\r?\n)(?:\d{1,2}:\d{2}:\d{2}(?:\s+[AP]M)?\s+-\s+)?Found\s+0\s+errors?\.\s+Watching for file changes\.(?:\r?\n|$)/iu.test(
               watchOutput,
             )
           ) {
             watchClean = true;
             void stop();
           } else if (
-            /Found\s+[1-9][0-9]*\s+errors?\.\s+Watching for file changes\./iu.test(
+            /(?:^|\r?\n)(?:\d{1,2}:\d{2}:\d{2}(?:\s+[AP]M)?\s+-\s+)?Found\s+[1-9][0-9]*\s+errors?\.\s+Watching for file changes\.(?:\r?\n|$)/iu.test(
               watchOutput,
             )
           ) {

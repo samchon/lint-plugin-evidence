@@ -2249,7 +2249,7 @@ const writeReviewWorkspace = (workspace: string): void => {
         "build:sdk": 'node -e ""',
         "build:test": 'node -e ""',
         "check:watch":
-          "node -e \"const {spawn}=require('node:child_process'); const child=spawn(process.execPath,['-e','setInterval(() => {}, 1000)'],{stdio:'ignore'}); console.log('CHILD_PID='+child.pid); console.log('Found 0 errors. Watching for file changes.'); setInterval(() => {}, 1000)\"",
+          "node -e \"const {spawn}=require('node:child_process'); const child=spawn(process.execPath,['-e','setInterval(() => {}, 1000)'],{stdio:'ignore'}); setTimeout(() => { console.log('CHILD_PID='+child.pid); console.log('07:18:39 AM - Found 0 errors. Watching for file changes.'); }, 250); setInterval(() => {}, 1000)\"",
         format: 'node -e ""',
         lint: 'node -e ""',
         schema: 'node -e ""',
