@@ -27,6 +27,7 @@ import type { EvidenceBenchmarkSupervisionGoal } from "./typings/EvidenceBenchma
 export namespace EvidenceBenchmarkRunner {
   const PROCESS_CLEANUP_ERROR =
     "Codex app-server survived forced process-tree cleanup.";
+  const GOAL_OBJECTIVE_MAX_CHARACTERS = 4_000;
 
   /**
    * Creates an empty Codex state for the selected experiment arm.
@@ -118,24 +119,19 @@ export namespace EvidenceBenchmarkRunner {
       const entry = entries[state.nextInstructionIndex];
       if (entry === undefined)
         throw new Error("Instruction cursor is invalid.");
-      const prescribedText: string = readPrescribedText(
-        props.instructionsRoot,
-        entry[1],
-      );
-      const continuationText: string = fs.readFileSync(
-        path.join(
-          props.instructionsRoot,
-          ...instructionContinuationPath(state.arm).split("/"),
-        ),
-        "utf8",
-      );
+      const { prescribedText, continuationText, objectiveText } =
+        instructionObjective({
+          arm: state.arm,
+          instructionsRoot: props.instructionsRoot,
+          relativePath: entry[1],
+        });
       const record: IEvidenceBenchmarkGoalRecord = {
         index: state.nextInstructionIndex,
         name: entry[0],
         relativePath: entry[1],
         prescribedText,
         continuationText,
-        objectiveText: `${prescribedText}\n\n${continuationText}`,
+        objectiveText,
         goal: null,
         terminalTurnId: null,
         terminalTurnCompleted: false,
@@ -1264,6 +1260,35 @@ export namespace EvidenceBenchmarkRunner {
     arm: EvidenceBenchmarkArm,
   ): string {
     return `${arm}/continue.md`;
+  }
+
+  /** Reads and validates the exact Goal objective sent to Codex app-server. */
+  export function instructionObjective(props: {
+    arm: EvidenceBenchmarkArm;
+    instructionsRoot: string;
+    relativePath: string;
+  }): {
+    prescribedText: string;
+    continuationText: string;
+    objectiveText: string;
+  } {
+    const prescribedText: string = readPrescribedText(
+      props.instructionsRoot,
+      props.relativePath,
+    );
+    const continuationText: string = fs.readFileSync(
+      path.join(
+        props.instructionsRoot,
+        ...instructionContinuationPath(props.arm).split("/"),
+      ),
+      "utf8",
+    );
+    const objectiveText: string = `${prescribedText}\n\n${continuationText}`;
+    if (objectiveText.length > GOAL_OBJECTIVE_MAX_CHARACTERS)
+      throw new Error(
+        `${props.relativePath} expands to ${objectiveText.length} Goal characters; Codex accepts at most ${GOAL_OBJECTIVE_MAX_CHARACTERS}.`,
+      );
+    return { prescribedText, continuationText, objectiveText };
   }
 
   /**

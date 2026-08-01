@@ -69,6 +69,19 @@ const main = (): void => {
         "",
         `${arm}/${relative} must not be empty.`,
       );
+    for (const [, relativePath] of EvidenceBenchmarkRunner.instructionEntries(
+      arm,
+    )) {
+      const objective = EvidenceBenchmarkRunner.instructionObjective({
+        arm,
+        instructionsRoot: path.join(benchmarkRoot, "instructions"),
+        relativePath,
+      });
+      assert.ok(
+        objective.objectiveText.length <= 4_000,
+        `${relativePath} exceeds the Codex Goal objective limit.`,
+      );
+    }
 
     validateMaterializedSkillLinks(templateRoot, arm);
   }
