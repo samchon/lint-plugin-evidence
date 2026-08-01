@@ -1,14 +1,25 @@
 ---
 name: review
-description: Defines the human integrity review of Evidence acknowledgement reasons while compilation owns structural checks. Read only for a review objective.
+description: Detects fake Evidence citations and exclusions created solely to evade compiler errors while compilation owns structural checks. Read only for a review objective.
 ---
 
 # Review
 
-The compiler owns target resolution, host eligibility, overlap, and coverage. Do not repeat those structural checks.
+The compiler owns target resolution, host eligibility, overlap, and coverage. Review inspects the full acknowledgement population for fake citations and exclusions created solely to evade compiler errors.
 
-For every `@evidence`, decide whether the reason specifically and truthfully explains why the current host implements, represents, or proves the cited target.
+For every `@evidence`, read the target, reason, and complete current host. A citation is justified only when the artifact actually implements, represents, or proves the target and the reason states that specific relation. Mere relevance is not enough. Correct every fake citation created solely to evade compiler errors.
 
-For every `@evidenceExclude`, decide whether the reason specifically and truthfully names the non-applicability, actual owner or observable alternative, and concrete condition that would invalidate the exclusion.
+For every `@evidenceExclude`, read the target and reason. Decide whether it records a genuine exclusion: this claim does not cover the target, the reason says what handles it instead, and the reason says when that decision becomes invalid. Correct every fake exclusion created solely to evade compiler errors.
 
-Read the reason, host, and target meaning. Fix an inaccurate reason or the artifact that makes it false, then wait for the compiler gate. Complete when every reason in the active phase is precise and truthful and the current build is clean.
+Several hosts may truthfully cite one target. Do not consolidate them. A clean compiler gate proves structure, not truth.
+
+Continue after each finding until the complete active-phase population is inspected. Correct every fake tag, then require a clean current compiler gate.
+
+## Final Checklist
+
+- [ ] Inspected every active-phase acknowledgement, its complete host, and its target.
+- [ ] Every `@evidence` reason states how the artifact implements, represents, or proves the target; every fake citation created solely to evade compiler errors corrected.
+- [ ] Every `@evidenceExclude` is a genuine exclusion; every fake exclusion created solely to evade compiler errors corrected.
+- [ ] Current graph build ran clean with the canonical graph active.
+
+If any item is unchecked, keep the Goal active and complete the missing review or correction.

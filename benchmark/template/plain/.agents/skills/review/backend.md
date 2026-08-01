@@ -6,9 +6,9 @@ Apply the Review skill's review loop until dry to every file and relationship in
 
 The complete backend scope contains:
 
-- every requirement under `docs/analysis/` and `docs/ERD.md` when present;
+- every requirement under `docs/analysis/`;
 - every schema under `packages/backend/prisma/schema/`;
-- every authored and generated API contract under `packages/api/src/`;
+- every authored API contract under `packages/api/src/structures/`;
 - every authored and generated backend file under `packages/backend/src/`;
 - every backend test under `packages/backend/test/`; and
 - every API or backend configuration file that affects compilation, generation, persistence, or runtime behavior.
@@ -79,3 +79,15 @@ Read every backend source and test file in full.
 3. Record over-implementation, invented restrictions, unrequired exposure, missing tests, and tests that preserve a defect as findings.
 
 Names, types, compilation, internal consistency, and passing tests do not establish semantic correctness.
+
+## Final Checklist
+
+- [ ] Review skill gate followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
+- [ ] Literal full reading covered every required instruction and in-scope backend artifact.
+- [ ] Every requirement propagated through database, API, behavior, and tests.
+- [ ] Every schema element checked against operations, DTOs, behavior, effects, and tests.
+- [ ] Every operation and DTO traced backward to requirements and storage and forward to behavior and tests.
+- [ ] Every backend source and test read across all success, refusal, boundary, lifecycle, ownership, atomicity, ordering, and concurrency paths.
+- [ ] Every finding followed through its full consequence surface.
+
+Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the literal full-reading Backend Review from the first requirement.

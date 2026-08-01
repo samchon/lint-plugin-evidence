@@ -1,5 +1,10 @@
 # Evidence Frontend Final
 
-Start backend `pnpm check:watch`, fix every diagnostic, wait for a clean rebuild, then stop the watcher. Ensure backend `pnpm dev` and frontend `pnpm dev` are running, then run `pnpm test:e2e` from `packages/frontend` with `VITE_API_SIMULATE=false`.
+Do not edit `lint.config.ts` or lower `evidence/graph` from `error`. Run frontend `pnpm lint`. Fix every diagnostic and require exit code 0.
 
-Fix every failure and complete only after the compiler gate, current development build, production build, and live-backend browser tests all succeed. Keep both development processes running through Overall Final.
+## Final Checklist
+
+- [ ] `lint.config.ts` remained unchanged and `evidence/graph` remained `error`.
+- [ ] Frontend `pnpm lint` exited with code 0 after the last frontend file change.
+
+Any unchecked item leaves the Goal active. Complete that item.

@@ -372,8 +372,8 @@ func evaluateEvidenceGraph(
 						owner = addressPath
 					}
 					// Every address the unit answers to indexes the same unit, so
-					// a symbol an entry exposes by two paths is one obligation
-					// acknowledged once rather than two competing candidates.
+					// a symbol an entry exposes by two paths remains one coverage
+					// unit rather than two competing candidates.
 					for _, address := range append([]string{unit.Target}, unit.Aliases...) {
 						key := scopedTargetKey(owner, address)
 						if scopedTargets[key] == nil {
@@ -515,7 +515,14 @@ func evaluateEvidenceGraph(
 			if len(reference.Units) == 0 {
 				continue
 			}
-			acknowledged := map[string]*evidenceDeclaration{}
+			acknowledged := map[string]bool{}
+			evidenceByUnit := map[string]*evidenceDeclaration{}
+			exclusionByUnit := map[string]*evidenceDeclaration{}
+			evidenceByHostAndScope := map[string]map[string]*evidenceDeclaration{}
+			scopesByID := map[string]*evidenceUnit{}
+			for _, scope := range reference.Scopes {
+				scopesByID[scope.ID] = scope
+			}
 			for _, declaration := range state.Declarations {
 				scopeID := resolved[declaration.ID]
 				covered := reference.UnitsByScope[scopeID]
@@ -544,22 +551,66 @@ func evaluateEvidenceGraph(
 				if !state.Healthy || !reference.Healthy {
 					continue
 				}
-				var overlappingUnit *evidenceUnit
-				var firstAcknowledgement *evidenceDeclaration
+				if declaration.Tag == tagEvidence && declaration.HostID != "" {
+					byScope := evidenceByHostAndScope[declaration.HostID]
+					if byScope == nil {
+						byScope = map[string]*evidenceDeclaration{}
+						evidenceByHostAndScope[declaration.HostID] = byScope
+					}
+					if first := byScope[scopeID]; first != nil {
+						problems = append(
+							problems,
+							"Duplicate @evidence for '"+scopesByID[scopeID].Target+"' on the same host at "+declaration.location()+"; first declared at "+first.location()+".",
+						)
+					} else {
+						byScope[scopeID] = declaration
+					}
+				}
+				var conflictingUnit *evidenceUnit
+				var conflictingDeclaration *evidenceDeclaration
+				var duplicateExclusionUnit *evidenceUnit
+				var firstExclusion *evidenceDeclaration
 				for _, unit := range covered {
-					if first := acknowledged[unit.ID]; first != nil {
-						if overlappingUnit == nil {
-							overlappingUnit = unit
-							firstAcknowledgement = first
+					acknowledged[unit.ID] = true
+					if declaration.Tag == tagEvidence {
+						if first := exclusionByUnit[unit.ID]; first != nil && conflictingUnit == nil {
+							conflictingUnit = unit
+							conflictingDeclaration = first
+						}
+						if evidenceByUnit[unit.ID] == nil {
+							evidenceByUnit[unit.ID] = declaration
 						}
 						continue
 					}
-					acknowledged[unit.ID] = declaration
+					if first := evidenceByUnit[unit.ID]; first != nil && conflictingUnit == nil {
+						conflictingUnit = unit
+						conflictingDeclaration = first
+					}
+					if first := exclusionByUnit[unit.ID]; first != nil {
+						if duplicateExclusionUnit == nil {
+							duplicateExclusionUnit = unit
+							firstExclusion = first
+						}
+						continue
+					}
+					exclusionByUnit[unit.ID] = declaration
 				}
-				if overlappingUnit != nil {
+				if conflictingUnit != nil {
+					evidence := declaration
+					exclusion := conflictingDeclaration
+					if declaration.Tag == tagExclude {
+						evidence = conflictingDeclaration
+						exclusion = declaration
+					}
 					problems = append(
 						problems,
-						"Duplicate acknowledgement for '"+overlappingUnit.Target+"' in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+" at "+declaration.location()+": scope '"+declaration.Target+"' overlaps the first acknowledgement at "+firstAcknowledgement.location()+". Keep @evidence and @evidenceExclude scopes disjoint within this claim.",
+						"Conflicting acknowledgements for '"+conflictingUnit.Target+"' in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+": @evidence at "+evidence.location()+" overlaps @evidenceExclude at "+exclusion.location()+".",
+					)
+				}
+				if duplicateExclusionUnit != nil {
+					problems = append(
+						problems,
+						"Duplicate @evidenceExclude for '"+duplicateExclusionUnit.Target+"' in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+": exclusion at "+declaration.location()+" overlaps exclusion at "+firstExclusion.location()+".",
 					)
 				}
 			}
@@ -567,12 +618,12 @@ func evaluateEvidenceGraph(
 				continue
 			}
 			for _, unit := range reference.Units {
-				if acknowledged[unit.ID] != nil {
+				if acknowledged[unit.ID] {
 					continue
 				}
 				problems = append(
 					problems,
-					"Missing acknowledgement for '"+unit.Target+"' ("+unit.Readable+" at "+unit.location()+") in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+". Add '@evidence "+acknowledgementForm(unit, state.Spec)+" <reason>' to a selected "+string(state.Spec.Type)+" host of this claim, or add '@evidenceExclude "+acknowledgementForm(unit, state.Spec)+" <reason>' to an eligible exclusion carrier in a matching claim file when this claim intentionally does not use it.",
+					"Missing acknowledgement for '"+unit.Target+"' ("+unit.Readable+" at "+unit.location()+") in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+". Use @evidence on a selected "+string(state.Spec.Type)+" host or @evidenceExclude on an eligible carrier.",
 				)
 			}
 		}
@@ -825,19 +876,6 @@ func addressContains(owner []string, candidate []string) bool {
 		}
 	}
 	return true
-}
-
-// acknowledgementForm spells the citation a claim would actually have to write.
-//
-// A TypeScript unit is cited through an inline link resolved by the citing
-// module's imports, so suggesting the bare name would name the one form the
-// rule now rejects. Markdown claims keep the plain token, because Markdown has
-// no import scope to resolve one against.
-func acknowledgementForm(unit *evidenceUnit, claim claimSpec) string {
-	if unit.Type != artifactTypeScript || claim.Type != artifactTypeScript {
-		return unit.Target
-	}
-	return "{@link " + unit.Target + "}"
 }
 
 func scopedTargetKey(path string, target string) string {

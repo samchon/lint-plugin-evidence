@@ -1,5 +1,16 @@
 # Evidence Overall Final
 
-Start backend `pnpm check:watch`, fix every diagnostic, wait for a clean rebuild, then stop the watcher. Ensure backend `pnpm dev` and frontend `pnpm dev` are running. Run `pnpm test` from `packages/backend`, then run `pnpm test:e2e` from `packages/frontend` with `VITE_API_SIMULATE=false`.
+Do not edit `lint.config.ts` or lower `evidence/graph` from `error`.
 
-Fix every failure and complete only after both current builds and both live runtime suites succeed.
+Use the backend `pnpm check:watch` process kept running by Backend Start. Fix every diagnostic. Stop it after a rebuild completes without diagnostics.
+
+Run frontend `pnpm lint`. Fix every diagnostic and require exit code 0.
+
+## Final Checklist
+
+- [ ] `lint.config.ts` remained unchanged and `evidence/graph` remained `error`.
+- [ ] After the last file change, backend `check:watch` completed a rebuild without diagnostics.
+- [ ] After the last file change, frontend `pnpm lint` exited with code 0.
+- [ ] Backend `check:watch` stopped after that rebuild.
+
+Any unchecked item leaves the Goal active. Complete that item.

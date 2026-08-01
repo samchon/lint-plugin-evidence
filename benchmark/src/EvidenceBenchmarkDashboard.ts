@@ -5,12 +5,15 @@ import path from "node:path";
 
 import typia from "typia";
 
+import { collectEvidenceBenchmarkApiCost } from "./EvidenceBenchmarkApiCost.ts";
+import type { IEvidenceBenchmarkApiCost } from "./structures/IEvidenceBenchmarkApiCost.ts";
 import type {
   IEvidenceBenchmarkReport,
   IEvidenceBenchmarkReportCell,
   IEvidenceBenchmarkReportStage,
   IEvidenceBenchmarkReportWorktree,
 } from "./structures/IEvidenceBenchmarkReport.ts";
+import type { IEvidenceBenchmarkTokenUsage } from "./structures/IEvidenceBenchmarkTokenUsage.ts";
 import type { EvidenceBenchmarkEffort } from "./typings/EvidenceBenchmarkEffort.ts";
 
 interface IDashboardCell {
@@ -21,6 +24,10 @@ interface IDashboardCell {
   benchmarkRevision: string;
   model: string;
   effort: EvidenceBenchmarkEffort;
+  checkpointSource?: {
+    runId: string;
+    inheritedWallElapsedMs: number;
+  };
 }
 
 interface IDashboardProcess {
@@ -39,16 +46,16 @@ interface IDashboardInstruction {
   tokenUsage: {
     totalTokens: number;
   };
+  tokenUsageEnd?: IEvidenceBenchmarkTokenUsage | null;
 }
 
 interface IDashboardState {
   status: "ready" | "running" | "interrupted" | "completed";
   nextInstructionIndex: number;
-  threadTokenUsage: {
-    totalTokens: number;
-  };
+  threadTokenUsage: IEvidenceBenchmarkTokenUsage;
   goals: IDashboardInstruction[];
   processes: IDashboardProcess[];
+  inheritedProcessElapsedMs?: number;
 }
 
 interface IDashboardStateFile {
@@ -56,6 +63,7 @@ interface IDashboardStateFile {
   records: {
     workspace: string;
     events: string;
+    raw?: string;
   };
   state: IDashboardState;
 }
@@ -88,10 +96,16 @@ export const renderEvidenceBenchmarkDashboard = (
 export const collectEvidenceBenchmarkReport = (
   repository: string,
   generatedAt: Date = new Date(),
+  runIds?: readonly string[],
+  includeApiCost: boolean = false,
 ): IEvidenceBenchmarkReport => {
-  const latest: IDashboardRun[] = selectLatestRuns(
-    scanRuns(path.join(repository, "benchmark", "result")),
+  const scanned: IDashboardRun[] = scanRuns(
+    path.join(repository, "benchmark", "output"),
   );
+  const latest: IDashboardRun[] =
+    runIds === undefined
+      ? selectLatestRuns(scanned)
+      : selectRuns(scanned, runIds);
   const models: Map<string, IDashboardRun[]> = Map.groupBy(
     latest,
     (run) => run.file.cell.model,
@@ -102,15 +116,39 @@ export const collectEvidenceBenchmarkReport = (
         Math.min(...rightRuns.map((run) => run.launchedAt)) ||
       leftModel.localeCompare(rightModel),
   );
+  const byRunId: ReadonlyMap<string, IDashboardRun> = new Map(
+    scanned.map((run) => [run.file.cell.runId, run]),
+  );
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: generatedAt.toISOString(),
     cells: ordered.flatMap(([, runs]) =>
       runs
         .sort(compareRuns)
-        .map((run) => summarizeRun(run, generatedAt.getTime())),
+        .map((run) =>
+          summarizeRun(run, generatedAt.getTime(), includeApiCost, byRunId),
+        ),
     ),
   };
+};
+
+const selectRuns = (
+  runs: readonly IDashboardRun[],
+  runIds: readonly string[],
+): IDashboardRun[] => {
+  const requested: Set<string> = new Set(runIds);
+  if (requested.size !== runIds.length)
+    throw new Error("Benchmark report run IDs must be unique.");
+  const selected: IDashboardRun[] = runs.filter((run) =>
+    requested.has(run.file.cell.runId),
+  );
+  const found: Set<string> = new Set(
+    selected.map((run) => run.file.cell.runId),
+  );
+  const missing: string[] = runIds.filter((runId) => !found.has(runId));
+  if (missing.length !== 0)
+    throw new Error(`Unknown benchmark report run IDs: ${missing.join(", ")}.`);
+  return selected;
 };
 
 const scanRuns = (result: string): IDashboardRun[] => {
@@ -189,8 +227,8 @@ const renderModel = (
   return [
     `## ${displayModel(model)}`,
     "",
-    "| Cell | Stage | Progress | Elapsed | Cost | Work time |",
-    "| --- | --- | --- | ---: | ---: | ---: |",
+    "| Cell | Stage | Progress | Cost | Work time |",
+    "| --- | --- | --- | ---: | ---: |",
     ...cells.map((cell) => cell.summary),
     "",
     ...cells.flatMap((cell) => cell.details),
@@ -218,7 +256,7 @@ interface IRenderedRun {
 const renderRun = (run: IEvidenceBenchmarkReportCell): IRenderedRun => {
   const cell: string = `${title(run.subject)} ${title(run.arm)}`;
   return {
-    summary: `| ${cell} | ${formatStage(run)} | ${formatDelta(run.worktree)} | ${formatTime(run.wallElapsedMs)} | ${formatCost(run.tokens)} | ${formatTime(run.workElapsedMs)} |`,
+    summary: `| ${cell} | ${formatStage(run)} | ${formatDelta(run.worktree)} | ${formatCost(run.tokens)} | ${formatTime(run.workElapsedMs)} |`,
     details: [
       `- **${cell} stages**`,
       ...run.stages.map(
@@ -232,6 +270,8 @@ const renderRun = (run: IEvidenceBenchmarkReportCell): IRenderedRun => {
 const summarizeRun = (
   run: IDashboardRun,
   generatedAt: number,
+  includeApiCost: boolean,
+  byRunId: ReadonlyMap<string, IDashboardRun>,
 ): IEvidenceBenchmarkReportCell => {
   const file: IDashboardStateFile = run.file;
   const workElapsedMs: number = elapsed(file);
@@ -256,6 +296,8 @@ const summarizeRun = (
     stage: stageName(file.state),
     launchedAt: new Date(run.launchedAt).toISOString(),
     tokens: totalTokens,
+    tokenUsage: structuredClone(file.state.threadTokenUsage),
+    apiCost: includeApiCost ? collectRunApiCost(run, byRunId) : null,
     workElapsedMs,
     wallElapsedMs: wallElapsed(run, generatedAt),
     worktree: inspectWorktree(file.records.workspace),
@@ -263,12 +305,105 @@ const summarizeRun = (
   };
 };
 
+const collectRunApiCost = (
+  run: IDashboardRun,
+  byRunId: ReadonlyMap<string, IDashboardRun>,
+): IEvidenceBenchmarkApiCost | null => {
+  const file: IDashboardStateFile = run.file;
+  const strict: boolean = file.state.status === "completed";
+  if (file.cell.checkpointSource === undefined)
+    return collectEvidenceBenchmarkApiCost({
+      rawLog: file.records.raw,
+      model: file.cell.model,
+      expected: file.state.threadTokenUsage,
+      strict,
+    });
+  const initial: IEvidenceBenchmarkTokenUsage | null | undefined =
+    file.state.goals[0]?.tokenUsageEnd;
+  if (initial === undefined || initial === null) {
+    if (strict)
+      throw new Error(
+        "Cannot calculate exact API cost: checkpoint-derived run has no inherited token boundary.",
+      );
+    return null;
+  }
+  const source: IDashboardRun | undefined = findCheckpointOrigin(run, byRunId);
+  if (source === undefined) {
+    if (strict)
+      throw new Error(
+        `Cannot calculate exact API cost: checkpoint source ${file.cell.checkpointSource.runId} is missing.`,
+      );
+    return null;
+  }
+  if (
+    source.file.cell.engine !== file.cell.engine ||
+    source.file.cell.subject !== file.cell.subject ||
+    source.file.cell.arm !== file.cell.arm ||
+    source.file.cell.model !== file.cell.model ||
+    source.file.cell.effort !== file.cell.effort ||
+    source.file.cell.benchmarkRevision !== file.cell.benchmarkRevision
+  ) {
+    if (strict)
+      throw new Error(
+        "Cannot calculate exact API cost: checkpoint source identity does not match the derived run.",
+      );
+    return null;
+  }
+  const inherited: IEvidenceBenchmarkApiCost | null =
+    collectEvidenceBenchmarkApiCost({
+      rawLog: source.file.records.raw,
+      model: file.cell.model,
+      expected: initial,
+      strict,
+    });
+  const continuation: IEvidenceBenchmarkApiCost | null =
+    collectEvidenceBenchmarkApiCost({
+      rawLog: file.records.raw,
+      model: file.cell.model,
+      initial,
+      expected: file.state.threadTokenUsage,
+      strict,
+    });
+  if (inherited === null || continuation === null) return null;
+  return {
+    ...continuation,
+    amountUsd:
+      Math.round((inherited.amountUsd + continuation.amountUsd) * 100_000_000) /
+      100_000_000,
+    requests: inherited.requests + continuation.requests,
+    shortContextRequests:
+      inherited.shortContextRequests + continuation.shortContextRequests,
+    longContextRequests:
+      inherited.longContextRequests + continuation.longContextRequests,
+  };
+};
+
+const findCheckpointOrigin = (
+  run: IDashboardRun,
+  byRunId: ReadonlyMap<string, IDashboardRun>,
+): IDashboardRun | undefined => {
+  const visited: Set<string> = new Set([run.file.cell.runId]);
+  let current: IDashboardRun = run;
+  while (current.file.cell.checkpointSource !== undefined) {
+    const sourceId: string = current.file.cell.checkpointSource.runId;
+    if (visited.has(sourceId)) return undefined;
+    visited.add(sourceId);
+    const source: IDashboardRun | undefined = byRunId.get(sourceId);
+    if (source === undefined) return undefined;
+    current = source;
+  }
+  return current;
+};
+
 const wallElapsed = (run: IDashboardRun, generatedAt: number): number => {
   const stoppedAt: number | undefined =
     run.file.state.status === "completed"
       ? readLastRecordedTime(run.file.records.events)
       : generatedAt;
-  return Math.max(0, (stoppedAt ?? run.launchedAt) - run.launchedAt);
+  return (
+    Math.max(0, (stoppedAt ?? run.launchedAt) - run.launchedAt) +
+    (run.file.cell.checkpointSource?.inheritedWallElapsedMs ?? 0)
+  );
 };
 
 const readLastRecordedTime = (file: string): number | undefined => {
@@ -470,13 +605,16 @@ const elapsed = (file: IDashboardStateFile): number => {
     file.records.events,
     unresolved,
   );
-  return file.state.processes.reduce(
-    (sum, process, index) =>
-      sum +
-      (process.exitCode !== null || process.signal !== null
-        ? process.elapsedMs
-        : Math.max(process.elapsedMs, observed.get(index)?.elapsedMs ?? 0)),
-    0,
+  return (
+    (file.state.inheritedProcessElapsedMs ?? 0) +
+    file.state.processes.reduce(
+      (sum, process, index) =>
+        sum +
+        (process.exitCode !== null || process.signal !== null
+          ? process.elapsedMs
+          : Math.max(process.elapsedMs, observed.get(index)?.elapsedMs ?? 0)),
+      0,
+    )
   );
 };
 

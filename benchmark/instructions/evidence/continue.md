@@ -1,3 +1,7 @@
 # Continue The Evidence Objective
 
-Continue the current objective until every condition is complete. Make routine decisions yourself, fix failures at their owner, and never stop at a partial report or weaken Evidence to pass a gate.
+Continue until every checkbox in this objective is checked.
+
+Fix every command failure at its source. Do not report completion while a checkbox remains unchecked.
+
+Do not change or falsify `@evidence` or `@evidenceExclude` to make a compiler command succeed.

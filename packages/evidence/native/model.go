@@ -120,7 +120,7 @@ type evidenceUnit struct {
 	Identity []string
 	// Aliases are the additional addresses this unit answers to when an entry
 	// exposes it by more than one path. They resolve to this same unit, so a
-	// symbol reachable twice is still one obligation acknowledged once.
+	// symbol reachable twice is still one coverage obligation.
 	Aliases  []string
 	Type     artifactKind
 	Symbol   string
@@ -138,6 +138,7 @@ func (unit *evidenceUnit) location() string {
 
 type evidenceDeclaration struct {
 	ID     string
+	HostID string
 	Type   artifactKind
 	Tag    tagKind
 	Target string

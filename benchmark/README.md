@@ -25,19 +25,31 @@ Start a new cell from the repository root:
 pnpm --filter @samchon/evidence-benchmark start codex <project> <evidence|plain> <model> <effort> [run-id]
 ```
 
-Omit `run-id` to create a cell under `benchmark/result/<project>/<engine>/<arm>/runs/<run-id>/`. Pass an existing run ID only to resume that exact engine, project, arm, model, effort, workspace, and session.
+Omit `run-id` to create a cell under `benchmark/output/<project>/<engine>/<arm>/runs/<run-id>/`. Pass an existing run ID only to resume that exact engine, project, arm, model, effort, workspace, and session.
+
+After `backend-start` completes, the runner stores a workspace and native-turn checkpoint before starting `backend-review`. If a later instruction proves defective, create a new run from that point:
+
+```bash
+pnpm --filter @samchon/evidence-benchmark start codex <project> <evidence|plain> <model> <effort> --from-backend-start <source-run-id>
+```
+
+The derived run verifies the retained cell and exact completed `backend-start` boundary, restores that workspace, applies the current arm's Review skill, and reads the current downstream instructions. An explicit operator launch does not reject the checkpoint because repository inputs changed after it was created.
 
 When launching Evidence cells concurrently, follow the Benchmark skill's shared-archive procedure. Every Evidence cell copies that archive and records its SHA-256. Without `EVIDENCE_BENCHMARK_ARCHIVE`, a standalone Evidence cell packs its own archive.
 
 ## Publishable reports
 
-Raw run records and measured workspaces stay under the ignored `benchmark/result/` directory. Generate the tracked latest-run aggregate and comparison charts with:
+Raw run records and measured workspaces stay under the ignored `benchmark/output/` directory. Generate the tracked latest-run aggregate and comparison charts with:
 
 ```bash
 pnpm --filter @samchon/evidence-benchmark report
 ```
 
-The command writes `benchmark/reports/latest/summary.json` plus `tokens.svg`, `work-time.svg`, and `wall-time.svg`. The JSON preserves raw aggregate values and per-stage shares; the SVG files render the same cells without recalculating them.
+The command writes `benchmark/aggregate/summary.json`, stable per-cell JSON under `benchmark/aggregate/cells/<model>/<project>/<arm>.json`, and SVG charts for tokens, work time, and wall time. Every artifact renders or copies values from the same retained aggregate without recalculating them.
+
+The report reconstructs OpenRouter API-equivalent USD cost from each native request's token categories and context tier, then publishes it only when those requests exactly match the retained total. The live dashboard does not scan raw logs.
+
+Pass repeated `--run-id <run-id>` arguments to publish an explicit historical cohort instead of the latest launched cell for each project and arm.
 
 ## Instruction sequence
 
@@ -69,6 +81,7 @@ The runner retains facts in delivery order:
 - project, engine, arm, benchmark Git revision, Evidence artifact SHA-256 when applicable, requested model, effort, CLI version, session, instruction, and process identity;
 - the current instruction cursor and engine-specific terminal checkpoints;
 - native token categories, process elapsed time, exit code, and signal.
+- the durable `backend-start` workspace and native-turn checkpoint, plus source lineage and inherited timing for a derived run.
 
 Setup time remains separate from model-process time. The retained record does not add build, lint, requirement, graph, quality, publication, or completion verdicts.
 

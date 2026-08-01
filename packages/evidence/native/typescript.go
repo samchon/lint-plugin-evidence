@@ -628,8 +628,9 @@ func collectTypeScriptDeclarations(
 	supportedHosts map[*shimast.Node]symbolSet,
 ) {
 	type docHost struct {
-		node  *shimast.Node
-		hosts symbolSet
+		node    *shimast.Node
+		hosts   symbolSet
+		hostIDs map[string]bool
 	}
 	docs := map[string]docHost{}
 	walkTypeScriptNode(file.AsNode(), func(node *shimast.Node) {
@@ -639,6 +640,11 @@ func collectTypeScriptDeclarations(
 			}
 			key := decimal(doc.Pos()) + ":" + decimal(doc.End())
 			candidate := docHost{node: doc, hosts: supportedHosts[node]}
+			if len(candidate.hosts) != 0 {
+				candidate.hostIDs = map[string]bool{
+					address + ":" + decimal(node.Pos()) + ":" + decimal(node.End()): true,
+				}
+			}
 			current, exists := docs[key]
 			if !exists {
 				docs[key] = candidate
@@ -649,6 +655,12 @@ func collectTypeScriptDeclarations(
 					current.hosts = symbolSet{}
 				}
 				current.hosts[symbol] = true
+			}
+			for hostID := range candidate.hostIDs {
+				if current.hostIDs == nil {
+					current.hostIDs = map[string]bool{}
+				}
+				current.hostIDs[hostID] = true
 			}
 			docs[key] = current
 		}
@@ -673,10 +685,17 @@ func collectTypeScriptDeclarations(
 			continue
 		}
 		baseLine := lineAt(content, entry.node.Pos())
+		hostIDs := make([]string, 0, len(entry.hostIDs))
+		for hostID := range entry.hostIDs {
+			hostIDs = append(hostIDs, hostID)
+		}
+		sort.Strings(hostIDs)
+		hostID := strings.Join(hostIDs, "|")
 		for _, parsed := range parseDeclarations(content[entry.node.Pos():entry.node.End()]) {
 			sequence++
 			inventory.Declarations = append(inventory.Declarations, &evidenceDeclaration{
 				ID:               "typescript:" + address + ":" + decimal(baseLine+parsed.LineOffset) + ":" + decimal(sequence),
+				HostID:           hostID,
 				Type:             artifactTypeScript,
 				Tag:              parsed.Tag,
 				Target:           parsed.Target,

@@ -2,6 +2,20 @@
 
 Read `.agents/skills/review/SKILL.md` before working.
 
-Review whether every backend `@evidence` and `@evidenceExclude` reason precisely and truthfully explains why it applies. Do not review the frontend.
+The scope is the backend only. Inspect every active `@evidence` and `@evidenceExclude`, including its target, reason, and complete host.
 
-Start `pnpm check:watch` from `packages/backend` so the compiler catches invalid evidence references and missing coverage. Fix every diagnostic, wait for a clean rebuild, then stop the watcher before completing.
+Find and correct every fake tag, especially tags added only to evade compiler errors. Apply the Review skill's proof checks.
+
+Do not edit `lint.config.ts` or lower `evidence/graph` from `error`.
+
+Use the backend `pnpm check:watch` process kept running by Backend Start. Fix every diagnostic and wait for a rebuild without diagnostics. Keep it running.
+
+## Final Checklist
+
+- [ ] Every active backend `@evidence` and `@evidenceExclude`, its target, reason, and complete host inspected.
+- [ ] Every fake `@evidence`, including any added only to evade compiler errors, corrected.
+- [ ] Every `@evidenceExclude` owner or alternative and invalidating condition verified; every fake exclusion corrected.
+- [ ] `lint.config.ts` remained unchanged and `evidence/graph` remained `error`.
+- [ ] Backend `check:watch` completed a rebuild without diagnostics and remains running.
+
+Any unchecked item leaves the Goal active. Complete that item.

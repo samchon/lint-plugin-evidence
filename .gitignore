@@ -22,7 +22,7 @@ coverage/
 *.log
 
 # Raw benchmark runs and measured workspaces are local measurement output.
-/benchmark/result/
+/benchmark/output/
 
 # AI assistant data
 .claude/

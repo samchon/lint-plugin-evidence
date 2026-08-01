@@ -37,10 +37,7 @@ export function CouponStackingNotice() {
 >   'docs/discount.md#coupon-stacking' (Markdown H2 'Coupon Stacking' at docs/discount.md:3)
 >   in Claim 1 reference 1 (markdown, symbols: h2, h3).
 >
->   Add '@evidence docs/discount.md#coupon-stacking <reason>' to a selected typescript host
->   of this claim, or add '@evidenceExclude docs/discount.md#coupon-stacking <reason>' to
->   an eligible exclusion carrier in a matching claim file when this claim intentionally
->   does not use it.
+>   Use @evidence on a selected typescript host or @evidenceExclude on an eligible carrier.
 >
 > Found 1 error.
 > ```
@@ -232,7 +229,7 @@ A TypeScript reference selects its population three ways, and the choice decides
 
 `files` and `file` are mutually exclusive, and a local reference must set one of them; there is no implicit project entry.
 
-An entry-selected population is addressed the way a consumer reaches it, not the way the declaring file spells it: `export * as functional` nests a path segment, `export * from` flattens one, and `export { A as B }` addresses the symbol as `B`. That is what makes `api.functional.questions.get` nameable. Identity still belongs to the declaring file, so a symbol an entry exposes through two paths is one unit answering to two addresses — acknowledged once rather than owed twice.
+An entry-selected population is addressed the way a consumer reaches it, not the way the declaring file spells it: `export * as functional` nests a path segment, `export * from` flattens one, and `export { A as B }` addresses the symbol as `B`. That is what makes `api.functional.questions.get` nameable. Identity still belongs to the declaring file, so a symbol an entry exposes through two paths answers to two addresses but remains one coverage unit rather than two obligations.
 
 A `package` population is read from disk rather than from the `ttsc` program, which is the point: a symbol nothing imports is absent from the program by definition, and it is exactly the symbol an obligation needs to name. Without `file` or `files`, the package's declaration entry is the population, resolved through the `types` condition of its `exports` map, then `typesVersions`, then `types` or `typings` — never `main`, which names the JavaScript a consumer runs rather than the declarations a citation can address. With `files`, the globs are package-relative.
 
@@ -390,7 +387,7 @@ export function SalePrice({ sale }: { sale: IShoppingSale }) {
 }
 ```
 
-A React component cites the same way, and one declaration stacks as many disjoint `@evidence` tags as the rules or scopes it honors. The screen that mirrors a rule names the rule it mirrors. A narrow target documents a narrow implementation; a parent target deliberately accepts responsibility for the complete selected subtree.
+A React component cites the same way, and one declaration stacks as many `@evidence` tags as the rules or scopes it honors. The same requirement may be cited from several declarations, and parent and child evidence scopes may overlap: one requirement can need several implementations. Repeating the same resolved `@evidence` scope on one declaration is rejected; keep the truthful reason or combine the useful detail into it. A narrow target documents a narrow implementation; a parent target deliberately accepts responsibility for the complete selected subtree.
 
 ```md
 # Pricing Guide
@@ -408,7 +405,7 @@ Markdown cannot cite a TypeScript symbol: it has no import scope in which `{@lin
 <!-- @evidenceExclude docs/requirements/coupons.md#coupon-stacking This section defines wording and intentionally does not implement coupon behavior. -->
 ```
 
-`@evidenceExclude target reason` records that a claim intentionally does not use the target scope. It follows the same hierarchy as `@evidence`, so excluding an H2 also excludes its selected H3/H4 descendants, and excluding a type or namespace excludes its selected children. It affects only the matching claim and never crosses a reference boundary. Unlike ownership evidence, a TypeScript exclusion may sit on any supported public export in the claim's file population, even when that export's symbol kind is not selected by the claim. Prisma also accepts the lint-only file carrier described above. Unexported TypeScript declarations, unsupported locations, and files outside the claim population do not qualify. Overlapping evidence and exclusion scopes are rejected because they state contradictory intent for the same unit.
+`@evidenceExclude target reason` records that a claim intentionally does not use the target scope. It follows the same hierarchy as `@evidence`, so excluding an H2 also excludes its selected H3/H4 descendants, and excluding a type or namespace excludes its selected children. It affects only the matching claim and never crosses a reference boundary. One claim-reference obligation may exclude a selected scope only once; overlapping exclusions are rejected even when they sit on different carriers, because the exclusion reason must have one reviewable owner. Unlike ownership evidence, a TypeScript exclusion may sit on any supported public export in the claim's file population, even when that export's symbol kind is not selected by the claim. Prisma also accepts the lint-only file carrier described above. Unexported TypeScript declarations, unsupported locations, and files outside the claim population do not qualify. Overlapping evidence and exclusion scopes are rejected because they state contradictory intent for the same unit.
 
 In an agent workflow the tags cost nothing extra. The agent writes each citation as it implements. You review the stated reasons instead of reverse-engineering the diff. A misreading also surfaces in that review, because the reason sits beside the exact section it claims to honor.
 
@@ -424,7 +421,7 @@ At most one seller coupon and one platform coupon may combine on a single order.
 
 ```text
 $ npx ttsc check
-error TS16411: [evidence/graph] Missing acknowledgement for 'docs/discount.md#coupon-stacking' (Markdown H2 'Coupon Stacking' at docs/discount.md:3) in Claim 1 reference 1 (markdown, symbols: h2, h3). Add '@evidence docs/discount.md#coupon-stacking <reason>' to a selected typescript host of this claim, or add '@evidenceExclude docs/discount.md#coupon-stacking <reason>' to an eligible exclusion carrier in a matching claim file when this claim intentionally does not use it.
+error TS16411: [evidence/graph] Missing acknowledgement for 'docs/discount.md#coupon-stacking' (Markdown H2 'Coupon Stacking' at docs/discount.md:3) in Claim 1 reference 1 (markdown, symbols: h2, h3). Use @evidence on a selected typescript host or @evidenceExclude on an eligible carrier.
 
 Found 1 error.
 ```

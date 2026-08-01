@@ -260,7 +260,7 @@ export interface ILedger {}
 }
 
 /**
- * Verifies overlapping scopes remain an error: a child exclusion cannot hide
+ * Verifies conflicting scopes remain an error: a child exclusion cannot hide
  * inside a parent evidence acknowledgement.
  *
  * Evidence and exclusion express opposite intent even though both discharge an
@@ -269,9 +269,9 @@ export interface ILedger {}
  *
  *  1. Acknowledge a complete Markdown file.
  *  2. Exclude one H2 subtree in a second declaration.
- *  3. Assert the overlap produces one duplicate acknowledgement diagnostic.
+ *  3. Assert the overlap produces one conflict diagnostic.
  */
-func TestOverlappingAcknowledgementScopesAreRejectedOnce(t *testing.T) {
+func TestEvidenceAndExclusionScopesConflictOnce(t *testing.T) {
 	messages := runIndexRule(t, map[string]string{
 		"docs/spec.md": `## Create
 ### Validate
@@ -289,7 +289,7 @@ export interface Ref {}
 		"symbol":"type",
 		"reference":{"type":"markdown","files":["docs/spec.md"],"symbol":["h2","h3"]}
 	}]}`)
-	if got := countProblemsContaining(messages, "Duplicate acknowledgement"); got != 1 {
-		t.Fatalf("overlapping scopes produced %d duplicate findings:\n%s", got, strings.Join(messages, "\n"))
+	if got := countProblemsContaining(messages, "Conflicting acknowledgements"); got != 1 {
+		t.Fatalf("overlapping scopes produced %d conflict findings:\n%s", got, strings.Join(messages, "\n"))
 	}
 }

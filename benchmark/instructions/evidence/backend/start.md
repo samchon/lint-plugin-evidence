@@ -4,12 +4,44 @@ Read `AGENTS.md` and every document under `.agents/skills/backend/` and `.agents
 
 Implement the complete API and backend from the requirements. Do not implement the frontend or perform the review yet.
 
-Add each `@evidence` acknowledgement to the artifact that actually owns the cited target, and state the exact responsibility that connects them. Use `@evidenceExclude` only when the target does not belong to the claim; name the actual owner or observable alternative and the condition that would invalidate the exclusion.
+Write every `@evidence` and `@evidenceExclude` as the Evidence skill requires. Do not add either tag only to remove a compiler diagnostic.
 
-1. Design the complete requirement-derived database under `packages/backend/prisma/schema/`. Each model must cite the exact requirement it stores. When the schema is settled, run `pnpm build:prisma` and `pnpm schema` from `packages/backend`.
-2. Design every API controller under `packages/backend/src/controllers/` and every DTO under `packages/api/src/structures/`. Each DTO type must cite its requirement and model, each DTO property its column, and each operation its requirement and model.
-3. Run `pnpm build:sdk` from `packages/backend`.
-4. Write test programs under `packages/backend/test/features/` for every requirement and API operation. Each test must cite the requirement, operation, and DTO contract it proves.
-5. Complete the first draft of all backend logic before starting the Evidence compiler gate.
-6. Start `pnpm check:watch` from `packages/backend`. Waiting until now avoids graph-wide diagnostics for hosts that did not exist during the first draft. Fix the complete diagnostic batch, wait for a clean rebuild, then stop the watcher so it cannot overlap the runtime gate or next phase.
-7. Run `pnpm test` from `packages/backend` and fix every failure. Complete only after the clean watcher rebuild and runtime suite both succeed.
+## Development Stages
+
+Complete these stages in order.
+
+1. Design the complete requirement-derived database under `packages/backend/prisma/schema/`. Run backend `pnpm build:prisma` and `pnpm schema`.
+2. Design every controller under `packages/backend/src/controllers/` and every DTO under `packages/api/src/structures/`. Run backend `pnpm build:sdk`.
+3. Write public-operation tests under `packages/backend/test/features/` for every requirement and API operation.
+4. Finish every provider. Replace every controller stub and remove every source-owned `@todo` under `packages/api` and `packages/backend`.
+
+## Compiler Check
+
+`evidence/graph` starts checking `@evidence` and `@evidenceExclude` when the first Prisma model, DTO, controller operation, or test function exists.
+
+Starting before that layer is complete emits hundreds or thousands of errors for tags not written yet. The output fills context and impairs implementation decisions.
+
+1. After the Prisma schema is complete, start `pnpm check:watch`.
+   - Fix every diagnostic.
+   - Stop it after a rebuild without diagnostics.
+2. After every DTO and controller is complete, start `pnpm check:watch` again.
+   - Fix every diagnostic.
+   - Stop it after a rebuild without diagnostics.
+3. After every public-operation test is written, start `pnpm check:watch` again.
+   - Fix every diagnostic and wait for a rebuild without diagnostics.
+   - Keep it running through Overall Final.
+4. Finish every provider and controller body while the watcher runs.
+   - Fix every new diagnostic and wait for a rebuild without diagnostics.
+   - Run `pnpm test` and fix every failure.
+
+Keep the watcher running because `pnpm test` does not report every type or lint diagnostic.
+
+## Final Checklist
+
+- [ ] Every required schema model, DTO, controller, public-operation test, and provider implemented.
+- [ ] Every `@evidence` is on code that implements, represents, or proves its linked requirement, Prisma item, API operation, or DTO.
+- [ ] Every `@evidenceExclude` names its owner or alternative and invalidating condition; none exists only to remove a diagnostic.
+- [ ] The schema and API watchers stopped after a rebuild without diagnostics; the test-stage watcher remains running without diagnostics.
+- [ ] Prisma generation followed the last schema change, SDK generation followed the last API change, and `pnpm test` exits with code 0.
+
+Any unchecked item leaves the Goal active. Complete that item before proceeding.

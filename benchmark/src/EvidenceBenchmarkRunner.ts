@@ -4,6 +4,7 @@ import path from "node:path";
 
 import typia from "typia";
 
+import type { IEvidenceBenchmarkCheckpointStorage } from "./structures/IEvidenceBenchmarkCheckpointStorage.ts";
 import type { IEvidenceBenchmarkExecutable } from "./structures/IEvidenceBenchmarkExecutable.ts";
 import type { IEvidenceBenchmarkGoalRecord } from "./structures/IEvidenceBenchmarkGoalRecord.ts";
 import type { IEvidenceBenchmarkInterruption } from "./structures/IEvidenceBenchmarkInterruption.ts";
@@ -39,6 +40,7 @@ export namespace EvidenceBenchmarkRunner {
       status: "ready",
       threadTokenUsage: zeroUsage(),
       goals: [],
+      checkpoints: [],
       processes: [],
     };
   }
@@ -120,12 +122,17 @@ export namespace EvidenceBenchmarkRunner {
     };
 
     prepare();
-    const fresh: boolean = state.sessionId === undefined;
+    if (props.fork !== undefined && state.sessionId !== undefined)
+      throw new Error("Checkpoint fork state must not retain a session ID.");
+    const forking: boolean = props.fork !== undefined;
+    const fresh: boolean = state.sessionId === undefined && !forking;
+    let forkGoalResetPending: boolean = forking;
     let resumeReconciled: boolean = fresh;
     let resumeSnapshotPending: boolean = !fresh;
     let resumeSnapshot: Record<string, unknown> | undefined;
     let resumeSnapshotRecordIndex: number | undefined;
     let resumeAdoptedUndispatchedGoal = false;
+    let resumeNativeCompletedInterruptedGoal = false;
     let resumeUsageReplay:
       | {
           turnId: string;
@@ -334,6 +341,55 @@ export namespace EvidenceBenchmarkRunner {
         record.tokenUsageEnd,
         record.tokenUsageStart,
       );
+      if (
+        record.index === 0 &&
+        record.name === "backend-start" &&
+        !(state.checkpoints ?? []).some(
+          (checkpoint) => checkpoint.name === "backend-start",
+        ) &&
+        props.onCheckpoint !== undefined
+      ) {
+        const storage: IEvidenceBenchmarkCheckpointStorage =
+          typia.assert<IEvidenceBenchmarkCheckpointStorage>(
+            structuredClone(
+              await props.onCheckpoint({
+                state: structuredClone(state),
+                goal: structuredClone(record),
+                processElapsedMs:
+                  (state.inheritedProcessElapsedMs ?? 0) +
+                  state.processes
+                    .slice(0, -1)
+                    .reduce((sum, process) => sum + process.elapsedMs, 0) +
+                  elapsed(started),
+              }),
+            ),
+          );
+        if (
+          state.sessionId === undefined ||
+          state.cliVersion === undefined ||
+          record.terminalTurnId === null
+        )
+          throw new Error("Backend-start checkpoint lacks a native boundary.");
+        state.checkpoints ??= [];
+        state.checkpoints.push({
+          name: "backend-start",
+          instructionIndex: 0,
+          nextInstructionIndex: 1,
+          sourceSessionId: state.sessionId,
+          terminalTurnId: record.terminalTurnId,
+          cliVersion: state.cliVersion,
+          ...storage,
+          inheritedProcessElapsedMs:
+            (state.inheritedProcessElapsedMs ?? 0) +
+            state.processes
+              .slice(0, -1)
+              .reduce((sum, process) => sum + process.elapsedMs, 0) +
+            elapsed(started),
+        });
+        publish();
+        await publication;
+        if (outcome !== undefined) return;
+      }
       state.nextInstructionIndex++;
       publish();
       await publication;
@@ -360,6 +416,34 @@ export namespace EvidenceBenchmarkRunner {
       if (state.sessionId === undefined)
         throw new Error("Codex app-server omitted the thread ID.");
       if (params.threadId !== state.sessionId) return;
+      if (forkGoalResetPending) {
+        if (message.method === "thread/tokenUsage/updated") {
+          const usage: IEvidenceBenchmarkTokenUsage | undefined =
+            tokenUsage(params);
+          const previous: IEvidenceBenchmarkGoalRecord | undefined =
+            state.goals.find(
+              (candidate) => candidate.index === state.nextInstructionIndex - 1,
+            );
+          if (
+            usage !== undefined &&
+            (!sameUsage(usage, state.threadTokenUsage) ||
+              params.turnId !== previous?.tokenUsageTurnId)
+          )
+            throw new Error(
+              "Checkpoint fork token replay does not match its retained boundary.",
+            );
+          return;
+        }
+        if (message.method === "thread/goal/updated" && params.turnId === null)
+          return;
+        if (message.method === "thread/status/changed") {
+          const status: Record<string, unknown> = object(params.status);
+          if (status.type === "idle") return;
+        }
+        throw new Error(
+          "Checkpoint fork continued the source Goal before it was reset.",
+        );
+      }
 
       if (message.method === "thread/tokenUsage/updated") {
         const usage: IEvidenceBenchmarkTokenUsage | undefined =
@@ -371,10 +455,13 @@ export namespace EvidenceBenchmarkRunner {
           }
           if (!resumeReconciled && resumeSnapshotPending) {
             const record: IEvidenceBenchmarkGoalRecord = current();
-            const currentOwnsReplay: boolean =
+            const currentHasCheckpoint: boolean =
               record.goal !== null && record.tokenUsageTurnId !== null;
+            const currentCanAdoptReplay: boolean =
+              record.goal !== null &&
+              canOwnInterruptedUsageReplay(record.goal.status);
             const retained: IEvidenceBenchmarkGoalRecord | undefined =
-              currentOwnsReplay
+              currentHasCheckpoint
                 ? record
                 : state.goals.find(
                     (candidate) => candidate.index === record.index - 1,
@@ -383,7 +470,7 @@ export namespace EvidenceBenchmarkRunner {
               retained !== undefined &&
               sameUsage(usage, state.threadTokenUsage) &&
               retained.tokenUsageTurnId === params.turnId &&
-              (currentOwnsReplay ||
+              (currentHasCheckpoint ||
                 (retained.goal?.status === "complete" &&
                   retained.terminalTurnId !== null &&
                   retained.terminalTurnCompleted &&
@@ -396,8 +483,7 @@ export namespace EvidenceBenchmarkRunner {
               return;
             }
             if (
-              currentOwnsReplay &&
-              canOwnInterruptedUsageReplay(record.goal?.status) &&
+              currentCanAdoptReplay &&
               usageAdvanced(usage, state.threadTokenUsage)
             ) {
               if (
@@ -501,6 +587,32 @@ export namespace EvidenceBenchmarkRunner {
             resumeSnapshot = structuredClone(goal);
             resumeSnapshotRecordIndex = record.index;
             resumeAdoptedUndispatchedGoal = true;
+            resumeSnapshotPending = false;
+            resolveResumeSnapshot();
+            publish();
+            return;
+          }
+          const retainedGoal: Record<string, unknown> | null = record.goal;
+          const nativeCompletedInterruptedGoal: boolean =
+            retained === record &&
+            retainedGoal !== null &&
+            retainedGoal.status === "active" &&
+            goal.status === "complete" &&
+            record.terminalTurnId === null &&
+            !record.terminalTurnCompleted &&
+            !record.threadIdle &&
+            record.tokenUsageTurnId !== null &&
+            record.tokenUsageEnd === null &&
+            sameUsage(record.tokenUsage, zeroUsage()) &&
+            usageAdvanced(state.threadTokenUsage, record.tokenUsageStart);
+          if (nativeCompletedInterruptedGoal) {
+            if (retainedGoal === null)
+              throw new Error("Retained active Goal is missing.");
+            validateNativeGoal(record, retainedGoal, state.sessionId);
+            validateNativeGoal(record, goal, state.sessionId);
+            resumeSnapshot = structuredClone(goal);
+            resumeSnapshotRecordIndex = record.index;
+            resumeNativeCompletedInterruptedGoal = true;
             resumeSnapshotPending = false;
             resolveResumeSnapshot();
             publish();
@@ -662,7 +774,9 @@ export namespace EvidenceBenchmarkRunner {
           name: "@samchon/evidence-benchmark",
           version: "0.4.4",
         },
-        capabilities: {},
+        capabilities: {
+          experimentalApi: true,
+        },
       });
       send({ method: "initialized" });
       const retainedSessionId: string | undefined = state.sessionId;
@@ -675,20 +789,41 @@ export namespace EvidenceBenchmarkRunner {
               sandbox: "danger-full-access",
               ephemeral: false,
             })
-          : await request("thread/resume", {
-              threadId: state.sessionId,
-              model: props.model,
-              cwd: props.cwd,
-              approvalPolicy: "never",
-              sandbox: "danger-full-access",
-            }),
+          : forking
+            ? await request("thread/fork", {
+                threadId: props.fork!.sourceSessionId,
+                lastTurnId: props.fork!.terminalTurnId,
+                model: props.model,
+                cwd: props.cwd,
+                runtimeWorkspaceRoots: [props.cwd],
+                approvalPolicy: "never",
+                sandbox: "danger-full-access",
+                deferGoalContinuation: true,
+                ephemeral: false,
+              })
+            : await request("thread/resume", {
+                threadId: state.sessionId,
+                model: props.model,
+                cwd: props.cwd,
+                approvalPolicy: "never",
+                sandbox: "danger-full-access",
+              }),
       );
       const thread: Record<string, unknown> = object(response.thread);
       if (typeof thread.id !== "string")
         throw new Error("Codex app-server omitted the thread ID.");
-      if (!fresh && thread.id !== retainedSessionId)
+      if (!fresh && !forking && thread.id !== retainedSessionId)
         throw new Error(
           "Codex app-server resumed a different retained thread.",
+        );
+      if (
+        forking &&
+        (thread.id === props.fork!.sourceSessionId ||
+          (typeof thread.forkedFromId === "string" &&
+            thread.forkedFromId !== props.fork!.sourceSessionId))
+      )
+        throw new Error(
+          "Codex app-server returned an invalid checkpoint fork.",
         );
       if (typeof thread.cliVersion !== "string")
         throw new Error("Codex app-server omitted the CLI version.");
@@ -700,6 +835,14 @@ export namespace EvidenceBenchmarkRunner {
           "Retained benchmark cell uses a different CLI version.",
         );
       const sessionId: string = thread.id;
+      if (forking)
+        for (const record of state.goals)
+          if (record.index < state.nextInstructionIndex && record.goal !== null)
+            record.goal.threadId = sessionId;
+      if (forking)
+        for (const checkpoint of state.checkpoints ?? [])
+          if (checkpoint.terminalTurnId === props.fork!.terminalTurnId)
+            checkpoint.sourceSessionId = sessionId;
       state.sessionId = sessionId;
       state.cliVersion = thread.cliVersion;
       if (fresh)
@@ -707,7 +850,14 @@ export namespace EvidenceBenchmarkRunner {
       publish();
       await publication;
 
-      if (outcome === undefined && fresh) await beginGoal();
+      if (outcome === undefined && forking) {
+        await request("thread/goal/clear", { threadId: sessionId });
+        await notifications;
+        forkGoalResetPending = false;
+        resumeSnapshotPending = false;
+        resumeReconciled = true;
+        if (outcome === undefined) await beginGoal();
+      } else if (outcome === undefined && fresh) await beginGoal();
       else if (outcome === undefined) {
         const goalResponse: Record<string, unknown> = object(
           await request("thread/goal/get", {
@@ -808,6 +958,17 @@ export namespace EvidenceBenchmarkRunner {
                 nativeGoalSnapshot: resumeSnapshot,
               });
             else if (
+              resumeNativeCompletedInterruptedGoal &&
+              resumeSnapshot.status === "complete" &&
+              goal.status === "complete"
+            ) {
+              reconcileInterruptedUsageReplay(record, thread);
+              proveNativeCompletedInterruptedGoal(record, thread);
+              resumeReconciled = true;
+              publish();
+              await flushResumeLifecycle();
+              if (outcome === undefined) await beginGoal();
+            } else if (
               resumeSnapshot.status === "complete" &&
               (record.terminalTurnId === null ||
                 !record.terminalTurnCompleted ||
@@ -851,12 +1012,31 @@ export namespace EvidenceBenchmarkRunner {
       thread: Record<string, unknown>,
     ): void {
       if (resumeUsageReplay === undefined) return;
-      if (
-        !canOwnInterruptedUsageReplay(record.goal?.status) ||
-        record.tokenUsageTurnId === null
-      )
+      if (!canOwnInterruptedUsageReplay(record.goal?.status))
         throw new Error(
           "Codex advanced token replay does not belong to an interrupted Goal.",
+        );
+      const previous: IEvidenceBenchmarkGoalRecord | undefined =
+        record.index === 0
+          ? undefined
+          : state.goals.find(
+              (candidate) => candidate.index === record.index - 1,
+            );
+      const previousOwnsCheckpoint: boolean =
+        record.tokenUsageTurnId === null &&
+        previous?.goal?.status === "complete" &&
+        previous.terminalTurnId !== null &&
+        previous.terminalTurnCompleted &&
+        previous.threadIdle &&
+        previous.tokenUsageTurnId === previous.terminalTurnId &&
+        previous.tokenUsageEnd !== null &&
+        sameUsage(previous.tokenUsageEnd, state.threadTokenUsage);
+      const retainedTurnId: string | null =
+        record.tokenUsageTurnId ??
+        (previousOwnsCheckpoint ? (previous?.tokenUsageTurnId ?? null) : null);
+      if (retainedTurnId === null)
+        throw new Error(
+          "Codex advanced token replay has no exact retained Goal checkpoint.",
         );
       const values: unknown = thread.turns;
       if (!Array.isArray(values))
@@ -867,7 +1047,7 @@ export namespace EvidenceBenchmarkRunner {
         object(value),
       );
       const retainedIndex: number = turns.findIndex(
-        (turn) => turn.id === record.tokenUsageTurnId,
+        (turn) => turn.id === retainedTurnId,
       );
       const replayIndex: number = turns.findIndex(
         (turn) =>
@@ -889,7 +1069,7 @@ export namespace EvidenceBenchmarkRunner {
         throw new Error(
           `Codex interrupted token replay is not the exact retained or next turn followed only by interrupted turns: ${JSON.stringify(
             {
-              retainedTurnId: record.tokenUsageTurnId,
+              retainedTurnId,
               replayTurnId: resumeUsageReplay.turnId,
               retainedIndex,
               replayIndex,
@@ -903,6 +1083,55 @@ export namespace EvidenceBenchmarkRunner {
       state.threadTokenUsage = structuredClone(resumeUsageReplay.usage);
       record.tokenUsageTurnId = resumeUsageReplay.turnId;
       resumeUsageReplay = undefined;
+    }
+
+    function proveNativeCompletedInterruptedGoal(
+      record: IEvidenceBenchmarkGoalRecord,
+      thread: Record<string, unknown>,
+    ): void {
+      if (
+        !resumeNativeCompletedInterruptedGoal ||
+        record.goal?.status !== "active" ||
+        record.terminalTurnId !== null ||
+        record.terminalTurnCompleted ||
+        record.threadIdle ||
+        record.tokenUsageTurnId === null ||
+        record.tokenUsageEnd !== null ||
+        !sameUsage(record.tokenUsage, zeroUsage()) ||
+        !usageAdvanced(state.threadTokenUsage, record.tokenUsageStart) ||
+        object(thread.status, false)?.type !== "idle"
+      )
+        throw new Error(
+          "Native completed Goal lacks an exact interrupted retained boundary.",
+        );
+      const values: unknown = thread.turns;
+      if (!Array.isArray(values))
+        throw new Error(
+          "Codex omitted turn history needed to prove the interrupted Goal.",
+        );
+      const turns: Record<string, unknown>[] = values.map((value) =>
+        object(value),
+      );
+      const retainedIndex: number = turns.findIndex(
+        (turn) =>
+          turn.id === record.tokenUsageTurnId && turn.status === "interrupted",
+      );
+      const trailingTurnsInterrupted: boolean = turns
+        .slice(retainedIndex)
+        .every((turn) => turn.status === "interrupted");
+      if (retainedIndex === -1 || !trailingTurnsInterrupted)
+        throw new Error(
+          `Native completed Goal is not proven by the retained interrupted turn followed only by interrupted turns: ${JSON.stringify(
+            {
+              retainedTurnId: record.tokenUsageTurnId,
+              retainedIndex,
+              turns: turns.map((turn) => ({
+                id: turn.id,
+                status: turn.status,
+              })),
+            },
+          )}`,
+        );
     }
 
     const result: "completed" | "interrupted" = await outcomePromise;
@@ -972,10 +1201,11 @@ export namespace EvidenceBenchmarkRunner {
   }
 
   /**
-   * Reads one instruction and quotes its matching Review at the end of a Final.
+   * Reads one instruction and quotes its matching Review at the end of a Plain
+   * Final.
    *
-   * The quote gives Final the exact review contract it must verify without
-   * duplicating that contract across two authored instruction files.
+   * Plain Final verifies the exact exhaustive-review contract without
+   * duplicating it. Evidence Final owns only its prescribed current gates.
    */
   function readPrescribedText(
     instructionsRoot: string,
@@ -985,7 +1215,11 @@ export namespace EvidenceBenchmarkRunner {
       path.join(instructionsRoot, ...relativePath.split("/")),
       "utf8",
     );
-    if (!relativePath.endsWith("/final.md")) return prescribedText;
+    if (
+      !relativePath.startsWith("plain/") ||
+      !relativePath.endsWith("/final.md")
+    )
+      return prescribedText;
     const reviewPath: string = relativePath.replace(
       /\/final\.md$/u,
       "/review.md",

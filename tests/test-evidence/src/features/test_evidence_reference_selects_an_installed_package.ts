@@ -109,8 +109,8 @@ export const test_evidence_reference_selects_an_installed_package =
       );
       assertIncludes(
         result,
-        "{@link functional.reviews.get}",
-        "The repair must spell the inline link form the rule now resolves.",
+        "Use @evidence on a selected typescript host or @evidenceExclude on an eligible carrier.",
+        "The repair must preserve both neutral acknowledgement options.",
       );
     } finally {
       incomplete.cleanup();

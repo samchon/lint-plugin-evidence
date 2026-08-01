@@ -1,9 +1,11 @@
 # Backend Final
 
-Did the preceding Backend Review actually complete its **review loop until dry**: literal full-scope rounds repeated without exception or limit until one entire round found no problem and made no edit?
+Did the preceding Backend Review satisfy the exact Backend Review instruction appended below as a blockquote?
 
-Use the preceding completion report and `.wiki/reviews/backend.md` to answer. Do not redo the review, edit a file, or substitute builds and tests for it. If completion is unproven, report exactly what is unproven and remain active without marking this Goal complete.
+Treat the preceding completion report as evidence, not proof. Check every quoted instruction and its Final Checklist.
 
-Ensure `pnpm check:watch` is running from `packages/backend`, wait for a clean rebuild, and run `pnpm test`. Ensure backend `pnpm dev` is also running, and keep both processes running through Overall Final. These gates are required but do not prove the review loop.
+If any item is unchecked or uncertain, the Goal Mode completion conditions are unmet. Perform the quoted Backend Review now from the first requirement and repeat until every item is checked.
 
-The exact Backend Review instruction is quoted below.
+After the Review is proven complete, ensure `pnpm check:watch` is running from `packages/backend` and clean, run `pnpm test`, and ensure backend `pnpm dev` remains running through Overall Final. These gates do not replace the Review.
+
+Mark this Goal complete only after the quoted Review Final Checklist and all final gates are complete.

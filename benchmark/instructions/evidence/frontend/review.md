@@ -2,6 +2,23 @@
 
 Read `.agents/skills/review/SKILL.md` before working.
 
-Review whether every frontend `@evidence` and `@evidenceExclude` reason precisely and truthfully explains why it applies.
+The scope is the frontend only. Inspect every active `@evidence` and `@evidenceExclude`, including its target, reason, and complete host.
 
-Ensure backend `pnpm dev` and frontend `pnpm dev` are running so the current application uses the live backend and the compiler catches invalid evidence references and missing coverage. Fix every diagnostic, and complete only after the current application reloads without error.
+Find and correct every fake tag, especially tags added only to evade compiler errors. Apply the Review skill's proof checks.
+
+Do not edit `lint.config.ts` or lower `evidence/graph` from `error`.
+
+Ensure `pnpm dev` is running from `packages/backend` and `packages/frontend`. Their output must contain no diagnostics after the last file change.
+
+Run frontend `pnpm lint`. Fix every diagnostic and require exit code 0.
+
+## Final Checklist
+
+- [ ] Every active frontend `@evidence` and `@evidenceExclude`, its target, reason, and complete host inspected.
+- [ ] Every fake `@evidence`, including any added only to evade compiler errors, corrected.
+- [ ] Every `@evidenceExclude` owner or alternative and invalidating condition verified; every fake exclusion corrected.
+- [ ] `lint.config.ts` remained unchanged and `evidence/graph` remained `error`.
+- [ ] Both `pnpm dev` processes reported no diagnostics after the last file change.
+- [ ] Frontend `pnpm lint` exited with code 0.
+
+Any unchecked item leaves the Goal active. Complete that item.

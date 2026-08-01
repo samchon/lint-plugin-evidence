@@ -1,6 +1,6 @@
 ---
 name: evidence
-description: Defines Evidence Graph claims, zero-host activation, acknowledgement syntax, placement, exclusions, frozen configuration, and compiler gates. Read before Evidence implementation or handling a graph diagnostic.
+description: Defines Evidence Graph claims, zero-host activation, truthful behavioral proof, acknowledgement syntax, placement, exclusions, frozen configuration, and compiler gates. Read before Evidence implementation or handling a graph diagnostic.
 ---
 
 # Evidence Graph
@@ -17,6 +17,10 @@ description: Defines Evidence Graph claims, zero-host activation, acknowledgemen
 The target and non-empty reason are mandatory. One acknowledgement covers the selected target and its selected descendants. Keep evidence and exclusion scopes disjoint within one claim-reference obligation.
 
 Reasons are reviewed by people. Write a specific responsibility that current code could falsify, not a restatement of the target name.
+
+Every `@evidence` and `@evidenceExclude` must truthfully describe the current host's relation to the target. Never write, move, consolidate, or invent an acknowledgement only to pass the compiler. A diagnostic identifies an obligation, not the truthful acknowledgement for it. A clean graph proves structure, not truth.
+
+Several hosts may cite the same target when each independently implements or proves it. One host cites one resolved target once. Within one claim-reference obligation, `@evidenceExclude` scopes must never overlap, even across carriers, and must never overlap `@evidence`. A parent target is truthful only when the host owns the complete selected subtree.
 
 ## Claim Activation
 
@@ -46,7 +50,7 @@ Do not add, remove, or toggle claim objects as implementation advances. Activati
 
 Both configuration files and all claim objects are frozen. Keep `evidence/graph` at `error`. The backend has one `tsconfig.json` containing backend source, tests, and API DTOs. Do not create phase-specific config or compiler files.
 
-The sealed `NESTIA_SDK_TRANSFORM=1` guard disables the graph only inside Nestia's private transform. A backend watcher runs outside that environment and must report a clean graph rebuild at each compiler gate.
+The sealed `NESTIA_SDK_TRANSFORM=1` guard disables the graph only inside Nestia's private transform. It must be absent from every benchmark compiler gate; a result produced with it present is invalid.
 
 ## Placement
 
@@ -59,7 +63,11 @@ The sealed `NESTIA_SDK_TRANSFORM=1` guard disables the graph only inside Nestia'
 | `frontend-screens` | exported page function JSDoc | `src/components/SCREEN_EVIDENCE_EXCLUDE.ts` |
 | `frontend-journeys` | exported journey function JSDoc | `tests/journeys/JOURNEY_EVIDENCE_EXCLUDE.ts` |
 
-Keep ownership evidence on the actual selected host. Exclusion carriers contain only reviewed exclusions. Providers are not selected hosts and carry neither tag.
+Keep ownership evidence on the actual selected host. Exclusion carriers contain only one reviewed exclusion per target scope and never contain ownership evidence. Providers are not selected hosts and carry neither tag.
+
+## Behavioral Proof
+
+Proof must be target-specific. A test or journey must perform the relevant action and assert the claimed result, refusal, state, or effect. Imports, registries, callability checks, and route or rendering smoke prove only availability or reachability; they cannot carry unrelated requirements.
 
 ## Examples
 
@@ -156,6 +164,17 @@ rg --hidden -n -F '@todo' packages/frontend --glob '*.ts' --glob '*.tsx'
 
 Do not start backend `pnpm check:watch` while the first backend draft is still being populated. The first selected host activates its complete claim, so an incomplete draft can produce graph-wide diagnostics for artifacts that are about to be created.
 
-Complete the first backend draft, then start `pnpm check:watch`. The compiler owns target resolution, host eligibility, overlap, coverage, and missing acknowledgements. Fix the complete diagnostic batch and wait for a clean rebuild. Stop the watcher afterward so this compiler gate remains a bounded check of the current graph and cannot overlap the next generator, runtime command, or phase.
+Confirm `NESTIA_SDK_TRANSFORM` is absent. Complete the first backend draft, then start `pnpm check:watch`. The compiler owns target resolution, host eligibility, overlap, coverage, and missing acknowledgements. Fix the complete diagnostic batch and wait for a clean rebuild. Stop the watcher afterward so this compiler gate remains a bounded check of the current graph and cannot overlap the next generator, runtime command, or phase.
 
-At each gate, confirm the canonical claim configurations remain unchanged, wait for clean current builds, and run the phase's runtime tests. Never edit a claim population or move a tag merely to silence a diagnostic.
+At each gate, confirm the canonical claim configurations remain unchanged, wait for clean current builds, and run the phase's runtime tests. Never weaken the graph or falsify an acknowledgement to silence a diagnostic.
+
+## Final Checklist
+
+- [ ] Canonical claims remain unchanged and `evidence/graph` remains `error`.
+- [ ] `NESTIA_SDK_TRANSFORM` was absent from every compiler gate.
+- [ ] Every acknowledgement truthfully matches its target and actual host; none exists only to satisfy the compiler.
+- [ ] Every behavioral acknowledgement is supported by the target-specific action and assertion it claims.
+- [ ] Every exclusion names the actual owner or observable alternative and a concrete invalidating condition.
+- [ ] Current compiler and runtime gates passed after the latest scoped change.
+
+Any unchecked item leaves the current Goal active. Fix its cause and rerun every affected current-state gate.

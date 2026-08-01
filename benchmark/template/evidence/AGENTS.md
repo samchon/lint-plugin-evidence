@@ -5,8 +5,8 @@
 
 ### Evidence Graph
 
-`.agents/skills/evidence/SKILL.md` defines the configured claims, automatic zero-host activation, tag placement, exclusions, and compiler gates. Read it for Evidence implementation and before handling a graph diagnostic.
+`.agents/skills/evidence/SKILL.md` defines the configured claims, automatic zero-host activation, truthful behavioral proof, tag placement, exclusions, and compiler gates. Read it for Evidence implementation and before handling a graph diagnostic.
 
 ### Evidence Review
 
-`.agents/skills/review/SKILL.md` defines the human review of acknowledgement reasons. Read it only for a backend, frontend, or overall review objective. Final objectives run the prescribed compiler and runtime gates; they do not repeat the review.
+`.agents/skills/review/SKILL.md` defines the review of `@evidence`, `@evidenceExclude`, and their hosts. Read it only for a backend, frontend, or overall Review objective.

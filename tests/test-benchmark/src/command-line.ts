@@ -42,6 +42,7 @@ const main = (): void => {
       model: "gpt-5.6-luna",
       effort: "high",
       runId,
+      checkpointRunId: undefined,
     },
   );
   assert.deepEqual(
@@ -59,6 +60,27 @@ const main = (): void => {
       model: "gpt-5.6-luna",
       effort: "medium",
       runId: undefined,
+      checkpointRunId: undefined,
+    },
+  );
+  assert.deepEqual(
+    parseEvidenceBenchmarkArguments([
+      "codex",
+      "shopping",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      "--from-backend-start",
+      runId,
+    ]),
+    {
+      engine: "codex",
+      subject: "shopping",
+      arm: "plain",
+      model: "gpt-5.6-luna",
+      effort: "high",
+      runId: undefined,
+      checkpointRunId: runId,
     },
   );
   for (const input of [
@@ -70,6 +92,16 @@ const main = (): void => {
     ["codex", "todo", "plain", "", "high"],
     ["codex", "todo", "plain", "gpt-5.6-luna", "extreme"],
     ["codex", "todo", "plain", "gpt-5.6-luna", "high", "not-a-run"],
+    ["codex", "todo", "plain", "gpt-5.6-luna", "high", "--from-backend-start"],
+    [
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      "--from-backend-start",
+      "not-a-run",
+    ],
   ])
     assert.throws(
       () => parseEvidenceBenchmarkArguments(input),
@@ -112,32 +144,32 @@ const main = (): void => {
     );
 
     const records = evidenceBenchmarkRecordPaths(
-      path.join(repository, "benchmark", "result", runId),
+      path.join(repository, "benchmark", "output", runId),
     );
     assert.deepEqual(records, {
-      root: path.resolve(repository, "benchmark", "result", runId),
+      root: path.resolve(repository, "benchmark", "output", runId),
       workspace: path.resolve(
         repository,
         "benchmark",
-        "result",
+        "output",
         runId,
         "workspace",
       ),
       state: path.resolve(
         repository,
         "benchmark",
-        "result",
+        "output",
         runId,
         "state.json",
       ),
       events: path.resolve(
         repository,
         "benchmark",
-        "result",
+        "output",
         runId,
         "events.jsonl",
       ),
-      raw: path.resolve(repository, "benchmark", "result", runId, "raw.log"),
+      raw: path.resolve(repository, "benchmark", "output", runId, "raw.log"),
     });
     assert.equal(
       sameEvidenceBenchmarkRecordPaths(
