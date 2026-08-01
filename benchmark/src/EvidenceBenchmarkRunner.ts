@@ -131,6 +131,7 @@ export namespace EvidenceBenchmarkRunner {
     let resumeSnapshot: Record<string, unknown> | undefined;
     let resumeSnapshotRecordIndex: number | undefined;
     let resumeAdoptedUndispatchedGoal = false;
+    let resumeNativeCompletedInterruptedGoal = false;
     let resumeUsageReplay:
       | {
           turnId: string;
@@ -562,6 +563,32 @@ export namespace EvidenceBenchmarkRunner {
             publish();
             return;
           }
+          const retainedGoal: Record<string, unknown> | null = record.goal;
+          const nativeCompletedInterruptedGoal: boolean =
+            retained === record &&
+            retainedGoal !== null &&
+            retainedGoal.status === "active" &&
+            goal.status === "complete" &&
+            record.terminalTurnId === null &&
+            !record.terminalTurnCompleted &&
+            !record.threadIdle &&
+            record.tokenUsageTurnId !== null &&
+            record.tokenUsageEnd === null &&
+            sameUsage(record.tokenUsage, zeroUsage()) &&
+            usageAdvanced(state.threadTokenUsage, record.tokenUsageStart);
+          if (nativeCompletedInterruptedGoal) {
+            if (retainedGoal === null)
+              throw new Error("Retained active Goal is missing.");
+            validateNativeGoal(record, retainedGoal, state.sessionId);
+            validateNativeGoal(record, goal, state.sessionId);
+            resumeSnapshot = structuredClone(goal);
+            resumeSnapshotRecordIndex = record.index;
+            resumeNativeCompletedInterruptedGoal = true;
+            resumeSnapshotPending = false;
+            resolveResumeSnapshot();
+            publish();
+            return;
+          }
           if (
             retained?.goal === null ||
             retained?.goal === undefined ||
@@ -893,6 +920,17 @@ export namespace EvidenceBenchmarkRunner {
                 nativeGoalSnapshot: resumeSnapshot,
               });
             else if (
+              resumeNativeCompletedInterruptedGoal &&
+              resumeSnapshot.status === "complete" &&
+              goal.status === "complete"
+            ) {
+              reconcileInterruptedUsageReplay(record, thread);
+              proveNativeCompletedInterruptedGoal(record, thread);
+              resumeReconciled = true;
+              publish();
+              await flushResumeLifecycle();
+              if (outcome === undefined) await beginGoal();
+            } else if (
               resumeSnapshot.status === "complete" &&
               (record.terminalTurnId === null ||
                 !record.terminalTurnCompleted ||
@@ -1007,6 +1045,55 @@ export namespace EvidenceBenchmarkRunner {
       state.threadTokenUsage = structuredClone(resumeUsageReplay.usage);
       record.tokenUsageTurnId = resumeUsageReplay.turnId;
       resumeUsageReplay = undefined;
+    }
+
+    function proveNativeCompletedInterruptedGoal(
+      record: IEvidenceBenchmarkGoalRecord,
+      thread: Record<string, unknown>,
+    ): void {
+      if (
+        !resumeNativeCompletedInterruptedGoal ||
+        record.goal?.status !== "active" ||
+        record.terminalTurnId !== null ||
+        record.terminalTurnCompleted ||
+        record.threadIdle ||
+        record.tokenUsageTurnId === null ||
+        record.tokenUsageEnd !== null ||
+        !sameUsage(record.tokenUsage, zeroUsage()) ||
+        !usageAdvanced(state.threadTokenUsage, record.tokenUsageStart) ||
+        object(thread.status, false)?.type !== "idle"
+      )
+        throw new Error(
+          "Native completed Goal lacks an exact interrupted retained boundary.",
+        );
+      const values: unknown = thread.turns;
+      if (!Array.isArray(values))
+        throw new Error(
+          "Codex omitted turn history needed to prove the interrupted Goal.",
+        );
+      const turns: Record<string, unknown>[] = values.map((value) =>
+        object(value),
+      );
+      const retainedIndex: number = turns.findIndex(
+        (turn) =>
+          turn.id === record.tokenUsageTurnId && turn.status === "interrupted",
+      );
+      const trailingTurnsInterrupted: boolean = turns
+        .slice(retainedIndex)
+        .every((turn) => turn.status === "interrupted");
+      if (retainedIndex === -1 || !trailingTurnsInterrupted)
+        throw new Error(
+          `Native completed Goal is not proven by the retained interrupted turn followed only by interrupted turns: ${JSON.stringify(
+            {
+              retainedTurnId: record.tokenUsageTurnId,
+              retainedIndex,
+              turns: turns.map((turn) => ({
+                id: turn.id,
+                status: turn.status,
+              })),
+            },
+          )}`,
+        );
     }
 
     const result: "completed" | "interrupted" = await outcomePromise;

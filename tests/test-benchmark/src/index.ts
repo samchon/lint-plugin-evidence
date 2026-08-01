@@ -942,6 +942,72 @@ const main = async (): Promise<void> => {
       readObjective(root, sources, ENTRIES[2]!),
     );
 
+    const nativeCompletedInterruptedBoundary = structuredClone(
+      activeCurrentBoundary,
+    );
+    nativeCompletedInterruptedBoundary.goals[1]!.tokenUsageTurnId =
+      "turn-interrupted";
+    nativeCompletedInterruptedBoundary.threadTokenUsage = {
+      totalTokens: 15,
+      inputTokens: 9,
+      cachedInputTokens: 3,
+      cacheWriteInputTokens: 1,
+      outputTokens: 6,
+      reasoningOutputTokens: 4,
+    };
+    const nativeCompletedInterruptedOutput: IEvidenceBenchmarkOutput[] = [];
+    const nativeCompletedInterruptedResume = await EvidenceBenchmarkRunner.run({
+      state: nativeCompletedInterruptedBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--native-complete-interrupted"],
+      onOutput: (_processIndex, output) => {
+        nativeCompletedInterruptedOutput.push(output);
+      },
+    });
+    assert.equal(
+      nativeCompletedInterruptedResume.status,
+      "completed",
+      JSON.stringify(nativeCompletedInterruptedResume.interruption),
+    );
+    const nativeCompletedInterruptedGoalRequests =
+      nativeCompletedInterruptedOutput
+        .filter((output) => output.stream === "stdin")
+        .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+        .filter((request) => request.method === "thread/goal/set");
+    assert.equal(
+      nativeCompletedInterruptedGoalRequests.length,
+      ENTRIES.length - 1,
+    );
+    assert.equal(
+      (
+        nativeCompletedInterruptedGoalRequests[0]?.params as Record<
+          string,
+          unknown
+        >
+      )?.objective,
+      readObjective(root, sources, ENTRIES[1]!),
+    );
+
+    const nativeCompletedUnprovenResume = await EvidenceBenchmarkRunner.run({
+      state: nativeCompletedInterruptedBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--native-complete-unproven"],
+      onOutput: () => undefined,
+    });
+    assert.equal(nativeCompletedUnprovenResume.status, "interrupted");
+    assert.match(
+      nativeCompletedUnprovenResume.interruption?.message ?? "",
+      /not proven by the retained interrupted turn/,
+    );
+
     const activePreviousBoundary = await EvidenceBenchmarkRunner.run({
       state: nextBoundary,
       cwd: root,
@@ -1214,6 +1280,14 @@ const fakeAppServer = (): void => {
     "--blocked-then-complete",
   );
   const activeGoalGet: boolean = process.argv.includes("--active-goal-get");
+  const nativeCompleteInterrupted: boolean = process.argv.includes(
+    "--native-complete-interrupted",
+  );
+  const nativeCompleteUnproven: boolean = process.argv.includes(
+    "--native-complete-unproven",
+  );
+  const nativeComplete: boolean =
+    nativeCompleteInterrupted || nativeCompleteUnproven;
   const advancedInterruptedReplay: boolean = process.argv.includes(
     "--advanced-interrupted-replay",
   );
@@ -1237,6 +1311,7 @@ const fakeAppServer = (): void => {
     currentActive ||
     currentBlocked ||
     currentInterruptedActive ||
+    nativeComplete ||
     process.argv.includes("--current-goal");
   const lateResumeSnapshot: boolean = process.argv.includes(
     "--late-resume-snapshot",
@@ -1269,7 +1344,7 @@ const fakeAppServer = (): void => {
   );
   let goalIndex = undispatchedActive
     ? 0
-    : currentActive || undispatchedNext
+    : currentActive || nativeComplete || undispatchedNext
       ? 1
       : currentGoal
         ? 2
@@ -1350,30 +1425,40 @@ const fakeAppServer = (): void => {
                 cliVersion: "fixture-cli",
                 status: { type: "idle" },
                 ...(fork ? { forkedFromId: "fixture-thread" } : {}),
-                turns: sameTurnInterruptedReplay
+                turns: nativeComplete
                   ? [
+                      { id: "turn-1", status: "completed" },
                       {
-                        id: `turn-${goalIndex}`,
-                        status: "interrupted",
-                      },
-                      {
-                        id: "turn-empty-interrupted",
-                        status: "interrupted",
+                        id: "turn-interrupted",
+                        status: nativeCompleteInterrupted
+                          ? "interrupted"
+                          : "completed",
                       },
                     ]
-                  : advancedInterruptedReplay || unprovenInterruptedReplay
+                  : sameTurnInterruptedReplay
                     ? [
-                        { id: `turn-${goalIndex}`, status: "completed" },
-                        ...(advancedInterruptedReplay
-                          ? [
-                              {
-                                id: "turn-interrupted",
-                                status: "interrupted",
-                              },
-                            ]
-                          : []),
+                        {
+                          id: `turn-${goalIndex}`,
+                          status: "interrupted",
+                        },
+                        {
+                          id: "turn-empty-interrupted",
+                          status: "interrupted",
+                        },
                       ]
-                    : undefined,
+                    : advancedInterruptedReplay || unprovenInterruptedReplay
+                      ? [
+                          { id: `turn-${goalIndex}`, status: "completed" },
+                          ...(advancedInterruptedReplay
+                            ? [
+                                {
+                                  id: "turn-interrupted",
+                                  status: "interrupted",
+                                },
+                              ]
+                            : []),
+                        ]
+                      : undefined,
               },
             },
           },
@@ -1381,27 +1466,32 @@ const fakeAppServer = (): void => {
             if (wrongThread) return;
             if (previousGoal) {
               if (!undispatched || undispatchedNext) {
-                const advancedTotal = currentActive
+                const advancedTotal =
+                  currentActive || nativeComplete
+                    ? {
+                        totalTokens: 15,
+                        inputTokens: 9,
+                        cachedInputTokens: 3,
+                        cacheWriteInputTokens: 1,
+                        outputTokens: 6,
+                        reasoningOutputTokens: 4,
+                      }
+                    : {
+                        totalTokens: 25,
+                        inputTokens: 15,
+                        cachedInputTokens: 5,
+                        cacheWriteInputTokens: 2,
+                        outputTokens: 10,
+                        reasoningOutputTokens: 7,
+                      };
+                const replay = nativeComplete
                   ? {
-                      totalTokens: 15,
-                      inputTokens: 9,
-                      cachedInputTokens: 3,
-                      cacheWriteInputTokens: 1,
-                      outputTokens: 6,
-                      reasoningOutputTokens: 4,
+                      turnId: "turn-interrupted",
+                      total: advancedTotal,
                     }
-                  : {
-                      totalTokens: 25,
-                      inputTokens: 15,
-                      cachedInputTokens: 5,
-                      cacheWriteInputTokens: 2,
-                      outputTokens: 10,
-                      reasoningOutputTokens: 7,
-                    };
-                const replay =
-                  advancedInterruptedReplay ||
-                  unprovenInterruptedReplay ||
-                  sameTurnInterruptedReplay
+                  : advancedInterruptedReplay ||
+                      unprovenInterruptedReplay ||
+                      sameTurnInterruptedReplay
                     ? {
                         turnId: sameTurnInterruptedReplay
                           ? `turn-${goalIndex}`
@@ -1498,12 +1588,14 @@ const fakeAppServer = (): void => {
                         retainedObjective(),
                         currentBlocked
                           ? "blocked"
-                          : previousActive ||
-                              undispatched ||
-                              currentActive ||
-                              currentInterruptedActive
-                            ? "active"
-                            : "complete",
+                          : nativeComplete
+                            ? "complete"
+                            : previousActive ||
+                                undispatched ||
+                                currentActive ||
+                                currentInterruptedActive
+                              ? "active"
+                              : "complete",
                       ),
                       turnId: null,
                     },
