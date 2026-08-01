@@ -329,7 +329,7 @@ model Sale {
 }
 
 /**
- * Verifies an exclusion overlapping an acknowledgement is one duplicate, not a
+ * Verifies an exclusion overlapping an acknowledgement is one conflict, not a
  * silent override.
  *
  * `@evidence` and `@evidenceExclude` on one target are a contradiction the
@@ -340,9 +340,9 @@ model Sale {
  *
  *  1. Cite a section from a model and exclude the same section from another.
  *  2. Evaluate the graph.
- *  3. Assert exactly one duplicate diagnostic naming the target.
+ *  3. Assert exactly one conflict diagnostic naming the target.
  */
-func TestPrismaExclusionOverlappingAnAcknowledgementIsADuplicate(t *testing.T) {
+func TestPrismaExclusionOverlappingAnAcknowledgementIsAConflict(t *testing.T) {
 	inventories := map[string]*artifactInventory{
 		"prisma/schema.prisma": {Path: "prisma/schema.prisma", Type: artifactPrisma},
 	}
@@ -386,8 +386,8 @@ model Seller {
 		loader,
 	)
 	messages := append(problems, evaluateEvidenceGraph(states, loader)...)
-	if got := countProblemsContaining(messages, "Duplicate acknowledgement"); got != 1 {
-		t.Fatalf("expected exactly one duplicate diagnostic, got %d:\n%s", got, strings.Join(messages, "\n"))
+	if got := countProblemsContaining(messages, "Conflicting acknowledgements"); got != 1 {
+		t.Fatalf("expected exactly one conflict diagnostic, got %d:\n%s", got, strings.Join(messages, "\n"))
 	}
 	assertProblemContains(t, messages, "docs/spec.md#amounts")
 }

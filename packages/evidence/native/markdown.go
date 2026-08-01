@@ -146,8 +146,10 @@ func scanMarkdownInventory(
 
 	lines := strings.Split(content, "\n")
 	hostAtLine := make([]string, len(lines))
+	hostIDAtLine := make([]string, len(lines))
 	fencedAtLine := make([]bool, len(lines))
 	currentHost := "file"
+	currentHostID := fileUnitID
 	fenceMarker := rune(0)
 	fenceLength := 0
 	inHTMLComment := false
@@ -157,6 +159,7 @@ func scanMarkdownInventory(
 		trimmed := strings.TrimLeft(line, " \t")
 		if marker, length, remainder, ok := markdownFence(line); ok {
 			fencedAtLine[index] = true
+			hostIDAtLine[index] = currentHostID
 			if fenceMarker == 0 {
 				fenceMarker = marker
 				fenceLength = length
@@ -172,6 +175,7 @@ func scanMarkdownInventory(
 		if fenceMarker != 0 {
 			fencedAtLine[index] = true
 			hostAtLine[index] = currentHost
+			hostIDAtLine[index] = currentHostID
 			continue
 		}
 		if inHTMLComment {
@@ -179,6 +183,7 @@ func scanMarkdownInventory(
 				inHTMLComment = false
 			}
 			hostAtLine[index] = currentHost
+			hostIDAtLine[index] = currentHostID
 			continue
 		}
 		if strings.HasPrefix(trimmed, "<!--") {
@@ -187,11 +192,13 @@ func scanMarkdownInventory(
 				inHTMLComment = true
 			}
 			hostAtLine[index] = currentHost
+			hostIDAtLine[index] = currentHostID
 			continue
 		}
 		level, title, ok := markdownHeading(line)
 		if ok {
 			currentHost = "h" + decimal(level)
+			currentHostID = "markdown:" + address.Key + ":" + currentHost + ":" + decimal(index+1)
 			if level <= 4 {
 				for descendantLevel := level; descendantLevel <= 4; descendantLevel++ {
 					headingUnitIDs[descendantLevel] = ""
@@ -232,6 +239,7 @@ func scanMarkdownInventory(
 			}
 		}
 		hostAtLine[index] = currentHost
+		hostIDAtLine[index] = currentHostID
 	}
 
 	sequence := 0
@@ -249,6 +257,7 @@ func scanMarkdownInventory(
 			sequence++
 			inventory.Declarations = append(inventory.Declarations, &evidenceDeclaration{
 				ID:       "markdown:" + address.Key + ":" + decimal(line+parsed.LineOffset) + ":" + decimal(sequence),
+				HostID:   hostIDAtLine[line-1],
 				Type:     artifactMarkdown,
 				Tag:      parsed.Tag,
 				Target:   parsed.Target,

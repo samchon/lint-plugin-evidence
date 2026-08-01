@@ -6,7 +6,7 @@ import (
 )
 
 /**
- * Verifies declaration validation: malformed, unresolved, and duplicate
+ * Verifies declaration validation: malformed, unresolved, and conflicting
  * acknowledgements receive distinct actionable diagnostics.
  *
  * These failures share one tag grammar but have different repairs. Collapsing
@@ -17,7 +17,7 @@ import (
  *  2. Evaluate them against one configured source unit.
  *  3. Assert each failure class is reported without losing coverage.
  */
-func TestDeclarationsReportMalformedUnresolvedAndDuplicateCases(t *testing.T) {
+func TestDeclarationsReportMalformedUnresolvedAndConflictingCases(t *testing.T) {
 	messages := runIndexRule(t, map[string]string{
 		"docs/spec.md": "## Contract\n",
 		"src/ref.ts": `
@@ -30,8 +30,8 @@ export interface MissingReason {}
 /** @evidence docs/spec.md#unknown This target does not exist. */
 export interface Unknown {}
 
-/** @evidenceExclude docs/spec.md#contract A second acknowledgement is still a duplicate. */
-export interface Duplicate {}
+/** @evidenceExclude docs/spec.md#contract This contradicts the implementation acknowledgement. */
+export interface Conflict {}
 `,
 	}, `{"claims":[{
 		"type":"typescript",
@@ -41,7 +41,7 @@ export interface Duplicate {}
 	}]}`)
 	assertProblemContains(t, messages, "Malformed @evidence declaration")
 	assertProblemContains(t, messages, "Unresolved evidence target 'docs/spec.md#unknown'")
-	assertProblemContains(t, messages, "Duplicate acknowledgement for 'docs/spec.md#contract'")
+	assertProblemContains(t, messages, "Conflicting acknowledgements for 'docs/spec.md#contract'")
 	if countProblemsContaining(messages, "Missing acknowledgement") != 0 {
 		t.Fatalf("the valid primary declaration did not cover the unit:\n%s", strings.Join(messages, "\n"))
 	}

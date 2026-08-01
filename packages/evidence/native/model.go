@@ -138,6 +138,7 @@ func (unit *evidenceUnit) location() string {
 
 type evidenceDeclaration struct {
 	ID     string
+	HostID string
 	Type   artifactKind
 	Tag    tagKind
 	Target string

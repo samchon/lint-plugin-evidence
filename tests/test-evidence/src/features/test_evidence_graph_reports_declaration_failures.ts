@@ -13,7 +13,7 @@ import {
  * failures survive config evaluation, contributor linking, project dispatch,
  * and diagnostic rendering in the real consumer process.
  *
- * 1. Write malformed, unresolved, duplicate, and out-of-scope declarations.
+ * 1. Write malformed, unresolved, conflicting, and out-of-scope declarations.
  * 2. Run the published plugin through `ttsc check`.
  * 3. Assert every class reaches the consumer with obligation and repair context.
  */
@@ -55,7 +55,7 @@ export const test_evidence_graph_reports_declaration_failures = (): void => {
         "/** @evidence docs/spec.md#required First acknowledgement. */",
         "export function first(): void {}",
         "",
-        "/** @evidenceExclude docs/spec.md#required Second acknowledgement. */",
+        "/** @evidenceExclude docs/spec.md#required This contradicts the implementation acknowledgement. */",
         "export function second(): void {}",
         "",
         "/** @evidence docs/spec.md#required A property is outside the selected function hosts. */",
@@ -84,8 +84,8 @@ export const test_evidence_graph_reports_declaration_failures = (): void => {
     );
     assertIncludes(
       result,
-      "Duplicate acknowledgement for 'docs/spec.md#required'",
-      "One claim may acknowledge an evidence unit only once.",
+      "Conflicting acknowledgements for 'docs/spec.md#required'",
+      "Opposite acknowledgement intents must conflict.",
     );
     assertIncludes(
       result,

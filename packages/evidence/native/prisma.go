@@ -542,6 +542,7 @@ func prismaDeclarationsFromComments(
 				}
 				declaration := &evidenceDeclaration{
 					ID:               "prisma:" + run.Path + ":" + decimal(line) + ":" + decimal(sequence),
+					HostID:           "prisma:" + run.Path + ":file",
 					Type:             artifactPrisma,
 					Tag:              parsed.Tag,
 					Target:           parsed.Target,
@@ -596,6 +597,7 @@ func prismaDeclarationsFromComments(
 			// `evaluateEvidenceGraph` keys by ID.
 			declaration := &evidenceDeclaration{
 				ID:       "prisma:" + run.Path + ":" + decimal(line) + ":" + decimal(sequence),
+				HostID:   host.ID,
 				Type:     artifactPrisma,
 				Tag:      parsed.Tag,
 				Target:   parsed.Target,
