@@ -12,9 +12,9 @@ Use the backend `pnpm check:watch` process kept running by Backend Start. Fix ev
 
 ## Final Checklist
 
-- [ ] Every active backend `@evidence` and `@evidenceExclude`, its target, and its complete host inspected.
+- [ ] Every active backend `@evidence` and `@evidenceExclude`, its target, reason, and complete host inspected.
 - [ ] Every fake `@evidence`, including any added only to evade compiler errors, corrected.
-- [ ] Every `@evidenceExclude` owner or alternative verified; every fake exclusion corrected.
+- [ ] Every `@evidenceExclude` owner or alternative and invalidating condition verified; every fake exclusion corrected.
 - [ ] `lint.config.ts` remained unchanged and `evidence/graph` remained `error`.
 - [ ] Backend `check:watch` completed a rebuild without diagnostics and remains running.
 
