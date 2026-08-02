@@ -294,11 +294,16 @@ const summarizeRun = (
 ): IEvidenceBenchmarkReportCell => {
   const file: IDashboardStateFile = run.file;
   const workElapsedMs: number = elapsed(file);
-  const totalUsage: IEvidenceBenchmarkTokenUsage = totalTokenUsage(file.state);
+  const detached: boolean = file.cell.reviewLedger === "backend";
+  const totalUsage: IEvidenceBenchmarkTokenUsage = totalTokenUsage(
+    file.state,
+    detached,
+  );
   const totalTokens: number = totalUsage.totalTokens;
   const stages: IEvidenceBenchmarkReportStage[] = stageMeasurements(
     file.state,
     workElapsedMs,
+    detached,
   ).map((measurement) => ({
     ...measurement,
     tokenPercent: percent(measurement.tokens, totalTokens),
@@ -388,9 +393,7 @@ const collectRunApiCost = (
       rawLog: file.records.raw,
       model: file.cell.model,
       initial:
-        (file.state.nativeThreadStartInstructionIndex ?? 0) > 0
-          ? emptyTokenUsage()
-          : initial,
+        file.cell.reviewLedger === "backend" ? emptyTokenUsage() : initial,
       expected: file.state.threadTokenUsage,
       strict,
     });
@@ -515,7 +518,9 @@ interface IStageMeasurement {
 
 const totalTokenUsage = (
   state: IDashboardState,
+  detached: boolean,
 ): IEvidenceBenchmarkTokenUsage => {
+  if (!detached) return structuredClone(state.threadTokenUsage);
   const nativeStart: number = state.nativeThreadStartInstructionIndex ?? 0;
   return state.goals
     .filter((goal) => goal.index < nativeStart)
@@ -575,6 +580,7 @@ const emptyTokenUsage = (): IEvidenceBenchmarkTokenUsage => ({
 const stageMeasurements = (
   state: IDashboardState,
   totalElapsed: number,
+  detached: boolean,
 ): IStageMeasurement[] => {
   const current: IDashboardInstruction | undefined =
     state.goals.find(
@@ -589,7 +595,8 @@ const stageMeasurements = (
   const retainedTokens: number = state.goals.reduce(
     (sum, instruction) =>
       sum +
-      (instruction.index >= (state.nativeThreadStartInstructionIndex ?? 0)
+      (!detached ||
+      instruction.index >= (state.nativeThreadStartInstructionIndex ?? 0)
         ? instruction.tokenUsage.totalTokens
         : 0),
     0,

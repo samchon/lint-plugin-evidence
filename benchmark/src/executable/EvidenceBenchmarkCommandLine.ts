@@ -9,6 +9,7 @@ import typia from "typia";
 
 import { EvidenceBenchmarkCheckpoint } from "../EvidenceBenchmarkCheckpoint.ts";
 import { EvidenceBenchmarkRunner } from "../EvidenceBenchmarkRunner.ts";
+import { EvidenceBenchmarkRuntime } from "../EvidenceBenchmarkRuntime.ts";
 import { EvidenceBenchmarkWorkspace } from "../EvidenceBenchmarkWorkspace.ts";
 import { sanitizeBenchmarkEnvironment } from "../sanitizeBenchmarkEnvironment.ts";
 import type { IEvidenceBenchmarkCheckpoint } from "../structures/IEvidenceBenchmarkCheckpoint.ts";
@@ -44,6 +45,7 @@ interface IEvidenceBenchmarkCell {
   evidenceArtifactSha256?: string;
   model: string;
   effort: EvidenceBenchmarkEffort;
+  runtime?: EvidenceBenchmarkRuntime.IAssignment;
   launchedAt?: string;
   inputIdentity?: IEvidenceBenchmarkInputIdentity;
   instructionExtension?: {
@@ -98,6 +100,7 @@ const main = async (): Promise<void> => {
     benchmarkRevision: runnerRevision,
     model: options.model,
     effort: options.effort,
+    runtime: EvidenceBenchmarkRuntime.assign(options.subject, options.arm),
     inputIdentity,
     stopAfter: options.stopAfter,
     supervision: options.supervision,
@@ -154,7 +157,9 @@ const main = async (): Promise<void> => {
     cell.runId !== requestedCell.runId ||
     cell.stopAfter !== requestedCell.stopAfter ||
     cell.supervision !== requestedCell.supervision ||
-    cell.reviewLedger !== requestedCell.reviewLedger
+    cell.reviewLedger !== requestedCell.reviewLedger ||
+    (cell.runtime !== undefined &&
+      !EvidenceBenchmarkRuntime.equals(cell.runtime, requestedCell.runtime))
   )
     throw new Error("Retained benchmark cell does not match the invocation.");
   if (retained !== undefined)
@@ -212,6 +217,8 @@ const main = async (): Promise<void> => {
         review.elapsedMs = timeUsedSeconds * 1_000;
     }
     assertRegularFile(records.state);
+    if (cell.runtime !== undefined)
+      await EvidenceBenchmarkRuntime.assertAvailable([cell.runtime]);
     await runBenchmark(cell, records, retained.state, runnerRevision);
     return;
   }
@@ -235,6 +242,7 @@ const main = async (): Promise<void> => {
     temporary === undefined ? undefined : path.join(temporary, "evidence.tgz");
   let prepared: IEvidenceBenchmarkWorkspaceResult;
   try {
+    await EvidenceBenchmarkRuntime.assertAvailable([cell.runtime!]);
     if (archive !== undefined) {
       const retainedArchive: string | undefined =
         process.env.EVIDENCE_BENCHMARK_ARCHIVE;
@@ -352,6 +360,9 @@ const runFromBackendStartCheckpoint = async (props: {
     throw new Error("Checkpoint source lacks an exact backend-start boundary.");
   requested.benchmarkRevision = sourceCell.benchmarkRevision;
   requested.evidenceArtifactSha256 = sourceCell.evidenceArtifactSha256;
+  requested.runtime = sourceCell.runtime;
+  if (requested.runtime !== undefined)
+    await EvidenceBenchmarkRuntime.assertAvailable([requested.runtime]);
   let workspace: string;
   let restored = false;
   try {
@@ -463,6 +474,8 @@ const runBenchmark = async (
   const environment: NodeJS.ProcessEnv = sanitizeBenchmarkEnvironment(
     process.env,
   );
+  if (cell.runtime !== undefined)
+    EvidenceBenchmarkRuntime.apply(environment, cell.runtime);
   const eventDescriptor: number = fs.openSync(records.events, "a");
   const rawDescriptor: number = fs.openSync(records.raw, "a");
   try {

@@ -96,7 +96,9 @@ const main = (): void => {
       launchedAt: "2026-07-31T01:00:00.000Z",
       status: "running",
       nextInstructionIndex: 1,
-      totalTokens: 700_000,
+      totalTokens: 1_600_000,
+      tokenUsage: tokenUsage(1_600_000),
+      initialTokenUsage: tokenUsage(900_000),
       requests: [tokenUsage(700_000)],
       nativeThreadStartInstructionIndex: 1,
       goals: [
@@ -114,6 +116,29 @@ const main = (): void => {
           resumedAt: "2026-07-31T02:15:00.000Z",
         },
       ],
+    });
+    writeRun({
+      repository,
+      subject: "todo",
+      arm: "plain",
+      runId: "detached",
+      workspace: plainWorkspace,
+      launchedAt: "2026-07-31T00:30:00.000Z",
+      status: "running",
+      nextInstructionIndex: 1,
+      totalTokens: 700_000,
+      requests: [tokenUsage(700_000)],
+      nativeThreadStartInstructionIndex: 1,
+      reviewLedger: "backend",
+      goals: [
+        goal(0, "backend-start", 900_000, 61_000, 120, tokenUsage(900_000)),
+        goal(1, "backend-review", 0, 0),
+      ],
+      processes: [{ elapsedMs: 10_000, exitCode: null, signal: null }],
+      outputEvents: [{ processIndex: 0, elapsedMs: 65_000 }],
+      inheritedProcessElapsedMs: 61_000,
+      inheritedWallElapsedMs: 30 * 60 * 1_000,
+      checkpointSourceRunId: "old",
     });
     writeRun({
       repository,
@@ -327,6 +352,17 @@ const main = (): void => {
         timePercent: 5,
       },
     ]);
+    const detached: IEvidenceBenchmarkReport = writeEvidenceBenchmarkReport({
+      repository,
+      output: path.join(repository, "detached"),
+      generatedAt,
+      runIds: ["detached"],
+    });
+    assert.equal(detached.cells[0]?.tokens, 1_600_000);
+    assert.deepEqual(
+      detached.cells[0]?.stages.map((stage) => stage.tokens),
+      [900_000, 700_000],
+    );
     assert.deepEqual(
       JSON.parse(
         fs.readFileSync(path.join(reportOutput, "summary.json"), "utf8"),
@@ -637,6 +673,7 @@ const writeRun = (props: {
   inheritedProcessElapsedMs?: number;
   inheritedWallElapsedMs?: number;
   checkpointSourceRunId?: string;
+  reviewLedger?: "backend";
   nativeThreadStartInstructionIndex?: number;
   supervisionPauses?: {
     pausedAt: string;
@@ -687,6 +724,9 @@ const writeRun = (props: {
           benchmarkRevision: "fixture-revision",
           model: props.model ?? "gpt-5.6-luna",
           effort: "high",
+          ...(props.reviewLedger === undefined
+            ? {}
+            : { reviewLedger: props.reviewLedger }),
           ...(props.inheritedWallElapsedMs === undefined
             ? {}
             : {
