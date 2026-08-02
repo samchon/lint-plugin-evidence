@@ -95,7 +95,7 @@ Optional request fields use `?: null | T`. Sort uses ordered `+field` and `-fiel
 
 ## Credentials And Sessions
 
-Never expose password hashes, persisted reset proofs, verification secrets, or external credentials. Plaintext credentials appear only in input DTOs.
+Never expose password hashes, recovery or reset proofs, verification secrets, or external credentials in response DTOs. Plaintext credentials and a proof received from its intended delivery channel appear only in the applicable input DTO.
 
 `.IAuthorized` carries only what the authentication contract returns. Add refresh proof, deadlines, or connection context only when the requirements expose them. Do not copy another subject's session fields by habit.
 

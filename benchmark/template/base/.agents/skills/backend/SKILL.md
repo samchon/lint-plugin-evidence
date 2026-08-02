@@ -25,7 +25,7 @@ The backend realizes the requirements as a schema, public contract, business log
 | DTO | Public request and response shapes |
 | Controller | Route, actor guard, parameters, response, and published contract |
 | Provider | Business rules, visibility, database access, and transactions |
-| Test | Observable proof through public operations |
+| Test | Observable behavior through public operations and injected external adapters |
 
 Fix a defect at its owner. A provider must not compensate for a missing column, a controller must not contain business logic, and a test must not weaken a legitimate requirement.
 
