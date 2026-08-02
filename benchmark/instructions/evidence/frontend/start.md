@@ -24,7 +24,7 @@ Starting before that layer is complete emits hundreds or thousands of errors for
    - Stop it after a reload without diagnostics.
 2. After every journey is complete, start frontend `pnpm dev` again.
    - Fix every diagnostic and wait for a reload without diagnostics.
-   - Stop it after that clean reload.
+   - Keep it running through Overall Final.
 
 Run frontend `pnpm lint` and fix every diagnostic. Require exit code 0.
 
@@ -32,9 +32,9 @@ Run frontend `pnpm lint` and fix every diagnostic. Require exit code 0.
 
 Remove every source-owned `@todo` under `packages/frontend`.
 
-Start `pnpm dev` from `packages/backend` and `packages/frontend` for the live integration check.
+Start `pnpm dev` from `packages/backend`. Frontend `pnpm dev` is already running. Keep both running through Overall Final.
 
-Run `pnpm test:e2e` with `VITE_API_SIMULATE=false`. Fix every failure. After the last fix, require a frontend reload without diagnostics and an E2E exit code of 0. Stop both development servers afterward so they cannot overlap the next objective.
+Run `pnpm test:e2e` with `VITE_API_SIMULATE=false`. Fix every failure. After the last fix, require a frontend reload without diagnostics and an E2E exit code of 0.
 
 ## Final Checklist
 
@@ -42,8 +42,7 @@ Run `pnpm test:e2e` with `VITE_API_SIMULATE=false`. Fix every failure. After the
 - [ ] The screen check finished before journey implementation began.
 - [ ] Every `@evidence` is on a page or journey that delivers or proves its linked requirement or page function.
 - [ ] Every `@evidenceExclude` names its owner or alternative and invalidating condition; none exists only to remove a diagnostic.
-- [ ] Both frontend compiler checks stopped after a reload without diagnostics and frontend lint passes.
+- [ ] The screen-stage `pnpm dev` stopped after a reload without diagnostics; the journey-stage process remains running without diagnostics and frontend lint passes.
 - [ ] Live-backend `pnpm test:e2e` exits with code 0 after the last frontend change.
-- [ ] The backend and frontend development servers used by E2E stopped afterward.
 
 Any unchecked item leaves the Goal active. Complete that item before proceeding.

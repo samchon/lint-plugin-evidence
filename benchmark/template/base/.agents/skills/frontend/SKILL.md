@@ -1,6 +1,6 @@
 ---
 name: frontend
-description: Defines frontend implementation order, contract use, bounded development checking, live integration, and the frontend gate. Read before frontend work, then read every sibling topic.
+description: Defines frontend implementation order, contract use, resident development checking, live integration, and the frontend gate. Read before frontend work, then read every sibling topic.
 ---
 
 # Frontend
@@ -37,7 +37,7 @@ From `packages/frontend`, start:
 pnpm dev
 ```
 
-Keep it running for the compiler or live-integration window prescribed by the current instruction. Vite and `@ttsc/unplugin` use the package `tsconfig.json` and `lint.config.ts`, report type, lint, and contributor diagnostics, and reload after input changes. Stop it after the required clean reload and live checks.
+Keep it running through Overall Final. Vite and `@ttsc/unplugin` use the package `tsconfig.json` and `lint.config.ts`, report type, lint, and contributor diagnostics, and reload after input changes.
 
 Use simulation while building contract-shaped screens and deterministic fixtures for named UI states. Before live integration, ensure backend `pnpm dev` is running from `packages/backend`.
 

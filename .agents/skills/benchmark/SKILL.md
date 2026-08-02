@@ -49,7 +49,7 @@ Run at most one command for a run ID. A preparation failure before native work d
 
 ## Run The Objectives
 
-Plain receives eight objectives. Evidence omits Overall Review and Overall Final and receives the first six:
+One native session receives exactly eight objectives:
 
 | Step | Objective | Evidence | Plain |
 | --: | --- | --- | --- |
@@ -59,8 +59,8 @@ Plain receives eight objectives. Evidence omits Overall Review and Overall Final
 | 4 | Frontend start | `instructions/evidence/frontend/start.md` | `instructions/plain/frontend/start.md` |
 | 5 | Frontend review | `instructions/evidence/frontend/review.md` | `instructions/plain/frontend/review.md` |
 | 6 | Frontend final | `instructions/evidence/frontend/final.md` | `instructions/plain/frontend/final.md` |
-| 7 | Overall review | — | `instructions/plain/overall/review.md` |
-| 8 | Overall final | — | `instructions/plain/overall/final.md` |
+| 7 | Overall review | `instructions/evidence/overall/review.md` | `instructions/plain/overall/review.md` |
+| 8 | Overall final | `instructions/evidence/overall/final.md` | `instructions/plain/overall/final.md` |
 
 At each step, the runner joins that file with the same arm's `instructions/<arm>/continue.md` once and records the exact objective. The arms share no runtime instruction bytes. Do not add operator prose.
 
@@ -108,7 +108,7 @@ On cancellation, stop the reporting subagent and every liveness watcher, then fo
 
 ## Complete The Campaign
 
-Treat a cell as execution-complete only when `state.json` is `completed`, every arm-owned instruction has a native terminal checkpoint, and the final process either exits zero without a signal or records runner-owned forced shutdown after those checkpoints completed. A `checkpointed` run is an authorized recovery source, not an execution-complete cell.
+Treat a cell as execution-complete only when `state.json` is `completed`, all eight instructions have native terminal checkpoints, and the final process either exits zero without a signal or records runner-owned forced shutdown after those checkpoints completed.
 
 Review every completed workspace read-only. Accept `docs/analysis/**` as the specification without validating it. Report defects only in the generated application or mismatches between its artifacts and the specification. Requirements are never defect candidates.
 

@@ -1,6 +1,6 @@
 # Evidence benchmark
 
-This benchmark compares the same coding engine building the same application with and without `@samchon/lint-plugin-evidence`. Both arms receive the same requirements, shared template, engine, model, and effort. Only the Evidence arm receives the package, Evidence overlay, and Evidence-specific guidance. Plain adds the product-wide Overall Review pair; Evidence ends after its backend and frontend tag reviews and final gates.
+This benchmark compares the same coding engine building the same application with and without `@samchon/lint-plugin-evidence`. Both arms receive the same requirements, shared template, instruction order, engine, model, and effort. Only the Evidence arm receives the package, Evidence overlay, and Evidence-specific guidance.
 
 The runner prepares an isolated workspace, drives the prescribed instructions in one native session, and retains the native execution record. It does not validate requirements, judge the generated application, or repair a measured workspace.
 
@@ -26,14 +26,6 @@ pnpm --filter @samchon/evidence-benchmark start codex <project> <evidence|plain>
 ```
 
 Omit `run-id` to create a cell under `benchmark/output/<project>/<engine>/<arm>/runs/<run-id>/`. Pass an existing run ID only to resume that exact engine, project, arm, model, effort, workspace, and session.
-
-To create a recovery source without dispatching `backend-review`, stop cleanly after the durable boundary:
-
-```bash
-pnpm --filter @samchon/evidence-benchmark start codex <project> <evidence|plain> <model> <effort> [run-id] --stop-after-backend-start
-```
-
-The retained state is `checkpointed`, not `completed`. Derive a new run from it rather than resuming the checkpoint-only run.
 
 After `backend-start` completes, the runner stores a workspace and native-turn checkpoint before starting `backend-review`. If a later instruction proves defective, create a new run from that point:
 
@@ -61,7 +53,7 @@ Pass repeated `--run-id <run-id>` arguments to publish an explicit historical co
 
 ## Instruction sequence
 
-Plain receives eight instructions. Evidence receives the first six and has no Overall Review pair:
+One native session receives these eight instructions in order:
 
 | Step | Evidence | Plain |
 | --- | --- | --- |
@@ -71,10 +63,10 @@ Plain receives eight instructions. Evidence receives the first six and has no Ov
 | Frontend start | `instructions/evidence/frontend/start.md` | `instructions/plain/frontend/start.md` |
 | Frontend review | `instructions/evidence/frontend/review.md` | `instructions/plain/frontend/review.md` |
 | Frontend final | `instructions/evidence/frontend/final.md` | `instructions/plain/frontend/final.md` |
-| Overall review | — | `instructions/plain/overall/review.md` |
-| Overall final | — | `instructions/plain/overall/final.md` |
+| Overall review | `instructions/evidence/overall/review.md` | `instructions/plain/overall/review.md` |
+| Overall final | `instructions/evidence/overall/final.md` | `instructions/plain/overall/final.md` |
 
-For each Plain Final step, the runner appends the matching Review instruction as a Markdown blockquote at the bottom of the prescribed instruction. Evidence Final owns only its current gate. The runner combines the prescribed instruction and that arm's `instructions/<arm>/continue.md` once as the objective. No runtime instruction bytes are shared across arms.
+For each Final step, the runner appends the matching Review instruction as a Markdown blockquote at the bottom of the prescribed instruction. It then combines the prescribed instruction and that arm's `instructions/<arm>/continue.md` once as the objective. No runtime instruction bytes are shared across arms.
 
 Codex receives each objective as a native Goal in one app-server thread. It advances after Goal completion, terminal-turn completion, and an idle thread.
 

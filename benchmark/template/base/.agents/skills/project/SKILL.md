@@ -37,9 +37,9 @@ Do not begin frontend implementation before the backend contract and tests pass.
 
 ## Compiler Gates And Development Processes
 
-- Run `pnpm check:watch` from `packages/backend` only with the bounded lifecycle prescribed by the current instruction. It checks backend source, backend tests, API DTOs, lint rules, and configured contributors through the package's single `tsconfig.json`. Wait for the required current clean rebuild, then stop it before another command or objective.
-- Start `pnpm dev` from `packages/frontend` only for the compiler or live-integration window prescribed by the current instruction. Vite and `@ttsc/unplugin` report type, lint, and contributor diagnostics on reload. Stop it after the required clean reload and live checks.
-- Start the backend server with `pnpm dev` from `packages/backend` for live frontend integration and stop it after that integration window.
+- Run `pnpm check:watch` from `packages/backend` with the lifecycle prescribed by the current arm's instruction. It checks backend source, backend tests, API DTOs, lint rules, and configured contributors through the package's single `tsconfig.json`. The benchmark arms intentionally use different watcher lifecycles; never carry one arm's lifecycle into another.
+- Start `pnpm dev` from `packages/frontend` before frontend authoring. Keep it running through Overall Final. Vite and `@ttsc/unplugin` report type, lint, and contributor diagnostics on reload.
+- Start the backend server with `pnpm dev` from `packages/backend` before live frontend integration. Keep it running through Overall Final.
 
 If a required development process exits, diagnose its output, fix the owning failure, restart it, and wait for a clean current reload. A stale earlier success is not a gate result.
 
