@@ -1,4 +1,4 @@
-Ignore the preceding completion reports. Check the actual work against the quoted Overall Review below.
+Ignore the preceding completion reports. Check the work against the quoted Overall Review below.
 
 Confirm all four:
 
