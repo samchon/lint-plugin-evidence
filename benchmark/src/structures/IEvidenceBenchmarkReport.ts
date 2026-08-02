@@ -2,10 +2,11 @@ import type { EvidenceBenchmarkArm } from "../typings/EvidenceBenchmarkArm.ts";
 import type { EvidenceBenchmarkEffort } from "../typings/EvidenceBenchmarkEffort.ts";
 import type { IEvidenceBenchmarkTokenUsage } from "./IEvidenceBenchmarkTokenUsage.ts";
 import type { IEvidenceBenchmarkApiCost } from "./IEvidenceBenchmarkApiCost.ts";
+import type { IEvidenceBenchmarkSuspension } from "./IEvidenceBenchmarkSuspension.ts";
 
 /** Publishable aggregate of the latest launched benchmark cells. */
 export interface IEvidenceBenchmarkReport {
-  schemaVersion: 2;
+  schemaVersion: 3;
   generatedAt: string;
   cells: IEvidenceBenchmarkReportCell[];
 }
@@ -34,10 +35,18 @@ export interface IEvidenceBenchmarkReportCell {
   tokens: number;
   tokenUsage: IEvidenceBenchmarkTokenUsage;
   apiCost: IEvidenceBenchmarkApiCost | null;
+  /** Verified non-working time excluded from work measurements. */
+  suspendedMs: number;
+  /** Audit intervals behind `suspendedMs`. */
+  suspensions: IEvidenceBenchmarkReportSuspension[];
   workElapsedMs: number;
-  wallElapsedMs: number;
   worktree: IEvidenceBenchmarkReportWorktree;
   stages: IEvidenceBenchmarkReportStage[];
+}
+
+/** Publishable suspension interval with its exact excluded duration. */
+export interface IEvidenceBenchmarkReportSuspension extends IEvidenceBenchmarkSuspension {
+  elapsedMs: number;
 }
 
 /** Read-only Git delta from the prepared workspace baseline. */

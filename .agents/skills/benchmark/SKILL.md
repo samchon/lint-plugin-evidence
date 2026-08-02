@@ -15,7 +15,7 @@ Before measurement:
 4. Record the authorized matrix, benchmark revision, engines, models, efforts, CLI versions, Evidence archive digest, and live dashboard in the pull-request body.
 5. Assign one read-only reporting subagent to update that body every 5 minutes and immediately after a state change or anomaly.
 
-Generate the dashboard with `pnpm --filter @samchon/evidence-benchmark dashboard`; do not inspect workspace source to reconstruct its values. Group it by authorized model, keep one H2 per model, show only the latest launched run for each cell, and omit cells that have not launched. Under each model, render one summary table followed by each cell's retained stage list:
+Before every dashboard refresh, run `pnpm --filter @samchon/evidence-benchmark audit-suspensions` for the reported cohort, then generate the dashboard with `pnpm --filter @samchon/evidence-benchmark dashboard`; do not inspect workspace source to reconstruct its values. The audit may update only a run's `suspensions.json`; it must not modify `state.json` or a measured workspace. Group the dashboard by authorized model, keep one H2 per model, show only the latest launched run for each cell, and omit cells that have not launched. Under each model, render one summary table followed by each cell's retained stage list:
 
 ```markdown
 ## GPT-5.6-Terra
