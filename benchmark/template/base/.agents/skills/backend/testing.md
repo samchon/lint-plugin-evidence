@@ -78,8 +78,6 @@ Setup uses public operations:
 
 Do not seed the database directly. A required state that no public operation can establish is an API finding.
 
-An external delivery channel is not product state and is the exception to public-only setup. Email, SMS, webhook, payment-provider, and comparable secrets or callbacks must never be added to a public response merely so a test can obtain them. Inject a fake outbound adapter, observe the value at that trust boundary, and then exercise the next step through the public API. Also prove that the unauthenticated public response does not disclose the value, distinguish account existence, or otherwise substitute for control of the external channel. This is a test double for a real dependency, not permission to read or seed Prisma.
-
 The database is shared across tests and repeated runs. Assert against records and identifiers created by the scenario, never global emptiness, total row count, or an unscoped position.
 
 ## Helpers
@@ -144,7 +142,6 @@ Never:
 - use `any`, double casts, or suppression comments;
 - read Prisma directly for setup or proof;
 - decode token internals the DTO does not expose;
-- expose an external-channel secret, proof, or callback payload through a public DTO for test convenience;
 - weaken an assertion to make the suite pass; or
 - run the same target method/path twice in one scenario unless the second call is the behavior under test.
 

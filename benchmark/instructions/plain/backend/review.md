@@ -1,29 +1,31 @@
 # Backend Review
 
-Read `AGENTS.md`, `.agents/skills/review/SKILL.md`, and `.agents/skills/review/backend.md` in full. Apply their complete backend propagation procedure in a literal **review loop until dry**.
+Read `AGENTS.md`, `.agents/skills/review/SKILL.md`, and `.agents/skills/review/backend.md` in full before reviewing.
 
-## Acceptance Protocol
+Review the complete API and backend, not the frontend. Perform a literal **review loop until dry**:
 
-This entire Goal runs in the Codex read-only OS sandbox. Native shell commands and built-in patch tools cannot write the workspace. The runner-owned `review_edit_file` tool is the only direct source-edit path; runner-owned generator commands may update their derived outputs.
+In every round, read every product-scope file in one complete sorted manifest covering `docs/analysis/`, `packages/backend/prisma/schema/`, `packages/api/src/structures/`, `packages/backend/src/`, and `packages/backend/test/`, plus every API or backend configuration file that affects compilation, generation, persistence, or runtime behavior.
 
-1. Start every round with `review_start_round`. The runner owns the fresh canonical manifest and its hashes.
-2. Read every returned path in order only through one `review_read_file` call with that exact path. The tool returns one complete file and advances the external ledger. Shell reads, self-authored manifests, searches, excerpts, summaries, diffs, builds, tests, earlier reads, and partial passes count as zero.
-3. Keep the tool-owned reading phase read-only and retain every finding until its last file. A scoped mutation during reading is an irreversible benchmark failure; it cannot be repaired by starting another round.
-4. Finish with `review_finish_round`: use `findings` and every concrete finding; use `clean` and an empty list when no finding exists before calibration; use `dry` and an empty list only for the fresh post-calibration round.
-5. Only after a findings round is sealed, fix every finding and consequence through `review_edit_file` with `phase=correction`. Supply the exact current SHA-256 for replace or delete, and make exact, uniquely matched replacements. Run every generator and correction gate only through `review_run_backend_command` with `phase=correction`; each call owns its process tree until exit. Then calibrate.
-6. After a findings or clean round, call `review_start_calibration`. Use exactly one `review_edit_file` call with `phase=calibration-break` to break one material behavior, run `command=test, phase=calibration-fail`, use `review_edit_file` with `phase=calibration-restore` to reproduce the exact sealed manifest, run `command=test, phase=calibration-pass`, and start a new full round.
-7. Repeat without a round limit. After a dry seal, run `command=check-watch, phase=final`, then `command=test, phase=final`. Failure or change requires correction and a new round.
+1. Read every requirement in full and compare each one with the database, API, and backend tests.
+2. Read the complete database design and compare every model, field, and relation with the API operations and DTOs.
+3. Read every API operation, DTO, backend implementation, and backend test in full. Compare the API with its implementation and tests, and trace every implementation and test backward to its requirement.
+4. Finish the full round and collect every finding as the Review skill requires. Fix every finding and consequence, then wait for a clean `pnpm check:watch` rebuild from `packages/backend`.
+5. Start the next round from the first requirement. Repeat without a round limit until one full round finds no problem and makes no edit.
 
-Never write through native shell or built-in patch tools, read manifest files through shell, run backend generators or gates through native shell, overlap native commands, forge ledger state, or complete without the runner's dry seal and final gates. Report such an act for rejection. Cost, repetition, compaction, context pressure, or Final never permits a shorter round.
+Review loop until dry is literal full reading and unlimited repetition, not a figure of speech. Never replace or shorten it with:
+
+- searches, summaries, inventories, builds, tests, samples, or earlier rounds;
+- splitting the scope across rounds or assigning different files, layers, requirements, or review lenses to different rounds; every round must cover the entire scope;
+- a judgment that the review seems sufficient, efficient, comprehensive, repetitive, expensive, or unlikely to find more; or
+- an expectation that the later Final objective will finish or repeat the review.
 
 ## Final Checklist
 
-- [ ] Every instruction read in full and every scoped file returned in order through the runner-owned manifest and one-file read tool.
-- [ ] Every requirement, schema element, operation, DTO, implementation branch, and test propagated through every branch in `backend.md`.
-- [ ] Every finding and consequence fixed only after its full round; every change followed by a new full round.
-- [ ] Every scoped edit was runner-owned, hash-preconditioned, and recorded after a sealed findings round or inside calibration.
-- [ ] Runner tools proved fail-restore-pass against exact sealed bytes before the qualifying round.
-- [ ] Runner-owned generators and gates were serial, bounded, and left no descendants.
-- [ ] One final full round was dry and edit-free; unchanged runner-owned watcher and test followed.
+- [ ] Review skill gate followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
+- [ ] Every required instruction was read in full.
+- [ ] Every round began with one new complete sorted manifest; each command read only one manifest file, and every file was fully covered in order.
+- [ ] Every correction or later scoped change, including a gate fix, triggered a new full round from the first requirement.
+- [ ] Every finding and consequence fixed; derived artifacts regenerated.
+- [ ] Final full round dry and edit-free; the clean current backend gate left it unchanged.
 
-Any unchecked or uncertain item leaves the Goal active. Repeat from the first requirement.
+Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the literal full-reading Backend Review round from the first requirement.
