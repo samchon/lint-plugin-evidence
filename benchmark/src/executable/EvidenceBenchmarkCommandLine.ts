@@ -181,6 +181,21 @@ const main = async (): Promise<void> => {
       );
     if (retained.state.status === "rejected")
       throw new Error("Externally rejected benchmark runs cannot resume.");
+    if (
+      cell.checkpointSource !== undefined &&
+      retained.state.nativeThreadStartInstructionIndex === undefined
+    ) {
+      retained.state.nativeThreadStartInstructionIndex = 1;
+      const review = retained.state.goals.find((goal) => goal.index === 1);
+      const timeUsedSeconds: unknown = review?.goal?.timeUsedSeconds;
+      if (
+        review?.goal?.status === "complete" &&
+        typeof timeUsedSeconds === "number" &&
+        Number.isFinite(timeUsedSeconds) &&
+        timeUsedSeconds >= 0
+      )
+        review.elapsedMs = timeUsedSeconds * 1_000;
+    }
     assertRegularFile(records.state);
     await runBenchmark(cell, records, retained.state, runnerRevision);
     return;
@@ -382,8 +397,7 @@ const runFromBackendStartCheckpoint = async (props: {
       requested.reviewLedger === "backend"
         ? emptyTokenUsage()
         : structuredClone(start.tokenUsageEnd),
-    nativeThreadStartInstructionIndex:
-      requested.reviewLedger === "backend" ? 1 : undefined,
+    nativeThreadStartInstructionIndex: 1,
     goals: [structuredClone(start)],
     checkpoints: [structuredClone(checkpoint)],
     inheritedProcessElapsedMs: checkpoint.inheritedProcessElapsedMs,

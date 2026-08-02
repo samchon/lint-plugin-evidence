@@ -387,6 +387,7 @@ const main = async (): Promise<void> => {
         nextInstructionIndex: 1,
         status: "ready",
         threadTokenUsage: structuredClone(backendStart.tokenUsageEnd),
+        nativeThreadStartInstructionIndex: 1,
         goals: [structuredClone(backendStart)],
         checkpoints: [structuredClone(backendCheckpoint)],
         inheritedProcessElapsedMs: 1_000,
@@ -427,6 +428,7 @@ const main = async (): Promise<void> => {
     assert.equal(supervised.goals.length, 2);
     assert.equal(supervised.goals[1]?.name, "backend-review");
     assert.equal(supervised.goals[1]?.goal?.status, "complete");
+    assert.equal(supervised.goals[1]?.elapsedMs, 2_000);
     assert.equal(supervised.supervisionPauses?.length, 1);
     assert.equal(
       supervised.supervisionPauses?.[0]?.afterGoal,
@@ -556,6 +558,7 @@ const main = async (): Promise<void> => {
         nextInstructionIndex: 1,
         status: "ready",
         threadTokenUsage: structuredClone(backendStart.tokenUsageEnd),
+        nativeThreadStartInstructionIndex: 1,
         goals: [backendStart],
         checkpoints: [structuredClone(backendCheckpoint)],
         inheritedProcessElapsedMs: 1_000,
@@ -2833,7 +2836,7 @@ const fakeAppServer = (): void => {
       ? undispatchedUsed
         ? 1
         : 0
-      : 1,
+      : goalIndex,
     createdAt: 1,
     updatedAt: goalIndex + 1,
   });
