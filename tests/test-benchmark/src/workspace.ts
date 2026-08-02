@@ -51,6 +51,7 @@ const main = async (): Promise<void> => {
     const baseBackend: string = path.join(base, ".agents", "skills", "backend");
     fs.mkdirSync(baseBackend, { recursive: true });
     fs.writeFileSync(path.join(baseBackend, "SKILL.md"), "Old backend.\n");
+    fs.writeFileSync(path.join(baseBackend, "obsolete.md"), "Old only.\n");
     const plainOverlay: string = path.join(
       repository,
       "benchmark",
@@ -342,6 +343,7 @@ const main = async (): Promise<void> => {
     fs.writeFileSync(path.join(plainReview, "backend.md"), "Backend review.\n");
     fs.writeFileSync(path.join(baseBackend, "SKILL.md"), "Current backend.\n");
     fs.writeFileSync(path.join(baseBackend, "testing.md"), "Current tests.\n");
+    fs.rmSync(path.join(baseBackend, "obsolete.md"));
     fs.writeFileSync(
       path.join(base, "AGENTS.md"),
       "# AGENTS.md\n\nCurrent guidance for {{name}}.\n",
@@ -419,6 +421,12 @@ const main = async (): Promise<void> => {
         "utf8",
       ),
       "Current tests.\n",
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(restored, ".agents", "skills", "backend", "obsolete.md"),
+      ),
+      false,
     );
     assert.equal(
       fs.readFileSync(
