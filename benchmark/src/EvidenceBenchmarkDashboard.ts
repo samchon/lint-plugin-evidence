@@ -620,21 +620,9 @@ const retainedInstructionElapsed = (
 ): number => {
   if (instruction.index >= state.nextInstructionIndex)
     return instruction.elapsedMs;
-  const cumulative: number | undefined = instruction.goal?.timeUsedSeconds;
-  const previous: IDashboardInstruction | undefined = state.goals.find(
-    (candidate) => candidate.index === instruction.index - 1,
-  );
-  const baseline: number | undefined =
-    instruction.index === 0 ||
-    instruction.index === state.nativeThreadStartInstructionIndex
-      ? 0
-      : previous?.goal?.timeUsedSeconds;
-  return cumulative !== undefined &&
-    baseline !== undefined &&
-    Number.isFinite(cumulative) &&
-    Number.isFinite(baseline) &&
-    cumulative >= baseline
-    ? (cumulative - baseline) * 1_000
+  const used: number | undefined = instruction.goal?.timeUsedSeconds;
+  return used !== undefined && Number.isFinite(used) && used >= 0
+    ? used * 1_000
     : instruction.elapsedMs;
 };
 

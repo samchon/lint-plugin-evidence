@@ -2833,7 +2833,7 @@ const fakeAppServer = (): void => {
       ? undispatchedUsed
         ? 1
         : 0
-      : goalIndex,
+      : 1,
     createdAt: 1,
     updatedAt: goalIndex + 1,
   });
