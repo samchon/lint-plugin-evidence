@@ -35,6 +35,8 @@ const graph: IEvidenceGraphConfig = {
         files: ["docs/analysis/**/*.md"],
         symbol: ["h2", "h3"],
       },
+      // Remove after the complete schema passes build:prisma and schema.
+      disabled: true,
     },
     // A DTO type answers to the requirement it serves and the table it
     // represents. The rooted claim changes only the population base; the
@@ -58,6 +60,8 @@ const graph: IEvidenceGraphConfig = {
           symbol: ["model"],
         },
       ],
+      // Remove after every DTO and its truthful evidence mapping is complete.
+      disabled: true,
     },
     // A DTO property answers to the schema column it carries.
     {
@@ -71,6 +75,8 @@ const graph: IEvidenceGraphConfig = {
         files: ["prisma/schema/**/*.prisma"],
         symbol: ["column"],
       },
+      // Remove after every DTO and its truthful evidence mapping is complete.
+      disabled: true,
     },
     // The operations realize the requirements and expose the schema.
     {
@@ -95,6 +101,8 @@ const graph: IEvidenceGraphConfig = {
           symbol: ["model"],
         },
       ],
+      // Remove after every controller contract is complete and build:sdk passes.
+      disabled: true,
     },
     // The e2e suite verifies the requirements, every published operation, and
     // every shape the contract exchanges. TypeScript targets are cited as
@@ -123,6 +131,8 @@ const graph: IEvidenceGraphConfig = {
           symbol: ["type"],
         },
       ],
+      // Remove after every public-operation test and evidence mapping is complete.
+      disabled: true,
     },
     // Providers are deliberately outside the mechanical graph. Both arms
     // review operations, requirements, and schema invariants against provider

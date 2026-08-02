@@ -15,18 +15,18 @@ Complete these stages in order.
 
 ## Compiler Check
 
-`evidence/graph` starts checking `@evidence` and `@evidenceExclude` when the first page or journey function exists.
+`evidence/graph` starts checking `@evidence` and `@evidenceExclude` when a claim's `disabled` property is removed and the first page or journey function exists.
 
-Starting before that layer is complete emits hundreds or thousands of errors for tags not written yet. The output fills context and impairs implementation decisions.
+Removing `disabled` before that layer is complete emits hundreds or thousands of errors for tags not written yet. The output fills context and impairs implementation decisions.
 
-1. After every screen is complete, start frontend `pnpm dev`.
-   - Fix every diagnostic.
-   - Stop it after a reload without diagnostics.
-2. After every journey is complete, start frontend `pnpm dev` again.
-   - Fix every diagnostic and wait for a reload without diagnostics.
+Start `pnpm dev` from `packages/frontend` before implementation while every frontend claim is disabled.
+
+1. After every screen is complete, delete `disabled` from `frontend-screens`.
+   - Fix every diagnostic and complete their truthful evidence mappings.
+   - Wait for a reload without diagnostics.
+2. After every journey is complete, delete `disabled` from `frontend-journeys`.
+   - Fix every diagnostic, complete their truthful evidence mappings, and wait for a reload without diagnostics.
    - Keep it running through Overall Final.
-
-Run frontend `pnpm lint` and fix every diagnostic. Require exit code 0.
 
 ## Runtime Check
 
@@ -39,10 +39,11 @@ Run `pnpm test:e2e` with `VITE_API_SIMULATE=false`. Fix every failure. After the
 ## Final Checklist
 
 - [ ] Every required screen, state, interaction, and journey implemented.
-- [ ] The screen check finished before journey implementation began.
+- [ ] Every frontend claim is enabled; no other claim configuration changed.
+- [ ] `frontend-screens` was enabled before journey implementation began.
 - [ ] Every `@evidence` is on a page or journey that delivers or proves its linked requirement or page function.
 - [ ] Every `@evidenceExclude` names its owner or alternative and invalidating condition; none exists only to remove a diagnostic.
-- [ ] The screen-stage `pnpm dev` stopped after a reload without diagnostics; the journey-stage process remains running without diagnostics and frontend lint passes.
+- [ ] The persistent frontend `pnpm dev` process reloaded without diagnostics after the latest change and remains running.
 - [ ] Live-backend `pnpm test:e2e` exits with code 0 after the last frontend change.
 
 Any unchecked item leaves the Goal active. Complete that item before proceeding.

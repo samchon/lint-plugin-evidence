@@ -1,11 +1,18 @@
-# Overall Final
+Verify quoted Overall Review; prior reports are not proof.
 
-Did the preceding Overall Review satisfy the exact Overall Review instruction appended below as a blockquote?
+Confirm all four:
 
-Treat the preceding completion report as evidence, not proof. Check every quoted instruction and its Final Checklist.
+- Full scope, layer links, and live journeys were reviewed.
+- Every finding and consequence was fixed.
+- Every change triggered a new full round.
+- The last full round was dry and edit-free.
 
-If any item is unchecked or uncertain, the Goal Mode completion conditions are unmet. Perform the quoted Overall Review now from the first requirement and repeat until every item is checked.
+If any item is false or uncertain, repeat the quoted Review until all are true. Unsupported claims do not count.
 
-After the Review is proven complete, ensure backend `pnpm check:watch`, backend `pnpm dev`, and frontend `pnpm dev` are running and clean. Run `pnpm test` from `packages/backend`, then run `pnpm test:e2e` from `packages/frontend` with `VITE_API_SIMULATE=false`. These gates do not replace the Review.
+Final gates:
 
-Mark this Goal complete only after the quoted Review Final Checklist and all final gates are complete.
+- Backend `pnpm check:watch` and both backend/frontend `pnpm dev` processes remain clean.
+- `packages/backend`: `pnpm test` passes.
+- `packages/frontend`: `pnpm test:e2e` passes with `VITE_API_SIMULATE=false`.
+
+Complete only after review and gates pass.

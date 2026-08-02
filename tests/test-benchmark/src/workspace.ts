@@ -48,6 +48,10 @@ const main = async (): Promise<void> => {
       path.join(base, "AGENTS.md"),
       "# AGENTS.md\n\nBase guidance for {{name}}.\n",
     );
+    const baseBackend: string = path.join(base, ".agents", "skills", "backend");
+    fs.mkdirSync(baseBackend, { recursive: true });
+    fs.writeFileSync(path.join(baseBackend, "SKILL.md"), "Old backend.\n");
+    fs.writeFileSync(path.join(baseBackend, "obsolete.md"), "Old only.\n");
     const plainOverlay: string = path.join(
       repository,
       "benchmark",
@@ -296,10 +300,6 @@ const main = async (): Promise<void> => {
     assert.equal(inputAfter.requirementsSha256, inputBefore.requirementsSha256);
     assert.equal(inputAfter.instructionsSha256, inputBefore.instructionsSha256);
 
-    fs.writeFileSync(
-      path.join(prepared.workspace, "AGENTS.md"),
-      "# AGENTS.md\n\nCheckpoint guidance.\n",
-    );
     fs.rmSync(path.join(prepared.workspace, "plain-only.txt"));
     fs.writeFileSync(
       path.join(prepared.workspace, "feature.ts"),
@@ -341,10 +341,93 @@ const main = async (): Promise<void> => {
     });
     fs.writeFileSync(path.join(plainReview, "SKILL.md"), "Current review.\n");
     fs.writeFileSync(path.join(plainReview, "backend.md"), "Backend review.\n");
-    EvidenceBenchmarkCheckpoint.applyReviewSkill({
-      workspace: restored,
-      source: plainReview,
-    });
+    fs.writeFileSync(path.join(baseBackend, "SKILL.md"), "Current backend.\n");
+    fs.writeFileSync(path.join(baseBackend, "testing.md"), "Current tests.\n");
+    fs.rmSync(path.join(baseBackend, "obsolete.md"));
+    fs.writeFileSync(
+      path.join(base, "AGENTS.md"),
+      "# AGENTS.md\n\nCurrent guidance for {{name}}.\n",
+    );
+    const instructionSurface =
+      EvidenceBenchmarkWorkspace.prepareInstructionSurface({
+        repository,
+        arm: "plain",
+        variables: {
+          name: "fixture",
+          apiPackageName: "@fixture/api",
+          backendPackageName: "@fixture/backend",
+          frontendPackageName: "@fixture/frontend",
+        },
+      });
+    const checkpointAgents = fs.readFileSync(path.join(restored, "AGENTS.md"));
+    fs.appendFileSync(path.join(restored, "AGENTS.md"), "forbidden\n");
+    assert.throws(
+      () =>
+        EvidenceBenchmarkCheckpoint.applyInstructionSurface({
+          workspace: restored,
+          source: instructionSurface,
+        }),
+      /instruction surface was modified before recovery/u,
+    );
+    fs.writeFileSync(path.join(restored, "AGENTS.md"), checkpointAgents);
+    const restoredBackendSkill: string = path.join(
+      restored,
+      ".agents",
+      "skills",
+      "backend",
+      "SKILL.md",
+    );
+    const checkpointBackendSkill: Buffer =
+      fs.readFileSync(restoredBackendSkill);
+    fs.appendFileSync(restoredBackendSkill, "forbidden\n");
+    assert.throws(
+      () =>
+        EvidenceBenchmarkCheckpoint.applyInstructionSurface({
+          workspace: restored,
+          source: instructionSurface,
+        }),
+      /instruction surface was modified before recovery/u,
+    );
+    assert.deepEqual(
+      fs.readFileSync(path.join(restored, "AGENTS.md")),
+      checkpointAgents,
+    );
+    fs.writeFileSync(restoredBackendSkill, checkpointBackendSkill);
+    let instructionSurfaceSha256: string;
+    try {
+      instructionSurfaceSha256 =
+        EvidenceBenchmarkCheckpoint.applyInstructionSurface({
+          workspace: restored,
+          source: instructionSurface,
+        });
+    } finally {
+      fs.rmSync(instructionSurface, { recursive: true, force: true });
+    }
+    assert.match(instructionSurfaceSha256, /^[0-9a-f]{64}$/u);
+    assert.equal(
+      fs.readFileSync(path.join(restored, "AGENTS.md"), "utf8"),
+      "# AGENTS.md\n\nCurrent guidance for fixture.\n",
+    );
+    assert.equal(
+      fs.readFileSync(
+        path.join(restored, ".agents", "skills", "backend", "SKILL.md"),
+        "utf8",
+      ),
+      "Current backend.\n",
+    );
+    assert.equal(
+      fs.readFileSync(
+        path.join(restored, ".agents", "skills", "backend", "testing.md"),
+        "utf8",
+      ),
+      "Current tests.\n",
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(restored, ".agents", "skills", "backend", "obsolete.md"),
+      ),
+      false,
+    );
     assert.equal(
       fs.readFileSync(
         path.join(restored, ".agents", "skills", "review", "SKILL.md"),
@@ -359,6 +442,56 @@ const main = async (): Promise<void> => {
       ),
       "Backend review.\n",
     );
+    const evidenceInstructionSurface =
+      EvidenceBenchmarkWorkspace.prepareInstructionSurface({
+        repository,
+        arm: "evidence",
+        variables: {
+          name: "fixture",
+          apiPackageName: "@fixture/api",
+          backendPackageName: "@fixture/backend",
+          frontendPackageName: "@fixture/frontend",
+        },
+      });
+    try {
+      assert.equal(
+        fs.readFileSync(
+          path.join(evidenceInstructionSurface, "AGENTS.md"),
+          "utf8",
+        ),
+        [
+          "# AGENTS.md",
+          "",
+          "Current guidance for fixture.",
+          "",
+          "",
+          "Evidence guidance for @fixture/api.",
+          "",
+        ].join("\n"),
+      );
+      assert.equal(
+        fs.readFileSync(
+          path.join(
+            evidenceInstructionSurface,
+            ".agents",
+            "skills",
+            "evidence",
+            "SKILL.md",
+          ),
+          "utf8",
+        ),
+        "# Evidence graph\n\n@evidence forbidden\n",
+      );
+      assert.equal(
+        fs.existsSync(path.join(evidenceInstructionSurface, "plain-only.txt")),
+        false,
+      );
+    } finally {
+      fs.rmSync(evidenceInstructionSurface, {
+        recursive: true,
+        force: true,
+      });
+    }
     const restoredStatus = spawnSync(
       "git",
       ["status", "--porcelain=v1", "--untracked-files=all"],

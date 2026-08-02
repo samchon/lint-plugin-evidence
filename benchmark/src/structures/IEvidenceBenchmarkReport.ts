@@ -19,7 +19,16 @@ export interface IEvidenceBenchmarkReportCell {
   benchmarkRevision: string;
   model: string;
   effort: EvidenceBenchmarkEffort;
-  status: "ready" | "running" | "interrupted" | "completed";
+  /** Explicit external review-ledger treatment, when selected. */
+  reviewLedger?: "backend";
+  status:
+    | "ready"
+    | "running"
+    | "checkpointed"
+    | "awaiting-supervision"
+    | "rejected"
+    | "interrupted"
+    | "completed";
   stage: string | null;
   launchedAt: string;
   tokens: number;

@@ -17,18 +17,20 @@ Complete these stages in order.
 
 ## Compiler Check
 
-`evidence/graph` starts checking `@evidence` and `@evidenceExclude` when the first Prisma model, DTO, controller operation, or test function exists.
+`evidence/graph` starts checking `@evidence` and `@evidenceExclude` when a claim's `disabled` property is removed and the first Prisma model, DTO, controller operation, or test function exists.
 
-Starting before that layer is complete emits hundreds or thousands of errors for tags not written yet. The output fills context and impairs implementation decisions.
+Removing `disabled` before that layer is complete emits hundreds or thousands of errors for tags not written yet. The output fills context and impairs implementation decisions.
 
-1. After the Prisma schema is complete, start `pnpm check:watch`.
-   - Fix every diagnostic.
-   - Stop it after a rebuild without diagnostics.
-2. After every DTO and controller is complete, start `pnpm check:watch` again.
-   - Fix every diagnostic.
-   - Stop it after a rebuild without diagnostics.
-3. After every public-operation test is written, start `pnpm check:watch` again.
-   - Fix every diagnostic and wait for a rebuild without diagnostics.
+Start `pnpm check:watch` from `packages/backend` before implementation while every backend claim is disabled.
+
+1. After the Prisma schema is complete, delete `disabled` from `schema-models`.
+   - Fix every diagnostic and complete its truthful evidence mapping.
+   - Wait for a rebuild without diagnostics.
+2. After every DTO and controller is complete, delete `disabled` from `dto-types`, `dto-properties`, and `api-operations`.
+   - Fix every diagnostic and complete their truthful evidence mappings.
+   - Wait for a rebuild without diagnostics.
+3. After every public-operation test is written, delete `disabled` from `backend-tests`.
+   - Fix every diagnostic, complete its truthful evidence mapping, and wait for a rebuild without diagnostics.
    - Keep it running through Overall Final.
 4. Finish every provider and controller body while the watcher runs.
    - Fix every new diagnostic and wait for a rebuild without diagnostics.
@@ -39,9 +41,10 @@ Keep the watcher running because `pnpm test` does not report every type or lint 
 ## Final Checklist
 
 - [ ] Every required schema model, DTO, controller, public-operation test, and provider implemented.
+- [ ] Every backend claim is enabled; no other claim configuration changed.
 - [ ] Every `@evidence` is on code that implements, represents, or proves its linked requirement, Prisma item, API operation, or DTO.
 - [ ] Every `@evidenceExclude` names its owner or alternative and invalidating condition; none exists only to remove a diagnostic.
-- [ ] The schema and API watchers stopped after a rebuild without diagnostics; the test-stage watcher remains running without diagnostics.
+- [ ] The persistent watcher rebuilt without diagnostics after the latest change and remains running.
 - [ ] Prisma generation followed the last schema change, SDK generation followed the last API change, and `pnpm test` exits with code 0.
 
 Any unchecked item leaves the Goal active. Complete that item before proceeding.

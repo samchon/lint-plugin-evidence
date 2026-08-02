@@ -10,6 +10,7 @@ import {
   parseEvidenceBenchmarkArguments,
   readEvidenceBenchmarkRevision,
   sameEvidenceBenchmarkRecordPaths,
+  shouldResumeEvidenceBenchmark,
 } from "../../../benchmark/src/executable/EvidenceBenchmarkCommandLine.ts";
 
 /**
@@ -43,6 +44,33 @@ const main = (): void => {
       effort: "high",
       runId,
       checkpointRunId: undefined,
+      stopAfter: undefined,
+      supervision: undefined,
+      reviewLedger: undefined,
+    },
+  );
+  assert.deepEqual(
+    parseEvidenceBenchmarkArguments([
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      runId,
+      "--supervise-backend",
+      "--review-ledger",
+    ]),
+    {
+      engine: "codex",
+      subject: "todo",
+      arm: "plain",
+      model: "gpt-5.6-luna",
+      effort: "high",
+      runId,
+      checkpointRunId: undefined,
+      stopAfter: undefined,
+      supervision: "backend",
+      reviewLedger: "backend",
     },
   );
   assert.deepEqual(
@@ -61,6 +89,9 @@ const main = (): void => {
       effort: "medium",
       runId: undefined,
       checkpointRunId: undefined,
+      stopAfter: undefined,
+      supervision: undefined,
+      reviewLedger: undefined,
     },
   );
   assert.deepEqual(
@@ -81,11 +112,140 @@ const main = (): void => {
       effort: "high",
       runId: undefined,
       checkpointRunId: runId,
+      stopAfter: undefined,
+      supervision: undefined,
+      reviewLedger: undefined,
+    },
+  );
+  assert.deepEqual(
+    parseEvidenceBenchmarkArguments([
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      runId,
+      "--stop-after-backend-start",
+    ]),
+    {
+      engine: "codex",
+      subject: "todo",
+      arm: "plain",
+      model: "gpt-5.6-luna",
+      effort: "high",
+      runId,
+      checkpointRunId: undefined,
+      stopAfter: "backend-start",
+      supervision: undefined,
+      reviewLedger: undefined,
+    },
+  );
+  assert.deepEqual(
+    parseEvidenceBenchmarkArguments([
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      "--stop-after-backend-start",
+    ]),
+    {
+      engine: "codex",
+      subject: "todo",
+      arm: "plain",
+      model: "gpt-5.6-luna",
+      effort: "high",
+      runId: undefined,
+      checkpointRunId: undefined,
+      stopAfter: "backend-start",
+      supervision: undefined,
+      reviewLedger: undefined,
+    },
+  );
+  assert.deepEqual(
+    parseEvidenceBenchmarkArguments([
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      "--from-backend-start",
+      runId,
+      "--supervise-backend",
+    ]),
+    {
+      engine: "codex",
+      subject: "todo",
+      arm: "plain",
+      model: "gpt-5.6-luna",
+      effort: "high",
+      runId: undefined,
+      checkpointRunId: runId,
+      stopAfter: undefined,
+      supervision: "backend",
+      reviewLedger: undefined,
+    },
+  );
+  assert.deepEqual(
+    parseEvidenceBenchmarkArguments([
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      runId,
+      "--supervise-backend",
+    ]),
+    {
+      engine: "codex",
+      subject: "todo",
+      arm: "plain",
+      model: "gpt-5.6-luna",
+      effort: "high",
+      runId,
+      checkpointRunId: undefined,
+      stopAfter: undefined,
+      supervision: "backend",
+      reviewLedger: undefined,
+    },
+  );
+  assert.deepEqual(
+    parseEvidenceBenchmarkArguments([
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      "--from-backend-start",
+      runId,
+      "--supervise-backend",
+      "--review-ledger",
+    ]),
+    {
+      engine: "codex",
+      subject: "todo",
+      arm: "plain",
+      model: "gpt-5.6-luna",
+      effort: "high",
+      runId: undefined,
+      checkpointRunId: runId,
+      stopAfter: undefined,
+      supervision: "backend",
+      reviewLedger: "backend",
     },
   );
   for (const input of [
     ["codex", "todo", "plain", "gpt-5.6-luna"],
     ["codex", "todo", "plain", "gpt-5.6-luna", "high", runId, "extra"],
+    [
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      "--from-backend-start",
+      "--stop-after-backend-start",
+    ],
     ["claude-code", "todo", "plain", "gpt-5.6-luna", "high"],
     ["codex", "../todo", "plain", "gpt-5.6-luna", "high"],
     ["codex", "todo", "unknown", "gpt-5.6-luna", "high"],
@@ -96,17 +256,84 @@ const main = (): void => {
     [
       "codex",
       "todo",
+      "evidence",
+      "gpt-5.6-luna",
+      "high",
+      "--supervise-backend",
+    ],
+    [
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      "--stop-after-backend-start",
+      "--supervise-backend",
+    ],
+    [
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      runId,
+      "--from-backend-start",
+      runId,
+    ],
+    [
+      "codex",
+      "todo",
       "plain",
       "gpt-5.6-luna",
       "high",
       "--from-backend-start",
       "not-a-run",
     ],
+    ["codex", "todo", "plain", "gpt-5.6-luna", "high", "--review-ledger"],
+    [
+      "codex",
+      "todo",
+      "plain",
+      "gpt-5.6-luna",
+      "high",
+      "--from-backend-start",
+      runId,
+      "--review-ledger",
+    ],
+    [
+      "codex",
+      "todo",
+      "evidence",
+      "gpt-5.6-luna",
+      "high",
+      "--from-backend-start",
+      runId,
+      "--supervise-backend",
+      "--review-ledger",
+    ],
   ])
     assert.throws(
       () => parseEvidenceBenchmarkArguments(input),
       `Invalid launch identity was accepted: ${input.join(" ")}`,
     );
+
+  assert.equal(
+    shouldResumeEvidenceBenchmark({
+      runId,
+      stopAfter: "backend-start",
+      stateExists: false,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldResumeEvidenceBenchmark({ runId, stateExists: true }),
+    true,
+  );
+  assert.equal(shouldResumeEvidenceBenchmark({ stateExists: false }), false);
+  assert.throws(
+    () => shouldResumeEvidenceBenchmark({ runId, stateExists: false }),
+    /does not name a retained benchmark/u,
+  );
 
   const repository: string = fs.mkdtempSync(
     path.join(os.tmpdir(), "evidence-benchmark-command-"),

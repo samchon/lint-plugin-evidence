@@ -97,8 +97,39 @@ const main = (): void => {
       status: "running",
       nextInstructionIndex: 1,
       totalTokens: 1_600_000,
+      tokenUsage: tokenUsage(1_600_000),
       initialTokenUsage: tokenUsage(900_000),
       requests: [tokenUsage(700_000)],
+      nativeThreadStartInstructionIndex: 1,
+      goals: [
+        goal(0, "backend-start", 900_000, 61_000, 120, tokenUsage(900_000)),
+        goal(1, "backend-review", 0, 0),
+      ],
+      processes: [{ elapsedMs: 10_000, exitCode: null, signal: null }],
+      outputEvents: [{ processIndex: 0, elapsedMs: 65_000 }],
+      inheritedProcessElapsedMs: 61_000,
+      inheritedWallElapsedMs: 30 * 60 * 1_000,
+      checkpointSourceRunId: "old",
+      supervisionPauses: [
+        {
+          pausedAt: "2026-07-31T02:00:00.000Z",
+          resumedAt: "2026-07-31T02:15:00.000Z",
+        },
+      ],
+    });
+    writeRun({
+      repository,
+      subject: "todo",
+      arm: "plain",
+      runId: "detached",
+      workspace: plainWorkspace,
+      launchedAt: "2026-07-31T00:30:00.000Z",
+      status: "running",
+      nextInstructionIndex: 1,
+      totalTokens: 700_000,
+      requests: [tokenUsage(700_000)],
+      nativeThreadStartInstructionIndex: 1,
+      reviewLedger: "backend",
       goals: [
         goal(0, "backend-start", 900_000, 61_000, 120, tokenUsage(900_000)),
         goal(1, "backend-review", 0, 0),
@@ -117,7 +148,7 @@ const main = (): void => {
       workspace: evidenceWorkspace,
       launchedAt: "2026-07-31T02:00:00.000Z",
       status: "completed",
-      nextInstructionIndex: 8,
+      nextInstructionIndex: 6,
       totalTokens: 400_000,
       tokenUsage: {
         totalTokens: 400_000,
@@ -151,9 +182,7 @@ const main = (): void => {
         goal(2, "backend-final", 25_000, 200_000),
         goal(3, "frontend-start", 75_000, 500_000),
         goal(4, "frontend-review", 50_000, 600_000),
-        goal(5, "frontend-final", 25_000, 300_000),
-        goal(6, "overall-review", 75_000, 800_000),
-        goal(7, "overall-final", 50_000, 560_000),
+        goal(5, "frontend-final", 150_000, 1_660_000),
       ],
       processes: [{ elapsedMs: 3_660_000, exitCode: 0, signal: null }],
       outputEvents: [],
@@ -201,7 +230,7 @@ const main = (): void => {
     );
     assert.match(
       dashboard,
-      /^\| Todo Evidence \| `overall-final` · completed \| 0 files · \+0\/−0 LOC \| 0M \| 1h 01m \|$/mu,
+      /^\| Todo Evidence \| `frontend-final` · completed \| 0 files · \+0\/−0 LOC \| 0M \| 1h 01m \|$/mu,
     );
     assert.match(
       dashboard,
@@ -218,7 +247,7 @@ const main = (): void => {
     );
     assert.match(
       dashboard,
-      /^  - `overall-final`: 0M · 9m · 13% tokens · 15% time$/mu,
+      /^  - `frontend-final`: 0M · 28m · 38% tokens · 45% time$/mu,
     );
     assert.match(
       dashboard,
@@ -301,7 +330,7 @@ const main = (): void => {
     assert.ok(redditPlain);
     assert.equal(redditPlain.apiCost?.amountUsd, 3.135);
     assert.equal(todoPlain.workElapsedMs, 126_000);
-    assert.equal(todoPlain.wallElapsedMs, 3.5 * 60 * 60 * 1_000);
+    assert.equal(todoPlain.wallElapsedMs, 3.25 * 60 * 60 * 1_000);
     assert.deepEqual(todoPlain.worktree, {
       files: 2,
       additions: 2,
@@ -323,6 +352,17 @@ const main = (): void => {
         timePercent: 5,
       },
     ]);
+    const detached: IEvidenceBenchmarkReport = writeEvidenceBenchmarkReport({
+      repository,
+      output: path.join(repository, "detached"),
+      generatedAt,
+      runIds: ["detached"],
+    });
+    assert.equal(detached.cells[0]?.tokens, 1_600_000);
+    assert.deepEqual(
+      detached.cells[0]?.stages.map((stage) => stage.tokens),
+      [900_000, 700_000],
+    );
     assert.deepEqual(
       JSON.parse(
         fs.readFileSync(path.join(reportOutput, "summary.json"), "utf8"),
@@ -389,11 +429,7 @@ const main = (): void => {
     );
     assert.match(
       tokensSvg,
-      /data-phase="frontend-review" data-tokens="75000"/u,
-    );
-    assert.match(
-      tokensSvg,
-      /data-phase="overall-review" data-tokens="125000"/u,
+      /data-phase="frontend-review" data-tokens="200000"/u,
     );
     assert.match(tokensSvg, /1\.6M tokens/u);
     assert.match(tokensSvg, /400k tokens \(-75%\)/u);
@@ -434,8 +470,10 @@ const main = (): void => {
       workTimeSvg,
       /data-phase="frontend-development" data-ms="500000"/u,
     );
-    assert.match(workTimeSvg, /data-phase="frontend-review" data-ms="900000"/u);
-    assert.match(workTimeSvg, /data-phase="overall-review" data-ms="1360000"/u);
+    assert.match(
+      workTimeSvg,
+      /data-phase="frontend-review" data-ms="2260000"/u,
+    );
     assert.match(workTimeSvg, />1h 01m</u);
     assert.equal(workTimeSvg.includes("Stage: backend-review"), false);
     const svgChartFiles: readonly string[] = [
@@ -470,7 +508,7 @@ const main = (): void => {
     );
     assert.match(
       fs.readFileSync(path.join(reportOutput, "wall-time.svg"), "utf8"),
-      />3h 30m</u,
+      />3h 15m</u,
     );
     const historicalOutput: string = path.join(repository, "historical");
     const historical: IEvidenceBenchmarkReport = writeEvidenceBenchmarkReport({
@@ -604,7 +642,14 @@ const writeRun = (props: {
   runId: string;
   workspace: string;
   launchedAt: string;
-  status: "ready" | "running" | "interrupted" | "completed";
+  status:
+    | "ready"
+    | "running"
+    | "checkpointed"
+    | "awaiting-supervision"
+    | "rejected"
+    | "interrupted"
+    | "completed";
   nextInstructionIndex: number;
   totalTokens: number;
   tokenUsage?: ReturnType<typeof tokenUsage>;
@@ -615,7 +660,7 @@ const writeRun = (props: {
     goal?: { timeUsedSeconds: number };
     index: number;
     name: string;
-    tokenUsage: { totalTokens: number };
+    tokenUsage: { totalTokens: number } | ReturnType<typeof tokenUsage>;
     tokenUsageEnd?: ReturnType<typeof tokenUsage>;
   }[];
   processes: {
@@ -628,6 +673,12 @@ const writeRun = (props: {
   inheritedProcessElapsedMs?: number;
   inheritedWallElapsedMs?: number;
   checkpointSourceRunId?: string;
+  reviewLedger?: "backend";
+  nativeThreadStartInstructionIndex?: number;
+  supervisionPauses?: {
+    pausedAt: string;
+    resumedAt?: string;
+  }[];
 }): void => {
   const root: string = path.join(
     props.repository,
@@ -673,6 +724,9 @@ const writeRun = (props: {
           benchmarkRevision: "fixture-revision",
           model: props.model ?? "gpt-5.6-luna",
           effort: "high",
+          ...(props.reviewLedger === undefined
+            ? {}
+            : { reviewLedger: props.reviewLedger }),
           ...(props.inheritedWallElapsedMs === undefined
             ? {}
             : {
@@ -691,8 +745,11 @@ const writeRun = (props: {
           status: props.status,
           nextInstructionIndex: props.nextInstructionIndex,
           threadTokenUsage: expectedUsage,
+          nativeThreadStartInstructionIndex:
+            props.nativeThreadStartInstructionIndex,
           goals: props.goals,
           processes: props.processes,
+          supervisionPauses: props.supervisionPauses,
           ...(props.inheritedProcessElapsedMs === undefined
             ? {}
             : {
@@ -744,14 +801,14 @@ const goal = (
   goal?: { timeUsedSeconds: number };
   index: number;
   name: string;
-  tokenUsage: { totalTokens: number };
+  tokenUsage: { totalTokens: number } | ReturnType<typeof tokenUsage>;
   tokenUsageEnd?: ReturnType<typeof tokenUsage>;
 } => ({
   elapsedMs,
   ...(timeUsedSeconds === undefined ? {} : { goal: { timeUsedSeconds } }),
   index,
   name,
-  tokenUsage: { totalTokens },
+  tokenUsage: tokenUsageEnd ?? { totalTokens },
   ...(tokenUsageEnd === undefined ? {} : { tokenUsageEnd }),
 });
 

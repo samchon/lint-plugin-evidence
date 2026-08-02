@@ -1,0 +1,138 @@
+import net from "node:net";
+
+import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm.ts";
+
+/** Assigns and validates process-level resources owned by one benchmark cell. */
+export namespace EvidenceBenchmarkRuntime {
+  /** Default first port in the eight-cell benchmark allocation. */
+  export const DEFAULT_PORT_BASE = 46_000;
+
+  /** Network endpoints reserved for one subject and arm. */
+  export interface IAssignment {
+    /** Nest application port inherited by backend commands and tests. */
+    apiPort: number;
+
+    /** Standalone Swagger server port. */
+    swaggerPort: number;
+
+    /** Vite development server port. */
+    viteDevelopmentPort: number;
+
+    /** Vite preview port owned by Playwright. */
+    playwrightPort: number;
+
+    /** Public HTTP origin corresponding to {@link apiPort}. */
+    apiHost: string;
+  }
+
+  /** Returns one stable, disjoint four-port block for a benchmark cell. */
+  export function assign(
+    subject: string,
+    arm: EvidenceBenchmarkArm,
+    portBase: number = DEFAULT_PORT_BASE,
+  ): IAssignment {
+    const subjects = ["todo", "reddit", "shopping", "erp"] as const;
+    const arms: readonly EvidenceBenchmarkArm[] = ["evidence", "plain"];
+    const subjectIndex: number = subjects.indexOf(
+      subject as (typeof subjects)[number],
+    );
+    const armIndex: number = arms.indexOf(arm);
+    if (subjectIndex === -1 || armIndex === -1)
+      throw new Error(`Unknown benchmark cell: ${subject}/${arm}.`);
+    if (
+      !Number.isInteger(portBase) ||
+      portBase < 1 ||
+      portBase + (subjects.length * arms.length - 1) * 10 + 3 > 65_535
+    )
+      throw new Error(
+        `Benchmark port base must be an integer between 1 and 65462: ${String(portBase)}.`,
+      );
+    const base: number =
+      portBase + (subjectIndex * arms.length + armIndex) * 10;
+    return {
+      apiPort: base,
+      swaggerPort: base + 1,
+      viteDevelopmentPort: base + 2,
+      playwrightPort: base + 3,
+      apiHost: `http://127.0.0.1:${base}`,
+    };
+  }
+
+  /** Overrides inherited machine values with the cell-owned endpoints. */
+  export function apply(
+    environment: NodeJS.ProcessEnv,
+    assignment: IAssignment,
+  ): void {
+    environment.API_PORT = String(assignment.apiPort);
+    environment.SWAGGER_PORT = String(assignment.swaggerPort);
+    environment.VITE_API_HOST = assignment.apiHost;
+    environment.VITE_DEV_PORT = String(assignment.viteDevelopmentPort);
+    environment.PLAYWRIGHT_TEST_PORT = String(assignment.playwrightPort);
+  }
+
+  /** Fails before model use when any selected endpoint is already occupied. */
+  export async function assertAvailable(
+    assignments: readonly IAssignment[],
+  ): Promise<void> {
+    const owners: Map<number, string> = new Map();
+    for (const assignment of assignments)
+      for (const [name, port] of ports(assignment)) {
+        const prior: string | undefined = owners.get(port);
+        if (prior !== undefined)
+          throw new Error(
+            `Benchmark runtime port ${port} is assigned to both ${prior} and ${name}.`,
+          );
+        owners.set(port, name);
+      }
+    await Promise.all(
+      [...owners].map(([port, name]) => assertPortAvailable(port, name)),
+    );
+  }
+
+  /** Compares retained runtime identity without depending on object order. */
+  export function equals(
+    x: IAssignment | undefined,
+    y: IAssignment | undefined,
+  ): boolean {
+    if (x === undefined || y === undefined) return x === y;
+    return (
+      x.apiPort === y.apiPort &&
+      x.swaggerPort === y.swaggerPort &&
+      x.viteDevelopmentPort === y.viteDevelopmentPort &&
+      x.playwrightPort === y.playwrightPort &&
+      x.apiHost === y.apiHost
+    );
+  }
+
+  const ports = (
+    assignment: IAssignment,
+  ): readonly (readonly [string, number])[] => [
+    ["api", assignment.apiPort],
+    ["swagger", assignment.swaggerPort],
+    ["vite-development", assignment.viteDevelopmentPort],
+    ["playwright", assignment.playwrightPort],
+  ];
+
+  const assertPortAvailable = async (
+    port: number,
+    name: string,
+  ): Promise<void> => {
+    await new Promise<void>((resolve, reject) => {
+      const server: net.Server = net.createServer();
+      server.unref();
+      server.once("error", (cause) =>
+        reject(
+          new Error(
+            `Benchmark ${name} port ${port} is unavailable before launch.`,
+            { cause },
+          ),
+        ),
+      );
+      server.listen({ host: "127.0.0.1", port, exclusive: true }, () =>
+        server.close((cause) =>
+          cause === undefined ? resolve() : reject(cause),
+        ),
+      );
+    });
+  };
+}

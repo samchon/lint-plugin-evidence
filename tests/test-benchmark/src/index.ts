@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
 
 import { EvidenceBenchmarkRunner } from "../../../benchmark/src/EvidenceBenchmarkRunner.ts";
+import { EvidenceBenchmarkReviewLedger } from "../../../benchmark/src/EvidenceBenchmarkReviewLedger.ts";
+import { EvidenceBenchmarkSupervision } from "../../../benchmark/src/EvidenceBenchmarkSupervision.ts";
+import { assertAppendOnlyInstructionExtension } from "../../../benchmark/src/executable/EvidenceBenchmarkCommandLine.ts";
+import type { IEvidenceBenchmarkGoalRecord } from "../../../benchmark/src/structures/IEvidenceBenchmarkGoalRecord.ts";
 import type { IEvidenceBenchmarkOutput } from "../../../benchmark/src/structures/IEvidenceBenchmarkOutput.ts";
 import type { IEvidenceBenchmarkRunState } from "../../../benchmark/src/structures/IEvidenceBenchmarkRunState.ts";
 import type { IEvidenceBenchmarkTokenUsage } from "../../../benchmark/src/structures/IEvidenceBenchmarkTokenUsage.ts";
@@ -24,11 +29,14 @@ const EVIDENCE_ENTRIES = [
 const PLAIN_ENTRIES = [
   ["backend-start", "plain/backend/start.md"],
   ["backend-review", "plain/backend/review.md"],
+  ["backend-remind", "plain/backend/remind.md"],
   ["backend-final", "plain/backend/final.md"],
   ["frontend-start", "plain/frontend/start.md"],
   ["frontend-review", "plain/frontend/review.md"],
+  ["frontend-remind", "plain/frontend/remind.md"],
   ["frontend-final", "plain/frontend/final.md"],
   ["overall-review", "plain/overall/review.md"],
+  ["overall-remind", "plain/overall/remind.md"],
   ["overall-final", "plain/overall/final.md"],
 ] as const;
 
@@ -54,6 +62,7 @@ const main = async (): Promise<void> => {
   );
   try {
     const sources: Map<string, Buffer> = writeInstructions(root);
+    await testReviewLedger(path.join(root, "review-workspace"));
     assert.deepEqual(
       EvidenceBenchmarkRunner.instructionEntries("evidence"),
       EVIDENCE_ENTRIES,
@@ -61,6 +70,10 @@ const main = async (): Promise<void> => {
     assert.deepEqual(
       EvidenceBenchmarkRunner.instructionEntries("plain"),
       PLAIN_ENTRIES,
+    );
+    assert.deepEqual(
+      EvidenceBenchmarkRunner.instructionEntries("plain", false),
+      PLAIN_ENTRIES.filter(([name]) => !name.endsWith("-remind")),
     );
     assert.equal(
       EvidenceBenchmarkRunner.instructionContinuationPath("evidence"),
@@ -77,7 +90,7 @@ const main = async (): Promise<void> => {
       PLAIN_ENTRIES.some((entry) => evidencePaths.has(entry[1])),
       false,
     );
-    PLAIN_ENTRIES.forEach((entry, index) =>
+    PLAIN_ENTRIES.slice(0, EVIDENCE_ENTRIES.length).forEach((entry, index) =>
       assert.notDeepEqual(
         sources.get(entry[1]),
         sources.get(EVIDENCE_ENTRIES[index]![1]),
@@ -90,6 +103,18 @@ const main = async (): Promise<void> => {
     assert.equal(
       readPrescribed(sources, "evidence/backend/final.md"),
       sources.get("evidence/backend/final.md")!.toString("utf8"),
+    );
+    assert.notEqual(
+      readPrescribed(sources, "plain/backend/remind.md"),
+      sources.get("plain/backend/remind.md")!.toString("utf8"),
+    );
+    assert.notEqual(
+      readPrescribed(sources, "plain/frontend/remind.md"),
+      sources.get("plain/frontend/remind.md")!.toString("utf8"),
+    );
+    assert.notEqual(
+      readPrescribed(sources, "plain/overall/remind.md"),
+      sources.get("plain/overall/remind.md")!.toString("utf8"),
     );
     assert.notEqual(
       readPrescribed(sources, "plain/backend/final.md"),
@@ -214,6 +239,17 @@ const main = async (): Promise<void> => {
     assert.equal(completed.cliVersion, "fixture-cli");
     assert.equal(completed.nextInstructionIndex, ENTRIES.length);
     assert.equal(completed.goals.length, ENTRIES.length);
+    const appendedBoundary = structuredClone(completed);
+    appendedBoundary.goals = appendedBoundary.goals.slice(0, 6);
+    appendedBoundary.nextInstructionIndex = 6;
+    assert.doesNotThrow(() =>
+      assertAppendOnlyInstructionExtension("evidence", appendedBoundary),
+    );
+    appendedBoundary.goals[5]!.threadIdle = false;
+    assert.throws(
+      () => assertAppendOnlyInstructionExtension("evidence", appendedBoundary),
+      /preserve every completed Goal boundary/u,
+    );
     assert.equal(completed.processes.length, 1);
     assert.equal(completed.processes[0]!.exitCode, 0);
     assert.equal(completed.processes[0]!.signal, null);
@@ -224,6 +260,43 @@ const main = async (): Promise<void> => {
     assert.equal(completed.checkpoints?.length, 1);
     assert.equal(completed.checkpoints?.[0]?.sourceSessionId, "fixture-thread");
     assert.equal(completed.checkpoints?.[0]?.terminalTurnId, "turn-1");
+    const checkpointOnlyOutput: IEvidenceBenchmarkOutput[] = [];
+    const checkpointOnly = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      stopAfterGoal: "backend-start",
+      onOutput: (_processIndex, output) => {
+        checkpointOnlyOutput.push(output);
+      },
+      onCheckpoint: () => ({
+        createdAt: "2026-08-01T00:00:00.000Z",
+        workspaceRelativePath: "checkpoints/backend-start/workspace",
+        workspaceSha256: "checkpoint-only-workspace",
+        workspaceMaterialSha256: "checkpoint-only-material",
+        workspaceFileCount: 3,
+        workspaceGitHead: "checkpoint-only-head",
+        workspaceGitStatus: " M backend.ts\n",
+        inheritedWallElapsedMs: 1_500,
+      }),
+    });
+    assert.equal(checkpointOnly.status, "checkpointed");
+    assert.equal(checkpointOnly.nextInstructionIndex, 1);
+    assert.equal(checkpointOnly.goals.length, 1);
+    assert.equal(checkpointOnly.goals[0]?.goal?.status, "complete");
+    assert.equal(checkpointOnly.checkpoints?.length, 1);
+    assert.equal(checkpointOnly.processes.length, 1);
+    assert.equal(
+      checkpointOnlyOutput
+        .filter((output) => output.stream === "stdin")
+        .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+        .filter((request) => request.method === "thread/goal/set").length,
+      1,
+    );
     const requests = completedOutput
       .filter((output) => output.stream === "stdin")
       .map((output) => JSON.parse(output.text) as Record<string, unknown>);
@@ -281,6 +354,216 @@ const main = async (): Promise<void> => {
     const backendStart = structuredClone(completed.goals[0]!);
     assert.ok(backendCheckpoint);
     assert.ok(backendStart.tokenUsageEnd);
+    backendStart.relativePath = "plain/backend/start.md";
+    const supervisedRunRoot: string = path.join(root, "supervised-run");
+    const supervisedWorkspace: string = path.join(
+      supervisedRunRoot,
+      "workspace",
+    );
+    fs.mkdirSync(supervisedWorkspace, { recursive: true });
+    fs.cpSync(
+      path.join(root, "plain"),
+      path.join(supervisedWorkspace, "plain"),
+      {
+        recursive: true,
+      },
+    );
+    fs.cpSync(
+      path.join(root, "evidence"),
+      path.join(supervisedWorkspace, "evidence"),
+      { recursive: true },
+    );
+    fs.writeFileSync(path.join(supervisedWorkspace, "tracked.txt"), "base\n");
+    git(supervisedWorkspace, ["init", "-b", "benchmark"]);
+    git(supervisedWorkspace, ["add", "-A"]);
+    git(supervisedWorkspace, [
+      "-c",
+      "user.name=Benchmark Fixture",
+      "-c",
+      "user.email=fixture@example.com",
+      "commit",
+      "-m",
+      "baseline",
+    ]);
+    const supervisedStatePath: string = path.join(
+      supervisedRunRoot,
+      "state.json",
+    );
+    const expectations: string = path.join(root, "expectations.md");
+    const report: string = path.join(root, "report.md");
+    fs.writeFileSync(expectations, "# Independent expectations\n\nComplete.\n");
+    fs.writeFileSync(report, "# External audit\n\nApproved.\n");
+    const supervisedOutput: IEvidenceBenchmarkOutput[] = [];
+    const supervised = await EvidenceBenchmarkRunner.run({
+      state: {
+        arm: "plain",
+        cliVersion: "fixture-cli",
+        nextInstructionIndex: 1,
+        status: "ready",
+        threadTokenUsage: structuredClone(backendStart.tokenUsageEnd),
+        nativeThreadStartInstructionIndex: 1,
+        goals: [structuredClone(backendStart)],
+        checkpoints: [structuredClone(backendCheckpoint)],
+        inheritedProcessElapsedMs: 1_000,
+        processes: [],
+      },
+      cwd: supervisedWorkspace,
+      runRoot: supervisedRunRoot,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      fork: {
+        sourceSessionId: backendCheckpoint.sourceSessionId,
+        terminalTurnId: backendCheckpoint.terminalTurnId,
+      },
+      pauseAfterGoals: ["backend-review", "backend-final"],
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--plain-arm",
+        "--previous-goal",
+        "--fork",
+      ],
+      onOutput: (_processIndex, output) => {
+        supervisedOutput.push(output);
+      },
+    });
+    assert.equal(
+      supervised.status,
+      "awaiting-supervision",
+      JSON.stringify({
+        interruption: supervised.interruption,
+        stderr: supervisedOutput
+          .filter((output) => output.stream === "stderr")
+          .map((output) => output.text),
+      }),
+    );
+    assert.equal(supervised.nextInstructionIndex, 2);
+    assert.equal(supervised.goals.length, 2);
+    assert.equal(supervised.goals[1]?.name, "backend-review");
+    assert.equal(supervised.goals[1]?.goal?.status, "complete");
+    assert.equal(supervised.goals[1]?.elapsedMs, 2_000);
+    assert.equal(supervised.supervisionPauses?.length, 1);
+    assert.equal(
+      supervised.supervisionPauses?.[0]?.afterGoal,
+      "backend-review",
+    );
+    assert.equal(supervised.supervisionPauses?.[0]?.resumedAt, undefined);
+    assert.equal(
+      supervisedOutput
+        .filter((output) => output.stream === "stdin")
+        .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+        .filter((request) => request.method === "thread/goal/set").length,
+      1,
+    );
+    writeSupervisedState({
+      root: supervisedRunRoot,
+      workspace: supervisedWorkspace,
+      state: supervised,
+    });
+    const rejectedRunRoot: string = path.join(root, "rejected-run");
+    const rejectedWorkspace: string = path.join(rejectedRunRoot, "workspace");
+    fs.cpSync(supervisedWorkspace, rejectedWorkspace, { recursive: true });
+    writeSupervisedState({
+      root: rejectedRunRoot,
+      workspace: rejectedWorkspace,
+      state: structuredClone(supervised),
+    });
+    const rejectedVerdict = EvidenceBenchmarkSupervision.decide({
+      runRoot: rejectedRunRoot,
+      decision: "rejected",
+      expectations,
+      report,
+    });
+    assert.equal(rejectedVerdict.decision, "rejected");
+    assert.equal(
+      readSupervisedState(path.join(rejectedRunRoot, "state.json")).status,
+      "rejected",
+    );
+    const firstVerdict = EvidenceBenchmarkSupervision.decide({
+      runRoot: supervisedRunRoot,
+      decision: "approved",
+      expectations,
+      report,
+    });
+    assert.equal(firstVerdict.decision, "approved");
+    const approved = readSupervisedState(supervisedStatePath);
+    fs.appendFileSync(
+      path.join(supervisedWorkspace, "tracked.txt"),
+      "tamper\n",
+    );
+    await assert.rejects(
+      EvidenceBenchmarkRunner.run({
+        state: approved,
+        cwd: supervisedWorkspace,
+        runRoot: supervisedRunRoot,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        pauseAfterGoals: ["backend-review", "backend-final"],
+        command: process.execPath,
+        commandPrefixArguments: prefix,
+        onOutput: () => undefined,
+      }),
+      /Workspace changed after its external approval/u,
+    );
+    fs.writeFileSync(path.join(supervisedWorkspace, "tracked.txt"), "base\n");
+
+    const resumedSupervised = await EvidenceBenchmarkRunner.run({
+      state: approved,
+      cwd: supervisedWorkspace,
+      runRoot: supervisedRunRoot,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      pauseAfterGoals: ["backend-review", "backend-final"],
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--plain-arm",
+        "--fork",
+        "--current-goal",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(resumedSupervised.status, "awaiting-supervision");
+    assert.equal(resumedSupervised.nextInstructionIndex, 4);
+    assert.equal(resumedSupervised.goals.length, 4);
+    assert.equal(resumedSupervised.goals[2]?.name, "backend-remind");
+    assert.equal(resumedSupervised.goals[2]?.goal?.status, "complete");
+    assert.equal(resumedSupervised.goals[3]?.name, "backend-final");
+    assert.equal(resumedSupervised.goals[3]?.goal?.status, "complete");
+    assert.equal(resumedSupervised.supervisionPauses?.length, 2);
+    assert.equal(
+      resumedSupervised.supervisionPauses?.[0]?.afterGoal,
+      "backend-review",
+    );
+    assert.ok(resumedSupervised.supervisionPauses?.[0]?.resumedAt);
+    assert.equal(
+      resumedSupervised.supervisionPauses?.[1]?.afterGoal,
+      "backend-final",
+    );
+    assert.equal(
+      resumedSupervised.supervisionPauses?.[1]?.resumedAt,
+      undefined,
+    );
+    writeSupervisedState({
+      root: supervisedRunRoot,
+      workspace: supervisedWorkspace,
+      state: resumedSupervised,
+    });
+    const finalVerdict = EvidenceBenchmarkSupervision.decide({
+      runRoot: supervisedRunRoot,
+      decision: "approved",
+      expectations,
+      report,
+    });
+    assert.equal(finalVerdict.decision, "approved");
+    const finalApproved = readSupervisedState(supervisedStatePath);
+    assert.equal(
+      finalApproved.supervisionPauses?.[1]?.verdict?.decision,
+      "approved",
+    );
     const forkOutput: IEvidenceBenchmarkOutput[] = [];
     const forked = await EvidenceBenchmarkRunner.run({
       state: {
@@ -289,6 +572,7 @@ const main = async (): Promise<void> => {
         nextInstructionIndex: 1,
         status: "ready",
         threadTokenUsage: structuredClone(backendStart.tokenUsageEnd),
+        nativeThreadStartInstructionIndex: 1,
         goals: [backendStart],
         checkpoints: [structuredClone(backendCheckpoint)],
         inheritedProcessElapsedMs: 1_000,
@@ -387,6 +671,293 @@ const main = async (): Promise<void> => {
       assert.equal(goal.objectiveText, `${prescribed}\n\n${continuation}`);
       assert.equal(goal.goal?.objective, goal.objectiveText);
     });
+
+    const detachedStart: IEvidenceBenchmarkRunState = {
+      arm: "plain",
+      cliVersion: "fixture-cli",
+      nextInstructionIndex: 1,
+      status: "ready",
+      threadTokenUsage: {
+        totalTokens: 0,
+        inputTokens: 0,
+        cachedInputTokens: 0,
+        cacheWriteInputTokens: 0,
+        outputTokens: 0,
+        reasoningOutputTokens: 0,
+      },
+      nativeThreadStartInstructionIndex: 1,
+      goals: [structuredClone(plain.goals[0]!)],
+      checkpoints: [structuredClone(backendCheckpoint)],
+      inheritedProcessElapsedMs: 1_000,
+      processes: [],
+    };
+    await assert.rejects(
+      EvidenceBenchmarkRunner.run({
+        state: structuredClone(detachedStart),
+        cwd: path.join(root, "review-workspace"),
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        reviewLedger: "backend",
+        pauseAfterGoals: ["backend-review"],
+        command: process.execPath,
+        commandPrefixArguments: [...prefix, "--plain-arm", "--ledger-tools"],
+        onOutput: () => undefined,
+      }),
+      /both backend-review and backend-final/u,
+    );
+    await assert.rejects(
+      EvidenceBenchmarkRunner.run({
+        state: structuredClone(detachedStart),
+        cwd: path.join(root, "review-workspace"),
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        reviewLedger: "backend",
+        pauseAfterGoals: ["backend-review", "backend-final"],
+        fork: {
+          sourceSessionId: backendCheckpoint.sourceSessionId,
+          terminalTurnId: backendCheckpoint.terminalTurnId,
+        },
+        command: process.execPath,
+        commandPrefixArguments: [...prefix, "--plain-arm", "--ledger-tools"],
+        onOutput: () => undefined,
+      }),
+      /fresh detached review thread/u,
+    );
+    const ledgerOutput: IEvidenceBenchmarkOutput[] = [];
+    const detachedLedger = await EvidenceBenchmarkRunner.run({
+      state: structuredClone(detachedStart),
+      cwd: path.join(root, "review-workspace"),
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      reviewLedger: "backend",
+      pauseAfterGoals: ["backend-review", "backend-final"],
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--plain-arm", "--ledger-tools"],
+      onOutput: (_processIndex, output) => {
+        ledgerOutput.push(output);
+      },
+    });
+    assert.equal(
+      detachedLedger.status,
+      "awaiting-supervision",
+      `${JSON.stringify(detachedLedger.interruption)}\n${ledgerOutput
+        .filter((output) => output.stream === "stderr")
+        .map((output) => output.text)
+        .join("")}`,
+    );
+    assert.equal(detachedLedger.sessionId, "fixture-ledger-thread");
+    assert.equal(detachedLedger.nextInstructionIndex, 2);
+    assert.equal(detachedLedger.goals[0]?.goal?.threadId, "fixture-thread");
+    assert.equal(
+      detachedLedger.goals[1]?.goal?.threadId,
+      "fixture-ledger-thread",
+    );
+    assert.equal(detachedLedger.goals[1]?.tokenUsageStart.totalTokens, 0);
+    assert.equal(detachedLedger.goals[1]?.tokenUsage.totalTokens, 10);
+    assert.equal(detachedLedger.threadTokenUsage.totalTokens, 10);
+    assert.equal(detachedLedger.reviewLedgers?.length, 1);
+    assert.equal(detachedLedger.reviewLedgers?.[0]?.rounds.length, 2);
+    assert.equal(
+      detachedLedger.reviewLedgers?.[0]?.rounds[0]?.status,
+      "findings",
+    );
+    assert.equal(detachedLedger.reviewLedgers?.[0]?.rounds[1]?.status, "dry");
+    assert.equal(
+      detachedLedger.reviewLedgers?.[0]?.rounds[1]?.reads.length,
+      detachedLedger.reviewLedgers?.[0]?.rounds[1]?.manifest.length,
+    );
+    assert.equal(
+      detachedLedger.reviewLedgers?.[0]?.calibrations?.[0]?.status,
+      "passed",
+    );
+    assert.deepEqual(
+      detachedLedger.reviewLedgers?.[0]?.edits?.map((entry) => entry.phase),
+      ["correction", "calibration-break", "calibration-restore"],
+    );
+    assert.deepEqual(
+      detachedLedger.reviewLedgers?.[0]?.commands?.map((entry) => [
+        entry.command,
+        entry.phase,
+        entry.status,
+      ]),
+      [
+        ["test", "calibration-fail", "expected-failure"],
+        ["test", "calibration-pass", "succeeded"],
+        ["check-watch", "final", "succeeded"],
+        ["test", "final", "succeeded"],
+      ],
+    );
+    const ledgerRequests = ledgerOutput
+      .filter((output) => output.stream === "stdin")
+      .map((output) => JSON.parse(output.text) as Record<string, unknown>);
+    const ledgerThreadStart = ledgerRequests.find(
+      (request) => request.method === "thread/start",
+    );
+    assert.ok(ledgerThreadStart);
+    assert.deepEqual(
+      (
+        (ledgerThreadStart.params as Record<string, unknown>)
+          .dynamicTools as Record<string, unknown>[]
+      ).map((tool) => tool.name),
+      [
+        "review_start_round",
+        "review_read_file",
+        "review_finish_round",
+        "review_start_calibration",
+        "review_edit_file",
+        "review_run_backend_command",
+      ],
+    );
+    assert.equal(
+      (ledgerThreadStart.params as Record<string, unknown>).sandbox,
+      "read-only",
+    );
+    assert.equal(
+      ledgerRequests.some((request) => request.method === "thread/fork"),
+      false,
+    );
+    const nativeGate = await EvidenceBenchmarkRunner.run({
+      state: structuredClone(detachedStart),
+      cwd: path.join(root, "review-workspace"),
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      reviewLedger: "backend",
+      pauseAfterGoals: ["backend-review", "backend-final"],
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--plain-arm",
+        "--ledger-tools",
+        "--native-gate",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(nativeGate.status, "interrupted");
+    assert.match(
+      nativeGate.interruption?.message ?? "",
+      /review_run_backend_command/u,
+    );
+    const nativeOverlap = await EvidenceBenchmarkRunner.run({
+      state: structuredClone(detachedStart),
+      cwd: path.join(root, "review-workspace"),
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      reviewLedger: "backend",
+      pauseAfterGoals: ["backend-review", "backend-final"],
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--plain-arm",
+        "--ledger-tools",
+        "--native-overlap",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(nativeOverlap.status, "interrupted");
+    assert.match(nativeOverlap.interruption?.message ?? "", /remained active/u);
+    for (const [flag, message] of [
+      ["--native-then-runner", /runner-owned backend command/u],
+      ["--runner-then-native", /runner-owned backend command/u],
+    ] as const) {
+      const crossOverlap = await EvidenceBenchmarkRunner.run({
+        state: structuredClone(detachedStart),
+        cwd: path.join(root, "review-workspace"),
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        reviewLedger: "backend",
+        pauseAfterGoals: ["backend-review", "backend-final"],
+        command: process.execPath,
+        commandPrefixArguments: [
+          ...prefix,
+          "--plain-arm",
+          "--ledger-tools",
+          flag,
+        ],
+        onOutput: () => undefined,
+      });
+      assert.equal(crossOverlap.status, "interrupted");
+      assert.match(crossOverlap.interruption?.message ?? "", message);
+    }
+
+    const ledgerRunRoot: string = path.join(root, "ledger-supervision");
+    fs.mkdirSync(ledgerRunRoot, { recursive: true });
+    const ledgerWorkspace: string = path.join(ledgerRunRoot, "workspace");
+    fs.cpSync(path.join(root, "review-workspace"), ledgerWorkspace, {
+      recursive: true,
+    });
+    fs.cpSync(path.join(root, "plain"), path.join(ledgerWorkspace, "plain"), {
+      recursive: true,
+    });
+    git(ledgerWorkspace, ["init", "-b", "benchmark"]);
+    git(ledgerWorkspace, ["config", "user.name", "Benchmark Fixture"]);
+    git(ledgerWorkspace, ["config", "user.email", "fixture@example.com"]);
+    git(ledgerWorkspace, ["add", "-A"]);
+    git(ledgerWorkspace, ["commit", "-m", "Prepare ledger workspace"]);
+    const ledgerExpectations: string = path.join(
+      root,
+      "ledger-expectations.md",
+    );
+    const ledgerReport: string = path.join(root, "ledger-report.md");
+    fs.writeFileSync(ledgerExpectations, "ledger expectations\n", "utf8");
+    fs.writeFileSync(ledgerReport, "ledger report\n", "utf8");
+    writeSupervisedState({
+      root: ledgerRunRoot,
+      workspace: ledgerWorkspace,
+      state: detachedLedger,
+    });
+    EvidenceBenchmarkSupervision.decide({
+      runRoot: ledgerRunRoot,
+      decision: "approved",
+      expectations: ledgerExpectations,
+      report: ledgerReport,
+    });
+    const approvedLedger = readSupervisedState(
+      path.join(ledgerRunRoot, "state.json"),
+    );
+    const finalLedgerOutput: IEvidenceBenchmarkOutput[] = [];
+    const detachedFinal = await EvidenceBenchmarkRunner.run({
+      state: approvedLedger,
+      cwd: ledgerWorkspace,
+      runRoot: ledgerRunRoot,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      reviewLedger: "backend",
+      pauseAfterGoals: ["backend-review", "backend-final"],
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--plain-arm",
+        "--ledger-tools",
+        "--current-goal",
+      ],
+      onOutput: (_processIndex, output) => {
+        finalLedgerOutput.push(output);
+      },
+    });
+    assert.equal(
+      detachedFinal.status,
+      "awaiting-supervision",
+      `${JSON.stringify(detachedFinal.interruption)}\n${finalLedgerOutput
+        .filter((output) => output.stream === "stderr")
+        .map((output) => output.text)
+        .join("")}`,
+    );
+    assert.equal(detachedFinal.nextInstructionIndex, 3);
+    assert.equal(detachedFinal.reviewLedgers?.length, 2);
+    assert.equal(detachedFinal.reviewLedgers?.[0]?.goalName, "backend-review");
+    assert.equal(detachedFinal.reviewLedgers?.[0]?.rounds[1]?.status, "dry");
+    assert.equal(detachedFinal.reviewLedgers?.[1]?.goalName, "backend-final");
+    assert.equal(detachedFinal.reviewLedgers?.[1]?.rounds[1]?.status, "dry");
+    assert.equal(detachedFinal.goals[2]?.tokenUsageStart.totalTokens, 10);
+    assert.equal(detachedFinal.goals[2]?.tokenUsage.totalTokens, 10);
+    assert.equal(detachedFinal.threadTokenUsage.totalTokens, 20);
 
     const forcedCleanup = await EvidenceBenchmarkRunner.run({
       state: EvidenceBenchmarkRunner.create("evidence"),
@@ -1249,6 +1820,811 @@ const main = async (): Promise<void> => {
   }
 };
 
+const testReviewLedger = async (workspace: string): Promise<void> => {
+  writeReviewWorkspace(workspace);
+  const zeroUsage = (): IEvidenceBenchmarkTokenUsage => ({
+    totalTokens: 0,
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    cacheWriteInputTokens: 0,
+    outputTokens: 0,
+    reasoningOutputTokens: 0,
+  });
+  const state: IEvidenceBenchmarkRunState =
+    EvidenceBenchmarkRunner.create("plain");
+  state.nextInstructionIndex = 1;
+  const goal: IEvidenceBenchmarkGoalRecord = {
+    index: 1,
+    name: "backend-review",
+    relativePath: "plain/backend/review.md",
+    prescribedText: "review",
+    continuationText: "continue",
+    objectiveText: "review\n\ncontinue",
+    goal: null,
+    terminalTurnId: null,
+    terminalTurnCompleted: false,
+    threadIdle: false,
+    tokenUsageTurnId: null,
+    tokenUsageStart: zeroUsage(),
+    tokenUsageEnd: null,
+    tokenUsage: zeroUsage(),
+    elapsedMs: 0,
+  };
+  const activeCommands: Set<string> = new Set();
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal,
+    method: "item/started",
+    item: {
+      type: "commandExecution",
+      id: "native-read",
+      command: "Get-Content package.json",
+    },
+    active: activeCommands,
+  });
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-overlap",
+        command: "Get-Process node",
+      },
+      active: activeCommands,
+    }),
+  );
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal,
+    method: "item/completed",
+    item: {
+      type: "commandExecution",
+      id: "native-read",
+      command: "Get-Content package.json",
+    },
+    active: activeCommands,
+  });
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-posix-wrapped-gate",
+        command: 'bash -lc "pnpm --dir packages/backend test"',
+      },
+      active: activeCommands,
+    }),
+  );
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal,
+    method: "item/started",
+    item: {
+      type: "commandExecution",
+      id: "native-quoted-search",
+      command: 'pnpm exec rg "x; pnpm test" benchmark',
+    },
+    active: activeCommands,
+  });
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal,
+    method: "item/completed",
+    item: {
+      type: "commandExecution",
+      id: "native-quoted-search",
+      command: 'pnpm exec rg "x; pnpm test" benchmark',
+    },
+    active: activeCommands,
+  });
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-wrapped-gate",
+        command: 'powershell.exe -Command "pnpm --dir=packages/backend test"',
+      },
+      active: activeCommands,
+    }),
+  );
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-exec-generator",
+        command: "pnpm --dir packages/backend exec nestia all",
+      },
+      active: activeCommands,
+    }),
+  );
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal,
+    method: "item/started",
+    item: {
+      type: "commandExecution",
+      id: "native-search",
+      command: 'rg -n "pnpm test" benchmark',
+    },
+    active: activeCommands,
+  });
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal,
+    method: "item/completed",
+    item: {
+      type: "commandExecution",
+      id: "native-search",
+      command: 'rg -n "pnpm test" benchmark',
+    },
+    active: activeCommands,
+  });
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-gate",
+        command: "pnpm test",
+      },
+      active: activeCommands,
+    }),
+  );
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-chained-gate",
+        command: "Get-Content package.json; pnpm test",
+      },
+      active: activeCommands,
+    }),
+  );
+  state.reviewLedgers = [
+    {
+      goalIndex: goal.index,
+      goalName: "backend-review",
+      rounds: [],
+      commands: [
+        {
+          index: 1,
+          command: "test",
+          phase: "correction",
+          callId: "runner-command",
+          turnId: "ledger-turn",
+          startedAt: new Date().toISOString(),
+          manifestSha256: "fixture-manifest",
+          status: "running",
+        },
+      ],
+      calibrations: [],
+    },
+  ];
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-during-runner",
+        command: "Get-Process node",
+      },
+      active: activeCommands,
+    }),
+  );
+  state.reviewLedgers = [];
+  let callIndex = 0;
+  const invoke = (tool: string, arguments_: unknown) =>
+    EvidenceBenchmarkReviewLedger.handle({
+      cwd: workspace,
+      state,
+      goal,
+      call: {
+        tool,
+        arguments: arguments_,
+        callId: `ledger-call-${++callIndex}`,
+        turnId: "ledger-turn",
+      },
+    });
+
+  const cleanState: IEvidenceBenchmarkRunState =
+    EvidenceBenchmarkRunner.create("plain");
+  cleanState.nextInstructionIndex = 1;
+  let cleanCallIndex = 0;
+  const cleanInvoke = (tool: string, arguments_: unknown) =>
+    EvidenceBenchmarkReviewLedger.handle({
+      cwd: workspace,
+      state: cleanState,
+      goal,
+      call: {
+        tool,
+        arguments: arguments_,
+        callId: `clean-ledger-call-${++cleanCallIndex}`,
+        turnId: "clean-ledger-turn",
+      },
+    });
+  assert.equal(
+    (await cleanInvoke("review_start_calibration", {})).success,
+    false,
+  );
+  assert.equal((await cleanInvoke("review_start_round", {})).success, true);
+  const cleanRound = cleanState.reviewLedgers![0]!.rounds[0]!;
+  for (const entry of cleanRound.manifest)
+    assert.equal(
+      (await cleanInvoke("review_read_file", { path: entry.path })).success,
+      true,
+    );
+  assert.equal(
+    (
+      await cleanInvoke("review_finish_round", {
+        result: "clean",
+        findings: [],
+      })
+    ).success,
+    true,
+  );
+  assert.equal(cleanRound.status, "clean");
+  assert.equal((await cleanInvoke("review_start_round", {})).success, false);
+  assert.equal(
+    (await cleanInvoke("review_start_calibration", {})).success,
+    true,
+  );
+  const undetectedPath = path.join(
+    workspace,
+    "packages/backend/src/backend.ts",
+  );
+  const undetectedBaseline = fs.readFileSync(undetectedPath);
+  const invalidCalibration = cleanState.reviewLedgers![0]!.calibrations![0]!;
+  assert.equal(
+    (
+      await cleanInvoke("review_edit_file", {
+        operation: "replace",
+        phase: "calibration-break",
+        path: "packages/backend/src/backend.ts",
+        expectedSha256: sha256(undetectedBaseline),
+        replacements: [
+          {
+            oldText: undetectedBaseline.toString("utf8"),
+            newText: `${undetectedBaseline.toString("utf8")}undetected\n`,
+          },
+        ],
+      })
+    ).success,
+    true,
+  );
+  assert.ok(invalidCalibration.breakSnapshot);
+  assert.equal(
+    (
+      await cleanInvoke("review_run_backend_command", {
+        command: "test",
+        phase: "calibration-fail",
+      })
+    ).success,
+    false,
+  );
+  assert.deepEqual(fs.readFileSync(undetectedPath), undetectedBaseline);
+  assert.equal(invalidCalibration.status, "invalid");
+  assert.equal(invalidCalibration.restoreOwner, "runner");
+  assert.equal(
+    invalidCalibration.restoredManifestSha256,
+    invalidCalibration.baselineManifestSha256,
+  );
+  assert.equal(invalidCalibration.breakSnapshot, undefined);
+  assert.equal(
+    (await cleanInvoke("review_start_calibration", {})).success,
+    true,
+  );
+  assert.equal(
+    cleanState.reviewLedgers![0]!.calibrations![1]!.baselineManifestSha256,
+    invalidCalibration.baselineManifestSha256,
+  );
+  const undetectedCreated = path.join(
+    workspace,
+    "packages/backend/test/undetected.test.ts",
+  );
+  assert.equal(
+    (
+      await cleanInvoke("review_edit_file", {
+        operation: "create",
+        phase: "calibration-break",
+        path: "packages/backend/test/undetected.test.ts",
+        content: "undetected\n",
+      })
+    ).success,
+    true,
+  );
+  assert.equal(
+    (
+      await cleanInvoke("review_run_backend_command", {
+        command: "test",
+        phase: "calibration-fail",
+      })
+    ).success,
+    false,
+  );
+  assert.equal(fs.existsSync(undetectedCreated), false);
+  assert.equal(
+    (await cleanInvoke("review_start_calibration", {})).success,
+    true,
+  );
+  const undetectedDeleted = path.join(
+    workspace,
+    "packages/backend/test/backend.test.ts",
+  );
+  const undetectedDeletedBaseline = fs.readFileSync(undetectedDeleted);
+  const undetectedDeletedMode = fs.statSync(undetectedDeleted).mode;
+  assert.equal(
+    (
+      await cleanInvoke("review_edit_file", {
+        operation: "delete",
+        phase: "calibration-break",
+        path: "packages/backend/test/backend.test.ts",
+        expectedSha256: sha256(undetectedDeletedBaseline),
+      })
+    ).success,
+    true,
+  );
+  assert.equal(
+    (
+      await cleanInvoke("review_run_backend_command", {
+        command: "test",
+        phase: "calibration-fail",
+      })
+    ).success,
+    false,
+  );
+  assert.deepEqual(
+    fs.readFileSync(undetectedDeleted),
+    undetectedDeletedBaseline,
+  );
+  assert.equal(fs.statSync(undetectedDeleted).mode, undetectedDeletedMode);
+
+  assert.equal((await invoke("review_start_round", {})).success, true);
+  const first = state.reviewLedgers?.[0]?.rounds[0];
+  assert.ok(first);
+  assert.equal(first.status, "reading");
+  assert.equal(
+    first.manifest.some((entry) =>
+      entry.path.startsWith("packages/backend/src/prisma/"),
+    ),
+    false,
+  );
+  assert.deepEqual(
+    first.manifest.map((entry) => entry.section),
+    [...first.manifest.map((entry) => entry.section)].sort(
+      (left, right) =>
+        [
+          "requirements",
+          "schema",
+          "api",
+          "backend",
+          "tests",
+          "configuration",
+        ].indexOf(left) -
+        [
+          "requirements",
+          "schema",
+          "api",
+          "backend",
+          "tests",
+          "configuration",
+        ].indexOf(right),
+    ),
+  );
+  assert.equal(
+    (
+      await invoke("review_read_file", {
+        path: first.manifest.at(-1)!.path,
+      })
+    ).success,
+    false,
+  );
+  const firstRead = await invoke("review_read_file", {
+    path: first.manifest[0]!.path,
+  });
+  assert.equal(firstRead.success, true);
+  assert.equal(
+    firstRead.contentItems[1]?.text,
+    fs.readFileSync(
+      path.join(workspace, ...first.manifest[0]!.path.split("/")),
+      "utf8",
+    ),
+  );
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "create",
+        phase: "correction",
+        path: "packages/backend/test/forbidden.test.ts",
+        content: "forbidden\n",
+      })
+    ).success,
+    false,
+  );
+  const changedDuringRound = first.manifest[1]!.path;
+  const changedDuringRoundAbsolute = path.join(
+    workspace,
+    ...changedDuringRound.split("/"),
+  );
+  const changedDuringRoundBaseline = fs.readFileSync(
+    changedDuringRoundAbsolute,
+  );
+  fs.appendFileSync(changedDuringRoundAbsolute, "changed\n", "utf8");
+  await assert.rejects(
+    invoke("review_read_file", { path: changedDuringRound }),
+    /Fatal backend review protocol violation/u,
+  );
+  assert.equal(first.status, "invalid");
+  fs.writeFileSync(changedDuringRoundAbsolute, changedDuringRoundBaseline);
+  state.reviewLedgers = [];
+
+  assert.equal((await invoke("review_start_round", {})).success, true);
+  const findingsRound = state.reviewLedgers![0]!.rounds[0]!;
+  for (const entry of findingsRound.manifest)
+    assert.equal(
+      (await invoke("review_read_file", { path: entry.path })).success,
+      true,
+    );
+  assert.equal(
+    (
+      await invoke("review_finish_round", {
+        result: "findings",
+        findings: ["fixture finding"],
+      })
+    ).success,
+    true,
+  );
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "replace",
+        phase: "correction",
+        path: "docs/analysis/requirements.md",
+        expectedSha256: sha256(
+          fs.readFileSync(
+            path.join(workspace, "docs/analysis/requirements.md"),
+          ),
+        ),
+        replacements: [{ oldText: "requirements\n", newText: "wrong\n" }],
+      })
+    ).success,
+    false,
+  );
+  const corrected: string = path.join(
+    workspace,
+    "packages/backend/src/backend.ts",
+  );
+  const correctionBaseline: Buffer = fs.readFileSync(corrected);
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "replace",
+        phase: "correction",
+        path: "packages/backend/src/backend.ts",
+        expectedSha256: "0".repeat(64),
+        replacements: [
+          {
+            oldText: correctionBaseline.toString("utf8"),
+            newText: `${correctionBaseline.toString("utf8")}fixed\n`,
+          },
+        ],
+      })
+    ).success,
+    false,
+  );
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "replace",
+        phase: "correction",
+        path: "packages/backend/src/backend.ts",
+        expectedSha256: sha256(correctionBaseline),
+        replacements: [
+          {
+            oldText: correctionBaseline.toString("utf8"),
+            newText: `${correctionBaseline.toString("utf8")}fixed\n`,
+          },
+        ],
+      })
+    ).success,
+    true,
+  );
+  const createdRelative = "packages/backend/test/created.test.ts";
+  const createdAbsolute = path.join(workspace, ...createdRelative.split("/"));
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "create",
+        phase: "correction",
+        path: createdRelative,
+        content: "created\n",
+      })
+    ).success,
+    true,
+  );
+  assert.equal(fs.readFileSync(createdAbsolute, "utf8"), "created\n");
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "delete",
+        phase: "correction",
+        path: createdRelative,
+        expectedSha256: sha256(fs.readFileSync(createdAbsolute)),
+      })
+    ).success,
+    true,
+  );
+  assert.equal(fs.existsSync(createdAbsolute), false);
+  assert.equal(state.reviewLedgers![0]!.edits?.length, 3);
+  for (const command of [
+    "build-prisma",
+    "build-main",
+    "schema",
+    "build-sdk",
+    "build-test",
+    "lint",
+    "format",
+  ] as const)
+    assert.equal(
+      (
+        await invoke("review_run_backend_command", {
+          command,
+          phase: "correction",
+        })
+      ).success,
+      true,
+    );
+  const correctionWatcher = await invoke("review_run_backend_command", {
+    command: "check-watch",
+    phase: "correction",
+  });
+  assert.equal(correctionWatcher.success, true);
+  const childMatch = /CHILD_PID=(\d+)/u.exec(
+    correctionWatcher.contentItems[0]?.text ?? "",
+  );
+  assert.ok(childMatch);
+  const childProcessId = Number(childMatch[1]);
+  const deadline = Date.now() + 2_000;
+  while (isProcessAlive(childProcessId) && Date.now() < deadline)
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  assert.equal(isProcessAlive(childProcessId), false);
+
+  assert.equal((await invoke("review_start_calibration", {})).success, true);
+  const calibrated: string = path.join(
+    workspace,
+    "packages/backend/src/backend.ts",
+  );
+  const baseline: Buffer = fs.readFileSync(calibrated);
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "replace",
+        phase: "calibration-break",
+        path: "packages/backend/src/backend.ts",
+        expectedSha256: sha256(baseline),
+        replacements: [
+          {
+            oldText: baseline.toString("utf8"),
+            newText: `${baseline.toString("utf8")}broken\n`,
+          },
+        ],
+      })
+    ).success,
+    true,
+  );
+  assert.equal(
+    (
+      await invoke("review_run_backend_command", {
+        command: "test",
+        phase: "calibration-fail",
+      })
+    ).success,
+    true,
+  );
+  const broken: Buffer = fs.readFileSync(calibrated);
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "replace",
+        phase: "calibration-restore",
+        path: "packages/backend/src/backend.ts",
+        expectedSha256: sha256(broken),
+        replacements: [
+          {
+            oldText: broken.toString("utf8"),
+            newText: `${baseline.toString("utf8")}not-exact\n`,
+          },
+        ],
+      })
+    ).success,
+    false,
+  );
+  assert.deepEqual(fs.readFileSync(calibrated), broken);
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "replace",
+        phase: "calibration-restore",
+        path: "packages/backend/src/backend.ts",
+        expectedSha256: sha256(broken),
+        replacements: [
+          {
+            oldText: broken.toString("utf8"),
+            newText: baseline.toString("utf8"),
+          },
+        ],
+      })
+    ).success,
+    true,
+  );
+  assert.equal(
+    (
+      await invoke("review_run_backend_command", {
+        command: "test",
+        phase: "calibration-pass",
+      })
+    ).success,
+    true,
+  );
+
+  assert.equal((await invoke("review_start_round", {})).success, true);
+  const dryRound = state.reviewLedgers![0]!.rounds[1]!;
+  for (const entry of dryRound.manifest)
+    assert.equal(
+      (await invoke("review_read_file", { path: entry.path })).success,
+      true,
+    );
+  assert.equal(
+    (
+      await invoke("review_finish_round", {
+        result: "dry",
+        findings: [],
+      })
+    ).success,
+    true,
+  );
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "create",
+        phase: "correction",
+        path: "packages/backend/test/too-late.test.ts",
+        content: "too late\n",
+      })
+    ).success,
+    false,
+  );
+  assert.equal(
+    (
+      await invoke("review_run_backend_command", {
+        command: "check-watch",
+        phase: "final",
+      })
+    ).success,
+    true,
+  );
+  assert.equal(
+    (
+      await invoke("review_run_backend_command", {
+        command: "test",
+        phase: "final",
+      })
+    ).success,
+    true,
+  );
+  assert.doesNotThrow(() =>
+    EvidenceBenchmarkReviewLedger.assertDry({ cwd: workspace, state, goal }),
+  );
+  const residentCommands: Set<string> = new Set();
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal: { ...goal, name: "backend-final" },
+    method: "item/started",
+    item: {
+      type: "commandExecution",
+      id: "resident-backend-dev",
+      command: "pnpm dev",
+    },
+    active: residentCommands,
+  });
+  assert.equal(residentCommands.size, 0);
+  fs.appendFileSync(
+    path.join(workspace, "config/tsconfig.json"),
+    "changed\n",
+    "utf8",
+  );
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.assertDry({ cwd: workspace, state, goal }),
+  );
+};
+
+const writeReviewWorkspace = (workspace: string): void => {
+  const files: Readonly<Record<string, string>> = {
+    "docs/analysis/requirements.md": "requirements\n",
+    "packages/backend/prisma/schema/main.prisma": "schema\n",
+    "packages/api/src/api.ts": "api\n",
+    "packages/api/swagger.json": "{}\n",
+    "packages/backend/src/backend.ts": "backend\n",
+    "packages/backend/src/prisma/client.ts": "generated prisma client\n",
+    "packages/backend/test/backend.test.ts": "test\n",
+    ".node-version": "22\n",
+    "config/lint.config.ts": "export {};\n",
+    "config/package.json": "{}\n",
+    "config/tsconfig.json": "{}\n",
+    "package.json": "{}\n",
+    "packages/api/lint.config.ts": "export {};\n",
+    "packages/api/package.json": "{}\n",
+    "packages/api/tsconfig.json": "{}\n",
+    "packages/backend/.env.example": "FIXTURE=1\n",
+    "packages/backend/lint.config.ts": "export {};\n",
+    "packages/backend/nestia.config.ts": "export {};\n",
+    "packages/backend/package.json": `${JSON.stringify({
+      scripts: {
+        "build:prisma": 'node -e ""',
+        "build:main": 'node -e ""',
+        "build:sdk": 'node -e ""',
+        "build:test": 'node -e ""',
+        "check:watch":
+          "node -e \"const {spawn}=require('node:child_process'); const child=spawn(process.execPath,['-e','setInterval(() => {}, 1000)'],{stdio:'ignore'}); setTimeout(() => { console.log('CHILD_PID='+child.pid); console.log('07:18:39 AM - Found 0 errors. Watching for file changes.'); }, 250); setInterval(() => {}, 1000)\"",
+        format: 'node -e ""',
+        lint: 'node -e ""',
+        schema: 'node -e ""',
+        test: "node -e \"const fs=require('node:fs'); process.exit(fs.readFileSync('src/backend.ts','utf8').includes('broken') ? 1 : 0)\"",
+      },
+    })}\n`,
+    "packages/backend/prisma.config.ts": "export {};\n",
+    "packages/backend/tsconfig.json": "{}\n",
+    "pnpm-workspace.yaml": "packages: []\n",
+  };
+  for (const [relative, content] of Object.entries(files)) {
+    const location: string = path.join(workspace, ...relative.split("/"));
+    fs.mkdirSync(path.dirname(location), { recursive: true });
+    fs.writeFileSync(location, content, "utf8");
+  }
+};
+
+const isProcessAlive = (processId: number): boolean => {
+  try {
+    process.kill(processId, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const sha256 = (value: Buffer): string =>
+  crypto.createHash("sha256").update(value).digest("hex");
+
 const writeInstructions = (root: string): Map<string, Buffer> => {
   const sources: Map<string, Buffer> = new Map([
     [
@@ -1295,10 +2671,13 @@ const readPrescribed = (
   const source: Buffer | undefined = sources.get(relativePath);
   assert.ok(source, `Missing fixture source: ${relativePath}`);
   const prescribed: string = source.toString("utf8");
-  if (!relativePath.startsWith("plain/") || !relativePath.endsWith("/final.md"))
+  if (
+    !relativePath.startsWith("plain/") ||
+    !/\/(?:remind|final)\.md$/u.test(relativePath)
+  )
     return prescribed;
   const reviewPath: string = relativePath.replace(
-    /\/final\.md$/u,
+    /\/(?:remind|final)\.md$/u,
     "/review.md",
   );
   const review: Buffer | undefined = sources.get(reviewPath);
@@ -1312,7 +2691,20 @@ const readPrescribed = (
 
 const fakeAppServer = (): void => {
   const fork: boolean = process.argv.includes("--fork");
-  const threadId: string = fork ? "fixture-fork" : "fixture-thread";
+  const ledgerTools: boolean = process.argv.includes("--ledger-tools");
+  const nativeGate: boolean = process.argv.includes("--native-gate");
+  const nativeOverlap: boolean = process.argv.includes("--native-overlap");
+  const nativeThenRunner: boolean = process.argv.includes(
+    "--native-then-runner",
+  );
+  const runnerThenNative: boolean = process.argv.includes(
+    "--runner-then-native",
+  );
+  const threadId: string = ledgerTools
+    ? "fixture-ledger-thread"
+    : fork
+      ? "fixture-fork"
+      : "fixture-thread";
   const fail: boolean = process.argv.includes("--fail");
   const hangOnClose: boolean = process.argv.includes("--hang-on-close");
   const inheritStreamAfterExit: boolean = process.argv.includes(
@@ -1377,6 +2769,12 @@ const fakeAppServer = (): void => {
     previousActive ||
     undispatched ||
     process.argv.includes("--previous-goal");
+  const fixtureEntries = process.argv.includes("--plain-arm")
+    ? PLAIN_ENTRIES
+    : ENTRIES;
+  const fixtureArm: "plain" | "evidence" = process.argv.includes("--plain-arm")
+    ? "plain"
+    : "evidence";
   const resumeStatusBeforeResponse: boolean = process.argv.includes(
     "--resume-status-before-response",
   );
@@ -1385,20 +2783,53 @@ const fakeAppServer = (): void => {
   const trimTerminalLineBreaks: boolean = process.argv.includes(
     "--trim-terminal-line-breaks",
   );
-  let goalIndex = undispatchedActive
-    ? 0
-    : currentActive || nativeComplete || undispatchedNext
+  let goalIndex =
+    ledgerTools && currentGoal
       ? 1
-      : currentGoal
-        ? 2
-        : previousGoal
+      : undispatchedActive
+        ? 0
+        : currentActive || nativeComplete || undispatchedNext
           ? 1
-          : 0;
+          : currentGoal
+            ? 2
+            : previousGoal
+              ? 1
+              : 0;
   let undispatchedSnapshotPending = undispatched;
   let goalCleared = false;
   let waitingForTurnCompletion = false;
   const send = (value: unknown, callback?: () => void): void => {
     process.stdout.write(`${JSON.stringify(value)}\n`, callback);
+  };
+  let serverRequestId = 1_000;
+  const serverRequests = new Map<
+    number,
+    {
+      resolve: (value: Record<string, unknown>) => void;
+      reject: (reason: unknown) => void;
+    }
+  >();
+  const requestTool = (
+    turnId: string,
+    tool: string,
+    arguments_: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> => {
+    const id: number = ++serverRequestId;
+    return new Promise((resolve, reject) => {
+      serverRequests.set(id, { resolve, reject });
+      send({
+        id,
+        method: "item/tool/call",
+        params: {
+          threadId,
+          turnId,
+          callId: `fixture-tool-${id}`,
+          namespace: null,
+          tool,
+          arguments: arguments_,
+        },
+      });
+    });
   };
   const goal = (
     objective: string,
@@ -1426,25 +2857,53 @@ const fakeAppServer = (): void => {
   const input = readline.createInterface({ input: process.stdin });
   const retainedObjective = (): string => {
     const relativePath: string =
-      ENTRIES[currentGoal || undispatchedNext ? 1 : 0]![1];
+      fixtureEntries[currentGoal || undispatchedNext ? 1 : 0]![1];
     return `${fs.readFileSync(
       path.join(process.cwd(), ...relativePath.split("/")),
       "utf8",
     )}\n\n${fs.readFileSync(
-      path.join(process.cwd(), "evidence", "continue.md"),
+      path.join(process.cwd(), fixtureArm, "continue.md"),
       "utf8",
     )}`;
   };
   input.on("line", (line: string) => {
     const request = JSON.parse(line) as {
       id?: number;
-      method: string;
+      method?: string;
       params?: Record<string, unknown>;
+      result?: Record<string, unknown>;
+      error?: unknown;
     };
     if (request.id === undefined) return;
+    if (request.method === undefined) {
+      const waiter = serverRequests.get(request.id);
+      if (waiter === undefined) return;
+      serverRequests.delete(request.id);
+      if (request.error !== undefined) waiter.reject(request.error);
+      else if (request.result !== undefined) waiter.resolve(request.result);
+      else
+        waiter.reject(new Error("Fixture tool response omitted its result."));
+      return;
+    }
     if (request.method === "initialize")
       return send({ id: request.id, result: {} });
-    if (request.method === "thread/start")
+    if (request.method === "thread/start") {
+      if (ledgerTools) {
+        const tools = request.params?.dynamicTools;
+        assert.ok(Array.isArray(tools));
+        assert.deepEqual(
+          tools.map((tool) => (tool as Record<string, unknown>).name),
+          [
+            "review_start_round",
+            "review_read_file",
+            "review_finish_round",
+            "review_start_calibration",
+            "review_edit_file",
+            "review_run_backend_command",
+          ],
+        );
+        assert.equal(request.params?.sandbox, "read-only");
+      }
       return send({
         id: request.id,
         result: {
@@ -1455,10 +2914,12 @@ const fakeAppServer = (): void => {
           },
         },
       });
+    }
     if (
       request.method === "thread/resume" ||
       request.method === "thread/fork"
     ) {
+      if (ledgerTools) assert.equal(request.params?.sandbox, "read-only");
       const respond = (): void =>
         send(
           {
@@ -1746,6 +3207,247 @@ const fakeAppServer = (): void => {
         status: { type: "active" },
       },
     });
+    if (ledgerTools) {
+      send({
+        method: "turn/started",
+        params: {
+          threadId,
+          turn: { id: turnId },
+        },
+      });
+      if (nativeGate) {
+        send({
+          method: "item/started",
+          params: {
+            threadId,
+            turnId,
+            item: {
+              type: "commandExecution",
+              id: "native-gate-command",
+              command: "pnpm test",
+              status: "inProgress",
+            },
+          },
+        });
+        return;
+      }
+      if (nativeOverlap) {
+        send({
+          method: "item/started",
+          params: {
+            threadId,
+            turnId,
+            item: {
+              type: "commandExecution",
+              id: "native-first-command",
+              command: "Get-Content package.json",
+              status: "inProgress",
+            },
+          },
+        });
+        send({
+          method: "item/started",
+          params: {
+            threadId,
+            turnId,
+            item: {
+              type: "commandExecution",
+              id: "native-overlap-command",
+              command: "Get-Process node",
+              status: "inProgress",
+            },
+          },
+        });
+        return;
+      }
+      void (async (): Promise<void> => {
+        const readRound = async (result: "findings" | "dry"): Promise<void> => {
+          const started = await requestTool(turnId, "review_start_round", {});
+          assert.equal(started.success, true);
+          const startItems = started.contentItems;
+          assert.ok(Array.isArray(startItems));
+          const manifestText = (startItems[0] as Record<string, unknown>).text;
+          assert.equal(typeof manifestText, "string");
+          const manifestPaths = (manifestText as string).split("\n").slice(4);
+          assert.ok(manifestPaths.length > 0);
+          for (const manifestPath of manifestPaths) {
+            const read = await requestTool(turnId, "review_read_file", {
+              path: manifestPath,
+            });
+            assert.equal(read.success, true);
+            const contentItems = read.contentItems;
+            assert.ok(Array.isArray(contentItems));
+            assert.equal(contentItems.length, 2);
+          }
+          const finished = await requestTool(turnId, "review_finish_round", {
+            result,
+            findings: result === "findings" ? ["fixture finding"] : [],
+          });
+          assert.equal(finished.success, true);
+        };
+        await readRound("findings");
+        if (nativeThenRunner) {
+          send({
+            method: "item/started",
+            params: {
+              threadId,
+              turnId,
+              item: {
+                type: "commandExecution",
+                id: "native-before-runner-command",
+                command: "Get-Process node",
+                status: "inProgress",
+              },
+            },
+          });
+          void requestTool(turnId, "review_run_backend_command", {
+            command: "test",
+            phase: "correction",
+          });
+          return;
+        }
+        if (runnerThenNative) {
+          void requestTool(turnId, "review_run_backend_command", {
+            command: "test",
+            phase: "correction",
+          });
+          send({
+            method: "item/started",
+            params: {
+              threadId,
+              turnId,
+              item: {
+                type: "commandExecution",
+                id: "native-after-runner-command",
+                command: "Get-Process node",
+                status: "inProgress",
+              },
+            },
+          });
+          return;
+        }
+        const backendSource = path.join(
+          process.cwd(),
+          "packages/backend/src/backend.ts",
+        );
+        const correctionBaseline = fs.readFileSync(backendSource);
+        const corrected = Buffer.from(
+          `${correctionBaseline.toString("utf8")}fixed-${goalIndex}\n`,
+          "utf8",
+        );
+        const correction = await requestTool(turnId, "review_edit_file", {
+          operation: "replace",
+          phase: "correction",
+          path: "packages/backend/src/backend.ts",
+          expectedSha256: sha256(correctionBaseline),
+          replacements: [
+            {
+              oldText: correctionBaseline.toString("utf8"),
+              newText: corrected.toString("utf8"),
+            },
+          ],
+        });
+        assert.equal(correction.success, true);
+        const calibration = await requestTool(
+          turnId,
+          "review_start_calibration",
+          {},
+        );
+        assert.equal(calibration.success, true);
+        const baseline = fs.readFileSync(backendSource);
+        const broken = Buffer.from(
+          `${baseline.toString("utf8")}broken\n`,
+          "utf8",
+        );
+        const breakEdit = await requestTool(turnId, "review_edit_file", {
+          operation: "replace",
+          phase: "calibration-break",
+          path: "packages/backend/src/backend.ts",
+          expectedSha256: sha256(baseline),
+          replacements: [
+            {
+              oldText: baseline.toString("utf8"),
+              newText: broken.toString("utf8"),
+            },
+          ],
+        });
+        assert.equal(breakEdit.success, true);
+        const failed = await requestTool(turnId, "review_run_backend_command", {
+          command: "test",
+          phase: "calibration-fail",
+        });
+        assert.equal(failed.success, true);
+        const restoreEdit = await requestTool(turnId, "review_edit_file", {
+          operation: "replace",
+          phase: "calibration-restore",
+          path: "packages/backend/src/backend.ts",
+          expectedSha256: sha256(broken),
+          replacements: [
+            {
+              oldText: broken.toString("utf8"),
+              newText: baseline.toString("utf8"),
+            },
+          ],
+        });
+        assert.equal(restoreEdit.success, true);
+        const passed = await requestTool(turnId, "review_run_backend_command", {
+          command: "test",
+          phase: "calibration-pass",
+        });
+        assert.equal(passed.success, true);
+        await readRound("dry");
+        const watcher = await requestTool(
+          turnId,
+          "review_run_backend_command",
+          { command: "check-watch", phase: "final" },
+        );
+        assert.equal(watcher.success, true);
+        const tested = await requestTool(turnId, "review_run_backend_command", {
+          command: "test",
+          phase: "final",
+        });
+        assert.equal(tested.success, true);
+        send({
+          method: "thread/goal/updated",
+          params: {
+            threadId,
+            goal: goal(objective, "complete"),
+            turnId,
+          },
+        });
+        send({
+          method: "thread/tokenUsage/updated",
+          params: {
+            threadId,
+            turnId,
+            tokenUsage: { total },
+          },
+        });
+        waitingForTurnCompletion = true;
+        send({
+          method: "thread/status/changed",
+          params: {
+            threadId,
+            status: { type: "idle" },
+          },
+        });
+        setTimeout(() => {
+          waitingForTurnCompletion = false;
+          send({
+            method: "turn/completed",
+            params: {
+              threadId,
+              turn: { id: turnId, status: "completed", durationMs: 1 },
+            },
+          });
+        }, 10);
+      })().catch((error: unknown) => {
+        console.error(error);
+        process.exitCode = 1;
+        input.close();
+      });
+      return;
+    }
     if (blockedThenComplete)
       send({
         method: "thread/goal/updated",
@@ -1839,6 +3541,46 @@ const fakeAppServer = (): void => {
         windowsHide: true,
       }).unref();
   });
+};
+
+const writeSupervisedState = (props: {
+  root: string;
+  workspace: string;
+  state: IEvidenceBenchmarkRunState;
+}): void => {
+  const state: string = path.join(props.root, "state.json");
+  fs.writeFileSync(
+    state,
+    `${JSON.stringify(
+      {
+        cell: { arm: "plain", runId: "fixture-supervised" },
+        records: { root: props.root, workspace: props.workspace, state },
+        state: props.state,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+};
+
+const readSupervisedState = (file: string): IEvidenceBenchmarkRunState =>
+  (
+    JSON.parse(fs.readFileSync(file, "utf8")) as {
+      state: IEvidenceBenchmarkRunState;
+    }
+  ).state;
+
+const git = (cwd: string, arguments_: readonly string[]): void => {
+  const result = spawnSync("git", arguments_, {
+    cwd,
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  assert.equal(
+    result.status,
+    0,
+    `${result.stdout ?? ""}${result.stderr ?? ""}`,
+  );
 };
 
 if (process.argv.includes("--fake-app-server")) fakeAppServer();

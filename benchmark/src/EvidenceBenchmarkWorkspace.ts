@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import typia from "typia";
@@ -17,6 +18,44 @@ import type { IEvidenceBenchmarkWorkspaceVariables } from "./structures/IEvidenc
  * workspace with one atomic rename.
  */
 export namespace EvidenceBenchmarkWorkspace {
+  /** Renders the current non-product agent instruction surface. */
+  export function prepareInstructionSurface(request: {
+    repository: string;
+    arm: "plain" | "evidence";
+    variables: IEvidenceBenchmarkWorkspaceVariables;
+  }): string {
+    const root: string = fs.mkdtempSync(
+      path.join(os.tmpdir(), "evidence-benchmark-instructions-"),
+    );
+    try {
+      const template: string = path.resolve(
+        request.repository,
+        "benchmark/template",
+      );
+      fs.copyFileSync(
+        path.join(template, "base", "AGENTS.md"),
+        path.join(root, "AGENTS.md"),
+      );
+      fs.cpSync(
+        path.join(template, "base", ".agents"),
+        path.join(root, ".agents"),
+        { recursive: true },
+      );
+      renderBase(root, request.variables);
+      applyOverlay(
+        path.join(template, request.arm),
+        root,
+        request.variables,
+        (relative) =>
+          relative === "AGENTS.md" || relative.startsWith(".agents/"),
+      );
+      return root;
+    } catch (error) {
+      fs.rmSync(root, { recursive: true, force: true });
+      throw error;
+    }
+  }
+
   /** Reinstalls ignored dependencies after a checkpoint workspace is restored. */
   export async function installDependencies(workspace: string): Promise<void> {
     const environment: NodeJS.ProcessEnv = { ...process.env };
@@ -115,9 +154,11 @@ export namespace EvidenceBenchmarkWorkspace {
     overlay: string,
     workspace: string,
     variables: IEvidenceBenchmarkWorkspaceVariables,
+    accept: (relative: string) => boolean = () => true,
   ): void {
     if (!fs.existsSync(overlay)) return;
     visitFiles(overlay, (source, relative) => {
+      if (!accept(relative)) return;
       const target: string = path.join(workspace, ...relative.split("/"));
       let content: string = fs.readFileSync(source, "utf8");
       if (content.includes("{{base}}")) {

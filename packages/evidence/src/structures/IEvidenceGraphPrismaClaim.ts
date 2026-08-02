@@ -52,6 +52,17 @@ export interface IEvidenceGraphPrismaClaim {
   name?: string;
 
   /**
+   * Excludes this claim from graph loading and evaluation.
+   *
+   * The configuration shape is still validated, but this claim contributes no
+   * populations, references, coverage obligations, completion hints, or watched
+   * inputs. Omit this property or set it to `false` to enable the claim.
+   *
+   * @default false
+   */
+  disabled?: boolean;
+
+  /**
    * Directory this claim's {@link files} patterns resolve against.
    *
    * Omit this property to resolve against the active `ttsc` project root, which

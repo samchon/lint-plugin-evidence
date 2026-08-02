@@ -69,10 +69,22 @@ const main = (): void => {
         "",
         `${arm}/${relative} must not be empty.`,
       );
+    for (const [, relativePath] of EvidenceBenchmarkRunner.instructionEntries(
+      arm,
+    )) {
+      const objective = EvidenceBenchmarkRunner.instructionObjective({
+        arm,
+        instructionsRoot: path.join(benchmarkRoot, "instructions"),
+        relativePath,
+      });
+      assert.ok(
+        objective.objectiveText.length <= 4_000,
+        `${relativePath} exceeds the Codex Goal objective limit.`,
+      );
+    }
 
     validateMaterializedSkillLinks(templateRoot, arm);
   }
-  validateEvidenceWatcherLifecycle(benchmarkRoot, templateRoot);
   validateReviewListHierarchy(benchmarkRoot, templateRoot);
   assert.notEqual(
     fs.readFileSync(
@@ -146,6 +158,27 @@ const main = (): void => {
     ),
     "utf8",
   );
+  const evidenceFrontendConfig: string = fs.readFileSync(
+    path.join(
+      templateRoot,
+      "evidence",
+      "packages",
+      "frontend",
+      "lint.config.ts",
+    ),
+    "utf8",
+  );
+  const evidenceSkill: string = fs.readFileSync(
+    path.join(
+      templateRoot,
+      "evidence",
+      ".agents",
+      "skills",
+      "evidence",
+      "SKILL.md",
+    ),
+    "utf8",
+  );
   const backendSkill: string = fs.readFileSync(
     path.join(baseTemplate, ".agents", "skills", "backend", "SKILL.md"),
     "utf8",
@@ -208,19 +241,42 @@ const main = (): void => {
     evidenceBackendConfig,
     /lint\.config\.(?:main|test)\.ts/u,
   );
+  assert.equal(
+    evidenceBackendConfig.match(/disabled: true,/gu)?.length,
+    5,
+    "Every backend claim must begin disabled.",
+  );
+  assert.equal(
+    evidenceFrontendConfig.match(/disabled: true,/gu)?.length,
+    2,
+    "Every frontend claim must begin disabled.",
+  );
+  assert.equal(
+    evidenceBackendConfig.match(
+      /\/\/ Remove after[^\r\n]*\r?\n\s+disabled: true,\r?\n\s+\},/gu,
+    )?.length,
+    5,
+    "Each backend activation marker must be the documented final claim property.",
+  );
+  assert.equal(
+    evidenceFrontendConfig.match(
+      /\/\/ Remove after[^\r\n]*\r?\n\s+disabled: true,\r?\n\s+\},/gu,
+    )?.length,
+    2,
+    "Each frontend activation marker must be the documented final claim property.",
+  );
+  assert.match(evidenceSkill, /A claim with `disabled: true` is inactive/u);
   assert.match(
-    fs.readFileSync(
-      path.join(
-        templateRoot,
-        "evidence",
-        ".agents",
-        "skills",
-        "evidence",
-        "SKILL.md",
-      ),
-      "utf8",
-    ),
+    evidenceSkill,
     /This rule applies equally to TypeScript, Prisma, and Markdown claims\./u,
+  );
+  assert.match(
+    evidenceSkill,
+    /Do not replace it with `false` or restore it later/u,
+  );
+  assert.match(
+    evidenceSkill,
+    /Start backend `pnpm check:watch` once before implementation/u,
   );
 
   assert.deepEqual(
@@ -252,97 +308,6 @@ const validateReviewListHierarchy = (
         `${path.relative(benchmarkRoot, file)} must use bullets below numbered steps.`,
       );
     });
-};
-
-const validateEvidenceWatcherLifecycle = (
-  benchmarkRoot: string,
-  templateRoot: string,
-): void => {
-  const entries = EvidenceBenchmarkRunner.instructionEntries("evidence");
-  const instructions = entries.map(([, relative]) => ({
-    relative,
-    source: fs.readFileSync(
-      path.join(benchmarkRoot, "instructions", relative),
-      "utf8",
-    ),
-  }));
-  const backendStart = instructions.find(
-    ({ relative }) => relative === "evidence/backend/start.md",
-  );
-  assert.ok(backendStart, "Evidence backend-start must exist.");
-  const firstDraft = backendStart.source.indexOf("Complete the first draft");
-  const firstWatcher = backendStart.source.indexOf("pnpm check:watch");
-  assert.ok(
-    firstDraft >= 0 && firstWatcher >= 0 && firstDraft < firstWatcher,
-    "Evidence backend-start must finish its first draft before check:watch.",
-  );
-
-  const watcherInstructions = instructions.filter(({ source }) =>
-    source.includes("pnpm check:watch"),
-  );
-  assert.notEqual(
-    watcherInstructions.length,
-    0,
-    "Evidence must prescribe compiler gates.",
-  );
-  for (const { relative, source } of watcherInstructions) {
-    const start = source.indexOf("pnpm check:watch");
-    const clean = source.indexOf("clean rebuild", start);
-    const stop = source.indexOf("stop the watcher", start);
-    assert.ok(
-      start < clean && clean < stop,
-      `${relative} must start, clean, and stop its bounded compiler gate in order.`,
-    );
-    assert.doesNotMatch(
-      source,
-      /(?:persistent|resident).*check:watch|check:watch.*(?:through Overall Final|keep (?:it|the watcher) running)/iu,
-      `${relative} must not retain check:watch across commands or phases.`,
-    );
-  }
-
-  const evidenceSkill = fs.readFileSync(
-    path.join(
-      templateRoot,
-      "evidence",
-      ".agents",
-      "skills",
-      "evidence",
-      "SKILL.md",
-    ),
-    "utf8",
-  );
-  assert.match(
-    evidenceSkill,
-    /Complete the first backend draft, then start `pnpm check:watch`[\s\S]*Stop the watcher afterward/u,
-    "The Evidence skill must prescribe its delayed, bounded watcher lifecycle.",
-  );
-
-  const plainBackendStart = fs.readFileSync(
-    path.join(benchmarkRoot, "instructions", "plain", "backend", "start.md"),
-    "utf8",
-  );
-  assert.match(
-    plainBackendStart,
-    /persistent background process before implementation[\s\S]*keep it running through Overall Final/u,
-    "Plain backend-start must retain its resident watcher lifecycle.",
-  );
-
-  const sharedSkills = collectFiles(
-    path.join(templateRoot, "base", ".agents", "skills"),
-  )
-    .filter((file) => file.endsWith(".md"))
-    .map((file) => fs.readFileSync(file, "utf8"))
-    .join("\n");
-  assert.doesNotMatch(
-    sharedSkills,
-    /Complete the backend first draft before starting `pnpm check:watch`|Waiting for the complete first draft|stop the watcher so it cannot overlap/iu,
-    "Base skills must not impose the Evidence watcher lifecycle on Plain.",
-  );
-  assert.match(
-    sharedSkills,
-    /benchmark arms intentionally use different watcher lifecycles/iu,
-    "Base skills must keep the arm-specific watcher lifecycles explicit.",
-  );
 };
 
 const collectFiles = (root: string): string[] => {

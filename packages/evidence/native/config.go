@@ -54,7 +54,7 @@ func decodeClaim(raw json.RawMessage, index int) (claimSpec, []string) {
 	}
 	problems := rejectUnknownFields(
 		object,
-		[]string{"type", "name", "root", "files", "symbol", "reference"},
+		[]string{"type", "name", "disabled", "root", "files", "symbol", "reference"},
 		graphRuleName,
 		path,
 	)
@@ -66,6 +66,16 @@ func decodeClaim(raw json.RawMessage, index int) (claimSpec, []string) {
 	if rawName, exists := object["name"]; exists {
 		if err := json.Unmarshal(rawName, &name); err != nil {
 			problems = append(problems, "Invalid evidence/graph configuration at "+path+".name: expected a diagnostic-only string label.")
+		}
+	}
+	disabled := false
+	if rawDisabled, exists := object["disabled"]; exists {
+		switch string(bytes.TrimSpace(rawDisabled)) {
+		case "true":
+			disabled = true
+		case "false":
+		default:
+			problems = append(problems, "Invalid evidence/graph configuration at "+path+".disabled: expected a boolean.")
 		}
 	}
 	root, rootProblems := decodeClaimRoot(object["root"], kind, path+".root")
@@ -83,11 +93,28 @@ func decodeClaim(raw json.RawMessage, index int) (claimSpec, []string) {
 		Index:      index,
 		Type:       kind,
 		Name:       name,
+		Disabled:   disabled,
 		Root:       root,
 		Files:      files,
 		Symbols:    symbols,
 		References: references,
 	}, nil
+}
+
+// enabledGraphConfig removes explicitly staged claims after their public
+// configuration has been validated. Keeping the filter separate from decoding
+// preserves original claim indexes and prevents disabled entries from hiding a
+// malformed shape.
+func enabledGraphConfig(config graphConfig) graphConfig {
+	claims := make([]claimSpec, 0, len(config.Claims))
+	for _, claim := range config.Claims {
+		if claim.Disabled {
+			continue
+		}
+		claims = append(claims, claim)
+	}
+	config.Claims = claims
+	return config
 }
 
 func decodeReferences(

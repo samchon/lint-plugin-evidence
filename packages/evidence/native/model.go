@@ -36,9 +36,10 @@ type graphConfig struct {
 }
 
 type claimSpec struct {
-	Index int
-	Type  artifactKind
-	Name  string
+	Index    int
+	Type     artifactKind
+	Name     string
+	Disabled bool
 	// Root is the author's spelling of the directory this population resolves
 	// against, empty when the ttsc project root is the base. It is kept beside
 	// the resolved Base because the two are produced at different times: the

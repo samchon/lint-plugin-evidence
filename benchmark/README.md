@@ -15,6 +15,8 @@ Each cell uses a new ignored workspace.
 5. Run `pnpm install`.
 6. Initialize the workspace as a Git repository and commit the prepared baseline.
 
+The runner assigns each subject and arm a stable, disjoint API, Swagger, Vite development, and Playwright port block. It refuses a fresh launch or resume when any assigned port is already occupied.
+
 Instructions remain in the benchmark repository. The runner reads each Markdown file when starting its objective and records the exact text it sends; it does not copy instructions into the generated workspace.
 
 ## Run
@@ -53,20 +55,23 @@ Pass repeated `--run-id <run-id>` arguments to publish an explicit historical co
 
 ## Instruction sequence
 
-One native session receives these eight instructions in order:
+One native session receives its arm-owned instructions in order:
 
 | Step | Evidence | Plain |
 | --- | --- | --- |
 | Backend start | `instructions/evidence/backend/start.md` | `instructions/plain/backend/start.md` |
 | Backend review | `instructions/evidence/backend/review.md` | `instructions/plain/backend/review.md` |
+| Backend reminder | — | `instructions/plain/backend/remind.md` |
 | Backend final | `instructions/evidence/backend/final.md` | `instructions/plain/backend/final.md` |
 | Frontend start | `instructions/evidence/frontend/start.md` | `instructions/plain/frontend/start.md` |
 | Frontend review | `instructions/evidence/frontend/review.md` | `instructions/plain/frontend/review.md` |
+| Frontend reminder | — | `instructions/plain/frontend/remind.md` |
 | Frontend final | `instructions/evidence/frontend/final.md` | `instructions/plain/frontend/final.md` |
 | Overall review | `instructions/evidence/overall/review.md` | `instructions/plain/overall/review.md` |
+| Overall reminder | — | `instructions/plain/overall/remind.md` |
 | Overall final | `instructions/evidence/overall/final.md` | `instructions/plain/overall/final.md` |
 
-For each Final step, the runner appends the matching Review instruction as a Markdown blockquote at the bottom of the prescribed instruction. It then combines the prescribed instruction and that arm's `instructions/<arm>/continue.md` once as the objective. No runtime instruction bytes are shared across arms.
+For each Plain Reminder and Final step, the runner appends the matching Review instruction as a Markdown blockquote at the bottom of the prescribed instruction. It then combines the prescribed instruction and that arm's `instructions/<arm>/continue.md` once as the objective. No runtime instruction bytes are shared across arms.
 
 Codex receives each objective as a native Goal in one app-server thread. It advances after Goal completion, terminal-turn completion, and an idle thread.
 
