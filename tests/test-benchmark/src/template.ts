@@ -158,6 +158,27 @@ const main = (): void => {
     ),
     "utf8",
   );
+  const evidenceFrontendConfig: string = fs.readFileSync(
+    path.join(
+      templateRoot,
+      "evidence",
+      "packages",
+      "frontend",
+      "lint.config.ts",
+    ),
+    "utf8",
+  );
+  const evidenceSkill: string = fs.readFileSync(
+    path.join(
+      templateRoot,
+      "evidence",
+      ".agents",
+      "skills",
+      "evidence",
+      "SKILL.md",
+    ),
+    "utf8",
+  );
   const backendSkill: string = fs.readFileSync(
     path.join(baseTemplate, ".agents", "skills", "backend", "SKILL.md"),
     "utf8",
@@ -220,19 +241,42 @@ const main = (): void => {
     evidenceBackendConfig,
     /lint\.config\.(?:main|test)\.ts/u,
   );
+  assert.equal(
+    evidenceBackendConfig.match(/disabled: true,/gu)?.length,
+    5,
+    "Every backend claim must begin disabled.",
+  );
+  assert.equal(
+    evidenceFrontendConfig.match(/disabled: true,/gu)?.length,
+    2,
+    "Every frontend claim must begin disabled.",
+  );
+  assert.equal(
+    evidenceBackendConfig.match(
+      /\/\/ Remove after[^\r\n]*\r?\n\s+disabled: true,\r?\n\s+\},/gu,
+    )?.length,
+    5,
+    "Each backend activation marker must be the documented final claim property.",
+  );
+  assert.equal(
+    evidenceFrontendConfig.match(
+      /\/\/ Remove after[^\r\n]*\r?\n\s+disabled: true,\r?\n\s+\},/gu,
+    )?.length,
+    2,
+    "Each frontend activation marker must be the documented final claim property.",
+  );
+  assert.match(evidenceSkill, /A claim with `disabled: true` is inactive/u);
   assert.match(
-    fs.readFileSync(
-      path.join(
-        templateRoot,
-        "evidence",
-        ".agents",
-        "skills",
-        "evidence",
-        "SKILL.md",
-      ),
-      "utf8",
-    ),
+    evidenceSkill,
     /This rule applies equally to TypeScript, Prisma, and Markdown claims\./u,
+  );
+  assert.match(
+    evidenceSkill,
+    /Do not replace it with `false` or restore it later/u,
+  );
+  assert.match(
+    evidenceSkill,
+    /Start backend `pnpm check:watch` once before implementation/u,
   );
 
   assert.deepEqual(

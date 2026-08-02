@@ -9,6 +9,7 @@ import readline from "node:readline";
 import { EvidenceBenchmarkRunner } from "../../../benchmark/src/EvidenceBenchmarkRunner.ts";
 import { EvidenceBenchmarkReviewLedger } from "../../../benchmark/src/EvidenceBenchmarkReviewLedger.ts";
 import { EvidenceBenchmarkSupervision } from "../../../benchmark/src/EvidenceBenchmarkSupervision.ts";
+import { assertAppendOnlyInstructionExtension } from "../../../benchmark/src/executable/EvidenceBenchmarkCommandLine.ts";
 import type { IEvidenceBenchmarkGoalRecord } from "../../../benchmark/src/structures/IEvidenceBenchmarkGoalRecord.ts";
 import type { IEvidenceBenchmarkOutput } from "../../../benchmark/src/structures/IEvidenceBenchmarkOutput.ts";
 import type { IEvidenceBenchmarkRunState } from "../../../benchmark/src/structures/IEvidenceBenchmarkRunState.ts";
@@ -21,6 +22,8 @@ const EVIDENCE_ENTRIES = [
   ["frontend-start", "evidence/frontend/start.md"],
   ["frontend-review", "evidence/frontend/review.md"],
   ["frontend-final", "evidence/frontend/final.md"],
+  ["overall-review", "evidence/overall/review.md"],
+  ["overall-final", "evidence/overall/final.md"],
 ] as const;
 
 const PLAIN_ENTRIES = [
@@ -236,6 +239,17 @@ const main = async (): Promise<void> => {
     assert.equal(completed.cliVersion, "fixture-cli");
     assert.equal(completed.nextInstructionIndex, ENTRIES.length);
     assert.equal(completed.goals.length, ENTRIES.length);
+    const appendedBoundary = structuredClone(completed);
+    appendedBoundary.goals = appendedBoundary.goals.slice(0, 6);
+    appendedBoundary.nextInstructionIndex = 6;
+    assert.doesNotThrow(() =>
+      assertAppendOnlyInstructionExtension("evidence", appendedBoundary),
+    );
+    appendedBoundary.goals[5]!.threadIdle = false;
+    assert.throws(
+      () => assertAppendOnlyInstructionExtension("evidence", appendedBoundary),
+      /preserve every completed Goal boundary/u,
+    );
     assert.equal(completed.processes.length, 1);
     assert.equal(completed.processes[0]!.exitCode, 0);
     assert.equal(completed.processes[0]!.signal, null);

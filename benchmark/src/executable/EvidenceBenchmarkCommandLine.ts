@@ -46,6 +46,11 @@ interface IEvidenceBenchmarkCell {
   effort: EvidenceBenchmarkEffort;
   launchedAt?: string;
   inputIdentity?: IEvidenceBenchmarkInputIdentity;
+  instructionExtension?: {
+    fromInstructionIndex: number;
+    inputIdentity: IEvidenceBenchmarkInputIdentity;
+    runnerRevision: string;
+  };
   checkpointSource?: {
     runId: string;
     name: "backend-start";
@@ -158,12 +163,22 @@ const main = async (): Promise<void> => {
       cell.benchmarkRevision,
       runnerRevision,
     );
-  if (retained !== undefined)
-    assertSameInputIdentity(
-      retained.cell.inputIdentity,
-      inputIdentity,
-      "Retained benchmark inputs changed after launch.",
-    );
+  if (retained !== undefined) {
+    if (cell.instructionExtension !== undefined)
+      assertSameInputIdentity(
+        cell.instructionExtension.inputIdentity,
+        inputIdentity,
+        "Extended benchmark inputs changed after continuation began.",
+      );
+    else if (!sameInputIdentity(retained.cell.inputIdentity, inputIdentity)) {
+      assertAppendOnlyInstructionExtension(cell.arm, retained.state);
+      cell.instructionExtension = {
+        fromInstructionIndex: retained.state.nextInstructionIndex,
+        inputIdentity,
+        runnerRevision,
+      };
+    }
+  }
   if (
     retained !== undefined &&
     ((cell.arm === "evidence" &&
@@ -553,13 +568,50 @@ const assertSameInputIdentity = (
   current: IEvidenceBenchmarkInputIdentity,
   message: string,
 ): void => {
+  if (!sameInputIdentity(retained, current)) throw new Error(message);
+};
+
+const sameInputIdentity = (
+  retained: IEvidenceBenchmarkInputIdentity | undefined,
+  current: IEvidenceBenchmarkInputIdentity,
+): boolean =>
+  retained !== undefined &&
+  retained.templateSha256 === current.templateSha256 &&
+  retained.requirementsSha256 === current.requirementsSha256 &&
+  retained.instructionsSha256 === current.instructionsSha256;
+
+/** Allows a completed retained session to receive only newly appended Goals. */
+export const assertAppendOnlyInstructionExtension = (
+  arm: EvidenceBenchmarkArm,
+  state: IEvidenceBenchmarkRunState,
+): void => {
+  const entries = EvidenceBenchmarkRunner.instructionEntries(arm);
   if (
-    retained === undefined ||
-    retained.templateSha256 !== current.templateSha256 ||
-    retained.requirementsSha256 !== current.requirementsSha256 ||
-    retained.instructionsSha256 !== current.instructionsSha256
+    state.status !== "completed" ||
+    state.nextInstructionIndex !== state.goals.length ||
+    state.nextInstructionIndex >= entries.length
   )
-    throw new Error(message);
+    throw new Error(
+      "Changed inputs are not an append-only extension of a completed benchmark.",
+    );
+  for (let index = 0; index < state.nextInstructionIndex; ++index) {
+    const entry = entries[index];
+    const goal = state.goals[index];
+    if (
+      entry === undefined ||
+      goal === undefined ||
+      goal.index !== index ||
+      goal.name !== entry[0] ||
+      goal.relativePath !== entry[1] ||
+      goal.goal?.status !== "complete" ||
+      goal.terminalTurnId === null ||
+      !goal.terminalTurnCompleted ||
+      !goal.threadIdle
+    )
+      throw new Error(
+        "Changed inputs do not preserve every completed Goal boundary.",
+      );
+  }
 };
 
 export const parseEvidenceBenchmarkArguments = (

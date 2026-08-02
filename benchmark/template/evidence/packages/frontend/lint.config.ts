@@ -44,6 +44,8 @@ const graph: IEvidenceGraphConfig = {
         files: ["docs/analysis/**/*.md"],
         symbol: ["h2", "h3"],
       },
+      // Remove after every required screen and evidence mapping is complete.
+      disabled: true,
     },
     // The browser journeys walk the requirements end to end, through the
     // screens they cite.
@@ -65,6 +67,8 @@ const graph: IEvidenceGraphConfig = {
           symbol: ["function"],
         },
       ],
+      // Remove after every requirement-backed journey and mapping is complete.
+      disabled: true,
     },
   ],
 };

@@ -7,6 +7,8 @@ description: Detects fake Evidence citations and exclusions created solely to ev
 
 The compiler owns target resolution, host eligibility, overlap, and coverage. Review inspects the full acknowledgement population for fake citations and exclusions created solely to evade compiler errors.
 
+Before review, confirm every claim for the current phase is enabled.
+
 For every `@evidence`, read the target, reason, and complete current host. A citation is justified only when the artifact actually implements, represents, or proves the target and the reason states that specific relation. Mere relevance is not enough. Correct every fake citation created solely to evade compiler errors.
 
 For every `@evidenceExclude`, read the target and reason. Decide whether it records a genuine exclusion: this claim does not cover the target, the reason says what handles it instead, and the reason says when that decision becomes invalid. Correct every fake exclusion created solely to evade compiler errors.
@@ -17,6 +19,7 @@ Continue after each finding until the complete active-phase population is inspec
 
 ## Final Checklist
 
+- [ ] Every claim for the current phase is enabled.
 - [ ] Inspected every active-phase acknowledgement, its complete host, and its target.
 - [ ] Every `@evidence` reason states how the artifact implements, represents, or proves the target; every fake citation created solely to evade compiler errors corrected.
 - [ ] Every `@evidenceExclude` is a genuine exclusion; every fake exclusion created solely to evade compiler errors corrected.

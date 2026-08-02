@@ -24,7 +24,11 @@ Several hosts may cite the same target when each independently implements or pro
 
 ## Claim Activation
 
-A declared claim is active only when its own `root`, `files`, and `symbol` selector materializes at least one selected host. If the successfully loaded host population is empty, the entire claim is inactive and none of its reference obligations runs.
+A claim with `disabled: true` is inactive even when its selector materializes a host. Its configuration is still validated.
+
+When the layer named by the adjacent comment is complete, delete only the claim's final `disabled: true` property. Do not replace it with `false` or restore it later.
+
+An enabled claim is active only when its own `root`, `files`, and `symbol` selector materializes at least one selected host. If the successfully loaded host population is empty, the entire claim is inactive and none of its reference obligations runs.
 
 This rule applies equally to TypeScript, Prisma, and Markdown claims.
 
@@ -34,7 +38,7 @@ For Prisma, a claim selecting `model` remains inactive until a matching schema i
 
 An unreadable or invalid configured input is not an empty population. Loader and parse failures remain diagnostics. Inactivity prevents future-layer coverage from firing before that layer has a host; it does not prove the requirements need no host.
 
-Do not add, remove, or toggle claim objects as implementation advances. Activation follows the current selected host population automatically.
+Do not add or remove claim objects or change any other claim field as implementation advances. After `disabled` is deleted, activation follows the current selected host population automatically.
 
 ## Configured Claims
 
@@ -48,7 +52,7 @@ Do not add, remove, or toggle claim objects as implementation advances. Activati
 | `packages/frontend/lint.config.ts` | `frontend-screens` | exported page functions | requirement H2/H3 |
 | same | `frontend-journeys` | exported journey functions | requirements and page functions |
 
-Both configuration files and all claim objects are frozen. Keep `evidence/graph` at `error`. The backend has one `tsconfig.json` containing backend source, tests, and API DTOs. Do not create phase-specific config or compiler files.
+Both configuration files and all claim objects are frozen except for the prescribed deletion of each predeclared `disabled` property. Keep `evidence/graph` at `error`. The backend has one `tsconfig.json` containing backend source, tests, and API DTOs. Do not create phase-specific config or compiler files.
 
 The sealed `NESTIA_SDK_TRANSFORM=1` guard disables the graph only inside Nestia's private transform. It must be absent from every benchmark compiler gate; a result produced with it present is invalid.
 
@@ -162,15 +166,15 @@ rg --hidden -n -F '@todo' packages/frontend --glob '*.ts' --glob '*.tsx'
 
 ## Compiler Gates
 
-Do not start backend `pnpm check:watch` while the first backend draft is still being populated. The first selected host activates its complete claim, so an incomplete draft can produce graph-wide diagnostics for artifacts that are about to be created.
+Start backend `pnpm check:watch` once before implementation while every backend claim is disabled. Start frontend `pnpm dev` once before frontend implementation while every frontend claim is disabled. After `disabled` is removed, the first selected host activates its complete claim, so an incomplete layer can produce graph-wide diagnostics for artifacts that are about to be created.
 
-Confirm `NESTIA_SDK_TRANSFORM` is absent. Complete the first backend draft, then start `pnpm check:watch`. The compiler owns target resolution, host eligibility, overlap, coverage, and missing acknowledgements. Fix the complete diagnostic batch and wait for a clean rebuild. Stop the watcher afterward so this compiler gate remains a bounded check of the current graph and cannot overlap the next generator, runtime command, or phase.
+Confirm `NESTIA_SDK_TRANSFORM` is absent. At each completed layer, delete the prescribed `disabled` property. The compiler owns target resolution, host eligibility, overlap, coverage, and missing acknowledgements. Fix the complete diagnostic batch and wait for a clean rebuild or reload. Keep both compiler processes running through Overall Final.
 
-At each gate, confirm the canonical claim configurations remain unchanged, wait for clean current builds, and run the phase's runtime tests. Never weaken the graph or falsify an acknowledgement to silence a diagnostic.
+At each gate, confirm no other claim configuration changed, wait for clean current builds, and run the phase's runtime tests. Never weaken the graph or falsify an acknowledgement to silence a diagnostic.
 
 ## Final Checklist
 
-- [ ] Canonical claims remain unchanged and `evidence/graph` remains `error`.
+- [ ] Every claim for the current phase is enabled; all other claim configuration remains unchanged and `evidence/graph` remains `error`.
 - [ ] `NESTIA_SDK_TRANSFORM` was absent from every compiler gate.
 - [ ] Every acknowledgement truthfully matches its target and actual host; none exists only to satisfy the compiler.
 - [ ] Every behavioral acknowledgement is supported by the target-specific action and assertion it claims.

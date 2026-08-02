@@ -78,7 +78,7 @@ pnpm check:watch
 
 The package's single `tsconfig.json` includes backend source, backend tests, and authored API DTOs. The watcher automatically reloads its lint configuration and reports type, lint, and contributor diagnostics. The current arm's instruction owns when the watcher starts and stops. The benchmark arms intentionally use different lifecycles; never infer one arm's lifecycle from another. A compiler check is clean only after the latest change rebuilds without a diagnostic.
 
-Do not create another backend `tsconfig.json` or package-local lint configuration for tests. Do not toggle claim configuration by phase.
+Do not create another backend `tsconfig.json` or package-local lint configuration for tests. Do not toggle claim configuration by phase except where the Evidence skill prescribes deleting a predeclared activation marker.
 
 ## Environment And Runtime
 
