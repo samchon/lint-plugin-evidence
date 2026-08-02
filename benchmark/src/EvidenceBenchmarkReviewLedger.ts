@@ -165,7 +165,7 @@ export namespace EvidenceBenchmarkReviewLedger {
       type: "function",
       name: "review_run_backend_command",
       description:
-        "Run one bounded backend generator or gate under runner-owned process-tree serialization. Native shell execution receives no gate credit.",
+        "Run one bounded backend generator or gate under runner-owned process-tree serialization. An undetected calibration break is invalidated and automatically rolled back to sealed bytes. Native shell execution receives no gate credit.",
       inputSchema: {
         type: "object",
         additionalProperties: false,
@@ -559,7 +559,7 @@ export namespace EvidenceBenchmarkReviewLedger {
       return failure(
         "Complete a fresh full review round before calibration; the latest round is invalid.",
       );
-    const current = manifest(props.cwd);
+    let current = manifest(props.cwd);
     if (round.status === "clean" && round.manifestSha256 !== current.sha256) {
       fatalRound(
         round,
@@ -568,15 +568,33 @@ export namespace EvidenceBenchmarkReviewLedger {
     }
     const previous: IEvidenceBenchmarkReviewCalibration | undefined =
       ledger.calibrations?.at(-1);
-    if (
-      previous !== undefined &&
-      previous.status !== "passed" &&
-      previous.status !== "invalid"
-    )
-      invalidateCalibration(
-        previous,
-        "A new calibration replaced the unfinished calibration.",
-      );
+    if (previous !== undefined && previous.status !== "passed") {
+      if (
+        previous.status === "invalid" &&
+        previous.restoredManifestSha256 !== previous.baselineManifestSha256
+      )
+        return failure(
+          "The previous invalid calibration lacks a runner-proven exact rollback; this workspace cannot start another calibration.",
+        );
+      if (previous.status !== "invalid") {
+        try {
+          restoreCalibration(props.cwd, previous, "runner");
+        } catch (error) {
+          invalidateCalibration(
+            previous,
+            `A new calibration could not roll back the unfinished calibration: ${errorMessage(error)}`,
+          );
+          throw new Error(
+            `Fatal backend review calibration rollback failure: ${errorMessage(error)}`,
+          );
+        }
+        invalidateCalibration(
+          previous,
+          "A new calibration replaced the unfinished calibration after exact runner rollback.",
+        );
+      }
+    }
+    current = manifest(props.cwd);
     const calibration: IEvidenceBenchmarkReviewCalibration = {
       index: (previous?.index ?? 0) + 1,
       startedAt: new Date().toISOString(),
@@ -650,6 +668,8 @@ export namespace EvidenceBenchmarkReviewLedger {
     const before: Buffer | undefined = fs.existsSync(absolute)
       ? fs.readFileSync(absolute)
       : undefined;
+    const beforeMode: number | undefined =
+      before === undefined ? undefined : fs.statSync(absolute).mode;
     const expectedSha256: unknown = values?.expectedSha256;
     const replacements: IReviewReplacement[] | undefined = reviewReplacements(
       values?.replacements,
@@ -684,6 +704,16 @@ export namespace EvidenceBenchmarkReviewLedger {
       after = Buffer.from(content as string, "utf8");
     if ((after?.length ?? 0) > 4 * 1024 * 1024)
       return failure("review_edit_file output exceeds the 4 MiB limit.");
+    if (phase === "calibration-break") {
+      calibration!.breakSnapshot = {
+        path: relative,
+        existed: before !== undefined,
+        ...(before === undefined
+          ? {}
+          : { contentBase64: before.toString("base64"), mode: beforeMode }),
+      };
+      await props.onChange?.();
+    }
     try {
       writeEdit(absolute, after);
       const current = manifest(props.cwd);
@@ -696,8 +726,18 @@ export namespace EvidenceBenchmarkReviewLedger {
         );
     } catch (error) {
       writeEdit(absolute, before);
+      if (phase === "calibration-break") {
+        delete calibration!.breakSnapshot;
+        await props.onChange?.();
+      }
       return failure(errorMessage(error));
     }
+    if (phase === "calibration-restore")
+      recordCalibrationRestore(
+        calibration!,
+        manifest(props.cwd).sha256,
+        "agent",
+      );
     const entry: IEvidenceBenchmarkReviewEdit = {
       index: ledger.edits!.length + 1,
       operation,
@@ -839,11 +879,26 @@ export namespace EvidenceBenchmarkReviewLedger {
       if (entry.status === "expected-failure") {
         calibration.status = "failure-proven";
         calibration.failureCommandIndex = entry.index;
-      } else
+      } else {
+        const reason =
+          "The deliberately broken behavior did not produce a bounded failing test.";
+        try {
+          restoreCalibration(props.cwd, calibration, "runner");
+        } catch (error) {
+          invalidateCalibration(
+            calibration,
+            `${reason} Automatic rollback failed: ${errorMessage(error)}`,
+          );
+          await props.onChange?.();
+          throw new Error(
+            `Fatal backend review calibration rollback failure: ${errorMessage(error)}`,
+          );
+        }
         invalidateCalibration(
           calibration,
-          "The deliberately broken behavior did not produce a bounded failing test.",
+          `${reason} The runner restored the exact sealed baseline; begin a new calibration.`,
         );
+      }
     } else if (phase === "calibration-pass" && calibration !== undefined) {
       if (entry.status === "succeeded") {
         calibration.status = "passed";
@@ -868,6 +923,12 @@ export namespace EvidenceBenchmarkReviewLedger {
       `output-limited: ${outcome.outputLimited}`,
       `output-bytes: ${entry.outputBytes}`,
       `output-sha256: ${entry.outputSha256}`,
+      ...(phase === "calibration-fail" && calibration?.status === "invalid"
+        ? [
+            `calibration-restore-owner: ${calibration.restoreOwner ?? "failed"}`,
+            `calibration-restored-manifest-sha256: ${calibration.restoredManifestSha256 ?? "failed"}`,
+          ]
+        : []),
       "stdout:",
       renderCommandOutput(outcome.stdout),
       "stderr:",
@@ -1068,6 +1129,52 @@ export namespace EvidenceBenchmarkReviewLedger {
     calibration.status = "invalid";
     calibration.invalidatedAt = new Date().toISOString();
     calibration.invalidation = reason;
+  };
+
+  const recordCalibrationRestore = (
+    calibration: IEvidenceBenchmarkReviewCalibration,
+    restoredManifestSha256: string,
+    owner: "agent" | "runner",
+  ): void => {
+    calibration.restoredAt = new Date().toISOString();
+    calibration.restoredManifestSha256 = restoredManifestSha256;
+    calibration.restoreOwner = owner;
+    delete calibration.breakSnapshot;
+  };
+
+  const restoreCalibration = (
+    cwd: string,
+    calibration: IEvidenceBenchmarkReviewCalibration,
+    owner: "agent" | "runner",
+  ): void => {
+    const current = manifest(cwd);
+    if (current.sha256 === calibration.baselineManifestSha256) {
+      recordCalibrationRestore(calibration, current.sha256, owner);
+      return;
+    }
+    const snapshot = calibration.breakSnapshot;
+    if (snapshot === undefined)
+      throw new Error(
+        "The calibration break has no durable rollback snapshot.",
+      );
+    if (snapshot.existed && snapshot.contentBase64 === undefined)
+      throw new Error(
+        "The calibration rollback snapshot omits the original file bytes.",
+      );
+    const absolute = resolveEditablePath(cwd, snapshot.path);
+    writeEdit(
+      absolute,
+      snapshot.existed
+        ? Buffer.from(snapshot.contentBase64 ?? "", "base64")
+        : undefined,
+      snapshot.mode,
+    );
+    const restored = manifest(cwd);
+    if (restored.sha256 !== calibration.baselineManifestSha256)
+      throw new Error(
+        `Automatic rollback produced manifest ${restored.sha256}, expected ${calibration.baselineManifestSha256}.`,
+      );
+    recordCalibrationRestore(calibration, restored.sha256, owner);
   };
 
   const validateCommandPhase = (props: {
@@ -1451,13 +1558,20 @@ export namespace EvidenceBenchmarkReviewLedger {
     return count;
   };
 
-  const writeEdit = (absolute: string, bytes: Buffer | undefined): void => {
+  const writeEdit = (
+    absolute: string,
+    bytes: Buffer | undefined,
+    mode?: number,
+  ): void => {
     if (bytes === undefined) {
       fs.rmSync(absolute);
       return;
     }
     if (!fs.existsSync(absolute)) {
-      fs.writeFileSync(absolute, bytes, { flag: "wx" });
+      fs.writeFileSync(absolute, bytes, {
+        flag: "wx",
+        ...(mode === undefined ? {} : { mode }),
+      });
       return;
     }
     const temporary: string = path.join(

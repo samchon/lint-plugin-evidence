@@ -2060,6 +2060,115 @@ const testReviewLedger = async (workspace: string): Promise<void> => {
     (await cleanInvoke("review_start_calibration", {})).success,
     true,
   );
+  const undetectedPath = path.join(
+    workspace,
+    "packages/backend/src/backend.ts",
+  );
+  const undetectedBaseline = fs.readFileSync(undetectedPath);
+  const invalidCalibration = cleanState.reviewLedgers![0]!.calibrations![0]!;
+  assert.equal(
+    (
+      await cleanInvoke("review_edit_file", {
+        operation: "replace",
+        phase: "calibration-break",
+        path: "packages/backend/src/backend.ts",
+        expectedSha256: sha256(undetectedBaseline),
+        replacements: [
+          {
+            oldText: undetectedBaseline.toString("utf8"),
+            newText: `${undetectedBaseline.toString("utf8")}undetected\n`,
+          },
+        ],
+      })
+    ).success,
+    true,
+  );
+  assert.ok(invalidCalibration.breakSnapshot);
+  assert.equal(
+    (
+      await cleanInvoke("review_run_backend_command", {
+        command: "test",
+        phase: "calibration-fail",
+      })
+    ).success,
+    false,
+  );
+  assert.deepEqual(fs.readFileSync(undetectedPath), undetectedBaseline);
+  assert.equal(invalidCalibration.status, "invalid");
+  assert.equal(invalidCalibration.restoreOwner, "runner");
+  assert.equal(
+    invalidCalibration.restoredManifestSha256,
+    invalidCalibration.baselineManifestSha256,
+  );
+  assert.equal(invalidCalibration.breakSnapshot, undefined);
+  assert.equal(
+    (await cleanInvoke("review_start_calibration", {})).success,
+    true,
+  );
+  assert.equal(
+    cleanState.reviewLedgers![0]!.calibrations![1]!.baselineManifestSha256,
+    invalidCalibration.baselineManifestSha256,
+  );
+  const undetectedCreated = path.join(
+    workspace,
+    "packages/backend/test/undetected.test.ts",
+  );
+  assert.equal(
+    (
+      await cleanInvoke("review_edit_file", {
+        operation: "create",
+        phase: "calibration-break",
+        path: "packages/backend/test/undetected.test.ts",
+        content: "undetected\n",
+      })
+    ).success,
+    true,
+  );
+  assert.equal(
+    (
+      await cleanInvoke("review_run_backend_command", {
+        command: "test",
+        phase: "calibration-fail",
+      })
+    ).success,
+    false,
+  );
+  assert.equal(fs.existsSync(undetectedCreated), false);
+  assert.equal(
+    (await cleanInvoke("review_start_calibration", {})).success,
+    true,
+  );
+  const undetectedDeleted = path.join(
+    workspace,
+    "packages/backend/test/backend.test.ts",
+  );
+  const undetectedDeletedBaseline = fs.readFileSync(undetectedDeleted);
+  const undetectedDeletedMode = fs.statSync(undetectedDeleted).mode;
+  assert.equal(
+    (
+      await cleanInvoke("review_edit_file", {
+        operation: "delete",
+        phase: "calibration-break",
+        path: "packages/backend/test/backend.test.ts",
+        expectedSha256: sha256(undetectedDeletedBaseline),
+      })
+    ).success,
+    true,
+  );
+  assert.equal(
+    (
+      await cleanInvoke("review_run_backend_command", {
+        command: "test",
+        phase: "calibration-fail",
+      })
+    ).success,
+    false,
+  );
+  assert.deepEqual(
+    fs.readFileSync(undetectedDeleted),
+    undetectedDeletedBaseline,
+  );
+  assert.equal(fs.statSync(undetectedDeleted).mode, undetectedDeletedMode);
 
   assert.equal((await invoke("review_start_round", {})).success, true);
   const first = state.reviewLedgers?.[0]?.rounds[0];

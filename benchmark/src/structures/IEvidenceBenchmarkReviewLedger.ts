@@ -92,6 +92,15 @@ export interface IEvidenceBenchmarkReviewCalibration {
   status: "sealed" | "failure-proven" | "passed" | "invalid";
   failureCommandIndex?: number;
   passCommandIndex?: number;
+  breakSnapshot?: {
+    path: string;
+    existed: boolean;
+    contentBase64?: string;
+    mode?: number;
+  };
+  restoredAt?: string;
+  restoredManifestSha256?: string;
+  restoreOwner?: "agent" | "runner";
   invalidatedAt?: string;
   invalidation?: string;
 }

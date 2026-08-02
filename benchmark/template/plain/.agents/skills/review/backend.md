@@ -29,6 +29,7 @@ Read every requirement in full. Treat each individual requirement as a root and 
    - Identify every success, refusal, boundary, lifecycle transition, ownership isolation, persistent effect, and failure atomicity that must be observed.
    - Verify that tests exercise every applicable observation with concrete assertions.
    - Verify that each test would fail if the named requirement disappeared or changed incorrectly.
+   - For email, SMS, webhook, payment, and other external delivery boundaries, verify that tests observe an injected fake outbound adapter while public responses preserve secrecy and account indistinguishability. Reject any public DTO added only to return a secret or proof to the test caller.
 
 Complete all branches for one requirement before treating that requirement as reviewed. Similar or adjacent requirements never share credit.
 
