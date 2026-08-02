@@ -28,6 +28,17 @@ export interface IEvidenceGraphTypeScriptClaim {
   name?: string;
 
   /**
+   * Excludes this claim from graph loading and evaluation.
+   *
+   * The configuration shape is still validated, but this claim contributes no
+   * populations, references, coverage obligations, completion hints, or watched
+   * inputs. Omit this property or set it to `false` to enable the claim.
+   *
+   * @default false
+   */
+  disabled?: boolean;
+
+  /**
    * Directory whose TypeScript population {@link files} select.
    *
    * Omit it to select from the active `ttsc` project root. A relative root

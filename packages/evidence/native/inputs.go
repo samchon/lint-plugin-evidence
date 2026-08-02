@@ -40,6 +40,7 @@ func (graphRule) ProjectInputs(ctx *rule.ProjectInputContext) []rule.ProjectInpu
 // watches, so declaring them again would ask for a second watcher on a file
 // that already has one.
 func graphProjectInputs(config graphConfig) []rule.ProjectInput {
+	config = enabledGraphConfig(config)
 	inputs := []rule.ProjectInput{}
 	for _, claim := range config.Claims {
 		switch claim.Type {

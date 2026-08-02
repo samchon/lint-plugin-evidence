@@ -31,6 +31,11 @@ func (graphRule) Check(ctx *rule.ProjectContext) {
 		reportProblems(ctx, problems)
 		return
 	}
+	config = enabledGraphConfig(config)
+	if len(config.Claims) == 0 {
+		cycle.Corpus = graphCorpus{Config: config}
+		return
+	}
 	root := evidenceProjectRoot(ctx.Identity)
 	if root == "" {
 		ctx.Report("Evidence graph could not resolve the project root. Run ttsc with a project config or explicit project root so project-relative evidence globs have one stable base.")
