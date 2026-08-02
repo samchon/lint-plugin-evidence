@@ -2,30 +2,35 @@
 
 Read `AGENTS.md`, `.agents/skills/review/SKILL.md`, and every detailed procedure under `.agents/skills/review/` in full before reviewing.
 
-Review the complete application and every cross-layer relationship. Perform a literal **review loop until dry**:
+Review the entire application and every cross-layer relationship through a literal **review loop until dry**:
 
-In every round, read every product-scope file in one complete sorted manifest covering `docs/analysis/`, `packages/backend/prisma/schema/`, `packages/api/src/`, `packages/backend/src/`, `packages/backend/test/`, `packages/frontend/src/`, and `packages/frontend/tests/`, plus every application configuration file covered by the Backend or Frontend Review.
+Every round must read in full one complete sorted manifest covering `docs/analysis/`, `packages/backend/prisma/schema/`, `packages/api/src/`, `packages/backend/src/`, `packages/backend/test/`, `packages/frontend/src/`, and `packages/frontend/tests/`, including configuration covered by Backend or Frontend Review.
 
-1. Read every requirement in full and propagate each one through the database, API, backend, frontend, and tests.
-2. Read the database, API, backend, frontend, and tests in full. Compare every adjacent layer in both directions and trace every artifact backward to its requirement.
-3. Trace every required user journey from requirement through persistence and API behavior to the live screen and browser proof, then trace it backward.
-4. Finish the full round and collect every finding as the Review skill requires. Fix every finding and consequence, then wait for clean backend `pnpm check:watch`, backend `pnpm dev`, and frontend `pnpm dev` processes.
-5. Start the next round from the first requirement. Repeat without a round limit until one full round finds no problem and makes no edit.
+1. Read every requirement in full; propagate each through the database, API, backend, frontend, and tests.
+2. Read the database, API, backend, frontend, and tests in full. Compare adjacent layers both ways and trace every artifact back to its requirement.
+3. Trace every required journey from requirement through persistence and API to live screen and browser proof, then backward.
+4. Complete the round and collect findings as the Review skill requires. Fix every finding and consequence, then await clean backend `pnpm check:watch`, backend `pnpm dev`, and frontend `pnpm dev` processes.
+5. After any edit, restart at the first requirement. Repeat without limit until a full round finds nothing and edits nothing.
 
-Review loop until dry is literal full reading and unlimited repetition, not a figure of speech. Never replace or shorten it with:
+A dry loop requires complete reading and unlimited rounds. Never substitute:
 
-- searches, summaries, inventories, builds, tests, samples, partial layer reviews, or earlier rounds;
-- splitting the scope across rounds or assigning different files, layers, requirements, journeys, or review lenses to different rounds; every round must cover the entire scope;
-- a judgment that the review seems sufficient, efficient, comprehensive, repetitive, expensive, or unlikely to find more; or
-- an expectation that the later Final objective will finish or repeat the review.
+- searches, summaries, inventories, builds, tests, samples, partial layer reviews, or prior rounds;
+- dividing files, layers, requirements, journeys, or review lenses among rounds; every round covers the entire scope;
+- claims that the review is sufficient, comprehensive, efficient, repetitive, expensive, or unlikely to help; or
+- relying on Final to finish or repeat the review.
+
+## Review Evidence Report
+
+Before completion, report each round's full manifest, findings and fixes, and the final dry, edit-free round. If that evidence reveals missing work, resume the loop and report again after completing it.
 
 ## Final Checklist
 
-- [ ] Review skill gate followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
+- [ ] Review skill gate followed without changing scope, rounds, stopping condition, or procedure.
 - [ ] Every required instruction was read in full.
-- [ ] Every round began with one new complete sorted manifest; each command read only one manifest file, and every file was fully covered in order.
-- [ ] Every correction or later scoped change, including a gate fix, triggered a new full round from the first requirement.
+- [ ] Every round used a new complete sorted manifest and read one file per command, in order and in full.
+- [ ] Every correction or scoped change, including a gate fix, triggered a new full round from the first requirement.
 - [ ] Every finding and consequence fixed; derived artifacts regenerated.
 - [ ] Final full round dry and edit-free; the clean current watcher and development gates left it unchanged.
+- [ ] Report proves every round, finding, fix, and final dry round.
 
-Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the literal full-reading Overall Review round from the first requirement.
+If any item is unchecked or uncertain, restart the full Overall Review at the first requirement.

@@ -1,19 +1,19 @@
-Ignore the preceding completion reports. Check the actual work against the quoted Frontend Review below.
+Verify the work against the quoted Frontend Review despite prior reports.
 
 Confirm all four:
 
-- Every scoped file and required live journey was reviewed in full.
+- Every scoped file and live journey was reviewed in full.
 - Every finding and consequence was fixed.
-- Every scoped change was followed by a new full round from the first requirement.
-- The last full round found no defect and made no edit.
+- Every scoped change triggered a new full round from the first requirement.
+- The last full round was dry and edit-free.
 
-If any item is false or uncertain, perform the quoted Frontend Review now and repeat complete rounds until all four are true. Do not stop with an explanation or another unsupported completion claim.
+If any item is false or uncertain, perform the quoted Review until all are true. Explanations and unsupported claims do not count.
 
-Then:
+Final gates:
 
-- Keep backend `pnpm check:watch` and `pnpm dev` running and clean.
-- Keep frontend `pnpm dev` running and clean.
-- Run `pnpm test:e2e` from `packages/frontend` with `VITE_API_SIMULATE=false`.
-- Keep all three processes running through Overall Final.
+- Backend `pnpm check:watch` and `pnpm dev` remain running and clean.
+- Frontend `pnpm dev` remains running and clean.
+- `packages/frontend` passes `pnpm test:e2e` with `VITE_API_SIMULATE=false`.
+- All three processes run through Overall Final.
 
-Do not complete this Goal until the review conditions and every final gate are satisfied.
+Complete only when the review and gates pass.
