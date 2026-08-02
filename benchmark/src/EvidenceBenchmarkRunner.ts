@@ -54,7 +54,10 @@ export namespace EvidenceBenchmarkRunner {
   ): Promise<IEvidenceBenchmarkRunState> {
     const state: IEvidenceBenchmarkRunState =
       typia.assert<IEvidenceBenchmarkRunState>(structuredClone(props.state));
-    const entries = instructionEntries(state.arm);
+    const entries = instructionEntries(
+      state.arm,
+      props.reviewLedger !== "backend",
+    );
     if (state.status === "awaiting-supervision") {
       if (props.runRoot === undefined)
         throw new Error(
@@ -365,7 +368,10 @@ export namespace EvidenceBenchmarkRunner {
         !record.threadIdle
       )
         return;
-      if (props.reviewLedger === "backend") {
+      if (
+        props.reviewLedger === "backend" &&
+        (record.name === "backend-review" || record.name === "backend-final")
+      ) {
         try {
           if (activeNativeCommands.size !== 0)
             throw new Error(
@@ -1357,22 +1363,36 @@ export namespace EvidenceBenchmarkRunner {
    */
   export function instructionEntries(
     arm: EvidenceBenchmarkArm,
+    includeReminders: boolean = true,
   ): readonly (readonly [string, string])[] {
-    const scoped: readonly (readonly [string, string])[] = [
-      ["backend-start", `${arm}/backend/start.md`],
-      ["backend-review", `${arm}/backend/review.md`],
-      ["backend-final", `${arm}/backend/final.md`],
-      ["frontend-start", `${arm}/frontend/start.md`],
-      ["frontend-review", `${arm}/frontend/review.md`],
-      ["frontend-final", `${arm}/frontend/final.md`],
+    if (arm === "evidence")
+      return [
+        ["backend-start", "evidence/backend/start.md"],
+        ["backend-review", "evidence/backend/review.md"],
+        ["backend-final", "evidence/backend/final.md"],
+        ["frontend-start", "evidence/frontend/start.md"],
+        ["frontend-review", "evidence/frontend/review.md"],
+        ["frontend-final", "evidence/frontend/final.md"],
+      ];
+    const backendReminder: readonly (readonly [string, string])[] =
+      includeReminders ? [["backend-remind", "plain/backend/remind.md"]] : [];
+    const frontendReminder: readonly (readonly [string, string])[] =
+      includeReminders ? [["frontend-remind", "plain/frontend/remind.md"]] : [];
+    const overallReminder: readonly (readonly [string, string])[] =
+      includeReminders ? [["overall-remind", "plain/overall/remind.md"]] : [];
+    return [
+      ["backend-start", "plain/backend/start.md"],
+      ["backend-review", "plain/backend/review.md"],
+      ...backendReminder,
+      ["backend-final", "plain/backend/final.md"],
+      ["frontend-start", "plain/frontend/start.md"],
+      ["frontend-review", "plain/frontend/review.md"],
+      ...frontendReminder,
+      ["frontend-final", "plain/frontend/final.md"],
+      ["overall-review", "plain/overall/review.md"],
+      ...overallReminder,
+      ["overall-final", "plain/overall/final.md"],
     ];
-    return arm === "evidence"
-      ? scoped
-      : [
-          ...scoped,
-          ["overall-review", `${arm}/overall/review.md`],
-          ["overall-final", `${arm}/overall/final.md`],
-        ];
   }
 
   /** Returns the arm-owned continuation appended to every objective. */
@@ -1413,10 +1433,10 @@ export namespace EvidenceBenchmarkRunner {
 
   /**
    * Reads one instruction and quotes its matching Review at the end of a Plain
-   * Final.
+   * Reminder or Final.
    *
-   * Plain Final verifies the exact exhaustive-review contract without
-   * duplicating it. Evidence Final owns only its prescribed current gates.
+   * Plain verification objectives receive the exact exhaustive-review contract
+   * without duplicating it. Evidence Final owns only its prescribed gates.
    */
   function readPrescribedText(
     instructionsRoot: string,
@@ -1428,11 +1448,11 @@ export namespace EvidenceBenchmarkRunner {
     );
     if (
       !relativePath.startsWith("plain/") ||
-      !relativePath.endsWith("/final.md")
+      !/\/(?:remind|final)\.md$/u.test(relativePath)
     )
       return prescribedText;
     const reviewPath: string = relativePath.replace(
-      /\/final\.md$/u,
+      /\/(?:remind|final)\.md$/u,
       "/review.md",
     );
     const reviewText: string = fs.readFileSync(

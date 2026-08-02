@@ -29,7 +29,7 @@ Starting before that layer is complete emits hundreds or thousands of errors for
    - Stop it after a rebuild without diagnostics.
 3. After every public-operation test is written, start `pnpm check:watch` again.
    - Fix every diagnostic and wait for a rebuild without diagnostics.
-   - Keep it running through Overall Final.
+   - Keep it running through Frontend Final.
 4. Finish every provider and controller body while the watcher runs.
    - Fix every new diagnostic and wait for a rebuild without diagnostics.
    - Run `pnpm test` and fix every failure.

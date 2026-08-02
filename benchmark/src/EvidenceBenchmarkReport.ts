@@ -434,14 +434,17 @@ const stagePhase = (stage: string): PhaseName => {
     case "backend-start":
       return "backend-development";
     case "backend-review":
+    case "backend-remind":
     case "backend-final":
       return "backend-review";
     case "frontend-start":
       return "frontend-development";
     case "frontend-review":
+    case "frontend-remind":
     case "frontend-final":
       return "frontend-review";
     case "overall-review":
+    case "overall-remind":
     case "overall-final":
       return "overall-review";
     default:

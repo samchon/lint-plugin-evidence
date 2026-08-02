@@ -26,11 +26,14 @@ const EVIDENCE_ENTRIES = [
 const PLAIN_ENTRIES = [
   ["backend-start", "plain/backend/start.md"],
   ["backend-review", "plain/backend/review.md"],
+  ["backend-remind", "plain/backend/remind.md"],
   ["backend-final", "plain/backend/final.md"],
   ["frontend-start", "plain/frontend/start.md"],
   ["frontend-review", "plain/frontend/review.md"],
+  ["frontend-remind", "plain/frontend/remind.md"],
   ["frontend-final", "plain/frontend/final.md"],
   ["overall-review", "plain/overall/review.md"],
+  ["overall-remind", "plain/overall/remind.md"],
   ["overall-final", "plain/overall/final.md"],
 ] as const;
 
@@ -65,6 +68,10 @@ const main = async (): Promise<void> => {
       EvidenceBenchmarkRunner.instructionEntries("plain"),
       PLAIN_ENTRIES,
     );
+    assert.deepEqual(
+      EvidenceBenchmarkRunner.instructionEntries("plain", false),
+      PLAIN_ENTRIES.filter(([name]) => !name.endsWith("-remind")),
+    );
     assert.equal(
       EvidenceBenchmarkRunner.instructionContinuationPath("evidence"),
       "evidence/continue.md",
@@ -93,6 +100,18 @@ const main = async (): Promise<void> => {
     assert.equal(
       readPrescribed(sources, "evidence/backend/final.md"),
       sources.get("evidence/backend/final.md")!.toString("utf8"),
+    );
+    assert.notEqual(
+      readPrescribed(sources, "plain/backend/remind.md"),
+      sources.get("plain/backend/remind.md")!.toString("utf8"),
+    );
+    assert.notEqual(
+      readPrescribed(sources, "plain/frontend/remind.md"),
+      sources.get("plain/frontend/remind.md")!.toString("utf8"),
+    );
+    assert.notEqual(
+      readPrescribed(sources, "plain/overall/remind.md"),
+      sources.get("plain/overall/remind.md")!.toString("utf8"),
     );
     assert.notEqual(
       readPrescribed(sources, "plain/backend/final.md"),
@@ -492,10 +511,12 @@ const main = async (): Promise<void> => {
       onOutput: () => undefined,
     });
     assert.equal(resumedSupervised.status, "awaiting-supervision");
-    assert.equal(resumedSupervised.nextInstructionIndex, 3);
-    assert.equal(resumedSupervised.goals.length, 3);
-    assert.equal(resumedSupervised.goals[2]?.name, "backend-final");
+    assert.equal(resumedSupervised.nextInstructionIndex, 4);
+    assert.equal(resumedSupervised.goals.length, 4);
+    assert.equal(resumedSupervised.goals[2]?.name, "backend-remind");
     assert.equal(resumedSupervised.goals[2]?.goal?.status, "complete");
+    assert.equal(resumedSupervised.goals[3]?.name, "backend-final");
+    assert.equal(resumedSupervised.goals[3]?.goal?.status, "complete");
     assert.equal(resumedSupervised.supervisionPauses?.length, 2);
     assert.equal(
       resumedSupervised.supervisionPauses?.[0]?.afterGoal,
@@ -2633,10 +2654,13 @@ const readPrescribed = (
   const source: Buffer | undefined = sources.get(relativePath);
   assert.ok(source, `Missing fixture source: ${relativePath}`);
   const prescribed: string = source.toString("utf8");
-  if (!relativePath.startsWith("plain/") || !relativePath.endsWith("/final.md"))
+  if (
+    !relativePath.startsWith("plain/") ||
+    !/\/(?:remind|final)\.md$/u.test(relativePath)
+  )
     return prescribed;
   const reviewPath: string = relativePath.replace(
-    /\/final\.md$/u,
+    /\/(?:remind|final)\.md$/u,
     "/review.md",
   );
   const review: Buffer | undefined = sources.get(reviewPath);

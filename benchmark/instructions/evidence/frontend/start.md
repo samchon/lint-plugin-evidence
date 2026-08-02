@@ -24,7 +24,7 @@ Starting before that layer is complete emits hundreds or thousands of errors for
    - Stop it after a reload without diagnostics.
 2. After every journey is complete, start frontend `pnpm dev` again.
    - Fix every diagnostic and wait for a reload without diagnostics.
-   - Keep it running through Overall Final.
+   - Keep it running through Frontend Final.
 
 Run frontend `pnpm lint` and fix every diagnostic. Require exit code 0.
 
@@ -32,7 +32,7 @@ Run frontend `pnpm lint` and fix every diagnostic. Require exit code 0.
 
 Remove every source-owned `@todo` under `packages/frontend`.
 
-Start `pnpm dev` from `packages/backend`. Frontend `pnpm dev` is already running. Keep both running through Overall Final.
+Start `pnpm dev` from `packages/backend`. Frontend `pnpm dev` is already running. Keep both running through Frontend Final.
 
 Run `pnpm test:e2e` with `VITE_API_SIMULATE=false`. Fix every failure. After the last fix, require a frontend reload without diagnostics and an E2E exit code of 0.
 
