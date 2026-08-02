@@ -50,6 +50,7 @@ interface IEvidenceBenchmarkCell {
     runId: string;
     name: "backend-start";
     inheritedWallElapsedMs: number;
+    instructionSurfaceSha256?: string;
   };
   stopAfter?: "backend-start";
   supervision?: "backend";
@@ -321,11 +322,6 @@ const runFromBackendStartCheckpoint = async (props: {
     throw new Error("Checkpoint source lacks an exact backend-start boundary.");
   requested.benchmarkRevision = sourceCell.benchmarkRevision;
   requested.evidenceArtifactSha256 = sourceCell.evidenceArtifactSha256;
-  requested.checkpointSource = {
-    runId: sourceCell.runId,
-    name: "backend-start",
-    inheritedWallElapsedMs: checkpoint.inheritedWallElapsedMs,
-  };
   let workspace: string;
   let restored = false;
   try {
@@ -343,18 +339,33 @@ const runFromBackendStartCheckpoint = async (props: {
       gitHead: checkpoint.workspaceGitHead,
       gitStatus: checkpoint.workspaceGitStatus,
     });
-    EvidenceBenchmarkCheckpoint.applyReviewSkill({
-      workspace,
-      source: path.join(
-        props.repository,
-        "benchmark",
-        "template",
-        requested.arm,
-        ".agents",
-        "skills",
-        "review",
-      ),
-    });
+    const instructionSurface: string =
+      EvidenceBenchmarkWorkspace.prepareInstructionSurface({
+        repository: props.repository,
+        arm: requested.arm,
+        variables: {
+          name: `benchmark-${requested.subject}`,
+          apiPackageName: `@benchmark/${requested.subject}-api`,
+          backendPackageName: `@benchmark/${requested.subject}-backend`,
+          frontendPackageName: `@benchmark/${requested.subject}-frontend`,
+        },
+      });
+    const instructionSurfaceSha256: string = (() => {
+      try {
+        return EvidenceBenchmarkCheckpoint.applyInstructionSurface({
+          workspace,
+          source: instructionSurface,
+        });
+      } finally {
+        fs.rmSync(instructionSurface, { recursive: true, force: true });
+      }
+    })();
+    requested.checkpointSource = {
+      runId: sourceCell.runId,
+      name: "backend-start",
+      inheritedWallElapsedMs: checkpoint.inheritedWallElapsedMs,
+      instructionSurfaceSha256,
+    };
     initializeAppendOnly(props.records.events);
     initializeAppendOnly(props.records.raw);
   } catch (error) {

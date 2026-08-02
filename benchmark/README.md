@@ -41,7 +41,7 @@ After `backend-start` completes, the runner stores a workspace and native-turn c
 pnpm --filter @samchon/evidence-benchmark start codex <project> <evidence|plain> <model> <effort> --from-backend-start <source-run-id>
 ```
 
-The derived run verifies the retained cell and exact completed `backend-start` boundary, restores that workspace, applies the current arm's Review skill, and reads the current downstream instructions. An explicit operator launch does not reject the checkpoint because repository inputs changed after it was created.
+The derived run verifies the retained cell and exact completed `backend-start` boundary, restores that product workspace, reapplies the current rendered `AGENTS.md` and complete base-plus-arm skill surface, verifies and records its exact SHA-256 digest, and reads the current downstream instructions. The restored Git baseline and product status stay unchanged; only the non-product instruction surface is overlaid. An explicit operator launch does not reject the checkpoint because repository inputs changed after it was created.
 
 For a supervised Plain experiment whose independent variable is an external review ledger, launch the restored checkpoint in a new review thread:
 

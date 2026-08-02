@@ -219,16 +219,52 @@ export namespace EvidenceBenchmarkCheckpoint {
       throw new Error("Restored checkpoint workspace bytes have changed.");
   }
 
-  /** Applies the current review procedure without counting it as product work. */
-  export function applyReviewSkill(props: {
+  /** Applies current agent instructions without counting them as product work. */
+  export function applyInstructionSurface(props: {
     workspace: string;
     source: string;
-  }): void {
+  }): string {
     const workspace: string = path.resolve(props.workspace);
     const source: string = path.resolve(props.source);
     if (!fs.statSync(source).isDirectory())
-      throw new Error(`Review skill is not a directory: ${source}.`);
-    const relative: string = ".agents/skills/review";
+      throw new Error(`Instruction surface is not a directory: ${source}.`);
+    const relatives = ["AGENTS.md", ".agents/skills"] as const;
+    const expectedSha256: string = hashInstructionSurface(source);
+    for (const relative of relatives)
+      assertInstructionPathClean({ workspace, relative });
+    for (const relative of relatives)
+      applyInstructionPath({ workspace, source, relative });
+    const actualSha256: string = hashInstructionSurface(workspace);
+    if (actualSha256 !== expectedSha256)
+      throw new Error("Recovered instruction surface failed verification.");
+    return actualSha256;
+  }
+
+  const assertInstructionPathClean = (props: {
+    workspace: string;
+    relative: "AGENTS.md" | ".agents/skills";
+  }): void => {
+    const existingStatus: string = git(props.workspace, [
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all",
+      "--",
+      props.relative,
+    ]);
+    if (existingStatus.length !== 0)
+      throw new Error(
+        `Checkpoint instruction surface was modified before recovery: ${props.relative}.`,
+      );
+  };
+
+  const applyInstructionPath = (props: {
+    workspace: string;
+    source: string;
+    relative: "AGENTS.md" | ".agents/skills";
+  }): void => {
+    const source: string = resolveWithin(props.source, props.relative);
+    const relative: string = props.relative;
+    const workspace: string = props.workspace;
     const target: string = resolveWithin(workspace, relative);
     const tracked: string[] = git(workspace, ["ls-files", "-z", "--", relative])
       .split("\0")
@@ -237,7 +273,7 @@ export namespace EvidenceBenchmarkCheckpoint {
     fs.rmSync(target, { recursive: true, force: true });
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.cpSync(source, target, {
-      recursive: true,
+      recursive: fs.statSync(source).isDirectory(),
       dereference: false,
       preserveTimestamps: true,
     });
@@ -245,7 +281,8 @@ export namespace EvidenceBenchmarkCheckpoint {
       git(workspace, ["update-index", "--skip-worktree", "--", file]);
 
     const exclude: string = path.join(workspace, ".git", "info", "exclude");
-    const pattern: string = "/.agents/skills/review/";
+    const pattern: string =
+      relative === "AGENTS.md" ? "/AGENTS.md" : "/.agents/skills/";
     const contents: string = fs.existsSync(exclude)
       ? fs.readFileSync(exclude, "utf8")
       : "";
@@ -257,7 +294,21 @@ export namespace EvidenceBenchmarkCheckpoint {
         "utf8",
       );
     }
-  }
+  };
+
+  const hashInstructionSurface = (root: string): string => {
+    const agents: string = resolveWithin(root, "AGENTS.md");
+    const skills: string = resolveWithin(root, ".agents/skills");
+    if (!fs.lstatSync(agents).isFile())
+      throw new Error(`Instruction entry is not a regular file: ${agents}.`);
+    if (!fs.lstatSync(skills).isDirectory())
+      throw new Error(`Instruction entry is not a directory: ${skills}.`);
+    const files: string[] = ["AGENTS.md"];
+    visit(skills, (_file, relative) =>
+      files.push(path.posix.join(".agents/skills", relative)),
+    );
+    return hashFileSet(root, files.sort());
+  };
 
   function readWorkspaceSnapshot(
     runRoot: string,

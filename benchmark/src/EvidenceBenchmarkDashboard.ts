@@ -27,6 +27,7 @@ interface IDashboardCell {
   checkpointSource?: {
     runId: string;
     inheritedWallElapsedMs: number;
+    instructionSurfaceSha256?: string;
   };
   reviewLedger?: "backend";
 }
