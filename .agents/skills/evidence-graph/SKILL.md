@@ -1,6 +1,6 @@
 ---
 name: evidence-graph
-description: Defines the evidence graph domain model for @samchon/lint-plugin-evidence — the tag grammar, node kinds, hierarchy, reference resolution, obligation coverage, and exclusions. Use before changing rule semantics, the tag grammar, the configuration surface, or a diagnostic message; do not use for the mechanics of the Go rule API, which the lint-rule-authoring skill owns.
+description: Defines the evidence graph domain model for @samchon/lint-plugin-evidence — the tag grammar, node kinds, hierarchy, reference resolution, obligation coverage, reference policies, and exclusions. Use before changing rule semantics, the tag grammar, the configuration surface, or a diagnostic message; do not use for the mechanics of the Go rule API, which the lint-rule-authoring skill owns.
 ---
 
 # Evidence Graph
@@ -49,7 +49,7 @@ Four artifact kinds materialize evidence units.
 
 Units form structural containment scopes. A Markdown file contains its heading outline; a heading contains lower-level headings until the next heading of equal or higher level. A Prisma model contains its columns and relations. A TypeScript interface or object-shaped type alias contains its direct properties, and a namespace contains every nested public unit. Top-level TypeScript functions and properties have no aggregate file node. Swagger operations are independent leaves with no document or path aggregate target.
 
-An `@evidence` or `@evidenceExclude` target acknowledges the selected target and every selected descendant. The reference's `symbol` selector defines the obligation denominator, not the only addressable targets: every structural ancestor of a selected unit remains resolvable as an aggregate scope.
+An `@evidence` target acknowledges the selected target and every selected descendant, and an `@evidenceExclude` target does the same unless its reference declares `noExclude`. The reference's `symbol` selector defines the obligation denominator, not the only addressable targets: every structural ancestor of a selected unit remains resolvable as an aggregate scope.
 
 Keep selected obligations and resolvable scopes separate. Do not make every unselected unit resolvable; only actual ancestors belong to the scope closure, or an unrelated same-name declaration can create false ambiguity.
 
@@ -90,9 +90,11 @@ Only public identities materialize. A top-level declaration needs an export modi
 **A re-export decides reachability, never identity.** The rule splits in two, and both halves are load-bearing.
 
 - **Identity stays with the declaring file.** A re-export whose declaration lives in another file creates no second unit. A symbol exposed through two barrels is one unit with one ID and one coverage obligation — this is what stops a barrel from doubling every obligation beneath it.
-- **Reachability comes from the entry.** Under entry selection, traversal follows `export *`, `export * as ns`, and `export { A as B }` to decide _membership_ in the population, and gives each reached symbol its accessor path from the entry. `export * as functional` nests a segment, `export * from` flattens one, and an alias is addressed by its public name.
+- **Reachability comes from the selected modules.** A TypeScript reference selects modules, and traversal follows `export *`, `export * as ns`, and `export { A as B }` from each of them to decide _membership_ in the population, giving every reached symbol its accessor path from the module that published it. `export * as functional` nests a segment, `export * from` flattens one, and an alias is addressed by its public name. A module's own inventory names a declaration by what that module exposes it as, so `export { a as b }` is one unit called `b`; matching it by the local binding finds nothing.
 
-A symbol reached by two paths therefore answers to two addresses and still materializes one coverage unit. Build those addresses from identity segments rather than by rewriting a joined target, or a literal dot inside a name collapses into qualification.
+A symbol reached by two paths therefore answers to two addresses and still materializes one coverage unit. Build those addresses from identity segments rather than by rewriting a joined target, or a literal dot inside a name collapses into qualification. An address is legal in the module that publishes it rather than everywhere, so record the module-and-address pair; import-scope resolution then keeps two modules publishing one declaration from competing.
+
+Containment among reached units follows the declaration hierarchy, never the address text. A type and a callable may share one public name, so treating a common address prefix as ownership would make an unrelated same-name declaration an ancestor and turn every citation of that name ambiguous.
 
 A mixed variable statement can carry both function and property host kinds because TypeScript attaches one leading JSDoc block to the statement wrapper. Every public leaf of an object or array binding pattern is a property under its local binding name. Preserve the host set; choosing one kind makes the other selector spuriously out of scope.
 
@@ -102,17 +104,28 @@ A mixed variable statement can carry both function and property host kinds becau
 
 - **Resolution.** Does every declaration target resolve to exactly one selected unit or structural ancestor?
 - **Host eligibility.** Does `@evidence` live on a symbol kind selected by its claim, or does `@evidenceExclude` live on an eligible carrier in a matching claim file?
-- **Coverage.** Does every selected reference unit have at least one acknowledgement in this claim?
+- **Coverage.** Does every selected reference unit have at least one acknowledgement in this claim, and does that acknowledgement satisfy whatever the reference's own policy demands of it?
 
 Keep claim and reference state separate. A declaration that satisfies one claim or reference never leaks coverage into another, even when the physical target is the same.
 
-Several declaration hosts may acknowledge the same unit with `@evidence`; one requirement can need several implementations or proofs. One declaration host may state one resolved evidence scope only once.
+Several declaration hosts may acknowledge the same unit with `@evidence`, unless the reference declares `uniqueEvidence`; one requirement can need several implementations or proofs. One declaration host may state one resolved evidence scope only once.
 
 `@evidenceExclude` is one reviewed non-applicability decision per scope in one claim-reference obligation. Exclusion scopes must not overlap each other. An evidence scope and exclusion scope must not overlap because they state opposite intent. Report one duplicate or conflict diagnostic per later overlapping scope rather than one per descendant.
 
+## Reference Policies
+
+A reference may strengthen its own acknowledgement relation with `noExclude`, `uniqueEvidence`, and `singleEvidencePerSymbol`, declared flat on the reference object. Every option is opt-in, its false value is the historical behavior, and constraints never cross or pool between reference-array elements — including identical and overlapping references.
+
+- **A refused exclusion is reference-local.** Report one diagnostic for the declaration and reference, give that reference no coverage from it, and leave the missing positive coverage visible. The same declaration may still satisfy another reference that allows exclusions.
+- **`uniqueEvidence` counts distinct semantic claim hosts per selected unit.** Declaration merging and overloads remain one host, several tags on one host count once, and an exclusion never contributes a host. A unit no host cites is reported as missing coverage instead.
+- **`singleEvidencePerSymbol` counts distinct selected units per claim host.** Begin from the complete selected host population so a host with no tag counts as zero, and count reference-unit identities reached by `@evidence`, including every selected descendant of an aggregate scope. Do not count tags, source positions, or exclusions.
+- **Incomplete populations establish no cardinality.** Preserve the loader failure and derive no count from a partial denominator. A healthy population that is merely empty is a complete denominator, so a host still truthfully cites zero units against it.
+
+Completion keeps every positive target. At the exclusion trigger, omit a target selected only by references that refuse exclusions, and keep one any enabled reference still allows. The hint API has no cursor or claim context, so cardinality stays an evaluation diagnostic rather than a completion filter.
+
 ## Exclusions
 
-`@evidenceExclude` records that one claim intentionally does not use a target scope. It has the same hierarchy and coverage cardinality as `@evidence`; only its reviewed intent differs.
+`@evidenceExclude` records that one claim intentionally does not use a target scope. On a reference that allows exclusions it has the same hierarchy and coverage cardinality as `@evidence`, and only its reviewed intent differs.
 
 Three properties are load-bearing.
 
