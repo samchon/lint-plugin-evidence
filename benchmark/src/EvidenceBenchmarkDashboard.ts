@@ -10,6 +10,7 @@ import type { IEvidenceBenchmarkApiCost } from "./structures/IEvidenceBenchmarkA
 import type {
   IEvidenceBenchmarkReport,
   IEvidenceBenchmarkReportCell,
+  IEvidenceBenchmarkReportReviewVerdict,
   IEvidenceBenchmarkReportStage,
   IEvidenceBenchmarkReportSuspension,
   IEvidenceBenchmarkReportWorktree,
@@ -66,6 +67,8 @@ interface IDashboardState {
     | "ready"
     | "running"
     | "checkpointed"
+    | "awaiting-review-verdict"
+    | "quality-failed"
     | "awaiting-supervision"
     | "rejected"
     | "interrupted"
@@ -76,6 +79,10 @@ interface IDashboardState {
   goals: IDashboardInstruction[];
   processes: IDashboardProcess[];
   supervisionPauses?: {
+    scope?: "backend" | "frontend" | "overall";
+    attempt?: number;
+    goalIndex?: number;
+    verdict?: unknown;
     pausedAt: string;
     resumedAt?: string;
   }[];
@@ -363,6 +370,10 @@ const renderRun = (run: IEvidenceBenchmarkReportCell): IRenderedRun => {
         (measurement) =>
           `  - \`${measurement.name}\`: ${formatCost(measurement.tokens)} · ${formatTime(measurement.elapsedMs)} · ${measurement.tokenPercent}% tokens · ${measurement.timePercent}% time`,
       ),
+      ...run.reviewVerdicts.map(
+        (verdict) =>
+          `  - review \`${verdict.scope}\` attempt ${verdict.attempt}: ${verdict.decision} -> ${verdict.action} (${verdict.verdictSha256.slice(0, 12)})`,
+      ),
     ],
   };
 };
@@ -420,9 +431,92 @@ const summarizeRun = (
     suspensions: run.suspensions,
     workElapsedMs,
     worktree: inspectWorktree(file.records.workspace),
+    reviewVerdicts: collectReviewVerdicts(file.state),
     stages,
   };
 };
+
+const collectReviewVerdicts = (
+  state: IDashboardState,
+): IEvidenceBenchmarkReportReviewVerdict[] =>
+  (state.supervisionPauses ?? []).flatMap((pause) => {
+    if (
+      pause.scope === undefined ||
+      pause.attempt === undefined ||
+      !isRecord(pause.verdict)
+    )
+      return [];
+    const verdict = pause.verdict;
+    const workspace = verdict.workspace;
+    const validTransition: boolean =
+      (verdict.decision === "pass" &&
+        verdict.action === "final" &&
+        verdict.feedback === undefined) ||
+      (verdict.decision === "fail" &&
+        typeof verdict.feedback === "string" &&
+        verdict.feedback.trim().length !== 0 &&
+        ((verdict.action === "retry" && pause.attempt < 4) ||
+          (verdict.action === "quality-failed" && pause.attempt === 4)));
+    if (
+      (verdict.decision !== "pass" && verdict.decision !== "fail") ||
+      verdict.scope !== pause.scope ||
+      verdict.attempt !== pause.attempt ||
+      !Number.isSafeInteger(pause.attempt) ||
+      pause.attempt < 0 ||
+      pause.attempt > 4 ||
+      (verdict.action !== "final" &&
+        verdict.action !== "retry" &&
+        verdict.action !== "quality-failed") ||
+      !validTransition ||
+      typeof verdict.decidedAt !== "string" ||
+      !Number.isFinite(Date.parse(verdict.decidedAt)) ||
+      !Number.isFinite(Date.parse(pause.pausedAt)) ||
+      typeof verdict.goalIndex !== "number" ||
+      verdict.goalIndex !== pause.goalIndex ||
+      !Number.isSafeInteger(verdict.goalIndex) ||
+      typeof verdict.terminalTurnId !== "string" ||
+      verdict.terminalTurnId.length === 0 ||
+      typeof verdict.rationale !== "string" ||
+      verdict.rationale.trim().length === 0 ||
+      (verdict.feedback !== undefined &&
+        typeof verdict.feedback !== "string") ||
+      typeof verdict.verdictRelativePath !== "string" ||
+      !new RegExp(
+        `^supervision/[0-9]{2}-${pause.scope}-${pause.attempt}-verdict\\.json$`,
+        "u",
+      ).test(verdict.verdictRelativePath) ||
+      typeof verdict.verdictSha256 !== "string" ||
+      !/^[0-9a-f]{64}$/iu.test(verdict.verdictSha256) ||
+      !isRecord(workspace) ||
+      typeof workspace.materialSha256 !== "string" ||
+      !/^[0-9a-f]{64}$/iu.test(workspace.materialSha256) ||
+      (pause.resumedAt !== undefined &&
+        !Number.isFinite(Date.parse(pause.resumedAt)))
+    )
+      throw new Error("Retained Plain review verdict is invalid.");
+    return [
+      {
+        scope: pause.scope,
+        attempt: pause.attempt,
+        decision: verdict.decision,
+        action: verdict.action,
+        goalIndex: verdict.goalIndex,
+        terminalTurnId: verdict.terminalTurnId,
+        rationale: verdict.rationale,
+        ...(verdict.feedback === undefined
+          ? {}
+          : { feedback: verdict.feedback }),
+        pausedAt: pause.pausedAt,
+        decidedAt: verdict.decidedAt,
+        ...(pause.resumedAt === undefined
+          ? {}
+          : { resumedAt: pause.resumedAt }),
+        verdictRelativePath: verdict.verdictRelativePath,
+        verdictSha256: verdict.verdictSha256,
+        workspaceMaterialSha256: workspace.materialSha256,
+      },
+    ];
+  });
 
 const collectRunApiCost = (
   run: IDashboardRun,
@@ -432,6 +526,8 @@ const collectRunApiCost = (
   const strict: boolean =
     file.state.status === "completed" ||
     file.state.status === "checkpointed" ||
+    file.state.status === "awaiting-review-verdict" ||
+    file.state.status === "quality-failed" ||
     file.state.status === "awaiting-supervision" ||
     file.state.status === "rejected";
   if (file.cell.checkpointSource === undefined)
@@ -633,6 +729,8 @@ const stageMeasurements = (
     ) ??
     (state.status === "completed" ||
     state.status === "checkpointed" ||
+    state.status === "awaiting-review-verdict" ||
+    state.status === "quality-failed" ||
     state.status === "awaiting-supervision" ||
     state.status === "rejected"
       ? undefined

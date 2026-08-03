@@ -8,6 +8,7 @@ import { pathToFileURL } from "node:url";
 import typia from "typia";
 
 import { EvidenceBenchmarkCheckpoint } from "../EvidenceBenchmarkCheckpoint.ts";
+import { EvidenceBenchmarkInstruction } from "../EvidenceBenchmarkInstruction.ts";
 import { EvidenceBenchmarkRunner } from "../EvidenceBenchmarkRunner.ts";
 import { EvidenceBenchmarkRuntime } from "../EvidenceBenchmarkRuntime.ts";
 import { EvidenceBenchmarkWorkspace } from "../EvidenceBenchmarkWorkspace.ts";
@@ -32,7 +33,6 @@ interface IEvidenceBenchmarkArguments {
   runId?: string;
   checkpointRunId?: string;
   stopAfter?: "backend-start";
-  supervision?: "backend";
   reviewLedger?: "backend";
 }
 
@@ -60,7 +60,6 @@ interface IEvidenceBenchmarkCell {
     instructionSurfaceSha256?: string;
   };
   stopAfter?: "backend-start";
-  supervision?: "backend";
   reviewLedger?: "backend";
 }
 
@@ -103,7 +102,6 @@ const main = async (): Promise<void> => {
     runtime: EvidenceBenchmarkRuntime.assign(options.subject, options.arm),
     inputIdentity,
     stopAfter: options.stopAfter,
-    supervision: options.supervision,
     reviewLedger: options.reviewLedger,
   };
   const output: string = path.join(
@@ -156,7 +154,6 @@ const main = async (): Promise<void> => {
     cell.effort !== requestedCell.effort ||
     cell.runId !== requestedCell.runId ||
     cell.stopAfter !== requestedCell.stopAfter ||
-    cell.supervision !== requestedCell.supervision ||
     cell.reviewLedger !== requestedCell.reviewLedger ||
     (cell.runtime !== undefined &&
       !EvidenceBenchmarkRuntime.equals(cell.runtime, requestedCell.runtime))
@@ -199,8 +196,8 @@ const main = async (): Promise<void> => {
       throw new Error(
         "Checkpoint-only runs cannot resume; derive a run from backend-start.",
       );
-    if (retained.state.status === "rejected")
-      throw new Error("Externally rejected benchmark runs cannot resume.");
+    if (retained.state.status === "quality-failed")
+      throw new Error("Quality-failed benchmark runs cannot resume.");
     if (
       cell.checkpointSource !== undefined &&
       retained.state.nativeThreadStartInstructionIndex === undefined
@@ -419,6 +416,7 @@ const runFromBackendStartCheckpoint = async (props: {
     cliVersion: checkpoint.cliVersion,
     nextInstructionIndex: 1,
     status: "ready",
+    instructionPlan: EvidenceBenchmarkInstruction.plan(requested.arm),
     threadTokenUsage:
       requested.reviewLedger === "backend"
         ? emptyTokenUsage()
@@ -513,10 +511,6 @@ const runBenchmark = async (
       runnerRevision,
       fork,
       stopAfterGoal: cell.stopAfter,
-      pauseAfterGoals:
-        cell.supervision === "backend"
-          ? ["backend-review", "backend-final"]
-          : undefined,
       reviewLedger: cell.reviewLedger,
       environment,
       onOutput,
@@ -537,10 +531,8 @@ const runBenchmark = async (
       !(
         result.status === "checkpointed" && cell.stopAfter === "backend-start"
       ) &&
-      !(
-        result.status === "awaiting-supervision" &&
-        cell.supervision === "backend"
-      )
+      result.status !== "awaiting-review-verdict" &&
+      result.status !== "quality-failed"
     )
       throw new Error(
         "Benchmark run was interrupted; resume the retained run.",
@@ -598,24 +590,33 @@ export const assertAppendOnlyInstructionExtension = (
   arm: EvidenceBenchmarkArm,
   state: IEvidenceBenchmarkRunState,
 ): void => {
-  const entries = EvidenceBenchmarkRunner.instructionEntries(arm);
+  const currentBase = EvidenceBenchmarkInstruction.plan(arm);
+  const retainedPlan =
+    state.instructionPlan ?? currentBase.slice(0, state.goals.length);
+  const retainedBase = retainedPlan.filter((entry) => entry.kind === "base");
   if (
     state.status !== "completed" ||
     state.nextInstructionIndex !== state.goals.length ||
-    state.nextInstructionIndex >= entries.length
+    state.nextInstructionIndex !== retainedPlan.length ||
+    currentBase.length <= retainedBase.length ||
+    retainedBase.some(
+      (entry, index) =>
+        entry.name !== currentBase[index]?.name ||
+        entry.relativePath !== currentBase[index]?.relativePath,
+    )
   )
     throw new Error(
       "Changed inputs are not an append-only extension of a completed benchmark.",
     );
   for (let index = 0; index < state.nextInstructionIndex; ++index) {
-    const entry = entries[index];
+    const entry = retainedPlan[index];
     const goal = state.goals[index];
     if (
       entry === undefined ||
       goal === undefined ||
       goal.index !== index ||
-      goal.name !== entry[0] ||
-      goal.relativePath !== entry[1] ||
+      goal.name !== entry.name ||
+      goal.relativePath !== entry.relativePath ||
       goal.goal?.status !== "complete" ||
       goal.terminalTurnId === null ||
       !goal.terminalTurnCompleted ||
@@ -625,14 +626,18 @@ export const assertAppendOnlyInstructionExtension = (
         "Changed inputs do not preserve every completed Goal boundary.",
       );
   }
+  state.instructionPlan = [
+    ...retainedPlan,
+    ...currentBase.slice(retainedBase.length),
+  ];
 };
 
 export const parseEvidenceBenchmarkArguments = (
   input: readonly string[],
 ): IEvidenceBenchmarkArguments => {
-  if (input.length < 5 || input.length > 9)
+  if (input.length < 5 || input.length > 8)
     throw new Error(
-      "Usage: pnpm start codex <subject> <evidence|plain> <model> <effort> [run-id] [--stop-after-backend-start | --from-backend-start source-run-id] [--supervise-backend] [--review-ledger]",
+      "Usage: pnpm start codex <subject> <evidence|plain> <model> <effort> [run-id] [--stop-after-backend-start | --from-backend-start source-run-id] [--review-ledger]",
     );
   const engine: string = input[0]!;
   if (engine !== "codex")
@@ -659,7 +664,6 @@ export const parseEvidenceBenchmarkArguments = (
   let runId: string | undefined;
   let checkpointRunId: string | undefined;
   let stopAfter: "backend-start" | undefined;
-  let supervision: "backend" | undefined;
   let reviewLedger: "backend" | undefined;
   for (let i = 0; i < optional.length; ++i) {
     const argument: string = optional[i]!;
@@ -671,10 +675,6 @@ export const parseEvidenceBenchmarkArguments = (
       if (stopAfter !== undefined)
         throw new Error("Duplicate backend-start stop option.");
       stopAfter = "backend-start";
-    } else if (argument === "--supervise-backend") {
-      if (supervision !== undefined)
-        throw new Error("Duplicate backend supervision option.");
-      supervision = "backend";
     } else if (argument === "--review-ledger") {
       if (reviewLedger !== undefined)
         throw new Error("Duplicate backend review ledger option.");
@@ -685,14 +685,11 @@ export const parseEvidenceBenchmarkArguments = (
   if (
     (checkpointRunId !== undefined && stopAfter !== undefined) ||
     (checkpointRunId !== undefined && runId !== undefined) ||
-    (stopAfter !== undefined && supervision !== undefined) ||
-    (supervision !== undefined && arm !== "plain") ||
     (reviewLedger !== undefined &&
       (arm !== "plain" ||
-        (checkpointRunId === undefined && runId === undefined) ||
-        supervision !== "backend"))
+        (checkpointRunId === undefined && runId === undefined)))
   )
-    throw new Error("Invalid benchmark checkpoint or supervision options.");
+    throw new Error("Invalid benchmark checkpoint or review-ledger options.");
   if (
     runId !== undefined &&
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -716,7 +713,6 @@ export const parseEvidenceBenchmarkArguments = (
     runId,
     checkpointRunId,
     stopAfter,
-    supervision,
     reviewLedger,
   };
 };

@@ -5,6 +5,8 @@ import path from "node:path";
 import typia from "typia";
 
 import { EvidenceBenchmarkCheckpoint } from "./EvidenceBenchmarkCheckpoint.ts";
+import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction.ts";
+import type { IEvidenceBenchmarkInputIdentity } from "./structures/IEvidenceBenchmarkInputIdentity.ts";
 import type { IEvidenceBenchmarkRunState } from "./structures/IEvidenceBenchmarkRunState.ts";
 import type { IEvidenceBenchmarkSupervisionVerdict } from "./structures/IEvidenceBenchmarkSupervisionVerdict.ts";
 import type { IEvidenceBenchmarkWorkspaceIdentity } from "./structures/IEvidenceBenchmarkWorkspaceIdentity.ts";
@@ -13,6 +15,8 @@ interface ISupervisedStateFile {
   cell: {
     arm: "plain" | "evidence";
     runId: string;
+    subject?: string;
+    inputIdentity?: IEvidenceBenchmarkInputIdentity;
   };
   records: {
     root: string;
@@ -22,88 +26,118 @@ interface ISupervisedStateFile {
   state: IEvidenceBenchmarkRunState;
 }
 
-/** Records and verifies decisions made outside the measured agent thread. */
+interface ISubmittedVerdict {
+  decision: "pass" | "fail";
+  rationale: string;
+  feedback?: string;
+}
+
+/** Retains and verifies Plain review decisions outside the measured thread. */
 export namespace EvidenceBenchmarkSupervision {
-  /** Binds an external expectation and audit report to the current pause. */
+  /** Applies one immutable verdict to the exact paused Review boundary. */
   export function decide(props: {
     runRoot: string;
-    decision: "approved" | "rejected";
-    expectations: string;
-    report: string;
+    instructionsRoot: string;
+    verdictFile: string;
+    subject?: string;
+    inputIdentity?: IEvidenceBenchmarkInputIdentity;
   }): IEvidenceBenchmarkSupervisionVerdict {
     const runRoot: string = path.resolve(props.runRoot);
     const statePath: string = path.join(runRoot, "state.json");
     const retained = typia.assert<ISupervisedStateFile>(
       JSON.parse(fs.readFileSync(statePath, "utf8")),
     );
-    if (
-      retained.cell.arm !== "plain" ||
-      retained.state.status !== "awaiting-supervision" ||
-      !samePath(retained.records.root, runRoot) ||
-      !samePath(retained.records.state, statePath) ||
-      !samePath(retained.records.workspace, path.join(runRoot, "workspace"))
-    )
-      throw new Error("Run is not an exact Plain supervision boundary.");
-    const pause = retained.state.supervisionPauses?.at(-1);
-    const goal = retained.state.goals.at(-1);
-    if (
-      pause === undefined ||
-      pause.resumedAt !== undefined ||
-      pause.verdict !== undefined ||
-      goal === undefined ||
-      goal.name !== pause.afterGoal ||
-      goal.terminalTurnId === null ||
-      goal.terminalTurnCompleted !== true ||
-      goal.threadIdle !== true
-    )
-      throw new Error("Supervision boundary is incomplete or already decided.");
+    assertRunBoundary(retained, runRoot, statePath, {
+      subject: props.subject,
+      inputIdentity: props.inputIdentity,
+    });
+    assertHistory(runRoot, retained.state);
+    const pause = retained.state.supervisionPauses!.at(-1)!;
+    const goal = retained.state.goals.at(-1)!;
+    const plan = retained.state.instructionPlan!;
+    const next = plan[retained.state.nextInstructionIndex];
+    if (next?.kind !== "base" || next.name !== `${pause.scope}-final`)
+      throw new Error("Review verdict does not precede its matching Final.");
 
-    const expectations: Buffer = readMarkdown(
-      props.expectations,
-      "expectations",
-    );
-    const report: Buffer = readMarkdown(props.report, "audit report");
+    const submittedFile: string = path.resolve(props.verdictFile);
+    if (isWithin(retained.records.workspace, submittedFile))
+      throw new Error(
+        "Review verdict input cannot modify the measured workspace.",
+      );
+    const submittedBytes: Buffer = fs.readFileSync(submittedFile);
+    const submitted: ISubmittedVerdict = parseSubmitted(submittedBytes);
+    const rationale: string = submitted.rationale.trim();
+    const feedback: string | undefined = submitted.feedback?.trim();
+    if (rationale.length === 0)
+      throw new Error("Review verdict rationale cannot be empty.");
+    if (submitted.decision === "pass" && feedback !== undefined)
+      throw new Error("A passing review verdict cannot inject feedback.");
+    if (submitted.decision === "fail" && !feedback)
+      throw new Error("A failing review verdict requires concrete feedback.");
+    if (feedback !== undefined) assertMeasuredBoundary(feedback);
+
+    const action: IEvidenceBenchmarkSupervisionVerdict["action"] =
+      submitted.decision === "pass"
+        ? "final"
+        : pause.attempt < 4
+          ? "retry"
+          : "quality-failed";
+    if (action === "retry") {
+      const attempt: number = pause.attempt + 1;
+      const entry = {
+        name: `${pause.scope}-remind-${attempt}`,
+        relativePath: `plain/${pause.scope}/remind.md`,
+        kind: "review-supplement" as const,
+        reviewScope: pause.scope,
+        reviewAttempt: attempt,
+        reviewFeedback: feedback!,
+      };
+      EvidenceBenchmarkInstruction.objective({
+        arm: "plain",
+        instructionsRoot: props.instructionsRoot,
+        entry,
+      });
+      plan.splice(retained.state.nextInstructionIndex, 0, entry);
+    }
+
     const workspace: IEvidenceBenchmarkWorkspaceIdentity =
       EvidenceBenchmarkCheckpoint.identifyWorkspace(retained.records.workspace);
     const directory: string = path.join(runRoot, "supervision");
     fs.mkdirSync(directory, { recursive: true });
-    const prefix: string = `${String(retained.state.supervisionPauses!.length - 1).padStart(2, "0")}-${pause.afterGoal}`;
-    const expectationsRelativePath: string = path.posix.join(
+    const verdictRelativePath: string = path.posix.join(
       "supervision",
-      `${prefix}-expectations.md`,
+      `${String(retained.state.supervisionPauses!.length - 1).padStart(2, "0")}-${pause.scope}-${pause.attempt}-verdict.json`,
     );
-    const reportRelativePath: string = path.posix.join(
-      "supervision",
-      `${prefix}-report.md`,
-    );
-    const expectationsTarget: string = resolveWithin(
-      runRoot,
-      expectationsRelativePath,
-    );
-    const reportTarget: string = resolveWithin(runRoot, reportRelativePath);
-    if (fs.existsSync(expectationsTarget) || fs.existsSync(reportTarget))
-      throw new Error("External supervision evidence already exists.");
-    writeExclusive(expectationsTarget, expectations);
-    writeExclusive(reportTarget, report);
+    const verdictTarget: string = resolveWithin(runRoot, verdictRelativePath);
+    if (fs.existsSync(verdictTarget)) {
+      if (!fs.readFileSync(verdictTarget).equals(submittedBytes))
+        throw new Error(
+          "A different review verdict already occupies this boundary.",
+        );
+    } else writeExclusive(verdictTarget, submittedBytes);
 
     const verdict: IEvidenceBenchmarkSupervisionVerdict = {
-      decision: props.decision,
+      scope: pause.scope,
+      attempt: pause.attempt,
+      decision: submitted.decision,
+      action,
       decidedAt: new Date().toISOString(),
-      terminalTurnId: goal.terminalTurnId,
-      expectationsRelativePath,
-      expectationsSha256: sha256(expectations),
-      reportRelativePath,
-      reportSha256: sha256(report),
+      goalIndex: goal.index,
+      terminalTurnId: goal.terminalTurnId!,
+      rationale,
+      ...(feedback === undefined ? {} : { feedback }),
+      verdictRelativePath,
+      verdictSha256: sha256(submittedBytes),
       workspace,
     };
     pause.verdict = verdict;
-    if (props.decision === "rejected") retained.state.status = "rejected";
+    if (action === "quality-failed") retained.state.status = "quality-failed";
     replaceDurably(statePath, `${JSON.stringify(retained, null, 2)}\n`);
     return verdict;
   }
 
-  /** Proves that an approval still names the current Goal, files, and report. */
-  export function assertApproved(props: {
+  /** Proves the verdict, workspace, Goal, and chosen continuation still agree. */
+  export function assertDecided(props: {
     runRoot: string;
     workspace: string;
     state: IEvidenceBenchmarkRunState;
@@ -112,50 +146,156 @@ export namespace EvidenceBenchmarkSupervision {
     const goal = props.state.goals.at(-1);
     const verdict = pause?.verdict;
     if (
-      props.state.status !== "awaiting-supervision" ||
+      props.state.status !== "awaiting-review-verdict" ||
       pause === undefined ||
       pause.resumedAt !== undefined ||
+      verdict === undefined ||
       goal === undefined ||
-      verdict?.decision !== "approved" ||
+      goal.index !== pause.goalIndex ||
       goal.name !== pause.afterGoal ||
       goal.terminalTurnId === null ||
-      verdict.terminalTurnId !== goal.terminalTurnId
+      goal.terminalTurnCompleted !== true ||
+      goal.threadIdle !== true ||
+      verdict.scope !== pause.scope ||
+      verdict.attempt !== pause.attempt ||
+      verdict.goalIndex !== goal.index ||
+      verdict.terminalTurnId !== goal.terminalTurnId ||
+      verdict.action === "quality-failed"
     )
-      throw new Error("Supervised resume lacks an exact external approval.");
-    assertFile(
-      props.runRoot,
-      verdict.expectationsRelativePath,
-      verdict.expectationsSha256,
-    );
-    assertFile(props.runRoot, verdict.reportRelativePath, verdict.reportSha256);
+      throw new Error(
+        "Review-verdict resume lacks an exact retained decision.",
+      );
+    assertHistory(props.runRoot, props.state);
+    const next =
+      props.state.instructionPlan?.[props.state.nextInstructionIndex];
+    if (
+      (verdict.action === "final" &&
+        (verdict.decision !== "pass" ||
+          next?.kind !== "base" ||
+          next.name !== `${pause.scope}-final`)) ||
+      (verdict.action === "retry" &&
+        (verdict.decision !== "fail" ||
+          verdict.feedback === undefined ||
+          next?.kind !== "review-supplement" ||
+          next.reviewScope !== pause.scope ||
+          next.reviewAttempt !== pause.attempt + 1 ||
+          next.reviewFeedback !== verdict.feedback))
+    )
+      throw new Error(
+        "Review verdict does not match its retained continuation.",
+      );
     const current: IEvidenceBenchmarkWorkspaceIdentity =
       EvidenceBenchmarkCheckpoint.identifyWorkspace(props.workspace);
+    if (!sameWorkspace(current, verdict.workspace))
+      throw new Error("Workspace changed after its review verdict.");
+  }
+
+  /** Proves every previously submitted verdict file remains immutable. */
+  export function assertHistory(
+    runRoot: string,
+    state: IEvidenceBenchmarkRunState,
+  ): void {
+    for (const pause of state.supervisionPauses ?? [])
+      if (pause.verdict !== undefined)
+        assertFile(
+          runRoot,
+          pause.verdict.verdictRelativePath,
+          pause.verdict.verdictSha256,
+        );
+  }
+
+  function assertRunBoundary(
+    retained: ISupervisedStateFile,
+    runRoot: string,
+    statePath: string,
+    current: {
+      subject?: string;
+      inputIdentity?: IEvidenceBenchmarkInputIdentity;
+    },
+  ): void {
+    const pause = retained.state.supervisionPauses?.at(-1);
+    const goal = retained.state.goals.at(-1);
+    const planEntry =
+      retained.state.instructionPlan?.[retained.state.nextInstructionIndex - 1];
+    const boundary =
+      planEntry === undefined
+        ? undefined
+        : EvidenceBenchmarkInstruction.reviewBoundary(planEntry);
+    const process = retained.state.processes.at(-1);
     if (
-      current.materialSha256 !== verdict.workspace.materialSha256 ||
-      current.fileCount !== verdict.workspace.fileCount ||
-      current.gitHead !== verdict.workspace.gitHead ||
-      current.gitStatus !== verdict.workspace.gitStatus
+      retained.cell.subject !== current.subject ||
+      !sameInputIdentity(retained.cell.inputIdentity, current.inputIdentity)
     )
-      throw new Error("Workspace changed after its external approval.");
+      throw new Error("Review verdict does not match frozen benchmark inputs.");
+    if (
+      retained.cell.arm !== "plain" ||
+      retained.cell.runId !== path.basename(runRoot) ||
+      retained.state.arm !== "plain" ||
+      typeof retained.state.sessionId !== "string" ||
+      typeof retained.state.cliVersion !== "string" ||
+      retained.state.status !== "awaiting-review-verdict" ||
+      retained.state.instructionPlan === undefined ||
+      !samePath(retained.records.root, runRoot) ||
+      !samePath(retained.records.state, statePath) ||
+      !samePath(retained.records.workspace, path.join(runRoot, "workspace")) ||
+      pause === undefined ||
+      boundary === undefined ||
+      boundary.scope !== pause.scope ||
+      boundary.attempt !== pause.attempt ||
+      pause.resumedAt !== undefined ||
+      pause.verdict !== undefined ||
+      goal === undefined ||
+      goal.index !== pause.goalIndex ||
+      goal.index !== retained.state.nextInstructionIndex - 1 ||
+      goal.name !== pause.afterGoal ||
+      goal.name !== planEntry?.name ||
+      goal.relativePath !== planEntry.relativePath ||
+      goal.goal?.threadId !== retained.state.sessionId ||
+      goal.goal.status !== "complete" ||
+      goal.terminalTurnId === null ||
+      goal.terminalTurnCompleted !== true ||
+      goal.threadIdle !== true ||
+      goal.tokenUsageTurnId !== goal.terminalTurnId ||
+      goal.tokenUsageEnd === null ||
+      process === undefined ||
+      ((process.exitCode !== 0 || process.signal !== null) &&
+        process.shutdownForced !== true)
+    )
+      throw new Error("Run is not an exact undecided Plain review boundary.");
+  }
+
+  function parseSubmitted(content: Buffer): ISubmittedVerdict {
+    const value: unknown = JSON.parse(content.toString("utf8"));
+    if (value === null || typeof value !== "object" || Array.isArray(value))
+      throw new Error("Review verdict must be a JSON object.");
+    const record = value as Record<string, unknown>;
+    if (
+      Object.keys(record).some(
+        (key) => !["decision", "rationale", "feedback"].includes(key),
+      ) ||
+      (record.decision !== "pass" && record.decision !== "fail") ||
+      typeof record.rationale !== "string" ||
+      (record.feedback !== undefined && typeof record.feedback !== "string")
+    )
+      throw new Error("Review verdict JSON has an invalid shape.");
+    return record as unknown as ISubmittedVerdict;
+  }
+
+  function assertMeasuredBoundary(feedback: string): void {
+    if (
+      /\b(?:benchmark|operators?|auditors?|verdicts?|supervisors?|supervision|reviewers?|plugin)\b|\b(?:another|other|external|main|measurement)\s+agent\b|\b(?:plain|evidence)\s+(?:arm|mode|agent)\b/iu.test(
+        feedback,
+      )
+    )
+      throw new Error("Review feedback discloses benchmark-only machinery.");
   }
 
   function assertFile(root: string, relative: string, expected: string): void {
     const file: string = resolveWithin(path.resolve(root), relative);
-    if (
-      !fs.statSync(file).isFile() ||
-      sha256(fs.readFileSync(file)) !== expected
-    )
-      throw new Error("External supervision evidence changed after decision.");
-  }
-
-  function readMarkdown(file: string, name: string): Buffer {
-    const resolved: string = path.resolve(file);
-    if (path.extname(resolved).toLowerCase() !== ".md")
-      throw new Error(`External supervision ${name} must be Markdown.`);
-    const content: Buffer = fs.readFileSync(resolved);
-    if (content.length === 0)
-      throw new Error(`External supervision ${name} cannot be empty.`);
-    return content;
+    if (!fs.existsSync(file) || !fs.statSync(file).isFile())
+      throw new Error("Retained review verdict changed after decision.");
+    if (sha256(fs.readFileSync(file)) !== expected)
+      throw new Error("Retained review verdict changed after decision.");
   }
 
   function writeExclusive(file: string, content: Buffer): void {
@@ -182,22 +322,59 @@ export namespace EvidenceBenchmarkSupervision {
 
   function resolveWithin(root: string, relative: string): string {
     if (path.isAbsolute(relative))
-      throw new Error("Supervision evidence path must be relative.");
+      throw new Error("Review verdict path must be relative.");
     const resolved: string = path.resolve(root, ...relative.split("/"));
     const prefix: string = root.endsWith(path.sep)
       ? root
       : `${root}${path.sep}`;
     if (resolved !== root && !resolved.startsWith(prefix))
-      throw new Error("Supervision evidence escapes its retained run.");
+      throw new Error("Review verdict escapes its retained run.");
     return resolved;
   }
 
+  function isWithin(root: string, candidate: string): boolean {
+    const normalizedRoot: string = normalizePath(root);
+    const normalizedCandidate: string = normalizePath(candidate);
+    return (
+      normalizedCandidate === normalizedRoot ||
+      normalizedCandidate.startsWith(`${normalizedRoot}${path.sep}`)
+    );
+  }
+
   function samePath(left: string, right: string): boolean {
-    const normalize = (value: string): string => {
-      const resolved: string = path.resolve(value);
-      return process.platform === "win32" ? resolved.toLowerCase() : resolved;
-    };
-    return normalize(left) === normalize(right);
+    return normalizePath(left) === normalizePath(right);
+  }
+
+  function normalizePath(value: string): string {
+    const absolute: string = path.resolve(value);
+    const resolved: string = fs.existsSync(absolute)
+      ? fs.realpathSync.native(absolute)
+      : absolute;
+    return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+  }
+
+  function sameWorkspace(
+    left: IEvidenceBenchmarkWorkspaceIdentity,
+    right: IEvidenceBenchmarkWorkspaceIdentity,
+  ): boolean {
+    return (
+      left.materialSha256 === right.materialSha256 &&
+      left.fileCount === right.fileCount &&
+      left.gitHead === right.gitHead &&
+      left.gitStatus === right.gitStatus
+    );
+  }
+
+  function sameInputIdentity(
+    left: IEvidenceBenchmarkInputIdentity | undefined,
+    right: IEvidenceBenchmarkInputIdentity | undefined,
+  ): boolean {
+    if (left === undefined || right === undefined) return left === right;
+    return (
+      left.templateSha256 === right.templateSha256 &&
+      left.requirementsSha256 === right.requirementsSha256 &&
+      left.instructionsSha256 === right.instructionsSha256
+    );
   }
 
   function sha256(content: Buffer): string {
