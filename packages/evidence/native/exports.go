@@ -385,11 +385,11 @@ func materializeEntryUnits(
 // never identity — the same declaration carries the same unit ID however it was
 // reached.
 //
-// Everything the entry reached stays available as an aggregate scope, including
-// the modules the narrowing left out. An ancestor is addressable because it is
-// an ancestor, not because it is selected, and dropping the ones outside the
-// glob would make `functional` unciteable while `functional.health.get` owed an
-// acknowledgement.
+// Reached and Published stay whole. Reached is read only to walk the parent
+// chain above a selected unit, and an ancestor is addressable because it is an
+// ancestor rather than because it was selected, so narrowing it would be work
+// with nothing to change. Published is what a citation resolves against, and it
+// is the entry's addresses that a consumer can write.
 func narrowTraversedPopulation(
 	published traversedPopulation,
 	membership traversedPopulation,
