@@ -151,6 +151,10 @@ export default {
     evidence,
   },
   rules: {
+    // Carried from the plain backend configuration this file replaces. The
+    // treatment variable is the graph and nothing else, so an unrelated rule
+    // must not be stricter in one arm than in the other.
+    "no-duplicate-imports": ["error", { allowSeparateTypeImports: true }],
     "evidence/graph": isNestiaSdkTransform ? "off" : ["error", graph],
   },
 } satisfies ITtscLintConfig;
