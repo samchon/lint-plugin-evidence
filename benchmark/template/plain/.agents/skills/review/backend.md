@@ -50,10 +50,10 @@ Reject a database, API, DTO, implementation, and test design when all layers con
 
 ## API Propagation
 
-Read every authored controller and DTO and every generated SDK contract in full. Treat each operation and DTO property as a root.
+Read every authored controller and DTO in full. Treat each operation and DTO property as a root.
 
 1. Propagate the operation into backend behavior.
-   - Trace the controller entry through authorization, validation, provider logic, database reads and writes, transactions, side effects, and returned values.
+   - Trace the contract through the authorization, validation, effects, and returned values it promises, and name where each is realized.
    - Inspect every success, refusal, error, retry, idempotency, and concurrent path promised by the contract.
 2. Propagate the operation into backend tests.
    - Find every test that claims to exercise it.
@@ -71,7 +71,7 @@ Every generated accessor states its own address in its JSDoc, so the operation l
 rg --no-filename -o '@accessor \S+' packages/api/src/functional | sort
 ```
 
-This is a cross-check index, not a read. It does not shorten the literal full reading of `packages/api/src/functional/`, and an accessor absent from the index but present in the source is itself a finding. Use it to guarantee the propagation below reaches every operation, and work it entry by entry.
+This is a cross-check index built from generated output, which the review does not read. An accessor it names that no controller declares is itself a finding. Use it to guarantee the propagation below reaches every operation, and work it entry by entry.
 
 1. Name, for each accessor, every test that proves it.
    - An accessor with no test is a finding. Four hundred published operations and two hundred proved ones is a missing feature set, not a thorough suite.
@@ -86,9 +86,9 @@ This is a cross-check index, not a read. It does not shorten the literal full re
 
 Never substitute a passing `pnpm test` for this reading. It reports only the tests that exist, and says nothing about an operation nobody tested or a required operation nobody published.
 
-## Implementation And Test Closure
+## Contract And Test Closure
 
-Read every backend source and test file in full.
+Read every controller and test file in full.
 
 1. Treat every implementation behavior, branch, state, and deliberate omission as a claim.
    - Trace it backward to the exact requirement or necessary technical boundary that justifies it.
@@ -111,7 +111,7 @@ Names, types, compilation, internal consistency, and passing tests do not establ
 - [ ] Every schema element checked against operations, DTOs, behavior, effects, and tests.
 - [ ] Every operation and DTO traced backward to requirements and storage and forward to behavior and tests.
 - [ ] Complete operation inventory read as one sorted list, every accessor named with the tests that prove it and what each proves, and every accessor without sufficient tests recorded as a finding.
-- [ ] Every backend source and test read across all success, refusal, boundary, lifecycle, ownership, atomicity, ordering, and concurrency paths.
+- [ ] Every controller and test read across all success, refusal, boundary, lifecycle, ownership, atomicity, ordering, and concurrency paths.
 - [ ] Every finding followed through its full consequence surface.
 
 Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the literal full-reading Backend Review from the first requirement.
