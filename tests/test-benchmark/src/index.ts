@@ -461,6 +461,60 @@ const main = async (): Promise<void> => {
         .filter((request) => request.method === "thread/goal/set").length,
       1,
     );
+    const runningPause = structuredClone(supervised);
+    runningPause.status = "running";
+    const recoveredPause = await EvidenceBenchmarkRunner.run({
+      state: runningPause,
+      cwd: supervisedWorkspace,
+      runRoot: supervisedRunRoot,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => assert.fail("Pause recovery must not launch Codex."),
+    });
+    assert.equal(recoveredPause.status, "awaiting-review-verdict");
+    const bypassedReview = structuredClone(runningPause);
+    bypassedReview.status = "interrupted";
+    bypassedReview.supervisionPauses = [];
+    await assert.rejects(
+      EvidenceBenchmarkRunner.run({
+        state: bypassedReview,
+        cwd: supervisedWorkspace,
+        runRoot: supervisedRunRoot,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        command: process.execPath,
+        commandPrefixArguments: prefix,
+        onOutput: () => undefined,
+      }),
+      /boundaries do not match retained pauses/u,
+    );
+    const misplacedSupplement = structuredClone(supervised);
+    misplacedSupplement.instructionPlan!.push({
+      name: "backend-remind-1",
+      relativePath: "plain/backend/remind.md",
+      kind: "review-supplement",
+      reviewScope: "backend",
+      reviewAttempt: 1,
+      reviewFeedback: "Read the omitted controller and its calling tests.",
+    });
+    await assert.rejects(
+      EvidenceBenchmarkRunner.run({
+        state: misplacedSupplement,
+        cwd: supervisedWorkspace,
+        runRoot: supervisedRunRoot,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        command: process.execPath,
+        commandPrefixArguments: prefix,
+        onOutput: () => undefined,
+      }),
+      /supplementation plan is invalid/u,
+    );
     writeSupervisedState({
       root: supervisedRunRoot,
       workspace: supervisedWorkspace,
@@ -477,6 +531,20 @@ const main = async (): Promise<void> => {
           runRoot: supervisedRunRoot,
           instructionsRoot: root,
           verdictFile: disclosedVerdict,
+        }),
+      /discloses benchmark-only machinery/u,
+    );
+    const retryDisclosure: string = path.join(root, "retry-disclosure.json");
+    fs.writeFileSync(
+      retryDisclosure,
+      '{"decision":"fail","rationale":"Missing work.","feedback":"A benchmark reviewer requested another attempt."}\n',
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkSupervision.decide({
+          runRoot: supervisedRunRoot,
+          instructionsRoot: root,
+          verdictFile: retryDisclosure,
         }),
       /discloses benchmark-only machinery/u,
     );
@@ -715,6 +783,22 @@ const main = async (): Promise<void> => {
       resumedSupervised.supervisionPauses?.[0]?.verdict?.decision,
       "pass",
     );
+    fs.appendFileSync(retainedVerdict, "history-tamper");
+    await assert.rejects(
+      EvidenceBenchmarkRunner.run({
+        state: resumedSupervised,
+        cwd: supervisedWorkspace,
+        runRoot: supervisedRunRoot,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        command: process.execPath,
+        commandPrefixArguments: prefix,
+        onOutput: () => undefined,
+      }),
+      /Retained review verdict changed/u,
+    );
+    fs.writeFileSync(retainedVerdict, retainedVerdictBytes);
     const forkOutput: IEvidenceBenchmarkOutput[] = [];
     const forked = await EvidenceBenchmarkRunner.run({
       state: {

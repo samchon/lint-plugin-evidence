@@ -43,6 +43,7 @@ export namespace EvidenceBenchmarkSupervision {
       JSON.parse(fs.readFileSync(statePath, "utf8")),
     );
     assertRunBoundary(retained, runRoot, statePath);
+    assertHistory(runRoot, retained.state);
     const pause = retained.state.supervisionPauses!.at(-1)!;
     const goal = retained.state.goals.at(-1)!;
     const plan = retained.state.instructionPlan!;
@@ -153,11 +154,7 @@ export namespace EvidenceBenchmarkSupervision {
       throw new Error(
         "Review-verdict resume lacks an exact retained decision.",
       );
-    assertFile(
-      props.runRoot,
-      verdict.verdictRelativePath,
-      verdict.verdictSha256,
-    );
+    assertHistory(props.runRoot, props.state);
     const next =
       props.state.instructionPlan?.[props.state.nextInstructionIndex];
     if (
@@ -182,6 +179,20 @@ export namespace EvidenceBenchmarkSupervision {
       throw new Error("Workspace changed after its review verdict.");
   }
 
+  /** Proves every previously submitted verdict file remains immutable. */
+  export function assertHistory(
+    runRoot: string,
+    state: IEvidenceBenchmarkRunState,
+  ): void {
+    for (const pause of state.supervisionPauses ?? [])
+      if (pause.verdict !== undefined)
+        assertFile(
+          runRoot,
+          pause.verdict.verdictRelativePath,
+          pause.verdict.verdictSha256,
+        );
+  }
+
   function assertRunBoundary(
     retained: ISupervisedStateFile,
     runRoot: string,
@@ -189,6 +200,12 @@ export namespace EvidenceBenchmarkSupervision {
   ): void {
     const pause = retained.state.supervisionPauses?.at(-1);
     const goal = retained.state.goals.at(-1);
+    const planEntry =
+      retained.state.instructionPlan?.[retained.state.nextInstructionIndex - 1];
+    const boundary =
+      planEntry === undefined
+        ? undefined
+        : EvidenceBenchmarkInstruction.reviewBoundary(planEntry);
     if (
       retained.cell.arm !== "plain" ||
       retained.state.arm !== "plain" ||
@@ -198,12 +215,17 @@ export namespace EvidenceBenchmarkSupervision {
       !samePath(retained.records.state, statePath) ||
       !samePath(retained.records.workspace, path.join(runRoot, "workspace")) ||
       pause === undefined ||
+      boundary === undefined ||
+      boundary.scope !== pause.scope ||
+      boundary.attempt !== pause.attempt ||
       pause.resumedAt !== undefined ||
       pause.verdict !== undefined ||
       goal === undefined ||
       goal.index !== pause.goalIndex ||
       goal.index !== retained.state.nextInstructionIndex - 1 ||
       goal.name !== pause.afterGoal ||
+      goal.name !== planEntry?.name ||
+      goal.relativePath !== planEntry.relativePath ||
       goal.terminalTurnId === null ||
       goal.terminalTurnCompleted !== true ||
       goal.threadIdle !== true
@@ -230,7 +252,7 @@ export namespace EvidenceBenchmarkSupervision {
 
   function assertMeasuredBoundary(feedback: string): void {
     if (
-      /\b(?:operator|auditor|verdict|supervisor|supervision|plugin)\b|\bevidence\s+(?:arm|mode|agent)\b/iu.test(
+      /\b(?:benchmark|operators?|auditors?|verdicts?|supervisors?|supervision|reviewers?|retries|retry|attempts?|plugin)\b|\b(?:another|other|external|main|measurement)\s+agent\b|\b(?:plain|evidence)\s+(?:arm|mode|agent)\b/iu.test(
         feedback,
       )
     )
@@ -239,10 +261,9 @@ export namespace EvidenceBenchmarkSupervision {
 
   function assertFile(root: string, relative: string, expected: string): void {
     const file: string = resolveWithin(path.resolve(root), relative);
-    if (
-      !fs.statSync(file).isFile() ||
-      sha256(fs.readFileSync(file)) !== expected
-    )
+    if (!fs.existsSync(file) || !fs.statSync(file).isFile())
+      throw new Error("Retained review verdict changed after decision.");
+    if (sha256(fs.readFileSync(file)) !== expected)
       throw new Error("Retained review verdict changed after decision.");
   }
 

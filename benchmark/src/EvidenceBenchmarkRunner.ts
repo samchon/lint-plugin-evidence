@@ -60,6 +60,25 @@ export namespace EvidenceBenchmarkRunner {
     const entries: IEvidenceBenchmarkInstructionPlanEntry[] =
       state.instructionPlan;
     validateInstructionPlan(state, entries);
+    const undecidedPause = state.supervisionPauses?.at(-1);
+    if (
+      state.arm === "plain" &&
+      undecidedPause !== undefined &&
+      undecidedPause.verdict === undefined &&
+      state.status === "running"
+    ) {
+      state.status = "awaiting-review-verdict";
+      await props.onState?.(structuredClone(state));
+      return state;
+    }
+    if (
+      state.arm === "plain" &&
+      state.supervisionPauses?.some((pause) => pause.verdict !== undefined)
+    ) {
+      if (props.runRoot === undefined)
+        throw new Error("Plain review history lacks its retained root.");
+      EvidenceBenchmarkSupervision.assertHistory(props.runRoot, state);
+    }
     if (state.status === "quality-failed") {
       await props.onState?.(structuredClone(state));
       return state;
@@ -457,7 +476,20 @@ export namespace EvidenceBenchmarkRunner {
         await publication;
         if (outcome !== undefined) return;
       }
+      reviewBoundary =
+        state.arm === "plain"
+          ? EvidenceBenchmarkInstruction.reviewBoundary(entries[record.index]!)
+          : undefined;
       state.nextInstructionIndex++;
+      if (reviewBoundary !== undefined) {
+        state.supervisionPauses ??= [];
+        state.supervisionPauses.push({
+          ...reviewBoundary,
+          afterGoal: record.name,
+          goalIndex: record.index,
+          pausedAt: new Date().toISOString(),
+        });
+      }
       publish();
       await publication;
       if (outcome !== undefined) return;
@@ -472,12 +504,7 @@ export namespace EvidenceBenchmarkRunner {
             "Requested benchmark stop lacks its durable recovery checkpoint.",
           );
         finish("checkpointed");
-      } else if (
-        state.arm === "plain" &&
-        (reviewBoundary = EvidenceBenchmarkInstruction.reviewBoundary(
-          entries[record.index]!,
-        )) !== undefined
-      ) {
+      } else if (reviewBoundary !== undefined) {
         finish("awaiting-review-verdict");
       } else if (state.nextInstructionIndex === entries.length)
         finish("completed");
@@ -1340,15 +1367,18 @@ export namespace EvidenceBenchmarkRunner {
       const goal: IEvidenceBenchmarkGoalRecord | undefined = state.goals.find(
         (candidate) => candidate.index === state.nextInstructionIndex - 1,
       );
-      if (goal === undefined)
+      const pause = state.supervisionPauses?.at(-1);
+      if (
+        goal === undefined ||
+        pause === undefined ||
+        pause.scope !== reviewBoundary.scope ||
+        pause.attempt !== reviewBoundary.attempt ||
+        pause.afterGoal !== goal.name ||
+        pause.goalIndex !== goal.index ||
+        pause.verdict !== undefined ||
+        pause.resumedAt !== undefined
+      )
         throw new Error("Review-verdict pause omitted its Goal record.");
-      state.supervisionPauses ??= [];
-      state.supervisionPauses.push({
-        ...reviewBoundary,
-        afterGoal: goal.name,
-        goalIndex: goal.index,
-        pausedAt: new Date().toISOString(),
-      });
     }
     publish();
     await publication;
@@ -1493,6 +1523,7 @@ export namespace EvidenceBenchmarkRunner {
       )
     )
       throw new Error("Retained benchmark base instruction plan changed.");
+    let supplementCount = 0;
     for (const scope of ["backend", "frontend", "overall"] as const) {
       const review: number = entries.findIndex(
         (entry) => entry.kind === "base" && entry.name === `${scope}-review`,
@@ -1501,6 +1532,7 @@ export namespace EvidenceBenchmarkRunner {
         (entry) => entry.kind === "base" && entry.name === `${scope}-final`,
       );
       const supplements = entries.slice(review + 1, final);
+      supplementCount += supplements.length;
       if (
         review < 0 ||
         final <= review ||
@@ -1518,6 +1550,8 @@ export namespace EvidenceBenchmarkRunner {
       )
         throw new Error("Retained review supplementation plan is invalid.");
     }
+    if (entries.length !== base.length + supplementCount)
+      throw new Error("Retained review supplementation plan is invalid.");
     if (
       state.nextInstructionIndex < 0 ||
       state.nextInstructionIndex > entries.length ||
@@ -1531,6 +1565,103 @@ export namespace EvidenceBenchmarkRunner {
       new Set(state.goals.map((goal) => goal.index)).size !== state.goals.length
     )
       throw new Error("Retained Goals do not match the instruction plan.");
+    validateReviewTransitions(state, entries);
+  }
+
+  function validateReviewTransitions(
+    state: IEvidenceBenchmarkRunState,
+    entries: readonly IEvidenceBenchmarkInstructionPlanEntry[],
+  ): void {
+    const completedBoundaries = entries
+      .slice(0, state.nextInstructionIndex)
+      .map((entry, goalIndex) => ({
+        goalIndex,
+        boundary: EvidenceBenchmarkInstruction.reviewBoundary(entry),
+      }))
+      .filter(
+        (
+          value,
+        ): value is {
+          goalIndex: number;
+          boundary: { scope: EvidenceBenchmarkReviewScope; attempt: number };
+        } => value.boundary !== undefined,
+      );
+    const pauses = state.supervisionPauses ?? [];
+    if (state.arm === "evidence") {
+      if (pauses.length !== 0)
+        throw new Error("Evidence run retained a Plain review decision.");
+      return;
+    }
+    if (pauses.length !== completedBoundaries.length)
+      throw new Error("Plain review boundaries do not match retained pauses.");
+    pauses.forEach((pause, index) => {
+      const completed = completedBoundaries[index]!;
+      const goal = state.goals.find(
+        (candidate) => candidate.index === completed.goalIndex,
+      );
+      const verdict = pause.verdict;
+      const latest = index === pauses.length - 1;
+      if (
+        pause.scope !== completed.boundary.scope ||
+        pause.attempt !== completed.boundary.attempt ||
+        pause.goalIndex !== completed.goalIndex ||
+        pause.afterGoal !== entries[completed.goalIndex]?.name ||
+        goal?.name !== pause.afterGoal ||
+        goal.terminalTurnId === null ||
+        !goal.terminalTurnCompleted ||
+        !goal.threadIdle
+      )
+        throw new Error(
+          "Plain review pause does not match its completed Goal.",
+        );
+      if (verdict === undefined) {
+        if (
+          !latest ||
+          (state.status !== "awaiting-review-verdict" &&
+            state.status !== "running") ||
+          pause.resumedAt !== undefined ||
+          state.nextInstructionIndex !== pause.goalIndex + 1
+        )
+          throw new Error("Plain review pause lacks its required verdict.");
+        return;
+      }
+      const next = entries[pause.goalIndex + 1];
+      const pendingResume =
+        latest &&
+        state.status === "awaiting-review-verdict" &&
+        state.nextInstructionIndex === pause.goalIndex + 1;
+      if (
+        verdict.scope !== pause.scope ||
+        verdict.attempt !== pause.attempt ||
+        verdict.goalIndex !== pause.goalIndex ||
+        verdict.terminalTurnId !== goal.terminalTurnId ||
+        ((verdict.decision === "pass" || verdict.action === "final") &&
+          (verdict.decision !== "pass" ||
+            verdict.action !== "final" ||
+            next?.kind !== "base" ||
+            next.name !== `${pause.scope}-final`)) ||
+        ((verdict.decision === "fail" || verdict.action === "retry") &&
+          verdict.action !== "quality-failed" &&
+          (verdict.decision !== "fail" ||
+            verdict.action !== "retry" ||
+            verdict.feedback === undefined ||
+            next?.kind !== "review-supplement" ||
+            next.reviewScope !== pause.scope ||
+            next.reviewAttempt !== pause.attempt + 1 ||
+            next.reviewFeedback !== verdict.feedback)) ||
+        (pendingResume
+          ? pause.resumedAt !== undefined || verdict.action === "quality-failed"
+          : verdict.action === "quality-failed"
+            ? !latest ||
+              state.status !== "quality-failed" ||
+              verdict.decision !== "fail" ||
+              pause.attempt !== 4 ||
+              pause.resumedAt !== undefined ||
+              state.nextInstructionIndex !== pause.goalIndex + 1
+            : pause.resumedAt === undefined)
+      )
+        throw new Error("Plain review verdict transition is invalid.");
+    });
   }
 
   function nativeGoalElapsedMs(
