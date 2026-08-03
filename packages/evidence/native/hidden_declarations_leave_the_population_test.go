@@ -336,6 +336,58 @@ func TestPrismaHidingTagsWithdrawModelsAndColumns(t *testing.T) {
 }
 
 /**
+ * Verifies a withdrawn Prisma model leaves the graph's population, not only the
+ * materializer's.
+ *
+ * A Prisma reference selects its units on a different code path than a
+ * TypeScript one, so materializing the tag correctly proves nothing about what
+ * a reference then owes. The tagged model also hosts a citation and is cited by
+ * one, which exercises both sides through the real parser bridge.
+ *
+ *  1. Tag one model internal and leave another beside it.
+ *  2. Run a TypeScript claim referencing the schema, citing both models.
+ *  3. Assert only the untagged model is owed, and the citation of the tagged
+ *     one names the tag.
+ */
+func TestPrismaHiddenModelsLeaveTheGraphPopulation(t *testing.T) {
+	root := prismaBridgeRoot(t, nil)
+	messages := runIndexRuleAtRoot(t, root, map[string]string{
+		"prisma/schema.prisma": `datasource db {
+  provider = "sqlite"
+}
+
+/// @internal Internal bookkeeping.
+model Ledger {
+  id Int @id
+}
+
+model Sale {
+  id Int @id
+}
+`,
+		"src/providers/sale.ts": `/**
+ * @evidence prisma:Ledger Persists the ledger.
+ */
+export function persist(): void {}
+`,
+	}, `{"claims":[{
+		"type":"typescript",
+		"files":["src/providers/**/*.ts"],
+		"symbol":"function",
+		"reference":{"type":"prisma","files":["prisma/schema.prisma"],"symbol":["model","column"]}
+	}]}`)
+	assertProblemContains(t, messages, "Hidden evidence target 'prisma:Ledger'")
+	assertProblemContains(t, messages, "carries '@internal' in its documentation comment")
+	assertProblemContains(t, messages, "Missing acknowledgement for 'prisma:Sale'")
+	if countProblemsContaining(messages, "Missing acknowledgement for 'prisma:Ledger") != 0 {
+		t.Fatalf(
+			"a withdrawn model must owe nothing:\n%s",
+			strings.Join(messages, "\n"),
+		)
+	}
+}
+
+/**
  * Verifies a withdrawn Prisma unit hosts nothing.
  *
  * Host eligibility is what decides whether a declaration may carry `@evidence`

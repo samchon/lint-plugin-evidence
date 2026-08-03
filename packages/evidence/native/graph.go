@@ -317,6 +317,21 @@ func materializeClaimStates(
 					}
 				}
 				for _, unit := range referenceInventories[path].Units {
+					// A withdrawn declaration is not an obligation and not an
+					// aggregate scope either, so it never enters the map that
+					// promotes ancestors. It is still recorded, so a citation
+					// naming it is answered with the tag rather than with a
+					// target that appears not to exist.
+					if unit.Hidden != "" {
+						if !selectedUnits[unit.ID] {
+							selectedUnits[unit.ID] = true
+							referenceState.Hidden = append(
+								referenceState.Hidden,
+								unit,
+							)
+						}
+						continue
+					}
 					availableUnits[unit.ID] = unit
 					if !reference.Symbols.contains(unit.Symbol) ||
 						selectedUnits[unit.ID] {
@@ -828,6 +843,20 @@ func declarationEligibleForClaim(
 	return declaration.Tag == tagExclude && declaration.ExclusionCarrier
 }
 
+// hiddenTargetProblem names the documentation tag that withdrew a cited
+// declaration.
+//
+// The repair is the author's either way, and which repair is right depends on
+// which of the two statements is wrong — the tag or the citation — so the
+// message states both rather than choosing.
+func hiddenTargetProblem(
+	declaration *evidenceDeclaration,
+	hidden *evidenceUnit,
+	context string,
+) string {
+	return "Hidden evidence target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + " for " + context + ": " + hidden.Readable + " at " + hidden.location() + " carries '" + hidden.Hidden + "' in its documentation comment, which withdraws it from the evidence population along with everything nested inside it. Remove the tag if the declaration is public contract, or drop this citation if it is not."
+}
+
 func declarationResolutionUncertain(owners []claimState) bool {
 	for _, owner := range owners {
 		for _, reference := range owner.References {
@@ -1083,20 +1112,6 @@ func looksLikeTypeScriptTarget(
 // Every failure gets its own diagnostic. A single "unresolved" would leave the
 // author guessing which of four independent things went wrong, and three of
 // them are repaired in completely different places.
-// hiddenTargetProblem names the documentation tag that withdrew a cited
-// declaration.
-//
-// The repair is the author's either way, and which repair is right depends on
-// which of the two statements is wrong — the tag or the citation — so the
-// message states both rather than choosing.
-func hiddenTargetProblem(
-	declaration *evidenceDeclaration,
-	hidden *evidenceUnit,
-	context string,
-) string {
-	return "Hidden evidence target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + " for " + context + ": " + hidden.Readable + " at " + hidden.location() + " carries '" + hidden.Hidden + "' in its documentation comment, which withdraws it from the evidence population along with everything nested inside it. Remove the tag if the declaration is public contract, or drop this citation if it is not."
-}
-
 func resolveInlineLinkDeclaration(
 	declaration *evidenceDeclaration,
 	loader *typeScriptLoader,
