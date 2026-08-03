@@ -59,7 +59,7 @@ Both SDK operation obligations refuse `@evidenceExclude`. Every published operat
 
 They differ in cardinality. A backend test admits exactly one operation, because a test citing eight operations proves only that eight names appear in its JSDoc — cite the one it answers for and let its prerequisites stay uncited. A hook may cite as many as it calls, because consuming the published surface is the obligation and how the calls are grouped is not.
 
-They also differ on the scaffold health probe. `backend-tests` keeps it, because the scaffold health test exists and cites it. `frontend-hooks` drops it from its population, because no hook should exist for it and the obligation admits no exclusion that could say so.
+Neither carries the scaffold health probe. `HealthController.get` is marked `@internal`, so the generated accessor leaves both populations at the source rather than through a glob or an exclusion, and the scaffold test that calls it stays outside the test claim.
 
 Both configuration files and all claim objects are frozen except for the prescribed deletion of each predeclared `disabled` property. Keep `evidence/graph` at `error`. The backend has one `tsconfig.json` containing backend source, tests, and API DTOs. Do not create phase-specific config or compiler files.
 

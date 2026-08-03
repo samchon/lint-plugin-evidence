@@ -53,7 +53,7 @@ Every generated accessor states its own address in its JSDoc, so the operation l
 rg --no-filename -o '@accessor \S+' packages/api/src/functional | sort
 ```
 
-This is a cross-check index, not a read. It does not shorten the literal full reading of `packages/api/src/`, and an accessor absent from the index but present in the source is itself a finding. Use it to guarantee the propagation below reaches every operation, and work it entry by entry. `api.functional.health.get` is the scaffold probe and the one accessor outside this obligation.
+This is a cross-check index, not a read. It does not shorten the literal full reading of `packages/api/src/`, and an accessor absent from the index but present in the source is itself a finding. Use it to guarantee the propagation below reaches every operation, and work it entry by entry. The `@internal` scaffold probe is not a product operation and needs no hook.
 
 1. Name, for each accessor, the hook under `src/lib/<domain>/hooks.ts` that calls it, and the screen that renders that hook.
    - An accessor no hook calls is a missing feature, not an implementation detail. Four hundred published operations and two hundred consumed ones means the product is half delivered.
