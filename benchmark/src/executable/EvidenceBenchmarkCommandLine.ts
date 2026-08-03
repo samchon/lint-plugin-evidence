@@ -165,24 +165,27 @@ const main = async (): Promise<void> => {
       cell.benchmarkRevision,
       runnerRevision,
     );
-  if (retained !== undefined) {
-    if (cell.instructionExtension !== undefined)
-      assertSameInputIdentity(
-        cell.instructionExtension.inputIdentity,
-        inputIdentity,
-        "Extended benchmark inputs changed after continuation began.",
-      );
-    else if (!sameInputIdentity(retained.cell.inputIdentity, inputIdentity)) {
-      // Repository inputs drift whenever the operator commits a correction the
-      // benchmark skill tells them to commit while a cohort runs. Record the
-      // drift on the cell and continue; the retained revision and digests stay
-      // in `state.json`, which is what the report reads.
-      cell.instructionExtension = {
-        fromInstructionIndex: retained.state.nextInstructionIndex,
-        inputIdentity,
-        runnerRevision,
-      };
-    }
+  if (
+    retained !== undefined &&
+    !sameInputIdentity(
+      cell.instructionExtension?.inputIdentity ?? retained.cell.inputIdentity,
+      inputIdentity,
+    )
+  ) {
+    // Repository inputs drift whenever the operator commits a correction the
+    // benchmark skill tells them to commit while a cohort runs. A cohort needs
+    // more than one such correction, so a second drift records over the first
+    // rather than locking the cell out of its own continuation. The retained
+    // revision and digests stay in `state.json`, which is what the report
+    // reads, and `fromInstructionIndex` keeps pointing at the first extended
+    // instruction.
+    cell.instructionExtension = {
+      fromInstructionIndex:
+        cell.instructionExtension?.fromInstructionIndex ??
+        retained.state.nextInstructionIndex,
+      inputIdentity,
+      runnerRevision,
+    };
   }
   if (
     retained !== undefined &&
@@ -570,14 +573,6 @@ const readStateFile = (root: string): IEvidenceBenchmarkStateFile =>
   typia.assert<IEvidenceBenchmarkStateFile>(
     JSON.parse(fs.readFileSync(path.join(root, "state.json"), "utf8")),
   );
-
-const assertSameInputIdentity = (
-  retained: IEvidenceBenchmarkInputIdentity | undefined,
-  current: IEvidenceBenchmarkInputIdentity,
-  message: string,
-): void => {
-  if (!sameInputIdentity(retained, current)) throw new Error(message);
-};
 
 const sameInputIdentity = (
   retained: IEvidenceBenchmarkInputIdentity | undefined,
