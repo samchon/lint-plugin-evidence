@@ -142,6 +142,11 @@ type evidenceUnit struct {
 	Path     string
 	Line     int
 	Readable string
+	// Hidden names the documentation tag by which this declaration withdrew
+	// itself from the public surface, empty when it did not. Such a unit is
+	// never selected and never hosts a declaration; it is retained only so a
+	// citation of it can be told why the target it names is not there.
+	Hidden string
 }
 
 func (unit *evidenceUnit) location() string {
@@ -253,7 +258,11 @@ type referenceState struct {
 	// Published names the module-and-address pairs a citation may use, for a
 	// population selected by walking module exports. Left empty when the
 	// population's addresses belong to the files that declare them.
-	Published    []publishedAddress
+	Published []publishedAddress
+	// Hidden are the units this reference would have selected had their
+	// declarations not withdrawn themselves from the public surface. They carry
+	// no obligation; they exist so a citation of one names its cause.
+	Hidden       []*evidenceUnit
 	UnitsByScope map[string][]*evidenceUnit
 	Healthy      bool
 }

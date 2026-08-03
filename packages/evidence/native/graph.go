@@ -195,7 +195,7 @@ func claimIsInactive(
 	}
 	for _, path := range paths {
 		for _, unit := range inventories[path].Units {
-			if claim.Symbols.contains(unit.Symbol) {
+			if unit.Hidden == "" && claim.Symbols.contains(unit.Symbol) {
 				return false
 			}
 		}
@@ -230,7 +230,9 @@ func materializeClaimStates(
 		hostsByID := map[string]bool{}
 		for _, path := range paths {
 			for _, unit := range inventories[path].Units {
-				if !claim.Symbols.contains(unit.Symbol) || hostsByID[unit.ID] {
+				if unit.Hidden != "" ||
+					!claim.Symbols.contains(unit.Symbol) ||
+					hostsByID[unit.ID] {
 					continue
 				}
 				hostsByID[unit.ID] = true
@@ -315,6 +317,21 @@ func materializeClaimStates(
 					}
 				}
 				for _, unit := range referenceInventories[path].Units {
+					// A withdrawn declaration is not an obligation and not an
+					// aggregate scope either, so it never enters the map that
+					// promotes ancestors. It is still recorded, so a citation
+					// naming it is answered with the tag rather than with a
+					// target that appears not to exist.
+					if unit.Hidden != "" {
+						if !selectedUnits[unit.ID] {
+							selectedUnits[unit.ID] = true
+							referenceState.Hidden = append(
+								referenceState.Hidden,
+								unit,
+							)
+						}
+						continue
+					}
 					availableUnits[unit.ID] = unit
 					if !reference.Symbols.contains(unit.Symbol) ||
 						selectedUnits[unit.ID] {
@@ -369,8 +386,38 @@ func evaluateEvidenceGraph(
 	// makes import-scope resolution unambiguous: two modules exporting `get`
 	// never compete, because resolution already knows which file it landed in.
 	scopedTargets := map[scopedTargetKey]map[string]*evidenceUnit{}
+	// The same two indexes over the units a documentation tag withdrew. A
+	// citation that lands here resolved to a real declaration and must be told
+	// that the tag is why the target is not evidence; the alternative is an
+	// unresolved-target message that sends the author looking for a typo.
+	hiddenTargets := map[string]*evidenceUnit{}
+	scopedHidden := map[scopedTargetKey]*evidenceUnit{}
 	for _, state := range states {
 		for _, reference := range state.References {
+			for _, unit := range reference.Hidden {
+				for _, address := range append([]string{unit.Target}, unit.Aliases...) {
+					hiddenTargets[address] = unit
+				}
+			}
+			for _, address := range reference.Published {
+				if address.Unit.Hidden == "" {
+					continue
+				}
+				scopedHidden[scopedTargetKey{
+					path:   address.Module,
+					target: address.Address,
+				}] = address.Unit
+			}
+			if len(reference.Published) == 0 {
+				for _, unit := range reference.Hidden {
+					for _, address := range append([]string{unit.Target}, unit.Aliases...) {
+						scopedHidden[scopedTargetKey{
+							path:   unit.Path,
+							target: address,
+						}] = unit
+					}
+				}
+			}
 			// A traversed address is valid in the module that publishes it, not in
 			// the one that declares the symbol. Identity still belongs to the
 			// declaring file; only reachability moves, and a declaration several
@@ -457,6 +504,7 @@ func evaluateEvidenceGraph(
 				declaration,
 				loader,
 				scopedTargets,
+				scopedHidden,
 				context,
 			)
 			if problem != "" {
@@ -502,6 +550,13 @@ func evaluateEvidenceGraph(
 			// the repair boundary, so an unresolved-target diagnostic here would
 			// be a derivative false claim.
 			if declarationResolutionUncertain(owners[id]) {
+				continue
+			}
+			if hidden := hiddenTargets[declaration.Target]; hidden != nil {
+				problems = append(
+					problems,
+					hiddenTargetProblem(declaration, hidden, context),
+				)
 				continue
 			}
 			problems = append(
@@ -788,6 +843,20 @@ func declarationEligibleForClaim(
 	return declaration.Tag == tagExclude && declaration.ExclusionCarrier
 }
 
+// hiddenTargetProblem names the documentation tag that withdrew a cited
+// declaration.
+//
+// The repair is the author's either way, and which repair is right depends on
+// which of the two statements is wrong — the tag or the citation — so the
+// message states both rather than choosing.
+func hiddenTargetProblem(
+	declaration *evidenceDeclaration,
+	hidden *evidenceUnit,
+	context string,
+) string {
+	return "Hidden evidence target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + " for " + context + ": " + hidden.Readable + " at " + hidden.location() + " carries '" + hidden.Hidden + "' in its documentation comment, which withdraws it from the evidence population along with everything nested inside it. Remove the tag if the declaration is public contract, or drop this citation if it is not."
+}
+
 func declarationResolutionUncertain(owners []claimState) bool {
 	for _, owner := range owners {
 		for _, reference := range owner.References {
@@ -823,6 +892,7 @@ func materializeEntryReference(
 	state.Paths = []string{entry}
 	population := materializeEntryUnits(loader, []string{entry}, reference.Symbols)
 	state.Units = population.Units
+	state.Hidden = population.Hidden
 	state.Published = population.Published
 	if failure := loader.failure(entry); failure != "" {
 		state.Healthy = false
@@ -909,6 +979,7 @@ func materializeLocalTypeScriptReference(
 	}
 	population := materializeEntryUnits(loader, paths, reference.Symbols)
 	state.Units = population.Units
+	state.Hidden = population.Hidden
 	state.Published = population.Published
 	applyTraversedScopes(&state, population.Reached)
 	if !state.Healthy {
@@ -975,8 +1046,25 @@ func materializePackageGlobReference(
 			claimLabel(claim) + " " + referenceLabel(reference) + " matched no files inside package '" + reference.Package + "' for " + describePatterns(reference.Files) + ". Fix the package-relative globs; they resolve against the package root, not the project root.",
 		}
 	}
-	population := materializeEntryUnits(loader, state.Paths, reference.Symbols)
+	// The glob decides membership, the entry decides addresses. A matched module
+	// is still traversed as an entry, because a matched barrel owes what it
+	// publishes rather than only what its own file declares — but that traversal
+	// is used for nothing except which units are in. Their addresses come from
+	// the package entry, which is the only module a consumer has a specifier
+	// for, and it is under that specifier that an inline link is resolved.
+	// Publishing a narrowed unit under the matched module instead is what made
+	// `functional.health.get` collapse to `get` and left it with no spelling
+	// that resolves.
+	membership := materializeEntryUnits(loader, state.Paths, reference.Symbols)
+	population := membership
+	if entry := loader.packageEntryModule(reference.Package); entry != "" {
+		population = narrowTraversedPopulation(
+			materializeEntryUnits(loader, []string{entry}, reference.Symbols),
+			membership,
+		)
+	}
 	state.Units = population.Units
+	state.Hidden = population.Hidden
 	state.Published = population.Published
 	applyTraversedScopes(&state, population.Reached)
 	if !state.Healthy {
@@ -984,7 +1072,7 @@ func materializePackageGlobReference(
 	}
 	if len(state.Units) == 0 {
 		return state, []string{
-			claimLabel(claim) + " " + referenceLabel(reference) + " matched " + decimal(len(state.Paths)) + " file(s) inside package '" + reference.Package + "' but materialized no selected evidence units (" + reference.Symbols.names() + "). Select symbol kinds present in those files or correct the globs.",
+			claimLabel(claim) + " " + referenceLabel(reference) + " matched " + decimal(len(state.Paths)) + " file(s) inside package '" + reference.Package + "' but materialized no selected evidence units (" + reference.Symbols.names() + ") reachable from the package entry. Select symbol kinds present in those files, correct the globs, or narrow to modules the entry publishes.",
 		}
 	}
 	return state, nil
@@ -1044,6 +1132,7 @@ func resolveInlineLinkDeclaration(
 	declaration *evidenceDeclaration,
 	loader *typeScriptLoader,
 	scopedTargets map[scopedTargetKey]map[string]*evidenceUnit,
+	scopedHidden map[scopedTargetKey]*evidenceUnit,
 	context string,
 ) (string, string) {
 	target := inlineLinkTarget(declaration.Target)
@@ -1077,6 +1166,12 @@ func resolveInlineLinkDeclaration(
 	candidates := scopedTargets[scopedTargetKey{path: resolvedPath, target: name}]
 	switch len(candidates) {
 	case 0:
+		if hidden := scopedHidden[scopedTargetKey{
+			path:   resolvedPath,
+			target: name,
+		}]; hidden != nil {
+			return "", hiddenTargetProblem(declaration, hidden, context)
+		}
 		return "", "Unreachable evidence target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + " for " + context + ": '" + resolvedPath + "' declares no selected unit named '" + name + "'. Correct the target, or widen the named reference's files and symbol selection so that unit is configured evidence."
 	case 1:
 		for _, unit := range candidates {

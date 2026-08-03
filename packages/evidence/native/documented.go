@@ -215,6 +215,7 @@ func documentedHosts(file *shimast.SourceFile) []documentedHost {
 	}
 	supported := map[*shimast.Node]symbolSet{}
 	collectTypeScriptStatements(
+		file,
 		file.Statements,
 		nil,
 		"",
@@ -224,9 +225,13 @@ func documentedHosts(file *shimast.SourceFile) []documentedHost {
 		file.IsDeclarationFile,
 		false,
 		false,
+		"",
 	)
 	hosts := make([]documentedHost, 0, len(inventory.Units))
 	for _, unit := range inventory.Units {
+		if unit.Hidden != "" {
+			continue
+		}
 		nodes := hostNodesOf(inventory.UnitNodes[unit.ID], supported, unit.Symbol)
 		if len(nodes) == 0 {
 			continue

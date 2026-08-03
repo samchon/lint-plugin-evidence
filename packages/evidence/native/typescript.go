@@ -139,6 +139,7 @@ func scanTypeScriptInventoryAt(
 	supportedHosts := map[*shimast.Node]symbolSet{}
 	unitsByID := map[string]*evidenceUnit{}
 	collectTypeScriptStatements(
+		file,
 		file.Statements,
 		nil,
 		"",
@@ -148,6 +149,7 @@ func scanTypeScriptInventoryAt(
 		file.IsDeclarationFile,
 		false,
 		false,
+		"",
 	)
 	collectTypeScriptDeclarations(
 		file,
@@ -169,7 +171,15 @@ func scanTypeScriptInventoryAt(
 	return inventory
 }
 
+// collectTypeScriptStatements materializes the public units one statement list
+// declares.
+//
+// hidden carries the documentation tag by which an enclosing declaration
+// withdrew itself from the public surface. It is inherited rather than
+// recomputed, which is what makes `@internal` on a namespace reach every member
+// beneath it without each member repeating the tag.
 func collectTypeScriptStatements(
+	file *shimast.SourceFile,
 	statements *shimast.NodeList,
 	prefix []string,
 	parentID string,
@@ -179,11 +189,17 @@ func collectTypeScriptStatements(
 	ambientContext bool,
 	implicitlyExported bool,
 	typeOnlyProjection bool,
+	hidden string,
 ) {
 	if statements == nil {
 		return
 	}
 	exports := collectLocalExportNames(statements)
+	hiddenNames := collectHiddenDeclarationNames(file, statements)
+	// Built on the first namespace this list holds rather than up front, so a
+	// file declaring none pays nothing. Every rebuild scans every configured
+	// source, and most of them have no namespace at all.
+	var functionNames map[string]bool
 	for _, statement := range statements.Nodes {
 		if statement == nil {
 			continue
@@ -204,7 +220,10 @@ func collectTypeScriptStatements(
 			if len(targets) == 0 {
 				continue
 			}
-			addTypeScriptHost(supportedHosts, statement, "type")
+			memberHidden := hidingTagFor(hidden, hiddenNames, name)
+			if memberHidden == "" {
+				addTypeScriptHost(supportedHosts, statement, "type")
+			}
 			for _, name := range targets {
 				identity := qualifyTypeScriptName(prefix, name)
 				unit := addTypeScriptUnit(
@@ -214,14 +233,17 @@ func collectTypeScriptStatements(
 					"type",
 					identity,
 					parentID,
+					memberHidden,
 				)
 				collectPropertyMembers(
+					file,
 					statement.AsInterfaceDeclaration().Members,
 					identity,
 					unit.ID,
 					inventory,
 					supportedHosts,
 					unitsByID,
+					memberHidden,
 				)
 			}
 		case shimast.KindTypeAliasDeclaration:
@@ -239,7 +261,10 @@ func collectTypeScriptStatements(
 			if len(targets) == 0 {
 				continue
 			}
-			addTypeScriptHost(supportedHosts, statement, "type")
+			memberHidden := hidingTagFor(hidden, hiddenNames, name)
+			if memberHidden == "" {
+				addTypeScriptHost(supportedHosts, statement, "type")
+			}
 			alias := statement.AsTypeAliasDeclaration()
 			for _, name := range targets {
 				identity := qualifyTypeScriptName(prefix, name)
@@ -250,15 +275,18 @@ func collectTypeScriptStatements(
 					"type",
 					identity,
 					parentID,
+					memberHidden,
 				)
 				if alias.Type != nil && alias.Type.Kind == shimast.KindTypeLiteral {
 					collectPropertyMembers(
+						file,
 						alias.Type.AsTypeLiteralNode().Members,
 						identity,
 						unit.ID,
 						inventory,
 						supportedHosts,
 						unitsByID,
+						memberHidden,
 					)
 				}
 			}
@@ -280,7 +308,10 @@ func collectTypeScriptStatements(
 			if len(targets) == 0 {
 				continue
 			}
-			addTypeScriptHost(supportedHosts, statement, "function")
+			memberHidden := hidingTagFor(hidden, hiddenNames, name)
+			if memberHidden == "" {
+				addTypeScriptHost(supportedHosts, statement, "function")
+			}
 			for _, name := range targets {
 				addTypeScriptUnit(
 					inventory,
@@ -289,12 +320,14 @@ func collectTypeScriptStatements(
 					"function",
 					qualifyTypeScriptName(prefix, name),
 					parentID,
+					memberHidden,
 				)
 			}
 		case shimast.KindVariableStatement:
 			if typeOnlyProjection {
 				continue
 			}
+			memberHidden := typeScriptHidingTag(file, statement, hidden)
 			for symbol := range collectTypeScriptVariables(
 				statement,
 				prefix,
@@ -304,7 +337,11 @@ func collectTypeScriptStatements(
 				supportedHosts,
 				unitsByID,
 				implicitlyExported,
+				memberHidden,
 			) {
+				if memberHidden != "" {
+					continue
+				}
 				// TypeScript attaches the leading JSDoc of
 				// a variable declaration to the statement wrapper.
 				addTypeScriptHost(supportedHosts, statement, symbol)
@@ -314,6 +351,7 @@ func collectTypeScriptStatements(
 				continue
 			}
 			name := declarationName(statement.Name())
+			memberHidden := hidingTagFor(hidden, hiddenNames, name)
 			for _, publicName := range publicTypeScriptNames(
 				statement,
 				name,
@@ -322,12 +360,14 @@ func collectTypeScriptStatements(
 				implicitlyExported,
 			) {
 				collectClassCallables(
+					file,
 					statement,
 					qualifyTypeScriptName(prefix, publicName),
 					parentID,
 					inventory,
 					supportedHosts,
 					unitsByID,
+					memberHidden,
 				)
 			}
 		case shimast.KindModuleDeclaration:
@@ -342,7 +382,23 @@ func collectTypeScriptStatements(
 			if len(targets) == 0 {
 				continue
 			}
-			addTypeScriptHost(supportedHosts, statement, "type")
+			memberHidden := hidingTagFor(hidden, hiddenNames, name)
+			if memberHidden == "" {
+				addTypeScriptHost(supportedHosts, statement, "type")
+			}
+			// A namespace merged with a same-named function is that function's
+			// static side, not an independent container. `get.path` is a
+			// property of the `get` function value and `get.Output` is the type
+			// its own signature spells; neither is authored contract, so the
+			// merged namespace contributes its identity and nothing beneath it.
+			// Selecting those members is also what promoted the namespace to an
+			// addressable aggregate scope, where it collided with the function
+			// unit of the same name and left the accessor with no spelling that
+			// resolves.
+			if functionNames == nil {
+				functionNames = collectFunctionDeclarationNames(statements)
+			}
+			staticSide := functionNames[name]
 			for _, target := range targets {
 				identity := qualifyTypeScriptName(prefix, target.Public)
 				unit := addTypeScriptUnit(
@@ -352,20 +408,60 @@ func collectTypeScriptStatements(
 					"type",
 					identity,
 					parentID,
+					memberHidden,
 				)
-				collectTypeScriptModule(
-					statement,
-					identity,
-					unit.ID,
-					inventory,
-					supportedHosts,
-					unitsByID,
-					ambientContext,
-					typeOnlyProjection || target.TypeOnly,
-				)
+				if !staticSide {
+					collectTypeScriptModule(
+						file,
+						statement,
+						identity,
+						unit.ID,
+						inventory,
+						supportedHosts,
+						unitsByID,
+						ambientContext,
+						typeOnlyProjection || target.TypeOnly,
+						memberHidden,
+					)
+				}
 			}
 		}
 	}
+}
+
+// collectFunctionDeclarationNames indexes the local names a statement list
+// declares as functions, which is what a namespace in the same list merges with.
+//
+// A namespace merges only with a function, a class, or an enum in the same
+// scope; a `const` or `let` of the same name is `TS2451`, measured against the
+// pinned compiler. Of the three legal partners only a function also
+// materializes a unit under the merged name — a class registers no unit of its
+// own and the collector has no enum case — so the function form is the one
+// shape where a namespace and the declaration it merges with are the same
+// public entity spelled twice.
+//
+// The name alone decides, without consulting export modifiers, because
+// TypeScript refuses a merged declaration whose halves disagree on export
+// (`TS2395`, measured). The whole list is indexed rather than only the
+// statements already collected, because merging does not depend on which
+// declaration is written first.
+func collectFunctionDeclarationNames(
+	statements *shimast.NodeList,
+) map[string]bool {
+	names := map[string]bool{}
+	if statements == nil {
+		return names
+	}
+	for _, statement := range statements.Nodes {
+		if statement == nil ||
+			statement.Kind != shimast.KindFunctionDeclaration {
+			continue
+		}
+		if name := declarationName(statement.Name()); name != "" {
+			names[name] = true
+		}
+	}
+	return names
 }
 
 func collectTypeScriptVariables(
@@ -377,6 +473,7 @@ func collectTypeScriptVariables(
 	supportedHosts map[*shimast.Node]symbolSet,
 	unitsByID map[string]*evidenceUnit,
 	implicitlyExported bool,
+	hidden string,
 ) symbolSet {
 	variable := statement.AsVariableStatement()
 	if variable.DeclarationList == nil {
@@ -410,7 +507,9 @@ func collectTypeScriptVariables(
 			if len(targets) == 0 {
 				continue
 			}
-			addTypeScriptHost(supportedHosts, declaration, symbol)
+			if hidden == "" {
+				addTypeScriptHost(supportedHosts, declaration, symbol)
+			}
 			for _, name := range targets {
 				unit := addTypeScriptUnit(
 					inventory,
@@ -419,6 +518,7 @@ func collectTypeScriptVariables(
 					symbol,
 					qualifyTypeScriptName(prefix, name),
 					parentID,
+					hidden,
 				)
 				// The binding names the unit, but TypeScript attaches a
 				// variable's leading JSDoc to the statement wrapper, so that
@@ -432,12 +532,14 @@ func collectTypeScriptVariables(
 }
 
 func collectClassCallables(
+	file *shimast.SourceFile,
 	statement *shimast.Node,
 	classIdentity []string,
 	parentID string,
 	inventory *artifactInventory,
 	supportedHosts map[*shimast.Node]symbolSet,
 	unitsByID map[string]*evidenceUnit,
+	hidden string,
 ) {
 	class := statement.AsClassDeclaration()
 	if class.Members == nil {
@@ -470,8 +572,19 @@ func collectClassCallables(
 		if shimast.GetCombinedModifierFlags(member)&shimast.ModifierFlagsStatic != 0 {
 			identity = qualifyTypeScriptName(classIdentity, memberName)
 		}
-		addTypeScriptUnit(inventory, unitsByID, member, "function", identity, parentID)
-		addTypeScriptHost(supportedHosts, member, "function")
+		memberHidden := typeScriptHidingTag(file, member, hidden)
+		addTypeScriptUnit(
+			inventory,
+			unitsByID,
+			member,
+			"function",
+			identity,
+			parentID,
+			memberHidden,
+		)
+		if memberHidden == "" {
+			addTypeScriptHost(supportedHosts, member, "function")
+		}
 	}
 }
 
@@ -511,6 +624,7 @@ func isDirectFunctionType(node *shimast.Node) bool {
 }
 
 func collectTypeScriptModule(
+	file *shimast.SourceFile,
 	node *shimast.Node,
 	qualified []string,
 	parentID string,
@@ -519,6 +633,7 @@ func collectTypeScriptModule(
 	unitsByID map[string]*evidenceUnit,
 	ambientContext bool,
 	typeOnlyProjection bool,
+	hidden string,
 ) {
 	if node == nil || node.Kind != shimast.KindModuleDeclaration {
 		return
@@ -532,6 +647,7 @@ func collectTypeScriptModule(
 		moduleAmbient := ambientContext ||
 			shimast.GetCombinedModifierFlags(node)&shimast.ModifierFlagsAmbient != 0
 		collectTypeScriptStatements(
+			file,
 			module.Body.AsModuleBlock().Statements,
 			qualified,
 			parentID,
@@ -541,6 +657,7 @@ func collectTypeScriptModule(
 			moduleAmbient,
 			moduleAmbient,
 			typeOnlyProjection,
+			hidden,
 		)
 	case shimast.KindModuleDeclaration:
 		// `export namespace Outer.Inner {}` is represented as nested module
@@ -548,7 +665,10 @@ func collectTypeScriptModule(
 		name := declarationName(module.Body.Name())
 		if name != "" {
 			identity := qualifyTypeScriptName(qualified, name)
-			addTypeScriptHost(supportedHosts, module.Body, "type")
+			innerHidden := typeScriptHidingTag(file, module.Body, hidden)
+			if innerHidden == "" {
+				addTypeScriptHost(supportedHosts, module.Body, "type")
+			}
 			unit := addTypeScriptUnit(
 				inventory,
 				unitsByID,
@@ -556,8 +676,10 @@ func collectTypeScriptModule(
 				"type",
 				identity,
 				parentID,
+				innerHidden,
 			)
 			collectTypeScriptModule(
+				file,
 				module.Body,
 				identity,
 				unit.ID,
@@ -567,18 +689,21 @@ func collectTypeScriptModule(
 				ambientContext ||
 					shimast.GetCombinedModifierFlags(node)&shimast.ModifierFlagsAmbient != 0,
 				typeOnlyProjection,
+				innerHidden,
 			)
 		}
 	}
 }
 
 func collectPropertyMembers(
+	file *shimast.SourceFile,
 	members *shimast.NodeList,
 	owner []string,
 	parentID string,
 	inventory *artifactInventory,
 	supportedHosts map[*shimast.Node]symbolSet,
 	unitsByID map[string]*evidenceUnit,
+	hidden string,
 ) {
 	if members == nil {
 		return
@@ -592,9 +717,103 @@ func collectPropertyMembers(
 			continue
 		}
 		identity := qualifyTypeScriptName(owner, name)
-		addTypeScriptUnit(inventory, unitsByID, member, "property", identity, parentID)
-		addTypeScriptHost(supportedHosts, member, "property")
+		memberHidden := typeScriptHidingTag(file, member, hidden)
+		addTypeScriptUnit(
+			inventory,
+			unitsByID,
+			member,
+			"property",
+			identity,
+			parentID,
+			memberHidden,
+		)
+		if memberHidden == "" {
+			addTypeScriptHost(supportedHosts, member, "property")
+		}
 	}
+}
+
+// collectHiddenDeclarationNames indexes the local names a statement list
+// withdraws from the public surface, by the tag that withdrew each.
+//
+// The index is over names rather than over nodes because declaration merging
+// makes one name several declarations. `interface I` beside `namespace I` is
+// one public identity and one unit, so a tag on either half withdraws the
+// identity — and which half carries it is a matter of where the author wrote
+// the comment. Reading only the node in hand would leave the identity
+// withdrawn while its members stayed selected, depending on source order.
+func collectHiddenDeclarationNames(
+	file *shimast.SourceFile,
+	statements *shimast.NodeList,
+) map[string]string {
+	if file == nil || statements == nil {
+		return nil
+	}
+	var names map[string]string
+	for _, statement := range statements.Nodes {
+		if statement == nil {
+			continue
+		}
+		name := declarationName(statement.Name())
+		if name == "" {
+			continue
+		}
+		tag := typeScriptHidingTag(file, statement, "")
+		if tag == "" {
+			continue
+		}
+		if names == nil {
+			names = map[string]string{}
+		}
+		if names[name] == "" {
+			names[name] = tag
+		}
+	}
+	return names
+}
+
+// hidingTagFor answers for one local name, preferring an inherited tag.
+func hidingTagFor(
+	inherited string,
+	names map[string]string,
+	local string,
+) string {
+	if inherited != "" {
+		return inherited
+	}
+	return names[local]
+}
+
+// typeScriptHidingTag reports the documentation tag that withdraws a
+// declaration from the public surface, inheriting an enclosing one.
+//
+// An inherited tag wins outright and the node's own blocks are not consulted:
+// once an ancestor is out of the surface, nothing beneath it can opt back in,
+// and the cause an author has to be told about is the outermost tag.
+func typeScriptHidingTag(
+	file *shimast.SourceFile,
+	node *shimast.Node,
+	inherited string,
+) string {
+	if inherited != "" {
+		return inherited
+	}
+	if file == nil || node == nil {
+		return ""
+	}
+	content := file.Text()
+	for _, doc := range node.JSDoc(file) {
+		if doc == nil ||
+			doc.Pos() < 0 ||
+			doc.End() > len(content) ||
+			doc.Pos() >= doc.End() {
+			continue
+		}
+		if tag := commentHidingTag(content[doc.Pos():doc.End()]); tag != "" {
+			return tag
+		}
+	}
+	return ""
 }
 
 func addTypeScriptUnit(
@@ -604,6 +823,7 @@ func addTypeScriptUnit(
 	symbol string,
 	identity []string,
 	parentID string,
+	hidden string,
 ) *evidenceUnit {
 	target := strings.Join(identity, ".")
 	address := inventory.Address
@@ -617,6 +837,13 @@ func addTypeScriptUnit(
 	// has to see both.
 	inventory.recordUnitNode(id, node)
 	if unit := unitsByID[id]; unit != nil {
+		// A merged identity is one unit, so one declaration marking itself
+		// internal marks the identity. Both halves of `interface I` beside
+		// `namespace I` name the same public thing, and honoring only the tagged
+		// half would leave the identity half in and half out of the surface.
+		if hidden != "" && unit.Hidden == "" {
+			unit.Hidden = hidden
+		}
 		return unit
 	}
 	unit := &evidenceUnit{
@@ -629,6 +856,7 @@ func addTypeScriptUnit(
 		Path:     inventory.Path,
 		Line:     lineAtNode(inventory.Path, node),
 		Readable: "TypeScript " + symbol + " '" + target + "'",
+		Hidden:   hidden,
 	}
 	unitsByID[id] = unit
 	inventory.Units = append(inventory.Units, unit)

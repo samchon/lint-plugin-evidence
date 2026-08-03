@@ -161,8 +161,13 @@ func dedupeModuleExports(exports []moduleExport) []moduleExport {
 // yields: the obligations, the scopes above them, and the addresses that reach
 // them.
 type traversedPopulation struct {
-	Units     []*evidenceUnit
-	Reached   []*evidenceUnit
+	Units   []*evidenceUnit
+	Reached []*evidenceUnit
+	// Hidden are the reached declarations that withdrew themselves from the
+	// public surface with an `@internal`, `@hidden`, or `@ignore` documentation
+	// tag. They are addressed like any other reached unit and selected as none,
+	// so a citation of one is answered with its cause.
+	Hidden    []*evidenceUnit
 	Published []publishedAddress
 }
 
@@ -352,6 +357,14 @@ func materializeEntryUnits(
 	for _, id := range order {
 		unit := byID[id]
 		sort.Strings(unit.Aliases)
+		// A declaration withdrawn from the surface by its own documentation tag
+		// is neither an obligation nor an aggregate scope. It is kept apart
+		// rather than dropped so a citation naming it can be told why, which a
+		// bare unresolved target could not say.
+		if unit.Hidden != "" {
+			population.Hidden = append(population.Hidden, unit)
+			continue
+		}
 		// Every reached declaration stays available as an aggregate scope, even
 		// when its own kind is unselected. The selector is the obligation
 		// denominator, not the list of targets an author may write.
@@ -361,6 +374,49 @@ func materializeEntryUnits(
 		}
 	}
 	return population
+}
+
+// narrowTraversedPopulation keeps the entry's addresses and the narrowing's
+// membership.
+//
+// Both arguments describe the same declarations; they differ only in which
+// module each was reached from, and therefore in the address each unit answers
+// to. Identity is what joins them, because a re-export decides reachability and
+// never identity — the same declaration carries the same unit ID however it was
+// reached.
+//
+// Reached and Published stay whole. Reached is read only to walk the parent
+// chain above a selected unit, and an ancestor is addressable because it is an
+// ancestor rather than because it was selected, so narrowing it would be work
+// with nothing to change. Published is what a citation resolves against, and it
+// is the entry's addresses that a consumer can write.
+func narrowTraversedPopulation(
+	published traversedPopulation,
+	membership traversedPopulation,
+) traversedPopulation {
+	selected := make(map[string]bool, len(membership.Units))
+	for _, unit := range membership.Units {
+		selected[unit.ID] = true
+	}
+	withdrawn := make(map[string]bool, len(membership.Hidden))
+	for _, unit := range membership.Hidden {
+		withdrawn[unit.ID] = true
+	}
+	narrowed := traversedPopulation{
+		Reached:   published.Reached,
+		Published: published.Published,
+	}
+	for _, unit := range published.Units {
+		if selected[unit.ID] {
+			narrowed.Units = append(narrowed.Units, unit)
+		}
+	}
+	for _, unit := range published.Hidden {
+		if withdrawn[unit.ID] {
+			narrowed.Hidden = append(narrowed.Hidden, unit)
+		}
+	}
+	return narrowed
 }
 
 // ownedUnitIndex narrows a file's units to the ones a reached name can own.

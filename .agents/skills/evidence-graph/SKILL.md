@@ -55,6 +55,12 @@ Keep selected obligations and resolvable scopes separate. Do not make every unse
 
 Hierarchy is identity, not spelling. Store explicit parent unit IDs while materializing. Never infer TypeScript ancestry from a dotted-string prefix: literal names may contain dots, and `A.B` can mean one literal segment or two qualified segments.
 
+**A declaration whose documentation comment carries `@internal`, `@hidden`, or `@ignore` materializes no unit, and neither does anything nested inside it.** The three tags are equivalent statements that the declaration is not API; the tag must open its own line, so prose mentioning one is describing something rather than declaring it, and text after it is a comment for humans. The graph honors a decision the source already made: without this, an author's only answers are a false `@evidence` citation or an `@evidenceExclude` whose reason restates the tag — and under `noExclude`, not even the second one.
+
+This applies to both sides and to both authored artifact kinds. A withdrawn declaration is neither a selected reference unit nor a selected claim host, and hosting nothing also makes it ineligible as an exclusion carrier. TypeScript JSDoc and Prisma `///` comments behave identically, and a tagged Prisma model takes its columns and relations with it. Markdown headings and Swagger operations have no authored documentation comment and are out of scope.
+
+Keep a withdrawn unit rather than discarding it, marked with the tag that withdrew it. A citation naming one resolved to a real declaration, so it is answered with the tag as the cause; a bare unresolved target would send the author looking for a typo that is not there.
+
 ## Swagger Classification
 
 Swagger is reference-only. One `IEvidenceGraphSwaggerReference` owns one exact project-relative file path or HTTP(S) URL through its singular `file` property; multiple documents are separate reference-array obligations. It has no public `symbol` selector because every operation under the normalized document's `paths` object is selected.
@@ -87,10 +93,16 @@ A TypeScript claim may declare `root` to move the base its `files` globs resolve
 
 Only public identities materialize. A top-level declaration needs an export modifier or local export-list alias; a namespace member needs to be exported from that namespace unless ambient namespace semantics make it implicitly public. A type-only namespace alias projects only public namespaces, interfaces, type aliases, and their type properties, never value-space data or callables.
 
+**A namespace merged with a same-named function is that function's static side, and nothing inside it materializes.** This is the generated SDK accessor shape: `get.path` and `get.METADATA` are properties of the `get` function value, and `get.Output` is the type its own signature spells, so none of them is authored contract. The exclusion is whole rather than per-kind, or one namespace would read as machinery under one `symbol` selector and as public surface under another. It also removes a resolution failure with no repair: a selected member promoted the merged namespace to an addressable aggregate scope, where it collided with the function unit of the same name and left every citation of the accessor ambiguous under the narrowest selector the diagnostic could recommend.
+
+The merge partner decides this, not the namespace. An interface merged with a same-named namespace is already one unit — both are symbol `type` under one identity — so a type family keeps every variant. A class registers no unit under its own name, so `class C` beside `namespace C` never had two units to collide. Both shapes keep the population they have. A `const` or `let` cannot merge with a namespace at all; TypeScript rejects it as `TS2451`.
+
 **A re-export decides reachability, never identity.** The rule splits in two, and both halves are load-bearing.
 
 - **Identity stays with the declaring file.** A re-export whose declaration lives in another file creates no second unit. A symbol exposed through two barrels is one unit with one ID and one coverage obligation — this is what stops a barrel from doubling every obligation beneath it.
 - **Reachability comes from the selected modules.** A TypeScript reference selects modules, and traversal follows `export *`, `export * as ns`, and `export { A as B }` from each of them to decide _membership_ in the population, giving every reached symbol its accessor path from the module that published it. `export * as functional` nests a segment, `export * from` flattens one, and an alias is addressed by its public name. A module's own inventory names a declaration by what that module exposes it as, so `export { a as b }` is one unit called `b`; matching it by the local binding finds nothing.
+
+**Narrowing an installed package separates the two halves.** A `package` reference with `files` uses its matched modules to decide membership and the package's declaration entry to decide addresses. Making a matched module the address root instead collapses `functional.health.get` to `get`, while an inline link still resolves under the entry — the only module a consumer's specifier reaches — so no spelling of the target resolves and the narrowing defeats the adoptability it exists for. A unit the entry does not publish has no address anyone can write, so it is reported as an empty population rather than selected.
 
 A symbol reached by two paths therefore answers to two addresses and still materializes one coverage unit. Build those addresses from identity segments rather than by rewriting a joined target, or a literal dot inside a name collapses into qualification. An address is legal in the module that publishes it rather than everywhere, so record the module-and-address pair; import-scope resolution then keeps two modules publishing one declaration from competing.
 
