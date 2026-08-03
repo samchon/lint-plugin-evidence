@@ -87,9 +87,14 @@ func relativeProjectPath(root string, absolute string) (string, bool) {
 // containedProjectPath answers the ordinary case of one path sitting below
 // another: same spelling, one separator between them, and nothing left to
 // normalize. It declines anything else so the general form still decides.
+//
+// The prefix comparison is exact rather than case-insensitive, because the
+// general form is `filepath.Rel`, which is lexical and case-sensitive on every
+// platform. Folding case here would admit a differently-cased sibling that the
+// path this shortcut stands in for rejects.
 func containedProjectPath(root string, absolute string) (string, bool) {
 	if len(absolute) <= len(root)+1 ||
-		!strings.EqualFold(absolute[:len(root)], root) {
+		absolute[:len(root)] != root {
 		return "", false
 	}
 	if separator := absolute[len(root)]; separator != '/' && separator != '\\' {
