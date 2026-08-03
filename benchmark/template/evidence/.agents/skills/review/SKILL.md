@@ -1,6 +1,6 @@
 ---
 name: review
-description: Detects fake Evidence citations and exclusions created solely to evade compiler errors while compilation owns structural checks. Read only for a review objective.
+description: Detects fake Evidence citations and exclusions created solely to evade compiler errors, and configuration edited beyond the one permitted activation, while compilation owns structural checks. Read only for a review objective.
 ---
 
 # Review

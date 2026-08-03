@@ -9,4 +9,4 @@
 
 ### Evidence Review
 
-`.agents/skills/review/SKILL.md` defines the review of `@evidence`, `@evidenceExclude`, and their hosts. Read it only for a Backend or Frontend Review objective.
+`.agents/skills/review/SKILL.md` defines the review of `@evidence`, `@evidenceExclude`, their hosts, and the frozen graph configuration. Read it only for a Backend or Frontend Review objective.
