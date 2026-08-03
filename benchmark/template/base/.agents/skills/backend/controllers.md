@@ -7,23 +7,26 @@ Controllers under `packages/backend/src/controllers/` own routes, actor guards, 
 Every requirement-derived operation begins as a complete contract with a temporary typed body:
 
 ```ts
-/**
- * List the seller's own sales.
- *
- * Implementation pending: realize with ShoppingSaleProvider.index.
- *
- * @param input Pagination, filters, and sort order
- * @returns One page of the seller's sales
- * @tag Sale
- */
-@core.TypedRoute.Patch()
-public async index(
-  @SellerAuth() seller: SellerPayload,
-  @core.TypedBody() input: IShoppingSale.IRequest,
-): Promise<IPage<IShoppingSale.ISummary>> {
-  seller;
-  input;
-  return typia.random<IPage<IShoppingSale.ISummary>>();
+@Controller("shopping/seller/sale")
+export class ShoppingSellerSaleController {
+  /**
+   * List the seller's own sales.
+   *
+   * Implementation pending: realize with ShoppingSaleProvider.index.
+   *
+   * @param input Pagination, filters, and sort order
+   * @returns One page of the seller's sales
+   * @tag Sale
+   */
+  @core.TypedRoute.Patch()
+  public async index(
+    @SellerAuth() seller: SellerPayload,
+    @core.TypedBody() input: IShoppingSale.IRequest,
+  ): Promise<IPage<IShoppingSale.ISummary>> {
+    seller;
+    input;
+    return typia.random<IPage<IShoppingSale.ISummary>>();
+  }
 }
 ```
 
@@ -99,7 +102,7 @@ Controller JSDoc becomes SDK and OpenAPI documentation. Each operation states:
 
 ```ts
 @Controller("shopping/seller/sale")
-export class SellerSaleController {
+export class ShoppingSellerSaleController {
   /**
    * Get one sale owned by this seller.
    *
