@@ -376,6 +376,49 @@ func materializeEntryUnits(
 	return population
 }
 
+// narrowTraversedPopulation keeps the entry's addresses and the narrowing's
+// membership.
+//
+// Both arguments describe the same declarations; they differ only in which
+// module each was reached from, and therefore in the address each unit answers
+// to. Identity is what joins them, because a re-export decides reachability and
+// never identity — the same declaration carries the same unit ID however it was
+// reached.
+//
+// Reached and Published stay whole. Reached is read only to walk the parent
+// chain above a selected unit, and an ancestor is addressable because it is an
+// ancestor rather than because it was selected, so narrowing it would be work
+// with nothing to change. Published is what a citation resolves against, and it
+// is the entry's addresses that a consumer can write.
+func narrowTraversedPopulation(
+	published traversedPopulation,
+	membership traversedPopulation,
+) traversedPopulation {
+	selected := make(map[string]bool, len(membership.Units))
+	for _, unit := range membership.Units {
+		selected[unit.ID] = true
+	}
+	withdrawn := make(map[string]bool, len(membership.Hidden))
+	for _, unit := range membership.Hidden {
+		withdrawn[unit.ID] = true
+	}
+	narrowed := traversedPopulation{
+		Reached:   published.Reached,
+		Published: published.Published,
+	}
+	for _, unit := range published.Units {
+		if selected[unit.ID] {
+			narrowed.Units = append(narrowed.Units, unit)
+		}
+	}
+	for _, unit := range published.Hidden {
+		if withdrawn[unit.ID] {
+			narrowed.Hidden = append(narrowed.Hidden, unit)
+		}
+	}
+	return narrowed
+}
+
 // ownedUnitIndex narrows a file's units to the ones a reached name can own.
 //
 // Membership is decided by identity prefix, so only units whose first segment
