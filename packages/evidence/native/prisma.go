@@ -457,6 +457,10 @@ func normalizePrismaSet(
 // give one unit two parents, which the hierarchy has no way to express.
 func prismaModelUnits(model prismaModel) []*evidenceUnit {
 	modelID := "prisma:" + model.Name
+	// A schema author marking a model internal has made the same declaration a
+	// TypeScript author makes with the same tag, and a model that is out of the
+	// surface takes its fields with it.
+	modelHidden := commentHidingTag(model.Documentation)
 	units := []*evidenceUnit{{
 		ID:       modelID,
 		Target:   modelID,
@@ -464,6 +468,7 @@ func prismaModelUnits(model prismaModel) []*evidenceUnit {
 		Type:     artifactPrisma,
 		Symbol:   "model",
 		Readable: "Prisma model '" + model.Name + "'",
+		Hidden:   modelHidden,
 	}}
 	seen := map[string]bool{}
 	for _, field := range model.Fields {
@@ -475,6 +480,10 @@ func prismaModelUnits(model prismaModel) []*evidenceUnit {
 			continue
 		}
 		seen[target] = true
+		fieldHidden := modelHidden
+		if fieldHidden == "" {
+			fieldHidden = commentHidingTag(field.Documentation)
+		}
 		units = append(units, &evidenceUnit{
 			ID:       target,
 			ParentID: modelID,
@@ -483,6 +492,7 @@ func prismaModelUnits(model prismaModel) []*evidenceUnit {
 			Type:     artifactPrisma,
 			Symbol:   field.Symbol,
 			Readable: "Prisma " + field.Symbol + " '" + model.Name + "." + field.Name + "'",
+			Hidden:   fieldHidden,
 		})
 	}
 	return units
@@ -603,7 +613,7 @@ func prismaDeclarationsFromComments(
 				Tag:             parsed.Tag,
 				Target:          parsed.Target,
 				Reason:          parsed.Reason,
-				Hosts:           symbolSet{host.Symbol: true},
+				Hosts:           prismaHostSymbols(host),
 				Path:            run.Path,
 				Line:            line,
 				Sequence:        sequence,
@@ -614,6 +624,19 @@ func prismaDeclarationsFromComments(
 		}
 	}
 	return problems
+}
+
+// prismaHostSymbols reports the host kinds a declaration on this unit satisfies.
+//
+// A unit withdrawn from the surface by its own documentation tag hosts nothing:
+// it is not a selected claim host, and with no host kind it is not an exclusion
+// carrier either. The declaration is still recorded, so the citation on it is
+// reported rather than silently discarded.
+func prismaHostSymbols(host *evidenceUnit) symbolSet {
+	if host == nil || host.Hidden != "" {
+		return nil
+	}
+	return symbolSet{host.Symbol: true}
 }
 
 // prismaCommentCarriesTag reports whether a comment body opens a citation on

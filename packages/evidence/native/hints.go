@@ -221,7 +221,9 @@ func selectedCompletionUnits(
 					continue
 				}
 				for _, unit := range inventory.Units {
-					if !reference.Symbols.contains(unit.Symbol) || seen[unit.ID] {
+					if unit.Hidden != "" ||
+						!reference.Symbols.contains(unit.Symbol) ||
+						seen[unit.ID] {
 						continue
 					}
 					seen[unit.ID] = true

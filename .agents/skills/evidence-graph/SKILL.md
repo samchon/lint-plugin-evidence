@@ -55,6 +55,12 @@ Keep selected obligations and resolvable scopes separate. Do not make every unse
 
 Hierarchy is identity, not spelling. Store explicit parent unit IDs while materializing. Never infer TypeScript ancestry from a dotted-string prefix: literal names may contain dots, and `A.B` can mean one literal segment or two qualified segments.
 
+**A declaration whose documentation comment carries `@internal`, `@hidden`, or `@ignore` materializes no unit, and neither does anything nested inside it.** The three tags are equivalent statements that the declaration is not API; the tag must open its own line, so prose mentioning one is describing something rather than declaring it, and text after it is a comment for humans. The graph honors a decision the source already made: without this, an author's only answers are a false `@evidence` citation or an `@evidenceExclude` whose reason restates the tag — and under `noExclude`, not even the second one.
+
+This applies to both sides and to both authored artifact kinds. A withdrawn declaration is neither a selected reference unit nor a selected claim host, and hosting nothing also makes it ineligible as an exclusion carrier. TypeScript JSDoc and Prisma `///` comments behave identically, and a tagged Prisma model takes its columns and relations with it. Markdown headings and Swagger operations have no authored documentation comment and are out of scope.
+
+Keep a withdrawn unit rather than discarding it, marked with the tag that withdrew it. A citation naming one resolved to a real declaration, so it is answered with the tag as the cause; a bare unresolved target would send the author looking for a typo that is not there.
+
 ## Swagger Classification
 
 Swagger is reference-only. One `IEvidenceGraphSwaggerReference` owns one exact project-relative file path or HTTP(S) URL through its singular `file` property; multiple documents are separate reference-array obligations. It has no public `symbol` selector because every operation under the normalized document's `paths` object is selected.

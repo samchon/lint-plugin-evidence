@@ -16,6 +16,39 @@ func parseDeclarations(comment string) []parsedDeclaration {
 	return parseCommentDeclarations(comment, false)
 }
 
+// hiddenDeclarationTags are the documentation tags that withdraw a declaration
+// from the public surface. They are equivalent here: each one is a statement
+// that the declaration is not API, and the graph has no reason to grade the
+// three against each other.
+var hiddenDeclarationTags = []string{"@internal", "@hidden", "@ignore"}
+
+// commentHidingTag returns the tag by which a documentation comment withdraws
+// its declaration, or an empty string.
+//
+// The tag has to open its own line, the way every other tag in these comments
+// is recognized. A prose line mentioning `@internal` is describing something,
+// not declaring it, and treating a substring match as a declaration would let a
+// sentence silently delete an obligation. Text after the tag is a comment for
+// humans and is not read.
+func commentHidingTag(comment string) string {
+	comment = strings.TrimSpace(comment)
+	comment = strings.TrimPrefix(comment, "/**")
+	comment = strings.TrimPrefix(comment, "/*")
+	comment = strings.TrimSuffix(comment, "*/")
+	for _, rawLine := range strings.Split(comment, "\n") {
+		line := strings.TrimSpace(rawLine)
+		line = strings.TrimSpace(strings.TrimPrefix(line, "*"))
+		line = strings.TrimSpace(strings.TrimPrefix(line, "///"))
+		for _, tag := range hiddenDeclarationTags {
+			if line != tag && !strings.HasPrefix(line, tag+" ") {
+				continue
+			}
+			return tag
+		}
+	}
+	return ""
+}
+
 // parseCommentDeclarations reads every declaration one comment body carries.
 //
 // tagBoundaries decides whether a line opening with some other `@tag` ends the
