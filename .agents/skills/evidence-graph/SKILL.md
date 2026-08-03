@@ -87,6 +87,10 @@ A TypeScript claim may declare `root` to move the base its `files` globs resolve
 
 Only public identities materialize. A top-level declaration needs an export modifier or local export-list alias; a namespace member needs to be exported from that namespace unless ambient namespace semantics make it implicitly public. A type-only namespace alias projects only public namespaces, interfaces, type aliases, and their type properties, never value-space data or callables.
 
+**A namespace merged with a same-named function is that function's static side, and nothing inside it materializes.** This is the generated SDK accessor shape: `get.path` and `get.METADATA` are properties of the `get` function value, and `get.Output` is the type its own signature spells, so none of them is authored contract. The exclusion is whole rather than per-kind, or one namespace would read as machinery under one `symbol` selector and as public surface under another. It also removes a resolution failure with no repair: a selected member promoted the merged namespace to an addressable aggregate scope, where it collided with the function unit of the same name and left every citation of the accessor ambiguous under the narrowest selector the diagnostic could recommend.
+
+The merge partner decides this, not the namespace. An interface merged with a same-named namespace is already one unit — both are symbol `type` under one identity — so a type family keeps every variant, and a class registers no unit under its own name, so a companion object has nothing to collide with. Both stay in the population. A `const` or `let` cannot merge with a namespace at all; TypeScript rejects it as `TS2451`.
+
 **A re-export decides reachability, never identity.** The rule splits in two, and both halves are load-bearing.
 
 - **Identity stays with the declaring file.** A re-export whose declaration lives in another file creates no second unit. A symbol exposed through two barrels is one unit with one ID and one coverage obligation — this is what stops a barrel from doubling every obligation beneath it.
