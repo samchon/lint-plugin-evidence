@@ -14,12 +14,35 @@ test/
   generate/generate_random_<accessor_path>.ts
 ```
 
-- `features/`: one exported test function per file.
+- `features/`: one exported test function per file, named after the file.
 - `authorize/`: one helper per authentication lifecycle operation.
 - `prepare/`: synchronous creation-body builders with no calls.
 - `generate/`: one public SDK call that returns the created value.
 
 Names match the exported function and describe the behavior or refusal being proved.
+
+## Operation Ownership
+
+Every product operation has tests. `api.functional.health.get` is the scaffold probe and the only exception.
+
+Each accessor states its own address in its JSDoc `@accessor` tag, so the operation list is exact:
+
+```bash
+rg --no-filename -o '@accessor \S+' ../api/src/functional | sort
+```
+
+That address is the same string a scenario passes as `target` and an `@evidence` citation names.
+
+Each test has one primary operation: the accessor it exists to prove. Prerequisite calls that reach the state under test, and follow-up reads that observe the effect, are setup and observation rather than the subject.
+
+| Rule | Detail |
+| --- | --- |
+| one primary operation | the accessor this test proves, named in its JSDoc scenario |
+| at least two tests per operation | a success path and a refusal path cannot share one test |
+| one success case | each operation has a proven working path |
+| at least one non-success case | each operation has a proven refusal, boundary, or effect |
+
+Name each test after the behavior it proves, so `test_api_sale_unit_create_success` and `test_api_sale_unit_create_rejects_foreign_seller` are two tests of one operation rather than one test doing both.
 
 ## Scenario Shape
 
@@ -31,26 +54,32 @@ Every test JSDoc states the behavior, why the scenario proves it, and numbered s
  *
  * 1. Join an administrator and create the required section.
  * 2. Join a seller and create a sale in that section.
- * 3. Add a unit to the sale.
+ * 3. Add a unit to the sale through the operation under test.
  * 4. Read the sale and assert it contains the unit.
  */
 export async function test_api_sale_unit_belongs_to_sale(
   connection: api.IConnection,
 ): Promise<void> {
+  // Step 1: Join an administrator and create the required section
   const admin: api.IConnection = { host: connection.host };
   await authorize_admin_join(admin, {});
   const section = await generate_random_admin_section_create(admin, {});
 
+  // Step 2: Join a seller and create a sale in that section
   const seller: api.IConnection = { host: connection.host };
   await authorize_seller_join(seller, {});
   const sale = await generate_random_seller_sale_create(seller, {
     params: { sectionId: section.id },
   });
-  const unit = await generate_random_seller_sale_unit_create(seller, {
+
+  // Step 3: Add a unit to the sale through the operation under test
+  const unit = await api.functional.shopping.seller.sale.unit.create(seller, {
     params: { sectionId: section.id, saleId: sale.id },
     body: { name: "Standard", primary: true },
   });
+  typia.assert(unit);
 
+  // Step 4: Read the sale and assert it contains the unit
   const detail = await api.functional.shopping.seller.sale.at(seller, {
     id: sale.id,
   });
@@ -61,6 +90,8 @@ export async function test_api_sale_unit_belongs_to_sale(
   );
 }
 ```
+
+The authorization, section, and sale calls establish the state the operation needs. The final read observes its effect. The unit creation is the primary operation, and it is the one this test's JSDoc and evidence name.
 
 The final assertion observes the effect through a public read. Checking only the create response proves that the response echoed input, not that state persisted.
 
@@ -102,7 +133,7 @@ Generate helpers call one existing accessor. Path parameters and foreign keys co
 
 ## Coverage
 
-For every requirement, name a test that would fail if the behavior disappeared. For every operation, cover success and every stated refusal. For every exchanged DTO shape, construct or read it through an applicable operation.
+For every requirement, name a test that would fail if the behavior disappeared. For every operation, cover success and every stated refusal, across the separate hosts Operation Ownership requires. For every exchanged DTO shape, construct or read it through an applicable operation.
 
 Minimum behavioral cases:
 
@@ -142,8 +173,9 @@ Never:
 - use `any`, double casts, or suppression comments;
 - read Prisma directly for setup or proof;
 - decode token internals the DTO does not expose;
-- weaken an assertion to make the suite pass; or
-- run the same target method/path twice in one scenario unless the second call is the behavior under test.
+- weaken an assertion to make the suite pass;
+- present a prerequisite call as the operation under test; or
+- prove one operation's success and refusal inside a single test.
 
 Before a backend or overall review that may qualify as clean, temporarily remove one material behavior, run its test and require failure, restore the behavior exactly, then require success. Complete this mutation calibration before the qualifying review begins.
 

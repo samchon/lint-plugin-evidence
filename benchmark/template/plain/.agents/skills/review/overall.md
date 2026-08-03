@@ -48,9 +48,11 @@ Compare every adjacent boundary in both directions.
    - verify every implementation path remains inside the public contract.
 4. API and frontend:
    - verify request construction, response interpretation, errors, cache behavior, navigation, and deletion cleanup;
-   - verify every required operation is usable and every used operation is required.
+   - verify every required operation is usable and every used operation is required;
+   - verify the complete chain for every accessor: a hook calls it, a screen renders that hook, and a journey walks that screen.
 5. Backend and tests:
    - verify success, refusal, boundaries, persistence, rollback, cascade, ordering, isolation, and concurrency;
+   - verify that every accessor has its proving tests, that each names the operation it actually exercises, and that its prerequisites are not mistaken for the subject;
    - verify that assertions fail when the named behavior disappears.
 6. Frontend and browser tests:
    - verify every required live state, action, refusal, recovery, responsive behavior, and user-visible consequence;

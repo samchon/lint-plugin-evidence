@@ -63,6 +63,29 @@ Read every authored controller and DTO and every generated SDK contract in full.
 
 Generated contracts may reveal drift but do not own the correction. Fix the authored schema, controller, or DTO and regenerate.
 
+## Operation Coverage Propagation
+
+Every generated accessor states its own address in its JSDoc, so the operation list is exact rather than reconstructed:
+
+```bash
+rg --no-filename -o '@accessor \S+' packages/api/src/functional | sort
+```
+
+This is a cross-check index, not a read. It does not shorten the literal full reading of `packages/api/src/functional/`, and an accessor absent from the index but present in the source is itself a finding. Use it to guarantee the propagation below reaches every operation, and work it entry by entry. `api.functional.health.get` is the scaffold probe and the one accessor outside this obligation.
+
+1. Name, for each accessor, every test that proves it.
+   - An accessor with no test is a finding. Four hundred published operations and two hundred proved ones is a missing feature set, not a thorough suite.
+   - An accessor with one test is a finding: a single test cannot prove both a working path and a refusal.
+   - An accessor whose tests all prove the same working path is a finding.
+2. Verify each test actually proves the accessor it names.
+   - Confirm the primary call is the operation under test and not a prerequisite that happens to be convenient.
+   - Confirm prerequisite and follow-up calls are setup and observation rather than the claimed subject.
+3. Verify the inventory itself against the requirements.
+   - An accessor the requirements never ask for is over-implementation and a finding.
+   - A requirement whose operation no accessor publishes is a missing operation, which no amount of test coverage over the published ones will reveal.
+
+Never substitute a passing `pnpm test` for this reading. It reports only the tests that exist, and says nothing about an operation nobody tested or a required operation nobody published.
+
 ## Implementation And Test Closure
 
 Read every backend source and test file in full.
@@ -87,6 +110,7 @@ Names, types, compilation, internal consistency, and passing tests do not establ
 - [ ] Every requirement propagated through database, API, behavior, and tests.
 - [ ] Every schema element checked against operations, DTOs, behavior, effects, and tests.
 - [ ] Every operation and DTO traced backward to requirements and storage and forward to behavior and tests.
+- [ ] Complete operation inventory read as one sorted list, every accessor named with the tests that prove it and what each proves, and every accessor without sufficient tests recorded as a finding.
 - [ ] Every backend source and test read across all success, refusal, boundary, lifecycle, ownership, atomicity, ordering, and concurrency paths.
 - [ ] Every finding followed through its full consequence surface.
 

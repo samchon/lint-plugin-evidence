@@ -10,21 +10,28 @@ Write every `@evidence` and `@evidenceExclude` as the Evidence skill requires. D
 
 Complete these stages in order.
 
-1. Implement every required screen, state, and interaction under `packages/frontend/src/`.
-2. Write every requirement-backed journey under `packages/frontend/tests/journeys/`.
+1. Implement the shared shell, connection, and every domain hook under `packages/frontend/src/lib/`. Every published SDK accessor must be called by a hook.
+2. Implement every required screen, state, and interaction under `packages/frontend/src/`.
+3. Write every requirement-backed journey under `packages/frontend/tests/journeys/`.
 
 ## Compiler Check
 
-`evidence/graph` starts checking `@evidence` and `@evidenceExclude` when a claim's `disabled` property is removed and the first page or journey function exists.
+`evidence/graph` starts checking `@evidence` and `@evidenceExclude` when a claim's `disabled` property is removed and the first hook, page, or journey function exists.
 
 Removing `disabled` before that layer is complete emits hundreds or thousands of errors for tags not written yet. The output fills context and impairs implementation decisions.
 
+The three claims form a chain. A hook cites the operations it calls, a screen cites the hooks it uses, and a journey cites the screens it walks. Enable them in that order.
+
 Start `pnpm dev` from `packages/frontend` before implementation while every frontend claim is disabled.
 
-1. After every screen is complete, delete `disabled` from `frontend-screens`.
+1. After every domain hook is complete, delete `disabled` from `frontend-hooks`.
+   - Fix every diagnostic and complete its truthful evidence mapping.
+   - The operation reference refuses `@evidenceExclude`. Write the missing hook; do not exclude the operation.
+   - Wait for a reload without diagnostics.
+2. After every screen is complete, delete `disabled` from `frontend-screens`.
    - Fix every diagnostic and complete their truthful evidence mappings.
    - Wait for a reload without diagnostics.
-2. After every journey is complete, delete `disabled` from `frontend-journeys`.
+3. After every journey is complete, delete `disabled` from `frontend-journeys`.
    - Fix every diagnostic, complete their truthful evidence mappings, and wait for a reload without diagnostics.
    - Keep it running through Overall Final.
 
@@ -38,10 +45,11 @@ Run `pnpm test:e2e` with `VITE_API_SIMULATE=false`. Fix every failure. After the
 
 ## Final Checklist
 
-- [ ] Every required screen, state, interaction, and journey implemented.
+- [ ] Every required domain hook, screen, state, interaction, and journey implemented.
 - [ ] Every frontend claim is enabled; no other claim configuration changed.
-- [ ] `frontend-screens` was enabled before journey implementation began.
-- [ ] Every `@evidence` is on a page or journey that delivers or proves its linked requirement or page function.
+- [ ] `frontend-hooks` was enabled before screen implementation began, and `frontend-screens` before journey implementation began.
+- [ ] Every published SDK accessor is called by a hook, every hook is used by a screen, and every screen is walked by a journey.
+- [ ] Every `@evidence` is on a hook that calls its linked operation, a page that delivers its linked requirement or uses its linked hook, or a journey that proves its linked requirement or walks its linked page.
 - [ ] Every `@evidenceExclude` names its owner or alternative and invalidating condition; none exists only to remove a diagnostic.
 - [ ] The persistent frontend `pnpm dev` process reloaded without diagnostics after the latest change and remains running.
 - [ ] Live-backend `pnpm test:e2e` exits with code 0 after the last frontend change.

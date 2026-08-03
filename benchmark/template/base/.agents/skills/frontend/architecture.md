@@ -55,6 +55,14 @@ export function useSales(search: string) {
 
 The hook owns the generated call, query key, invalidation, and transport state. Do not place a handwritten service or transport wrapper between it and the SDK.
 
+Every published accessor is called by some hook. One hook usually owns one accessor, and a hook composing two calls for a single screen is ordinary — what is not ordinary is an accessor no hook mentions at all.
+
+Wrapping an accessor is not delivering it. Every hook is used by a screen, and a hook nothing renders is the same omission as an uncalled accessor, one layer up.
+
+An accessor no hook calls is a capability the product does not deliver. A backend publishing four hundred operations against a frontend consuming two hundred is half a product, and the missing half is invisible in a green build.
+
+That obligation is about consumption, not layout. A hook may serve a dialog, a background refresh, or a step inside another screen's flow, and its accessor is delivered either way — which screens exist is the separate question `screens.md` answers.
+
 Keep domain keys together and include every parameter:
 
 ```ts

@@ -9,12 +9,13 @@ Start `pnpm check:watch` from `packages/backend` as a persistent background proc
 1. Read every file under `docs/analysis/` in full, without omitting a single file, section, or requirement.
 2. Design the complete requirement-derived database under `packages/backend/prisma/schema/`. When the whole schema is settled, run `pnpm build:prisma` and `pnpm schema` from `packages/backend`.
 3. Based on the requirements under `docs/analysis/` and the database design under `packages/backend/prisma/schema/`, design every API controller under `packages/backend/src/controllers/` and every DTO under `packages/api/src/structures/` without omitting any required operation or data contract.
-4. When the API is ready, run `pnpm build:sdk` from `packages/backend`, then write test programs under `packages/backend/test/features/` that cover every requirement and API operation without a single omission.
+4. When the API is ready, run `pnpm build:sdk` from `packages/backend`, then write test programs under `packages/backend/test/features/` that cover every requirement and API operation without a single omission. Each test proves one primary operation. Follow Operation Ownership in `.agents/skills/backend/testing.md`.
 5. When the backend implementation is complete, run `pnpm test` from `packages/backend` to verify it and fix every failure.
 
 ## Final Checklist
 
 - [ ] Complete requirement-derived schema, API, backend behavior, and tests implemented.
+- [ ] Every published operation has its proving tests, each proving one primary operation.
 - [ ] Prisma and SDK output regenerated after the latest owning-source change.
 - [ ] Persistent watcher rebuilt cleanly after the latest scoped change.
 - [ ] `pnpm test` passed against the current implementation.

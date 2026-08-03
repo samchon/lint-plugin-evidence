@@ -39,6 +39,10 @@ test("customer checkout", async ({ page }) => {
 
 Every requirement-backed journey maps to a function, and every function maps back to a requirement and actor. A journey performs the full sequence, including observable success and stated refusal paths.
 
+Every screen is walked by some journey. A page that renders correctly and appears in no journey is unproven in the only environment that decides whether a user can complete the product, and walking it closes the chain that starts at the generated accessor: an accessor is called by a hook, the hook is used by a screen, and the screen is walked here.
+
+A screen may stay outside the journeys only on a reviewed decision that names what covers it instead and the condition that would invalidate that decision. "No journey needed" is a conclusion, not a reason.
+
 ## Simulation And Live Execution
 
 Run the same journey suite twice:

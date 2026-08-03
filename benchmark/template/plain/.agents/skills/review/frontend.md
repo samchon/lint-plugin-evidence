@@ -45,6 +45,31 @@ Read every operation and DTO in full. Treat each operation and property as a roo
    - Verify that tests use the real operation and assert the complete visible consequence.
    - Record unconsumed operations, invented client behavior, missing error handling, and unproved branches as findings.
 
+## Operation Coverage Propagation
+
+Every generated accessor states its own address in its JSDoc, so the operation list is exact rather than reconstructed:
+
+```bash
+rg --no-filename -o '@accessor \S+' packages/api/src/functional | sort
+```
+
+This is a cross-check index, not a read. It does not shorten the literal full reading of `packages/api/src/`, and an accessor absent from the index but present in the source is itself a finding. Use it to guarantee the propagation below reaches every operation, and work it entry by entry. `api.functional.health.get` is the scaffold probe and the one accessor outside this obligation.
+
+1. Name, for each accessor, the hook under `src/lib/<domain>/hooks.ts` that calls it, and the screen that renders that hook.
+   - An accessor no hook calls is a missing feature, not an implementation detail. Four hundred published operations and two hundred consumed ones means the product is half delivered.
+   - A hook no screen uses is the same omission one layer up: the call exists and the user still cannot reach it.
+   - Record either as a finding and follow it to the screen the requirements say should surface it.
+2. Verify the call is the hook's own.
+   - Confirm no handwritten service or transport wrapper sits between the hook and the SDK.
+   - Confirm a page fetches through the hook rather than calling the accessor itself.
+3. Close the chain at the browser.
+   - Name the journey that walks each screen. A screen no journey walks is unproven where it counts, and it leaves every accessor beneath it unproven too.
+4. Verify the reverse direction.
+   - An operation the frontend calls that no requirement asks for is over-implementation and a finding.
+   - A screen that fabricates data an operation already returns is a finding.
+
+A deliberate non-consumption is a finding until a requirement backs it. Record the requirement that makes the operation backend-only; an entry in `wiki/omissions.md` restates the decision but does not justify it.
+
 ## Frontend Source Propagation
 
 Read every frontend source file in full. Treat each route, screen, component, state transition, interaction, and deliberate omission as a claim.
@@ -72,6 +97,7 @@ Read every browser test in full and perform every required journey against the l
 - [ ] Literal full reading covered every required instruction and in-scope frontend artifact.
 - [ ] Every requirement propagated through API, screens, interactions, states, tests, and journeys.
 - [ ] Every operation and DTO checked against all consumers, data flow, failures, cache and route transitions, and browser proof.
+- [ ] Complete operation inventory read as one sorted list, every accessor named with the hook that calls it, the screen that renders that hook, and the journey that walks that screen, and every break in that chain recorded as a finding.
 - [ ] Every frontend source and browser test read and traced backward to requirements and forward to live behavior.
 - [ ] Every applicable user-visible, responsive, and accessible state checked.
 - [ ] Every required journey exercised against the live application.
