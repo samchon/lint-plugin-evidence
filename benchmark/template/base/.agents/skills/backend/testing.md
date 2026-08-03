@@ -31,7 +31,6 @@ Each accessor states its own address in its JSDoc `@accessor` tag, so the operat
 rg --no-filename -o '@accessor \S+' ../api/src/functional | sort
 ```
 
-That address is also what an `@evidence` citation names, so the list and the test agree on how an operation is spelled.
 
 Each test has one primary operation: the accessor it exists to prove. Prerequisite calls that reach the state under test, and follow-up reads that observe the effect, are setup and observation rather than the subject.
 

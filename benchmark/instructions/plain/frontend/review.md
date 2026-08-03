@@ -6,7 +6,7 @@ Review the entire frontend and its live behavior through a literal **review loop
 
 Every round must read in full one complete sorted manifest covering `docs/analysis/`, `packages/api/src/`, `packages/frontend/src/`, and `packages/frontend/tests/`, including frontend configuration affecting compilation, SDK use, Vite, Playwright, or runtime.
 
-Every round must also build the complete published operation index the Review skill defines, and reach every entry in it.
+Every round must also build the operation index that Operation Coverage Propagation defines in `.agents/skills/review/frontend.md`, and reach every entry in it.
 
 1. Read every requirement in full; compare it with the API, screens, user journeys, and browser tests.
 2. Read every API operation and DTO in full; compare each with frontend behavior, data flow, errors, and tests.
