@@ -138,6 +138,56 @@ export function detail(): void {}
 }
 
 /**
+ * Verifies a selected module keeps every declaration it exposes as an
+ * obligation.
+ *
+ * Selecting modules rather than declarations is only safe if the two agree on
+ * what a module publishes. A declaration exposed under another name is
+ * inventoried under the name it is exposed as, so matching it by the local
+ * binding it wrote would drop it from the population — and an obligation that
+ * disappears reads exactly like one that was discharged.
+ *
+ *  1. Expose a declaration under a different public name.
+ *  2. Select the module and cite the ordinary declaration beside it.
+ *  3. Assert the renamed declaration is still owed and is citable by that name.
+ */
+func TestGraphKeepsRenamedLocalExportsInThePopulation(t *testing.T) {
+	const config = `{"claims":[{
+		"type":"typescript",
+		"files":["src/ledger.ts"],
+		"symbol":"type",
+		"reference":{"type":"typescript","files":["src/contracts.ts"],"symbol":["type","property"]}
+	}]}`
+	const contracts = `export interface IShape {}
+const local: number = 1;
+export { local as renamed };
+`
+	uncited := runIndexRule(t, map[string]string{
+		"src/contracts.ts": contracts,
+		"src/ledger.ts": `import type { IShape } from "./contracts";
+
+/** @evidence {@link IShape} Mirrors the shape contract. */
+export interface ILedger {}
+`,
+	}, config)
+	assertProblemContains(t, uncited, "Missing acknowledgement for 'renamed'")
+
+	cited := runIndexRule(t, map[string]string{
+		"src/contracts.ts": contracts,
+		"src/ledger.ts": `import type { IShape } from "./contracts";
+import { renamed } from "./contracts";
+
+/**
+ * @evidence {@link IShape} Mirrors the shape contract.
+ * @evidence {@link renamed} Mirrors the renamed constant.
+ */
+export interface ILedger {}
+`,
+	}, config)
+	assertNoProblems(t, cited)
+}
+
+/**
  * Verifies several selected modules union into one population.
  *
  * A glob usually matches a barrel and the modules beneath it at once. Each is a

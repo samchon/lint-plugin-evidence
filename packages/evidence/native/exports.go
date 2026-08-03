@@ -183,7 +183,9 @@ type reachedSymbol struct {
 	Address []string
 	// Path is the file that declares the symbol, which owns its identity.
 	Path string
-	// Local is the declaration's qualified name inside that file.
+	// Local is the name that file's inventory gives the declaration, which is
+	// the name it exposes rather than the binding it wrote. `export { a as b }`
+	// declares one unit called `b`, so matching on `a` would find nothing.
 	Local string
 }
 
@@ -234,10 +236,13 @@ func traverseEntryExports(
 	}
 	for _, export := range inventory.Exports {
 		if export.Specifier == "" {
+			// A declaration this module exposes is inventoried under the name it
+			// exposes it as. `export { local as renamed }` is one unit named
+			// `renamed`, so the local binding never identifies it.
 			reached = append(reached, reachedSymbol{
 				Address: append(append([]string{}, prefix...), export.Public),
 				Path:    entry,
-				Local:   export.Local,
+				Local:   export.Public,
 			})
 			continue
 		}
