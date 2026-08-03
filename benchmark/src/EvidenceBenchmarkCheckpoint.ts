@@ -83,7 +83,47 @@ export namespace EvidenceBenchmarkCheckpoint {
       return readWorkspaceSnapshot(runRoot, destination);
 
     fs.mkdirSync(checkpoints, { recursive: true });
-    const stage: string = fs.mkdtempSync(path.join(checkpoints, ".tmp-"));
+    // Backend Start requires a persistent `check:watch`, and the review stages
+    // keep it running, so the workspace is still being written when this
+    // snapshot is taken. A single racing write must not cost the cell its
+    // checkpoint: retry the whole snapshot until one pass observes a quiet
+    // workspace. The consistency guarantee below is unchanged; only the number
+    // of chances to satisfy it is.
+    const attempts: number = 5;
+    for (let attempt: number = 1; ; ++attempt)
+      try {
+        return attemptWorkspaceSnapshot({
+          runRoot,
+          workspace,
+          checkpoints,
+          destination,
+          inheritedWallElapsedMs: props.inheritedWallElapsedMs,
+        });
+      } catch (error) {
+        if (
+          attempt >= attempts ||
+          !(error instanceof Error) ||
+          error.message !== VOLATILE_WORKSPACE_MESSAGE
+        )
+          throw error;
+      }
+  }
+
+  const VOLATILE_WORKSPACE_MESSAGE =
+    "Backend-start workspace changed while its checkpoint was created.";
+
+  /** Copies the workspace once, rejecting the copy if it changed underneath. */
+  function attemptWorkspaceSnapshot(props: {
+    runRoot: string;
+    workspace: string;
+    checkpoints: string;
+    destination: string;
+    inheritedWallElapsedMs: number;
+  }): IEvidenceBenchmarkCheckpointStorage {
+    const runRoot: string = props.runRoot;
+    const workspace: string = props.workspace;
+    const destination: string = props.destination;
+    const stage: string = fs.mkdtempSync(path.join(props.checkpoints, ".tmp-"));
     try {
       const snapshot: string = path.join(stage, "workspace");
       fs.mkdirSync(snapshot);
@@ -113,9 +153,7 @@ export namespace EvidenceBenchmarkCheckpoint {
         hashTree(path.join(workspace, ".git")) !== gitSha256 ||
         hashTree(path.join(snapshot, ".git")) !== gitSha256
       )
-        throw new Error(
-          "Backend-start workspace changed while its checkpoint was created.",
-        );
+        throw new Error(VOLATILE_WORKSPACE_MESSAGE);
       const workspaceGitHead: string = git(snapshot, [
         "rev-parse",
         "HEAD",
@@ -135,7 +173,7 @@ export namespace EvidenceBenchmarkCheckpoint {
         workspaceGitHead,
         workspaceGitStatus,
         inheritedWallElapsedMs: props.inheritedWallElapsedMs,
-      };
+      } satisfies IWorkspaceSnapshotManifest;
       fs.writeFileSync(
         path.join(stage, "checkpoint.json"),
         `${JSON.stringify(manifest, null, 2)}\n`,
