@@ -430,6 +430,9 @@ const phaseValues = (
 };
 
 const stagePhase = (stage: string): PhaseName => {
+  if (/^backend-remind-[1-4]$/u.test(stage)) return "backend-review";
+  if (/^frontend-remind-[1-4]$/u.test(stage)) return "frontend-review";
+  if (/^overall-remind-[1-4]$/u.test(stage)) return "overall-review";
   switch (stage) {
     case "backend-start":
       return "backend-development";

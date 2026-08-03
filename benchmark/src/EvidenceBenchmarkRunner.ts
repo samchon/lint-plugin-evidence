@@ -4,19 +4,21 @@ import path from "node:path";
 
 import typia from "typia";
 
+import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction.ts";
 import { EvidenceBenchmarkReviewLedger } from "./EvidenceBenchmarkReviewLedger.ts";
 import { EvidenceBenchmarkSupervision } from "./EvidenceBenchmarkSupervision.ts";
 import type { IEvidenceBenchmarkCheckpointStorage } from "./structures/IEvidenceBenchmarkCheckpointStorage.ts";
 import type { IEvidenceBenchmarkExecutable } from "./structures/IEvidenceBenchmarkExecutable.ts";
 import type { IEvidenceBenchmarkGoalRecord } from "./structures/IEvidenceBenchmarkGoalRecord.ts";
 import type { IEvidenceBenchmarkInterruption } from "./structures/IEvidenceBenchmarkInterruption.ts";
+import type { IEvidenceBenchmarkInstructionPlanEntry } from "./structures/IEvidenceBenchmarkInstructionPlanEntry.ts";
 import type { IEvidenceBenchmarkOutput } from "./structures/IEvidenceBenchmarkOutput.ts";
 import type { IEvidenceBenchmarkProcessRecord } from "./structures/IEvidenceBenchmarkProcessRecord.ts";
 import type { IEvidenceBenchmarkRunProps } from "./structures/IEvidenceBenchmarkRunProps.ts";
 import type { IEvidenceBenchmarkRunState } from "./structures/IEvidenceBenchmarkRunState.ts";
 import type { IEvidenceBenchmarkTokenUsage } from "./structures/IEvidenceBenchmarkTokenUsage.ts";
 import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm.ts";
-import type { EvidenceBenchmarkSupervisionGoal } from "./typings/EvidenceBenchmarkSupervisionGoal.ts";
+import type { EvidenceBenchmarkReviewScope } from "./typings/EvidenceBenchmarkReviewScope.ts";
 
 /**
  * Executes the retained Codex Goal sequence for one benchmark cell.
@@ -28,7 +30,6 @@ import type { EvidenceBenchmarkSupervisionGoal } from "./typings/EvidenceBenchma
 export namespace EvidenceBenchmarkRunner {
   const PROCESS_CLEANUP_ERROR =
     "Codex app-server survived forced process-tree cleanup.";
-  const GOAL_OBJECTIVE_MAX_CHARACTERS = 4_000;
 
   /**
    * Creates an empty Codex state for the selected experiment arm.
@@ -44,6 +45,7 @@ export namespace EvidenceBenchmarkRunner {
       status: "ready",
       threadTokenUsage: zeroUsage(),
       goals: [],
+      instructionPlan: EvidenceBenchmarkInstruction.plan(arm),
       checkpoints: [],
       processes: [],
     };
@@ -54,16 +56,18 @@ export namespace EvidenceBenchmarkRunner {
   ): Promise<IEvidenceBenchmarkRunState> {
     const state: IEvidenceBenchmarkRunState =
       typia.assert<IEvidenceBenchmarkRunState>(structuredClone(props.state));
-    const entries = instructionEntries(
-      state.arm,
-      props.reviewLedger !== "backend",
-    );
-    if (state.status === "awaiting-supervision") {
+    state.instructionPlan ??= EvidenceBenchmarkInstruction.plan(state.arm);
+    const entries: IEvidenceBenchmarkInstructionPlanEntry[] =
+      state.instructionPlan;
+    validateInstructionPlan(state, entries);
+    if (state.status === "quality-failed") {
+      await props.onState?.(structuredClone(state));
+      return state;
+    }
+    if (state.status === "awaiting-review-verdict") {
       if (props.runRoot === undefined)
-        throw new Error(
-          "Externally supervised resume lacks its retained root.",
-        );
-      EvidenceBenchmarkSupervision.assertApproved({
+        throw new Error("Plain review-verdict resume lacks its retained root.");
+      EvidenceBenchmarkSupervision.assertDecided({
         runRoot: props.runRoot,
         workspace: props.cwd,
         state,
@@ -75,13 +79,13 @@ export namespace EvidenceBenchmarkRunner {
       if (
         pause === undefined ||
         pause.resumedAt !== undefined ||
-        pause.verdict?.decision !== "approved" ||
+        pause.verdict === undefined ||
         previous === undefined ||
         pause.afterGoal !== previous.name ||
-        !props.pauseAfterGoals?.includes(pause.afterGoal)
+        pause.goalIndex !== previous.index
       )
         throw new Error(
-          "Externally supervised resume lacks its exact retained Goal boundary.",
+          "Plain review-verdict resume lacks its exact retained Goal boundary.",
         );
       pause.resumedAt = new Date().toISOString();
     }
@@ -117,15 +121,6 @@ export namespace EvidenceBenchmarkRunner {
       throw new Error(
         "Runner-owned backend review tools require a fresh detached review thread, not a conversation fork.",
       );
-    if (
-      props.reviewLedger === "backend" &&
-      (!props.pauseAfterGoals?.includes("backend-review") ||
-        !props.pauseAfterGoals.includes("backend-final"))
-    )
-      throw new Error(
-        "Runner-owned backend review requires supervision pauses after both backend-review and backend-final.",
-      );
-
     const current = (): IEvidenceBenchmarkGoalRecord => {
       const record: IEvidenceBenchmarkGoalRecord | undefined = state.goals.find(
         (candidate) => candidate.index === state.nextInstructionIndex,
@@ -143,15 +138,15 @@ export namespace EvidenceBenchmarkRunner {
       if (entry === undefined)
         throw new Error("Instruction cursor is invalid.");
       const { prescribedText, continuationText, objectiveText } =
-        instructionObjective({
+        EvidenceBenchmarkInstruction.objective({
           arm: state.arm,
           instructionsRoot: props.instructionsRoot,
-          relativePath: entry[1],
+          entry,
         });
       const record: IEvidenceBenchmarkGoalRecord = {
         index: state.nextInstructionIndex,
-        name: entry[0],
-        relativePath: entry[1],
+        name: entry.name,
+        relativePath: entry.relativePath,
         prescribedText,
         continuationText,
         objectiveText,
@@ -171,9 +166,7 @@ export namespace EvidenceBenchmarkRunner {
 
     prepare();
     const sandbox = (): "read-only" | "danger-full-access" =>
-      props.reviewLedger === "backend" &&
-      (current().name === "backend-review" ||
-        current().name === "backend-final")
+      props.reviewLedger === "backend" && current().name === "backend-review"
         ? "read-only"
         : "danger-full-access";
     if (props.fork !== undefined && state.sessionId !== undefined)
@@ -228,8 +221,9 @@ export namespace EvidenceBenchmarkRunner {
     state.processes.push(processRecord);
 
     type Outcome =
-      "completed" | "checkpointed" | "awaiting-supervision" | "interrupted";
-    let supervisionGoal: EvidenceBenchmarkSupervisionGoal | undefined;
+      "completed" | "checkpointed" | "awaiting-review-verdict" | "interrupted";
+    let reviewBoundary:
+      { scope: EvidenceBenchmarkReviewScope; attempt: number } | undefined;
     let outcome: Outcome | undefined;
     const reviewCommandAbort = new AbortController();
     let resolveOutcome!: (value: Outcome) => void;
@@ -370,7 +364,7 @@ export namespace EvidenceBenchmarkRunner {
         return;
       if (
         props.reviewLedger === "backend" &&
-        (record.name === "backend-review" || record.name === "backend-final")
+        record.name === "backend-review"
       ) {
         try {
           if (activeNativeCommands.size !== 0)
@@ -479,12 +473,12 @@ export namespace EvidenceBenchmarkRunner {
           );
         finish("checkpointed");
       } else if (
-        props.pauseAfterGoals?.includes(
-          record.name as EvidenceBenchmarkSupervisionGoal,
-        )
+        state.arm === "plain" &&
+        (reviewBoundary = EvidenceBenchmarkInstruction.reviewBoundary(
+          entries[record.index]!,
+        )) !== undefined
       ) {
-        supervisionGoal = record.name as EvidenceBenchmarkSupervisionGoal;
-        finish("awaiting-supervision");
+        finish("awaiting-review-verdict");
       } else if (state.nextInstructionIndex === entries.length)
         finish("completed");
       else {
@@ -1334,18 +1328,25 @@ export namespace EvidenceBenchmarkRunner {
     state.status = cleanExit
       ? result === "checkpointed"
         ? "checkpointed"
-        : result === "awaiting-supervision"
-          ? "awaiting-supervision"
+        : result === "awaiting-review-verdict"
+          ? "awaiting-review-verdict"
           : result === "completed"
             ? "completed"
             : "interrupted"
       : "interrupted";
-    if (state.status === "awaiting-supervision") {
-      if (supervisionGoal === undefined)
-        throw new Error("Supervision pause omitted its completed Goal.");
+    if (state.status === "awaiting-review-verdict") {
+      if (reviewBoundary === undefined)
+        throw new Error("Review-verdict pause omitted its completed Goal.");
+      const goal: IEvidenceBenchmarkGoalRecord | undefined = state.goals.find(
+        (candidate) => candidate.index === state.nextInstructionIndex - 1,
+      );
+      if (goal === undefined)
+        throw new Error("Review-verdict pause omitted its Goal record.");
       state.supervisionPauses ??= [];
       state.supervisionPauses.push({
-        afterGoal: supervisionGoal,
+        ...reviewBoundary,
+        afterGoal: goal.name,
+        goalIndex: goal.index,
         pausedAt: new Date().toISOString(),
       });
     }
@@ -1363,45 +1364,15 @@ export namespace EvidenceBenchmarkRunner {
    */
   export function instructionEntries(
     arm: EvidenceBenchmarkArm,
-    includeReminders: boolean = true,
   ): readonly (readonly [string, string])[] {
-    if (arm === "evidence")
-      return [
-        ["backend-start", "evidence/backend/start.md"],
-        ["backend-review", "evidence/backend/review.md"],
-        ["backend-final", "evidence/backend/final.md"],
-        ["frontend-start", "evidence/frontend/start.md"],
-        ["frontend-review", "evidence/frontend/review.md"],
-        ["frontend-final", "evidence/frontend/final.md"],
-        ["overall-review", "evidence/overall/review.md"],
-        ["overall-final", "evidence/overall/final.md"],
-      ];
-    const backendReminder: readonly (readonly [string, string])[] =
-      includeReminders ? [["backend-remind", "plain/backend/remind.md"]] : [];
-    const frontendReminder: readonly (readonly [string, string])[] =
-      includeReminders ? [["frontend-remind", "plain/frontend/remind.md"]] : [];
-    const overallReminder: readonly (readonly [string, string])[] =
-      includeReminders ? [["overall-remind", "plain/overall/remind.md"]] : [];
-    return [
-      ["backend-start", "plain/backend/start.md"],
-      ["backend-review", "plain/backend/review.md"],
-      ...backendReminder,
-      ["backend-final", "plain/backend/final.md"],
-      ["frontend-start", "plain/frontend/start.md"],
-      ["frontend-review", "plain/frontend/review.md"],
-      ...frontendReminder,
-      ["frontend-final", "plain/frontend/final.md"],
-      ["overall-review", "plain/overall/review.md"],
-      ...overallReminder,
-      ["overall-final", "plain/overall/final.md"],
-    ];
+    return EvidenceBenchmarkInstruction.entries(arm);
   }
 
   /** Returns the arm-owned continuation appended to every objective. */
   export function instructionContinuationPath(
     arm: EvidenceBenchmarkArm,
   ): string {
-    return `${arm}/continue.md`;
+    return EvidenceBenchmarkInstruction.continuationPath(arm);
   }
 
   /** Reads and validates the exact Goal objective sent to Codex app-server. */
@@ -1414,66 +1385,18 @@ export namespace EvidenceBenchmarkRunner {
     continuationText: string;
     objectiveText: string;
   } {
-    const prescribedText: string = readPrescribedText(
-      props.instructionsRoot,
-      props.relativePath,
-    );
-    const continuationText: string = fs.readFileSync(
-      path.join(
-        props.instructionsRoot,
-        ...instructionContinuationPath(props.arm).split("/"),
-      ),
-      "utf8",
-    );
-    const objectiveText: string = `${prescribedText}\n\n${continuationText}`;
-    if (objectiveText.length > GOAL_OBJECTIVE_MAX_CHARACTERS)
-      throw new Error(
-        `${props.relativePath} expands to ${objectiveText.length} Goal characters; Codex accepts at most ${GOAL_OBJECTIVE_MAX_CHARACTERS}.`,
-      );
-    return { prescribedText, continuationText, objectiveText };
-  }
-
-  /**
-   * Reads one instruction and quotes its matching Review at the end of a Plain
-   * Reminder or Final.
-   *
-   * Plain verification objectives receive the exact exhaustive-review contract
-   * without duplicating it. Evidence Final owns only its prescribed gates.
-   */
-  function readPrescribedText(
-    instructionsRoot: string,
-    relativePath: string,
-  ): string {
-    const prescribedText: string = fs.readFileSync(
-      path.join(instructionsRoot, ...relativePath.split("/")),
-      "utf8",
-    );
-    if (
-      !relativePath.startsWith("plain/") ||
-      !/\/(?:remind|final)\.md$/u.test(relativePath)
-    )
-      return prescribedText;
-    const reviewPath: string = relativePath.replace(
-      /\/(?:remind|final)\.md$/u,
-      "/review.md",
-    );
-    const reviewText: string = fs.readFileSync(
-      path.join(instructionsRoot, ...reviewPath.split("/")),
-      "utf8",
-    );
-    const separator: string = prescribedText.endsWith("\n") ? "\n" : "\n\n";
-    return `${prescribedText}${separator}${quoteMarkdown(reviewText)}`;
-  }
-
-  function quoteMarkdown(text: string): string {
-    const lines: string[] = text.split(/\r\n|\n|\r/u);
-    if (lines.at(-1) === "") lines.pop();
-    return lines.map((line) => `> ${line}`).join("\n");
+    return EvidenceBenchmarkInstruction.objective({
+      arm: props.arm,
+      instructionsRoot: props.instructionsRoot,
+      entry: {
+        relativePath: props.relativePath,
+      },
+    });
   }
 
   function validateCompletedState(
     state: IEvidenceBenchmarkRunState,
-    entries: readonly (readonly [string, string])[],
+    entries: readonly IEvidenceBenchmarkInstructionPlanEntry[],
   ): void {
     if (
       state.nextInstructionIndex !== entries.length ||
@@ -1502,8 +1425,8 @@ export namespace EvidenceBenchmarkRunner {
           : state.goals.find((candidate) => candidate.index === index - 1);
       if (
         record === undefined ||
-        record.name !== entry[0] ||
-        record.relativePath !== entry[1] ||
+        record.name !== entry.name ||
+        record.relativePath !== entry.relativePath ||
         record.objectiveText !==
           `${record.prescribedText}\n\n${record.continuationText}` ||
         (index >= nativeStart
@@ -1549,6 +1472,65 @@ export namespace EvidenceBenchmarkRunner {
         terminal.shutdownForced !== true)
     )
       throw new Error("Codex retained an invalid terminal process.");
+  }
+
+  function validateInstructionPlan(
+    state: IEvidenceBenchmarkRunState,
+    entries: readonly IEvidenceBenchmarkInstructionPlanEntry[],
+  ): void {
+    const base: IEvidenceBenchmarkInstructionPlanEntry[] =
+      EvidenceBenchmarkInstruction.plan(state.arm);
+    const retainedBase = entries.filter((entry) => entry.kind === "base");
+    if (
+      retainedBase.length !== base.length ||
+      retainedBase.some(
+        (entry, index) =>
+          entry.name !== base[index]?.name ||
+          entry.relativePath !== base[index]?.relativePath ||
+          entry.reviewScope !== undefined ||
+          entry.reviewAttempt !== undefined ||
+          entry.reviewFeedback !== undefined,
+      )
+    )
+      throw new Error("Retained benchmark base instruction plan changed.");
+    for (const scope of ["backend", "frontend", "overall"] as const) {
+      const review: number = entries.findIndex(
+        (entry) => entry.kind === "base" && entry.name === `${scope}-review`,
+      );
+      const final: number = entries.findIndex(
+        (entry) => entry.kind === "base" && entry.name === `${scope}-final`,
+      );
+      const supplements = entries.slice(review + 1, final);
+      if (
+        review < 0 ||
+        final <= review ||
+        supplements.some(
+          (entry, index) =>
+            state.arm !== "plain" ||
+            entry.kind !== "review-supplement" ||
+            entry.name !== `${scope}-remind-${index + 1}` ||
+            entry.relativePath !== `plain/${scope}/remind.md` ||
+            entry.reviewScope !== scope ||
+            entry.reviewAttempt !== index + 1 ||
+            entry.reviewFeedback?.trim().length === 0,
+        ) ||
+        supplements.length > 4
+      )
+        throw new Error("Retained review supplementation plan is invalid.");
+    }
+    if (
+      state.nextInstructionIndex < 0 ||
+      state.nextInstructionIndex > entries.length ||
+      state.goals.some(
+        (goal) =>
+          goal.index < 0 ||
+          goal.index >= entries.length ||
+          goal.name !== entries[goal.index]?.name ||
+          goal.relativePath !== entries[goal.index]?.relativePath,
+      ) ||
+      new Set(state.goals.map((goal) => goal.index)).size !== state.goals.length
+    )
+      throw new Error("Retained Goals do not match the instruction plan.");
   }
 
   function nativeGoalElapsedMs(

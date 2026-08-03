@@ -49,25 +49,24 @@ Run at most one command for a run ID. A preparation failure before native work d
 
 ## Run The Objectives
 
-One native session receives its arm's exact objective sequence:
+One native session receives its arm's base objective sequence:
 
 | Step | Objective | Evidence | Plain |
 | --: | --- | --- | --- |
 | 1 | Backend start | `instructions/evidence/backend/start.md` | `instructions/plain/backend/start.md` |
 | 2 | Backend review | `instructions/evidence/backend/review.md` | `instructions/plain/backend/review.md` |
-| 3 | Backend reminder | — | `instructions/plain/backend/remind.md` |
-| 4 | Backend final | `instructions/evidence/backend/final.md` | `instructions/plain/backend/final.md` |
-| 5 | Frontend start | `instructions/evidence/frontend/start.md` | `instructions/plain/frontend/start.md` |
-| 6 | Frontend review | `instructions/evidence/frontend/review.md` | `instructions/plain/frontend/review.md` |
-| 7 | Frontend reminder | — | `instructions/plain/frontend/remind.md` |
-| 8 | Frontend final | `instructions/evidence/frontend/final.md` | `instructions/plain/frontend/final.md` |
-| 9 | Overall review | `instructions/evidence/overall/review.md` | `instructions/plain/overall/review.md` |
-| 10 | Overall reminder | — | `instructions/plain/overall/remind.md` |
-| 11 | Overall final | `instructions/evidence/overall/final.md` | `instructions/plain/overall/final.md` |
+| 3 | Backend final | `instructions/evidence/backend/final.md` | `instructions/plain/backend/final.md` |
+| 4 | Frontend start | `instructions/evidence/frontend/start.md` | `instructions/plain/frontend/start.md` |
+| 5 | Frontend review | `instructions/evidence/frontend/review.md` | `instructions/plain/frontend/review.md` |
+| 6 | Frontend final | `instructions/evidence/frontend/final.md` | `instructions/plain/frontend/final.md` |
+| 7 | Overall review | `instructions/evidence/overall/review.md` | `instructions/plain/overall/review.md` |
+| 8 | Overall final | `instructions/evidence/overall/final.md` | `instructions/plain/overall/final.md` |
 
 At each step, the runner joins that file with the same arm's `instructions/<arm>/continue.md` once and records the exact objective. The arms share no runtime instruction bytes. Do not add operator prose.
 
 Codex advances after the retained Goal completes, its terminal turn completes, and the thread becomes idle.
+
+Plain stops after every Backend, Frontend, and Overall Review. A failed decision inserts that scope's `remind.md` with only the verified gaps, then stops for another decision after the supplementation Goal. A passing decision skips the reminder and advances directly to Final. Four supplementation attempts are permitted; failure after attempt four retains `quality-failed` and does not dispatch Final. Evidence keeps the fixed eight-step sequence without these pauses.
 
 After `backend-start` reaches that exact boundary, the runner creates a durable checkpoint before dispatching `backend-review`. The checkpoint retains the material workspace, prepared Git baseline, native session and terminal turn, CLI version, token boundary, input digests, and inherited timing. Reinstallable dependencies, caches, and untracked runtime logs are excluded; Git-visible files are always retained. It is a recovery point for a later downstream-instruction correction, not permission to modify an active measured workspace.
 
@@ -78,6 +77,22 @@ The runner gives app-server a bounded shutdown grace after closing its input, th
 Observe every active cell at least every 30 seconds. Check `state.json`, benchmark and native process liveness, and `events.jsonl` and `raw.log` recency. Investigate any disagreement immediately and correct the dashboard without waiting for its 5-minute interval.
 
 Do not edit a measured workspace, prompt the measured agent, inject advice, weaken a gate, hard-code a subject answer, or expose Evidence material to Plain. Questions and partial reports do not invite operator input.
+
+At `awaiting-review-verdict`, inspect the completed Goal's retained output and actions together with the actual workspace diff and relevant source. Judge substantive review, not report typography. Pass a review that is materially exhaustive even if it has minor checklist or formatting slips. Fail a review that substitutes counts, lengths, manifests, searches, or green commands for semantic inspection; materially omits requirements or source; fails to re-read the complete surface after edits; or leaves API-operation and test-scenario closure unproven.
+
+Write one strict JSON verdict outside the measured workspace:
+
+```json
+{
+  "decision": "fail",
+  "rationale": "The retained review did not inspect six controller operations or their tests.",
+  "feedback": "Read the six omitted controller operations and every calling test, repair their missing primary scenarios, then repeat the complete post-edit review."
+}
+```
+
+Use `pass` with a non-empty `rationale` and no `feedback`, or `fail` with both a non-empty `rationale` and concrete corrective `feedback`. Feedback is measured instruction text: state only verified product-review gaps, and never disclose the benchmark operator, verdict machinery, retries, another arm, or the plugin. Apply it with `pnpm --filter @samchon/evidence-benchmark supervise <subject> <run-id> <verdict.json>`, then resume the same run command. The runner retains the exact submitted verdict digest, workspace digest, Goal index, terminal turn, decision, injected feedback, attempt, transition, and resume history.
+
+Final is a finishing and safety stage after a passed Review, not permission to accept a false Review pass. It may correct a small residual defect it independently notices, but the verdict must be based on the Review boundary itself.
 
 Intervene immediately for an abnormal interruption or explicit cancellation. Diagnose the retained state, process, events, and raw stream first; when the exact recovery conditions below match, resume the same run without waiting for operator prose or the next reporting interval. Never blind-retry before diagnosis, repair a measured workspace, edit retained state, or substitute a session.
 

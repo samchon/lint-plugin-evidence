@@ -62,6 +62,12 @@ For every user journey, trace the complete path from requirement through request
 
 Record each failed edge separately in the current Overall finding list, even when one correction can fix several edges. Continue through every remaining root and relationship before applying any correction.
 
+## API Test Safety Closure
+
+Rebuild the current complete product-operation manifest and apply Backend Review's Operation And Test Closure during every Overall round. Do not reuse an earlier disposition without rereading the current operation and calling test sources. Report every operation's two distinct primary scenarios and business assertions. A stale table, aggregate count, generic journey, dependency call, follow-up call, or green suite cannot close this boundary.
+
+Recheck the operation-scenario gate against the committed workspace baseline. Coverage corrections may change only feature tests and `test/OperationScenarioRegistry.ts`; restore any weakened helper, automation, test entrypoint, Swagger writer, backend script, or generated Swagger artifact before judging coverage.
+
 ## Final Checklist
 
 - [ ] Review skill gate followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
@@ -70,6 +76,9 @@ Record each failed edge separately in the current Overall finding list, even whe
 - [ ] Every requirement propagated forward through all layers, tests, states, and journeys.
 - [ ] Every artifact and behavior traced backward to requirements, ownership, consumers, and proof.
 - [ ] Every adjacent layer compared in both directions.
+- [ ] Every current product operation has two source-backed, semantically distinct primary test scenarios and concrete business assertions.
+- [ ] The operation-scenario gate still matches its committed contract; coverage edits are confined to feature tests and the registry.
 - [ ] Every journey traced end to end and backward, with each failed edge recorded separately.
+- [ ] The report gives one current disposition per operation; no count, manifest, generic journey, or earlier round substituted for it.
 
 Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the literal full-reading Overall Review from the first requirement.

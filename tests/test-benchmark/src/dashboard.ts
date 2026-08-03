@@ -112,6 +112,22 @@ const main = (): void => {
       checkpointSourceRunId: "old",
       supervisionPauses: [
         {
+          scope: "backend",
+          attempt: 0,
+          goalIndex: 1,
+          verdict: {
+            scope: "backend",
+            attempt: 0,
+            decision: "pass",
+            action: "final",
+            decidedAt: "2026-07-31T02:05:00.000Z",
+            goalIndex: 1,
+            terminalTurnId: "turn-review",
+            rationale: "The substantive review is materially complete.",
+            verdictRelativePath: "supervision/00-backend-0-verdict.json",
+            verdictSha256: "a".repeat(64),
+            workspace: { materialSha256: "b".repeat(64) },
+          },
           pausedAt: "2026-07-31T02:00:00.000Z",
           resumedAt: "2026-07-31T02:15:00.000Z",
         },
@@ -247,6 +263,10 @@ const main = (): void => {
     );
     assert.match(
       dashboard,
+      /^  - review `backend` attempt 0: pass -> final \(aaaaaaaaaaaa\)$/mu,
+    );
+    assert.match(
+      dashboard,
       /^  - `frontend-final`: 0M · 28m · 38% tokens · 45% time$/mu,
     );
     assert.match(
@@ -274,7 +294,7 @@ const main = (): void => {
       output: reportOutput,
       generatedAt,
     });
-    assert.equal(report.schemaVersion, 2);
+    assert.equal(report.schemaVersion, 3);
     assert.equal(report.generatedAt, generatedAt.toISOString());
     assert.equal(report.cells.length, 3);
     const todoPlain: IEvidenceBenchmarkReportCell | undefined =
@@ -287,6 +307,23 @@ const main = (): void => {
     assert.equal(todoPlain.effort, "high");
     assert.equal(todoPlain.status, "running");
     assert.equal(todoPlain.stage, "backend-review");
+    assert.deepEqual(todoPlain.reviewVerdicts, [
+      {
+        scope: "backend",
+        attempt: 0,
+        decision: "pass",
+        action: "final",
+        goalIndex: 1,
+        terminalTurnId: "turn-review",
+        rationale: "The substantive review is materially complete.",
+        pausedAt: "2026-07-31T02:00:00.000Z",
+        decidedAt: "2026-07-31T02:05:00.000Z",
+        resumedAt: "2026-07-31T02:15:00.000Z",
+        verdictRelativePath: "supervision/00-backend-0-verdict.json",
+        verdictSha256: "a".repeat(64),
+        workspaceMaterialSha256: "b".repeat(64),
+      },
+    ]);
     assert.equal(todoPlain.tokens, 1_600_000);
     assert.deepEqual(todoPlain.tokenUsage, {
       totalTokens: 1_600_000,
@@ -646,6 +683,8 @@ const writeRun = (props: {
     | "ready"
     | "running"
     | "checkpointed"
+    | "awaiting-review-verdict"
+    | "quality-failed"
     | "awaiting-supervision"
     | "rejected"
     | "interrupted"
@@ -676,6 +715,10 @@ const writeRun = (props: {
   reviewLedger?: "backend";
   nativeThreadStartInstructionIndex?: number;
   supervisionPauses?: {
+    scope?: "backend" | "frontend" | "overall";
+    attempt?: number;
+    goalIndex?: number;
+    verdict?: unknown;
     pausedAt: string;
     resumedAt?: string;
   }[];

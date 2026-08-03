@@ -5,7 +5,7 @@ import type { IEvidenceBenchmarkApiCost } from "./IEvidenceBenchmarkApiCost.ts";
 
 /** Publishable aggregate of the latest launched benchmark cells. */
 export interface IEvidenceBenchmarkReport {
-  schemaVersion: 2;
+  schemaVersion: 3;
   generatedAt: string;
   cells: IEvidenceBenchmarkReportCell[];
 }
@@ -25,6 +25,8 @@ export interface IEvidenceBenchmarkReportCell {
     | "ready"
     | "running"
     | "checkpointed"
+    | "awaiting-review-verdict"
+    | "quality-failed"
     | "awaiting-supervision"
     | "rejected"
     | "interrupted"
@@ -37,7 +39,27 @@ export interface IEvidenceBenchmarkReportCell {
   workElapsedMs: number;
   wallElapsedMs: number;
   worktree: IEvidenceBenchmarkReportWorktree;
+  /** Immutable Plain review verdict history, empty for Evidence. */
+  reviewVerdicts: IEvidenceBenchmarkReportReviewVerdict[];
   stages: IEvidenceBenchmarkReportStage[];
+}
+
+/** One externally retained Plain review decision and recovery transition. */
+export interface IEvidenceBenchmarkReportReviewVerdict {
+  scope: "backend" | "frontend" | "overall";
+  attempt: number;
+  decision: "pass" | "fail";
+  action: "final" | "retry" | "quality-failed";
+  goalIndex: number;
+  terminalTurnId: string;
+  rationale: string;
+  feedback?: string;
+  pausedAt: string;
+  decidedAt: string;
+  resumedAt?: string;
+  verdictRelativePath: string;
+  verdictSha256: string;
+  workspaceMaterialSha256: string;
 }
 
 /** Read-only Git delta from the prepared workspace baseline. */

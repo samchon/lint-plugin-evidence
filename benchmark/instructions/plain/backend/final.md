@@ -1,18 +1,3 @@
-Verify the work against the quoted Backend Review despite prior reports.
+Verify the quoted report proves full scope, two sole-primary business scenarios per operation, fixed findings and consequences, a new full round after every edit, and a dry edit-free final round. If it does, do not repeat Review; otherwise complete it.
 
-Confirm all four:
-
-- Every scoped file was read in full.
-- Every finding and consequence was fixed.
-- Every scoped change triggered a new full round from the first requirement.
-- The last full round was dry and edit-free.
-
-If any item is false or uncertain, perform the quoted Review until all are true. Explanations and unsupported claims do not count.
-
-Final gates in `packages/backend`:
-
-- `pnpm check:watch` remains running and clean.
-- `pnpm test` passes.
-- `pnpm dev` runs through Overall Final.
-
-Complete only when the review and gates pass.
+Finish only with clean backend `pnpm check:watch`, `pnpm dev`, and `pnpm test`.

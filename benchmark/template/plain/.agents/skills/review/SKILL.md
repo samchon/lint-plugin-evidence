@@ -41,6 +41,8 @@ Keep the current round's findings in the current objective's working context. Do
 
 For each finding, retain the requirement or upstream contract, the exact conflicting artifact or behavior, why they disagree, and the complete consequence surface. Do not replace this information with transcripts, command output, or guesses.
 
+When a detailed procedure requires a closure manifest, retain one source-backed disposition for every root. A total, search result, byte or line count, file manifest, or passing gate cannot prove that any root was traced or that its behavior was tested.
+
 ## Literal Full Reading
 
 A file counts as read only when its complete current contents are returned and examined during the current round.
@@ -90,6 +92,7 @@ None of these satisfy review loop until dry. When a literal dry round is not pro
 - [ ] Every command returned content from only one manifest file; every file was fully covered in order, and no truncated read received credit.
 - [ ] No discretionary judgment changed the prescribed scope, round boundaries, stopping conditions, or review procedure.
 - [ ] Every round covered the first requirement through the final artifact and every propagation branch.
+- [ ] Every required closure manifest has one source-backed disposition per root; no count, search, inventory, or gate substituted for semantic review.
 - [ ] No split rounds, composed partial passes, omissions, or search/build/test substitutes.
 - [ ] Every finding and consequence fixed after the complete round.
 - [ ] Every correction or gate-driven change followed by a new full round.

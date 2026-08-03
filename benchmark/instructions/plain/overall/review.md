@@ -4,24 +4,19 @@ Read `AGENTS.md`, `.agents/skills/review/SKILL.md`, and every detailed procedure
 
 Review the entire application and every cross-layer relationship through a literal **review loop until dry**:
 
-Every round must read in full one complete sorted manifest covering `docs/analysis/`, `packages/backend/prisma/schema/`, `packages/api/src/`, `packages/backend/src/`, `packages/backend/test/`, `packages/frontend/src/`, and `packages/frontend/tests/`, including configuration covered by Backend or Frontend Review.
+Every round reads in full one sorted manifest of `docs/analysis/`, database, API, backend, backend tests, frontend, browser tests, and Backend/Frontend configuration.
 
-1. Read every requirement in full; propagate each through the database, API, backend, frontend, and tests.
-2. Read the database, API, backend, frontend, and tests in full. Compare adjacent layers both ways and trace every artifact back to its requirement.
-3. Trace every required journey from requirement through persistence and API to live screen and browser proof, then backward.
-4. Complete the round and collect findings as the Review skill requires. Fix every finding and consequence, then await clean backend `pnpm check:watch`, backend `pnpm dev`, and frontend `pnpm dev` processes.
-5. After any edit, restart at the first requirement. Repeat without limit until a full round finds nothing and edits nothing.
+1. Read every requirement; propagate it through database, API, backend, frontend, and tests.
+2. Read every layer and test; compare adjacent layers both ways and trace each artifact to its requirement.
+3. Trace every journey from requirement through persistence/API to live browser proof, then backward. Rebuild the operation manifest and prove two distinct sole-primary business scenarios per operation. Compare fixed scenario gates with the committed baseline. Coverage fixes may edit only feature tests and `test/OperationScenarioRegistry.ts`; restore changes to helpers, automation, entrypoints, Swagger generation, backend scripts, or generated Swagger.
+4. Complete the round, collect findings, fix every consequence, then await clean backend watcher/dev and frontend dev processes.
+5. Any edit restarts at the first requirement. Repeat without limit until a full round finds and edits nothing.
 
-A dry loop requires complete reading and unlimited rounds. Never substitute:
-
-- searches, summaries, inventories, builds, tests, samples, partial layer reviews, or prior rounds;
-- dividing files, layers, requirements, journeys, or review lenses among rounds; every round covers the entire scope;
-- claims that the review is sufficient, comprehensive, efficient, repetitive, expensive, or unlikely to help; or
-- relying on Final to finish or repeat the review.
+A dry loop requires complete reading and unlimited rounds. Never substitute searches, summaries, inventories, gates, samples, partial reviews, or prior rounds; split files, layers, requirements, journeys, or lenses among rounds; claim further review is unnecessary; or rely on Final.
 
 ## Review Evidence Report
 
-Before completion, report each round's full manifest, findings and fixes, and the final dry, edit-free round. If that evidence reveals missing work, resume the loop and report again after completing it.
+Report each round's manifests, findings, fixes, and final dry round, plus every operation's two primary scenarios and assertions. Counts, searches, manifests, earlier rounds, and gates are not proof; a report-exposed gap restarts Review.
 
 ## Final Checklist
 
@@ -30,7 +25,9 @@ Before completion, report each round's full manifest, findings and fixes, and th
 - [ ] Every round used a new complete sorted manifest and read one file per command, in order and in full.
 - [ ] Every correction or scoped change, including a gate fix, triggered a new full round from the first requirement.
 - [ ] Every finding and consequence fixed; derived artifacts regenerated.
+- [ ] Every product operation has two distinct primary backend-test scenarios with concrete business assertions; dependencies and follow-ups were not credited.
+- [ ] Fixed scenario gates match the baseline; coverage edits touch only feature tests and the registry.
 - [ ] Final full round dry and edit-free; the clean current watcher and development gates left it unchanged.
-- [ ] Report proves every round, finding, fix, and final dry round.
+- [ ] Report proves every round, operation disposition, finding, fix, and final dry round.
 
 If any item is unchecked or uncertain, restart the full Overall Review at the first requirement.

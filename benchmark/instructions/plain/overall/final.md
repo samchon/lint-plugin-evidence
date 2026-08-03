@@ -1,18 +1,3 @@
-Verify quoted Overall Review; prior reports are not proof.
+Verify the quoted report proves full scope/layers/journeys, two sole-primary scenarios per operation, fixed findings, a full round after every edit, and a dry final round. If proven, do not repeat Review; otherwise complete it.
 
-Confirm all four:
-
-- Full scope, layer links, and live journeys were reviewed.
-- Every finding and consequence was fixed.
-- Every change triggered a new full round.
-- The last full round was dry and edit-free.
-
-If any item is false or uncertain, repeat the quoted Review until all are true. Unsupported claims do not count.
-
-Final gates:
-
-- Backend `pnpm check:watch` and both backend/frontend `pnpm dev` processes remain clean.
-- `packages/backend`: `pnpm test` passes.
-- `packages/frontend`: `pnpm test:e2e` passes with `VITE_API_SIMULATE=false`.
-
-Complete only after review and gates pass.
+Finish only with clean backend watcher/dev/test, frontend dev, and `VITE_API_SIMULATE=false pnpm test:e2e`.
