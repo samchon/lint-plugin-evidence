@@ -86,6 +86,10 @@ This is a cross-check index built from generated output, which the review does n
 
 Never substitute a passing `pnpm test` for this reading. It reports only the tests that exist, and says nothing about an operation nobody tested or a required operation nobody published.
 
+## Configuration Closure
+
+Read every configuration file in the manifest and compare it with the baseline commit. These files are the measurement boundary, not product work: a lint rule relaxed, a claim disabled, a script weakened, or a compiler option loosened is a finding regardless of what it unblocks. Report it and restore the file rather than building on it.
+
 ## Contract And Test Closure
 
 Read every controller and test file in full.
@@ -112,6 +116,7 @@ Names, types, compilation, internal consistency, and passing tests do not establ
 - [ ] Every operation and DTO traced backward to requirements and storage and forward to behavior and tests.
 - [ ] Complete operation inventory read as one sorted list, every accessor named with the tests that prove it and what each proves, and every accessor without sufficient tests recorded as a finding.
 - [ ] Every controller and test read across all success, refusal, boundary, lifecycle, ownership, atomicity, ordering, and concurrency paths.
+- [ ] Every configuration file compared with the baseline; every relaxation reported and restored.
 - [ ] Every finding followed through its full consequence surface.
 
 Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the literal full-reading Backend Review from the first requirement.

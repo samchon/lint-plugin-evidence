@@ -81,6 +81,10 @@ Read every frontend source file in full. Treat each route, screen, component, st
 
 Visual plausibility, compilation, a rendered screenshot, and a passing simulated test do not establish that a live user can complete the requirement.
 
+## Configuration Closure
+
+Read every frontend configuration file in scope and compare it with the baseline commit. These files are the measurement boundary, not product work: a lint rule relaxed, a claim disabled, a script weakened, or a compiler option loosened is a finding regardless of what it unblocks. Report it and restore the file rather than building on it.
+
 ## Browser Test And Live Closure
 
 Read every browser test in full and perform every required journey against the live application.
@@ -100,6 +104,7 @@ Read every browser test in full and perform every required journey against the l
 - [ ] Complete operation inventory read as one sorted list, every accessor named with the hook that calls it, the screen that renders that hook, and the journey that walks that screen, and every break in that chain recorded as a finding.
 - [ ] Every frontend source and browser test read and traced backward to requirements and forward to live behavior.
 - [ ] Every applicable user-visible, responsive, and accessible state checked.
+- [ ] Every configuration file compared with the baseline; every relaxation reported and restored.
 - [ ] Every required journey exercised against the live application.
 
 Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the literal full-reading Frontend Review from the first requirement.
