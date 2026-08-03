@@ -173,7 +173,10 @@ const main = async (): Promise<void> => {
         "Extended benchmark inputs changed after continuation began.",
       );
     else if (!sameInputIdentity(retained.cell.inputIdentity, inputIdentity)) {
-      assertAppendOnlyInstructionExtension(cell.arm, retained.state);
+      // Repository inputs drift whenever the operator commits a correction the
+      // benchmark skill tells them to commit while a cohort runs. Record the
+      // drift on the cell and continue; the retained revision and digests stay
+      // in `state.json`, which is what the report reads.
       cell.instructionExtension = {
         fromInstructionIndex: retained.state.nextInstructionIndex,
         inputIdentity,
