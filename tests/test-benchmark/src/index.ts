@@ -492,6 +492,24 @@ const main = async (): Promise<void> => {
       }),
       /boundaries do not match retained pauses/u,
     );
+    const skippedCompletedGoal = structuredClone(supervised);
+    skippedCompletedGoal.goals = skippedCompletedGoal.goals.filter(
+      (goal) => goal.index !== 0,
+    );
+    await assert.rejects(
+      EvidenceBenchmarkRunner.run({
+        state: skippedCompletedGoal,
+        cwd: supervisedWorkspace,
+        runRoot: supervisedRunRoot,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        command: process.execPath,
+        commandPrefixArguments: prefix,
+        onOutput: () => undefined,
+      }),
+      /completed Goal prefix is invalid/u,
+    );
     const misplacedSupplement = structuredClone(supervised);
     misplacedSupplement.instructionPlan!.push({
       name: "backend-remind-1",
@@ -2894,11 +2912,16 @@ const testPlainOperationReviewInstructionContract = (): void => {
     backendSkill,
     /at least two semantically distinct business scenarios/u,
   );
+  assert.match(backendSkill, /Every exported test has exactly one primary/u);
+  assert.match(backendSkill, /publicly observable business effect/u);
   assert.match(
     backendSkill,
     /Shape, non-null, status-only, and input-echo checks are insufficient/u,
   );
-  assert.match(backendSkill, /malformed-input or generic HTTP 400 cases/u);
+  assert.match(
+    backendSkill,
+    /Do not write or retain malformed-input or generic HTTP 400 scenarios/u,
+  );
   assert.match(
     backendSkill,
     /Assert an exact status or server code only when the requirement or public contract states it/u,
@@ -2911,18 +2934,18 @@ const testPlainOperationReviewInstructionContract = (): void => {
     reviewSkill,
     /byte or line count, file manifest, or passing gate cannot prove/u,
   );
-  assert.match(backendReview, /two distinct sole-primary business scenarios/u);
+  assert.match(backendReview, /One primary operation per exported test/u);
   assert.match(
     backendReview,
     /Compare fixed scenario gates with the committed baseline/u,
   );
   assert.match(backendRemind, /I suspect your Backend Review is incomplete/u);
-  assert.match(backendFinal, /If it does, do not repeat Review/u);
+  assert.match(backendFinal, /last safety check, not a new Review/u);
   assert.match(
     overallSkill,
     /Rebuild the current complete product-operation manifest/u,
   );
-  assert.match(overallReview, /two distinct sole-primary business scenarios/u);
+  assert.match(overallReview, /one primary operation per exported test/u);
 
   const ownedSources: readonly string[] = [
     reviewSkill,
@@ -2932,13 +2955,17 @@ const testPlainOperationReviewInstructionContract = (): void => {
     backendRemind,
     backendFinal,
     overallReview,
+    read("benchmark/template/plain/.agents/skills/review/frontend.md"),
+    read("benchmark/instructions/plain/frontend/review.md"),
+    read("benchmark/instructions/plain/frontend/remind.md"),
+    read("benchmark/instructions/plain/frontend/final.md"),
     read("benchmark/instructions/plain/overall/remind.md"),
     read("benchmark/instructions/plain/overall/final.md"),
   ];
   for (const source of ownedSources)
     assert.doesNotMatch(
       source,
-      /\b(?:operator|auditor|verdict|supervisor|supervision|plugin)\b|evidence arm|evidence graph|@evidence/iu,
+      /\b(?:benchmark|operators?|auditors?|verdicts?|supervisors?|supervision|reviewers?|plugin)\b|\b(?:another|other|external|main|measurement)\s+agent\b|\b(?:plain|evidence)\s+(?:arm|mode|agent)\b|evidence graph|@evidence/iu,
     );
 
   const continuation: string = read("benchmark/instructions/plain/continue.md");

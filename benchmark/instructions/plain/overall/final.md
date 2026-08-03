@@ -1,3 +1,3 @@
-Verify the quoted report proves full scope/layers/journeys, two sole-primary scenarios per operation, fixed findings, a full round after every edit, and a dry final round. If proven, do not repeat Review; otherwise complete it.
+Use Final as a last safety check, not a new Review. Verify the quoted report against current sources: full layers/journeys, two sole-primary scenarios with public observable assertions per operation, fixed consequences, and a dry Review. Do not repeat proven work; fix and verify any residual gap you actually find.
 
-Finish only when `packages/backend` passes `pnpm test`, `packages/frontend` passes `pnpm test:e2e` with `VITE_API_SIMULATE=false`, and backend watcher/dev plus frontend dev remain clean through completion.
+Stop backend `pnpm dev`, run `packages/backend` `pnpm test`, then restart dev before `packages/frontend` `pnpm test:e2e` with `VITE_API_SIMULATE=false`. Finish with backend watcher/dev and frontend dev clean through completion.

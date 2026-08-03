@@ -65,7 +65,8 @@ export namespace EvidenceBenchmarkRunner {
       state.arm === "plain" &&
       undecidedPause !== undefined &&
       undecidedPause.verdict === undefined &&
-      state.status === "running"
+      state.status === "running" &&
+      state.interruption === undefined
     ) {
       state.status = "awaiting-review-verdict";
       await props.onState?.(structuredClone(state));
@@ -1565,6 +1566,20 @@ export namespace EvidenceBenchmarkRunner {
       new Set(state.goals.map((goal) => goal.index)).size !== state.goals.length
     )
       throw new Error("Retained Goals do not match the instruction plan.");
+    for (let index = 0; index < state.nextInstructionIndex; ++index) {
+      const goal = state.goals.find((candidate) => candidate.index === index);
+      if (
+        goal?.goal?.status !== "complete" ||
+        goal.terminalTurnId === null ||
+        !goal.terminalTurnCompleted ||
+        !goal.threadIdle ||
+        goal.tokenUsageTurnId !== goal.terminalTurnId ||
+        goal.tokenUsageEnd === null
+      )
+        throw new Error("Retained completed Goal prefix is invalid.");
+    }
+    if (state.goals.some((goal) => goal.index > state.nextInstructionIndex))
+      throw new Error("Retained Goals extend beyond the current cursor.");
     validateReviewTransitions(state, entries);
   }
 
@@ -1618,7 +1633,7 @@ export namespace EvidenceBenchmarkRunner {
         if (
           !latest ||
           (state.status !== "awaiting-review-verdict" &&
-            state.status !== "running") ||
+            (state.status !== "running" || state.interruption !== undefined)) ||
           pause.resumedAt !== undefined ||
           state.nextInstructionIndex !== pause.goalIndex + 1
         )

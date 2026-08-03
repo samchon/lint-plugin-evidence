@@ -1,6 +1,6 @@
 ---
 name: review
-description: Defines the full-scope review loop until dry and final self-check for backend, frontend, and overall review objectives. Read for a review objective or when a final objective must complete an omitted review.
+description: Defines the full-scope review loop until dry and final self-check for backend, frontend, and overall review objectives. Read for a review objective or when a final objective verifies completed review work.
 ---
 
 # Review
@@ -100,4 +100,4 @@ None of these satisfy review loop until dry. When a literal dry round is not pro
 - [ ] The qualifying dry round remained unchanged through clean current gates.
 - [ ] Scope checklist complete.
 
-Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the applicable literal full-reading Review from the first requirement. In a Final Goal, perform the quoted Review immediately.
+Any unchecked or uncertain item leaves a Review Goal active and requires another literal full-reading round from the first requirement. A Final Goal verifies the completed Review against current sources, fixes any residual gap and its consequences, and reruns affected gates; it does not blindly begin Review again.

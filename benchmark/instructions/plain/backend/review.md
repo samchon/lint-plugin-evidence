@@ -8,7 +8,7 @@ Every round reads in full one sorted manifest of `docs/analysis/`, `packages/bac
 
 1. Read every requirement; compare it with database, API, and backend tests.
 2. Read the database; compare every model, field, and relation with operations and DTOs.
-3. Build the operation manifest. Read every operation, DTO, implementation, and calling test. Require two distinct sole-primary business scenarios per operation; dependencies/follow-ups earn no credit. Compare fixed scenario gates with the committed baseline. Coverage fixes may edit only feature tests and `test/OperationScenarioRegistry.ts`; restore changes to helpers, automation, entrypoints, Swagger generation, backend scripts, or generated Swagger.
+3. Build the operation manifest. Read each operation, DTO, implementation, and full calling tests. One primary operation per exported test; two distinct scenarios with public business-effect assertions per operation. SDK dependencies/follow-ups earn no primary credit. Forbid automatic malformed-400 tests and invented codes. Compare scenario gates to the committed baseline. Coverage fixes may touch only feature tests and `test/OperationScenarioRegistry.ts`; restore helper, automation, entrypoint, Swagger, script, or generated-Swagger changes.
 4. Complete the round, collect findings, fix every consequence, then await a clean `packages/backend` `pnpm check:watch` rebuild.
 5. Any edit restarts at the first requirement. Repeat without limit until a full round finds and edits nothing.
 
@@ -16,18 +16,18 @@ A dry loop requires complete reading and unlimited rounds. Never substitute sear
 
 ## Review Evidence Report
 
-Report each round's manifests, findings, fixes, and final dry round, plus every operation's two primary scenarios and business assertions. Counts, searches, manifests, and gates are not proof; a report-exposed gap restarts Review.
+Report every round's manifest/findings/fixes and final dry round, plus each operation's two primary scenarios and business assertions. Counts, searches, manifests, and gates are not proof; an exposed gap restarts Review.
 
 ## Final Checklist
 
-- [ ] Review skill gate followed without changing scope, rounds, stopping condition, or procedure.
-- [ ] Every required instruction was read in full.
-- [ ] Every round used a new complete sorted manifest and read one file per command, in order and in full.
-- [ ] Every correction or scoped change, including a gate fix, triggered a new full round from the first requirement.
+- [ ] Review skill scope, rounds, stopping condition, and procedure followed unchanged.
+- [ ] Every instruction read in full.
+- [ ] Each round used a new sorted full manifest and read one whole file per command in order.
+- [ ] Every scoped edit, including gate fixes, restarted a full round at the first requirement.
 - [ ] Every finding and consequence fixed; derived artifacts regenerated.
-- [ ] Every product operation has two distinct primary test scenarios with concrete business assertions; dependencies and follow-ups were not credited.
+- [ ] Every operation has two distinct primary scenarios with business assertions; dependencies/follow-ups got no credit.
 - [ ] Fixed scenario gates match the baseline; coverage edits touch only feature tests and the registry.
-- [ ] Final full round dry and edit-free; the clean current backend gate left it unchanged.
-- [ ] Report proves every round, operation disposition, finding, fix, and final dry round.
+- [ ] Final full round dry/edit-free and unchanged by the clean backend gate.
+- [ ] Report proves all rounds, operation dispositions, findings, fixes, and the dry round.
 
 If any item is unchecked or uncertain, restart the full Backend Review at the first requirement.

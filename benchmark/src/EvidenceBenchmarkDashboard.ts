@@ -357,6 +357,15 @@ const collectReviewVerdicts = (
       return [];
     const verdict = pause.verdict;
     const workspace = verdict.workspace;
+    const validTransition: boolean =
+      (verdict.decision === "pass" &&
+        verdict.action === "final" &&
+        verdict.feedback === undefined) ||
+      (verdict.decision === "fail" &&
+        typeof verdict.feedback === "string" &&
+        verdict.feedback.trim().length !== 0 &&
+        ((verdict.action === "retry" && pause.attempt < 4) ||
+          (verdict.action === "quality-failed" && pause.attempt === 4)));
     if (
       (verdict.decision !== "pass" && verdict.decision !== "fail") ||
       verdict.scope !== pause.scope ||
@@ -367,18 +376,31 @@ const collectReviewVerdicts = (
       (verdict.action !== "final" &&
         verdict.action !== "retry" &&
         verdict.action !== "quality-failed") ||
+      !validTransition ||
       typeof verdict.decidedAt !== "string" ||
+      !Number.isFinite(Date.parse(verdict.decidedAt)) ||
+      !Number.isFinite(Date.parse(pause.pausedAt)) ||
       typeof verdict.goalIndex !== "number" ||
       verdict.goalIndex !== pause.goalIndex ||
       !Number.isSafeInteger(verdict.goalIndex) ||
       typeof verdict.terminalTurnId !== "string" ||
+      verdict.terminalTurnId.length === 0 ||
       typeof verdict.rationale !== "string" ||
+      verdict.rationale.trim().length === 0 ||
       (verdict.feedback !== undefined &&
         typeof verdict.feedback !== "string") ||
       typeof verdict.verdictRelativePath !== "string" ||
+      !new RegExp(
+        `^supervision/[0-9]{2}-${pause.scope}-${pause.attempt}-verdict\\.json$`,
+        "u",
+      ).test(verdict.verdictRelativePath) ||
       typeof verdict.verdictSha256 !== "string" ||
+      !/^[0-9a-f]{64}$/iu.test(verdict.verdictSha256) ||
       !isRecord(workspace) ||
-      typeof workspace.materialSha256 !== "string"
+      typeof workspace.materialSha256 !== "string" ||
+      !/^[0-9a-f]{64}$/iu.test(workspace.materialSha256) ||
+      (pause.resumedAt !== undefined &&
+        !Number.isFinite(Date.parse(pause.resumedAt)))
     )
       throw new Error("Retained Plain review verdict is invalid.");
     return [

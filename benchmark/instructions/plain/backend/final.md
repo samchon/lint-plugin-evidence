@@ -1,3 +1,3 @@
-Verify the quoted report proves full scope, two sole-primary business scenarios per operation, fixed findings and consequences, a new full round after every edit, and a dry edit-free final round. If it does, do not repeat Review; otherwise complete it.
+Use Final as a last safety check, not a new Review. Verify the quoted report against current sources: every operation has two sole-primary business scenarios with public observable assertions, every finding and consequence is fixed, and Review ended dry. Do not repeat proven work; fix and verify any residual gap you actually find.
 
-Finish only when backend `pnpm test` passes and clean `pnpm check:watch` and `pnpm dev` processes remain running through Overall Final.
+In `packages/backend`, stop `pnpm dev` before `pnpm test` because both own the API port; after the test passes, restart dev. Finish only when clean `pnpm check:watch` and restarted dev processes remain running through Overall Final.
