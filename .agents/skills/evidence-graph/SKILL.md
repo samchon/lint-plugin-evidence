@@ -49,7 +49,7 @@ Four artifact kinds materialize evidence units.
 
 Units form structural containment scopes. A Markdown file contains its heading outline; a heading contains lower-level headings until the next heading of equal or higher level. A Prisma model contains its columns and relations. A TypeScript interface or object-shaped type alias contains its direct properties, and a namespace contains every nested public unit. Top-level TypeScript functions and properties have no aggregate file node. Swagger operations are independent leaves with no document or path aggregate target.
 
-An `@evidence` target acknowledges the selected target and every selected descendant; an `@evidenceExclude` target does the same unless that reference's acknowledgement policy forbids exclusions. The reference's `symbol` selector defines the obligation denominator, not the only addressable targets: every structural ancestor of a selected unit remains resolvable as an aggregate scope.
+An `@evidence` or `@evidenceExclude` target acknowledges the selected target and every selected descendant. The reference's `symbol` selector defines the obligation denominator, not the only addressable targets: every structural ancestor of a selected unit remains resolvable as an aggregate scope.
 
 Keep selected obligations and resolvable scopes separate. Do not make every unselected unit resolvable; only actual ancestors belong to the scope closure, or an unrelated same-name declaration can create false ambiguity.
 
@@ -110,20 +110,9 @@ Several declaration hosts may acknowledge the same unit with `@evidence`; one re
 
 `@evidenceExclude` is one reviewed non-applicability decision per scope in one claim-reference obligation. Exclusion scopes must not overlap each other. An evidence scope and exclusion scope must not overlap because they state opposite intent. Report one duplicate or conflict diagnostic per later overlapping scope rather than one per descendant.
 
-## Reference Acknowledgement Policies
-
-A reference may strengthen its own acknowledgement relation with `acknowledgement.forbidEvidenceExclude`, `acknowledgement.exactEvidenceUnitsPerHost`, and `acknowledgement.minimumEvidenceHostsPerUnit`. Omission and `{}` preserve ordinary coverage, and constraints never cross or pool between reference-array elements, including identical and overlapping references.
-
-- **Forbidden exclusions are reference-local.** Report one forbidden-exclusion diagnostic for the declaration and reference, give that reference no coverage from it, and leave its missing or insufficient positive coverage visible. The same declaration may still satisfy another reference that allows exclusions.
-- **Exact units are positive semantic edges per selected claim host.** Count distinct selected reference-unit identities reached by `@evidence`, including every selected descendant of an aggregate scope. Begin from the complete selected claim-host population so a host with no tag counts as zero. Do not count tags, source positions, exclusions, or repeated edges.
-- **Minimum hosts are distinct semantic claim hosts per selected unit.** Declaration merging and overloads remain one host identity; several tags on one identity count once. A physical JSDoc position is not a host identity.
-- **Incomplete populations never establish cardinality.** Preserve the loader failure and do not derive exact or minimum counts from a partial denominator.
-
-Completion keeps all positive targets. At the exclusion trigger, omit a target selected only by references with `forbidEvidenceExclude`; keep it when any enabled reference allows exclusion. The hint API has no cursor or claim context, so cardinality remains an evaluation diagnostic rather than a completion filter.
-
 ## Exclusions
 
-`@evidenceExclude` records that one claim intentionally does not use a target scope. On a reference that allows exclusions, it has the same hierarchy and coverage cardinality as `@evidence`; only its reviewed intent differs. A reference with `acknowledgement.forbidEvidenceExclude` reports the exclusion and receives no coverage from it.
+`@evidenceExclude` records that one claim intentionally does not use a target scope. It has the same hierarchy and coverage cardinality as `@evidence`; only its reviewed intent differs.
 
 Three properties are load-bearing.
 
