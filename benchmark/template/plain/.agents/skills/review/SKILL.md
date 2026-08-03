@@ -39,6 +39,8 @@ Do not exclude an item because it is generated, large, repetitive, configuration
 
 Keep the current round's findings in the current objective's working context. Do not create or modify a product file merely to preserve review bookkeeping.
 
+Any required artifact or behavior that is absent is a finding.
+
 For each finding, retain the requirement or upstream contract, the exact conflicting artifact or behavior, why they disagree, and the complete consequence surface. Do not replace this information with transcripts, command output, or guesses.
 
 ## Literal Full Reading

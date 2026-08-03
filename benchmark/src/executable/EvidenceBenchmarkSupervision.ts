@@ -1,10 +1,10 @@
 import path from "node:path";
 
+import { EvidenceBenchmarkCheckpoint } from "../EvidenceBenchmarkCheckpoint.ts";
 import { EvidenceBenchmarkSupervision } from "../EvidenceBenchmarkSupervision.ts";
 
 const main = (): void => {
-  const [subject, runId, decision, expectations, report] =
-    process.argv.slice(2);
+  const [subject, runId, verdictFile] = process.argv.slice(2);
   if (
     subject === undefined ||
     !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(subject) ||
@@ -12,14 +12,10 @@ const main = (): void => {
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       runId,
     ) ||
-    (decision !== "approved" && decision !== "rejected") ||
-    expectations === undefined ||
-    report === undefined ||
-    process.argv.length !== 7
+    verdictFile === undefined ||
+    process.argv.length !== 5
   )
-    throw new Error(
-      "Usage: pnpm supervise <subject> <run-id> <approved|rejected> <expectations.md> <report.md>",
-    );
+    throw new Error("Usage: pnpm supervise <subject> <run-id> <verdict.json>");
   const repository: string = path.resolve(import.meta.dirname, "../../..");
   const verdict = EvidenceBenchmarkSupervision.decide({
     runRoot: path.join(
@@ -32,9 +28,14 @@ const main = (): void => {
       "runs",
       runId,
     ),
-    decision,
-    expectations,
-    report,
+    instructionsRoot: path.join(repository, "benchmark", "instructions"),
+    verdictFile,
+    subject,
+    inputIdentity: EvidenceBenchmarkCheckpoint.identifyInputs({
+      repository,
+      subject,
+      arm: "plain",
+    }),
   });
   process.stdout.write(`${JSON.stringify(verdict, null, 2)}\n`);
 };

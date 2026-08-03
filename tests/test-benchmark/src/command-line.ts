@@ -45,7 +45,6 @@ const main = (): void => {
       runId,
       checkpointRunId: undefined,
       stopAfter: undefined,
-      supervision: undefined,
       reviewLedger: undefined,
     },
   );
@@ -57,7 +56,6 @@ const main = (): void => {
       "gpt-5.6-luna",
       "high",
       runId,
-      "--supervise-backend",
       "--review-ledger",
     ]),
     {
@@ -69,7 +67,6 @@ const main = (): void => {
       runId,
       checkpointRunId: undefined,
       stopAfter: undefined,
-      supervision: "backend",
       reviewLedger: "backend",
     },
   );
@@ -90,7 +87,6 @@ const main = (): void => {
       runId: undefined,
       checkpointRunId: undefined,
       stopAfter: undefined,
-      supervision: undefined,
       reviewLedger: undefined,
     },
   );
@@ -113,7 +109,6 @@ const main = (): void => {
       runId: undefined,
       checkpointRunId: runId,
       stopAfter: undefined,
-      supervision: undefined,
       reviewLedger: undefined,
     },
   );
@@ -136,7 +131,6 @@ const main = (): void => {
       runId,
       checkpointRunId: undefined,
       stopAfter: "backend-start",
-      supervision: undefined,
       reviewLedger: undefined,
     },
   );
@@ -158,7 +152,6 @@ const main = (): void => {
       runId: undefined,
       checkpointRunId: undefined,
       stopAfter: "backend-start",
-      supervision: undefined,
       reviewLedger: undefined,
     },
   );
@@ -171,7 +164,6 @@ const main = (): void => {
       "high",
       "--from-backend-start",
       runId,
-      "--supervise-backend",
     ]),
     {
       engine: "codex",
@@ -182,7 +174,6 @@ const main = (): void => {
       runId: undefined,
       checkpointRunId: runId,
       stopAfter: undefined,
-      supervision: "backend",
       reviewLedger: undefined,
     },
   );
@@ -194,7 +185,6 @@ const main = (): void => {
       "gpt-5.6-luna",
       "high",
       runId,
-      "--supervise-backend",
     ]),
     {
       engine: "codex",
@@ -205,7 +195,6 @@ const main = (): void => {
       runId,
       checkpointRunId: undefined,
       stopAfter: undefined,
-      supervision: "backend",
       reviewLedger: undefined,
     },
   );
@@ -218,7 +207,6 @@ const main = (): void => {
       "high",
       "--from-backend-start",
       runId,
-      "--supervise-backend",
       "--review-ledger",
     ]),
     {
@@ -230,7 +218,6 @@ const main = (): void => {
       runId: undefined,
       checkpointRunId: runId,
       stopAfter: undefined,
-      supervision: "backend",
       reviewLedger: "backend",
     },
   );
@@ -290,16 +277,6 @@ const main = (): void => {
       "not-a-run",
     ],
     ["codex", "todo", "plain", "gpt-5.6-luna", "high", "--review-ledger"],
-    [
-      "codex",
-      "todo",
-      "plain",
-      "gpt-5.6-luna",
-      "high",
-      "--from-backend-start",
-      runId,
-      "--review-ledger",
-    ],
     [
       "codex",
       "todo",

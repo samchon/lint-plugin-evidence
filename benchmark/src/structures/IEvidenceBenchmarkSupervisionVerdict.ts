@@ -1,27 +1,40 @@
 import type { IEvidenceBenchmarkWorkspaceIdentity } from "./IEvidenceBenchmarkWorkspaceIdentity.ts";
+import type { EvidenceBenchmarkReviewScope } from "../typings/EvidenceBenchmarkReviewScope.ts";
 
 /** External decision bound to one completed Goal and workspace state. */
 export interface IEvidenceBenchmarkSupervisionVerdict {
-  /** Whether the measured run may continue beyond this boundary. */
-  decision: "approved" | "rejected";
+  /** Review scope independently inspected outside the measured thread. */
+  scope: EvidenceBenchmarkReviewScope;
+
+  /** Zero for Review and one through four for supplementation Goals. */
+  attempt: number;
+
+  /** Whether the inspected attempt substantively passed. */
+  decision: "pass" | "fail";
+
+  /** Resulting deterministic state-machine transition. */
+  action: "final" | "retry" | "quality-failed";
 
   /** Time at which the external supervisor recorded the decision. */
   decidedAt: string;
 
+  /** Retained Goal index independently inspected by the supervisor. */
+  goalIndex: number;
+
   /** Terminal turn independently inspected by the supervisor. */
   terminalTurnId: string;
 
-  /** Precommitted expectation location relative to the retained run root. */
-  expectationsRelativePath: string;
+  /** Non-empty decision basis retained verbatim outside the measured thread. */
+  rationale: string;
 
-  /** Digest proving the expectation bytes used before trajectory inspection. */
-  expectationsSha256: string;
+  /** Concrete measured-thread correction text required for a failed attempt. */
+  feedback?: string;
 
-  /** Report location relative to the retained run root. */
-  reportRelativePath: string;
+  /** Immutable submitted verdict location relative to the retained run root. */
+  verdictRelativePath: string;
 
-  /** Digest of the immutable copied report. */
-  reportSha256: string;
+  /** Digest of the exact submitted verdict bytes. */
+  verdictSha256: string;
 
   /** Exact product state inspected by the supervisor. */
   workspace: IEvidenceBenchmarkWorkspaceIdentity;

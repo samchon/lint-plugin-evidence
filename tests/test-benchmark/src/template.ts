@@ -51,6 +51,9 @@ const main = (): void => {
       ...EvidenceBenchmarkRunner.instructionEntries(arm).map(([, relative]) =>
         relative.slice(arm.length + 1),
       ),
+      ...(arm === "plain"
+        ? ["backend/remind.md", "frontend/remind.md", "overall/remind.md"]
+        : []),
       "continue.md",
     ].sort();
     const actual: string[] = collectFiles(instructionRoot)
@@ -71,6 +74,14 @@ const main = (): void => {
       );
     for (const [, relativePath] of EvidenceBenchmarkRunner.instructionEntries(
       arm,
+    ).concat(
+      arm === "plain"
+        ? [
+            ["backend-remind", "plain/backend/remind.md"],
+            ["frontend-remind", "plain/frontend/remind.md"],
+            ["overall-remind", "plain/overall/remind.md"],
+          ]
+        : [],
     )) {
       const objective = EvidenceBenchmarkRunner.instructionObjective({
         arm,

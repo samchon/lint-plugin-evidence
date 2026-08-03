@@ -9,7 +9,7 @@ Every round must read in full one complete sorted manifest covering `docs/analys
 1. Read every requirement in full; compare it with the API, screens, user journeys, and browser tests.
 2. Read every API operation and DTO in full; compare each with frontend behavior, data flow, errors, and tests.
 3. Read every frontend source and browser test in full; compare each with its requirement, API contract, live behavior, and journey.
-4. Complete the round and collect findings as the Review skill requires. Fix every finding and consequence, then await clean backend and frontend `pnpm dev` reloads.
+4. Complete the round and collect findings as the Review skill requires. Fix every finding and consequence (including every unimplemented requirement regardless of scale or redesign), then await clean backend and frontend `pnpm dev` reloads.
 5. After any edit, restart at the first requirement. Repeat without limit until a full round finds nothing and edits nothing.
 
 A dry loop requires complete reading and unlimited rounds. Never substitute:

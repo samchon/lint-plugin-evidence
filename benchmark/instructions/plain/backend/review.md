@@ -9,7 +9,7 @@ Every round must read in full one complete sorted manifest covering `docs/analys
 1. Read every requirement in full; compare it with the database, API, and backend tests.
 2. Read the full database design; compare every model, field, and relation with API operations and DTOs.
 3. Read every API operation, DTO, backend implementation, and test in full. Trace each forward through implementation and tests and backward to its requirement.
-4. Complete the round and collect findings as the Review skill requires. Fix every finding and consequence, then await a clean `packages/backend` `pnpm check:watch` rebuild.
+4. Complete the round and collect findings as the Review skill requires. Fix every finding and consequence (including every unimplemented requirement regardless of scale or redesign), then await a clean `packages/backend` `pnpm check:watch` rebuild.
 5. After any edit, restart at the first requirement. Repeat without limit until a full round finds nothing and edits nothing.
 
 A dry loop requires complete reading and unlimited rounds. Never substitute:

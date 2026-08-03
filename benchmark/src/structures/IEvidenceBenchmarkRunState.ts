@@ -1,12 +1,13 @@
 import type { IEvidenceBenchmarkCheckpoint } from "./IEvidenceBenchmarkCheckpoint.ts";
 import type { IEvidenceBenchmarkGoalRecord } from "./IEvidenceBenchmarkGoalRecord.ts";
+import type { IEvidenceBenchmarkInstructionPlanEntry } from "./IEvidenceBenchmarkInstructionPlanEntry.ts";
 import type { IEvidenceBenchmarkInterruption } from "./IEvidenceBenchmarkInterruption.ts";
 import type { IEvidenceBenchmarkProcessRecord } from "./IEvidenceBenchmarkProcessRecord.ts";
 import type { IEvidenceBenchmarkReviewLedger } from "./IEvidenceBenchmarkReviewLedger.ts";
 import type { IEvidenceBenchmarkSupervisionVerdict } from "./IEvidenceBenchmarkSupervisionVerdict.ts";
 import type { IEvidenceBenchmarkTokenUsage } from "./IEvidenceBenchmarkTokenUsage.ts";
 import type { EvidenceBenchmarkArm } from "../typings/EvidenceBenchmarkArm.ts";
-import type { EvidenceBenchmarkSupervisionGoal } from "../typings/EvidenceBenchmarkSupervisionGoal.ts";
+import type { EvidenceBenchmarkReviewScope } from "../typings/EvidenceBenchmarkReviewScope.ts";
 
 /**
  * Complete resumable Codex state for one benchmark cell.
@@ -32,8 +33,8 @@ export interface IEvidenceBenchmarkRunState {
     | "ready"
     | "running"
     | "checkpointed"
-    | "awaiting-supervision"
-    | "rejected"
+    | "awaiting-review-verdict"
+    | "quality-failed"
     | "interrupted"
     | "completed";
 
@@ -46,12 +47,18 @@ export interface IEvidenceBenchmarkRunState {
   /** Ordered retained Goal records. */
   goals: IEvidenceBenchmarkGoalRecord[];
 
+  /** Frozen base objectives plus append-only-positioned review supplements. */
+  instructionPlan?: IEvidenceBenchmarkInstructionPlanEntry[];
+
   /** Durable recovery points created at prescribed Goal boundaries. */
   checkpoints?: IEvidenceBenchmarkCheckpoint[];
 
-  /** Clean external-supervision boundaries retained outside agent self-report. */
+  /** External Plain review decisions retained outside agent self-report. */
   supervisionPauses?: {
-    afterGoal: EvidenceBenchmarkSupervisionGoal;
+    scope: EvidenceBenchmarkReviewScope;
+    attempt: number;
+    afterGoal: string;
+    goalIndex: number;
     pausedAt: string;
     verdict?: IEvidenceBenchmarkSupervisionVerdict;
     resumedAt?: string;
