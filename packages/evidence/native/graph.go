@@ -636,9 +636,19 @@ func evaluateEvidenceGraph(
 							if single {
 								evidenceUnitsByHost[hostID][unit.ID] = true
 							}
-							if unique {
-								evidenceHostsByUnit[unit.ID][hostID] = true
+							if !unique {
+								continue
 							}
+							// A covered unit is a selected unit of this reference,
+							// so the counter usually exists. Allocating on demand
+							// keeps a future scope map that reaches wider from
+							// turning a count into a nil-map panic in the compiler.
+							hosts := evidenceHostsByUnit[unit.ID]
+							if hosts == nil {
+								hosts = map[string]bool{}
+								evidenceHostsByUnit[unit.ID] = hosts
+							}
+							hosts[hostID] = true
 						}
 					}
 				}
@@ -824,11 +834,11 @@ func materializeEntryReference(
 			claimLabel(claim) + " " + referenceLabel(reference) + " reached no selected evidence units (" + reference.Symbols.names() + ") from entry '" + entry + "'. Select symbol kinds the entry exposes, or point the entry at the module that declares them.",
 		}
 	}
-	applyAddressScopes(&state, population.Reached)
+	applyTraversedScopes(&state, population.Reached)
 	return state, nil
 }
 
-// applyAddressScopes gives a traversed population its containment closure.
+// applyTraversedScopes gives a traversed population its containment closure.
 //
 // Containment follows the declaration hierarchy rather than the address text. A
 // type and a callable may share one public name, so treating a common address
@@ -836,7 +846,7 @@ func materializeEntryReference(
 // and turn every citation of that name ambiguous. Every reached declaration
 // takes part, which keeps an unselected ancestor addressable as the aggregate
 // scope of its selected descendants.
-func applyAddressScopes(state *referenceState, reached []*evidenceUnit) {
+func applyTraversedScopes(state *referenceState, reached []*evidenceUnit) {
 	sortUnits(state.Units)
 	available := map[string]*evidenceUnit{}
 	for _, unit := range reached {
@@ -899,7 +909,7 @@ func materializeLocalTypeScriptReference(
 	population := materializeEntryUnits(loader, paths, reference.Symbols)
 	state.Units = population.Units
 	state.Published = population.Published
-	applyAddressScopes(&state, population.Reached)
+	applyTraversedScopes(&state, population.Reached)
 	if !state.Healthy {
 		return state, nil
 	}
@@ -967,7 +977,7 @@ func materializePackageGlobReference(
 	population := materializeEntryUnits(loader, state.Paths, reference.Symbols)
 	state.Units = population.Units
 	state.Published = population.Published
-	applyAddressScopes(&state, population.Reached)
+	applyTraversedScopes(&state, population.Reached)
 	if !state.Healthy {
 		return state, problems
 	}
@@ -977,38 +987,6 @@ func materializePackageGlobReference(
 		}
 	}
 	return state, nil
-}
-
-// collectReferenceUnits selects units and rebuilds the scope hierarchy over
-// them, so an ancestor target still covers the descendants it owns.
-func collectReferenceUnits(
-	state *referenceState,
-	reference referenceSpec,
-	available map[string]*evidenceUnit,
-) {
-	selected := map[string]bool{}
-	for _, unit := range available {
-		if !reference.Symbols.contains(unit.Symbol) || selected[unit.ID] {
-			continue
-		}
-		selected[unit.ID] = true
-		state.Units = append(state.Units, unit)
-	}
-	sortUnits(state.Units)
-	scopesByID := map[string]*evidenceUnit{}
-	for _, unit := range state.Units {
-		for scope := unit; scope != nil; scope = available[scope.ParentID] {
-			state.UnitsByScope[scope.ID] = append(state.UnitsByScope[scope.ID], unit)
-			if scopesByID[scope.ID] == nil {
-				scopesByID[scope.ID] = scope
-				state.Scopes = append(state.Scopes, scope)
-			}
-			if scope.ParentID == "" {
-				break
-			}
-		}
-	}
-	sortUnits(state.Scopes)
 }
 
 func resolveReferenceEntry(
@@ -1021,19 +999,6 @@ func resolveReferenceEntry(
 		return "", claimLabel(claim) + " " + referenceLabel(reference) + " could not resolve the declaration entry of package '" + reference.Package + "'. Install it, or select its declarations with 'files'; the entry is read from the 'types' condition of 'exports', then 'typesVersions', then 'types'."
 	}
 	return entry, ""
-}
-
-// addressContains reports whether one entry-relative address encloses another.
-func addressContains(owner []string, candidate []string) bool {
-	if len(candidate) <= len(owner) {
-		return false
-	}
-	for index, segment := range owner {
-		if candidate[index] != segment {
-			return false
-		}
-	}
-	return true
 }
 
 func scopedTargetKey(path string, target string) string {

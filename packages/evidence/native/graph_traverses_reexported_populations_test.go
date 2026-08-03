@@ -138,6 +138,46 @@ export function detail(): void {}
 }
 
 /**
+ * Verifies several selected modules union into one population.
+ *
+ * A glob usually matches a barrel and the modules beneath it at once. Each is a
+ * module a consumer may import, so the symbol is citable through either — and
+ * the two ways of reaching one declaration must still leave one obligation, or
+ * selecting a directory would demand a second citation for every re-export.
+ *
+ *  1. Match both a barrel and the module it forwards.
+ *  2. Cite the declaration through the barrel, then through the declaring module.
+ *  3. Assert each citation alone resolves and completes the obligation.
+ */
+func TestGraphUnionsSeveralSelectedModules(t *testing.T) {
+	const config = `{"claims":[{
+		"type":"typescript",
+		"files":["src/views/**"],
+		"symbol":"function",
+		"reference":{"type":"typescript","files":["src/api/**"],"symbol":"function"}
+	}]}`
+	files := map[string]string{
+		"src/api/questions.ts": "export function get(): void {}\n",
+		"src/api/index.ts":     "export * from \"./questions.js\";\n",
+		"src/views/detail.ts": `
+import type * as api from "./../api/index.js";
+
+/** @evidence {@link api.get} Renders this operation's response. */
+export function detail(): void {}
+`,
+	}
+	assertNoProblems(t, runIndexRule(t, files, config))
+
+	files["src/views/detail.ts"] = `
+import type * as questions from "./../api/questions.js";
+
+/** @evidence {@link questions.get} Renders this operation's response. */
+export function detail(): void {}
+`
+	assertNoProblems(t, runIndexRule(t, files, config))
+}
+
+/**
  * Verifies a property travels with the type that owns it.
  *
  * A property is addressable exactly when its owner is, so an entry that reaches
