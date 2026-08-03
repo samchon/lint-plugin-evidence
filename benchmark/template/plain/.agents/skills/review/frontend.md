@@ -84,7 +84,11 @@ Visual plausibility, compilation, a rendered screenshot, and a passing simulated
 
 ## Configuration Closure
 
-Every frontend configuration file is read in full like any other. Then compare it with the baseline commit; that comparison is an extra check, never a substitute for the read. These files are the measurement boundary, not product work. Any difference from the baseline is a finding regardless of what it unblocks: a lint rule relaxed, a script weakened, a compiler option loosened, a dependency changed. Report it and restore the file rather than building on it.
+Every frontend configuration file is read in full like any other. Then compare it with the baseline commit; that comparison is an extra check, never a substitute for the read.
+
+These files are the measurement boundary, not product work.
+
+Any difference from the baseline is a finding regardless of what it unblocks: a lint rule relaxed, a script weakened, a compiler option loosened, a dependency changed. Report it and restore the file rather than building on it.
 
 ## Browser Test And Live Closure
 
