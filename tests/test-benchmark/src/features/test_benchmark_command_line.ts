@@ -11,7 +11,7 @@ import {
   readEvidenceBenchmarkRevision,
   sameEvidenceBenchmarkRecordPaths,
   shouldResumeEvidenceBenchmark,
-} from "../../../benchmark/src/executable/EvidenceBenchmarkCommandLine.ts";
+} from "../../../../benchmark/src/executable/EvidenceBenchmarkCommandLine.ts";
 
 /**
  * Verifies launch identity parsing and recovery revision safety.
@@ -25,7 +25,7 @@ import {
  * 3. Accept a descendant recovery revision and reject an unknown lineage.
  * 4. Assert retained record paths are deterministic and exact.
  */
-const main = (): void => {
+export const test_benchmark_command_line = (): void => {
   const runId: string = "00000000-0000-4000-8000-000000000000";
   assert.deepEqual(
     parseEvidenceBenchmarkArguments([
@@ -405,5 +405,3 @@ const git = (cwd: string, args: string[]): string => {
     throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
   return result.stdout;
 };
-
-main();

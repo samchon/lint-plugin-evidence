@@ -118,4 +118,6 @@ The backend gate requires:
 3. settled Prisma and SDK generation; and
 4. `pnpm test` succeeding against the current implementation.
 
+`pnpm test` reports only the tests that exist. It cannot report an operation nobody tested, which is what Operation Ownership in `testing.md` and the active arm's review are for.
+
 Do not use the backend aggregate `pnpm build` or workspace-root build as a substitute. They obscure the failing layer and the root build also compiles the unfinished frontend.

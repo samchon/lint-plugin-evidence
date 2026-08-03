@@ -10,14 +10,8 @@ void TestAutomation.execute({
   close: (backend) => backend.close(),
 }).then(
   (report) => {
-    if (
-      report.executions.some((execution) => execution.error !== null) ||
-      report.operationScenarios.errors.length !== 0
-    )
+    if (report.executions.some((execution) => execution.error !== null))
       process.exitCode = 1;
-    console.log(
-      `TEST_OPERATION_SCENARIO_REPORT=${JSON.stringify(report.operationScenarios)}`,
-    );
     console.log(
       `TEST_AUTOMATION_REPORT=${JSON.stringify({
         executions: report.executions.map((execution) => ({

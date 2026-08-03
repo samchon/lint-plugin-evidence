@@ -1,6 +1,6 @@
 ---
 name: review
-description: Detects fake Evidence citations and exclusions created solely to evade compiler errors while compilation owns structural checks. Read only for a review objective.
+description: Detects fake Evidence citations and exclusions created solely to evade compiler errors, and configuration edited beyond the one permitted activation, while compilation owns structural checks. Read only for a review objective.
 ---
 
 # Review
@@ -17,12 +17,15 @@ Several hosts may truthfully cite one target. Do not consolidate them. A clean c
 
 Continue after each finding until the complete active-phase population is inspected. Correct every fake tag, then require a clean current compiler gate.
 
+Compare every `lint.config.ts` with the baseline commit. Deleting a predeclared `disabled` property is the one permitted edit; a reintroduced `disabled`, a changed claim, a changed selector, a lowered severity, or any other difference is a finding to report and restore, whatever it unblocks.
+
 ## Final Checklist
 
 - [ ] Every claim for the current phase is enabled.
 - [ ] Inspected every active-phase acknowledgement, its complete host, and its target.
 - [ ] Every `@evidence` reason states how the artifact implements, represents, or proves the target; every fake citation created solely to evade compiler errors corrected.
 - [ ] Every `@evidenceExclude` is a genuine exclusion; every fake exclusion created solely to evade compiler errors corrected.
+- [ ] Every `lint.config.ts` matches the baseline except for deleted `disabled` properties.
 - [ ] Current graph build ran clean with the canonical graph active.
 
 If any item is unchecked, keep the Goal active and complete the missing review or correction.

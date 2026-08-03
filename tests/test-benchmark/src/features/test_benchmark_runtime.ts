@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import net from "node:net";
 
-import { EvidenceBenchmarkRuntime } from "../../../benchmark/src/EvidenceBenchmarkRuntime.ts";
+import { EvidenceBenchmarkRuntime } from "../../../../benchmark/src/EvidenceBenchmarkRuntime.ts";
 
 /** Verifies every benchmark cell owns one stable, unavailable-before-use block. */
-const main = async (): Promise<void> => {
+export const test_benchmark_runtime = async (): Promise<void> => {
   const assignments: EvidenceBenchmarkRuntime.IAssignment[] = [];
   for (const subject of ["todo", "reddit", "shopping", "erp"] as const)
     for (const arm of ["evidence", "plain"] as const)
@@ -73,8 +73,3 @@ const main = async (): Promise<void> => {
   }
   await EvidenceBenchmarkRuntime.assertAvailable(assignments);
 };
-
-main().catch((error: unknown) => {
-  console.error(error);
-  process.exitCode = 1;
-});

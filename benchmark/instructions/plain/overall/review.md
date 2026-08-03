@@ -4,7 +4,9 @@ Read `AGENTS.md`, `.agents/skills/review/SKILL.md`, and every detailed procedure
 
 Review the entire application and every cross-layer relationship through a literal **review loop until dry**:
 
-Every round must read in full one complete sorted manifest covering `docs/analysis/`, `packages/backend/prisma/schema/`, `packages/api/src/`, `packages/backend/src/`, `packages/backend/test/`, `packages/frontend/src/`, and `packages/frontend/tests/`, including configuration covered by Backend or Frontend Review.
+Every round must read in full one complete sorted manifest covering `docs/analysis/`, `packages/backend/prisma/schema/`, `packages/api/src/`, `packages/backend/src/controllers/`, `packages/backend/test/`, `packages/frontend/src/`, `packages/frontend/tests/`, and `packages/frontend/wiki/`, including configuration covered by Backend or Frontend Review.
+
+Every round must also build the operation index that Operation Coverage Propagation defines in `.agents/skills/review/backend.md` and `.agents/skills/review/frontend.md`, and reach every entry in it from both directions.
 
 1. Read every requirement in full; propagate each through the database, API, backend, frontend, and tests.
 2. Read the database, API, backend, frontend, and tests in full. Compare adjacent layers both ways and trace every artifact back to its requirement.

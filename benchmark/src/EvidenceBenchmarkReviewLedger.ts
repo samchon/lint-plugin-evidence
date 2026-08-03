@@ -983,18 +983,11 @@ export namespace EvidenceBenchmarkReviewLedger {
       },
       {
         section: "api",
-        paths: [
-          ...listFiles(cwd, "packages/api/src"),
-          requiredFile(cwd, "packages/api/swagger.json"),
-        ],
+        paths: listFiles(cwd, "packages/api/src/structures"),
       },
       {
         section: "backend",
-        paths: listFiles(cwd, "packages/backend/src").filter(
-          (file) =>
-            !file.startsWith("packages/backend/src/prisma/") &&
-            !file.includes("/prisma/generated/"),
-        ),
+        paths: listFiles(cwd, "packages/backend/src/controllers"),
       },
       { section: "tests", paths: listFiles(cwd, "packages/backend/test") },
       {

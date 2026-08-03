@@ -21,8 +21,15 @@ Never edit generated paths. Change controllers or DTOs, then run backend `pnpm b
 `src/index.ts` is the only public entry. Export every authored DTO through `src/structures/index.ts` and then the package entry. Import from the package name:
 
 ```ts
-import api, { IPage, IShoppingSale } from "{{apiPackageName}}";
+import * as api from "{{apiPackageName}}";
+
+const page: api.IPage<api.IShoppingSale.ISummary> =
+  await api.functional.shopping.customer.sale.index(connection, {
+    body: { limit: 20 },
+  });
 ```
+
+Import the package as a namespace, which exposes the accessors and the DTO types through one binding. A default import binds the whole surface under `default`, losing the `api.functional.…` address the accessors document themselves by.
 
 Do not publish or consume `{{apiPackageName}}/structures`. A second export surface creates a second contract path.
 

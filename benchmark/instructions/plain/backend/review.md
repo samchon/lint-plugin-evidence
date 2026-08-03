@@ -4,11 +4,13 @@ Read `AGENTS.md`, `.agents/skills/review/SKILL.md`, and `.agents/skills/review/b
 
 Review the entire API and backend, excluding the frontend, through a literal **review loop until dry**:
 
-Every round must read in full one complete sorted manifest covering `docs/analysis/`, `packages/backend/prisma/schema/`, `packages/api/src/structures/`, `packages/backend/src/`, and `packages/backend/test/`, including API or backend configuration affecting compilation, generation, persistence, or runtime.
+Every round must read in full one complete sorted manifest covering `docs/analysis/`, `packages/backend/prisma/schema/`, `packages/api/src/structures/`, `packages/backend/src/controllers/`, and `packages/backend/test/`, including API or backend configuration affecting compilation, generation, persistence, or runtime.
+
+Every round must also build the operation index that Operation Coverage Propagation defines in `.agents/skills/review/backend.md`, and reach every entry in it.
 
 1. Read every requirement in full; compare it with the database, API, and backend tests.
 2. Read the full database design; compare every model, field, and relation with API operations and DTOs.
-3. Read every API operation, DTO, backend implementation, and test in full. Trace each forward through implementation and tests and backward to its requirement.
+3. Read every API operation, DTO, and test in full. Trace each forward through its tests and backward to its requirement.
 4. Complete the round and collect findings as the Review skill requires. Fix every finding and consequence (including every unimplemented requirement regardless of scale or redesign), then await a clean `packages/backend` `pnpm check:watch` rebuild.
 5. After any edit, restart at the first requirement. Repeat without limit until a full round finds nothing and edits nothing.
 

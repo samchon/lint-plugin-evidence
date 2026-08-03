@@ -8,8 +8,8 @@ The complete backend scope contains:
 
 - every requirement under `docs/analysis/`;
 - every schema under `packages/backend/prisma/schema/`;
-- every authored API contract under `packages/api/src/structures/`;
-- every authored and generated backend file under `packages/backend/src/`;
+- every authored DTO under `packages/api/src/structures/`;
+- every API operation contract under `packages/backend/src/controllers/`;
 - every backend test under `packages/backend/test/`; and
 - every API or backend configuration file that affects compilation, generation, persistence, or runtime behavior.
 
@@ -50,10 +50,10 @@ Reject a database, API, DTO, implementation, and test design when all layers con
 
 ## API Propagation
 
-Read every authored controller and DTO and every generated SDK contract in full. Treat each operation and DTO property as a root.
+Read every authored controller and DTO in full. Treat each operation and DTO property as a root.
 
 1. Propagate the operation into backend behavior.
-   - Trace the controller entry through authorization, validation, provider logic, database reads and writes, transactions, side effects, and returned values.
+   - Trace the contract through the authorization, validation, effects, and returned values it promises, and name where each is realized.
    - Inspect every success, refusal, error, retry, idempotency, and concurrent path promised by the contract.
 2. Propagate the operation into backend tests.
    - Find every test that claims to exercise it.
@@ -63,9 +63,40 @@ Read every authored controller and DTO and every generated SDK contract in full.
 
 Generated contracts may reveal drift but do not own the correction. Fix the authored schema, controller, or DTO and regenerate.
 
-## Implementation And Test Closure
+## Operation Coverage Propagation
 
-Read every backend source and test file in full.
+Every generated accessor states its own address in its JSDoc, so the operation list is exact rather than reconstructed. From the workspace root:
+
+```bash
+rg --no-filename -o '@accessor \S+' packages/api/src/functional | sort
+```
+
+This is a cross-check index built from generated output, which the review does not read. An accessor it names that no controller declares is itself a finding. Use it to guarantee the propagation below reaches every operation, and work it entry by entry.
+
+1. Name, for each accessor, every test that proves it.
+   - An accessor with no test is a finding. Four hundred published operations and two hundred proved ones is a missing feature set, not a thorough suite.
+   - An accessor with one test is a finding: a single test cannot prove both a working path and a refusal.
+   - An accessor whose tests all prove the same working path is a finding.
+2. Verify each test actually proves the accessor it names.
+   - Confirm the primary call is the operation under test and not a prerequisite that happens to be convenient.
+   - Confirm prerequisite and follow-up calls are setup and observation rather than the claimed subject.
+3. Verify the inventory itself against the requirements.
+   - An accessor the requirements never ask for is over-implementation and a finding.
+   - A requirement whose operation no accessor publishes is a missing operation, which no amount of test coverage over the published ones will reveal.
+
+Never substitute a passing `pnpm test` for this reading. It reports only the tests that exist, and says nothing about an operation nobody tested or a required operation nobody published.
+
+## Configuration Closure
+
+Every configuration file is read through the manifest like any other. Then compare it with the baseline commit; that comparison is an extra check, never a substitute for the read.
+
+These files are the measurement boundary, not product work.
+
+Any difference from the baseline is a finding regardless of what it unblocks: a lint rule relaxed, a script weakened, a compiler option loosened, a dependency changed. Report it and restore the file rather than building on it.
+
+## Contract And Test Closure
+
+Read every controller and test file in full.
 
 1. Treat every implementation behavior, branch, state, and deliberate omission as a claim.
    - Trace it backward to the exact requirement or necessary technical boundary that justifies it.
@@ -87,7 +118,9 @@ Names, types, compilation, internal consistency, and passing tests do not establ
 - [ ] Every requirement propagated through database, API, behavior, and tests.
 - [ ] Every schema element checked against operations, DTOs, behavior, effects, and tests.
 - [ ] Every operation and DTO traced backward to requirements and storage and forward to behavior and tests.
-- [ ] Every backend source and test read across all success, refusal, boundary, lifecycle, ownership, atomicity, ordering, and concurrency paths.
+- [ ] Complete operation inventory read as one sorted list, every accessor named with the tests that prove it and what each proves, and every accessor without sufficient tests recorded as a finding.
+- [ ] Every controller and test read across all success, refusal, boundary, lifecycle, ownership, atomicity, ordering, and concurrency paths.
+- [ ] Every configuration file compared with the baseline; every relaxation reported and restored.
 - [ ] Every finding followed through its full consequence surface.
 
 Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the literal full-reading Backend Review from the first requirement.

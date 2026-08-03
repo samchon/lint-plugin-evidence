@@ -18,14 +18,18 @@ The frontend delivers requirement-backed user journeys through the settled gener
 ## Implementation Order
 
 1. Read every requirement and all authored and generated API source under `packages/api/src/`.
-2. Map requirements and SDK operations to screens in `packages/frontend/wiki/screen-plan.md`.
+2. Map requirements and SDK operations to screens in `packages/frontend/wiki/screen-plan.md`, taking the operation list from the `@accessor` tag every generated accessor carries.
 3. Declare every page and journey surface before implementation.
 4. Build the shared shell, primitives, providers, route table, connection, domain hooks, and view models.
 5. Implement screens and their loading, empty, error, refusal, retry, and post-mutation states.
 6. Write one exported Playwright journey function for every requirement-backed user flow.
 7. Run the journeys first with SDK simulation and then with `VITE_API_SIMULATE=false` against the live backend.
 
-Do not turn every endpoint into a page. Do not omit a user capability because it is difficult. An SDK operation may lack a visible screen only when it is infrastructure, genuinely redundant with a complete user path, or non-user-facing; record the exact reason and invalidating condition in `packages/frontend/wiki/omissions.md`.
+Do not turn every endpoint into a page. Do not omit a user capability because it is difficult.
+
+Consumption and presentation are separate obligations. `architecture.md` owns the first: every published operation is consumed, whatever the interface looks like. What a screen decides is whether that capability earns its own page.
+
+An operation may therefore lack a visible screen only when it is infrastructure, genuinely redundant with a complete user path, or non-user-facing; record the exact reason and invalidating condition in `packages/frontend/wiki/omissions.md`. That record answers for the missing page and never for a missing call.
 
 If a requirement needs behavior the SDK cannot express, repair the API or backend, regenerate, and re-pass the backend gate.
 
@@ -53,8 +57,9 @@ The frontend gate requires:
 
 - the active arm's frontend review;
 - a clean current `pnpm dev` reload;
-- every requirement-backed journey represented by a browser spec;
-- every product-facing SDK operation consumed by a screen or recorded omission;
+- every requirement-backed journey represented by a browser spec, and every screen walked by one of them;
+- every published SDK operation called by a domain hook, and every hook used by a screen;
+- every product-facing operation reachable from a screen, or a recorded omission for its missing page;
 - every production component consumed by a screen or necessary shared boundary;
 - responsive and accessible behavior at required viewports;
 - simulated browser journeys passing;

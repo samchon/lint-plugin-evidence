@@ -48,9 +48,17 @@ Do not add or remove claim objects or change any other claim field as implementa
 | same | `dto-types` | exported DTO types | requirement H2/H3 and Prisma models |
 | same | `dto-properties` | exported DTO properties | Prisma columns |
 | same | `api-operations` | exported controller functions | requirement H2/H3 and Prisma models |
-| same | `backend-tests` | exported test functions | requirements, SDK operations, and DTO types |
-| `packages/frontend/lint.config.ts` | `frontend-screens` | exported page functions | requirement H2/H3 |
+| same | `backend-tests` | exported test functions | requirements and SDK operations |
+| `packages/frontend/lint.config.ts` | `frontend-screens` | exported page functions | requirement H2/H3 and hook functions |
 | same | `frontend-journeys` | exported journey functions | requirements and page functions |
+| same | `frontend-hooks` | exported hook functions | SDK operations |
+
+The frontend claims form one chain: a hook answers for the operations it calls, a screen answers for the hooks it uses, and a journey answers for the screens it walks. Owning an operation is not delivering it, so a hook wrapping an accessor no screen renders fails at the screen claim rather than passing on the hook claim alone.
+
+Both SDK operation obligations refuse `@evidenceExclude`. Every published operation is proved by a backend test and called by a frontend hook, or the product is incomplete, and "not applicable" is the sentence that hides the second case.
+
+They differ in cardinality. A backend test admits exactly one operation, because a test citing eight operations proves only that eight names appear in its JSDoc — cite the one it answers for and let its prerequisites stay uncited. A hook may cite as many as it calls, because consuming the published surface is the obligation and how the calls are grouped is not.
+
 
 Both configuration files and all claim objects are frozen except for the prescribed deletion of each predeclared `disabled` property. Keep `evidence/graph` at `error`. The backend has one `tsconfig.json` containing backend source, tests, and API DTOs. Do not create phase-specific config or compiler files.
 
@@ -63,9 +71,10 @@ The sealed `NESTIA_SDK_TRANSFORM=1` guard disables the graph only inside Nestia'
 | `schema-models` | model `///` comment | `prisma/schema/exclude.schema` |
 | `dto-types`, `dto-properties` | exported type or property JSDoc | `packages/api/src/structures/DTO_EVIDENCE_EXCLUDE.ts` |
 | `api-operations` | controller method JSDoc | `src/controllers/CONTROLLER_EVIDENCE_EXCLUDE.ts` |
-| `backend-tests` | exported test function JSDoc | `test/features/TEST_EVIDENCE_EXCLUDE.ts` |
-| `frontend-screens` | exported page function JSDoc | `src/components/SCREEN_EVIDENCE_EXCLUDE.ts` |
+| `backend-tests` | exported test function JSDoc | `test/features/TEST_EVIDENCE_EXCLUDE.ts`, requirements only |
+| `frontend-screens` | exported page function JSDoc | `src/components/SCREEN_EVIDENCE_EXCLUDE.ts`, requirements only |
 | `frontend-journeys` | exported journey function JSDoc | `tests/journeys/JOURNEY_EVIDENCE_EXCLUDE.ts` |
+| `frontend-hooks` | exported hook function JSDoc | none; operations admit no exclusion |
 
 Keep ownership evidence on the actual selected host. Exclusion carriers contain only one reviewed exclusion per target scope and never contain ownership evidence. Providers are not selected hosts and carry neither tag.
 
@@ -115,20 +124,27 @@ public async index(): Promise<IPage<IShoppingSale.ISummary>> {
 }
 ```
 
-TypeScript targets use imported inline links:
+TypeScript targets use imported inline links, resolved through the citing module's own imports:
 
 ```ts
+import * as api from "{{apiPackageName}}";
+
 /**
- * @evidence {@link api.functional.shopping.order.create} Calls the published
+ * @evidence docs/analysis/03-functional-requirements.md#place-order Proves the
+ *           order placement the requirement promises.
+ * @evidence {@link api.functional.shopping.order.create} Proves the published
  *           order creation operation.
- * @evidence {@link IShoppingOrder} Validates the returned order contract.
  */
-export async function test_order_create(): Promise<void> {
+export async function test_api_order_create(
+  connection: api.IConnection,
+): Promise<void> {
   // ...
 }
 ```
 
-Use `import type` for a citation-only type import. Braces in `{@link ...}` are required.
+The cited operation is the one the test proves. Prerequisite and follow-up calls are not cited; they are setup and observation, and the operation reference admits one citation per test.
+
+Import the SDK as a namespace. A default import binds the target name under `default`, so `{@link api.functional...}` then resolves to nothing. Use `import type` for a citation-only type import. Braces in `{@link ...}` are required.
 
 ## Exclusions
 

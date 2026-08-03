@@ -11,12 +11,15 @@ declare const process: {
 /**
  * The evidence obligations of the backend package.
  *
- * The schema answers to the requirements, every controller operation answers to
- * the requirement it realizes and the model it exposes, and the e2e suite
- * answers to the requirements, the published operations, and the contract
- * shapes. DTO claims select the explicitly included sibling API source through
- * a rooted Program population; package references remain the published
- * contract a test actually imports.
+ * The schema answers to the requirements, every requirement and every model
+ * answers to some controller operation, and the e2e suite answers to the
+ * requirements and the one published operation each test proves. One
+ * requirement may be realized by several operations and one model may be
+ * exposed by several, so those obligations count units rather than hosts; only
+ * a test has a single subject, which is why only its operation reference does.
+ * DTO claims select the explicitly included sibling API source through a rooted
+ * Program population; package references remain the published contract a test
+ * actually imports.
  */
 const graph: IEvidenceGraphConfig = {
   claims: [
@@ -82,11 +85,7 @@ const graph: IEvidenceGraphConfig = {
     {
       name: "api-operations",
       type: "typescript",
-      // The scaffold health probe is infrastructure, not a product operation.
-      files: [
-        "src/controllers/**/*.ts",
-        "!src/controllers/HealthController.ts",
-      ],
+      files: ["src/controllers/**/*.ts"],
       symbol: "function",
       reference: [
         {
@@ -104,16 +103,15 @@ const graph: IEvidenceGraphConfig = {
       // Remove after every controller contract is complete and build:sdk passes.
       disabled: true,
     },
-    // The e2e suite verifies the requirements, every published product
-    // operation, and every shape the contract exchanges. The scaffold health
-    // probe remains outside these product obligations.
+    // The e2e suite verifies the requirements and every published operation.
+    // The operation population is the generated SDK accessor surface alone, so
+    // no operation may answer "not applicable" and one test proves exactly one
+    // of them; DTO shapes answer to the DTO claims instead. TypeScript targets
+    // are cited as `{@link ...}` resolved through the test file's own imports.
     {
       name: "backend-tests",
       type: "typescript",
-      files: [
-        "test/features/**/*.ts",
-        "!test/features/api/health/**/*.ts",
-      ],
+      files: ["test/features/**/*.ts"],
       symbol: "function",
       reference: [
         {
@@ -123,16 +121,12 @@ const graph: IEvidenceGraphConfig = {
           symbol: ["h2", "h3"],
         },
         {
-          type: "swagger",
-          file: "../api/swagger.product.json",
-          noExclude: true,
-          singleEvidencePerSymbol: true,
-        },
-        {
           type: "typescript",
           package: "{{apiPackageName}}",
-          files: ["src/structures/index.ts"],
-          symbol: ["type"],
+          files: ["src/functional/**/*.ts"],
+          symbol: ["function"],
+          noExclude: true,
+          singleEvidencePerSymbol: true,
         },
       ],
       // Remove after every public-operation test and evidence mapping is complete.
@@ -156,6 +150,10 @@ export default {
     evidence,
   },
   rules: {
+    // Carried from the plain backend configuration this file replaces. The
+    // treatment variable is the graph and nothing else, so an unrelated rule
+    // must not be stricter in one arm than in the other.
+    "no-duplicate-imports": ["error", { allowSeparateTypeImports: true }],
     "evidence/graph": isNestiaSdkTransform ? "off" : ["error", graph],
   },
 } satisfies ITtscLintConfig;
