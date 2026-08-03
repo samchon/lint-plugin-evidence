@@ -206,9 +206,13 @@ export namespace EvidenceBenchmarkSupervision {
       planEntry === undefined
         ? undefined
         : EvidenceBenchmarkInstruction.reviewBoundary(planEntry);
+    const process = retained.state.processes.at(-1);
     if (
       retained.cell.arm !== "plain" ||
+      retained.cell.runId !== path.basename(runRoot) ||
       retained.state.arm !== "plain" ||
+      typeof retained.state.sessionId !== "string" ||
+      typeof retained.state.cliVersion !== "string" ||
       retained.state.status !== "awaiting-review-verdict" ||
       retained.state.instructionPlan === undefined ||
       !samePath(retained.records.root, runRoot) ||
@@ -226,9 +230,16 @@ export namespace EvidenceBenchmarkSupervision {
       goal.name !== pause.afterGoal ||
       goal.name !== planEntry?.name ||
       goal.relativePath !== planEntry.relativePath ||
+      goal.goal?.threadId !== retained.state.sessionId ||
+      goal.goal.status !== "complete" ||
       goal.terminalTurnId === null ||
       goal.terminalTurnCompleted !== true ||
-      goal.threadIdle !== true
+      goal.threadIdle !== true ||
+      goal.tokenUsageTurnId !== goal.terminalTurnId ||
+      goal.tokenUsageEnd === null ||
+      process === undefined ||
+      ((process.exitCode !== 0 || process.signal !== null) &&
+        process.shutdownForced !== true)
     )
       throw new Error("Run is not an exact undecided Plain review boundary.");
   }

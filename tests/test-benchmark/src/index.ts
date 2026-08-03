@@ -3919,7 +3919,7 @@ const writeSupervisedState = (props: {
     state,
     `${JSON.stringify(
       {
-        cell: { arm: "plain", runId: "fixture-supervised" },
+        cell: { arm: "plain", runId: path.basename(props.root) },
         records: { root: props.root, workspace: props.workspace, state },
         state: props.state,
       },
