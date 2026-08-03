@@ -2415,7 +2415,7 @@ const testReviewLedger = async (workspace: string): Promise<void> => {
   );
   const undetectedPath = path.join(
     workspace,
-    "packages/backend/src/backend.ts",
+    "packages/backend/src/controllers/backend.ts",
   );
   const undetectedBaseline = fs.readFileSync(undetectedPath);
   const invalidCalibration = cleanState.reviewLedgers![0]!.calibrations![0]!;
@@ -2424,7 +2424,7 @@ const testReviewLedger = async (workspace: string): Promise<void> => {
       await cleanInvoke("review_edit_file", {
         operation: "replace",
         phase: "calibration-break",
-        path: "packages/backend/src/backend.ts",
+        path: "packages/backend/src/controllers/backend.ts",
         expectedSha256: sha256(undetectedBaseline),
         replacements: [
           {
@@ -2636,7 +2636,7 @@ const testReviewLedger = async (workspace: string): Promise<void> => {
   );
   const corrected: string = path.join(
     workspace,
-    "packages/backend/src/backend.ts",
+    "packages/backend/src/controllers/backend.ts",
   );
   const correctionBaseline: Buffer = fs.readFileSync(corrected);
   assert.equal(
@@ -2644,7 +2644,7 @@ const testReviewLedger = async (workspace: string): Promise<void> => {
       await invoke("review_edit_file", {
         operation: "replace",
         phase: "correction",
-        path: "packages/backend/src/backend.ts",
+        path: "packages/backend/src/controllers/backend.ts",
         expectedSha256: "0".repeat(64),
         replacements: [
           {
@@ -2661,7 +2661,7 @@ const testReviewLedger = async (workspace: string): Promise<void> => {
       await invoke("review_edit_file", {
         operation: "replace",
         phase: "correction",
-        path: "packages/backend/src/backend.ts",
+        path: "packages/backend/src/controllers/backend.ts",
         expectedSha256: sha256(correctionBaseline),
         replacements: [
           {
@@ -2736,7 +2736,7 @@ const testReviewLedger = async (workspace: string): Promise<void> => {
   assert.equal((await invoke("review_start_calibration", {})).success, true);
   const calibrated: string = path.join(
     workspace,
-    "packages/backend/src/backend.ts",
+    "packages/backend/src/controllers/backend.ts",
   );
   const baseline: Buffer = fs.readFileSync(calibrated);
   assert.equal(
@@ -2744,7 +2744,7 @@ const testReviewLedger = async (workspace: string): Promise<void> => {
       await invoke("review_edit_file", {
         operation: "replace",
         phase: "calibration-break",
-        path: "packages/backend/src/backend.ts",
+        path: "packages/backend/src/controllers/backend.ts",
         expectedSha256: sha256(baseline),
         replacements: [
           {
@@ -2771,7 +2771,7 @@ const testReviewLedger = async (workspace: string): Promise<void> => {
       await invoke("review_edit_file", {
         operation: "replace",
         phase: "calibration-restore",
-        path: "packages/backend/src/backend.ts",
+        path: "packages/backend/src/controllers/backend.ts",
         expectedSha256: sha256(broken),
         replacements: [
           {
@@ -2789,7 +2789,7 @@ const testReviewLedger = async (workspace: string): Promise<void> => {
       await invoke("review_edit_file", {
         operation: "replace",
         phase: "calibration-restore",
-        path: "packages/backend/src/backend.ts",
+        path: "packages/backend/src/controllers/backend.ts",
         expectedSha256: sha256(broken),
         replacements: [
           {
@@ -2887,9 +2887,9 @@ const writeReviewWorkspace = (workspace: string): void => {
   const files: Readonly<Record<string, string>> = {
     "docs/analysis/requirements.md": "requirements\n",
     "packages/backend/prisma/schema/main.prisma": "schema\n",
-    "packages/api/src/api.ts": "api\n",
+    "packages/api/src/structures/api.ts": "api\n",
     "packages/api/swagger.json": "{}\n",
-    "packages/backend/src/backend.ts": "backend\n",
+    "packages/backend/src/controllers/backend.ts": "backend\n",
     "packages/backend/src/prisma/client.ts": "generated prisma client\n",
     "packages/backend/test/backend.test.ts": "test\n",
     ".node-version": "22\n",
@@ -2914,7 +2914,7 @@ const writeReviewWorkspace = (workspace: string): void => {
         format: 'node -e ""',
         lint: 'node -e ""',
         schema: 'node -e ""',
-        test: "node -e \"const fs=require('node:fs'); process.exit(fs.readFileSync('src/backend.ts','utf8').includes('broken') ? 1 : 0)\"",
+        test: "node -e \"const fs=require('node:fs'); process.exit(fs.readFileSync('src/controllers/backend.ts','utf8').includes('broken') ? 1 : 0)\"",
       },
     })}\n`,
     "packages/backend/prisma.config.ts": "export {};\n",
@@ -3670,7 +3670,7 @@ const fakeAppServer = (): void => {
         }
         const backendSource = path.join(
           process.cwd(),
-          "packages/backend/src/backend.ts",
+          "packages/backend/src/controllers/backend.ts",
         );
         const correctionBaseline = fs.readFileSync(backendSource);
         const corrected = Buffer.from(
@@ -3680,7 +3680,7 @@ const fakeAppServer = (): void => {
         const correction = await requestTool(turnId, "review_edit_file", {
           operation: "replace",
           phase: "correction",
-          path: "packages/backend/src/backend.ts",
+          path: "packages/backend/src/controllers/backend.ts",
           expectedSha256: sha256(correctionBaseline),
           replacements: [
             {
@@ -3704,7 +3704,7 @@ const fakeAppServer = (): void => {
         const breakEdit = await requestTool(turnId, "review_edit_file", {
           operation: "replace",
           phase: "calibration-break",
-          path: "packages/backend/src/backend.ts",
+          path: "packages/backend/src/controllers/backend.ts",
           expectedSha256: sha256(baseline),
           replacements: [
             {
@@ -3722,7 +3722,7 @@ const fakeAppServer = (): void => {
         const restoreEdit = await requestTool(turnId, "review_edit_file", {
           operation: "replace",
           phase: "calibration-restore",
-          path: "packages/backend/src/backend.ts",
+          path: "packages/backend/src/controllers/backend.ts",
           expectedSha256: sha256(broken),
           replacements: [
             {
