@@ -161,8 +161,13 @@ func dedupeModuleExports(exports []moduleExport) []moduleExport {
 // yields: the obligations, the scopes above them, and the addresses that reach
 // them.
 type traversedPopulation struct {
-	Units     []*evidenceUnit
-	Reached   []*evidenceUnit
+	Units   []*evidenceUnit
+	Reached []*evidenceUnit
+	// Hidden are the reached declarations that withdrew themselves from the
+	// public surface with an `@internal`, `@hidden`, or `@ignore` documentation
+	// tag. They are addressed like any other reached unit and selected as none,
+	// so a citation of one is answered with its cause.
+	Hidden    []*evidenceUnit
 	Published []publishedAddress
 }
 
@@ -352,6 +357,14 @@ func materializeEntryUnits(
 	for _, id := range order {
 		unit := byID[id]
 		sort.Strings(unit.Aliases)
+		// A declaration withdrawn from the surface by its own documentation tag
+		// is neither an obligation nor an aggregate scope. It is kept apart
+		// rather than dropped so a citation naming it can be told why, which a
+		// bare unresolved target could not say.
+		if unit.Hidden != "" {
+			population.Hidden = append(population.Hidden, unit)
+			continue
+		}
 		// Every reached declaration stays available as an aggregate scope, even
 		// when its own kind is unselected. The selector is the obligation
 		// denominator, not the list of targets an author may write.
