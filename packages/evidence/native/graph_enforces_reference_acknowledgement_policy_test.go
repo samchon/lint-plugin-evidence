@@ -459,3 +459,31 @@ export function parse(value: string | number): string {
 	}]}`)
 	assertNoProblems(t, messages)
 }
+
+/**
+ * Verifies exact cardinality still judges hosts against an empty healthy reference.
+ *
+ * A successfully loaded document can contain no selected units. That is a complete denominator, not a loader failure, so a selected host cites zero units and must fail an exact-positive policy.
+ *
+ *  1. Select one TypeScript function and an empty Markdown document.
+ *  2. Require exactly one Markdown unit per host.
+ *  3. Assert the function reports its truthful zero count.
+ */
+func TestExactEvidenceUnitsPerHostRejectsAHealthyEmptyReference(t *testing.T) {
+	messages := runIndexRule(t, map[string]string{
+		"docs/spec.md": "Plain prose with no selected heading.\n",
+		"src/test.ts":  "export function testContract(): void {}\n",
+	}, `{"claims":[{
+		"type":"typescript",
+		"files":["src/**"],
+		"symbol":"function",
+		"reference":{
+			"type":"markdown",
+			"files":["docs/spec.md"],
+			"symbol":"h2",
+			"acknowledgement":{"exactEvidenceUnitsPerHost":1}
+		}
+	}]}`)
+	assertProblemContains(t, messages, "TypeScript function 'testContract'")
+	assertProblemContains(t, messages, "cites 0 distinct selected evidence unit(s); acknowledgement.exactEvidenceUnitsPerHost requires exactly 1")
+}

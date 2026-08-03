@@ -526,7 +526,10 @@ func evaluateEvidenceGraph(
 					uncertain[declaration.ID] = true
 				}
 			}
-			if len(reference.Units) == 0 {
+			exact := reference.Spec.Acknowledgement.ExactEvidenceUnitsPerHost
+			minimum := reference.Spec.Acknowledgement.MinimumEvidenceHostsPerUnit
+			if len(reference.Units) == 0 &&
+				(exact == 0 || !state.Healthy || !reference.Healthy || len(reference.Paths) == 0) {
 				continue
 			}
 			acknowledged := map[string]bool{}
@@ -535,13 +538,19 @@ func evaluateEvidenceGraph(
 			evidenceByHostAndScope := map[string]map[string]*evidenceDeclaration{}
 			selectedHosts := map[string]*evidenceUnit{}
 			evidenceUnitsByHost := map[string]map[string]bool{}
-			for _, host := range state.Hosts {
-				selectedHosts[host.ID] = host
-				evidenceUnitsByHost[host.ID] = map[string]bool{}
+			if exact > 0 || minimum > 0 {
+				for _, host := range state.Hosts {
+					selectedHosts[host.ID] = host
+					if exact > 0 {
+						evidenceUnitsByHost[host.ID] = map[string]bool{}
+					}
+				}
 			}
 			evidenceHostsByUnit := map[string]map[string]bool{}
-			for _, unit := range reference.Units {
-				evidenceHostsByUnit[unit.ID] = map[string]bool{}
+			if minimum > 0 {
+				for _, unit := range reference.Units {
+					evidenceHostsByUnit[unit.ID] = map[string]bool{}
+				}
 			}
 			scopesByID := map[string]*evidenceUnit{}
 			for _, scope := range reference.Scopes {
@@ -598,14 +607,18 @@ func evaluateEvidenceGraph(
 						byScope[scopeID] = declaration
 					}
 				}
-				if declaration.Tag == tagEvidence {
+				if declaration.Tag == tagEvidence && (exact > 0 || minimum > 0) {
 					for _, hostID := range declaration.SemanticHostIDs {
 						if selectedHosts[hostID] == nil {
 							continue
 						}
 						for _, unit := range covered {
-							evidenceUnitsByHost[hostID][unit.ID] = true
-							evidenceHostsByUnit[unit.ID][hostID] = true
+							if exact > 0 {
+								evidenceUnitsByHost[hostID][unit.ID] = true
+							}
+							if minimum > 0 {
+								evidenceHostsByUnit[unit.ID][hostID] = true
+							}
 						}
 					}
 				}
@@ -660,7 +673,7 @@ func evaluateEvidenceGraph(
 			if !state.Healthy || !reference.Healthy || len(reference.Paths) == 0 {
 				continue
 			}
-			if exact := reference.Spec.Acknowledgement.ExactEvidenceUnitsPerHost; exact > 0 {
+			if exact > 0 {
 				for _, host := range state.Hosts {
 					count := len(evidenceUnitsByHost[host.ID])
 					if count == exact {
@@ -683,7 +696,6 @@ func evaluateEvidenceGraph(
 						"Missing acknowledgement for '"+unit.Target+"' ("+unit.Readable+" at "+unit.location()+") in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+". "+repair,
 					)
 				}
-				minimum := reference.Spec.Acknowledgement.MinimumEvidenceHostsPerUnit
 				hostCount := len(evidenceHostsByUnit[unit.ID])
 				if minimum == 0 || hostCount >= minimum {
 					continue
