@@ -11,9 +11,12 @@ declare const process: {
 /**
  * The evidence obligations of the backend package.
  *
- * The schema answers to the requirements, every controller operation answers to
- * the requirement it realizes and the model it exposes, and the e2e suite
- * answers to the requirements and the one published operation each test proves.
+ * The schema answers to the requirements, every requirement and every model
+ * answers to some controller operation, and the e2e suite answers to the
+ * requirements and the one published operation each test proves. One
+ * requirement may be realized by several operations and one model may be
+ * exposed by several, so those obligations count units rather than hosts; only
+ * a test has a single subject, which is why only its operation reference does.
  * DTO claims select the explicitly included sibling API source through a rooted
  * Program population; package references remain the published contract a test
  * actually imports.

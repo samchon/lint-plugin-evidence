@@ -17,8 +17,13 @@ import type { ITtscLintConfig } from "@ttsc/lint";
  *
  * The journey claim references the screens as well as the requirements: a spec
  * cites each page it traverses as `{@link ThatPage}` resolved through its own
- * type-only import, so a screen no journey walks is a build failure rather than
- * a discovery made in review.
+ * type-only import, so a screen no journey walks surfaces at the compiler
+ * rather than in review.
+ *
+ * Every edge here is many to many. Several screens may serve one requirement,
+ * several screens may use one hook, and several journeys may walk one screen,
+ * so no obligation counts citations per host; each counts the units that must
+ * be covered.
  *
  * The hooks are the third population. `lib/<domain>/hooks.ts` is the only place
  * a generated accessor is called, so a hook is the one artifact that can
