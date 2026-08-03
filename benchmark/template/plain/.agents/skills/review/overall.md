@@ -14,7 +14,7 @@ Treat every requirement as a root and follow every applicable path through the c
 
 1. Propagate the requirement into the database.
 2. Propagate the requirement into API operations and DTOs.
-3. Propagate the API into backend implementation and backend tests.
+3. Propagate the API into its operation contract and backend tests.
 4. Propagate the API into frontend state, screens, interactions, and browser tests.
 5. Propagate each screen and interaction into a complete live user journey.
 6. Verify that the final visible result agrees with every required database effect, authorization boundary, refusal, rollback, lifecycle transition, and cleanup.
@@ -27,7 +27,7 @@ Treat every current artifact and behavior as a root and trace it backward.
 
 1. Trace every database element to the requirement and API behavior that need it.
 2. Trace every API operation and DTO property to its requirement, database source, backend owner, frontend consumer, and tests.
-3. Trace every backend branch and effect to its requirement, API contract, database invariant, and proof.
+3. Trace every promised effect and refusal to its requirement, API contract, database invariant, and proof.
 4. Trace every frontend route, screen, component, state, and action to its requirement, API contract, live journey, and browser test.
 5. Trace every backend and browser test to the exact behavior it claims to prove.
 

@@ -31,9 +31,9 @@ This is a real exhaustive review loop, not shorthand, aspiration, or rhetoric. N
 
 The detailed procedure defines the product files, live behavior, journeys, and relationships in scope.
 
-Generated SDK output is a current consumer contract. Inspect it but correct its authored source and regenerate it instead of editing generated output directly. Dependencies, caches, logs, screenshots, build output, generated Prisma clients, and review bookkeeping are not product review scope.
+Where a procedure puts generated SDK output in scope, it is a current consumer contract: inspect it, but correct its authored source and regenerate rather than editing the generated file. Dependencies, caches, logs, screenshots, build output, generated Prisma clients, and review bookkeeping are not product review scope.
 
-Do not exclude an item because it is generated, large, repetitive, configuration-only, apparently trivial, unchanged, or already examined during an earlier objective, round, or correction.
+Within that scope, do not exclude an item because it is large, repetitive, configuration-only, apparently trivial, unchanged, or already examined during an earlier objective, round, or correction.
 
 ## Findings
 
