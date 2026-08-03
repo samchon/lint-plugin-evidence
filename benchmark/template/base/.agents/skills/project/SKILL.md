@@ -22,8 +22,9 @@ The scaffold already provides package wiring, lint and compiler configuration, S
 | `packages/backend/src/controllers/` | Routes, guards, and delegation |
 | `packages/backend/src/providers/` | Business logic and database access |
 | `packages/backend/test/features/` | Backend end-to-end tests |
+| `packages/frontend/src/` | React application |
 | `packages/frontend/src/lib/<domain>/hooks.ts` | The only callers of the generated accessors |
-| `packages/frontend/src/components/` | Screens and their components |
+| `packages/frontend/src/components/<domain>/` | Screens and their components |
 | `packages/frontend/tests/journeys/` | Browser journeys |
 
 Import the API package from its package entry. Do not add a `structures` subpath export or import.
