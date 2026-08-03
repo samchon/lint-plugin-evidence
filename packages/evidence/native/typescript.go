@@ -195,6 +195,7 @@ func collectTypeScriptStatements(
 		return
 	}
 	exports := collectLocalExportNames(statements)
+	hiddenNames := collectHiddenDeclarationNames(file, statements)
 	// Built on the first namespace this list holds rather than up front, so a
 	// file declaring none pays nothing. Every rebuild scans every configured
 	// source, and most of them have no namespace at all.
@@ -219,7 +220,7 @@ func collectTypeScriptStatements(
 			if len(targets) == 0 {
 				continue
 			}
-			memberHidden := typeScriptHidingTag(file, statement, hidden)
+			memberHidden := hidingTagFor(hidden, hiddenNames, name)
 			if memberHidden == "" {
 				addTypeScriptHost(supportedHosts, statement, "type")
 			}
@@ -260,7 +261,7 @@ func collectTypeScriptStatements(
 			if len(targets) == 0 {
 				continue
 			}
-			memberHidden := typeScriptHidingTag(file, statement, hidden)
+			memberHidden := hidingTagFor(hidden, hiddenNames, name)
 			if memberHidden == "" {
 				addTypeScriptHost(supportedHosts, statement, "type")
 			}
@@ -307,7 +308,7 @@ func collectTypeScriptStatements(
 			if len(targets) == 0 {
 				continue
 			}
-			memberHidden := typeScriptHidingTag(file, statement, hidden)
+			memberHidden := hidingTagFor(hidden, hiddenNames, name)
 			if memberHidden == "" {
 				addTypeScriptHost(supportedHosts, statement, "function")
 			}
@@ -350,7 +351,7 @@ func collectTypeScriptStatements(
 				continue
 			}
 			name := declarationName(statement.Name())
-			memberHidden := typeScriptHidingTag(file, statement, hidden)
+			memberHidden := hidingTagFor(hidden, hiddenNames, name)
 			for _, publicName := range publicTypeScriptNames(
 				statement,
 				name,
@@ -381,7 +382,7 @@ func collectTypeScriptStatements(
 			if len(targets) == 0 {
 				continue
 			}
-			memberHidden := typeScriptHidingTag(file, statement, hidden)
+			memberHidden := hidingTagFor(hidden, hiddenNames, name)
 			if memberHidden == "" {
 				addTypeScriptHost(supportedHosts, statement, "type")
 			}
@@ -730,6 +731,57 @@ func collectPropertyMembers(
 			addTypeScriptHost(supportedHosts, member, "property")
 		}
 	}
+}
+
+// collectHiddenDeclarationNames indexes the local names a statement list
+// withdraws from the public surface, by the tag that withdrew each.
+//
+// The index is over names rather than over nodes because declaration merging
+// makes one name several declarations. `interface I` beside `namespace I` is
+// one public identity and one unit, so a tag on either half withdraws the
+// identity — and which half carries it is a matter of where the author wrote
+// the comment. Reading only the node in hand would leave the identity
+// withdrawn while its members stayed selected, depending on source order.
+func collectHiddenDeclarationNames(
+	file *shimast.SourceFile,
+	statements *shimast.NodeList,
+) map[string]string {
+	if file == nil || statements == nil {
+		return nil
+	}
+	var names map[string]string
+	for _, statement := range statements.Nodes {
+		if statement == nil {
+			continue
+		}
+		name := declarationName(statement.Name())
+		if name == "" {
+			continue
+		}
+		tag := typeScriptHidingTag(file, statement, "")
+		if tag == "" {
+			continue
+		}
+		if names == nil {
+			names = map[string]string{}
+		}
+		if names[name] == "" {
+			names[name] = tag
+		}
+	}
+	return names
+}
+
+// hidingTagFor answers for one local name, preferring an inherited tag.
+func hidingTagFor(
+	inherited string,
+	names map[string]string,
+	local string,
+) string {
+	if inherited != "" {
+		return inherited
+	}
+	return names[local]
 }
 
 // typeScriptHidingTag reports the documentation tag that withdraws a

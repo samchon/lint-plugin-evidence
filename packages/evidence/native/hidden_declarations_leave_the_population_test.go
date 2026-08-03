@@ -117,6 +117,47 @@ export interface ITagged {
 }
 
 /**
+ * Verifies a tag on either half of a merged identity withdraws the whole thing.
+ *
+ * `interface I` beside `namespace I` is one public identity and one unit, so
+ * which declaration carries the comment is a matter of where the author wrote
+ * it. Reading only the declaration in hand would leave the identity withdrawn
+ * while its members stayed selected whenever the untagged half was written
+ * first — a cascade that depended on source order.
+ *
+ *  1. Tag the second declaration of a merged identity and leave the first bare.
+ *  2. Collect the inventory.
+ *  3. Assert the identity and every member below either half are withdrawn.
+ */
+func TestTypeScriptHidingTagOnEitherMergedDeclarationWithdrawsTheIdentity(t *testing.T) {
+	inventory := parseTypeScriptInventory(t, "src/contracts.ts", `
+export interface ISale {
+  id: string;
+}
+
+/** @internal Not part of the published surface. */
+export namespace ISale {
+  export interface ICreate {
+    title: string;
+  }
+}
+
+export interface IPublic {
+  id: string;
+}
+`)
+	for _, unit := range inventory.Units {
+		withdrawn := strings.HasPrefix(unit.Target, "ISale")
+		if withdrawn && unit.Hidden == "" {
+			t.Fatalf("%s must be withdrawn with the identity it belongs to", unit.Target)
+		}
+		if !withdrawn && unit.Hidden != "" {
+			t.Fatalf("%s must survive, got %q", unit.Target, unit.Hidden)
+		}
+	}
+}
+
+/**
  * Verifies a withdrawn declaration owes no acknowledgement as a reference unit.
  *
  * This is the obligation half of the issue: the population a reference selects
