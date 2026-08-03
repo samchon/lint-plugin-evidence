@@ -1,1 +1,3 @@
-I suspect your Backend Review is incomplete. Check the quoted Review against the actual sources. Prove it, or return to the first requirement and complete every missing round before reporting again.
+I suspect you did not actually follow the Backend Review. Why did you report completion before performing the required review loop until dry?
+
+Check your actual work against the quoted Backend Review below. If you skipped or cannot prove any part, do it properly now and repeat the full review until it is genuinely dry. Do not reply with another unsupported completion claim.

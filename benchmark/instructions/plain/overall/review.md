@@ -4,30 +4,33 @@ Read `AGENTS.md`, `.agents/skills/review/SKILL.md`, and every detailed procedure
 
 Review the entire application and every cross-layer relationship through a literal **review loop until dry**:
 
-Every round reads in full one sorted manifest of `docs/analysis/`, database, API, backend, backend tests, frontend, browser tests, and Backend/Frontend configuration.
+Every round must read in full one complete sorted manifest covering `docs/analysis/`, `packages/backend/prisma/schema/`, `packages/api/src/`, `packages/backend/src/`, `packages/backend/test/`, `packages/frontend/src/`, and `packages/frontend/tests/`, including configuration covered by Backend or Frontend Review.
 
-1. Read every requirement; propagate it through database, API, backend, frontend, and tests.
-2. Read every layer and test; compare adjacent layers both ways and trace each artifact to its requirement.
-3. Trace every journey from requirement through persistence/API to live browser proof, then backward. Rebuild the operation manifest: one primary operation per exported test; two distinct scenarios with public business-effect assertions per operation. SDK dependencies/follow-ups earn no primary credit. Forbid automatic malformed-400 tests and invented codes. Compare scenario gates to the committed baseline. Coverage fixes may touch only feature tests and `test/OperationScenarioRegistry.ts`; restore helper, automation, entrypoint, Swagger, script, or generated-Swagger changes.
-4. Complete the round, collect findings, fix every consequence, then await clean backend watcher/dev and frontend dev processes.
-5. Any edit restarts at the first requirement. Repeat without limit until a full round finds and edits nothing.
+1. Read every requirement in full; propagate each through the database, API, backend, frontend, and tests.
+2. Read the database, API, backend, frontend, and tests in full. Compare adjacent layers both ways and trace every artifact back to its requirement.
+3. Trace every required journey from requirement through persistence and API to live screen and browser proof, then backward.
+4. Complete the round and collect findings as the Review skill requires. Fix every finding and consequence, then await clean backend `pnpm check:watch`, backend `pnpm dev`, and frontend `pnpm dev` processes.
+5. After any edit, restart at the first requirement. Repeat without limit until a full round finds nothing and edits nothing.
 
-A dry loop requires complete reading and unlimited rounds. Never substitute searches, summaries, inventories, gates, samples, partial reviews, or prior rounds; split files, layers, requirements, journeys, or lenses among rounds; claim further review is unnecessary; or rely on Final.
+A dry loop requires complete reading and unlimited rounds. Never substitute:
+
+- searches, summaries, inventories, builds, tests, samples, partial layer reviews, or prior rounds;
+- dividing files, layers, requirements, journeys, or review lenses among rounds; every round covers the entire scope;
+- claims that the review is sufficient, comprehensive, efficient, repetitive, expensive, or unlikely to help; or
+- relying on Final to finish or repeat the review.
 
 ## Review Evidence Report
 
-Report every round's manifest/findings/fixes and final dry round, plus each operation's two primary scenarios and assertions. Counts, searches, manifests, earlier rounds, and gates are not proof; an exposed gap restarts Review.
+Before completion, report each round's full manifest, findings and fixes, and the final dry, edit-free round. If that evidence reveals missing work, resume the loop and report again after completing it.
 
 ## Final Checklist
 
-- [ ] Review skill scope, rounds, stopping condition, and procedure followed unchanged.
-- [ ] Every instruction read in full.
-- [ ] Each round used a new sorted full manifest and read one whole file per command in order.
-- [ ] Every scoped edit, including gate fixes, restarted a full round at the first requirement.
+- [ ] Review skill gate followed without changing scope, rounds, stopping condition, or procedure.
+- [ ] Every required instruction was read in full.
+- [ ] Every round used a new complete sorted manifest and read one file per command, in order and in full.
+- [ ] Every correction or scoped change, including a gate fix, triggered a new full round from the first requirement.
 - [ ] Every finding and consequence fixed; derived artifacts regenerated.
-- [ ] Every operation has two distinct primary backend-test scenarios with business assertions; dependencies/follow-ups got no credit.
-- [ ] Fixed scenario gates match the baseline; coverage edits touch only feature tests and the registry.
-- [ ] Final full round dry/edit-free and unchanged by clean watcher/development gates.
-- [ ] Report proves all rounds, operation dispositions, findings, fixes, and the dry round.
+- [ ] Final full round dry and edit-free; the clean current watcher and development gates left it unchanged.
+- [ ] Report proves every round, finding, fix, and final dry round.
 
 If any item is unchecked or uncertain, restart the full Overall Review at the first requirement.

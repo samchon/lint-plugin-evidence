@@ -1,6 +1,6 @@
 ---
 name: review
-description: Defines the full-scope review loop until dry and final self-check for backend, frontend, and overall review objectives. Read for a review objective or when a final objective verifies completed review work.
+description: Defines the full-scope review loop until dry and final self-check for backend, frontend, and overall review objectives. Read for a review objective or when a final objective must complete an omitted review.
 ---
 
 # Review
@@ -40,8 +40,6 @@ Do not exclude an item because it is generated, large, repetitive, configuration
 Keep the current round's findings in the current objective's working context. Do not create or modify a product file merely to preserve review bookkeeping.
 
 For each finding, retain the requirement or upstream contract, the exact conflicting artifact or behavior, why they disagree, and the complete consequence surface. Do not replace this information with transcripts, command output, or guesses.
-
-When a detailed procedure requires a closure manifest, retain one source-backed disposition for every root. A total, search result, byte or line count, file manifest, or passing gate cannot prove that any root was traced or that its behavior was tested.
 
 ## Literal Full Reading
 
@@ -92,7 +90,6 @@ None of these satisfy review loop until dry. When a literal dry round is not pro
 - [ ] Every command returned content from only one manifest file; every file was fully covered in order, and no truncated read received credit.
 - [ ] No discretionary judgment changed the prescribed scope, round boundaries, stopping conditions, or review procedure.
 - [ ] Every round covered the first requirement through the final artifact and every propagation branch.
-- [ ] Every required closure manifest has one source-backed disposition per root; no count, search, inventory, or gate substituted for semantic review.
 - [ ] No split rounds, composed partial passes, omissions, or search/build/test substitutes.
 - [ ] Every finding and consequence fixed after the complete round.
 - [ ] Every correction or gate-driven change followed by a new full round.
@@ -100,4 +97,4 @@ None of these satisfy review loop until dry. When a literal dry round is not pro
 - [ ] The qualifying dry round remained unchanged through clean current gates.
 - [ ] Scope checklist complete.
 
-Any unchecked or uncertain item leaves a Review Goal active and requires another literal full-reading round from the first requirement. A Final Goal verifies the completed Review against current sources, fixes any residual gap and its consequences, and reruns affected gates; it does not blindly begin Review again.
+Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the applicable literal full-reading Review from the first requirement. In a Final Goal, perform the quoted Review immediately.

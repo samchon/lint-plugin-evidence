@@ -63,26 +63,6 @@ Read every authored controller and DTO and every generated SDK contract in full.
 
 Generated contracts may reveal drift but do not own the correction. Fix the authored schema, controller, or DTO and regenerate.
 
-## Operation And Test Closure
-
-Before evaluating test coverage, build one complete sorted manifest of every product API operation. Derive it from authored controllers and cross-check it against the generated SDK and Swagger document. Infrastructure health is not a product operation; every other public operation needs its own disposition.
-
-For each operation in manifest order, read every complete test source that calls it and classify each call:
-
-- **Primary:** the one operation whose business behavior the exported test exists to prove.
-- **Dependency:** a public call that authenticates an actor, creates a parent, or establishes ownership, membership, grade, or lifecycle state needed by the primary call.
-- **Follow-up:** a public call used after the primary call to observe its effect.
-
-Dependency and follow-up calls earn no primary coverage. A generic journey or mega-test that has no single primary operation earns none either.
-
-Every exported test has exactly one primary operation. Credit an operation only when tests naming it as their sole primary operation prove at least two semantically distinct business scenarios. Different random values or names do not make a new scenario. Each credited scenario must state its business preconditions and expected outcome or refusal, then prove a publicly observable business effect through the primary response or a public follow-up with a concrete business assertion. Shape, non-null, status-only, and input-echo checks are insufficient.
-
-Use public SDK dependency and follow-up operations in the required order; direct database setup does not prove the API. Do not write or retain malformed-input or generic HTTP 400 scenarios already enforced by the typed SDK or runtime validator. Assert an exact status or server code only when the requirement or public contract states it; otherwise prove the required refusal without inventing an oracle.
-
-Before crediting coverage, compare the operation-scenario gate with the committed workspace baseline. Coverage work may change feature tests and `test/OperationScenarioRegistry.ts`; it must not weaken or bypass `test/helpers/TestOperationScenario.ts`, `TestAutomation.ts`, `test/index.ts`, `writeProductSwagger.ts`, backend `build:sdk` or `test` scripts, or generated `swagger.product.json`. Treat any such gate change as a finding, restore the baseline contract, and evaluate coverage from the authored feature tests and registry.
-
-Retain one disposition per operation naming its primary tests, two distinct scenarios, dependencies, follow-ups, observations, and assertions. Zero, one, duplicated, weak, or unclassified scenarios are findings. Continue through the final operation before editing. After any correction, the next full round starts at the first requirement and its operation audit starts at the first operation.
-
 ## Implementation And Test Closure
 
 Read every backend source and test file in full.
@@ -100,10 +80,6 @@ Read every backend source and test file in full.
 
 Names, types, compilation, internal consistency, and passing tests do not establish semantic correctness.
 
-## Review Evidence Report
-
-Report every round's file and operation manifests, findings, corrections, and final dry round. For every operation, name its primary tests and at least two credited scenarios with distinct preconditions, outcomes, and business assertions. Report totals with zero, one, and at least two credited scenarios, but never use those totals instead of the per-operation dispositions. If writing the report exposes a missing operation, unclassified call, weak or duplicate scenario, unsupported oracle, or post-edit gap, resume the review and report again after a new dry round.
-
 ## Final Checklist
 
 - [ ] Review skill gate followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
@@ -111,11 +87,7 @@ Report every round's file and operation manifests, findings, corrections, and fi
 - [ ] Every requirement propagated through database, API, behavior, and tests.
 - [ ] Every schema element checked against operations, DTOs, behavior, effects, and tests.
 - [ ] Every operation and DTO traced backward to requirements and storage and forward to behavior and tests.
-- [ ] Every product operation has a source-backed disposition and at least two distinct scenarios where it is the test's sole primary operation.
-- [ ] Dependency and follow-up calls received no primary credit; every credited scenario proves a requirement-backed business outcome.
-- [ ] Operation-scenario helpers, automation, entrypoints, Swagger generation, scripts, and generated Swagger match the committed gate contract.
 - [ ] Every backend source and test read across all success, refusal, boundary, lifecycle, ownership, atomicity, ordering, and concurrency paths.
-- [ ] Report names every operation's credited scenarios and assertions; counts, manifests, searches, and passing gates did not substitute for that proof.
 - [ ] Every finding followed through its full consequence surface.
 
 Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the literal full-reading Backend Review from the first requirement.
