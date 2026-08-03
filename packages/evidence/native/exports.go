@@ -305,13 +305,13 @@ func materializeEntryUnits(
 	byID := map[string]*evidenceUnit{}
 	order := []string{}
 	published := []publishedAddress{}
+	candidates := newOwnedUnitIndex(loader)
 	for _, entry := range entries {
 		for _, symbol := range traverseEntryExports(loader, entry, nil, map[string]bool{}) {
-			inventory := loader.inventory(symbol.Path)
-			if inventory == nil || symbol.Local == "" {
+			if symbol.Local == "" {
 				continue
 			}
-			for _, unit := range inventory.Units {
+			for _, unit := range candidates.of(symbol.Path, symbol.Local) {
 				suffix, owned := identitySuffix(unit.Identity, symbol.Local)
 				if !owned {
 					continue
@@ -361,6 +361,46 @@ func materializeEntryUnits(
 		}
 	}
 	return population
+}
+
+// ownedUnitIndex narrows a file's units to the ones a reached name can own.
+//
+// Membership is decided by identity prefix, so only units whose first segment
+// equals the reached name are candidates. Scanning the whole file instead costs
+// one pass per reached name, which is quadratic in a module's own width — and a
+// generated declaration barrel is exactly where that width is largest.
+type ownedUnitIndex struct {
+	loader *typeScriptLoader
+	byPath map[string]map[string][]*evidenceUnit
+}
+
+func newOwnedUnitIndex(loader *typeScriptLoader) *ownedUnitIndex {
+	return &ownedUnitIndex{
+		loader: loader,
+		byPath: map[string]map[string][]*evidenceUnit{},
+	}
+}
+
+// of lists the units of one file that may be owned by one reached name.
+func (index *ownedUnitIndex) of(path string, local string) []*evidenceUnit {
+	roots, built := index.byPath[path]
+	if !built {
+		roots = map[string][]*evidenceUnit{}
+		if inventory := index.loader.inventory(path); inventory != nil {
+			for _, unit := range inventory.Units {
+				if len(unit.Identity) == 0 {
+					continue
+				}
+				roots[unit.Identity[0]] = append(roots[unit.Identity[0]], unit)
+			}
+		}
+		index.byPath[path] = roots
+	}
+	root := local
+	if cut := strings.Index(local, "."); cut != -1 {
+		root = local[:cut]
+	}
+	return roots[root]
 }
 
 // identitySuffix reports the segments below a reached declaration, and whether

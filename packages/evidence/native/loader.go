@@ -111,6 +111,15 @@ func (loader *typeScriptLoader) exists(relative string) bool {
 	if loader.program[relative] != nil {
 		return true
 	}
+	return loader.existsOnDisk(relative)
+}
+
+// existsOnDisk probes the filesystem for an already-normalized path.
+//
+// The probe is the expensive half of module resolution — one syscall per
+// candidate, and a watch cycle resolves every re-export in the population — so
+// callers that can answer from the Program should do that first.
+func (loader *typeScriptLoader) existsOnDisk(relative string) bool {
 	info, err := os.Stat(path.Join(loader.root, relative))
 	return err == nil && !info.IsDir()
 }
@@ -132,10 +141,24 @@ func (loader *typeScriptLoader) resolveUncached(
 ) string {
 	if strings.HasPrefix(specifier, "./") || strings.HasPrefix(specifier, "../") {
 		base := path.Clean(path.Join(path.Dir(from), specifier))
-		for _, candidate := range moduleCandidates(base) {
-			normalized := loader.projectPath(candidate)
-			if loader.exists(normalized) {
-				return normalized
+		candidates := moduleCandidates(base)
+		normalized := make([]string, 0, len(candidates))
+		for _, candidate := range candidates {
+			normalized = append(normalized, loader.projectPath(candidate))
+		}
+		// The Program answers first, and not only because it answers without a
+		// syscall. A project that emits beside its sources has both `x.js` and
+		// `x.ts` on disk, and `x.js` is written earlier in the candidate order;
+		// resolving an import to emitted JavaScript would read a module whose
+		// declarations the graph cannot address.
+		for _, candidate := range normalized {
+			if loader.program[candidate] != nil {
+				return candidate
+			}
+		}
+		for _, candidate := range normalized {
+			if loader.existsOnDisk(candidate) {
+				return candidate
 			}
 		}
 		return ""
@@ -155,6 +178,13 @@ func (loader *typeScriptLoader) projectPath(relative string) string {
 	if loader == nil || relative == "" {
 		return relative
 	}
+	// A path that is already a clean, forward-slashed, project-relative name is
+	// its own identity. Saying so here matters: module resolution normalizes
+	// every candidate of every specifier, and the general form below walks the
+	// path twice through the filesystem package to learn nothing.
+	if isCleanProjectRelativePath(relative) {
+		return relative
+	}
 	local := filepath.FromSlash(relative)
 	absolute := local
 	if !filepath.IsAbs(local) {
@@ -168,6 +198,24 @@ func (loader *typeScriptLoader) projectPath(relative string) string {
 		return filepath.ToSlash(filepath.Clean(absolute))
 	}
 	return strings.TrimPrefix(filepath.ToSlash(projectRelative), "./")
+}
+
+// isCleanProjectRelativePath reports whether a path is already the identity
+// `projectPath` would produce: forward slashes, no drive or leading separator,
+// and no `.` or `..` segment to collapse.
+func isCleanProjectRelativePath(value string) bool {
+	if value == "" || strings.ContainsRune(value, '\\') {
+		return false
+	}
+	if strings.HasPrefix(value, "/") || filepath.IsAbs(value) {
+		return false
+	}
+	for segment := range strings.SplitSeq(value, "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 // resolvePackage finds the declaration entry of an installed package.

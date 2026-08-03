@@ -1,6 +1,9 @@
 package evidence
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 const entryClaimConfig = `{"claims":[{
 	"type":"typescript",
@@ -185,6 +188,80 @@ export interface ILedger {}
 `,
 	}, config)
 	assertNoProblems(t, cited)
+}
+
+/**
+ * Verifies a re-export resolves to the compiled source, not to emitted output
+ * beside it.
+ *
+ * Under `nodenext` a TypeScript module spells its sibling as `./x.js`, and a
+ * project that emits beside its sources has a real `x.js` on disk answering to
+ * that exact name. Resolving there would read the emitted JavaScript, whose
+ * declarations the graph cannot address, and the population would silently lose
+ * everything the module publishes.
+ *
+ *  1. Put a compiled `wide.js` on disk beside the `wide.ts` the Program holds.
+ *  2. Re-export `./wide.js` from the selected barrel.
+ *  3. Assert the declaration from the TypeScript source is the obligation.
+ */
+func TestGraphResolvesReExportsToProgramSourcesOverEmittedOutput(t *testing.T) {
+	messages := runIndexRule(t, map[string]string{
+		"src/api/wide.ts":  "export interface IWide { value: string }\n",
+		"src/api/wide.js":  "\"use strict\";\nexports.__esModule = true;\n",
+		"src/api/index.ts": "export * from \"./wide.js\";\n",
+		"src/views/detail.ts": `import type * as api from "./../api/index.js";
+
+/** @evidence {@link api.IWide} Mirrors the wide contract. */
+export function detail(): void {}
+`,
+	}, `{"claims":[{
+		"type":"typescript",
+		"files":["src/views/**"],
+		"symbol":"function",
+		"reference":{"type":"typescript","files":["src/api/index.ts"],"symbol":"type"}
+	}]}`)
+	assertNoProblems(t, messages)
+}
+
+/**
+ * Verifies ownership is decided by identity segment, not by name text.
+ *
+ * A citation covers the declarations below it, and "below" has to mean a
+ * segment boundary: `Order` owns `Order.Line` and has nothing to do with
+ * `OrderLine`. Treating the shared text as containment would move one
+ * obligation under another's citation and report it as discharged, which is the
+ * failure this product exists to prevent. Nothing else in the suite states this
+ * boundary, and the search that finds owned units is narrowed for width.
+ *
+ *  1. Publish a namespace, its nested member, and a longer name sharing its
+ *     text.
+ *  2. Cite the namespace alone.
+ *  3. Assert the nested member is covered and the longer name is still owed.
+ */
+func TestGraphOwnsUnitsBySegmentRatherThanNamePrefix(t *testing.T) {
+	messages := runIndexRule(t, map[string]string{
+		"src/contracts.ts": `export namespace Order {
+  export interface Line { id: string }
+}
+export interface OrderLine { id: string }
+`,
+		"src/index.ts": "export * from \"./contracts.js\";\n",
+		"src/ledger.ts": `import type { Order } from "./index";
+
+/** @evidence {@link Order} Mirrors the order namespace and its members. */
+export interface ILedger {}
+`,
+	}, `{"claims":[{
+		"type":"typescript",
+		"files":["src/ledger.ts"],
+		"symbol":"type",
+		"reference":{"type":"typescript","files":["src/index.ts"],"symbol":["type","property"]}
+	}]}`)
+	if count := countProblemsContaining(messages, "Missing acknowledgement"); count != 2 {
+		t.Fatalf("expected only the unrelated prefix twin and its property to remain owed, got %d:\n%s", count, strings.Join(messages, "\n"))
+	}
+	assertProblemContains(t, messages, "Missing acknowledgement for 'OrderLine'")
+	assertProblemContains(t, messages, "Missing acknowledgement for 'OrderLine.id'")
 }
 
 /**

@@ -19,6 +19,7 @@ func (graphRule) Check(ctx *rule.ProjectContext) {
 	if ctx == nil {
 		return
 	}
+	typeScriptInventories.beginCycle()
 	cycle := &graphCycleState{}
 	// SetState survives a later project finding and belongs only to this
 	// Program cycle. File rules can therefore coordinate diagnostics even when
@@ -367,7 +368,7 @@ func evaluateEvidenceGraph(
 	// Scoped targets are keyed by owning file as well as name, which is what
 	// makes import-scope resolution unambiguous: two modules exporting `get`
 	// never compete, because resolution already knows which file it landed in.
-	scopedTargets := map[string]map[string]*evidenceUnit{}
+	scopedTargets := map[scopedTargetKey]map[string]*evidenceUnit{}
 	for _, state := range states {
 		for _, reference := range state.References {
 			// A traversed address is valid in the module that publishes it, not in
@@ -382,7 +383,7 @@ func evaluateEvidenceGraph(
 				if !scopeIDs[address.Unit.ID] {
 					continue
 				}
-				key := scopedTargetKey(address.Module, address.Address)
+				key := scopedTargetKey{path: address.Module, target: address.Address}
 				if scopedTargets[key] == nil {
 					scopedTargets[key] = map[string]*evidenceUnit{}
 				}
@@ -406,7 +407,7 @@ func evaluateEvidenceGraph(
 				// by its declaring files needs this fallback.
 				if unit.Type == artifactTypeScript && len(reference.Published) == 0 {
 					for _, address := range append([]string{unit.Target}, unit.Aliases...) {
-						key := scopedTargetKey(unit.Path, address)
+						key := scopedTargetKey{path: unit.Path, target: address}
 						if scopedTargets[key] == nil {
 							scopedTargets[key] = map[string]*evidenceUnit{}
 						}
@@ -1001,8 +1002,14 @@ func resolveReferenceEntry(
 	return entry, ""
 }
 
-func scopedTargetKey(path string, target string) string {
-	return path + "\x00" + target
+// scopedTargetKey identifies one address inside one module.
+//
+// A struct key rather than a joined string: the map is built once per unit per
+// reference and read once per citation, and concatenating two paths to hash
+// them allocates a string whose only purpose is to be thrown away.
+type scopedTargetKey struct {
+	path   string
+	target string
 }
 
 // looksLikeTypeScriptTarget reports whether an unbraced target names a symbol.
@@ -1036,7 +1043,7 @@ func looksLikeTypeScriptTarget(
 func resolveInlineLinkDeclaration(
 	declaration *evidenceDeclaration,
 	loader *typeScriptLoader,
-	scopedTargets map[string]map[string]*evidenceUnit,
+	scopedTargets map[scopedTargetKey]map[string]*evidenceUnit,
 	context string,
 ) (string, string) {
 	target := inlineLinkTarget(declaration.Target)
@@ -1067,7 +1074,7 @@ func resolveInlineLinkDeclaration(
 		return "", "Incomplete evidence target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + " for " + context + ": a namespace import names a module rather than a unit. Name a symbol inside '" + binding.Specifier + "' that the named reference selects."
 	}
 	name := strings.Join(remaining, ".")
-	candidates := scopedTargets[scopedTargetKey(resolvedPath, name)]
+	candidates := scopedTargets[scopedTargetKey{path: resolvedPath, target: name}]
 	switch len(candidates) {
 	case 0:
 		return "", "Unreachable evidence target '" + displayTarget(declaration.Target) + "' at " + declaration.location() + " for " + context + ": '" + resolvedPath + "' declares no selected unit named '" + name + "'. Correct the target, or widen the named reference's files and symbol selection so that unit is configured evidence."
