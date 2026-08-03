@@ -281,7 +281,12 @@ const readWindowsDisconnectedIntervals = (
 ): IEvidenceBenchmarkPowerInterval[] => {
   const command: string = [
     `$start = [DateTimeOffset]::FromUnixTimeMilliseconds(${Math.floor(startedAt)}).LocalDateTime`,
-    "$events = Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Microsoft-Windows-Kernel-Power'; Id = 172; StartTime = $start } -ErrorAction Stop | Sort-Object TimeCreated",
+    // An empty System log is the ordinary case on a machine that never lost
+    // power, and `Get-WinEvent` reports it by throwing rather than returning
+    // nothing. Catch that one error by its identifier, which does not change
+    // with the console locale, and let every other failure surface.
+    "$events = @()",
+    "try { $events = @(Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Microsoft-Windows-Kernel-Power'; Id = 172; StartTime = $start } -ErrorAction Stop | Sort-Object TimeCreated) } catch { if ($_.FullyQualifiedErrorId -notlike 'NoMatchingEventsFound*') { throw } }",
     "$rows = @($events | ForEach-Object { $xml = [xml]$_.ToXml(); $powerState = [string](($xml.Event.EventData.Data | Where-Object Name -eq 'State').'#text'); [pscustomobject]@{ recordedAt = $_.TimeCreated.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ'); state = if ($powerState -eq '2') { 'disconnected' } elseif ($powerState -eq '0') { 'connected' } else { 'unknown' } } })",
     "ConvertTo-Json -InputObject $rows -Compress",
   ].join("; ");
