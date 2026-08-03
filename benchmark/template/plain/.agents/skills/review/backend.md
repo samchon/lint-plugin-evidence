@@ -71,7 +71,7 @@ Every generated accessor states its own address in its JSDoc, so the operation l
 rg --no-filename -o '@accessor \S+' packages/api/src/functional | sort
 ```
 
-This is a cross-check index, not a read. It does not shorten the literal full reading of `packages/api/src/functional/`, and an accessor absent from the index but present in the source is itself a finding. Use it to guarantee the propagation below reaches every operation, and work it entry by entry. `api.functional.health.get` is the scaffold probe and the one accessor outside this obligation.
+This is a cross-check index, not a read. It does not shorten the literal full reading of `packages/api/src/functional/`, and an accessor absent from the index but present in the source is itself a finding. Use it to guarantee the propagation below reaches every operation, and work it entry by entry. `api.functional.health.get` keeps only its scaffold test and is outside these obligations.
 
 1. Name, for each accessor, every test that proves it.
    - An accessor with no test is a finding. Four hundred published operations and two hundred proved ones is a missing feature set, not a thorough suite.

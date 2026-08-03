@@ -23,7 +23,7 @@ Names match the exported function and describe the behavior or refusal being pro
 
 ## Operation Ownership
 
-Every product operation has tests. `api.functional.health.get` is the scaffold probe and the only exception.
+Every product operation has tests. `api.functional.health.get` keeps only its existing scaffold test and is outside the obligations below.
 
 Each accessor states its own address in its JSDoc `@accessor` tag, so the operation list is exact:
 
