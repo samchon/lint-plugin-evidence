@@ -27,7 +27,7 @@ The frontend delivers requirement-backed user journeys through the settled gener
 
 Do not turn every endpoint into a page. Do not omit a user capability because it is difficult.
 
-Consumption and presentation are separate obligations. Every published SDK operation is called by a domain hook without exception, because an operation the product never calls is a capability it never delivers. What a screen decides is whether that capability earns its own page.
+Consumption and presentation are separate obligations. Every published SDK operation is called by a domain hook, because an operation the product never calls is a capability it never delivers; `api.functional.health.get` is the scaffold probe and the one exception. What a screen decides is whether that capability earns its own page.
 
 An operation may therefore lack a visible screen only when it is infrastructure, genuinely redundant with a complete user path, or non-user-facing; record the exact reason and invalidating condition in `packages/frontend/wiki/omissions.md`. That record answers for the missing page and never for a missing call.
 
@@ -58,7 +58,7 @@ The frontend gate requires:
 - the active arm's frontend review;
 - a clean current `pnpm dev` reload;
 - every requirement-backed journey represented by a browser spec, and every screen walked by one of them;
-- every published SDK operation called by a domain hook, and every hook used by a screen;
+- every published SDK operation except the health probe called by a domain hook, and every hook used by a screen;
 - every product-facing operation reachable from a screen, or a recorded omission for its missing page;
 - every production component consumed by a screen or necessary shared boundary;
 - responsive and accessible behavior at required viewports;

@@ -15,7 +15,7 @@ const page = await api.functional.shopping.customer.sale.index(
 
 Never hand-write `fetch`, URLs, request types, response types, or accessor names. Read the generated exports and JSDoc. A missing accessor is an API finding.
 
-Each accessor's JSDoc states its own address as `@accessor api.functional.shopping.customer.sale.index`, alongside the `@controller` and `@path` it came from. That tag is the operation inventory: the complete sorted set of `@accessor` values under `packages/api/src/functional/` is every operation the frontend must consume, with no reconstruction and no guessing.
+Each accessor's JSDoc states its own address as `@accessor api.functional.shopping.customer.sale.index`, alongside the `@controller` and `@path` it came from. That tag is the operation inventory: the complete sorted set of `@accessor` values under `packages/api/src/functional/` is every operation the frontend must consume, with no reconstruction and no guessing. `api.functional.health.get` is the scaffold probe and the one entry outside that obligation.
 
 Pure validation or mapping needed identically by frontend and backend comes from `packages/api/src/diagnosers`.
 

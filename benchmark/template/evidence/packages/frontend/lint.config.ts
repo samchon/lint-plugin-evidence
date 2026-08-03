@@ -104,7 +104,9 @@ const graph: IEvidenceGraphConfig = {
       reference: {
         type: "typescript",
         package: "{{apiPackageName}}",
-        files: ["src/functional/**/*.ts"],
+        // The scaffold health probe is infrastructure, and this obligation
+        // refuses exclusions, so it leaves the population rather than the graph.
+        files: ["src/functional/**/*.ts", "!src/functional/health/**/*.ts"],
         symbol: ["function"],
         noExclude: true,
       },
