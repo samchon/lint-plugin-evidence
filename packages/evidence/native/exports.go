@@ -305,13 +305,13 @@ func materializeEntryUnits(
 	byID := map[string]*evidenceUnit{}
 	order := []string{}
 	published := []publishedAddress{}
-	owned := newOwnedUnitIndex(loader)
+	candidates := newOwnedUnitIndex(loader)
 	for _, entry := range entries {
 		for _, symbol := range traverseEntryExports(loader, entry, nil, map[string]bool{}) {
 			if symbol.Local == "" {
 				continue
 			}
-			for _, unit := range owned.of(symbol.Path, symbol.Local) {
+			for _, unit := range candidates.of(symbol.Path, symbol.Local) {
 				suffix, owned := identitySuffix(unit.Identity, symbol.Local)
 				if !owned {
 					continue

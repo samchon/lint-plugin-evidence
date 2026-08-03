@@ -102,80 +102,19 @@ func benchmarkSharedModule(b *testing.B, barrels int, units int) {
 func BenchmarkTraversalSharedModule4(b *testing.B)  { benchmarkSharedModule(b, 4, 100) }
 func BenchmarkTraversalSharedModule16(b *testing.B) { benchmarkSharedModule(b, 16, 100) }
 
-// benchmarkWatchCycle rebuilds the graph over an already-parsed Program, which
-// is the work a `ttsc check --watch` cycle repeats after every keystroke.
-func benchmarkWatchCycle(b *testing.B, operations int, dtos int) {
-	files := map[string]string{}
-	barrel := "export * as structures from \"./structures.js\";\n"
-	structures := ""
-	for dto := 0; dto < dtos; dto++ {
-		structures += fmt.Sprintf(
-			"export interface IDto%d { id: string; name: string; value: number }\n",
-			dto,
-		)
-	}
-	files["src/api/structures.ts"] = structures
-	for operation := 0; operation < operations; operation++ {
-		files[fmt.Sprintf("src/api/op%d.ts", operation)] = fmt.Sprintf(
-			"export function operation%d(): void {}\n",
-			operation,
-		)
-		barrel += fmt.Sprintf(
-			"export * as op%d from \"./op%d.js\";\n",
-			operation,
-			operation,
-		)
-	}
-	files["src/api/index.ts"] = barrel
-	files["src/test.ts"] = "export function verify(): void {}\n"
-	const config = `{"claims":[{
-		"type":"typescript",
-		"files":["src/test.ts"],
-		"symbol":"function",
-		"reference":{"type":"typescript","files":["src/api/**"],"symbol":["type","function","property"]}
-	}]}`
-
-	root := b.TempDir()
-	paths := make([]string, 0, len(files))
-	for path := range files {
-		paths = append(paths, path)
-	}
-	sort.Strings(paths)
-	sources := []*shimast.SourceFile{}
-	for _, relative := range paths {
-		absolute := filepath.Join(root, filepath.FromSlash(relative))
-		if err := os.MkdirAll(filepath.Dir(absolute), 0o755); err != nil {
-			b.Fatal(err)
-		}
-		if err := os.WriteFile(absolute, []byte(files[relative]), 0o644); err != nil {
-			b.Fatal(err)
-		}
-		sources = append(sources, shimparser.ParseSourceFile(
-			shimast.SourceFileParseOptions{FileName: filepath.ToSlash(absolute)},
-			files[relative],
-			shimcore.ScriptKindTS,
-		))
-	}
-	b.ResetTimer()
-	for iteration := 0; iteration < b.N; iteration++ {
-		graphRule{}.Check(rule.NewProjectContext(
-			rule.ProjectIdentity{PhysicalProjectRoot: root},
-			sources,
-			nil,
-			rule.SeverityError,
-			json.RawMessage(config),
-			&capturedProjectReporter{},
-		))
-	}
-}
-
-func BenchmarkWatchCycleSdk50(b *testing.B)  { benchmarkWatchCycle(b, 50, 50) }
-func BenchmarkWatchCycleSdk200(b *testing.B) { benchmarkWatchCycle(b, 200, 200) }
-
-// benchmarkErpScale reproduces the shape reported in issue #155: 663 product
-// operations behind a generated barrel, 124 DTO declarations each carrying ten
-// properties, and one test claim citing the whole population.
-func benchmarkErpScale(b *testing.B, operations int, dtos int, properties int, tests int) {
+// benchmarkGraphRebuild rebuilds the graph over an already-parsed Program,
+// which is the work a `ttsc check --watch` cycle repeats after every keystroke.
+//
+// The fixture is the shape a generated backend has: one barrel nesting every
+// operation module, one wide declaration module beside them, and a test suite
+// claiming the whole population.
+func benchmarkGraphRebuild(
+	b *testing.B,
+	operations int,
+	dtos int,
+	properties int,
+	tests int,
+) {
 	files := map[string]string{}
 	barrel := "export * as structures from \"./structures.js\";\n"
 	structures := ""
@@ -246,5 +185,16 @@ func benchmarkErpScale(b *testing.B, operations int, dtos int, properties int, t
 	}
 }
 
-func BenchmarkWatchCycleErpScale(b *testing.B)     { benchmarkErpScale(b, 663, 124, 10, 1326) }
-func BenchmarkWatchCycleErpScaleHalf(b *testing.B) { benchmarkErpScale(b, 331, 62, 10, 663) }
+func BenchmarkWatchCycleSdk50(b *testing.B)  { benchmarkGraphRebuild(b, 50, 50, 3, 1) }
+func BenchmarkWatchCycleSdk200(b *testing.B) { benchmarkGraphRebuild(b, 200, 200, 3, 1) }
+
+// The sizes here are the ones issue #155 measured on a completed application,
+// so these numbers are answerable against a real project rather than only
+// against each other.
+func BenchmarkWatchCycleErpScale(b *testing.B) {
+	benchmarkGraphRebuild(b, 663, 124, 10, 1326)
+}
+
+func BenchmarkWatchCycleErpScaleHalf(b *testing.B) {
+	benchmarkGraphRebuild(b, 331, 62, 10, 663)
+}
