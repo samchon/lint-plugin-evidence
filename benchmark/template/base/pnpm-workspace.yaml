@@ -6,6 +6,13 @@ packages:
 
 modulesCacheMaxAge: 0
 
+# The Prisma SQLite adapter still requires better-sqlite3 11, which publishes no
+# prebuilt binary for current Node releases and therefore compiles from source
+# on every install. Pinning both consumers to the catalog version keeps the
+# workspace installable on any Node the operator happens to run.
+overrides:
+  better-sqlite3: 12.11.1
+
 onlyBuiltDependencies:
   - "@prisma/engines"
   - better-sqlite3
