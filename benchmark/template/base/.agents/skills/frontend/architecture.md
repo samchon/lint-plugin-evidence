@@ -57,8 +57,6 @@ The hook owns the generated call, query key, invalidation, and transport state. 
 
 Every published accessor is called by some hook, and every hook is used by a screen. An accessor nothing calls is a capability the product does not deliver, and a hook nothing renders is the same omission one layer up; both are invisible in a green build.
 
-The scaffold health probe is not an exception. It is a published accessor, so it gets a hook like the rest, and that hook is reached from a screen like the rest.
-
 One hook usually owns one accessor, and a hook composing two calls for a single screen is ordinary. The obligation is consumption, not layout: a hook may serve a dialog, a background refresh, or a step inside another screen's flow, and whether that capability earns its own page is the separate question `screens.md` answers.
 
 Keep domain keys together and include every parameter:

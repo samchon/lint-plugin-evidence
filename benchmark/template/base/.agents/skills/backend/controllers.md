@@ -2,8 +2,6 @@
 
 Controllers under `packages/backend/src/controllers/` own routes, actor guards, typed parameters and bodies, response types, delegation, and published JSDoc. Business logic and database access belong in providers.
 
-`HealthController.get` is scaffold infrastructure rather than a requirement-derived operation. Keep its Nest `@Get("health")` route and generated health accessor intact; it is published like any other operation and answers to the same obligations.
-
 ## Declare The Contract Before Logic
 
 Every requirement-derived operation begins as a complete contract with a temporary typed body:
