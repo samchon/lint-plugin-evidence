@@ -8,7 +8,8 @@ The complete backend scope contains:
 
 - every requirement under `docs/analysis/`;
 - every schema under `packages/backend/prisma/schema/`;
-- every authored API contract under `packages/api/src/structures/`;
+- every API operation contract under `packages/backend/src/controllers/`;
+- every authored DTO under `packages/api/src/structures/`;
 - every authored and generated backend file under `packages/backend/src/`;
 - every backend test under `packages/backend/test/`; and
 - every API or backend configuration file that affects compilation, generation, persistence, or runtime behavior.
