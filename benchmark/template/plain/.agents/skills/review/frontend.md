@@ -10,6 +10,7 @@ The complete frontend scope contains:
 - every authored and generated API contract under `packages/api/src/`;
 - every frontend source file under `packages/frontend/src/`;
 - every browser test under `packages/frontend/tests/`;
+- every planning and verification record under `packages/frontend/wiki/`;
 - every frontend configuration file that affects compilation, SDK use, Vite, Playwright, or runtime behavior; and
 - every live screen, state, interaction, refusal, and user journey required by the specification.
 
