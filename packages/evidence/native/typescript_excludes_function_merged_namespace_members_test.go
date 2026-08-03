@@ -46,10 +46,10 @@ export namespace get {
  * is the negative twin that keeps this from becoming "namespaces select
  * nothing".
  *
- *  1. Declare a function-merged namespace holding every member kind, including
- *     a nested namespace and a nested function-merged pair.
+ *  1. Declare a function-merged namespace holding every member kind a namespace
+ *     can hold, including a nested namespace and a class.
  *  2. Declare an ordinary namespace beside it, itself holding a function-merged
- *     pair.
+ *     pair, so the rule is exercised at depth and in both directions.
  *  3. Assert the exact public inventory: the merged namespaces contribute their
  *     own identities and nothing beneath them, while every ordinary member
  *     survives.
@@ -106,6 +106,97 @@ export namespace catalog {
 	if strings.Join(units, "\n") != strings.Join(want, "\n") {
 		t.Fatalf(
 			"function-merged namespace units:\n%s\nwant:\n%s",
+			strings.Join(units, "\n"),
+			strings.Join(want, "\n"),
+		)
+	}
+}
+
+/**
+ * Verifies the dotted namespace form is dropped whole when its head merges.
+ *
+ * `namespace get.inner {}` is not one declaration with a dotted name — it is
+ * nested module declarations, collected on a different branch than an ordinary
+ * namespace body. So the merge has to be judged on the head, `get`, and take
+ * the whole chain with it; judging the tail would materialize `get.inner`
+ * beside the accessor and put the aggregate scope straight back.
+ *
+ *  1. Merge a function with a dotted namespace and declare an unmerged dotted
+ *     twin beside it.
+ *  2. Collect the inventory.
+ *  3. Assert the merged chain is gone entirely and the twin is intact.
+ */
+func TestTypeScriptDottedNamespaceMergedWithFunctionIsDroppedWhole(t *testing.T) {
+	inventory := parseTypeScriptInventory(t, "src/contracts.ts", `
+export function get(): void {}
+export namespace get.inner {
+  export const path = () => "/get";
+}
+
+export function keep(): void {}
+export namespace other.inner {
+  export const path = () => "/other";
+}
+`)
+	units := []string{}
+	for _, unit := range inventory.Units {
+		units = append(units, unit.Symbol+":"+unit.Target)
+	}
+	sort.Strings(units)
+	want := []string{
+		"function:get",
+		"function:keep",
+		"function:other.inner.path",
+		"type:get",
+		"type:other",
+		"type:other.inner",
+	}
+	sort.Strings(want)
+	if strings.Join(units, "\n") != strings.Join(want, "\n") {
+		t.Fatalf(
+			"dotted merged namespace units:\n%s\nwant:\n%s",
+			strings.Join(units, "\n"),
+			strings.Join(want, "\n"),
+		)
+	}
+}
+
+/**
+ * Verifies the same correction in a declaration file.
+ *
+ * A published SDK ships its accessors as `.d.ts`, where nothing carries an
+ * export modifier of the kind a source file uses and namespace members are
+ * implicitly public instead. That is a different path to the same population,
+ * so it needs its own case — a correction that held only for `.ts` would leave
+ * every consumer selecting an installed package exactly where they started.
+ *
+ *  1. Declare the accessor ambiently with `declare function` and
+ *     `declare namespace`.
+ *  2. Collect the inventory.
+ *  3. Assert the accessor and its namespace identity survive and nothing else
+ *     does.
+ */
+func TestTypeScriptFunctionMergedNamespaceIsDroppedInDeclarationFiles(t *testing.T) {
+	inventory := parseTypeScriptInventory(t, "src/contracts.d.ts", `
+export declare function get(connection: string): string;
+export declare namespace get {
+  const path: () => string;
+  type Output = string;
+}
+`)
+	units := []string{}
+	for _, unit := range inventory.Units {
+		units = append(units, unit.Symbol+":"+unit.Target)
+	}
+	sort.Strings(units)
+	want := []string{
+		"function:get",
+		"type:get",
+	}
+	sort.Strings(want)
+	if strings.Join(units, "\n") != strings.Join(want, "\n") {
+		t.Fatalf(
+			"ambient merged namespace units:\n%s\nwant:\n%s",
 			strings.Join(units, "\n"),
 			strings.Join(want, "\n"),
 		)
@@ -228,6 +319,48 @@ export function test_health(): void {}
 }
 
 /**
+ * Verifies a citation left on a static member is reported rather than ignored.
+ *
+ * A declaration that stops being a public unit also stops being able to host a
+ * tag, and an author who already wrote one there has to be told. Dropping the
+ * tag silently would leave the claim's obligation quietly uncovered, which is
+ * the exact substitution this product refuses — so both halves are asserted:
+ * the host is named as out of scope, and the target it meant to cover is still
+ * owed.
+ *
+ *  1. Put an `@evidence` tag on a member of a function-merged namespace.
+ *  2. Evaluate a claim selecting function hosts.
+ *  3. Assert the ineligible host is named and the obligation stays open.
+ */
+func TestGraphReportsACitationOnAFunctionMergedNamespaceMember(t *testing.T) {
+	messages := runIndexRule(t, map[string]string{
+		"docs/spec.md": "## Contract\n",
+		"src/api/health.ts": `
+export function get(): void {}
+export namespace get {
+  /** @evidence docs/spec.md#contract The static member claims this. */
+  export const path = () => "/health";
+}
+`,
+	}, `{"claims":[{
+		"type":"typescript",
+		"files":["src/api/health.ts"],
+		"symbol":"function",
+		"reference":{"type":"markdown","files":["docs/spec.md"],"symbol":"h2"}
+	}]}`)
+	assertProblemContains(
+		t,
+		messages,
+		"host kind 'unsupported or non-exported declaration' is not selected",
+	)
+	assertProblemContains(
+		t,
+		messages,
+		"Missing acknowledgement for 'docs/spec.md#contract'",
+	)
+}
+
+/**
  * Verifies an interface merged with a same-named namespace is untouched.
  *
  * `IShoppingSale` beside `namespace IShoppingSale` is how a type family spells
@@ -279,9 +412,9 @@ export namespace IShoppingSale {
  *
  * A class registers no unit under its own name — only its callables do — so
  * `class Service` beside `namespace Service` has nothing to collide with and
- * never produced the ambiguity this change removes. Keying the correction on
- * the namespace alone would have caught it anyway and erased the companion
- * object every such class publishes.
+ * never produced the ambiguity this change removes. A correction keyed on the
+ * namespace rather than on its merge partner would have caught it anyway and
+ * erased the companion object every such class publishes.
  *
  *  1. Merge a class with a namespace declaring companion members.
  *  2. Collect the inventory.
