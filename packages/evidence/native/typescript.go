@@ -184,6 +184,10 @@ func collectTypeScriptStatements(
 		return
 	}
 	exports := collectLocalExportNames(statements)
+	// Built on the first namespace this list holds rather than up front, so a
+	// file declaring none pays nothing. Every rebuild scans every configured
+	// source, and most of them have no namespace at all.
+	var functionNames map[string]bool
 	for _, statement := range statements.Nodes {
 		if statement == nil {
 			continue
@@ -343,6 +347,19 @@ func collectTypeScriptStatements(
 				continue
 			}
 			addTypeScriptHost(supportedHosts, statement, "type")
+			// A namespace merged with a same-named function is that function's
+			// static side, not an independent container. `get.path` is a
+			// property of the `get` function value and `get.Output` is the type
+			// its own signature spells; neither is authored contract, so the
+			// merged namespace contributes its identity and nothing beneath it.
+			// Selecting those members is also what promoted the namespace to an
+			// addressable aggregate scope, where it collided with the function
+			// unit of the same name and left the accessor with no spelling that
+			// resolves.
+			if functionNames == nil {
+				functionNames = collectFunctionDeclarationNames(statements)
+			}
+			staticSide := functionNames[name]
 			for _, target := range targets {
 				identity := qualifyTypeScriptName(prefix, target.Public)
 				unit := addTypeScriptUnit(
@@ -353,19 +370,56 @@ func collectTypeScriptStatements(
 					identity,
 					parentID,
 				)
-				collectTypeScriptModule(
-					statement,
-					identity,
-					unit.ID,
-					inventory,
-					supportedHosts,
-					unitsByID,
-					ambientContext,
-					typeOnlyProjection || target.TypeOnly,
-				)
+				if !staticSide {
+					collectTypeScriptModule(
+						statement,
+						identity,
+						unit.ID,
+						inventory,
+						supportedHosts,
+						unitsByID,
+						ambientContext,
+						typeOnlyProjection || target.TypeOnly,
+					)
+				}
 			}
 		}
 	}
+}
+
+// collectFunctionDeclarationNames indexes the local names a statement list
+// declares as functions, which is what a namespace in the same list merges with.
+//
+// A namespace merges only with a function, a class, or an enum in the same
+// scope; a `const` or `let` of the same name is `TS2451`, measured against the
+// pinned compiler. Of the three legal partners only a function also
+// materializes a unit under the merged name — a class registers no unit of its
+// own and the collector has no enum case — so the function form is the one
+// shape where a namespace and the declaration it merges with are the same
+// public entity spelled twice.
+//
+// The name alone decides, without consulting export modifiers, because
+// TypeScript refuses a merged declaration whose halves disagree on export
+// (`TS2395`, measured). The whole list is indexed rather than only the
+// statements already collected, because merging does not depend on which
+// declaration is written first.
+func collectFunctionDeclarationNames(
+	statements *shimast.NodeList,
+) map[string]bool {
+	names := map[string]bool{}
+	if statements == nil {
+		return names
+	}
+	for _, statement := range statements.Nodes {
+		if statement == nil ||
+			statement.Kind != shimast.KindFunctionDeclaration {
+			continue
+		}
+		if name := declarationName(statement.Name()); name != "" {
+			names[name] = true
+		}
+	}
+	return names
 }
 
 func collectTypeScriptVariables(
