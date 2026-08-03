@@ -1779,7 +1779,10 @@ export namespace EvidenceBenchmarkRunner {
         composeArguments: (arguments_) => [...arguments_],
         windowsVerbatimArguments: false,
       };
-    const command: string | undefined = props.environment.ComSpec;
+    const command: string | undefined = readEnvironment(
+      props.environment,
+      "ComSpec",
+    );
     if (command === undefined)
       throw new Error("Windows command processor was not found.");
     return {
@@ -1835,6 +1838,23 @@ export namespace EvidenceBenchmarkRunner {
 
   function canOwnInterruptedUsageReplay(value: unknown): boolean {
     return value === "active" || isInterruptedGoalStatus(value);
+  }
+
+  /**
+   * Reads one Windows environment variable without depending on its spelling.
+   *
+   * `process.env` is case-insensitive on Windows, but the sanitized copy the
+   * runner passes to children is an ordinary object, so a shell that exports
+   * `COMSPEC` rather than `ComSpec` would otherwise look unset.
+   */
+  function readEnvironment(
+    environment: NodeJS.ProcessEnv,
+    name: string,
+  ): string | undefined {
+    const wanted: string = name.toUpperCase();
+    for (const [key, value] of Object.entries(environment))
+      if (key.toUpperCase() === wanted && value !== undefined) return value;
+    return undefined;
   }
 
   function locateWindowsCommand(
