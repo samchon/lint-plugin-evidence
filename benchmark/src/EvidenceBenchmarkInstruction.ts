@@ -47,6 +47,33 @@ export namespace EvidenceBenchmarkInstruction {
     }));
   }
 
+  /** Reconstructs the fixed sequence retained runs used before adaptive review. */
+  export function legacyPlan(
+    arm: EvidenceBenchmarkArm,
+  ): IEvidenceBenchmarkInstructionPlanEntry[] {
+    const entries: readonly (readonly [string, string])[] =
+      arm === "evidence"
+        ? EvidenceBenchmarkInstruction.entries(arm)
+        : [
+            ["backend-start", "plain/backend/start.md"],
+            ["backend-review", "plain/backend/review.md"],
+            ["backend-remind", "plain/backend/remind.md"],
+            ["backend-final", "plain/backend/final.md"],
+            ["frontend-start", "plain/frontend/start.md"],
+            ["frontend-review", "plain/frontend/review.md"],
+            ["frontend-remind", "plain/frontend/remind.md"],
+            ["frontend-final", "plain/frontend/final.md"],
+            ["overall-review", "plain/overall/review.md"],
+            ["overall-remind", "plain/overall/remind.md"],
+            ["overall-final", "plain/overall/final.md"],
+          ];
+    return entries.map(([name, relativePath]) => ({
+      name,
+      relativePath,
+      kind: "legacy-base",
+    }));
+  }
+
   /** Returns the arm-owned continuation appended to every objective. */
   export function continuationPath(arm: EvidenceBenchmarkArm): string {
     return `${arm}/continue.md`;
@@ -95,6 +122,7 @@ export namespace EvidenceBenchmarkInstruction {
         throw new Error("Review supplementation plan entry is incomplete.");
       return { scope: entry.reviewScope, attempt: entry.reviewAttempt };
     }
+    if (entry.kind !== "base") return undefined;
     const match = /^(backend|frontend|overall)-review$/u.exec(entry.name);
     return match === null
       ? undefined

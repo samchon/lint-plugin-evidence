@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
 
+import { EvidenceBenchmarkInstruction } from "../../../benchmark/src/EvidenceBenchmarkInstruction.ts";
 import { EvidenceBenchmarkRunner } from "../../../benchmark/src/EvidenceBenchmarkRunner.ts";
 import { EvidenceBenchmarkReviewLedger } from "../../../benchmark/src/EvidenceBenchmarkReviewLedger.ts";
 import { EvidenceBenchmarkSupervision } from "../../../benchmark/src/EvidenceBenchmarkSupervision.ts";
@@ -41,6 +42,20 @@ const PLAIN_REMINDERS = [
   ["backend-remind", "plain/backend/remind.md"],
   ["frontend-remind", "plain/frontend/remind.md"],
   ["overall-remind", "plain/overall/remind.md"],
+] as const;
+
+const LEGACY_PLAIN_ENTRIES = [
+  PLAIN_ENTRIES[0],
+  PLAIN_ENTRIES[1],
+  PLAIN_REMINDERS[0],
+  PLAIN_ENTRIES[2],
+  PLAIN_ENTRIES[3],
+  PLAIN_ENTRIES[4],
+  PLAIN_REMINDERS[1],
+  PLAIN_ENTRIES[5],
+  PLAIN_ENTRIES[6],
+  PLAIN_REMINDERS[2],
+  PLAIN_ENTRIES[7],
 ] as const;
 
 const ENTRIES = EVIDENCE_ENTRIES;
@@ -153,7 +168,9 @@ const main = async (): Promise<void> => {
       new Promise<never>((_resolve, reject) =>
         setTimeout(
           () => reject(new Error("Owner monitor left an orphan process.")),
-          5_000,
+          // This bounds test scheduling under concurrent benchmark load; it is
+          // not the monitor's production cleanup interval.
+          15_000,
         ),
       ),
     ]);
@@ -405,6 +422,7 @@ const main = async (): Promise<void> => {
         cliVersion: "fixture-cli",
         nextInstructionIndex: 1,
         status: "ready",
+        instructionPlan: EvidenceBenchmarkInstruction.plan("plain"),
         threadTokenUsage: structuredClone(backendStart.tokenUsageEnd),
         nativeThreadStartInstructionIndex: 1,
         goals: [structuredClone(backendStart)],
@@ -453,6 +471,41 @@ const main = async (): Promise<void> => {
       "backend-review",
     );
     assert.equal(supervised.supervisionPauses?.[0]?.resumedAt, undefined);
+    const legacyState = structuredClone(supervised);
+    delete legacyState.instructionPlan;
+    delete legacyState.supervisionPauses;
+    legacyState.status = "ready";
+    const resumedLegacy = await EvidenceBenchmarkRunner.run({
+      state: legacyState,
+      cwd: supervisedWorkspace,
+      runRoot: path.join(root, "legacy-run"),
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--legacy-plain",
+        "--current-goal",
+        "--fork",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(
+      resumedLegacy.status,
+      "completed",
+      JSON.stringify(resumedLegacy.interruption),
+    );
+    assert.deepEqual(
+      resumedLegacy.goals.map((goal) => [goal.name, goal.relativePath]),
+      LEGACY_PLAIN_ENTRIES,
+    );
+    assert.equal(resumedLegacy.supervisionPauses, undefined);
+    assert.ok(
+      resumedLegacy.instructionPlan?.every(
+        (entry) => entry.kind === "legacy-base",
+      ),
+    );
     assert.equal(
       supervisedOutput
         .filter((output) => output.stream === "stdin")
@@ -551,6 +604,24 @@ const main = async (): Promise<void> => {
         }),
       /does not match frozen benchmark inputs/u,
     );
+    const workspaceVerdict: string = path.join(
+      supervisedWorkspace,
+      "verdict.json",
+    );
+    fs.writeFileSync(
+      workspaceVerdict,
+      '{"decision":"pass","rationale":"Complete review."}\n',
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkSupervision.decide({
+          runRoot: supervisedRunRoot,
+          instructionsRoot: root,
+          verdictFile: workspaceVerdict,
+        }),
+      /cannot modify the measured workspace/u,
+    );
+    fs.unlinkSync(workspaceVerdict);
     const disclosedVerdict: string = path.join(root, "disclosed.json");
     fs.writeFileSync(
       disclosedVerdict,
@@ -944,6 +1015,7 @@ const main = async (): Promise<void> => {
       cliVersion: "fixture-cli",
       nextInstructionIndex: 1,
       status: "ready",
+      instructionPlan: EvidenceBenchmarkInstruction.plan("plain"),
       threadTokenUsage: {
         totalTokens: 0,
         inputTokens: 0,
@@ -3028,12 +3100,16 @@ const fakeAppServer = (): void => {
     previousActive ||
     undispatched ||
     process.argv.includes("--previous-goal");
-  const fixtureEntries = process.argv.includes("--plain-arm")
-    ? PLAIN_ENTRIES
-    : ENTRIES;
-  const fixtureArm: "plain" | "evidence" = process.argv.includes("--plain-arm")
-    ? "plain"
-    : "evidence";
+  const fixtureEntries = process.argv.includes("--legacy-plain")
+    ? LEGACY_PLAIN_ENTRIES
+    : process.argv.includes("--plain-arm")
+      ? PLAIN_ENTRIES
+      : ENTRIES;
+  const fixtureArm: "plain" | "evidence" =
+    process.argv.includes("--legacy-plain") ||
+    process.argv.includes("--plain-arm")
+      ? "plain"
+      : "evidence";
   const resumeStatusBeforeResponse: boolean = process.argv.includes(
     "--resume-status-before-response",
   );

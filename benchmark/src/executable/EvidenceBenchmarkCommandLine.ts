@@ -416,6 +416,7 @@ const runFromBackendStartCheckpoint = async (props: {
     cliVersion: checkpoint.cliVersion,
     nextInstructionIndex: 1,
     status: "ready",
+    instructionPlan: EvidenceBenchmarkInstruction.plan(requested.arm),
     threadTokenUsage:
       requested.reviewLedger === "backend"
         ? emptyTokenUsage()

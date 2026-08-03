@@ -8,8 +8,11 @@ export interface IEvidenceBenchmarkInstructionPlanEntry {
   /** Instruction path relative to the frozen instruction root. */
   relativePath: string;
 
-  /** Whether this slot belonged to the frozen base plan or a failed verdict. */
-  kind: "base" | "review-supplement";
+  /**
+   * Whether this slot belongs to the adaptive base, a supplement, or a frozen
+   * legacy run.
+   */
+  kind: "base" | "review-supplement" | "legacy-base";
 
   /** Review scope supplemented by this dynamic slot. */
   reviewScope?: EvidenceBenchmarkReviewScope;

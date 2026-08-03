@@ -59,9 +59,12 @@ export namespace EvidenceBenchmarkSupervision {
     if (next?.kind !== "base" || next.name !== `${pause.scope}-final`)
       throw new Error("Review verdict does not precede its matching Final.");
 
-    const submittedBytes: Buffer = fs.readFileSync(
-      path.resolve(props.verdictFile),
-    );
+    const submittedFile: string = path.resolve(props.verdictFile);
+    if (isWithin(retained.records.workspace, submittedFile))
+      throw new Error(
+        "Review verdict input cannot modify the measured workspace.",
+      );
+    const submittedBytes: Buffer = fs.readFileSync(submittedFile);
     const submitted: ISubmittedVerdict = parseSubmitted(submittedBytes);
     const rationale: string = submitted.rationale.trim();
     const feedback: string | undefined = submitted.feedback?.trim();
@@ -329,12 +332,25 @@ export namespace EvidenceBenchmarkSupervision {
     return resolved;
   }
 
+  function isWithin(root: string, candidate: string): boolean {
+    const normalizedRoot: string = normalizePath(root);
+    const normalizedCandidate: string = normalizePath(candidate);
+    return (
+      normalizedCandidate === normalizedRoot ||
+      normalizedCandidate.startsWith(`${normalizedRoot}${path.sep}`)
+    );
+  }
+
   function samePath(left: string, right: string): boolean {
-    const normalize = (value: string): string => {
-      const resolved: string = path.resolve(value);
-      return process.platform === "win32" ? resolved.toLowerCase() : resolved;
-    };
-    return normalize(left) === normalize(right);
+    return normalizePath(left) === normalizePath(right);
+  }
+
+  function normalizePath(value: string): string {
+    const absolute: string = path.resolve(value);
+    const resolved: string = fs.existsSync(absolute)
+      ? fs.realpathSync.native(absolute)
+      : absolute;
+    return process.platform === "win32" ? resolved.toLowerCase() : resolved;
   }
 
   function sameWorkspace(

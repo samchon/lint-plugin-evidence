@@ -7,6 +7,7 @@ import path from "node:path";
 import { collectEvidenceBenchmarkApiCost } from "../../../benchmark/src/EvidenceBenchmarkApiCost.ts";
 import { renderEvidenceBenchmarkDashboard } from "../../../benchmark/src/EvidenceBenchmarkDashboard.ts";
 import { writeEvidenceBenchmarkReport } from "../../../benchmark/src/EvidenceBenchmarkReport.ts";
+import { auditEvidenceBenchmarkSuspensions } from "../../../benchmark/src/EvidenceBenchmarkSuspensionAudit.ts";
 import type {
   IEvidenceBenchmarkReport,
   IEvidenceBenchmarkReportCell,
@@ -201,8 +202,44 @@ const main = (): void => {
         goal(5, "frontend-final", 150_000, 1_660_000),
       ],
       processes: [{ elapsedMs: 3_660_000, exitCode: 0, signal: null }],
-      outputEvents: [],
+      outputEvents: [{ processIndex: 0, elapsedMs: 3_660_000 }],
     });
+    const audit = auditEvidenceBenchmarkSuspensions(
+      repository,
+      [
+        {
+          startedAt: "2026-07-31T02:06:00.000Z",
+          endedAt: "2026-07-31T02:07:00.000Z",
+        },
+        {
+          startedAt: "2026-07-31T02:40:00.000Z",
+          endedAt: "2026-07-31T02:41:40.000Z",
+        },
+        {
+          startedAt: "2026-07-31T03:00:50.000Z",
+          endedAt: "2026-07-31T03:01:00.000Z",
+        },
+      ],
+      ["evidence"],
+    );
+    assert.deepEqual(audit, { runs: 1, intervals: 3, added: 2 });
+    assert.equal(
+      auditEvidenceBenchmarkSuspensions(
+        repository,
+        [
+          {
+            startedAt: "2026-07-31T02:06:00.000Z",
+            endedAt: "2026-07-31T02:07:00.000Z",
+          },
+          {
+            startedAt: "2026-07-31T02:40:00.000Z",
+            endedAt: "2026-07-31T02:41:40.000Z",
+          },
+        ],
+        ["evidence"],
+      ).added,
+      0,
+    );
     fs.mkdirSync(
       path.join(
         repository,
@@ -246,7 +283,7 @@ const main = (): void => {
     );
     assert.match(
       dashboard,
-      /^\| Todo Evidence \| `frontend-final` · completed \| 0 files · \+0\/−0 LOC \| 0M \| 1h 01m \|$/mu,
+      /^\| Todo Evidence \| `frontend-final` · completed \| 0 files · \+0\/−0 LOC \| 0M \| 58m \|$/mu,
     );
     assert.match(
       dashboard,
@@ -267,7 +304,7 @@ const main = (): void => {
     );
     assert.match(
       dashboard,
-      /^  - `frontend-final`: 0M · 28m · 38% tokens · 45% time$/mu,
+      /^  - `frontend-final`: 0M · 26m · 38% tokens · 45% time$/mu,
     );
     assert.match(
       dashboard,
@@ -287,7 +324,15 @@ const main = (): void => {
     const generatedAt: Date = new Date("2026-07-31T04:00:00.000Z");
     const reportOutput: string = path.join(repository, "published");
     fs.mkdirSync(reportOutput);
-    for (const file of ["tokens.png", "work-time.png", "wall-time.png"])
+    for (const file of [
+      "tokens.png",
+      "time.png",
+      "work-time.svg",
+      "work-time.png",
+      "wall-time.svg",
+      "wall-time.png",
+      "obsolete.svg",
+    ])
       fs.writeFileSync(path.join(reportOutput, file), "stale");
     const report: IEvidenceBenchmarkReport = writeEvidenceBenchmarkReport({
       repository,
@@ -325,6 +370,8 @@ const main = (): void => {
       },
     ]);
     assert.equal(todoPlain.tokens, 1_600_000);
+    assert.equal(todoPlain.suspendedMs, 0);
+    assert.deepEqual(todoPlain.suspensions, []);
     assert.deepEqual(todoPlain.tokenUsage, {
       totalTokens: 1_600_000,
       inputTokens: 1_200_000,
@@ -349,6 +396,12 @@ const main = (): void => {
         (cell) => cell.subject === "todo" && cell.arm === "evidence",
       );
     assert.ok(todoEvidence);
+    assert.equal(todoEvidence.suspendedMs, 160_000);
+    assert.deepEqual(
+      todoEvidence.suspensions.map((suspension) => suspension.elapsedMs),
+      [60_000, 100_000],
+    );
+    assert.equal(todoEvidence.workElapsedMs, 3_500_000);
     assert.deepEqual(todoEvidence.apiCost, {
       provider: "openrouter",
       pricingAsOf: "2026-08-01",
@@ -367,7 +420,6 @@ const main = (): void => {
     assert.ok(redditPlain);
     assert.equal(redditPlain.apiCost?.amountUsd, 3.135);
     assert.equal(todoPlain.workElapsedMs, 126_000);
-    assert.equal(todoPlain.wallElapsedMs, 3.25 * 60 * 60 * 1_000);
     assert.deepEqual(todoPlain.worktree, {
       files: 2,
       additions: 2,
@@ -421,22 +473,6 @@ const main = (): void => {
       ),
       todoPlain,
     );
-    const ordinarySvgChartFiles: readonly string[] = ["wall-time.svg"];
-    for (const file of ordinarySvgChartFiles) {
-      const svg: string = fs.readFileSync(
-        path.join(reportOutput, file),
-        "utf8",
-      );
-      assert.match(svg, /^<svg /u);
-      assert.match(svg, /Todo Plain · running/u);
-      assert.match(svg, /Todo Evidence · completed/u);
-      assert.match(svg, /Reddit Plain · interrupted/u);
-      assert.match(svg, /Stage: backend-review/u);
-      assert.match(svg, /#4c78a8/u);
-      assert.match(svg, /#f58518/u);
-      assert.equal(svg.includes("old"), false);
-      assert.equal(svg.includes("Shopping"), false);
-    }
     const tokensSvg: string = fs.readFileSync(
       path.join(reportOutput, "tokens.svg"),
       "utf8",
@@ -487,38 +523,37 @@ const main = (): void => {
     assert.match(tokensSvg, /#f58518/u);
     assert.equal(tokensSvg.includes("old"), false);
     assert.equal(tokensSvg.includes("Shopping"), false);
-    const workTimeSvg: string = fs.readFileSync(
-      path.join(reportOutput, "work-time.svg"),
+    const timeSvg: string = fs.readFileSync(
+      path.join(reportOutput, "time.svg"),
       "utf8",
     );
-    assert.match(workTimeSvg, /^<svg /u);
-    assert.match(workTimeSvg, /Benchmark work time by project/u);
-    assert.match(workTimeSvg, /Work Time details/u);
-    assert.match(workTimeSvg, />API cost</u);
-    assert.match(workTimeSvg, />\$0\.46</u);
-    assert.match(workTimeSvg, /API cost \$0\.11</u);
-    assert.doesNotMatch(workTimeSvg, /API cost [^<]* vs /u);
+    assert.match(timeSvg, /^<svg /u);
+    assert.match(timeSvg, /Benchmark work time by project/u);
+    assert.match(timeSvg, /Work Time details/u);
+    assert.match(timeSvg, />API cost</u);
+    assert.match(timeSvg, />\$0\.46</u);
+    assert.match(timeSvg, /API cost \$0\.11</u);
+    assert.doesNotMatch(timeSvg, /API cost [^<]* vs /u);
+    assert.match(timeSvg, /data-phase="backend-development" data-ms="300000"/u);
+    assert.match(timeSvg, /data-phase="backend-review" data-ms="540000"/u);
     assert.match(
-      workTimeSvg,
-      /data-phase="backend-development" data-ms="300000"/u,
-    );
-    assert.match(workTimeSvg, /data-phase="backend-review" data-ms="600000"/u);
-    assert.match(
-      workTimeSvg,
+      timeSvg,
       /data-phase="frontend-development" data-ms="500000"/u,
     );
-    assert.match(
-      workTimeSvg,
-      /data-phase="frontend-review" data-ms="2260000"/u,
-    );
-    assert.match(workTimeSvg, />1h 01m</u);
-    assert.equal(workTimeSvg.includes("Stage: backend-review"), false);
-    const svgChartFiles: readonly string[] = [
-      "tokens.svg",
+    assert.match(timeSvg, /data-phase="frontend-review" data-ms="2160000"/u);
+    assert.match(timeSvg, />58m</u);
+    assert.match(timeSvg, /Verified system suspensions are excluded/u);
+    assert.equal(timeSvg.includes("Stage: backend-review"), false);
+    const svgChartFiles: readonly string[] = ["tokens.svg", "time.svg"];
+    for (const file of [
+      "tokens.png",
+      "time.png",
       "work-time.svg",
-      ...ordinarySvgChartFiles,
-    ];
-    for (const file of ["tokens.png", "work-time.png", "wall-time.png"])
+      "work-time.png",
+      "wall-time.svg",
+      "wall-time.png",
+      "obsolete.svg",
+    ])
       assert.equal(fs.existsSync(path.join(reportOutput, file)), false);
     const repeatedOutput: string = path.join(repository, "published-again");
     writeEvidenceBenchmarkReport({
@@ -540,12 +575,8 @@ const main = (): void => {
       /1\.6M tokens/u,
     );
     assert.match(
-      fs.readFileSync(path.join(reportOutput, "work-time.svg"), "utf8"),
+      fs.readFileSync(path.join(reportOutput, "time.svg"), "utf8"),
       />2m</u,
-    );
-    assert.match(
-      fs.readFileSync(path.join(reportOutput, "wall-time.svg"), "utf8"),
-      />3h 15m</u,
     );
     const historicalOutput: string = path.join(repository, "historical");
     const historical: IEvidenceBenchmarkReport = writeEvidenceBenchmarkReport({
@@ -562,6 +593,7 @@ const main = (): void => {
       fs.existsSync(path.join(historicalOutput, "tokens.svg")),
       true,
     );
+    assert.equal(fs.existsSync(path.join(historicalOutput, "time.svg")), true);
     assert.throws(
       () =>
         writeEvidenceBenchmarkReport({
@@ -738,6 +770,19 @@ const writeRun = (props: {
   const raw: string = path.join(root, "raw.log");
   const expectedUsage: ReturnType<typeof tokenUsage> =
     props.tokenUsage ?? tokenUsage(props.totalTokens);
+  let completedAt: number = Date.parse(props.launchedAt);
+  const goals = props.goals.map((goal) => {
+    completedAt += goal.elapsedMs;
+    const complete: boolean = goal.index < props.nextInstructionIndex;
+    return {
+      ...goal,
+      goal: {
+        ...goal.goal,
+        status: complete ? "complete" : "active",
+        updatedAt: Math.floor(completedAt / 1_000),
+      },
+    };
+  });
   writeRawUsage(
     raw,
     props.requests ?? [expectedUsage],
@@ -751,7 +796,14 @@ const writeRun = (props: {
         processIndex: 0,
         elapsedMs: 0,
       }),
-      ...props.outputEvents.map((event) => JSON.stringify(event)),
+      ...props.outputEvents.map((event) =>
+        JSON.stringify({
+          recordedAt: new Date(
+            Date.parse(props.launchedAt) + event.elapsedMs,
+          ).toISOString(),
+          ...event,
+        }),
+      ),
       "",
     ].join("\n"),
   );
@@ -790,7 +842,7 @@ const writeRun = (props: {
           threadTokenUsage: expectedUsage,
           nativeThreadStartInstructionIndex:
             props.nativeThreadStartInstructionIndex,
-          goals: props.goals,
+          goals,
           processes: props.processes,
           supervisionPauses: props.supervisionPauses,
           ...(props.inheritedProcessElapsedMs === undefined

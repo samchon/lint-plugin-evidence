@@ -12,8 +12,13 @@ import type {
   IEvidenceBenchmarkReportCell,
   IEvidenceBenchmarkReportReviewVerdict,
   IEvidenceBenchmarkReportStage,
+  IEvidenceBenchmarkReportSuspension,
   IEvidenceBenchmarkReportWorktree,
 } from "./structures/IEvidenceBenchmarkReport.ts";
+import type {
+  IEvidenceBenchmarkSuspension,
+  IEvidenceBenchmarkSuspensionLog,
+} from "./structures/IEvidenceBenchmarkSuspension.ts";
 import type { IEvidenceBenchmarkTokenUsage } from "./structures/IEvidenceBenchmarkTokenUsage.ts";
 import type { EvidenceBenchmarkEffort } from "./typings/EvidenceBenchmarkEffort.ts";
 
@@ -97,6 +102,7 @@ interface IDashboardStateFile {
 interface IDashboardRun {
   file: IDashboardStateFile;
   launchedAt: number;
+  suspensions: IEvidenceBenchmarkReportSuspension[];
 }
 
 interface IOutputEvent {
@@ -151,9 +157,7 @@ export const collectEvidenceBenchmarkReport = (
     cells: ordered.flatMap(([, runs]) =>
       runs
         .sort(compareRuns)
-        .map((run) =>
-          summarizeRun(run, generatedAt.getTime(), includeApiCost, byRunId),
-        ),
+        .map((run) => summarizeRun(run, includeApiCost, byRunId)),
     ),
   };
 };
@@ -191,13 +195,90 @@ const scanRuns = (result: string): IDashboardRun[] => {
           const file: IDashboardStateFile = typia.assert<IDashboardStateFile>(
             JSON.parse(fs.readFileSync(statePath, "utf8")),
           );
+          const launchedAt: number = readLaunchTime(
+            file.records.events,
+            statePath,
+          );
           runs.push({
             file,
-            launchedAt: readLaunchTime(file.records.events, statePath),
+            launchedAt,
+            suspensions: readSuspensions(
+              path.join(root, runId, "suspensions.json"),
+              file.state,
+              launchedAt,
+              readLastRecordedTime(file.records.events),
+            ),
           });
         }
       }
   return runs;
+};
+
+const readSuspensions = (
+  file: string,
+  state: IDashboardState,
+  launchedAt: number,
+  lastRecordedAt: number | undefined,
+): IEvidenceBenchmarkReportSuspension[] => {
+  if (!fs.existsSync(file)) return [];
+  const log: IEvidenceBenchmarkSuspensionLog =
+    typia.assert<IEvidenceBenchmarkSuspensionLog>(
+      JSON.parse(fs.readFileSync(file, "utf8")),
+    );
+  const ordered: IEvidenceBenchmarkReportSuspension[] = log.suspensions
+    .map((suspension) => validateSuspension(suspension, state))
+    .sort(
+      (left, right) => Date.parse(left.startedAt) - Date.parse(right.startedAt),
+    );
+  for (let index: number = 0; index < ordered.length; ++index) {
+    const suspension: IEvidenceBenchmarkReportSuspension = ordered[index]!;
+    const startedAt: number = Date.parse(suspension.startedAt);
+    const endedAt: number = Date.parse(suspension.endedAt);
+    if (
+      startedAt < launchedAt ||
+      (lastRecordedAt !== undefined && endedAt > lastRecordedAt)
+    )
+      throw new Error(`Benchmark suspension lies outside its run: ${file}.`);
+    const previous: IEvidenceBenchmarkReportSuspension | undefined =
+      ordered[index - 1];
+    if (previous !== undefined && Date.parse(previous.endedAt) > startedAt)
+      throw new Error(`Benchmark suspensions overlap: ${file}.`);
+  }
+  return ordered;
+};
+
+const validateSuspension = (
+  suspension: IEvidenceBenchmarkSuspension,
+  state: IDashboardState,
+): IEvidenceBenchmarkReportSuspension => {
+  if (
+    !Number.isSafeInteger(suspension.processIndex) ||
+    suspension.processIndex < 0 ||
+    suspension.processIndex >= state.processes.length
+  )
+    throw new Error(
+      `Benchmark suspension has an invalid process index: ${suspension.processIndex}.`,
+    );
+  if (
+    suspension.instructionIndex !== null &&
+    (!Number.isSafeInteger(suspension.instructionIndex) ||
+      !state.goals.some((goal) => goal.index === suspension.instructionIndex))
+  )
+    throw new Error(
+      `Benchmark suspension has an invalid instruction index: ${suspension.instructionIndex}.`,
+    );
+  const startedAt: number = Date.parse(suspension.startedAt);
+  const endedAt: number = Date.parse(suspension.endedAt);
+  if (
+    !Number.isFinite(startedAt) ||
+    !Number.isFinite(endedAt) ||
+    endedAt <= startedAt
+  )
+    throw new Error("Benchmark suspension has an invalid time interval.");
+  return {
+    ...suspension,
+    elapsedMs: endedAt - startedAt,
+  };
 };
 
 const directories = (root: string): string[] =>
@@ -299,12 +380,20 @@ const renderRun = (run: IEvidenceBenchmarkReportCell): IRenderedRun => {
 
 const summarizeRun = (
   run: IDashboardRun,
-  generatedAt: number,
   includeApiCost: boolean,
   byRunId: ReadonlyMap<string, IDashboardRun>,
 ): IEvidenceBenchmarkReportCell => {
   const file: IDashboardStateFile = run.file;
-  const workElapsedMs: number = elapsed(file);
+  const rawWorkElapsedMs: number = elapsed(file);
+  const suspendedMs: number = run.suspensions.reduce(
+    (sum, suspension) => sum + suspension.elapsedMs,
+    0,
+  );
+  if (suspendedMs > rawWorkElapsedMs)
+    throw new Error(
+      `Benchmark suspension exceeds retained work time: ${file.cell.runId}.`,
+    );
+  const workElapsedMs: number = rawWorkElapsedMs - suspendedMs;
   const detached: boolean = file.cell.reviewLedger === "backend";
   const totalUsage: IEvidenceBenchmarkTokenUsage = totalTokenUsage(
     file.state,
@@ -315,6 +404,7 @@ const summarizeRun = (
     file.state,
     workElapsedMs,
     detached,
+    run.suspensions,
   ).map((measurement) => ({
     ...measurement,
     tokenPercent: percent(measurement.tokens, totalTokens),
@@ -337,8 +427,9 @@ const summarizeRun = (
     tokens: totalTokens,
     tokenUsage: totalUsage,
     apiCost: includeApiCost ? collectRunApiCost(run, byRunId) : null,
+    suspendedMs,
+    suspensions: run.suspensions,
     workElapsedMs,
-    wallElapsedMs: wallElapsed(run, generatedAt),
     worktree: inspectWorktree(file.records.workspace),
     reviewVerdicts: collectReviewVerdicts(file.state),
     stages,
@@ -524,55 +615,6 @@ const findCheckpointOrigin = (
   return current;
 };
 
-const wallElapsed = (run: IDashboardRun, generatedAt: number): number => {
-  const stoppedAt: number | undefined =
-    run.file.state.status === "completed" ||
-    run.file.state.status === "checkpointed" ||
-    run.file.state.status === "awaiting-review-verdict" ||
-    run.file.state.status === "quality-failed" ||
-    run.file.state.status === "awaiting-supervision" ||
-    run.file.state.status === "rejected"
-      ? readLastRecordedTime(run.file.records.events)
-      : generatedAt;
-  const effectiveStoppedAt: number = stoppedAt ?? run.launchedAt;
-  const supervisionElapsedMs: number =
-    run.file.state.supervisionPauses?.reduce(
-      (sum, pause) =>
-        sum +
-        intervalOverlap(
-          run.launchedAt,
-          effectiveStoppedAt,
-          Date.parse(pause.pausedAt),
-          pause.resumedAt === undefined
-            ? effectiveStoppedAt
-            : Date.parse(pause.resumedAt),
-        ),
-      0,
-    ) ?? 0;
-  return (
-    Math.max(0, effectiveStoppedAt - run.launchedAt - supervisionElapsedMs) +
-    (run.file.cell.checkpointSource?.inheritedWallElapsedMs ?? 0)
-  );
-};
-
-const intervalOverlap = (
-  outerStart: number,
-  outerEnd: number,
-  innerStart: number,
-  innerEnd: number,
-): number => {
-  if (
-    [outerStart, outerEnd, innerStart, innerEnd].some(
-      (value) => Number.isFinite(value) === false,
-    )
-  )
-    return 0;
-  return Math.max(
-    0,
-    Math.min(outerEnd, innerEnd) - Math.max(outerStart, innerStart),
-  );
-};
-
 const readLastRecordedTime = (file: string): number | undefined => {
   if (!fs.existsSync(file)) return undefined;
   const descriptor: number = fs.openSync(file, "r");
@@ -679,6 +721,7 @@ const stageMeasurements = (
   state: IDashboardState,
   totalElapsed: number,
   detached: boolean,
+  suspensions: readonly IEvidenceBenchmarkReportSuspension[],
 ): IStageMeasurement[] => {
   const current: IDashboardInstruction | undefined =
     state.goals.find(
@@ -702,7 +745,8 @@ const stageMeasurements = (
     0,
   );
   const retainedElapsed: number = state.goals.reduce(
-    (sum, instruction) => sum + retainedInstructionElapsed(state, instruction),
+    (sum, instruction) =>
+      sum + correctedInstructionElapsed(state, instruction, suspensions),
     0,
   );
   const activeTokens: number = Math.max(
@@ -716,9 +760,30 @@ const stageMeasurements = (
       instruction.tokenUsage.totalTokens +
       (instruction === current ? activeTokens : 0),
     elapsedMs:
-      retainedInstructionElapsed(state, instruction) +
+      correctedInstructionElapsed(state, instruction, suspensions) +
       (instruction === current ? activeElapsed : 0),
   }));
+};
+
+const correctedInstructionElapsed = (
+  state: IDashboardState,
+  instruction: IDashboardInstruction,
+  suspensions: readonly IEvidenceBenchmarkReportSuspension[],
+): number => {
+  const suspendedMs: number = suspensions.reduce(
+    (sum, suspension) =>
+      sum +
+      (suspension.instructionIndex === instruction.index
+        ? suspension.elapsedMs
+        : 0),
+    0,
+  );
+  const retainedMs: number = retainedInstructionElapsed(state, instruction);
+  if (suspendedMs > retainedMs)
+    throw new Error(
+      `Benchmark suspension exceeds retained instruction time: ${instruction.name}.`,
+    );
+  return retainedMs - suspendedMs;
 };
 
 const retainedInstructionElapsed = (

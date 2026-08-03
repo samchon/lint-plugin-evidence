@@ -56,7 +56,10 @@ export namespace EvidenceBenchmarkRunner {
   ): Promise<IEvidenceBenchmarkRunState> {
     const state: IEvidenceBenchmarkRunState =
       typia.assert<IEvidenceBenchmarkRunState>(structuredClone(props.state));
-    state.instructionPlan ??= EvidenceBenchmarkInstruction.plan(state.arm);
+    state.instructionPlan ??=
+      state.arm === "plain"
+        ? EvidenceBenchmarkInstruction.legacyPlan(state.arm)
+        : EvidenceBenchmarkInstruction.plan(state.arm);
     const entries: IEvidenceBenchmarkInstructionPlanEntry[] =
       state.instructionPlan;
     validateInstructionPlan(state, entries);
@@ -1509,50 +1512,71 @@ export namespace EvidenceBenchmarkRunner {
     state: IEvidenceBenchmarkRunState,
     entries: readonly IEvidenceBenchmarkInstructionPlanEntry[],
   ): void {
-    const base: IEvidenceBenchmarkInstructionPlanEntry[] =
-      EvidenceBenchmarkInstruction.plan(state.arm);
-    const retainedBase = entries.filter((entry) => entry.kind === "base");
-    if (
-      retainedBase.length !== base.length ||
-      retainedBase.some(
-        (entry, index) =>
-          entry.name !== base[index]?.name ||
-          entry.relativePath !== base[index]?.relativePath ||
-          entry.reviewScope !== undefined ||
-          entry.reviewAttempt !== undefined ||
-          entry.reviewFeedback !== undefined,
-      )
-    )
-      throw new Error("Retained benchmark base instruction plan changed.");
-    let supplementCount = 0;
-    for (const scope of ["backend", "frontend", "overall"] as const) {
-      const review: number = entries.findIndex(
-        (entry) => entry.kind === "base" && entry.name === `${scope}-review`,
-      );
-      const final: number = entries.findIndex(
-        (entry) => entry.kind === "base" && entry.name === `${scope}-final`,
-      );
-      const supplements = entries.slice(review + 1, final);
-      supplementCount += supplements.length;
+    const legacy: boolean = entries.some(
+      (entry) => entry.kind === "legacy-base",
+    );
+    if (legacy) {
+      const expected = EvidenceBenchmarkInstruction.legacyPlan(state.arm);
       if (
-        review < 0 ||
-        final <= review ||
-        supplements.some(
+        entries.length !== expected.length ||
+        entries.some(
           (entry, index) =>
-            state.arm !== "plain" ||
-            entry.kind !== "review-supplement" ||
-            entry.name !== `${scope}-remind-${index + 1}` ||
-            entry.relativePath !== `plain/${scope}/remind.md` ||
-            entry.reviewScope !== scope ||
-            entry.reviewAttempt !== index + 1 ||
-            entry.reviewFeedback?.trim().length === 0,
+            entry.kind !== "legacy-base" ||
+            entry.name !== expected[index]?.name ||
+            entry.relativePath !== expected[index]?.relativePath ||
+            entry.reviewScope !== undefined ||
+            entry.reviewAttempt !== undefined ||
+            entry.reviewFeedback !== undefined,
         ) ||
-        supplements.length > 4
+        (state.supervisionPauses?.length ?? 0) !== 0
       )
+        throw new Error("Retained legacy instruction plan changed.");
+    } else {
+      const base: IEvidenceBenchmarkInstructionPlanEntry[] =
+        EvidenceBenchmarkInstruction.plan(state.arm);
+      const retainedBase = entries.filter((entry) => entry.kind === "base");
+      if (
+        retainedBase.length !== base.length ||
+        retainedBase.some(
+          (entry, index) =>
+            entry.name !== base[index]?.name ||
+            entry.relativePath !== base[index]?.relativePath ||
+            entry.reviewScope !== undefined ||
+            entry.reviewAttempt !== undefined ||
+            entry.reviewFeedback !== undefined,
+        )
+      )
+        throw new Error("Retained benchmark base instruction plan changed.");
+      let supplementCount = 0;
+      for (const scope of ["backend", "frontend", "overall"] as const) {
+        const review: number = entries.findIndex(
+          (entry) => entry.kind === "base" && entry.name === `${scope}-review`,
+        );
+        const final: number = entries.findIndex(
+          (entry) => entry.kind === "base" && entry.name === `${scope}-final`,
+        );
+        const supplements = entries.slice(review + 1, final);
+        supplementCount += supplements.length;
+        if (
+          review < 0 ||
+          final <= review ||
+          supplements.some(
+            (entry, index) =>
+              state.arm !== "plain" ||
+              entry.kind !== "review-supplement" ||
+              entry.name !== `${scope}-remind-${index + 1}` ||
+              entry.relativePath !== `plain/${scope}/remind.md` ||
+              entry.reviewScope !== scope ||
+              entry.reviewAttempt !== index + 1 ||
+              entry.reviewFeedback?.trim().length === 0,
+          ) ||
+          supplements.length > 4
+        )
+          throw new Error("Retained review supplementation plan is invalid.");
+      }
+      if (entries.length !== base.length + supplementCount)
         throw new Error("Retained review supplementation plan is invalid.");
     }
-    if (entries.length !== base.length + supplementCount)
-      throw new Error("Retained review supplementation plan is invalid.");
     if (
       state.nextInstructionIndex < 0 ||
       state.nextInstructionIndex > entries.length ||
