@@ -1046,7 +1046,23 @@ func materializePackageGlobReference(
 			claimLabel(claim) + " " + referenceLabel(reference) + " matched no files inside package '" + reference.Package + "' for " + describePatterns(reference.Files) + ". Fix the package-relative globs; they resolve against the package root, not the project root.",
 		}
 	}
-	population := materializeEntryUnits(loader, state.Paths, reference.Symbols)
+	// The glob decides membership, the entry decides addresses. A matched module
+	// is still traversed as an entry, because a matched barrel owes what it
+	// publishes rather than only what its own file declares — but that traversal
+	// is used for nothing except which units are in. Their addresses come from
+	// the package entry, which is the only module a consumer has a specifier
+	// for, and it is under that specifier that an inline link is resolved.
+	// Publishing a narrowed unit under the matched module instead is what made
+	// `functional.health.get` collapse to `get` and left it with no spelling
+	// that resolves.
+	membership := materializeEntryUnits(loader, state.Paths, reference.Symbols)
+	population := membership
+	if entry := loader.packageEntryModule(reference.Package); entry != "" {
+		population = narrowTraversedPopulation(
+			materializeEntryUnits(loader, []string{entry}, reference.Symbols),
+			membership,
+		)
+	}
 	state.Units = population.Units
 	state.Hidden = population.Hidden
 	state.Published = population.Published
@@ -1056,7 +1072,7 @@ func materializePackageGlobReference(
 	}
 	if len(state.Units) == 0 {
 		return state, []string{
-			claimLabel(claim) + " " + referenceLabel(reference) + " matched " + decimal(len(state.Paths)) + " file(s) inside package '" + reference.Package + "' but materialized no selected evidence units (" + reference.Symbols.names() + "). Select symbol kinds present in those files or correct the globs.",
+			claimLabel(claim) + " " + referenceLabel(reference) + " matched " + decimal(len(state.Paths)) + " file(s) inside package '" + reference.Package + "' but materialized no selected evidence units (" + reference.Symbols.names() + ") reachable from the package entry. Select symbol kinds present in those files, correct the globs, or narrow to modules the entry publishes.",
 		}
 	}
 	return state, nil

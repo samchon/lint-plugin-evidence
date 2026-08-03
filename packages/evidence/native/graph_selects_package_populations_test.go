@@ -99,14 +99,17 @@ func TestGraphReadsThePackageEntryFromABareTypesField(t *testing.T) {
  * team can adopt and one they switch off. Resolving those globs against the
  * project root instead would match nothing and read as a satisfied population.
  *
- *  1. Publish a package with two areas.
+ *  1. Publish a package with two areas, both reachable from its entry.
  *  2. Narrow the reference to one of them with a package-relative glob.
- *  3. Assert only that area is demanded.
+ *  3. Assert only that area is demanded, under the address the entry gives it.
  */
 func TestGraphResolvesPackageGlobsAgainstThePackageRoot(t *testing.T) {
 	messages := runIndexRule(t, map[string]string{
-		"node_modules/@org/api/package.json":           packageManifest,
-		"node_modules/@org/api/lib/index.d.ts":         "export declare function root(): void;\n",
+		"node_modules/@org/api/package.json": packageManifest,
+		"node_modules/@org/api/lib/index.d.ts": `
+export * as questions from "./questions/get.js";
+export * as reviews from "./reviews/erase.js";
+`,
 		"node_modules/@org/api/lib/questions/get.d.ts": "export declare function get(): void;\n",
 		"node_modules/@org/api/lib/reviews/erase.d.ts": "export declare function erase(): void;\n",
 		"src/views/detail.ts":                          "export function detail(): void {}\n",
@@ -116,8 +119,8 @@ func TestGraphResolvesPackageGlobsAgainstThePackageRoot(t *testing.T) {
 		"symbol":"function",
 		"reference":{"type":"typescript","package":"@org/api","files":["lib/questions/**"],"symbol":"function"}
 	}]}`)
-	assertProblemContains(t, messages, "Missing acknowledgement for 'get'")
-	if countProblemsContaining(messages, "Missing acknowledgement for 'erase'") != 0 {
+	assertProblemContains(t, messages, "Missing acknowledgement for 'questions.get'")
+	if countProblemsContaining(messages, "Missing acknowledgement for 'reviews.erase'") != 0 {
 		t.Fatalf("a package glob leaked outside the area it selected:\n%v", messages)
 	}
 }
@@ -132,8 +135,8 @@ func TestGraphResolvesPackageGlobsAgainstThePackageRoot(t *testing.T) {
  *
  *  1. Publish an area whose barrel re-exports a module beside it.
  *  2. Narrow the reference to the area alone.
- *  3. Assert the re-exported operation is demanded under its barrel address and
- *     a neighbouring area still stays out.
+ *  3. Assert the re-exported operation is demanded under the address the package
+ *     entry gives it, and a neighbouring area still stays out.
  */
 func TestGraphPackageGlobsCarryTheirBarrelReExports(t *testing.T) {
 	messages := runIndexRule(t, map[string]string{
@@ -155,8 +158,8 @@ export * as details from "./detail.js";
 		"symbol":"function",
 		"reference":{"type":"typescript","package":"@org/api","files":["lib/questions/index.d.ts"],"symbol":"function"}
 	}]}`)
-	assertProblemContains(t, messages, "Missing acknowledgement for 'get'")
-	assertProblemContains(t, messages, "Missing acknowledgement for 'details.detail'")
+	assertProblemContains(t, messages, "Missing acknowledgement for 'questions.get'")
+	assertProblemContains(t, messages, "Missing acknowledgement for 'questions.details.detail'")
 	if countProblemsContaining(messages, "Missing acknowledgement for 'erase'") != 0 {
 		t.Fatalf("a barrel traversal reached outside the area its glob selected:\n%v", messages)
 	}
@@ -182,4 +185,125 @@ func TestGraphReportsAnUnresolvablePackageReference(t *testing.T) {
 		"symbol":"function",
 		"reference":{"type":"typescript","package":"@org/absent","symbol":"function"}
 	}]}`), "could not resolve the declaration entry of package '@org/absent'")
+}
+
+// nestedAccessorPackage is the shape a generated SDK installs: an entry that
+// nests its surface one namespace segment at a time, so the address a consumer
+// writes is several segments longer than the module that declares the symbol.
+func nestedAccessorPackage() map[string]string {
+	return map[string]string{
+		"node_modules/@org/api/package.json": packageManifest,
+		"node_modules/@org/api/lib/index.d.ts": `
+export * as functional from "./functional/index.js";
+`,
+		"node_modules/@org/api/lib/functional/index.d.ts": `
+export * as health from "./health/index.js";
+export * as reviews from "./reviews/index.js";
+`,
+		"node_modules/@org/api/lib/functional/health/index.d.ts":  "export declare function get(): void;\n",
+		"node_modules/@org/api/lib/functional/reviews/index.d.ts": "export declare function erase(): void;\n",
+		"src/views/detail.ts": `import type * as api from "@org/api";
+
+/** @evidence {@link api.functional.health.get} Renders this operation's response. */
+export function detail(): void {}
+`,
+	}
+}
+
+/**
+ * Verifies a narrowed package reference keeps the address its units are cited
+ * by.
+ *
+ * `files` exists to make a large SDK adoptable, and it defeated itself: every
+ * matched module became a traversal entry, so `functional.health.get` collapsed
+ * to `get` while an inline link still resolved under the package entry, the only
+ * module a consumer has a specifier for. No spelling of the target resolved, so
+ * a reference could be adoptable or citable and never both.
+ *
+ *  1. Install a package that nests its surface two segments below the entry.
+ *  2. Cite its operations by the addresses a consumer can write, once with the
+ *     reference narrowed to one subtree and once with no narrowing at all.
+ *  3. Assert both are silent, so the narrowing changed the population and not
+ *     the address.
+ */
+func TestGraphNarrowedPackageReferenceKeepsEntryAddresses(t *testing.T) {
+	assertNoProblems(t, runIndexRule(t, nestedAccessorPackage(), `{"claims":[{
+		"type":"typescript",
+		"files":["src/views/**"],
+		"symbol":"function",
+		"reference":{"type":"typescript","package":"@org/api","files":["lib/functional/health/**"],"symbol":"function"}
+	}]}`))
+
+	wide := nestedAccessorPackage()
+	wide["src/views/detail.ts"] = `import type * as api from "@org/api";
+
+/**
+ * @evidence {@link api.functional.health.get} Renders this operation's response.
+ * @evidence {@link api.functional.reviews.erase} Removes a review.
+ */
+export function detail(): void {}
+`
+	assertNoProblems(t, runIndexRule(t, wide, `{"claims":[{
+		"type":"typescript",
+		"files":["src/views/**"],
+		"symbol":"function",
+		"reference":{"type":"typescript","package":"@org/api","symbol":"function"}
+	}]}`))
+}
+
+/**
+ * Verifies the narrowing still narrows.
+ *
+ * Publishing every address from the entry would be equally silent if the glob
+ * had quietly stopped filtering, and that is worse than the defect it replaces:
+ * the whole package surface would owe acknowledgement while the configuration
+ * still read as adoptable.
+ *
+ *  1. Narrow the same package to one of its two areas.
+ *  2. Cite neither operation.
+ *  3. Assert the selected area is owed under its entry address and the other
+ *     area is not owed at all.
+ */
+func TestGraphNarrowedPackageReferenceStillFiltersMembership(t *testing.T) {
+	files := nestedAccessorPackage()
+	files["src/views/detail.ts"] = "export function detail(): void {}\n"
+	messages := runIndexRule(t, files, `{"claims":[{
+		"type":"typescript",
+		"files":["src/views/**"],
+		"symbol":"function",
+		"reference":{"type":"typescript","package":"@org/api","files":["lib/functional/health/**"],"symbol":"function"}
+	}]}`)
+	assertProblemContains(t, messages, "Missing acknowledgement for 'functional.health.get'")
+	if countProblemsContaining(messages, "Missing acknowledgement") != 1 {
+		t.Fatalf("the glob stopped narrowing the population:\n%v", messages)
+	}
+}
+
+/**
+ * Verifies a glob matching only modules the entry does not publish is reported.
+ *
+ * Such a unit has no address a consumer can write, so demanding an
+ * acknowledgement for it would demand one nobody can discharge. Selecting
+ * nothing is the honest answer and has to be a loud one, because an empty
+ * population otherwise reads exactly like a satisfied obligation.
+ *
+ *  1. Install a package whose entry publishes one area and not another.
+ *  2. Narrow the reference to the unpublished area.
+ *  3. Assert the empty population names the entry as the reason.
+ */
+func TestGraphReportsAPackageGlobOutsideTheEntrySurface(t *testing.T) {
+	assertProblemContains(t, runIndexRule(t, map[string]string{
+		"node_modules/@org/api/package.json": packageManifest,
+		"node_modules/@org/api/lib/index.d.ts": `
+export * as questions from "./questions/get.js";
+`,
+		"node_modules/@org/api/lib/questions/get.d.ts": "export declare function get(): void;\n",
+		"node_modules/@org/api/lib/internal/tool.d.ts": "export declare function tool(): void;\n",
+		"src/views/detail.ts":                          "export function detail(): void {}\n",
+	}, `{"claims":[{
+		"type":"typescript",
+		"files":["src/views/**"],
+		"symbol":"function",
+		"reference":{"type":"typescript","package":"@org/api","files":["lib/internal/**"],"symbol":"function"}
+	}]}`), "reachable from the package entry")
 }
