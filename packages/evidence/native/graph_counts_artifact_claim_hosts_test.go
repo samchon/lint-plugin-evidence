@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-const markdownClaimAcknowledgementPolicyConfig = `{"claims":[{
+const markdownClaimReferencePolicyConfig = `{"claims":[{
 	"type":"markdown",
 	"files":["claims/**"],
 	"symbol":"h2",
@@ -13,23 +13,21 @@ const markdownClaimAcknowledgementPolicyConfig = `{"claims":[{
 		"type":"markdown",
 		"files":["docs/spec.md"],
 		"symbol":"h2",
-		"acknowledgement":{
-			"exactEvidenceUnitsPerHost":1,
-			"minimumEvidenceHostsPerUnit":2
-		}
+		"uniqueEvidence":true,
+		"singleEvidencePerSymbol":true
 	}
 }]}`
 
 /**
  * Verifies Markdown claim headings retain semantic host identities for policy counts.
  *
- * Markdown declarations already carried a physical outline host, but exact cardinality also needs every selected heading that carries no HTML comment. Exercising the complete project rule proves the scanner's heading unit ID is the same semantic ID used by both policy directions.
+ * Markdown declarations already carried a physical outline host, but cardinality also needs every selected heading that carries no HTML comment. Exercising the complete project rule proves the scanner's heading unit ID is the same semantic ID used by both policy directions.
  *
  *  1. Select one silent H2 and one positively citing H2 as claim hosts.
- *  2. Assert exact cardinality reports only the silent host and minimum cardinality sees one positive host.
- *  3. Add a second positive heading and assert the same policy passes.
+ *  2. Assert only the silent host fails single-evidence cardinality.
+ *  3. Make two headings cite one unit, then give each its own, and assert unique evidence rejects the first and accepts the second.
  */
-func TestMarkdownClaimHostsParticipateInAcknowledgementPolicyCounts(t *testing.T) {
+func TestMarkdownClaimHostsParticipateInReferencePolicyCounts(t *testing.T) {
 	messages := runIndexRule(t, map[string]string{
 		"claims/positive.md": `## Positive {#positive}
 
@@ -37,18 +35,17 @@ func TestMarkdownClaimHostsParticipateInAcknowledgementPolicyCounts(t *testing.T
 `,
 		"claims/untagged.md": "## Untagged {#untagged}\n",
 		"docs/spec.md":       "## Contract {#contract}\n",
-	}, markdownClaimAcknowledgementPolicyConfig)
-	if count := countProblemsContaining(messages, "acknowledgement.exactEvidenceUnitsPerHost"); count != 1 {
-		t.Fatalf("expected only the silent Markdown host to fail exact cardinality, got %d:\n%s", count, strings.Join(messages, "\n"))
+	}, markdownClaimReferencePolicyConfig)
+	if count := countProblemsContaining(messages, "singleEvidencePerSymbol"); count != 1 {
+		t.Fatalf("expected only the silent Markdown host to fail cardinality, got %d:\n%s", count, strings.Join(messages, "\n"))
 	}
 	assertProblemContains(t, messages, "Markdown H2 'Untagged'")
 	assertProblemContains(t, messages, "cites 0 distinct selected evidence unit(s)")
-	assertProblemContains(t, messages, "has 1 distinct positive evidence host(s); acknowledgement.minimumEvidenceHostsPerUnit requires at least 2")
 	if strings.Contains(strings.Join(messages, "\n"), "Markdown H2 'Positive'") {
-		t.Fatalf("the positive Markdown host failed exact cardinality:\n%s", strings.Join(messages, "\n"))
+		t.Fatalf("the positive Markdown host failed cardinality:\n%s", strings.Join(messages, "\n"))
 	}
 
-	passing := runIndexRule(t, map[string]string{
+	shared := runIndexRule(t, map[string]string{
 		"claims/first.md": `## First {#first}
 
 <!-- @evidence docs/spec.md#contract First proof. -->
@@ -58,11 +55,24 @@ func TestMarkdownClaimHostsParticipateInAcknowledgementPolicyCounts(t *testing.T
 <!-- @evidence docs/spec.md#contract Second proof. -->
 `,
 		"docs/spec.md": "## Contract {#contract}\n",
-	}, markdownClaimAcknowledgementPolicyConfig)
+	}, markdownClaimReferencePolicyConfig)
+	assertProblemContains(t, shared, "has 2 distinct positive evidence host(s); uniqueEvidence allows at most 1")
+
+	passing := runIndexRule(t, map[string]string{
+		"claims/first.md": `## First {#first}
+
+<!-- @evidence docs/spec.md#contract Implements the contract. -->
+`,
+		"claims/second.md": `## Second {#second}
+
+<!-- @evidence docs/spec.md#pricing Implements the pricing rule. -->
+`,
+		"docs/spec.md": "## Contract {#contract}\n\n## Pricing {#pricing}\n",
+	}, markdownClaimReferencePolicyConfig)
 	assertNoProblems(t, passing)
 }
 
-const prismaClaimAcknowledgementPolicyConfig = `{"claims":[{
+const prismaClaimReferencePolicyConfig = `{"claims":[{
 	"type":"prisma",
 	"files":["prisma/schema.prisma"],
 	"symbol":"model",
@@ -70,31 +80,30 @@ const prismaClaimAcknowledgementPolicyConfig = `{"claims":[{
 		"type":"markdown",
 		"files":["docs/spec.md"],
 		"symbol":"h2",
-		"acknowledgement":{
-			"exactEvidenceUnitsPerHost":1,
-			"minimumEvidenceHostsPerUnit":2
-		}
+		"uniqueEvidence":true,
+		"singleEvidencePerSymbol":true
 	}
 }]}`
 
 /**
  * Verifies Prisma claim models retain semantic host identities for policy counts.
  *
- * Prisma units come from the native parser bridge while their comments and locations come from a separate scanner. A model with no documentation must still enter exact cardinality as zero, and a parsed `///` citation must map back to the same model identity for both host and unit counts.
+ * Prisma units come from the native parser bridge while their comments and locations come from a separate scanner. A model with no documentation must still enter cardinality as zero, and a parsed `///` citation must map back to the same model identity for both host and unit counts.
  *
  *  1. Parse one silent model and one positively citing model through the real bridge and project rule.
- *  2. Assert exact cardinality reports only the silent model and minimum cardinality sees one positive model.
- *  3. Give two distinct models positive evidence and assert the same policy passes.
+ *  2. Assert only the silent model fails single-evidence cardinality.
+ *  3. Make two models cite one unit, then give each its own, and assert unique evidence rejects the first and accepts the second.
  */
-func TestPrismaClaimHostsParticipateInAcknowledgementPolicyCounts(t *testing.T) {
-	run := func(schema string) []string {
+func TestPrismaClaimHostsParticipateInReferencePolicyCounts(t *testing.T) {
+	run := func(document string, schema string) []string {
 		root := prismaBridgeRoot(t, nil)
 		return runIndexRuleAtRoot(t, root, map[string]string{
-			"docs/spec.md":         "## Contract {#contract}\n",
+			"docs/spec.md":         document,
 			"prisma/schema.prisma": schema,
-		}, prismaClaimAcknowledgementPolicyConfig)
+		}, prismaClaimReferencePolicyConfig)
 	}
-	messages := run(`datasource db {
+	const oneSection = "## Contract {#contract}\n"
+	messages := run(oneSection, `datasource db {
   provider = "sqlite"
 }
 
@@ -107,17 +116,16 @@ model Positive {
   id Int @id
 }
 `)
-	if count := countProblemsContaining(messages, "acknowledgement.exactEvidenceUnitsPerHost"); count != 1 {
-		t.Fatalf("expected only the silent Prisma host to fail exact cardinality, got %d:\n%s", count, strings.Join(messages, "\n"))
+	if count := countProblemsContaining(messages, "singleEvidencePerSymbol"); count != 1 {
+		t.Fatalf("expected only the silent Prisma host to fail cardinality, got %d:\n%s", count, strings.Join(messages, "\n"))
 	}
 	assertProblemContains(t, messages, "Prisma model 'Untagged'")
 	assertProblemContains(t, messages, "cites 0 distinct selected evidence unit(s)")
-	assertProblemContains(t, messages, "has 1 distinct positive evidence host(s); acknowledgement.minimumEvidenceHostsPerUnit requires at least 2")
 	if strings.Contains(strings.Join(messages, "\n"), "Prisma model 'Positive'") {
-		t.Fatalf("the positive Prisma host failed exact cardinality:\n%s", strings.Join(messages, "\n"))
+		t.Fatalf("the positive Prisma host failed cardinality:\n%s", strings.Join(messages, "\n"))
 	}
 
-	passing := run(`datasource db {
+	shared := run(oneSection, `datasource db {
   provider = "sqlite"
 }
 
@@ -127,6 +135,22 @@ model First {
 }
 
 /// @evidence docs/spec.md#contract Second proof.
+model Second {
+  id Int @id
+}
+`)
+	assertProblemContains(t, shared, "has 2 distinct positive evidence host(s); uniqueEvidence allows at most 1")
+
+	passing := run("## Contract {#contract}\n\n## Pricing {#pricing}\n", `datasource db {
+  provider = "sqlite"
+}
+
+/// @evidence docs/spec.md#contract Implements the contract.
+model First {
+  id Int @id
+}
+
+/// @evidence docs/spec.md#pricing Implements the pricing rule.
 model Second {
   id Int @id
 }

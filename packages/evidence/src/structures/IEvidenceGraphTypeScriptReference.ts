@@ -1,5 +1,5 @@
 import type { EvidenceGraphTypeScriptSymbol } from "../typings/EvidenceGraphTypeScriptSymbol";
-import type { IEvidenceGraphAcknowledgementPolicy } from "./IEvidenceGraphAcknowledgementPolicy";
+import type { IEvidenceGraphReferenceBase } from "./IEvidenceGraphReferenceBase";
 
 /**
  * A population of TypeScript evidence that the owning claim must cite.
@@ -13,51 +13,28 @@ import type { IEvidenceGraphAcknowledgementPolicy } from "./IEvidenceGraphAcknow
  * by default, then opt into functions or properties only where their individual
  * contracts deserve documentary proof.
  */
-export interface IEvidenceGraphTypeScriptReference {
-  /** Identifies the evidence artifacts as TypeScript. */
-  type: "typescript";
-
-  /** Optional constraints on how the owning claim acknowledges this reference. */
-  acknowledgement?: IEvidenceGraphAcknowledgementPolicy;
-
+export interface IEvidenceGraphTypeScriptReference extends IEvidenceGraphReferenceBase<"typescript"> {
   /**
    * Installed package whose declarations form this population.
    *
-   * Omit it to select the active project. When present, `file` and `files`
-   * resolve against the package root instead of the project root, so the globs
-   * read as a consumer thinks of the package rather than carrying its
-   * `node_modules` location.
+   * Omit it to select the active project. When present, {@link files} resolves
+   * against the package root instead of the project root, so the globs read as
+   * a consumer thinks of the package rather than carrying its `node_modules`
+   * location.
    *
    * A package population is read from disk rather than from the `ttsc` program.
    * That is the point: a symbol nothing imports is absent from the program by
    * definition, and it is exactly the symbol an obligation needs to name.
    *
-   * With neither `file` nor `files`, the package's own declaration entry is the
-   * population. It is read from the `types` condition of the `exports` map,
-   * then `typesVersions`, then the `types` or `typings` field — never `main`,
-   * which names the JavaScript a consumer runs rather than the declarations a
-   * citation can address.
+   * Without {@link files}, the package's own declaration entry is the
+   * population, and every symbol reachable from it is a candidate unit
+   * addressed by its accessor path from that entry — which is what makes
+   * `api.functional.questions.get` nameable. The entry is read from the `types`
+   * condition of the `exports` map, then `typesVersions`, then the `types` or
+   * `typings` field — never `main`, which names the JavaScript a consumer runs
+   * rather than the declarations a citation can address.
    */
   package?: string;
-
-  /**
-   * Entry module whose public export graph defines this population.
-   *
-   * Every symbol reachable from this entry is a candidate unit, addressed by
-   * its accessor path from the entry rather than by its name inside the file
-   * that declares it. That is what makes `api.functional.questions.get`
-   * nameable: `export * as functional` nests a segment, `export * from`
-   * flattens one, and `export { A as B }` addresses the symbol as `B`.
-   *
-   * Identity still belongs to the declaring file. A symbol an entry exposes
-   * through two paths answers to two addresses but remains one coverage unit
-   * rather than two obligations.
-   *
-   * Mutually exclusive with {@link files}: they select the same population two
-   * different ways. Project-relative, or package-relative when {@link package}
-   * is set.
-   */
-  file?: string;
 
   /**
    * Project-relative glob patterns for candidate TypeScript files in the active
@@ -82,8 +59,9 @@ export interface IEvidenceGraphTypeScriptReference {
    * A bare directory such as `src` or `src/` does not include its children;
    * write `src/**` when the whole subtree belongs to this reference.
    *
-   * Mutually exclusive with {@link file}. A local reference must set one of the
-   * two; there is no implicit project entry.
+   * Required for a local reference; there is no implicit project population.
+   * Only a {@link package} reference may omit it, and then the package's
+   * declaration entry defines the population instead.
    */
   files?: string[];
 

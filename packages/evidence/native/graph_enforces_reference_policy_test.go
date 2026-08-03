@@ -6,7 +6,7 @@ import (
 )
 
 /**
- * Verifies a forbidden exclusion fails only its owning reference obligation.
+ * Verifies a refused exclusion fails only its owning reference obligation.
  *
  * One declaration can resolve into overlapping references, but each reference owns its acknowledgement intent. The strict reference must report and remain uncovered while the ordinary twin accepts the same exclusion independently.
  *
@@ -14,7 +14,7 @@ import (
  *  2. Exclude the section from one selected function host.
  *  3. Assert only the strict reference reports the policy and missing coverage.
  */
-func TestForbiddenExclusionLeavesOnlyItsReferenceUncovered(t *testing.T) {
+func TestRefusedExclusionLeavesOnlyItsReferenceUncovered(t *testing.T) {
 	messages := runIndexRule(t, map[string]string{
 		"docs/spec.md": "## Contract {#contract}\n",
 		"src/test.ts": `/** @evidenceExclude docs/spec.md#contract Not applicable here. */
@@ -29,7 +29,7 @@ export function testContract(): void {}
 				"type":"markdown",
 				"files":["docs/spec.md"],
 				"symbol":"h2",
-				"acknowledgement":{"forbidEvidenceExclude":true}
+				"noExclude":true
 			},
 			{
 				"type":"markdown",
@@ -41,7 +41,7 @@ export function testContract(): void {}
 	if count := countProblemsContaining(messages, "Forbidden @evidenceExclude"); count != 1 {
 		t.Fatalf("expected one strict-reference exclusion diagnostic, got %d:\n%s", count, strings.Join(messages, "\n"))
 	}
-	assertProblemContains(t, messages, "reference 1 (markdown, symbols: h2): acknowledgement.forbidEvidenceExclude")
+	assertProblemContains(t, messages, "reference 1 (markdown, symbols: h2): noExclude")
 	if count := countProblemsContaining(messages, "Missing acknowledgement"); count != 1 {
 		t.Fatalf("the ordinary reference must remain acknowledged, got %d missing diagnostics:\n%s", count, strings.Join(messages, "\n"))
 	}
@@ -50,7 +50,7 @@ export function testContract(): void {}
 }
 
 /**
- * Verifies exact per-host cardinality uses distinct units and includes silent hosts.
+ * Verifies single-evidence cardinality uses distinct units and includes silent hosts.
  *
  * Counting tags would let duplicate citations inflate one host and would never see a selected function with no JSDoc. The policy instead starts from every semantic claim unit and projects distinct covered reference-unit identities onto it.
  *
@@ -58,7 +58,7 @@ export function testContract(): void {}
  *  2. Require exactly one positive unit per semantic host.
  *  3. Assert only the zero-unit and two-unit hosts fail cardinality.
  */
-func TestExactEvidenceUnitsPerHostCountsDistinctUnitsAndZeroTagHosts(t *testing.T) {
+func TestSingleEvidencePerSymbolCountsDistinctUnitsAndZeroTagHosts(t *testing.T) {
 	messages := runIndexRule(t, map[string]string{
 		"docs/spec.md": "## First {#first}\n\n## Second {#second}\n",
 		"src/tests.ts": `export function empty(): void {}
@@ -83,11 +83,11 @@ export function broad(): void {}
 			"type":"markdown",
 			"files":["docs/spec.md"],
 			"symbol":"h2",
-			"acknowledgement":{"exactEvidenceUnitsPerHost":1}
+			"singleEvidencePerSymbol":true
 		}
 	}]}`)
-	if count := countProblemsContaining(messages, "acknowledgement.exactEvidenceUnitsPerHost requires exactly 1"); count != 2 {
-		t.Fatalf("expected zero and broad hosts to fail exact cardinality, got %d:\n%s", count, strings.Join(messages, "\n"))
+	if count := countProblemsContaining(messages, "singleEvidencePerSymbol requires exactly 1"); count != 2 {
+		t.Fatalf("expected zero and broad hosts to fail cardinality, got %d:\n%s", count, strings.Join(messages, "\n"))
 	}
 	assertProblemContains(t, messages, "TypeScript function 'empty'")
 	assertProblemContains(t, messages, "cites 0 distinct selected evidence unit(s)")
@@ -100,15 +100,15 @@ export function broad(): void {}
 }
 
 /**
- * Verifies minimum host cardinality counts semantic hosts rather than declarations.
+ * Verifies unique evidence counts semantic claim hosts rather than declarations.
  *
- * Several tags on one exported function remain one implementation or proof. The minimum must stay unsatisfied until another selected public identity carries positive evidence for the same unit.
+ * Several tags on one exported function remain one implementation or proof, so repetition must not consume a unit's single owner. A second exported identity citing the same unit is the case the policy exists to reject.
  *
- *  1. Cite one unit twice from one function and require two hosts.
- *  2. Observe the one-host insufficiency.
- *  3. Add a second function and assert the policy becomes satisfied.
+ *  1. Cite one unit twice from a single function under `uniqueEvidence`.
+ *  2. Assert only the ordinary duplicate-tag diagnostic fires.
+ *  3. Move the second citation onto another function and assert the unit reports two owners.
  */
-func TestMinimumEvidenceHostsPerUnitRequiresDistinctSemanticHosts(t *testing.T) {
+func TestUniqueEvidenceCountsSemanticHostsRatherThanDeclarations(t *testing.T) {
 	config := `{"claims":[{
 		"type":"typescript",
 		"files":["src/**"],
@@ -117,7 +117,7 @@ func TestMinimumEvidenceHostsPerUnitRequiresDistinctSemanticHosts(t *testing.T) 
 			"type":"markdown",
 			"files":["docs/spec.md"],
 			"symbol":"h2",
-			"acknowledgement":{"minimumEvidenceHostsPerUnit":2}
+			"uniqueEvidence":true
 		}
 	}]}`
 	oneHost := runIndexRule(t, map[string]string{
@@ -129,7 +129,10 @@ func TestMinimumEvidenceHostsPerUnitRequiresDistinctSemanticHosts(t *testing.T) 
 export function one(): void {}
 `,
 	}, config)
-	assertProblemContains(t, oneHost, "has 1 distinct positive evidence host(s); acknowledgement.minimumEvidenceHostsPerUnit requires at least 2")
+	assertProblemContains(t, oneHost, "Duplicate @evidence")
+	if strings.Contains(strings.Join(oneHost, "\n"), "uniqueEvidence") {
+		t.Fatalf("repeated tags on one semantic host consumed its unique owner:\n%s", strings.Join(oneHost, "\n"))
+	}
 
 	twoHosts := runIndexRule(t, map[string]string{
 		"docs/spec.md": "## Contract {#contract}\n",
@@ -140,25 +143,39 @@ export function one(): void {}
 export function two(): void {}
 `,
 	}, config)
-	assertNoProblems(t, twoHosts)
+	assertProblemContains(t, twoHosts, "has 2 distinct positive evidence host(s); uniqueEvidence allows at most 1")
 }
 
 /**
  * Verifies an aggregate evidence scope contributes each selected descendant identity.
  *
- * Cardinality follows the graph's hierarchy rather than the number of written tags. One parent citation can therefore count as two selected units when that parent and its selected child are both obligations.
+ * Cardinality follows the graph's hierarchy rather than the number of written tags. One parent citation therefore counts as two selected units when that parent and its selected child are both obligations, and as one when only the parent is.
  *
- *  1. Select a Markdown H2 and its H3 descendant.
- *  2. Cite only the H2 scope from one function requiring exactly two units.
- *  3. Assert both coverage and exact host cardinality pass.
+ *  1. Cite one Markdown H2 scope from one function requiring exactly one unit.
+ *  2. Assert the H2-only reference passes.
+ *  3. Select the H3 descendant as well and assert the same citation now counts two.
  */
-func TestExactEvidenceUnitsPerHostExpandsHierarchicalScopes(t *testing.T) {
-	messages := runIndexRule(t, map[string]string{
+func TestSingleEvidencePerSymbolExpandsHierarchicalScopes(t *testing.T) {
+	files := map[string]string{
 		"docs/spec.md": "## Contract {#contract}\n\n### Validation {#validation}\n",
 		"src/test.ts": `/** @evidence docs/spec.md#contract Covers the contract scope. */
 export function testContract(): void {}
 `,
-	}, `{"claims":[{
+	}
+	shallow := runIndexRule(t, files, `{"claims":[{
+		"type":"typescript",
+		"files":["src/**"],
+		"symbol":"function",
+		"reference":{
+			"type":"markdown",
+			"files":["docs/spec.md"],
+			"symbol":"h2",
+			"singleEvidencePerSymbol":true
+		}
+	}]}`)
+	assertNoProblems(t, shallow)
+
+	deep := runIndexRule(t, files, `{"claims":[{
 		"type":"typescript",
 		"files":["src/**"],
 		"symbol":"function",
@@ -166,26 +183,29 @@ export function testContract(): void {}
 			"type":"markdown",
 			"files":["docs/spec.md"],
 			"symbol":["h2","h3"],
-			"acknowledgement":{"exactEvidenceUnitsPerHost":2}
+			"singleEvidencePerSymbol":true
 		}
 	}]}`)
-	assertNoProblems(t, messages)
+	assertProblemContains(t, deep, "cites 2 distinct selected evidence unit(s); singleEvidencePerSymbol requires exactly 1")
 }
 
 /**
- * Verifies identical references evaluate cardinality independently.
+ * Verifies identical references evaluate their policies independently.
  *
- * A declaration may participate in several overlapping obligations, but their policies cannot pool counts. One cited unit must satisfy an exact-one reference and independently fail an exact-two reference over the same population.
+ * A declaration may participate in several overlapping obligations, but their policies cannot pool counts. Two hosts citing one shared unit must satisfy the ordinary reference and independently fail the strict twin over the same population.
  *
- *  1. Configure identical references with exact-one and exact-two policies.
- *  2. Cite their shared unit from one selected host.
+ *  1. Configure identical references, one ordinary and one requiring unique evidence.
+ *  2. Cite their shared unit from two selected hosts.
  *  3. Assert only reference two reports its own cardinality.
  */
-func TestAcknowledgementPoliciesStayIndependentAcrossIdenticalReferences(t *testing.T) {
+func TestReferencePoliciesStayIndependentAcrossIdenticalReferences(t *testing.T) {
 	messages := runIndexRule(t, map[string]string{
 		"docs/spec.md": "## Contract {#contract}\n",
-		"src/test.ts": `/** @evidence docs/spec.md#contract Implements the contract. */
-export function testContract(): void {}
+		"src/one.ts": `/** @evidence docs/spec.md#contract First proof. */
+export function one(): void {}
+`,
+		"src/two.ts": `/** @evidence docs/spec.md#contract Second proof. */
+export function two(): void {}
 `,
 	}, `{"claims":[{
 		"type":"typescript",
@@ -195,18 +215,17 @@ export function testContract(): void {}
 			{
 				"type":"markdown",
 				"files":["docs/spec.md"],
-				"symbol":"h2",
-				"acknowledgement":{"exactEvidenceUnitsPerHost":1}
+				"symbol":"h2"
 			},
 			{
 				"type":"markdown",
 				"files":["docs/spec.md"],
 				"symbol":"h2",
-				"acknowledgement":{"exactEvidenceUnitsPerHost":2}
+				"uniqueEvidence":true
 			}
 		]
 	}]}`)
-	if count := countProblemsContaining(messages, "acknowledgement.exactEvidenceUnitsPerHost"); count != 1 {
+	if count := countProblemsContaining(messages, "uniqueEvidence allows at most 1"); count != 1 {
 		t.Fatalf("expected exactly one independent policy failure, got %d:\n%s", count, strings.Join(messages, "\n"))
 	}
 	assertProblemContains(t, messages, "Claim 1 reference 2")
@@ -217,11 +236,11 @@ export function testContract(): void {}
  *
  * An H2 scope can cover the H2 selected by one reference and the descendant H3 selected by another, but those are different obligation denominators. Counting the shared written target once globally would let either policy borrow the other's unit.
  *
- *  1. Select an H2 in reference one and its H3 descendant in reference two.
- *  2. Cite the H2 scope once under exact-one and exact-two policies.
- *  3. Assert only the descendant reference fails its independent exact-two policy.
+ *  1. Select an H2 in reference one and the H2 with its H3 descendant in reference two.
+ *  2. Cite the H2 scope once under two single-evidence policies.
+ *  3. Assert only the descendant-selecting reference fails its own count.
  */
-func TestAcknowledgementPoliciesStayIndependentAcrossHierarchicalReferences(t *testing.T) {
+func TestReferencePoliciesStayIndependentAcrossHierarchicalReferences(t *testing.T) {
 	messages := runIndexRule(t, map[string]string{
 		"docs/spec.md": "## Contract {#contract}\n\n### Validation {#validation}\n",
 		"src/test.ts": `/** @evidence docs/spec.md#contract Implements the contract scope. */
@@ -236,17 +255,17 @@ export function testContract(): void {}
 				"type":"markdown",
 				"files":["docs/spec.md"],
 				"symbol":"h2",
-				"acknowledgement":{"exactEvidenceUnitsPerHost":1}
+				"singleEvidencePerSymbol":true
 			},
 			{
 				"type":"markdown",
 				"files":["docs/spec.md"],
-				"symbol":"h3",
-				"acknowledgement":{"exactEvidenceUnitsPerHost":2}
+				"symbol":["h2","h3"],
+				"singleEvidencePerSymbol":true
 			}
 		]
 	}]}`)
-	if count := countProblemsContaining(messages, "acknowledgement.exactEvidenceUnitsPerHost"); count != 1 {
+	if count := countProblemsContaining(messages, "singleEvidencePerSymbol"); count != 1 {
 		t.Fatalf("expected one hierarchical-reference failure, got %d:\n%s", count, strings.Join(messages, "\n"))
 	}
 	assertProblemContains(t, messages, "Claim 1 reference 2")
@@ -255,13 +274,13 @@ export function testContract(): void {}
 /**
  * Verifies an unhealthy partial denominator produces no derived cardinality.
  *
- * A loader can materialize some units before discovering that its population is incomplete. Exact or minimum counts over that partial set would claim completeness from missing data, so the evaluator must defer entirely to the owning loader failure.
+ * A loader can materialize some units before discovering that its population is incomplete. Cardinality over that partial set would claim completeness from missing data, so the evaluator must defer entirely to the owning loader failure.
  *
  *  1. Supply a selected host and one retained unit under an unhealthy reference state.
- *  2. Enable exact and minimum policies with no positive evidence.
+ *  2. Enable both cardinality options with no positive evidence.
  *  3. Assert the evaluator derives neither cardinality nor missing coverage.
  */
-func TestAcknowledgementPolicyDerivesNothingFromAnUnhealthyReference(t *testing.T) {
+func TestReferencePolicyDerivesNothingFromAnUnhealthyReference(t *testing.T) {
 	host := &evidenceUnit{
 		ID:       "typescript:src/test.ts:function:testContract",
 		Target:   "testContract",
@@ -293,9 +312,9 @@ func TestAcknowledgementPolicyDerivesNothingFromAnUnhealthyReference(t *testing.
 			Spec: referenceSpec{
 				Index: 0,
 				Type:  artifactMarkdown,
-				Acknowledgement: acknowledgementPolicy{
-					ExactEvidenceUnitsPerHost:   1,
-					MinimumEvidenceHostsPerUnit: 2,
+				Policy: referencePolicy{
+					UniqueEvidence:          true,
+					SingleEvidencePerSymbol: true,
 				},
 				Symbols: symbolSet{"h2": true},
 			},
@@ -387,11 +406,9 @@ func TestStrictSwaggerAndOrdinaryMarkdownExclusionsCoexist(t *testing.T) {
 		References: []referenceState{
 			{
 				Spec: referenceSpec{
-					Index: 0,
-					Type:  artifactSwagger,
-					Acknowledgement: acknowledgementPolicy{
-						ForbidEvidenceExclude: true,
-					},
+					Index:   0,
+					Type:    artifactSwagger,
+					Policy:  referencePolicy{NoExclude: true},
 					Symbols: symbolSet{"operation": true},
 				},
 				Paths:        []string{"openapi.json"},
@@ -430,13 +447,13 @@ func TestStrictSwaggerAndOrdinaryMarkdownExclusionsCoexist(t *testing.T) {
 /**
  * Verifies overloaded declarations retain one semantic claim-host identity.
  *
- * Source positions distinguish overload declarations physically, but the public function is one graph unit. Exact cardinality must judge that semantic identity once and accept its implementation declaration's citation.
+ * Source positions distinguish overload declarations physically, but the public function is one graph unit. Cardinality must judge that semantic identity once and accept its implementation declaration's citation.
  *
  *  1. Declare two overload signatures and one implementation for one function.
  *  2. Put the only evidence tag on the implementation.
- *  3. Assert exact-one cardinality sees one satisfied semantic host.
+ *  3. Assert single-evidence cardinality sees one satisfied semantic host.
  */
-func TestExactEvidenceUnitsPerHostUsesMergedTypeScriptIdentity(t *testing.T) {
+func TestSingleEvidencePerSymbolUsesMergedTypeScriptIdentity(t *testing.T) {
 	messages := runIndexRule(t, map[string]string{
 		"docs/spec.md": "## Parse {#parse}\n",
 		"src/parse.ts": `export function parse(value: string): string;
@@ -454,22 +471,22 @@ export function parse(value: string | number): string {
 			"type":"markdown",
 			"files":["docs/spec.md"],
 			"symbol":"h2",
-			"acknowledgement":{"exactEvidenceUnitsPerHost":1}
+			"singleEvidencePerSymbol":true
 		}
 	}]}`)
 	assertNoProblems(t, messages)
 }
 
 /**
- * Verifies exact cardinality still judges hosts against an empty healthy reference.
+ * Verifies cardinality still judges hosts against an empty healthy reference.
  *
- * A successfully loaded document can contain no selected units. That is a complete denominator, not a loader failure, so a selected host cites zero units and must fail an exact-positive policy.
+ * A successfully loaded document can contain no selected units. That is a complete denominator, not a loader failure, so a selected host cites zero units and must fail a policy demanding exactly one.
  *
  *  1. Select one TypeScript function and an empty Markdown document.
- *  2. Require exactly one Markdown unit per host.
+ *  2. Require exactly one Markdown unit per selected symbol.
  *  3. Assert the function reports its truthful zero count.
  */
-func TestExactEvidenceUnitsPerHostRejectsAHealthyEmptyReference(t *testing.T) {
+func TestSingleEvidencePerSymbolRejectsAHealthyEmptyReference(t *testing.T) {
 	messages := runIndexRule(t, map[string]string{
 		"docs/spec.md": "Plain prose with no selected heading.\n",
 		"src/test.ts":  "export function testContract(): void {}\n",
@@ -481,9 +498,9 @@ func TestExactEvidenceUnitsPerHostRejectsAHealthyEmptyReference(t *testing.T) {
 			"type":"markdown",
 			"files":["docs/spec.md"],
 			"symbol":"h2",
-			"acknowledgement":{"exactEvidenceUnitsPerHost":1}
+			"singleEvidencePerSymbol":true
 		}
 	}]}`)
 	assertProblemContains(t, messages, "TypeScript function 'testContract'")
-	assertProblemContains(t, messages, "cites 0 distinct selected evidence unit(s); acknowledgement.exactEvidenceUnitsPerHost requires exactly 1")
+	assertProblemContains(t, messages, "cites 0 distinct selected evidence unit(s); singleEvidencePerSymbol requires exactly 1")
 }

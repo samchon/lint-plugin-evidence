@@ -160,7 +160,7 @@ func selectsTypeScriptReference(config graphConfig, exclusion bool) bool {
 	for _, claim := range config.Claims {
 		for _, reference := range claim.References {
 			if reference.Type == artifactTypeScript &&
-				(!exclusion || !reference.Acknowledgement.ForbidEvidenceExclude) {
+				(!exclusion || !reference.Policy.NoExclude) {
 				return true
 			}
 		}
@@ -205,7 +205,7 @@ func selectedCompletionUnits(
 	seen := map[string]bool{}
 	for _, claim := range config.Claims {
 		for _, reference := range claim.References {
-			if exclusion && reference.Acknowledgement.ForbidEvidenceExclude {
+			if exclusion && reference.Policy.NoExclude {
 				continue
 			}
 			inventories := inventoriesOf(

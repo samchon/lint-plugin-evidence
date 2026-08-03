@@ -1,5 +1,5 @@
 import type { EvidenceGraphMarkdownSymbol } from "../typings/EvidenceGraphMarkdownSymbol";
-import type { IEvidenceGraphAcknowledgementPolicy } from "./IEvidenceGraphAcknowledgementPolicy";
+import type { IEvidenceGraphReferenceBase } from "./IEvidenceGraphReferenceBase";
 
 /**
  * A population of documentary evidence that the owning claim must cite.
@@ -10,13 +10,7 @@ import type { IEvidenceGraphAcknowledgementPolicy } from "./IEvidenceGraphAcknow
  * descendants. Citations remain anchored in the outline, so an editorial change
  * cannot silently preserve a claim whose grounds disappeared.
  */
-export interface IEvidenceGraphMarkdownReference {
-  /** Identifies the evidence artifacts as Markdown. */
-  type: "markdown";
-
-  /** Optional constraints on how the owning claim acknowledges this reference. */
-  acknowledgement?: IEvidenceGraphAcknowledgementPolicy;
-
+export interface IEvidenceGraphMarkdownReference extends IEvidenceGraphReferenceBase<"markdown"> {
   /**
    * Directory this population's {@link files} patterns resolve against, and the
    * base its evidence targets are addressed from.

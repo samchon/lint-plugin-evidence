@@ -1,4 +1,4 @@
-import type { IEvidenceGraphAcknowledgementPolicy } from "./IEvidenceGraphAcknowledgementPolicy";
+import type { IEvidenceGraphReferenceBase } from "./IEvidenceGraphReferenceBase";
 
 /**
  * A population of Swagger or OpenAPI operations that the owning claim must
@@ -9,13 +9,7 @@ import type { IEvidenceGraphAcknowledgementPolicy } from "./IEvidenceGraphAcknow
  * declarations. Every operation under the normalized document's `paths` object
  * becomes one independent evidence unit.
  */
-export interface IEvidenceGraphSwaggerReference {
-  /** Identifies the evidence artifacts as Swagger or OpenAPI documents. */
-  type: "swagger";
-
-  /** Optional constraints on how the owning claim acknowledges this reference. */
-  acknowledgement?: IEvidenceGraphAcknowledgementPolicy;
-
+export interface IEvidenceGraphSwaggerReference extends IEvidenceGraphReferenceBase<"swagger"> {
   /**
    * Exact Swagger or OpenAPI document location.
    *

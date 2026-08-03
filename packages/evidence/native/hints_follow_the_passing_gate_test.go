@@ -200,17 +200,15 @@ export interface ILive {}
 					"type":"markdown",
 					"files":["docs/staged.md"],
 					"symbol":"h2",
-					"acknowledgement":{
-						"forbidEvidenceExclude":true,
-						"exactEvidenceUnitsPerHost":1,
-						"minimumEvidenceHostsPerUnit":2
-					}
+					"noExclude":true,
+					"uniqueEvidence":true,
+					"singleEvidencePerSymbol":true
 				},
 				{
 					"type":"typescript",
 					"files":["src/reference.ts"],
 					"symbol":"type",
-					"acknowledgement":{"forbidEvidenceExclude":true}
+					"noExclude":true
 				}
 			]
 		},

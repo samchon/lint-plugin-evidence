@@ -125,16 +125,13 @@ const graph: IEvidenceGraphConfig = {
         {
           type: "swagger",
           file: "../api/swagger.product.json",
-          acknowledgement: {
-            forbidEvidenceExclude: true,
-            exactEvidenceUnitsPerHost: 1,
-            minimumEvidenceHostsPerUnit: 2,
-          },
+          noExclude: true,
+          singleEvidencePerSymbol: true,
         },
         {
           type: "typescript",
           package: "{{apiPackageName}}",
-          file: "src/structures/index.ts",
+          files: ["src/structures/index.ts"],
           symbol: ["type"],
         },
       ],
