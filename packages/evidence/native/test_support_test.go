@@ -127,7 +127,20 @@ func runIndexRule(
 	config string,
 ) []string {
 	t.Helper()
-	root := t.TempDir()
+	return runIndexRuleAtRoot(t, t.TempDir(), files, config)
+}
+
+// runIndexRuleAtRoot drives the same project-rule path from a caller-owned
+// root. Loader tests use a workspace-local root so the real Node bridge can
+// resolve this package exactly as a consumer does; ordinary cases keep the
+// isolated system temp root above.
+func runIndexRuleAtRoot(
+	t *testing.T,
+	root string,
+	files map[string]string,
+	config string,
+) []string {
+	t.Helper()
 	paths := make([]string, 0, len(files))
 	for path := range files {
 		paths = append(paths, path)

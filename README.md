@@ -152,6 +152,31 @@ A graph is one `claims` array, and every claim-reference pair is an independent 
 2. Every feature rule must be cited by a React component; a rule no component mirrors is a compile error naming that rule.
 3. A `reference` array is one obligation per element. The tests must verify every feature rule and claim every exported component, never one obligation borrowing the other's citation.
 
+### Reference policy
+
+Ordinary coverage is permissive on purpose. Either tag can acknowledge a unit, one host may cite any number of units, and one citation per unit is enough. That is right for a document several modules honor, and too weak for a proof obligation, where one exclusion or one host citing everything discharges the whole population without proving anything.
+
+Three opt-in properties tighten a single reference:
+
+```ts
+{
+  type: "swagger",
+  file: "api/swagger.json",
+  noExclude: true,
+  singleEvidencePerSymbol: true,
+}
+```
+
+- **`noExclude`** refuses `@evidenceExclude` here. The exclusion is reported where it is written and gives this reference no coverage, so its target still owes positive `@evidence`.
+- **`uniqueEvidence`** allows at most one claim host to cite each unit, so the unit has one host answerable for it rather than several.
+- **`singleEvidencePerSymbol`** requires exactly one distinct unit from every host the claim's own `symbol` selector picks. A host with no `@evidence` tag counts as zero and fails, as does a host citing two units.
+
+Counting is by identity, not by text. Repeated tags for one unit count once, merged declarations and overload sets remain one host, and an aggregate target contributes every selected descendant in its scope — so citing a parent of two selected units counts as two.
+
+The constraints belong to one reference and never pool. An exclusion the Swagger reference above refuses may still satisfy a Markdown reference in the same claim, and two references over the same files stay independent. Omit all three to keep the behavior a reference had before they existed.
+
+`@evidenceExclude` completion drops a target selected only by references that refuse exclusions. A target any enabled reference still allows stays on offer, because the completion API has no cursor-specific claim context to narrow it further.
+
 ### Symbols
 
 | Kind | `symbol` values | Default |
@@ -214,24 +239,28 @@ A TypeScript claim `root` changes only the base used to match files already supp
 
 ### TypeScript populations
 
-A TypeScript reference selects its population three ways, and the choice decides how its units are addressed.
+**`files` selects modules, and the population is what those modules publish.** A matched module contributes its own exports and everything it re-exports, so a barrel carries in the surface it forwards even when the declaring file is outside the globs.
 
 ```ts
-// every exported type under src/contracts, addressed by its own name
+// every type those modules publish, addressed as they publish it
 { type: "typescript", files: ["src/contracts/**"] }
 
-// everything the entry exposes, addressed by its accessor path from that entry
-{ type: "typescript", file: "src/sdk/index.ts" }
+// everything the SDK barrel exposes, addressed by its accessor path from there
+{ type: "typescript", files: ["src/sdk/index.ts"] }
 
 // the same, for a package a consumer installs
 { type: "typescript", package: "@ORGANIZATION/PROJECT-api" }
 ```
 
-`files` and `file` are mutually exclusive, and a local reference must set one of them; there is no implicit project entry.
+A local reference must set `files`; there is no implicit project population. Singular `file` belongs to Swagger, which owns one document, and a TypeScript reference refuses it.
 
-An entry-selected population is addressed the way a consumer reaches it, not the way the declaring file spells it: `export * as functional` nests a path segment, `export * from` flattens one, and `export { A as B }` addresses the symbol as `B`. That is what makes `api.functional.questions.get` nameable. Identity still belongs to the declaring file, so a symbol an entry exposes through two paths answers to two addresses but remains one coverage unit rather than two obligations.
+Selecting the barrel rather than the tree is what a large SDK needs, because pulling that surface apart into whichever files happen to declare it would make the same population depend on how the sources are laid out.
 
-A `package` population is read from disk rather than from the `ttsc` program, which is the point: a symbol nothing imports is absent from the program by definition, and it is exactly the symbol an obligation needs to name. Without `file` or `files`, the package's declaration entry is the population, resolved through the `types` condition of its `exports` map, then `typesVersions`, then `types` or `typings` — never `main`, which names the JavaScript a consumer runs rather than the declarations a citation can address. With `files`, the globs are package-relative.
+The cost is that a glob is only as narrow as what its modules publish. Matching a barrel takes in everything behind it, so narrow by the module whose surface you mean rather than by the directory it sits in.
+
+A unit is addressed the way a consumer reaches it, not the way the declaring file spells it: `export * as functional` nests a path segment, `export * from` flattens one, and `export { A as B }` addresses the symbol as `B`. That is what makes `api.functional.questions.get` nameable. Identity still belongs to the declaring file, so a declaration reached through two modules answers to both addresses and remains one coverage unit rather than two obligations. Containment follows the declaration hierarchy rather than the address text, so a type and a callable that share one public name never become each other's scope.
+
+A `package` population is read from disk rather than from the `ttsc` program, which is the point: a symbol nothing imports is absent from the program by definition, and it is exactly the symbol an obligation needs to name. Without `files`, the package's declaration entry is the population, resolved through the `types` condition of its `exports` map, then `typesVersions`, then `types` or `typings` — never `main`, which names the JavaScript a consumer runs rather than the declarations a citation can address. With `files`, the globs are package-relative.
 
 The obligation set of a package reference belongs to whoever publishes it. A minor release that adds exports adds obligations, so pin the version or narrow the selection when the population is not yours.
 
@@ -405,7 +434,7 @@ Markdown cannot cite a TypeScript symbol: it has no import scope in which `{@lin
 <!-- @evidenceExclude docs/requirements/coupons.md#coupon-stacking This section defines wording and intentionally does not implement coupon behavior. -->
 ```
 
-`@evidenceExclude target reason` records that a claim intentionally does not use the target scope. It follows the same hierarchy as `@evidence`, so excluding an H2 also excludes its selected H3/H4 descendants, and excluding a type or namespace excludes its selected children. It affects only the matching claim and never crosses a reference boundary. One claim-reference obligation may exclude a selected scope only once; overlapping exclusions are rejected even when they sit on different carriers, because the exclusion reason must have one reviewable owner. Unlike ownership evidence, a TypeScript exclusion may sit on any supported public export in the claim's file population, even when that export's symbol kind is not selected by the claim. Prisma also accepts the lint-only file carrier described above. Unexported TypeScript declarations, unsupported locations, and files outside the claim population do not qualify. Overlapping evidence and exclusion scopes are rejected because they state contradictory intent for the same unit.
+`@evidenceExclude target reason` records that a claim intentionally does not use the target scope. It follows the same hierarchy as `@evidence`, so excluding an H2 also excludes its selected H3/H4 descendants, and excluding a type or namespace excludes its selected children. It affects only the matching claim and never crosses a reference boundary, and a reference declaring `noExclude` refuses it outright. One claim-reference obligation may exclude a selected scope only once; overlapping exclusions are rejected even when they sit on different carriers, because the exclusion reason must have one reviewable owner. Unlike ownership evidence, a TypeScript exclusion may sit on any supported public export in the claim's file population, even when that export's symbol kind is not selected by the claim. Prisma also accepts the lint-only file carrier described above. Unexported TypeScript declarations, unsupported locations, and files outside the claim population do not qualify. Overlapping evidence and exclusion scopes are rejected because they state contradictory intent for the same unit.
 
 In an agent workflow the tags cost nothing extra. The agent writes each citation as it implements. You review the stated reasons instead of reverse-engineering the diff. A misreading also surfaces in that review, because the reason sits beside the exact section it claims to honor.
 

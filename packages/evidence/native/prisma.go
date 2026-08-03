@@ -596,16 +596,17 @@ func prismaDeclarationsFromComments(
 			// own copy would make one comment two declarations in the map
 			// `evaluateEvidenceGraph` keys by ID.
 			declaration := &evidenceDeclaration{
-				ID:       "prisma:" + run.Path + ":" + decimal(line) + ":" + decimal(sequence),
-				HostID:   host.ID,
-				Type:     artifactPrisma,
-				Tag:      parsed.Tag,
-				Target:   parsed.Target,
-				Reason:   parsed.Reason,
-				Hosts:    symbolSet{host.Symbol: true},
-				Path:     run.Path,
-				Line:     line,
-				Sequence: sequence,
+				ID:              "prisma:" + run.Path + ":" + decimal(line) + ":" + decimal(sequence),
+				HostID:          host.ID,
+				SemanticHostIDs: []string{host.ID},
+				Type:            artifactPrisma,
+				Tag:             parsed.Tag,
+				Target:          parsed.Target,
+				Reason:          parsed.Reason,
+				Hosts:           symbolSet{host.Symbol: true},
+				Path:            run.Path,
+				Line:            line,
+				Sequence:        sequence,
 			}
 			for _, inventory := range hosted {
 				inventory.Declarations = append(inventory.Declarations, declaration)

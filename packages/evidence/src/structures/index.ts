@@ -6,6 +6,7 @@ export * from "./IEvidenceGraphMarkdownReference";
 export * from "./IEvidenceGraphPrismaClaim";
 export * from "./IEvidenceGraphPrismaReference";
 export * from "./IEvidenceGraphReference";
+export * from "./IEvidenceGraphReferenceBase";
 export * from "./IEvidenceGraphSwaggerReference";
 export * from "./IEvidenceGraphTypeScriptClaim";
 export * from "./IEvidenceGraphTypeScriptReference";

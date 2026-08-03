@@ -157,12 +157,35 @@ func dedupeModuleExports(exports []moduleExport) []moduleExport {
 }
 
 // reachedSymbol is one public address an entry traversal arrived at.
+// traversedPopulation is what selecting modules and walking their exports
+// yields: the obligations, the scopes above them, and the addresses that reach
+// them.
+type traversedPopulation struct {
+	Units     []*evidenceUnit
+	Reached   []*evidenceUnit
+	Published []publishedAddress
+}
+
+// publishedAddress is one module publishing one unit under one address.
+//
+// A symbol is citable from every module that exposes it, under the name that
+// module gives it. Recording the pair keeps import-scope resolution honest when
+// several selected modules publish the same declaration: each address is legal
+// exactly where it is written, and none of them is legal everywhere.
+type publishedAddress struct {
+	Module  string
+	Address string
+	Unit    *evidenceUnit
+}
+
 type reachedSymbol struct {
 	// Address is the accessor path from the entry, segment by segment.
 	Address []string
 	// Path is the file that declares the symbol, which owns its identity.
 	Path string
-	// Local is the declaration's qualified name inside that file.
+	// Local is the name that file's inventory gives the declaration, which is
+	// the name it exposes rather than the binding it wrote. `export { a as b }`
+	// declares one unit called `b`, so matching on `a` would find nothing.
 	Local string
 }
 
@@ -213,10 +236,13 @@ func traverseEntryExports(
 	}
 	for _, export := range inventory.Exports {
 		if export.Specifier == "" {
+			// A declaration this module exposes is inventoried under the name it
+			// exposes it as. `export { local as renamed }` is one unit named
+			// `renamed`, so the local binding never identifies it.
 			reached = append(reached, reachedSymbol{
 				Address: append(append([]string{}, prefix...), export.Public),
 				Path:    entry,
-				Local:   export.Local,
+				Local:   export.Public,
 			})
 			continue
 		}
@@ -262,61 +288,79 @@ func traverseEntryExports(
 // Addresses are rebuilt from identity segments rather than by rewriting the
 // joined target, so a literal dot inside a name cannot collapse into
 // qualification.
+//
+// Several entries union into one population. A glob selects modules, not
+// symbols, so a barrel it matched carries in everything that barrel re-exports;
+// a declaration two entries both reach stays one unit answering to both
+// addresses.
+//
+// Units are the selected obligation set, Reached is everything the traversal
+// saw — which keeps an unselected ancestor addressable as the aggregate scope
+// of the units below it — and Published records where each address is legal.
 func materializeEntryUnits(
 	loader *typeScriptLoader,
-	entry string,
+	entries []string,
 	symbols symbolSet,
-) []*evidenceUnit {
-	reached := traverseEntryExports(loader, entry, nil, map[string]bool{})
+) traversedPopulation {
 	byID := map[string]*evidenceUnit{}
 	order := []string{}
-	for _, symbol := range reached {
-		inventory := loader.inventory(symbol.Path)
-		if inventory == nil || symbol.Local == "" {
-			continue
-		}
-		for _, unit := range inventory.Units {
-			suffix, owned := identitySuffix(unit.Identity, symbol.Local)
-			if !owned {
+	published := []publishedAddress{}
+	for _, entry := range entries {
+		for _, symbol := range traverseEntryExports(loader, entry, nil, map[string]bool{}) {
+			inventory := loader.inventory(symbol.Path)
+			if inventory == nil || symbol.Local == "" {
 				continue
 			}
-			address := append(append([]string{}, symbol.Address...), suffix...)
-			target := strings.Join(address, ".")
-			existing := byID[unit.ID]
-			if existing == nil {
-				clone := *unit
-				clone.Target = target
-				clone.Identity = address
-				clone.Aliases = nil
-				byID[unit.ID] = &clone
-				order = append(order, unit.ID)
-				continue
+			for _, unit := range inventory.Units {
+				suffix, owned := identitySuffix(unit.Identity, symbol.Local)
+				if !owned {
+					continue
+				}
+				address := append(append([]string{}, symbol.Address...), suffix...)
+				target := strings.Join(address, ".")
+				current := byID[unit.ID]
+				if current == nil {
+					clone := *unit
+					clone.Target = target
+					clone.Identity = address
+					clone.Aliases = nil
+					current = &clone
+					byID[unit.ID] = current
+					order = append(order, unit.ID)
+				} else if current.Target != target &&
+					!containsString(current.Aliases, target) {
+					// Two addresses for one declaration. The shorter one reads as
+					// the canonical path, and the rest resolve to the same unit so
+					// the obligation is still counted once.
+					if len(address) < len(current.Identity) {
+						current.Aliases = append(current.Aliases, current.Target)
+						current.Target = target
+						current.Identity = address
+					} else {
+						current.Aliases = append(current.Aliases, target)
+					}
+				}
+				published = append(published, publishedAddress{
+					Module:  entry,
+					Address: target,
+					Unit:    current,
+				})
 			}
-			if existing.Target == target || containsString(existing.Aliases, target) {
-				continue
-			}
-			// Two addresses for one declaration. The shorter one reads as the
-			// canonical path, and the rest resolve to the same unit so the
-			// obligation is still counted once.
-			if len(address) < len(existing.Identity) {
-				existing.Aliases = append(existing.Aliases, existing.Target)
-				existing.Target = target
-				existing.Identity = address
-				continue
-			}
-			existing.Aliases = append(existing.Aliases, target)
 		}
 	}
-	units := make([]*evidenceUnit, 0, len(order))
+	population := traversedPopulation{Published: published}
 	for _, id := range order {
 		unit := byID[id]
-		if !symbols.contains(unit.Symbol) {
-			continue
-		}
 		sort.Strings(unit.Aliases)
-		units = append(units, unit)
+		// Every reached declaration stays available as an aggregate scope, even
+		// when its own kind is unselected. The selector is the obligation
+		// denominator, not the list of targets an author may write.
+		population.Reached = append(population.Reached, unit)
+		if symbols.contains(unit.Symbol) {
+			population.Units = append(population.Units, unit)
+		}
 	}
-	return units
+	return population
 }
 
 // identitySuffix reports the segments below a reached declaration, and whether

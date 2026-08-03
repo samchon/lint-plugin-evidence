@@ -1,4 +1,5 @@
 import type { EvidenceGraphPrismaSymbol } from "../typings/EvidenceGraphPrismaSymbol";
+import type { IEvidenceGraphReferenceBase } from "./IEvidenceGraphReferenceBase";
 
 /**
  * A population of Prisma schema declarations that the owning claim must cite.
@@ -13,10 +14,7 @@ import type { EvidenceGraphPrismaSymbol } from "../typings/EvidenceGraphPrismaSy
  * Prisma's own, so a schema it rejects is reported as a parse failure rather
  * than as an empty population.
  */
-export interface IEvidenceGraphPrismaReference {
-  /** Identifies the evidence artifacts as a Prisma schema. */
-  type: "prisma";
-
+export interface IEvidenceGraphPrismaReference extends IEvidenceGraphReferenceBase<"prisma"> {
   /**
    * Directory this population's {@link files} patterns resolve against.
    *

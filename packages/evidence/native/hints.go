@@ -87,15 +87,17 @@ func (graphRule) Hints(ctx *rule.HintContext) []rule.Hint {
 		return nil
 	}
 	corpus := cycle.Corpus
-	units := selectedCompletionUnits(
-		corpus.Config,
-		corpus.Markdown,
-		corpus.Prisma,
-		corpus.Swagger,
-	)
-	routes := selectsTypeScriptReference(corpus.Config)
-	hints := make([]rule.Hint, 0, (len(units)+1)*len(evidenceHintTriggers))
+	hints := []rule.Hint{}
 	for _, trigger := range evidenceHintTriggers {
+		exclusion := trigger.After == "@evidenceExclude "
+		units := selectedCompletionUnits(
+			corpus.Config,
+			corpus.Markdown,
+			corpus.Prisma,
+			corpus.Swagger,
+			exclusion,
+		)
+		routes := selectsTypeScriptReference(corpus.Config, exclusion)
 		if routes {
 			hints = append(hints, typeScriptRouteHint(trigger))
 		}
@@ -154,10 +156,11 @@ func typeScriptRouteHint(trigger rule.HintTrigger) rule.Hint {
 // a repository mixing a TypeScript-citing claim with a Markdown-only one offers
 // the entry in both. Narrowing that needs a per-file corpus, which the contract
 // deliberately does not have.
-func selectsTypeScriptReference(config graphConfig) bool {
+func selectsTypeScriptReference(config graphConfig, exclusion bool) bool {
 	for _, claim := range config.Claims {
 		for _, reference := range claim.References {
-			if reference.Type == artifactTypeScript {
+			if reference.Type == artifactTypeScript &&
+				(!exclusion || !reference.Policy.NoExclude) {
 				return true
 			}
 		}
@@ -196,11 +199,15 @@ func selectedCompletionUnits(
 	markdown map[string]*artifactInventory,
 	prisma map[string]*artifactInventory,
 	swagger map[string]*artifactInventory,
+	exclusion bool,
 ) []*evidenceUnit {
 	ranked := map[string][]*evidenceUnit{}
 	seen := map[string]bool{}
 	for _, claim := range config.Claims {
 		for _, reference := range claim.References {
+			if exclusion && reference.Policy.NoExclude {
+				continue
+			}
 			inventories := inventoriesOf(
 				reference.Type,
 				markdown,

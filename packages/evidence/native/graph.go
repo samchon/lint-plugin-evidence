@@ -2,7 +2,6 @@ package evidence
 
 import (
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -227,12 +226,21 @@ func materializeClaimStates(
 				claimLabel(claim)+" matched no "+string(claim.Type)+" files for "+describePopulation(claim.Base, claim.Files)+". Fix the globs or the root they resolve against; '*' stays within one segment, '**' crosses segments, and a bare directory is not recursive.",
 			)
 		}
+		hostsByID := map[string]bool{}
 		for _, path := range paths {
+			for _, unit := range inventories[path].Units {
+				if !claim.Symbols.contains(unit.Symbol) || hostsByID[unit.ID] {
+					continue
+				}
+				hostsByID[unit.ID] = true
+				state.Hosts = append(state.Hosts, unit)
+			}
 			state.Declarations = append(
 				state.Declarations,
 				inventories[path].Declarations...,
 			)
 		}
+		sortUnits(state.Hosts)
 		for _, reference := range claim.References {
 			referenceInventories := inventoriesOf(
 				reference.Type,
@@ -259,6 +267,17 @@ func materializeClaimStates(
 				)
 				problems = append(problems, packageProblems...)
 				state.References = append(state.References, packageState)
+				continue
+			}
+			if reference.Type == artifactTypeScript {
+				localState, localProblems := materializeLocalTypeScriptReference(
+					claim,
+					reference,
+					referenceInventories,
+					loader,
+				)
+				problems = append(problems, localProblems...)
+				state.References = append(state.References, localState)
 				continue
 			}
 			referencePaths := matchingReferencePaths(
@@ -351,12 +370,23 @@ func evaluateEvidenceGraph(
 	scopedTargets := map[string]map[string]*evidenceUnit{}
 	for _, state := range states {
 		for _, reference := range state.References {
-			// An entry-selected address is valid in the module that exposes it,
-			// not in the one that declares the symbol. Identity still belongs to
-			// the declaring file; only reachability moves.
-			addressPath := ""
-			if reference.Spec.entrySelected() && len(reference.Paths) == 1 {
-				addressPath = reference.Paths[0]
+			// A traversed address is valid in the module that publishes it, not in
+			// the one that declares the symbol. Identity still belongs to the
+			// declaring file; only reachability moves, and a declaration several
+			// selected modules publish is citable from each of them.
+			scopeIDs := map[string]bool{}
+			for _, unit := range reference.Scopes {
+				scopeIDs[unit.ID] = true
+			}
+			for _, address := range reference.Published {
+				if !scopeIDs[address.Unit.ID] {
+					continue
+				}
+				key := scopedTargetKey(address.Module, address.Address)
+				if scopedTargets[key] == nil {
+					scopedTargets[key] = map[string]*evidenceUnit{}
+				}
+				scopedTargets[key][address.Unit.ID] = address.Unit
 			}
 			for _, unit := range reference.Scopes {
 				for _, address := range append([]string{unit.Target}, unit.Aliases...) {
@@ -371,16 +401,12 @@ func evaluateEvidenceGraph(
 					}
 					markdownTargets[unit.Target][unit.ID] = unit
 				}
-				if unit.Type == artifactTypeScript {
-					owner := unit.Path
-					if addressPath != "" {
-						owner = addressPath
-					}
-					// Every address the unit answers to indexes the same unit, so
-					// a symbol an entry exposes by two paths remains one coverage
-					// unit rather than two competing candidates.
+				// A population whose addresses came from traversal already indexed
+				// every module that publishes this unit. Only a population addressed
+				// by its declaring files needs this fallback.
+				if unit.Type == artifactTypeScript && len(reference.Published) == 0 {
 					for _, address := range append([]string{unit.Target}, unit.Aliases...) {
-						key := scopedTargetKey(owner, address)
+						key := scopedTargetKey(unit.Path, address)
 						if scopedTargets[key] == nil {
 							scopedTargets[key] = map[string]*evidenceUnit{}
 						}
@@ -517,13 +543,36 @@ func evaluateEvidenceGraph(
 					uncertain[declaration.ID] = true
 				}
 			}
-			if len(reference.Units) == 0 {
+			single := reference.Spec.Policy.SingleEvidencePerSymbol
+			unique := reference.Spec.Policy.UniqueEvidence
+			// An empty population owes nothing and normally ends the reference
+			// here. A healthy empty one still judges hosts under
+			// singleEvidencePerSymbol, because every selected host then truthfully
+			// cites zero units rather than the one it owes.
+			if len(reference.Units) == 0 &&
+				(!single || !state.Healthy || !reference.Healthy || len(reference.Paths) == 0) {
 				continue
 			}
 			acknowledged := map[string]bool{}
 			evidenceByUnit := map[string]*evidenceDeclaration{}
 			exclusionByUnit := map[string]*evidenceDeclaration{}
 			evidenceByHostAndScope := map[string]map[string]*evidenceDeclaration{}
+			selectedHosts := map[string]*evidenceUnit{}
+			evidenceUnitsByHost := map[string]map[string]bool{}
+			if single || unique {
+				for _, host := range state.Hosts {
+					selectedHosts[host.ID] = host
+					if single {
+						evidenceUnitsByHost[host.ID] = map[string]bool{}
+					}
+				}
+			}
+			evidenceHostsByUnit := map[string]map[string]bool{}
+			if unique {
+				for _, unit := range reference.Units {
+					evidenceHostsByUnit[unit.ID] = map[string]bool{}
+				}
+			}
 			scopesByID := map[string]*evidenceUnit{}
 			for _, scope := range reference.Scopes {
 				scopesByID[scope.ID] = scope
@@ -556,6 +605,13 @@ func evaluateEvidenceGraph(
 				if !state.Healthy || !reference.Healthy {
 					continue
 				}
+				if declaration.Tag == tagExclude && reference.Spec.Policy.NoExclude {
+					problems = append(
+						problems,
+						"Forbidden @evidenceExclude for '"+scopesByID[scopeID].Target+"' at "+declaration.location()+" in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+": noExclude requires positive @evidence for this reference. Remove the exclusion and cite the target from a selected "+string(state.Spec.Type)+" host.",
+					)
+					continue
+				}
 				if declaration.Tag == tagEvidence && declaration.HostID != "" {
 					byScope := evidenceByHostAndScope[declaration.HostID]
 					if byScope == nil {
@@ -569,6 +625,31 @@ func evaluateEvidenceGraph(
 						)
 					} else {
 						byScope[scopeID] = declaration
+					}
+				}
+				if declaration.Tag == tagEvidence && (single || unique) {
+					for _, hostID := range declaration.SemanticHostIDs {
+						if selectedHosts[hostID] == nil {
+							continue
+						}
+						for _, unit := range covered {
+							if single {
+								evidenceUnitsByHost[hostID][unit.ID] = true
+							}
+							if !unique {
+								continue
+							}
+							// A covered unit is a selected unit of this reference,
+							// so the counter usually exists. Allocating on demand
+							// keeps a future scope map that reaches wider from
+							// turning a count into a nil-map panic in the compiler.
+							hosts := evidenceHostsByUnit[unit.ID]
+							if hosts == nil {
+								hosts = map[string]bool{}
+								evidenceHostsByUnit[unit.ID] = hosts
+							}
+							hosts[hostID] = true
+						}
 					}
 				}
 				var conflictingUnit *evidenceUnit
@@ -622,13 +703,36 @@ func evaluateEvidenceGraph(
 			if !state.Healthy || !reference.Healthy || len(reference.Paths) == 0 {
 				continue
 			}
+			if single {
+				for _, host := range state.Hosts {
+					count := len(evidenceUnitsByHost[host.ID])
+					if count == 1 {
+						continue
+					}
+					problems = append(
+						problems,
+						"Evidence host "+host.Readable+" at "+host.location()+" in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+" cites "+decimal(count)+" distinct selected evidence unit(s); singleEvidencePerSymbol requires exactly 1. Keep positive @evidence citations on this semantic host to exactly one distinct unit.",
+					)
+				}
+			}
 			for _, unit := range reference.Units {
-				if acknowledged[unit.ID] {
+				if !acknowledged[unit.ID] {
+					repair := "Use @evidence on a selected " + string(state.Spec.Type) + " host or @evidenceExclude on an eligible carrier."
+					if reference.Spec.Policy.NoExclude {
+						repair = "Use @evidence on a selected " + string(state.Spec.Type) + " host; this reference forbids @evidenceExclude."
+					}
+					problems = append(
+						problems,
+						"Missing acknowledgement for '"+unit.Target+"' ("+unit.Readable+" at "+unit.location()+") in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+". "+repair,
+					)
+				}
+				hostCount := len(evidenceHostsByUnit[unit.ID])
+				if !unique || hostCount <= 1 {
 					continue
 				}
 				problems = append(
 					problems,
-					"Missing acknowledgement for '"+unit.Target+"' ("+unit.Readable+" at "+unit.location()+") in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+". Use @evidence on a selected "+string(state.Spec.Type)+" host or @evidenceExclude on an eligible carrier.",
+					"Evidence unit '"+unit.Target+"' ("+unit.Readable+" at "+unit.location()+") in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+" has "+decimal(hostCount)+" distinct positive evidence host(s); uniqueEvidence allows at most 1. Keep the one selected "+string(state.Spec.Type)+" host that owns this unit and remove the other citation(s).",
 				)
 			}
 		}
@@ -716,7 +820,9 @@ func materializeEntryReference(
 		return state, []string{problem}
 	}
 	state.Paths = []string{entry}
-	state.Units = materializeEntryUnits(loader, entry, reference.Symbols)
+	population := materializeEntryUnits(loader, []string{entry}, reference.Symbols)
+	state.Units = population.Units
+	state.Published = population.Published
 	if failure := loader.failure(entry); failure != "" {
 		state.Healthy = false
 		return state, []string{
@@ -728,107 +834,24 @@ func materializeEntryReference(
 			claimLabel(claim) + " " + referenceLabel(reference) + " reached no selected evidence units (" + reference.Symbols.names() + ") from entry '" + entry + "'. Select symbol kinds the entry exposes, or point the entry at the module that declares them.",
 		}
 	}
-	sortUnits(state.Units)
-	for _, unit := range state.Units {
-		state.Scopes = append(state.Scopes, unit)
-		state.UnitsByScope[unit.ID] = append(state.UnitsByScope[unit.ID], unit)
-	}
-	// An entry-selected population is flat by address rather than by file, so a
-	// parent type still has to cover the properties it owns. Walking addresses
-	// keeps that cascade without reintroducing file-shaped hierarchy.
-	for _, unit := range state.Units {
-		for _, other := range state.Units {
-			if other.ID == unit.ID || !addressContains(unit.Identity, other.Identity) {
-				continue
-			}
-			state.UnitsByScope[unit.ID] = append(state.UnitsByScope[unit.ID], other)
-		}
-	}
+	applyTraversedScopes(&state, population.Reached)
 	return state, nil
 }
 
-// materializePackageGlobReference narrows an installed package with globs that
-// resolve against the package root.
+// applyTraversedScopes gives a traversed population its containment closure.
 //
-// Narrowing a large SDK to one area is what makes the obligation adoptable at
-// all. The globs are written as a consumer thinks of the package — `lib/api/**`
-// — rather than carrying the `node_modules` prefix, which is an installation
-// detail rather than part of the package's shape.
-func materializePackageGlobReference(
-	claim claimSpec,
-	reference referenceSpec,
-	loader *typeScriptLoader,
-) (referenceState, []string) {
-	state := referenceState{
-		Spec:         reference,
-		UnitsByScope: map[string][]*evidenceUnit{},
-		Healthy:      true,
-	}
-	base := referenceBase(reference)
-	available := map[string]*evidenceUnit{}
-	candidates, walkProblem := loader.walk(base)
-	if walkProblem != "" {
-		state.Healthy = false
-		return state, []string{
-			claimLabel(claim) + " " + referenceLabel(reference) + " could not inspect TypeScript package '" + reference.Package + "': " + walkProblem + ". Fix filesystem access or reinstall the package; coverage cannot be evaluated from a partial population.",
-		}
-	}
-	problems := []string{}
-	for _, candidate := range candidates {
-		relative := strings.TrimPrefix(strings.TrimPrefix(candidate, base), "/")
-		if !reference.Files.matches(relative) {
-			continue
-		}
-		inventory := loader.inventory(candidate)
-		if inventory == nil {
-			state.Healthy = false
-			problems = append(
-				problems,
-				claimLabel(claim)+" "+referenceLabel(reference)+" could not read TypeScript source '"+candidate+"': "+loader.failure(candidate)+". Fix filesystem access or reinstall the package; coverage cannot be evaluated from a partial population.",
-			)
-			continue
-		}
-		state.Paths = append(state.Paths, candidate)
-		for _, unit := range inventory.Units {
-			available[unit.ID] = unit
-		}
-	}
-	if len(state.Paths) == 0 {
-		if !state.Healthy {
-			return state, problems
-		}
-		return state, []string{
-			claimLabel(claim) + " " + referenceLabel(reference) + " matched no files inside package '" + reference.Package + "' for " + describePatterns(reference.Files) + ". Fix the package-relative globs; they resolve against the package root, not the project root.",
-		}
-	}
-	collectReferenceUnits(&state, reference, available)
-	if !state.Healthy {
-		return state, problems
-	}
-	if len(state.Units) == 0 {
-		return state, []string{
-			claimLabel(claim) + " " + referenceLabel(reference) + " matched " + decimal(len(state.Paths)) + " file(s) inside package '" + reference.Package + "' but materialized no selected evidence units (" + reference.Symbols.names() + "). Select symbol kinds present in those files or correct the globs.",
-		}
-	}
-	return state, nil
-}
-
-// collectReferenceUnits selects units and rebuilds the scope hierarchy over
-// them, so an ancestor target still covers the descendants it owns.
-func collectReferenceUnits(
-	state *referenceState,
-	reference referenceSpec,
-	available map[string]*evidenceUnit,
-) {
-	selected := map[string]bool{}
-	for _, unit := range available {
-		if !reference.Symbols.contains(unit.Symbol) || selected[unit.ID] {
-			continue
-		}
-		selected[unit.ID] = true
-		state.Units = append(state.Units, unit)
-	}
+// Containment follows the declaration hierarchy rather than the address text. A
+// type and a callable may share one public name, so treating a common address
+// prefix as ownership would make an unrelated same-name declaration an ancestor
+// and turn every citation of that name ambiguous. Every reached declaration
+// takes part, which keeps an unselected ancestor addressable as the aggregate
+// scope of its selected descendants.
+func applyTraversedScopes(state *referenceState, reached []*evidenceUnit) {
 	sortUnits(state.Units)
+	available := map[string]*evidenceUnit{}
+	for _, unit := range reached {
+		available[unit.ID] = unit
+	}
 	scopesByID := map[string]*evidenceUnit{}
 	for _, unit := range state.Units {
 		for scope := unit; scope != nil; scope = available[scope.ParentID] {
@@ -845,42 +868,137 @@ func collectReferenceUnits(
 	sortUnits(state.Scopes)
 }
 
+// materializeLocalTypeScriptReference selects modules of the active project
+// with globs and takes the population from what those modules publish.
+//
+// A glob names modules, while an obligation is owed by symbols. So a matched
+// module contributes its own exports and everything it re-exports: a barrel is
+// selected for the surface it presents, and pulling that surface apart into
+// whichever files happen to declare it would make the same population depend on
+// how the sources are laid out.
+func materializeLocalTypeScriptReference(
+	claim claimSpec,
+	reference referenceSpec,
+	inventories map[string]*artifactInventory,
+	loader *typeScriptLoader,
+) (referenceState, []string) {
+	paths := matchingReferencePaths(inventories, reference)
+	state := referenceState{
+		Spec:         reference,
+		Paths:        paths,
+		UnitsByScope: map[string][]*evidenceUnit{},
+		Healthy:      populationIsHealthy(inventories, reference.Base, paths),
+	}
+	if len(paths) == 0 {
+		if !state.Healthy {
+			return state, nil
+		}
+		return state, []string{
+			claimLabel(claim) + " " + referenceLabel(reference) + " matched no typescript files for " + describePopulation(reference.Base, reference.Files) + ". Fix the reference globs or the root they resolve against; this obligation cannot materialize evidence units without files.",
+		}
+	}
+	selectedInventoryProblem := false
+	for _, path := range paths {
+		for _, inventoryProblem := range inventories[path].Problems {
+			if inventoryProblem.Symbol == "*" ||
+				reference.Symbols.contains(inventoryProblem.Symbol) {
+				selectedInventoryProblem = true
+			}
+		}
+	}
+	population := materializeEntryUnits(loader, paths, reference.Symbols)
+	state.Units = population.Units
+	state.Published = population.Published
+	applyTraversedScopes(&state, population.Reached)
+	if !state.Healthy {
+		return state, nil
+	}
+	if len(state.Units) == 0 && !selectedInventoryProblem {
+		return state, []string{
+			claimLabel(claim) + " " + referenceLabel(reference) + " matched " + decimal(len(paths)) + " file(s) but materialized no selected evidence units (" + reference.Symbols.names() + "). Select symbol kinds present in those files or correct the reference globs.",
+		}
+	}
+	return state, nil
+}
+
+// materializePackageGlobReference narrows an installed package with globs that
+// resolve against the package root.
+//
+// Narrowing a large SDK to one area is what makes the obligation adoptable at
+// all. The globs are written as a consumer thinks of the package — `lib/api/**`
+// — rather than carrying the `node_modules` prefix, which is an installation
+// detail rather than part of the package's shape.
+//
+// A matched module is an entry, not a leaf: its own exports and everything it
+// re-exports both belong to the population, because a glob selects modules
+// while an obligation is owed by the symbols those modules publish.
+func materializePackageGlobReference(
+	claim claimSpec,
+	reference referenceSpec,
+	loader *typeScriptLoader,
+) (referenceState, []string) {
+	state := referenceState{
+		Spec:         reference,
+		UnitsByScope: map[string][]*evidenceUnit{},
+		Healthy:      true,
+	}
+	base := referenceBase(reference)
+	candidates, walkProblem := loader.walk(base)
+	if walkProblem != "" {
+		state.Healthy = false
+		return state, []string{
+			claimLabel(claim) + " " + referenceLabel(reference) + " could not inspect TypeScript package '" + reference.Package + "': " + walkProblem + ". Fix filesystem access or reinstall the package; coverage cannot be evaluated from a partial population.",
+		}
+	}
+	problems := []string{}
+	for _, candidate := range candidates {
+		relative := strings.TrimPrefix(strings.TrimPrefix(candidate, base), "/")
+		if !reference.Files.matches(relative) {
+			continue
+		}
+		if loader.inventory(candidate) == nil {
+			state.Healthy = false
+			problems = append(
+				problems,
+				claimLabel(claim)+" "+referenceLabel(reference)+" could not read TypeScript source '"+candidate+"': "+loader.failure(candidate)+". Fix filesystem access or reinstall the package; coverage cannot be evaluated from a partial population.",
+			)
+			continue
+		}
+		state.Paths = append(state.Paths, candidate)
+	}
+	if len(state.Paths) == 0 {
+		if !state.Healthy {
+			return state, problems
+		}
+		return state, []string{
+			claimLabel(claim) + " " + referenceLabel(reference) + " matched no files inside package '" + reference.Package + "' for " + describePatterns(reference.Files) + ". Fix the package-relative globs; they resolve against the package root, not the project root.",
+		}
+	}
+	population := materializeEntryUnits(loader, state.Paths, reference.Symbols)
+	state.Units = population.Units
+	state.Published = population.Published
+	applyTraversedScopes(&state, population.Reached)
+	if !state.Healthy {
+		return state, problems
+	}
+	if len(state.Units) == 0 {
+		return state, []string{
+			claimLabel(claim) + " " + referenceLabel(reference) + " matched " + decimal(len(state.Paths)) + " file(s) inside package '" + reference.Package + "' but materialized no selected evidence units (" + reference.Symbols.names() + "). Select symbol kinds present in those files or correct the globs.",
+		}
+	}
+	return state, nil
+}
+
 func resolveReferenceEntry(
 	claim claimSpec,
 	reference referenceSpec,
 	loader *typeScriptLoader,
 ) (string, string) {
-	base := referenceBase(reference)
-	if reference.Entry != "" {
-		candidate := reference.Entry
-		if base != "" {
-			candidate = path.Join(base, reference.Entry)
-		}
-		for _, option := range moduleCandidates(candidate) {
-			if loader.exists(option) {
-				return option, ""
-			}
-		}
-		return "", claimLabel(claim) + " " + referenceLabel(reference) + " found no entry module at '" + candidate + "'. Correct the entry path; this obligation cannot materialize evidence units without one."
-	}
 	entry := loader.packageEntryModule(reference.Package)
 	if entry == "" {
-		return "", claimLabel(claim) + " " + referenceLabel(reference) + " could not resolve the declaration entry of package '" + reference.Package + "'. Install it, or name its entry with 'file'; the entry is read from the 'types' condition of 'exports', then 'typesVersions', then 'types'."
+		return "", claimLabel(claim) + " " + referenceLabel(reference) + " could not resolve the declaration entry of package '" + reference.Package + "'. Install it, or select its declarations with 'files'; the entry is read from the 'types' condition of 'exports', then 'typesVersions', then 'types'."
 	}
 	return entry, ""
-}
-
-// addressContains reports whether one entry-relative address encloses another.
-func addressContains(owner []string, candidate []string) bool {
-	if len(candidate) <= len(owner) {
-		return false
-	}
-	for index, segment := range owner {
-		if candidate[index] != segment {
-			return false
-		}
-	}
-	return true
 }
 
 func scopedTargetKey(path string, target string) string {

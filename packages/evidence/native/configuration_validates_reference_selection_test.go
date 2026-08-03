@@ -13,40 +13,40 @@ func decodeReferenceProblems(t *testing.T, reference string) []string {
 }
 
 /**
- * Verifies `file` and `files` cannot both select one population.
+ * Verifies a TypeScript reference refuses the singular `file`.
  *
- * They are two answers to the same question, and silently preferring one would
- * make the other look effective while selecting nothing. The message names the
- * choice rather than the offending key, because either is valid alone.
+ * Singular `file` belongs to Swagger, which owns one document. A TypeScript
+ * population is always a module set, so accepting the key would leave a
+ * configuration that reads as selecting something and selects nothing.
  *
- *  1. Configure both selectors on one reference.
+ *  1. Configure `file` on a TypeScript reference.
  *  2. Decode the configuration.
- *  3. Assert the conflict is rejected.
+ *  3. Assert the key is rejected and names the repair.
  */
-func TestConfigurationRejectsBothEntryAndGlobs(t *testing.T) {
+func TestConfigurationRejectsFileOnTypeScriptReferences(t *testing.T) {
 	assertProblemContains(
 		t,
-		decodeReferenceProblems(t, `{"type":"typescript","file":"src/index.ts","files":["src/**"]}`),
-		"select the same population two different ways",
+		decodeReferenceProblems(t, `{"type":"typescript","file":"src/index.ts"}`),
+		"a TypeScript reference selects its population with 'files' globs",
 	)
 }
 
 /**
  * Verifies a local TypeScript reference must select something.
  *
- * There is no implicit project entry: guessing one would make the population
- * depend on a convention the configuration never states, and an obligation
- * nobody declared is worse than none.
+ * There is no implicit project population: guessing one would make the
+ * obligation depend on a convention the configuration never states, and an
+ * obligation nobody declared is worse than none.
  *
- *  1. Configure a local reference with neither selector.
+ *  1. Configure a local reference with no selector.
  *  2. Decode the configuration.
- *  3. Assert the omission is rejected and names both repairs.
+ *  3. Assert the omission is rejected and names the repair.
  */
 func TestConfigurationRejectsALocalReferenceWithNoSelector(t *testing.T) {
 	assertProblemContains(
 		t,
 		decodeReferenceProblems(t, `{"type":"typescript"}`),
-		"needs 'file' for an entry module or 'files' for globs",
+		"needs 'files' globs",
 	)
 }
 
@@ -102,31 +102,12 @@ func TestConfigurationRejectsPathsInThePackageSlot(t *testing.T) {
 	assertProblemContains(
 		t,
 		decodeReferenceProblems(t, `{"type":"typescript","package":"./lib"}`),
-		"use 'file' or 'files' for a local population",
+		"use 'files' for a local population",
 	)
 	assertProblemContains(
 		t,
 		decodeReferenceProblems(t, `{"type":"typescript","package":"@org/api/lib"}`),
-		"narrow it with 'file' or 'files'",
-	)
-}
-
-/**
- * Verifies an entry module path must stay below its base.
- *
- * An entry escaping upward would select a population outside the project or the
- * package the reference names, which is a boundary the configuration is
- * supposed to state rather than leak past.
- *
- *  1. Configure an entry that climbs out of its base.
- *  2. Decode the configuration.
- *  3. Assert it is rejected.
- */
-func TestConfigurationRejectsAnEscapingEntryModule(t *testing.T) {
-	assertProblemContains(
-		t,
-		decodeReferenceProblems(t, `{"type":"typescript","file":"../outside/index.ts"}`),
-		"must name a file below their base directory",
+		"narrow it with 'files'",
 	)
 }
 
