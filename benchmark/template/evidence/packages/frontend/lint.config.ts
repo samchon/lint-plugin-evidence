@@ -29,9 +29,12 @@ import type { ITtscLintConfig } from "@ttsc/lint";
  * a hook answers for the operations it calls, a screen answers for the hooks it
  * uses, and a journey answers for the screens it walks. A hook wrapping an
  * accessor that no screen ever renders fails at the screen claim, which is the
- * hole that hook coverage alone would leave open. Only the requirement
- * obligations accept an exclusion; an unconsumed operation, an unused hook, and
- * an unwalked screen are all build failures.
+ * hole that hook coverage alone would leave open.
+ *
+ * The operation and hook obligations refuse exclusions, because an unconsumed
+ * operation and an unused hook are missing work rather than decisions. The
+ * requirement and screen obligations still accept a reviewed one, so a screen
+ * outside the journeys is a decision someone has to write down and defend.
  *
  * The operation obligation does not constrain how many operations one hook may
  * cite. What matters is that nothing goes unconsumed, and a hook composing two
@@ -91,9 +94,8 @@ const graph: IEvidenceGraphConfig = {
       // Remove after every requirement-backed journey and mapping is complete.
       disabled: true,
     },
-    // The hooks deliver the published API to the product. One hook owns one
-    // generated call, so an operation no hook reaches is a missing feature
-    // rather than a note in `wiki/omissions.md`.
+    // The hooks deliver the published API to the product. An operation no hook
+    // reaches is a missing feature rather than a note in `wiki/omissions.md`.
     {
       name: "frontend-hooks",
       type: "typescript",
