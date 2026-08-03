@@ -48,7 +48,7 @@ Run `pnpm test:e2e` with `VITE_API_SIMULATE=false`. Fix every failure. After the
 - [ ] Every required domain hook, screen, state, interaction, and journey implemented.
 - [ ] Every frontend claim is enabled; no other claim configuration changed.
 - [ ] `frontend-hooks` was enabled before screen implementation began, and `frontend-screens` before journey implementation began.
-- [ ] Every published SDK accessor is called by a hook, every hook is used by a screen, and every screen is walked by a journey.
+- [ ] Every published SDK accessor is called by a hook and every hook is used by a screen; every screen is walked by a journey or carries a reviewed exclusion naming what covers it instead.
 - [ ] Every `@evidence` is on a hook that calls its linked operation, a page that delivers its linked requirement or uses its linked hook, or a journey that proves its linked requirement or walks its linked page.
 - [ ] Every `@evidenceExclude` names its owner or alternative and invalidating condition; none exists only to remove a diagnostic.
 - [ ] The persistent frontend `pnpm dev` process reloaded without diagnostics after the latest change and remains running.

@@ -14,7 +14,7 @@ Ensure `pnpm dev` is running from `packages/backend`. Start `pnpm dev` from `pac
 ## Final Checklist
 
 - [ ] Every required domain hook, screen, state, interaction, and browser journey implemented.
-- [ ] Every published SDK accessor is called by a hook, every hook is used by a screen, and every screen is walked by a journey.
+- [ ] Every published SDK accessor is called by a hook and every hook is used by a screen; every screen is walked by a journey or has a recorded requirement-backed reason.
 - [ ] Every upstream correction regenerated the SDK and re-passed the backend gate.
 - [ ] Backend and frontend processes reloaded cleanly after the latest scoped change.
 - [ ] Live-backend `pnpm test:e2e` passed against the current implementation.

@@ -4,7 +4,9 @@ Read `AGENTS.md`, `.agents/skills/review/SKILL.md`, and `.agents/skills/review/f
 
 Review the entire frontend and its live behavior through a literal **review loop until dry**:
 
-Every round must read in full one complete sorted manifest covering `docs/analysis/`, `packages/api/src/`, `packages/frontend/src/`, and `packages/frontend/tests/`, including frontend configuration affecting compilation, SDK use, Vite, Playwright, or runtime, and the complete published operation inventory.
+Every round must read in full one complete sorted manifest covering `docs/analysis/`, `packages/api/src/`, `packages/frontend/src/`, and `packages/frontend/tests/`, including frontend configuration affecting compilation, SDK use, Vite, Playwright, or runtime.
+
+Every round must also build the complete published operation index the Review skill defines, and reach every entry in it.
 
 1. Read every requirement in full; compare it with the API, screens, user journeys, and browser tests.
 2. Read every API operation and DTO in full; compare each with frontend behavior, data flow, errors, and tests.

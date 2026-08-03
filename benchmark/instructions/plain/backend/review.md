@@ -4,7 +4,9 @@ Read `AGENTS.md`, `.agents/skills/review/SKILL.md`, and `.agents/skills/review/b
 
 Review the entire API and backend, excluding the frontend, through a literal **review loop until dry**:
 
-Every round must read in full one complete sorted manifest covering `docs/analysis/`, `packages/backend/prisma/schema/`, `packages/api/src/structures/`, `packages/backend/src/`, and `packages/backend/test/`, including API or backend configuration affecting compilation, generation, persistence, or runtime, and the complete published operation inventory.
+Every round must read in full one complete sorted manifest covering `docs/analysis/`, `packages/backend/prisma/schema/`, `packages/api/src/structures/`, `packages/backend/src/`, and `packages/backend/test/`, including API or backend configuration affecting compilation, generation, persistence, or runtime.
+
+Every round must also build the complete published operation index the Review skill defines, and reach every entry in it.
 
 1. Read every requirement in full; compare it with the database, API, and backend tests.
 2. Read the full database design; compare every model, field, and relation with API operations and DTOs.

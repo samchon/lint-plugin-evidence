@@ -31,7 +31,8 @@ Start `pnpm check:watch` from `packages/backend` before implementation while eve
    - Wait for a rebuild without diagnostics.
 3. After every public-operation test is written, delete `disabled` from `backend-tests`.
    - Fix every diagnostic, complete its truthful evidence mapping, and wait for a rebuild without diagnostics.
-   - The operation reference refuses `@evidenceExclude` and requires exactly one operation citation per test. Write the missing tests; do not exclude an operation or remove a second citation from a test that genuinely exercises two.
+   - The operation reference refuses `@evidenceExclude`, so answer an unproved operation by writing its tests.
+   - It also requires exactly one operation citation per test. Cite the operation the test proves; its prerequisite and follow-up calls are setup and observation and stay uncited. Split a test that genuinely has two subjects.
    - Keep it running through Overall Final.
 4. Finish every provider and controller body while the watcher runs.
    - Fix every new diagnostic and wait for a rebuild without diagnostics.
