@@ -88,7 +88,7 @@ Never substitute a passing `pnpm test` for this reading. It reports only the tes
 
 ## Configuration Closure
 
-Read every configuration file in the manifest and compare it with the baseline commit. These files are the measurement boundary, not product work: a lint rule relaxed, a claim disabled, a script weakened, or a compiler option loosened is a finding regardless of what it unblocks. Report it and restore the file rather than building on it.
+Read every configuration file in the manifest and compare it with the baseline commit. These files are the measurement boundary, not product work. Any difference from the baseline is a finding regardless of what it unblocks: a lint rule relaxed, a script weakened, a compiler option loosened, a dependency changed. Report it and restore the file rather than building on it.
 
 ## Contract And Test Closure
 
