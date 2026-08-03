@@ -55,18 +55,14 @@ rg --no-filename -o '@accessor \S+' packages/api/src/functional | sort
 
 This is a cross-check index, not a read. It does not shorten the literal full reading of `packages/api/src/`, and an accessor absent from the index but present in the source is itself a finding. Use it to guarantee the propagation below reaches every operation, and work it entry by entry.
 
-1. Name, for each accessor, the hook under `src/lib/<domain>/hooks.ts` that calls it, and the screen that renders that hook.
+This propagation asks who covers what, not whether any one artifact is written well. The other propagations own that.
+
+1. Name, for each accessor, the hook that calls it, the screen that renders that hook, and the journey that walks that screen.
    - An accessor no hook calls is a missing feature, not an implementation detail. Four hundred published operations and two hundred consumed ones means the product is half delivered.
    - A hook no screen uses is the same omission one layer up: the call exists and the user still cannot reach it.
-   - Record either as a finding and follow it to the screen the requirements say should surface it.
-2. Verify the call is the hook's own.
-   - Confirm no handwritten service or transport wrapper sits between the hook and the SDK.
-   - Confirm a page fetches through the hook rather than calling the accessor itself.
-3. Close the chain at the browser.
-   - Name the journey that walks each screen. A screen no journey walks is unproven where it counts, and it leaves every accessor beneath it unproven too.
-4. Verify the reverse direction.
+   - A screen no journey walks leaves every accessor beneath it unproven.
+2. Name, for each requirement, the screen that delivers it.
    - An operation the frontend calls that no requirement asks for is over-implementation and a finding.
-   - A screen that fabricates data an operation already returns is a finding.
 
 A deliberate non-consumption is a finding until a requirement backs it. Record the requirement that makes the operation backend-only; an entry in `wiki/omissions.md` restates the decision but does not justify it.
 

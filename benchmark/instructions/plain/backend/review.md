@@ -4,7 +4,7 @@ Read `AGENTS.md`, `.agents/skills/review/SKILL.md`, and `.agents/skills/review/b
 
 Review the entire API and backend, excluding the frontend, through a literal **review loop until dry**:
 
-Every round must read in full one complete sorted manifest covering `docs/analysis/`, `packages/backend/prisma/schema/`, `packages/backend/src/controllers/`, `packages/api/src/structures/`, `packages/backend/src/`, and `packages/backend/test/`, including API or backend configuration affecting compilation, generation, persistence, or runtime.
+Every round must read in full one complete sorted manifest covering `docs/analysis/`, `packages/backend/prisma/schema/`, `packages/api/src/structures/`, `packages/backend/src/controllers/`, and `packages/backend/test/`, including API or backend configuration affecting compilation, generation, persistence, or runtime.
 
 Every round must also build the operation index that Operation Coverage Propagation defines in `.agents/skills/review/backend.md`, and reach every entry in it.
 
