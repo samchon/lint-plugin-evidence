@@ -596,13 +596,9 @@ export const test_benchmark_runner = async (): Promise<void> => {
           runRoot: supervisedRunRoot,
           instructionsRoot: root,
           verdictFile: path.join(root, "missing-verdict.json"),
-          inputIdentity: {
-            templateSha256: "a".repeat(64),
-            requirementsSha256: "b".repeat(64),
-            instructionsSha256: "c".repeat(64),
-          },
+          subject: "another-subject",
         }),
-      /does not match frozen benchmark inputs/u,
+      /does not match its subject/u,
     );
     const workspaceVerdict: string = path.join(
       supervisedWorkspace,
