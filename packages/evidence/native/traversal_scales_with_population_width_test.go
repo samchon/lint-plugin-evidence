@@ -25,7 +25,9 @@ import (
 // what a glob over a package with several entry points does. `WatchCycle`
 // measures what a watch cycle actually repeats: the graph rebuild over a
 // Program that is already parsed, where the traversal is the whole cost rather
-// than a fraction of parsing.
+// than a fraction of parsing. `WatchCycleErpScale` puts that last one at the
+// size the failure in issue #155 was measured at, so the numbers here are
+// answerable against a real application rather than only against each other.
 //
 // Run them with `go test -run XXX -bench . -benchtime 30x ./native`.
 
@@ -169,3 +171,80 @@ func benchmarkWatchCycle(b *testing.B, operations int, dtos int) {
 
 func BenchmarkWatchCycleSdk50(b *testing.B)  { benchmarkWatchCycle(b, 50, 50) }
 func BenchmarkWatchCycleSdk200(b *testing.B) { benchmarkWatchCycle(b, 200, 200) }
+
+// benchmarkErpScale reproduces the shape reported in issue #155: 663 product
+// operations behind a generated barrel, 124 DTO declarations each carrying ten
+// properties, and one test claim citing the whole population.
+func benchmarkErpScale(b *testing.B, operations int, dtos int, properties int, tests int) {
+	files := map[string]string{}
+	barrel := "export * as structures from \"./structures.js\";\n"
+	structures := ""
+	for dto := 0; dto < dtos; dto++ {
+		body := ""
+		for property := 0; property < properties; property++ {
+			body += fmt.Sprintf(" field%d: string;", property)
+		}
+		structures += fmt.Sprintf("export interface IDto%d {%s }\n", dto, body)
+	}
+	files["src/api/structures.ts"] = structures
+	for operation := 0; operation < operations; operation++ {
+		files[fmt.Sprintf("src/api/op%d.ts", operation)] = fmt.Sprintf(
+			"export function operation%d(): void {}\n",
+			operation,
+		)
+		barrel += fmt.Sprintf(
+			"export * as op%d from \"./op%d.js\";\n",
+			operation,
+			operation,
+		)
+	}
+	files["src/api/index.ts"] = barrel
+	for test := 0; test < tests; test++ {
+		files[fmt.Sprintf("test/features/test%d.ts", test)] = fmt.Sprintf(
+			"export function test_case%d(): void {}\n",
+			test,
+		)
+	}
+	const config = `{"claims":[{
+		"type":"typescript",
+		"files":["test/features/**"],
+		"symbol":"function",
+		"reference":{"type":"typescript","files":["src/api/**"],"symbol":["type","function","property"]}
+	}]}`
+
+	root := b.TempDir()
+	paths := make([]string, 0, len(files))
+	for path := range files {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	sources := []*shimast.SourceFile{}
+	for _, relative := range paths {
+		absolute := filepath.Join(root, filepath.FromSlash(relative))
+		if err := os.MkdirAll(filepath.Dir(absolute), 0o755); err != nil {
+			b.Fatal(err)
+		}
+		if err := os.WriteFile(absolute, []byte(files[relative]), 0o644); err != nil {
+			b.Fatal(err)
+		}
+		sources = append(sources, shimparser.ParseSourceFile(
+			shimast.SourceFileParseOptions{FileName: filepath.ToSlash(absolute)},
+			files[relative],
+			shimcore.ScriptKindTS,
+		))
+	}
+	b.ResetTimer()
+	for iteration := 0; iteration < b.N; iteration++ {
+		graphRule{}.Check(rule.NewProjectContext(
+			rule.ProjectIdentity{PhysicalProjectRoot: root},
+			sources,
+			nil,
+			rule.SeverityError,
+			json.RawMessage(config),
+			&capturedProjectReporter{},
+		))
+	}
+}
+
+func BenchmarkWatchCycleErpScale(b *testing.B)     { benchmarkErpScale(b, 663, 124, 10, 1326) }
+func BenchmarkWatchCycleErpScaleHalf(b *testing.B) { benchmarkErpScale(b, 331, 62, 10, 663) }

@@ -45,15 +45,18 @@ func extendTypeScriptInventories(
 			if inventories[address.Key] != nil {
 				continue
 			}
-			inventories[address.Key] = scanTypeScriptInventoryAt(address, file)
+			inventories[address.Key] = typeScriptInventories.scan(address, file)
 		}
 	}
 }
 
+// isTypeScriptPath is asked once per source file per configured base on every
+// rebuild, so it compares the suffix in place rather than lowercasing the whole
+// path into a fresh string to answer four fixed questions.
 func isTypeScriptPath(path string) bool {
-	path = strings.ToLower(path)
 	for _, suffix := range []string{".ts", ".tsx", ".mts", ".cts"} {
-		if strings.HasSuffix(path, suffix) {
+		if len(path) >= len(suffix) &&
+			strings.EqualFold(path[len(path)-len(suffix):], suffix) {
 			return true
 		}
 	}
@@ -64,6 +67,12 @@ func relativeProjectPath(root string, absolute string) (string, bool) {
 	if root == "" || absolute == "" {
 		return "", false
 	}
+	// A source file usually sits below the base that is asking, spelled the same
+	// way. Answering that from the two strings keeps the general path machinery
+	// off a loop that runs once per file per base on every rebuild.
+	if inside, ok := containedProjectPath(root, absolute); ok {
+		return inside, true
+	}
 	relative, err := filepath.Rel(root, absolute)
 	if err != nil {
 		return "", false
@@ -73,6 +82,29 @@ func relativeProjectPath(root string, absolute string) (string, bool) {
 		return "", false
 	}
 	return strings.TrimPrefix(relative, "./"), true
+}
+
+// containedProjectPath answers the ordinary case of one path sitting below
+// another: same spelling, one separator between them, and nothing left to
+// normalize. It declines anything else so the general form still decides.
+func containedProjectPath(root string, absolute string) (string, bool) {
+	if len(absolute) <= len(root)+1 ||
+		!strings.EqualFold(absolute[:len(root)], root) {
+		return "", false
+	}
+	if separator := absolute[len(root)]; separator != '/' && separator != '\\' {
+		return "", false
+	}
+	relative := absolute[len(root)+1:]
+	if strings.ContainsRune(relative, '\\') {
+		return "", false
+	}
+	for segment := range strings.SplitSeq(relative, "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return "", false
+		}
+	}
+	return relative, true
 }
 
 func scanTypeScriptInventory(
