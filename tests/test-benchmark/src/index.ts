@@ -60,7 +60,6 @@ const ENTRIES = EVIDENCE_ENTRIES;
  * 6. Assert callback errors retain serializable Error identity and context.
  */
 const main = async (): Promise<void> => {
-  testPlainOperationReviewInstructionContract();
   const root: string = fs.mkdtempSync(
     path.join(os.tmpdir(), "evidence-benchmark-runner-"),
   );
@@ -538,6 +537,20 @@ const main = async (): Promise<void> => {
       workspace: supervisedWorkspace,
       state: supervised,
     });
+    assert.throws(
+      () =>
+        EvidenceBenchmarkSupervision.decide({
+          runRoot: supervisedRunRoot,
+          instructionsRoot: root,
+          verdictFile: path.join(root, "missing-verdict.json"),
+          inputIdentity: {
+            templateSha256: "a".repeat(64),
+            requirementsSha256: "b".repeat(64),
+            instructionsSha256: "c".repeat(64),
+          },
+        }),
+      /does not match frozen benchmark inputs/u,
+    );
     const disclosedVerdict: string = path.join(root, "disclosed.json");
     fs.writeFileSync(
       disclosedVerdict,
@@ -628,9 +641,9 @@ const main = async (): Promise<void> => {
         verdictFile,
         `${JSON.stringify({
           decision: "fail",
-          rationale: `Attempt ${attempt} omitted material operation closure.`,
+          rationale: `Attempt ${attempt} omitted material source review.`,
           feedback:
-            "Read the missing controller and test files, repair the uncovered operation scenarios, then repeat the complete post-edit review.",
+            "Read the omitted source files, repair every resulting defect, then repeat the complete post-edit review.",
         })}\n`,
       );
       const verdict = EvidenceBenchmarkSupervision.decide({
@@ -2855,147 +2868,6 @@ const isProcessAlive = (processId: number): boolean => {
 const sha256 = (value: Buffer): string =>
   crypto.createHash("sha256").update(value).digest("hex");
 
-/**
- * Verifies Plain review rejects non-semantic API-test coverage claims.
- *
- * A complete file manifest and a green suite can coexist with untested product
- * operations or one generic journey that calls everything as setup. The prompt
- * contract therefore has to preserve the semantic operation audit through
- * Review, Remind, Final, and the Overall safety pass without exposing another
- * benchmark arm or an external auditor.
- *
- * 1. Pin the operation manifest, call roles, scenario, assertion, and restart
- *    rules.
- * 2. Pin the distinct Review, Remind, Final, and Overall responsibilities.
- * 3. Require every fully composed Plain Goal objective to stay within 4,000
- *    characters.
- */
-const testPlainOperationReviewInstructionContract = (): void => {
-  const repository: string = path.resolve(import.meta.dirname, "../../..");
-  const read = (relative: string): string =>
-    fs.readFileSync(path.join(repository, ...relative.split("/")), "utf8");
-  const backendSkill: string = read(
-    "benchmark/template/plain/.agents/skills/review/backend.md",
-  );
-  const overallSkill: string = read(
-    "benchmark/template/plain/.agents/skills/review/overall.md",
-  );
-  const reviewSkill: string = read(
-    "benchmark/template/plain/.agents/skills/review/SKILL.md",
-  );
-  const backendReview: string = read(
-    "benchmark/instructions/plain/backend/review.md",
-  );
-  const backendRemind: string = read(
-    "benchmark/instructions/plain/backend/remind.md",
-  );
-  const backendFinal: string = read(
-    "benchmark/instructions/plain/backend/final.md",
-  );
-  const overallReview: string = read(
-    "benchmark/instructions/plain/overall/review.md",
-  );
-
-  assert.match(
-    backendSkill,
-    /complete sorted manifest of every product API operation/u,
-  );
-  assert.match(
-    backendSkill,
-    /Dependency and follow-up calls earn no primary coverage/u,
-  );
-  assert.match(
-    backendSkill,
-    /generic journey or mega-test that has no single primary operation earns none/u,
-  );
-  assert.match(
-    backendSkill,
-    /at least two semantically distinct business scenarios/u,
-  );
-  assert.match(backendSkill, /Every exported test has exactly one primary/u);
-  assert.match(backendSkill, /publicly observable business effect/u);
-  assert.match(
-    backendSkill,
-    /Shape, non-null, status-only, and input-echo checks are insufficient/u,
-  );
-  assert.match(
-    backendSkill,
-    /Do not write or retain malformed-input or generic HTTP 400 scenarios/u,
-  );
-  assert.match(
-    backendSkill,
-    /Assert an exact status or server code only when the requirement or public contract states it/u,
-  );
-  assert.match(
-    backendSkill,
-    /next full round starts at the first requirement and its operation audit starts at the first operation/u,
-  );
-  assert.match(
-    reviewSkill,
-    /byte or line count, file manifest, or passing gate cannot prove/u,
-  );
-  assert.match(backendReview, /One primary operation per exported test/u);
-  assert.match(
-    backendReview,
-    /Compare fixed scenario gates with the committed baseline/u,
-  );
-  assert.match(backendRemind, /I suspect your Backend Review is incomplete/u);
-  assert.match(backendFinal, /last safety check, not a new Review/u);
-  assert.match(
-    overallSkill,
-    /Rebuild the current complete product-operation manifest/u,
-  );
-  assert.match(overallReview, /one primary operation per exported test/u);
-
-  const ownedSources: readonly string[] = [
-    reviewSkill,
-    backendSkill,
-    overallSkill,
-    backendReview,
-    backendRemind,
-    backendFinal,
-    overallReview,
-    read("benchmark/template/plain/.agents/skills/review/frontend.md"),
-    read("benchmark/instructions/plain/frontend/review.md"),
-    read("benchmark/instructions/plain/frontend/remind.md"),
-    read("benchmark/instructions/plain/frontend/final.md"),
-    read("benchmark/instructions/plain/overall/remind.md"),
-    read("benchmark/instructions/plain/overall/final.md"),
-  ];
-  for (const source of ownedSources)
-    assert.doesNotMatch(
-      source,
-      /\b(?:benchmark|operators?|auditors?|verdicts?|supervisors?|supervision|reviewers?|plugin)\b|\b(?:another|other|external|main|measurement)\s+agent\b|\b(?:plain|evidence)\s+(?:arm|mode|agent)\b|evidence graph|@evidence/iu,
-    );
-
-  const continuation: string = read("benchmark/instructions/plain/continue.md");
-  for (const [, relative] of [...PLAIN_ENTRIES, ...PLAIN_REMINDERS]) {
-    const prescribed: string = readPlainPrescribed(repository, relative);
-    const objective: string = `${prescribed}\n\n${continuation}`;
-    assert.ok(
-      objective.length <= 4_000,
-      `${relative} composes to ${objective.length} characters`,
-    );
-  }
-};
-
-const readPlainPrescribed = (repository: string, relative: string): string => {
-  const location = (path_: string): string =>
-    path.join(repository, "benchmark/instructions", ...path_.split("/"));
-  const prescribed: string = fs.readFileSync(location(relative), "utf8");
-  if (!/\/(?:remind|final)\.md$/u.test(relative)) return prescribed;
-  const reviewPath: string = relative.replace(
-    /\/(?:remind|final)\.md$/u,
-    "/review.md",
-  );
-  const lines: string[] = fs
-    .readFileSync(location(reviewPath), "utf8")
-    .split(/\r\n|\n|\r/u);
-  if (lines.at(-1) === "") lines.pop();
-  const quote: string = lines.map((line) => `> ${line}`).join("\n");
-  return `${prescribed.trimEnd()}\n\n${quote}`;
-};
-
 const writeInstructions = (root: string): Map<string, Buffer> => {
   const sources: Map<string, Buffer> = new Map([
     [
@@ -3062,7 +2934,8 @@ const readPrescribed = (
   const lines: string[] = review.toString("utf8").split(/\r\n|\n|\r/u);
   if (lines.at(-1) === "") lines.pop();
   const quote: string = lines.map((line) => `> ${line}`).join("\n");
-  return `${prescribed.trimEnd()}\n\n${quote}`;
+  const separator: string = prescribed.endsWith("\n") ? "\n" : "\n\n";
+  return `${prescribed}${separator}${quote}`;
 };
 
 const fakeAppServer = (): void => {

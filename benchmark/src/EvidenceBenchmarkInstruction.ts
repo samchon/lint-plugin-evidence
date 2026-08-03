@@ -132,15 +132,12 @@ export namespace EvidenceBenchmarkInstruction {
       path.join(props.instructionsRoot, ...reviewPath.split("/")),
       "utf8",
     );
-    return [
-      prescribedText.trimEnd(),
-      ...(props.entry.reviewFeedback === undefined
-        ? []
-        : [
-            `Correct these verified gaps:\n\n${props.entry.reviewFeedback.trim()}`,
-          ]),
-      quoteMarkdown(reviewText),
-    ].join("\n\n");
+    const separator: string = prescribedText.endsWith("\n") ? "\n" : "\n\n";
+    const feedback: string =
+      props.entry.reviewFeedback === undefined
+        ? ""
+        : `Correct these verified gaps:\n\n${props.entry.reviewFeedback.trim()}\n\n`;
+    return `${prescribedText}${separator}${feedback}${quoteMarkdown(reviewText)}`;
   }
 
   function quoteMarkdown(text: string): string {

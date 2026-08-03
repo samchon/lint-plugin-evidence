@@ -1,5 +1,6 @@
 import path from "node:path";
 
+import { EvidenceBenchmarkCheckpoint } from "../EvidenceBenchmarkCheckpoint.ts";
 import { EvidenceBenchmarkSupervision } from "../EvidenceBenchmarkSupervision.ts";
 
 const main = (): void => {
@@ -29,6 +30,12 @@ const main = (): void => {
     ),
     instructionsRoot: path.join(repository, "benchmark", "instructions"),
     verdictFile,
+    subject,
+    inputIdentity: EvidenceBenchmarkCheckpoint.identifyInputs({
+      repository,
+      subject,
+      arm: "plain",
+    }),
   });
   process.stdout.write(`${JSON.stringify(verdict, null, 2)}\n`);
 };

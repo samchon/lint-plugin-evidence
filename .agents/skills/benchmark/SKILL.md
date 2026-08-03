@@ -78,15 +78,15 @@ Observe every active cell at least every 30 seconds. Check `state.json`, benchma
 
 Do not edit a measured workspace, prompt the measured agent, inject advice, weaken a gate, hard-code a subject answer, or expose Evidence material to Plain. Questions and partial reports do not invite operator input.
 
-At `awaiting-review-verdict`, inspect the completed Goal's retained output and actions together with the actual workspace diff and relevant source. Judge substantive review, not report typography. Pass a materially exhaustive review despite minor checklist or formatting slips. Operation closure requires every product API operation, exactly one primary operation per exported test, at least two distinct business scenarios per operation, public SDK dependencies/follow-ups without primary credit, and concrete assertions of public business effects. Fail counts, manifests, searches, green commands, material source/requirement omissions, absent post-edit rereading, automatic malformed-400 tests, invented status/error oracles, or any unproved operation.
+At `awaiting-review-verdict`, inspect the completed Goal's retained output and actions together with the actual workspace diff and relevant source. Judge substantive review, not report typography. Pass a materially exhaustive review despite minor checklist or formatting slips. Fail a review that substitutes counts, lengths, manifests, searches, or green commands for semantic inspection; materially omits requirements or source; fails to re-read the complete surface after edits; or leaves required behavior and test closure unproven.
 
 Write one strict JSON verdict outside the measured workspace:
 
 ```json
 {
   "decision": "fail",
-  "rationale": "The retained review did not inspect six controller operations or their tests.",
-  "feedback": "Read the six omitted controller operations and every calling test, repair their missing primary scenarios, then repeat the complete post-edit review."
+  "rationale": "The retained review omitted material source paths and did not repeat its full inspection after editing them.",
+  "feedback": "Inspect the omitted source paths, correct every resulting defect, and repeat the complete current-source review after the last edit."
 }
 ```
 

@@ -6,6 +6,7 @@ import typia from "typia";
 
 import { EvidenceBenchmarkCheckpoint } from "./EvidenceBenchmarkCheckpoint.ts";
 import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction.ts";
+import type { IEvidenceBenchmarkInputIdentity } from "./structures/IEvidenceBenchmarkInputIdentity.ts";
 import type { IEvidenceBenchmarkRunState } from "./structures/IEvidenceBenchmarkRunState.ts";
 import type { IEvidenceBenchmarkSupervisionVerdict } from "./structures/IEvidenceBenchmarkSupervisionVerdict.ts";
 import type { IEvidenceBenchmarkWorkspaceIdentity } from "./structures/IEvidenceBenchmarkWorkspaceIdentity.ts";
@@ -14,6 +15,8 @@ interface ISupervisedStateFile {
   cell: {
     arm: "plain" | "evidence";
     runId: string;
+    subject?: string;
+    inputIdentity?: IEvidenceBenchmarkInputIdentity;
   };
   records: {
     root: string;
@@ -36,13 +39,18 @@ export namespace EvidenceBenchmarkSupervision {
     runRoot: string;
     instructionsRoot: string;
     verdictFile: string;
+    subject?: string;
+    inputIdentity?: IEvidenceBenchmarkInputIdentity;
   }): IEvidenceBenchmarkSupervisionVerdict {
     const runRoot: string = path.resolve(props.runRoot);
     const statePath: string = path.join(runRoot, "state.json");
     const retained = typia.assert<ISupervisedStateFile>(
       JSON.parse(fs.readFileSync(statePath, "utf8")),
     );
-    assertRunBoundary(retained, runRoot, statePath);
+    assertRunBoundary(retained, runRoot, statePath, {
+      subject: props.subject,
+      inputIdentity: props.inputIdentity,
+    });
     assertHistory(runRoot, retained.state);
     const pause = retained.state.supervisionPauses!.at(-1)!;
     const goal = retained.state.goals.at(-1)!;
@@ -197,6 +205,10 @@ export namespace EvidenceBenchmarkSupervision {
     retained: ISupervisedStateFile,
     runRoot: string,
     statePath: string,
+    current: {
+      subject?: string;
+      inputIdentity?: IEvidenceBenchmarkInputIdentity;
+    },
   ): void {
     const pause = retained.state.supervisionPauses?.at(-1);
     const goal = retained.state.goals.at(-1);
@@ -207,6 +219,11 @@ export namespace EvidenceBenchmarkSupervision {
         ? undefined
         : EvidenceBenchmarkInstruction.reviewBoundary(planEntry);
     const process = retained.state.processes.at(-1);
+    if (
+      retained.cell.subject !== current.subject ||
+      !sameInputIdentity(retained.cell.inputIdentity, current.inputIdentity)
+    )
+      throw new Error("Review verdict does not match frozen benchmark inputs.");
     if (
       retained.cell.arm !== "plain" ||
       retained.cell.runId !== path.basename(runRoot) ||
@@ -329,6 +346,18 @@ export namespace EvidenceBenchmarkSupervision {
       left.fileCount === right.fileCount &&
       left.gitHead === right.gitHead &&
       left.gitStatus === right.gitStatus
+    );
+  }
+
+  function sameInputIdentity(
+    left: IEvidenceBenchmarkInputIdentity | undefined,
+    right: IEvidenceBenchmarkInputIdentity | undefined,
+  ): boolean {
+    if (left === undefined || right === undefined) return left === right;
+    return (
+      left.templateSha256 === right.templateSha256 &&
+      left.requirementsSha256 === right.requirementsSha256 &&
+      left.instructionsSha256 === right.instructionsSha256
     );
   }
 
