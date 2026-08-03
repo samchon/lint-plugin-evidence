@@ -104,6 +104,47 @@ Generate helpers call one existing accessor. Path parameters and foreign keys co
 
 For every requirement, name a test that would fail if the behavior disappeared. For every operation, cover success and every stated refusal. For every exchanged DTO shape, construct or read it through an applicable operation.
 
+### Product operation scenario gate
+
+`pnpm build:sdk` writes `packages/api/swagger.product.json`, the generated operation inventory with only the scaffold `GET /health` probe removed. Keep the health test intact, but do not register it as product coverage.
+
+Define every product test with `TestOperationScenario.define({ target, intent, body })`, export that branded host, and register the exported function itself in `test/OperationScenarioRegistry.ts`. `target` is one actual `api.functional` accessor, and `intent` is one of `success`, `observable-effect`, `business-rejection`, `authorization`, `ownership`, `lifecycle`, `duplicate-conflict`, or `collection-query`. Every product operation requires a `success` host and at least one separately exported host with a different intent. Keep each test in its matching file with that branded function as the file's only export.
+
+```ts
+// test/features/api/articles/test_api_article_read.ts
+import api from "{{apiPackageName}}";
+import typia from "typia";
+import { TestValidator } from "@nestia/e2e";
+
+import { generate_random_article_create } from "../../../generate/generate_random_article_create";
+import { TestOperationScenario } from "../../../helpers/TestOperationScenario";
+
+export const test_api_article_read = TestOperationScenario.define({
+  target: api.functional.articles.at,
+  intent: "success",
+  body: async ({ connection, target }) => {
+    const article = await generate_random_article_create(connection, {});
+    const output = await target(connection, { id: article.id });
+    typia.assert(output);
+    TestValidator.equals("reads the created article", output.id, article.id);
+  },
+});
+```
+
+```ts
+// test/OperationScenarioRegistry.ts
+import { test_api_article_read } from "./features/api/articles/test_api_article_read";
+import { defineTestOperationScenarioRegistry } from "./helpers/TestOperationScenario";
+
+export const TEST_OPERATION_SCENARIOS = defineTestOperationScenarioRegistry({
+  test_api_article_read,
+});
+```
+
+Invoke the `target` passed into `body` exactly once, directly or through a helper. Setup dependencies and public follow-up observations call their ordinary generated accessors; they do not cover those operations and do not replace the injected primary call. The runner separately observes all HTTP traffic for diagnosis, but a raw request or an ordinary accessor call cannot impersonate the primary target.
+
+`pnpm test` compares the product Swagger inventory, generated SDK leaves, scenario registry, dynamically discovered exports, and observed target calls. It prints `TEST_OPERATION_SCENARIO_REPORT` and fails on any missing, duplicate, unexecuted, or misdirected scenario.
+
 Minimum behavioral cases:
 
 | Contract | Proof |
@@ -143,7 +184,9 @@ Never:
 - read Prisma directly for setup or proof;
 - decode token internals the DTO does not expose;
 - weaken an assertion to make the suite pass; or
-- run the same target method/path twice in one scenario unless the second call is the behavior under test.
+- call the injected primary target more than once; when repetition is the behavior under test, make the setup call through the ordinary accessor and reserve the injected target for the observed attempt.
+
+Product work may edit feature tests and `test/OperationScenarioRegistry.ts`. Do not hand-edit generated `packages/api/swagger.product.json`, and do not edit or bypass `TestOperationScenario.ts`, `TestAutomation.ts`, `test/index.ts`, `writeProductSwagger.ts`, or the backend `build:sdk` and `test` wiring. Report a gate defect instead of weakening the fixed measurement machinery.
 
 Before a backend or overall review that may qualify as clean, temporarily remove one material behavior, run its test and require failure, restore the behavior exactly, then require success. Complete this mutation calibration before the qualifying review begins.
 

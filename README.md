@@ -152,6 +152,37 @@ A graph is one `claims` array, and every claim-reference pair is an independent 
 2. Every feature rule must be cited by a React component; a rule no component mirrors is a compile error naming that rule.
 3. A `reference` array is one obligation per element. The tests must verify every feature rule and claim every exported component, never one obligation borrowing the other's citation.
 
+### Acknowledgement policy
+
+A reference can require positive evidence with a specific host-to-unit shape. This is useful when ordinary many-to-many coverage is too permissive, such as API operations that must each have two dedicated test functions:
+
+```ts
+const graph: IEvidenceGraphConfig = {
+  claims: [
+    {
+      type: "typescript",
+      files: ["test/features/**/*.ts"],
+      symbol: "function",
+      reference: {
+        type: "swagger",
+        file: "api/swagger.json",
+        acknowledgement: {
+          forbidEvidenceExclude: true,
+          exactEvidenceUnitsPerHost: 1,
+          minimumEvidenceHostsPerUnit: 2,
+        },
+      },
+    },
+  ],
+};
+```
+
+`forbidEvidenceExclude` refuses an exclusion and gives this reference no coverage from it, so the target still needs positive evidence. `exactEvidenceUnitsPerHost` counts the distinct selected units cited positively by each selected semantic claim host, including hosts with no tag. `minimumEvidenceHostsPerUnit` counts distinct semantic claim hosts with positive evidence for each selected unit. Duplicate tags never increase either count, while a parent target contributes each selected descendant in its scope.
+
+The policy belongs to one reference. An exclusion refused by the Swagger reference above may still satisfy a different Markdown or TypeScript reference in the same claim, and identical or overlapping references never pool counts. Omit `acknowledgement`, or use `{}`, to preserve ordinary coverage; `forbidEvidenceExclude` defaults to `false`, and either cardinality is inactive when omitted. Both cardinalities accept positive integers only.
+
+Completion keeps every positive target. The `@evidenceExclude` completion omits a target selected only by references that forbid exclusions; a target allowed by any enabled reference remains available because the hint API has no cursor-specific claim context.
+
 ### Symbols
 
 | Kind | `symbol` values | Default |
@@ -405,7 +436,7 @@ Markdown cannot cite a TypeScript symbol: it has no import scope in which `{@lin
 <!-- @evidenceExclude docs/requirements/coupons.md#coupon-stacking This section defines wording and intentionally does not implement coupon behavior. -->
 ```
 
-`@evidenceExclude target reason` records that a claim intentionally does not use the target scope. It follows the same hierarchy as `@evidence`, so excluding an H2 also excludes its selected H3/H4 descendants, and excluding a type or namespace excludes its selected children. It affects only the matching claim and never crosses a reference boundary. One claim-reference obligation may exclude a selected scope only once; overlapping exclusions are rejected even when they sit on different carriers, because the exclusion reason must have one reviewable owner. Unlike ownership evidence, a TypeScript exclusion may sit on any supported public export in the claim's file population, even when that export's symbol kind is not selected by the claim. Prisma also accepts the lint-only file carrier described above. Unexported TypeScript declarations, unsupported locations, and files outside the claim population do not qualify. Overlapping evidence and exclusion scopes are rejected because they state contradictory intent for the same unit.
+`@evidenceExclude target reason` records that a claim intentionally does not use the target scope. On a reference that allows exclusions, it follows the same hierarchy as `@evidence`, so excluding an H2 also excludes its selected H3/H4 descendants, and excluding a type or namespace excludes its selected children. It affects only the matching claim and never crosses a reference boundary. A reference with `acknowledgement.forbidEvidenceExclude` reports the exclusion and receives no coverage from it. One claim-reference obligation may exclude a selected scope only once; overlapping exclusions are rejected even when they sit on different carriers, because the exclusion reason must have one reviewable owner. Unlike ownership evidence, a TypeScript exclusion may sit on any supported public export in the claim's file population, even when that export's symbol kind is not selected by the claim. Prisma also accepts the lint-only file carrier described above. Unexported TypeScript declarations, unsupported locations, and files outside the claim population do not qualify. Overlapping evidence and exclusion scopes are rejected because they state contradictory intent for the same unit.
 
 In an agent workflow the tags cost nothing extra. The agent writes each citation as it implements. You review the stated reasons instead of reverse-engineering the diff. A misreading also surfaces in that review, because the reason sits beside the exact section it claims to honor.
 

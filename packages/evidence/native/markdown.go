@@ -256,16 +256,17 @@ func scanMarkdownInventory(
 		for _, parsed := range parseDeclarations(comment) {
 			sequence++
 			inventory.Declarations = append(inventory.Declarations, &evidenceDeclaration{
-				ID:       "markdown:" + address.Key + ":" + decimal(line+parsed.LineOffset) + ":" + decimal(sequence),
-				HostID:   hostIDAtLine[line-1],
-				Type:     artifactMarkdown,
-				Tag:      parsed.Tag,
-				Target:   parsed.Target,
-				Reason:   parsed.Reason,
-				Hosts:    symbolSet{hostAtLine[line-1]: true},
-				Path:     address.Display,
-				Line:     line + parsed.LineOffset,
-				Sequence: sequence,
+				ID:              "markdown:" + address.Key + ":" + decimal(line+parsed.LineOffset) + ":" + decimal(sequence),
+				HostID:          hostIDAtLine[line-1],
+				SemanticHostIDs: []string{hostIDAtLine[line-1]},
+				Type:            artifactMarkdown,
+				Tag:             parsed.Tag,
+				Target:          parsed.Target,
+				Reason:          parsed.Reason,
+				Hosts:           symbolSet{hostAtLine[line-1]: true},
+				Path:            address.Display,
+				Line:            line + parsed.LineOffset,
+				Sequence:        sequence,
 			})
 		}
 	}

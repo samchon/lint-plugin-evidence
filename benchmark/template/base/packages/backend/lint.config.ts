@@ -4,4 +4,7 @@ import type { ITtscLintConfig } from "@ttsc/lint";
 export default {
   extends: "../../config/lint.config.ts",
   ignores: ["src/prisma/**/*.ts"],
+  rules: {
+    "no-duplicate-imports": ["error", { allowSeparateTypeImports: true }],
+  },
 } satisfies ITtscLintConfig;

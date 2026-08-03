@@ -196,8 +196,22 @@ export interface ILive {}
 			"files":["src/staged.ts"],
 			"symbol":"type",
 			"reference":[
-				{"type":"markdown","files":["docs/staged.md"],"symbol":"h2"},
-				{"type":"typescript","files":["src/reference.ts"],"symbol":"type"}
+				{
+					"type":"markdown",
+					"files":["docs/staged.md"],
+					"symbol":"h2",
+					"acknowledgement":{
+						"forbidEvidenceExclude":true,
+						"exactEvidenceUnitsPerHost":1,
+						"minimumEvidenceHostsPerUnit":2
+					}
+				},
+				{
+					"type":"typescript",
+					"files":["src/reference.ts"],
+					"symbol":"type",
+					"acknowledgement":{"forbidEvidenceExclude":true}
+				}
 			]
 		},
 		{

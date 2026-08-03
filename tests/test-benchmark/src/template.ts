@@ -127,6 +127,10 @@ const main = (): void => {
   const compilerConfig = JSON.parse(
     fs.readFileSync(path.join(baseTemplate, "config", "tsconfig.json"), "utf8"),
   ) as { compilerOptions: Record<string, unknown> };
+  const backendLintConfig: string = fs.readFileSync(
+    path.join(backendRoot, "lint.config.ts"),
+    "utf8",
+  );
   const backendCompilerConfig = JSON.parse(
     fs.readFileSync(path.join(backendRoot, "tsconfig.json"), "utf8"),
   ) as {
@@ -195,7 +199,7 @@ const main = (): void => {
   );
   assert.equal(
     backendPackage.scripts["build:sdk"],
-    "nestia all && pnpm --dir ../api build",
+    "nestia all && ttsx test/helpers/writeProductSwagger.ts && pnpm --dir ../api build",
   );
   assert.equal(
     workspacePackage.scripts["schema:database"],
@@ -230,8 +234,12 @@ const main = (): void => {
   assert.deepEqual(backendCompilerConfig.include, [
     "src/**/*.ts",
     "test/**/*.ts",
-    "../api/src/structures/**/*.ts",
+    "../api/src/**/*.ts",
   ]);
+  assert.match(
+    backendLintConfig,
+    /"no-duplicate-imports": \["error", \{ allowSeparateTypeImports: true \}\],/u,
+  );
   assert.equal("plugins" in backendCompilerConfig.compilerOptions, false);
   assert.match(
     evidenceBackendConfig,

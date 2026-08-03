@@ -1,4 +1,5 @@
 import type { EvidenceGraphMarkdownSymbol } from "../typings/EvidenceGraphMarkdownSymbol";
+import type { IEvidenceGraphAcknowledgementPolicy } from "./IEvidenceGraphAcknowledgementPolicy";
 
 /**
  * A population of documentary evidence that the owning claim must cite.
@@ -12,6 +13,9 @@ import type { EvidenceGraphMarkdownSymbol } from "../typings/EvidenceGraphMarkdo
 export interface IEvidenceGraphMarkdownReference {
   /** Identifies the evidence artifacts as Markdown. */
   type: "markdown";
+
+  /** Optional constraints on how the owning claim acknowledges this reference. */
+  acknowledgement?: IEvidenceGraphAcknowledgementPolicy;
 
   /**
    * Directory this population's {@link files} patterns resolve against, and the

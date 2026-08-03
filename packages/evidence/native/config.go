@@ -173,7 +173,7 @@ func decodeReference(
 	}
 	problems := rejectUnknownFields(
 		object,
-		[]string{"type", "package", "root", "file", "files", "symbol"},
+		[]string{"type", "acknowledgement", "package", "root", "file", "files", "symbol"},
 		graphRuleName,
 		path,
 	)
@@ -186,6 +186,11 @@ func decodeReference(
 	}
 	root, rootProblems := decodeRoot(object["root"], kind, path+".root")
 	problems = append(problems, rootProblems...)
+	acknowledgement, acknowledgementProblems := decodeAcknowledgementPolicy(
+		object["acknowledgement"],
+		path+".acknowledgement",
+	)
+	problems = append(problems, acknowledgementProblems...)
 	files := globSet{}
 	source := ""
 	entry := ""
@@ -245,15 +250,84 @@ func decodeReference(
 		return referenceSpec{}, problems
 	}
 	return referenceSpec{
-		Index:   index,
-		Type:    kind,
-		Root:    root,
-		Files:   files,
-		Source:  source,
-		Entry:   entry,
-		Package: packageName,
-		Symbols: symbols,
+		Index:           index,
+		Type:            kind,
+		Acknowledgement: acknowledgement,
+		Root:            root,
+		Files:           files,
+		Source:          source,
+		Entry:           entry,
+		Package:         packageName,
+		Symbols:         symbols,
 	}, nil
+}
+
+// decodeAcknowledgementPolicy validates the reference-local policy before a
+// disabled claim is filtered. Zero values deliberately mean "not configured",
+// so omission and an explicit empty object preserve the original behavior.
+func decodeAcknowledgementPolicy(
+	raw json.RawMessage,
+	path string,
+) (acknowledgementPolicy, []string) {
+	policy := acknowledgementPolicy{}
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return policy, nil
+	}
+	object, problem := decodeObject(raw, path)
+	if problem != "" {
+		return policy, []string{problem}
+	}
+	problems := rejectUnknownFields(
+		object,
+		[]string{
+			"forbidEvidenceExclude",
+			"exactEvidenceUnitsPerHost",
+			"minimumEvidenceHostsPerUnit",
+		},
+		graphRuleName,
+		path,
+	)
+	if value, exists := object["forbidEvidenceExclude"]; exists {
+		switch string(bytes.TrimSpace(value)) {
+		case "true":
+			policy.ForbidEvidenceExclude = true
+		case "false":
+		default:
+			problems = append(problems, configurationProblem(
+				graphRuleName,
+				path+".forbidEvidenceExclude",
+				"expected a boolean.",
+			))
+		}
+	}
+	decodePositiveInteger := func(name string, target *int) {
+		value, exists := object[name]
+		if !exists {
+			return
+		}
+		trimmed := bytes.TrimSpace(value)
+		decoded := 0
+		if bytes.Equal(trimmed, []byte("null")) ||
+			json.Unmarshal(trimmed, &decoded) != nil ||
+			decoded <= 0 {
+			problems = append(problems, configurationProblem(
+				graphRuleName,
+				path+"."+name,
+				"expected a positive integer.",
+			))
+			return
+		}
+		*target = decoded
+	}
+	decodePositiveInteger(
+		"exactEvidenceUnitsPerHost",
+		&policy.ExactEvidenceUnitsPerHost,
+	)
+	decodePositiveInteger(
+		"minimumEvidenceHostsPerUnit",
+		&policy.MinimumEvidenceHostsPerUnit,
+	)
+	return policy, problems
 }
 
 // rejectForeignTypeScriptReference refuses a code population to a claim that

@@ -1,3 +1,5 @@
+import type { IEvidenceGraphAcknowledgementPolicy } from "./IEvidenceGraphAcknowledgementPolicy";
+
 /**
  * A population of Swagger or OpenAPI operations that the owning claim must
  * cite.
@@ -10,6 +12,9 @@
 export interface IEvidenceGraphSwaggerReference {
   /** Identifies the evidence artifacts as Swagger or OpenAPI documents. */
   type: "swagger";
+
+  /** Optional constraints on how the owning claim acknowledges this reference. */
+  acknowledgement?: IEvidenceGraphAcknowledgementPolicy;
 
   /**
    * Exact Swagger or OpenAPI document location.

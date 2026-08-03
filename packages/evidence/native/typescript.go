@@ -92,11 +92,12 @@ func scanTypeScriptInventoryAt(
 	file *shimast.SourceFile,
 ) *artifactInventory {
 	inventory := &artifactInventory{
-		Address: address.Key,
-		Path:    address.Display,
-		Type:    artifactTypeScript,
-		Imports: collectImportBindings(file),
-		Exports: collectModuleExports(file),
+		Address:   address.Key,
+		Path:      address.Display,
+		Type:      artifactTypeScript,
+		Imports:   collectImportBindings(file),
+		Exports:   collectModuleExports(file),
+		UnitNodes: map[string][]*shimast.Node{},
 	}
 	supportedHosts := map[*shimast.Node]symbolSet{}
 	unitsByID := map[string]*evidenceUnit{}
@@ -118,6 +119,10 @@ func scanTypeScriptInventoryAt(
 		inventory,
 		supportedHosts,
 	)
+	// Policy evaluation needs semantic host IDs, not the AST node associations
+	// used to derive them. Declarations now retain those IDs directly, so release
+	// the transient index before this inventory enters the immutable graph.
+	inventory.UnitNodes = nil
 	sort.Slice(inventory.Units, func(left int, right int) bool {
 		if inventory.Units[left].Target != inventory.Units[right].Target {
 			return inventory.Units[left].Target < inventory.Units[right].Target
@@ -628,9 +633,22 @@ func collectTypeScriptDeclarations(
 	supportedHosts map[*shimast.Node]symbolSet,
 ) {
 	type docHost struct {
-		node    *shimast.Node
-		hosts   symbolSet
-		hostIDs map[string]bool
+		node            *shimast.Node
+		hosts           symbolSet
+		hostIDs         map[string]bool
+		semanticHostIDs map[string]bool
+	}
+	semanticHostsByNode := map[*shimast.Node]map[string]bool{}
+	for unitID, nodes := range inventory.UnitNodes {
+		for _, node := range nodes {
+			if node == nil {
+				continue
+			}
+			if semanticHostsByNode[node] == nil {
+				semanticHostsByNode[node] = map[string]bool{}
+			}
+			semanticHostsByNode[node][unitID] = true
+		}
 	}
 	docs := map[string]docHost{}
 	walkTypeScriptNode(file.AsNode(), func(node *shimast.Node) {
@@ -639,7 +657,11 @@ func collectTypeScriptDeclarations(
 				continue
 			}
 			key := decimal(doc.Pos()) + ":" + decimal(doc.End())
-			candidate := docHost{node: doc, hosts: supportedHosts[node]}
+			candidate := docHost{
+				node:            doc,
+				hosts:           supportedHosts[node],
+				semanticHostIDs: semanticHostsByNode[node],
+			}
 			if len(candidate.hosts) != 0 {
 				candidate.hostIDs = map[string]bool{
 					address + ":" + decimal(node.Pos()) + ":" + decimal(node.End()): true,
@@ -661,6 +683,12 @@ func collectTypeScriptDeclarations(
 					current.hostIDs = map[string]bool{}
 				}
 				current.hostIDs[hostID] = true
+			}
+			for semanticHostID := range candidate.semanticHostIDs {
+				if current.semanticHostIDs == nil {
+					current.semanticHostIDs = map[string]bool{}
+				}
+				current.semanticHostIDs[semanticHostID] = true
 			}
 			docs[key] = current
 		}
@@ -691,11 +719,17 @@ func collectTypeScriptDeclarations(
 		}
 		sort.Strings(hostIDs)
 		hostID := strings.Join(hostIDs, "|")
+		semanticHostIDs := make([]string, 0, len(entry.semanticHostIDs))
+		for semanticHostID := range entry.semanticHostIDs {
+			semanticHostIDs = append(semanticHostIDs, semanticHostID)
+		}
+		sort.Strings(semanticHostIDs)
 		for _, parsed := range parseDeclarations(content[entry.node.Pos():entry.node.End()]) {
 			sequence++
 			inventory.Declarations = append(inventory.Declarations, &evidenceDeclaration{
 				ID:               "typescript:" + address + ":" + decimal(baseLine+parsed.LineOffset) + ":" + decimal(sequence),
 				HostID:           hostID,
+				SemanticHostIDs:  semanticHostIDs,
 				Type:             artifactTypeScript,
 				Tag:              parsed.Tag,
 				Target:           parsed.Target,

@@ -48,7 +48,7 @@ Do not add or remove claim objects or change any other claim field as implementa
 | same | `dto-types` | exported DTO types | requirement H2/H3 and Prisma models |
 | same | `dto-properties` | exported DTO properties | Prisma columns |
 | same | `api-operations` | exported controller functions | requirement H2/H3 and Prisma models |
-| same | `backend-tests` | exported test functions | requirements, SDK operations, and DTO types |
+| same | `backend-tests` | exported product test functions | requirements, product Swagger operations, and DTO types |
 | `packages/frontend/lint.config.ts` | `frontend-screens` | exported page functions | requirement H2/H3 |
 | same | `frontend-journeys` | exported journey functions | requirements and page functions |
 
@@ -72,6 +72,8 @@ Keep ownership evidence on the actual selected host. Exclusion carriers contain 
 ## Behavioral Proof
 
 Proof must be target-specific. A test or journey must perform the relevant action and assert the claimed result, refusal, state, or effect. Imports, registries, callability checks, and route or rendering smoke prove only availability or reachability; they cannot carry unrelated requirements.
+
+The Backend Testing skill owns primary-target scenarios. Each exported product test cites exactly its one primary operation as `<METHOD>:<OpenAPI path>`. Dependency operations establish public preconditions and follow-up operations observe public effects, but neither receives operation evidence from that test. Every product operation needs at least two distinct exported scenario hosts; the graph enforces their distribution, while the testing skill and scenario gate enforce their behavioral meaning.
 
 ## Examples
 
@@ -115,22 +117,28 @@ public async index(): Promise<IPage<IShoppingSale.ISummary>> {
 }
 ```
 
-TypeScript targets use imported inline links:
+Swagger operations use `<METHOD>:<path>` targets. TypeScript targets use imported inline links:
 
 ```ts
 /**
- * @evidence {@link api.functional.shopping.order.create} Calls the published
- *           order creation operation.
+ * @evidence POST:/shopping/orders Proves the primary order creation operation.
  * @evidence {@link IShoppingOrder} Validates the returned order contract.
  */
-export async function test_order_create(): Promise<void> {
-  // ...
-}
+export const test_order_create = TestOperationScenario.define({
+  target: api.functional.shopping.orders.create,
+  intent: "success",
+  body: async ({ connection, target }) => {
+    const order = await target(connection, { body: input });
+    TestValidator.equals("created order keeps its buyer", order.buyer.id, buyer.id);
+  },
+});
 ```
 
 Use `import type` for a citation-only type import. Braces in `{@link ...}` are required.
 
 ## Exclusions
+
+The backend-test product-operation reference forbids `@evidenceExclude`. Implement at least two truthful, distinct scenarios for every product operation. Requirement and DTO references retain the ordinary exclusion rules below.
 
 Use the narrowest truthful target:
 
@@ -178,6 +186,7 @@ At each gate, confirm no other claim configuration changed, wait for clean curre
 - [ ] `NESTIA_SDK_TRANSFORM` was absent from every compiler gate.
 - [ ] Every acknowledgement truthfully matches its target and actual host; none exists only to satisfy the compiler.
 - [ ] Every behavioral acknowledgement is supported by the target-specific action and assertion it claims.
+- [ ] Every backend product test cites exactly one primary operation; dependencies and follow-up calls carry no operation evidence from that host, and every product operation has at least two distinct scenario hosts.
 - [ ] Every exclusion names the actual owner or observable alternative and a concrete invalidating condition.
 - [ ] Current compiler and runtime gates passed after the latest scoped change.
 

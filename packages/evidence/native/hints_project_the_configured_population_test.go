@@ -279,6 +279,7 @@ func TestHintsRankSwaggerOperationsLast(t *testing.T) {
 		markdown,
 		map[string]*artifactInventory{},
 		swagger,
+		false,
 	)
 	targets := make([]string, 0, len(units))
 	for _, unit := range units {

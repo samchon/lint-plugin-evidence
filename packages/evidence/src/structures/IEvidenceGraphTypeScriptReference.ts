@@ -1,4 +1,5 @@
 import type { EvidenceGraphTypeScriptSymbol } from "../typings/EvidenceGraphTypeScriptSymbol";
+import type { IEvidenceGraphAcknowledgementPolicy } from "./IEvidenceGraphAcknowledgementPolicy";
 
 /**
  * A population of TypeScript evidence that the owning claim must cite.
@@ -15,6 +16,9 @@ import type { EvidenceGraphTypeScriptSymbol } from "../typings/EvidenceGraphType
 export interface IEvidenceGraphTypeScriptReference {
   /** Identifies the evidence artifacts as TypeScript. */
   type: "typescript";
+
+  /** Optional constraints on how the owning claim acknowledges this reference. */
+  acknowledgement?: IEvidenceGraphAcknowledgementPolicy;
 
   /**
    * Installed package whose declarations form this population.

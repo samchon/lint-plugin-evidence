@@ -1,4 +1,5 @@
 export * from "./IEvidenceDocumentedConfig";
+export * from "./IEvidenceGraphAcknowledgementPolicy";
 export * from "./IEvidenceGraphClaim";
 export * from "./IEvidenceGraphConfig";
 export * from "./IEvidenceGraphMarkdownClaim";

@@ -53,12 +53,13 @@ type claimSpec struct {
 }
 
 type referenceSpec struct {
-	Index  int
-	Type   artifactKind
-	Root   string
-	Base   populationBase
-	Files  globSet
-	Source string
+	Index           int
+	Type            artifactKind
+	Acknowledgement acknowledgementPolicy
+	Root            string
+	Base            populationBase
+	Files           globSet
+	Source          string
 	// Entry names a module whose public export graph defines the population.
 	// Reachability from it decides membership; identity still belongs to the
 	// file that declares the symbol.
@@ -68,6 +69,15 @@ type referenceSpec struct {
 	// than competing.
 	Package string
 	Symbols symbolSet
+}
+
+// acknowledgementPolicy is a reference-local strengthening of the ordinary
+// acknowledgement contract. Its zero value preserves every previous graph
+// behavior, which keeps omitted policies and explicit empty objects identical.
+type acknowledgementPolicy struct {
+	ForbidEvidenceExclude       bool
+	ExactEvidenceUnitsPerHost   int
+	MinimumEvidenceHostsPerUnit int
 }
 
 // entrySelected reports whether this reference materializes by traversal.
@@ -140,11 +150,16 @@ func (unit *evidenceUnit) location() string {
 type evidenceDeclaration struct {
 	ID     string
 	HostID string
-	Type   artifactKind
-	Tag    tagKind
-	Target string
-	Reason string
-	Hosts  symbolSet
+	// SemanticHostIDs names the selected graph identities that physically host
+	// this declaration. HostID remains the source-position identity used only
+	// for same-block duplicate detection; policy cardinality must not confuse a
+	// declaration position with the public symbol identity it represents.
+	SemanticHostIDs []string
+	Type            artifactKind
+	Tag             tagKind
+	Target          string
+	Reason          string
+	Hosts           symbolSet
 	// ExclusionCarrier permits only @evidenceExclude to participate without a
 	// selected host kind. File matching, target resolution, and claim-reference
 	// ownership still decide the obligations it can discharge.
@@ -199,8 +214,9 @@ type artifactInventory struct {
 	// A unit is an identity, not a declaration: declaration merging and overload
 	// sets give one identity several nodes. Which of them a rule then cares
 	// about is the rule's own business — this records only that they belong to
-	// one identity. Left nil when a caller has no use for the association, which
-	// keeps the graph's own scan allocating nothing extra.
+	// one identity. The graph scanner uses the association transiently to bind a
+	// physical JSDoc declaration to semantic claim-host identities, then releases
+	// it; callers with no such use leave it nil.
 	UnitNodes map[string][]*shimast.Node
 }
 
@@ -219,6 +235,7 @@ type inventoryProblem struct {
 type claimState struct {
 	Spec         claimSpec
 	Paths        []string
+	Hosts        []*evidenceUnit
 	Declarations []*evidenceDeclaration
 	References   []referenceState
 	Healthy      bool

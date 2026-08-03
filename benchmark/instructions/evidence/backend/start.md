@@ -12,7 +12,7 @@ Complete these stages in order.
 
 1. Design the complete requirement-derived database under `packages/backend/prisma/schema/`. Run backend `pnpm build:prisma` and `pnpm schema`.
 2. Design every controller under `packages/backend/src/controllers/` and every DTO under `packages/api/src/structures/`. Run backend `pnpm build:sdk`.
-3. Write public-operation tests under `packages/backend/test/features/` for every requirement and API operation.
+3. Freeze the generated product-operation inventory and write the Backend Testing skill's distinct scenario hosts under `packages/backend/test/features/`. Bind each scenario to one primary operation and cite only that operation with `@evidence`.
 4. Finish every provider. Replace every controller stub and remove every source-owned `@todo` under `packages/api` and `packages/backend`.
 
 ## Compiler Check
@@ -42,6 +42,7 @@ Keep the watcher running because `pnpm test` does not report every type or lint 
 
 - [ ] Every required schema model, DTO, controller, public-operation test, and provider implemented.
 - [ ] Every backend claim is enabled; no other claim configuration changed.
+- [ ] The arm-neutral scenario gate accounts for every product operation with at least two distinct scenario hosts and intents.
 - [ ] Every `@evidence` is on code that implements, represents, or proves its linked requirement, Prisma item, API operation, or DTO.
 - [ ] Every `@evidenceExclude` names its owner or alternative and invalidating condition; none exists only to remove a diagnostic.
 - [ ] The persistent watcher rebuilt without diagnostics after the latest change and remains running.

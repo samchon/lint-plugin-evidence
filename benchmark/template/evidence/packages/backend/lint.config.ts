@@ -104,13 +104,16 @@ const graph: IEvidenceGraphConfig = {
       // Remove after every controller contract is complete and build:sdk passes.
       disabled: true,
     },
-    // The e2e suite verifies the requirements, every published operation, and
-    // every shape the contract exchanges. TypeScript targets are cited as
-    // `{@link ...}` resolved through the test file's own imports.
+    // The e2e suite verifies the requirements, every published product
+    // operation, and every shape the contract exchanges. The scaffold health
+    // probe remains outside these product obligations.
     {
       name: "backend-tests",
       type: "typescript",
-      files: ["test/features/**/*.ts"],
+      files: [
+        "test/features/**/*.ts",
+        "!test/features/api/health/**/*.ts",
+      ],
       symbol: "function",
       reference: [
         {
@@ -120,9 +123,13 @@ const graph: IEvidenceGraphConfig = {
           symbol: ["h2", "h3"],
         },
         {
-          type: "typescript",
-          package: "{{apiPackageName}}",
-          symbol: ["function"],
+          type: "swagger",
+          file: "../api/swagger.product.json",
+          acknowledgement: {
+            forbidEvidenceExclude: true,
+            exactEvidenceUnitsPerHost: 1,
+            minimumEvidenceHostsPerUnit: 2,
+          },
         },
         {
           type: "typescript",

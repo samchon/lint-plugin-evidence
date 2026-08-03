@@ -227,12 +227,21 @@ func materializeClaimStates(
 				claimLabel(claim)+" matched no "+string(claim.Type)+" files for "+describePopulation(claim.Base, claim.Files)+". Fix the globs or the root they resolve against; '*' stays within one segment, '**' crosses segments, and a bare directory is not recursive.",
 			)
 		}
+		hostsByID := map[string]bool{}
 		for _, path := range paths {
+			for _, unit := range inventories[path].Units {
+				if !claim.Symbols.contains(unit.Symbol) || hostsByID[unit.ID] {
+					continue
+				}
+				hostsByID[unit.ID] = true
+				state.Hosts = append(state.Hosts, unit)
+			}
 			state.Declarations = append(
 				state.Declarations,
 				inventories[path].Declarations...,
 			)
 		}
+		sortUnits(state.Hosts)
 		for _, reference := range claim.References {
 			referenceInventories := inventoriesOf(
 				reference.Type,
@@ -524,6 +533,16 @@ func evaluateEvidenceGraph(
 			evidenceByUnit := map[string]*evidenceDeclaration{}
 			exclusionByUnit := map[string]*evidenceDeclaration{}
 			evidenceByHostAndScope := map[string]map[string]*evidenceDeclaration{}
+			selectedHosts := map[string]*evidenceUnit{}
+			evidenceUnitsByHost := map[string]map[string]bool{}
+			for _, host := range state.Hosts {
+				selectedHosts[host.ID] = host
+				evidenceUnitsByHost[host.ID] = map[string]bool{}
+			}
+			evidenceHostsByUnit := map[string]map[string]bool{}
+			for _, unit := range reference.Units {
+				evidenceHostsByUnit[unit.ID] = map[string]bool{}
+			}
 			scopesByID := map[string]*evidenceUnit{}
 			for _, scope := range reference.Scopes {
 				scopesByID[scope.ID] = scope
@@ -556,6 +575,14 @@ func evaluateEvidenceGraph(
 				if !state.Healthy || !reference.Healthy {
 					continue
 				}
+				if declaration.Tag == tagExclude &&
+					reference.Spec.Acknowledgement.ForbidEvidenceExclude {
+					problems = append(
+						problems,
+						"Forbidden @evidenceExclude for '"+scopesByID[scopeID].Target+"' at "+declaration.location()+" in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+": acknowledgement.forbidEvidenceExclude requires positive @evidence for this reference. Remove the exclusion and cite the target from a selected "+string(state.Spec.Type)+" host.",
+					)
+					continue
+				}
 				if declaration.Tag == tagEvidence && declaration.HostID != "" {
 					byScope := evidenceByHostAndScope[declaration.HostID]
 					if byScope == nil {
@@ -569,6 +596,17 @@ func evaluateEvidenceGraph(
 						)
 					} else {
 						byScope[scopeID] = declaration
+					}
+				}
+				if declaration.Tag == tagEvidence {
+					for _, hostID := range declaration.SemanticHostIDs {
+						if selectedHosts[hostID] == nil {
+							continue
+						}
+						for _, unit := range covered {
+							evidenceUnitsByHost[hostID][unit.ID] = true
+							evidenceHostsByUnit[unit.ID][hostID] = true
+						}
 					}
 				}
 				var conflictingUnit *evidenceUnit
@@ -622,13 +660,37 @@ func evaluateEvidenceGraph(
 			if !state.Healthy || !reference.Healthy || len(reference.Paths) == 0 {
 				continue
 			}
+			if exact := reference.Spec.Acknowledgement.ExactEvidenceUnitsPerHost; exact > 0 {
+				for _, host := range state.Hosts {
+					count := len(evidenceUnitsByHost[host.ID])
+					if count == exact {
+						continue
+					}
+					problems = append(
+						problems,
+						"Evidence host "+host.Readable+" at "+host.location()+" in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+" cites "+decimal(count)+" distinct selected evidence unit(s); acknowledgement.exactEvidenceUnitsPerHost requires exactly "+decimal(exact)+". Keep positive @evidence citations on this semantic host to exactly "+decimal(exact)+" distinct unit(s).",
+					)
+				}
+			}
 			for _, unit := range reference.Units {
-				if acknowledged[unit.ID] {
+				if !acknowledged[unit.ID] {
+					repair := "Use @evidence on a selected " + string(state.Spec.Type) + " host or @evidenceExclude on an eligible carrier."
+					if reference.Spec.Acknowledgement.ForbidEvidenceExclude {
+						repair = "Use @evidence on a selected " + string(state.Spec.Type) + " host; this reference forbids @evidenceExclude."
+					}
+					problems = append(
+						problems,
+						"Missing acknowledgement for '"+unit.Target+"' ("+unit.Readable+" at "+unit.location()+") in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+". "+repair,
+					)
+				}
+				minimum := reference.Spec.Acknowledgement.MinimumEvidenceHostsPerUnit
+				hostCount := len(evidenceHostsByUnit[unit.ID])
+				if minimum == 0 || hostCount >= minimum {
 					continue
 				}
 				problems = append(
 					problems,
-					"Missing acknowledgement for '"+unit.Target+"' ("+unit.Readable+" at "+unit.location()+") in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+". Use @evidence on a selected "+string(state.Spec.Type)+" host or @evidenceExclude on an eligible carrier.",
+					"Evidence unit '"+unit.Target+"' ("+unit.Readable+" at "+unit.location()+") in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+" has "+decimal(hostCount)+" distinct positive evidence host(s); acknowledgement.minimumEvidenceHostsPerUnit requires at least "+decimal(minimum)+". Add @evidence for this unit on "+decimal(minimum-hostCount)+" more distinct selected "+string(state.Spec.Type)+" host(s).",
 				)
 			}
 		}
