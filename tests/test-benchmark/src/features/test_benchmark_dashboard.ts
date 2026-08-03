@@ -4,14 +4,14 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { collectEvidenceBenchmarkApiCost } from "../../../benchmark/src/EvidenceBenchmarkApiCost.ts";
-import { renderEvidenceBenchmarkDashboard } from "../../../benchmark/src/EvidenceBenchmarkDashboard.ts";
-import { writeEvidenceBenchmarkReport } from "../../../benchmark/src/EvidenceBenchmarkReport.ts";
-import { auditEvidenceBenchmarkSuspensions } from "../../../benchmark/src/EvidenceBenchmarkSuspensionAudit.ts";
+import { collectEvidenceBenchmarkApiCost } from "../../../../benchmark/src/EvidenceBenchmarkApiCost.ts";
+import { renderEvidenceBenchmarkDashboard } from "../../../../benchmark/src/EvidenceBenchmarkDashboard.ts";
+import { writeEvidenceBenchmarkReport } from "../../../../benchmark/src/EvidenceBenchmarkReport.ts";
+import { auditEvidenceBenchmarkSuspensions } from "../../../../benchmark/src/EvidenceBenchmarkSuspensionAudit.ts";
 import type {
   IEvidenceBenchmarkReport,
   IEvidenceBenchmarkReportCell,
-} from "../../../benchmark/src/structures/IEvidenceBenchmarkReport.ts";
+} from "../../../../benchmark/src/structures/IEvidenceBenchmarkReport.ts";
 
 /**
  * Verifies the dashboard reports only the latest launched run for each cell.
@@ -27,7 +27,7 @@ import type {
  * 4. Publish deterministic aggregate and per-cell JSON plus SVG charts.
  * 5. Assert stale and unlaunched cells never appear.
  */
-const main = (): void => {
+export const test_benchmark_dashboard = (): void => {
   const repository: string = fs.mkdtempSync(
     path.join(os.tmpdir(), "evidence-benchmark-dashboard-"),
   );
@@ -951,5 +951,3 @@ const git = (cwd: string, args: string[]): void => {
   if (result.status !== 0)
     throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
 };
-
-main();

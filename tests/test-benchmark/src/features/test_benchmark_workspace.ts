@@ -4,8 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { EvidenceBenchmarkCheckpoint } from "../../../benchmark/src/EvidenceBenchmarkCheckpoint.ts";
-import { EvidenceBenchmarkWorkspace } from "../../../benchmark/src/EvidenceBenchmarkWorkspace.ts";
+import { EvidenceBenchmarkCheckpoint } from "../../../../benchmark/src/EvidenceBenchmarkCheckpoint.ts";
+import { EvidenceBenchmarkWorkspace } from "../../../../benchmark/src/EvidenceBenchmarkWorkspace.ts";
 
 /**
  * Verifies workspace preparation keeps staging, arm treatment, and artifacts
@@ -24,7 +24,7 @@ import { EvidenceBenchmarkWorkspace } from "../../../benchmark/src/EvidenceBench
  * 5. Snapshot and restore material files without dependencies or runtime noise.
  * 6. Assert each bounded stage is atomically renamed to its requested output.
  */
-const main = async (): Promise<void> => {
+export const test_benchmark_workspace = async (): Promise<void> => {
   const root: string = fs.mkdtempSync(
     path.join(os.tmpdir(), "evidence-benchmark-workspace-"),
   );
@@ -552,8 +552,3 @@ const main = async (): Promise<void> => {
     fs.rmSync(root, { recursive: true, force: true });
   }
 };
-
-main().catch((error: unknown) => {
-  console.error(error);
-  process.exitCode = 1;
-});

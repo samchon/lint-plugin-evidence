@@ -1,0 +1,3930 @@
+import assert from "node:assert/strict";
+import { spawn, spawnSync } from "node:child_process";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import readline from "node:readline";
+
+import { EvidenceBenchmarkInstruction } from "../../../../benchmark/src/EvidenceBenchmarkInstruction.ts";
+import { EvidenceBenchmarkRunner } from "../../../../benchmark/src/EvidenceBenchmarkRunner.ts";
+import { EvidenceBenchmarkReviewLedger } from "../../../../benchmark/src/EvidenceBenchmarkReviewLedger.ts";
+import { EvidenceBenchmarkSupervision } from "../../../../benchmark/src/EvidenceBenchmarkSupervision.ts";
+import { assertAppendOnlyInstructionExtension } from "../../../../benchmark/src/executable/EvidenceBenchmarkCommandLine.ts";
+import type { IEvidenceBenchmarkGoalRecord } from "../../../../benchmark/src/structures/IEvidenceBenchmarkGoalRecord.ts";
+import type { IEvidenceBenchmarkOutput } from "../../../../benchmark/src/structures/IEvidenceBenchmarkOutput.ts";
+import type { IEvidenceBenchmarkRunState } from "../../../../benchmark/src/structures/IEvidenceBenchmarkRunState.ts";
+import type { IEvidenceBenchmarkTokenUsage } from "../../../../benchmark/src/structures/IEvidenceBenchmarkTokenUsage.ts";
+
+const EVIDENCE_ENTRIES = [
+  ["backend-start", "evidence/backend/start.md"],
+  ["backend-review", "evidence/backend/review.md"],
+  ["backend-final", "evidence/backend/final.md"],
+  ["frontend-start", "evidence/frontend/start.md"],
+  ["frontend-review", "evidence/frontend/review.md"],
+  ["frontend-final", "evidence/frontend/final.md"],
+  ["overall-review", "evidence/overall/review.md"],
+  ["overall-final", "evidence/overall/final.md"],
+] as const;
+
+const PLAIN_ENTRIES = [
+  ["backend-start", "plain/backend/start.md"],
+  ["backend-review", "plain/backend/review.md"],
+  ["backend-final", "plain/backend/final.md"],
+  ["frontend-start", "plain/frontend/start.md"],
+  ["frontend-review", "plain/frontend/review.md"],
+  ["frontend-final", "plain/frontend/final.md"],
+  ["overall-review", "plain/overall/review.md"],
+  ["overall-final", "plain/overall/final.md"],
+] as const;
+
+const PLAIN_REMINDERS = [
+  ["backend-remind", "plain/backend/remind.md"],
+  ["frontend-remind", "plain/frontend/remind.md"],
+  ["overall-remind", "plain/overall/remind.md"],
+] as const;
+
+const LEGACY_PLAIN_ENTRIES = [
+  PLAIN_ENTRIES[0],
+  PLAIN_ENTRIES[1],
+  PLAIN_REMINDERS[0],
+  PLAIN_ENTRIES[2],
+  PLAIN_ENTRIES[3],
+  PLAIN_ENTRIES[4],
+  PLAIN_REMINDERS[1],
+  PLAIN_ENTRIES[5],
+  PLAIN_ENTRIES[6],
+  PLAIN_REMINDERS[2],
+  PLAIN_ENTRIES[7],
+] as const;
+
+const ENTRIES = EVIDENCE_ENTRIES;
+
+/**
+ * Verifies the small production runner against a free app-server fixture.
+ *
+ * Each prescribed instruction and its arm-owned continuation become one active
+ * Goal. Native Goal, turn, token, process, and raw-stream facts are recorded;
+ * the runner performs no workspace judgment.
+ *
+ * 1. Complete every prescribed Goal through one fake app-server process.
+ * 2. Assert exact text, automatic progression, token deltas, and raw records.
+ * 3. Retain backend-start and fork a new thread from its exact boundary.
+ * 4. Assert a late protocol error cannot survive as completed.
+ * 5. Assert a non-zero native exit is retained as an interruption.
+ * 6. Assert callback errors retain serializable Error identity and context.
+ */
+export const test_benchmark_runner = async (): Promise<void> => {
+  const root: string = fs.mkdtempSync(
+    path.join(os.tmpdir(), "evidence-benchmark-runner-"),
+  );
+  try {
+    const sources: Map<string, Buffer> = writeInstructions(root);
+    await testReviewLedger(path.join(root, "review-workspace"));
+    assert.deepEqual(
+      EvidenceBenchmarkRunner.instructionEntries("evidence"),
+      EVIDENCE_ENTRIES,
+    );
+    assert.deepEqual(
+      EvidenceBenchmarkRunner.instructionEntries("plain"),
+      PLAIN_ENTRIES,
+    );
+    assert.equal(
+      EvidenceBenchmarkRunner.instructionContinuationPath("evidence"),
+      "evidence/continue.md",
+    );
+    assert.equal(
+      EvidenceBenchmarkRunner.instructionContinuationPath("plain"),
+      "plain/continue.md",
+    );
+    const evidencePaths: Set<string> = new Set(
+      EVIDENCE_ENTRIES.map((entry) => entry[1]),
+    );
+    assert.equal(
+      PLAIN_ENTRIES.some((entry) => evidencePaths.has(entry[1])),
+      false,
+    );
+    PLAIN_ENTRIES.slice(0, EVIDENCE_ENTRIES.length).forEach((entry, index) =>
+      assert.notDeepEqual(
+        sources.get(entry[1]),
+        sources.get(EVIDENCE_ENTRIES[index]![1]),
+      ),
+    );
+    assert.notDeepEqual(
+      sources.get("plain/continue.md"),
+      sources.get("evidence/continue.md"),
+    );
+    assert.equal(
+      readPrescribed(sources, "evidence/backend/final.md"),
+      sources.get("evidence/backend/final.md")!.toString("utf8"),
+    );
+    assert.notEqual(
+      readPrescribed(sources, "plain/backend/remind.md"),
+      sources.get("plain/backend/remind.md")!.toString("utf8"),
+    );
+    assert.notEqual(
+      readPrescribed(sources, "plain/frontend/remind.md"),
+      sources.get("plain/frontend/remind.md")!.toString("utf8"),
+    );
+    assert.notEqual(
+      readPrescribed(sources, "plain/overall/remind.md"),
+      sources.get("plain/overall/remind.md")!.toString("utf8"),
+    );
+    assert.notEqual(
+      readPrescribed(sources, "plain/backend/final.md"),
+      sources.get("plain/backend/final.md")!.toString("utf8"),
+    );
+    const orphan = spawn(
+      process.execPath,
+      ["-e", "setInterval(() => undefined, 1000)"],
+      {
+        detached: process.platform !== "win32",
+        stdio: "ignore",
+        windowsHide: true,
+      },
+    );
+    assert.notEqual(orphan.pid, undefined);
+    const orphanClosed = new Promise<void>((resolve) => {
+      orphan.once("close", () => resolve());
+    });
+    spawn(
+      process.execPath,
+      [
+        path.join(
+          import.meta.dirname,
+          "../../../../benchmark/src/executable/EvidenceBenchmarkProcessMonitor.mjs",
+        ),
+        "999999999",
+        String(orphan.pid),
+      ],
+      {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
+      },
+    ).unref();
+    await Promise.race([
+      orphanClosed,
+      new Promise<never>((_resolve, reject) =>
+        setTimeout(
+          () => reject(new Error("Owner monitor left an orphan process.")),
+          // This bounds test scheduling under concurrent benchmark load; it is
+          // not the monitor's production cleanup interval.
+          15_000,
+        ),
+      ),
+    ]);
+    const prefix: string[] = [
+      "--experimental-transform-types",
+      import.meta.filename,
+      "--fake-app-server",
+    ];
+    const snapshots: IEvidenceBenchmarkRunState[] = [];
+    const completedOutput: IEvidenceBenchmarkOutput[] = [];
+    let enterSessionCheckpoint!: () => void;
+    const sessionCheckpointEntered = new Promise<void>((resolve) => {
+      enterSessionCheckpoint = resolve;
+    });
+    let releaseSessionCheckpoint!: () => void;
+    const sessionCheckpointReleased = new Promise<void>((resolve) => {
+      releaseSessionCheckpoint = resolve;
+    });
+    let sessionCheckpointBlocked = false;
+    let backendCheckpointCalls = 0;
+    let backendCheckpointGoalRequests = -1;
+    const completedPromise = EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: (_processIndex, output) => {
+        completedOutput.push(output);
+      },
+      onState: async (state) => {
+        snapshots.push(state);
+        if (
+          !sessionCheckpointBlocked &&
+          state.sessionId !== undefined &&
+          state.goals[0]?.goal === null
+        ) {
+          sessionCheckpointBlocked = true;
+          enterSessionCheckpoint();
+          await sessionCheckpointReleased;
+        }
+      },
+      onCheckpoint: ({ goal, processElapsedMs }) => {
+        backendCheckpointCalls++;
+        assert.equal(goal.index, 0);
+        assert.equal(goal.goal?.status, "complete");
+        assert.equal(goal.terminalTurnCompleted, true);
+        assert.equal(goal.threadIdle, true);
+        assert.equal(goal.tokenUsageTurnId, goal.terminalTurnId);
+        assert.ok(processElapsedMs >= 0);
+        backendCheckpointGoalRequests = completedOutput
+          .filter((output) => output.stream === "stdin")
+          .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+          .filter((request) => request.method === "thread/goal/set").length;
+        return {
+          createdAt: "2026-08-01T00:00:00.000Z",
+          workspaceRelativePath: "checkpoints/backend-start/workspace",
+          workspaceSha256: "checkpoint-workspace",
+          workspaceMaterialSha256: "checkpoint-material",
+          workspaceFileCount: 3,
+          workspaceGitHead: "checkpoint-head",
+          workspaceGitStatus: " M backend.ts\n",
+          inheritedWallElapsedMs: 1_500,
+        };
+      },
+    });
+    await sessionCheckpointEntered;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(
+      completedOutput
+        .filter((output) => output.stream === "stdin")
+        .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+        .filter((request) => request.method === "thread/goal/set").length,
+      0,
+    );
+    releaseSessionCheckpoint();
+    const completed = await completedPromise;
+
+    assert.equal(completed.status, "completed");
+    assert.equal(completed.cliVersion, "fixture-cli");
+    assert.equal(completed.nextInstructionIndex, ENTRIES.length);
+    assert.equal(completed.goals.length, ENTRIES.length);
+    const appendedBoundary = structuredClone(completed);
+    appendedBoundary.goals = appendedBoundary.goals.slice(0, 6);
+    appendedBoundary.instructionPlan = appendedBoundary.instructionPlan?.slice(
+      0,
+      6,
+    );
+    appendedBoundary.nextInstructionIndex = 6;
+    const invalidAppendedBoundary = structuredClone(appendedBoundary);
+    invalidAppendedBoundary.goals[5]!.threadIdle = false;
+    assert.doesNotThrow(() =>
+      assertAppendOnlyInstructionExtension("evidence", appendedBoundary),
+    );
+    assert.throws(
+      () =>
+        assertAppendOnlyInstructionExtension(
+          "evidence",
+          invalidAppendedBoundary,
+        ),
+      /preserve every completed Goal boundary/u,
+    );
+    assert.equal(completed.processes.length, 1);
+    assert.equal(completed.processes[0]!.exitCode, 0);
+    assert.equal(completed.processes[0]!.signal, null);
+    assert.equal("output" in completed.processes[0]!, false);
+    assert.ok(completedOutput.length > 0);
+    assert.equal(backendCheckpointCalls, 1);
+    assert.equal(backendCheckpointGoalRequests, 1);
+    assert.equal(completed.checkpoints?.length, 1);
+    assert.equal(completed.checkpoints?.[0]?.sourceSessionId, "fixture-thread");
+    assert.equal(completed.checkpoints?.[0]?.terminalTurnId, "turn-1");
+    const checkpointOnlyOutput: IEvidenceBenchmarkOutput[] = [];
+    const checkpointOnly = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      stopAfterGoal: "backend-start",
+      onOutput: (_processIndex, output) => {
+        checkpointOnlyOutput.push(output);
+      },
+      onCheckpoint: () => ({
+        createdAt: "2026-08-01T00:00:00.000Z",
+        workspaceRelativePath: "checkpoints/backend-start/workspace",
+        workspaceSha256: "checkpoint-only-workspace",
+        workspaceMaterialSha256: "checkpoint-only-material",
+        workspaceFileCount: 3,
+        workspaceGitHead: "checkpoint-only-head",
+        workspaceGitStatus: " M backend.ts\n",
+        inheritedWallElapsedMs: 1_500,
+      }),
+    });
+    assert.equal(checkpointOnly.status, "checkpointed");
+    assert.equal(checkpointOnly.nextInstructionIndex, 1);
+    assert.equal(checkpointOnly.goals.length, 1);
+    assert.equal(checkpointOnly.goals[0]?.goal?.status, "complete");
+    assert.equal(checkpointOnly.checkpoints?.length, 1);
+    assert.equal(checkpointOnly.processes.length, 1);
+    assert.equal(
+      checkpointOnlyOutput
+        .filter((output) => output.stream === "stdin")
+        .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+        .filter((request) => request.method === "thread/goal/set").length,
+      1,
+    );
+    const requests = completedOutput
+      .filter((output) => output.stream === "stdin")
+      .map((output) => JSON.parse(output.text) as Record<string, unknown>);
+    assert.equal(
+      requests.some((request) => request.method === "turn/start"),
+      false,
+    );
+    const goalRequests = requests.filter(
+      (request) => request.method === "thread/goal/set",
+    );
+    assert.equal(goalRequests.length, ENTRIES.length);
+    assert.ok(
+      goalRequests.every(
+        (request) =>
+          (request.params as Record<string, unknown>).status === "active",
+      ),
+    );
+    completed.goals.forEach((goal, index) => {
+      const [name, relative] = ENTRIES[index]!;
+      const prescribed: string = readPrescribed(sources, relative);
+      const continuation: string = sources
+        .get("evidence/continue.md")!
+        .toString("utf8");
+      assert.equal(goal.name, name);
+      assert.equal(goal.relativePath, relative);
+      assert.equal(goal.prescribedText, prescribed);
+      assert.equal(goal.continuationText, continuation);
+      assert.equal(goal.objectiveText, `${prescribed}\n\n${continuation}`);
+      assert.equal(goal.goal?.objective, goal.objectiveText);
+      assert.equal(goal.goal?.status, "complete");
+      assert.equal(goal.terminalTurnCompleted, true);
+      assert.equal(goal.threadIdle, true);
+      assert.equal(goal.tokenUsageTurnId, goal.terminalTurnId);
+      assert.deepEqual(goal.tokenUsage, {
+        totalTokens: 10,
+        inputTokens: 6,
+        cachedInputTokens: 2,
+        cacheWriteInputTokens: 1,
+        outputTokens: 4,
+        reasoningOutputTokens: 3,
+      } satisfies IEvidenceBenchmarkTokenUsage);
+      assert.equal(goal.elapsedMs, 1_000);
+    });
+    assert.deepEqual(completed.threadTokenUsage, {
+      totalTokens: ENTRIES.length * 10,
+      inputTokens: ENTRIES.length * 6,
+      cachedInputTokens: ENTRIES.length * 2,
+      cacheWriteInputTokens: ENTRIES.length,
+      outputTokens: ENTRIES.length * 4,
+      reasoningOutputTokens: ENTRIES.length * 3,
+    } satisfies IEvidenceBenchmarkTokenUsage);
+    assert.equal(snapshots.at(-1)?.status, "completed");
+
+    const backendCheckpoint = completed.checkpoints?.[0];
+    const evidenceBackendStart = structuredClone(completed.goals[0]!);
+    const backendStart = structuredClone(completed.goals[0]!);
+    assert.ok(backendCheckpoint);
+    assert.ok(backendStart.tokenUsageEnd);
+    backendStart.relativePath = "plain/backend/start.md";
+    const supervisedRunRoot: string = path.join(root, "supervised-run");
+    const supervisedWorkspace: string = path.join(
+      supervisedRunRoot,
+      "workspace",
+    );
+    fs.mkdirSync(supervisedWorkspace, { recursive: true });
+    fs.cpSync(
+      path.join(root, "plain"),
+      path.join(supervisedWorkspace, "plain"),
+      {
+        recursive: true,
+      },
+    );
+    fs.cpSync(
+      path.join(root, "evidence"),
+      path.join(supervisedWorkspace, "evidence"),
+      { recursive: true },
+    );
+    fs.writeFileSync(path.join(supervisedWorkspace, "tracked.txt"), "base\n");
+    git(supervisedWorkspace, ["init", "-b", "benchmark"]);
+    git(supervisedWorkspace, ["add", "-A"]);
+    git(supervisedWorkspace, [
+      "-c",
+      "user.name=Benchmark Fixture",
+      "-c",
+      "user.email=fixture@example.com",
+      "commit",
+      "-m",
+      "baseline",
+    ]);
+    const supervisedStatePath: string = path.join(
+      supervisedRunRoot,
+      "state.json",
+    );
+    const supervisedOutput: IEvidenceBenchmarkOutput[] = [];
+    const supervised = await EvidenceBenchmarkRunner.run({
+      state: {
+        arm: "plain",
+        cliVersion: "fixture-cli",
+        nextInstructionIndex: 1,
+        status: "ready",
+        instructionPlan: EvidenceBenchmarkInstruction.plan("plain"),
+        threadTokenUsage: structuredClone(backendStart.tokenUsageEnd),
+        nativeThreadStartInstructionIndex: 1,
+        goals: [structuredClone(backendStart)],
+        checkpoints: [structuredClone(backendCheckpoint)],
+        inheritedProcessElapsedMs: 1_000,
+        processes: [],
+      },
+      cwd: supervisedWorkspace,
+      runRoot: supervisedRunRoot,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      fork: {
+        sourceSessionId: backendCheckpoint.sourceSessionId,
+        terminalTurnId: backendCheckpoint.terminalTurnId,
+      },
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--plain-arm",
+        "--previous-goal",
+        "--fork",
+      ],
+      onOutput: (_processIndex, output) => {
+        supervisedOutput.push(output);
+      },
+    });
+    assert.equal(
+      supervised.status,
+      "awaiting-review-verdict",
+      JSON.stringify({
+        interruption: supervised.interruption,
+        stderr: supervisedOutput
+          .filter((output) => output.stream === "stderr")
+          .map((output) => output.text),
+      }),
+    );
+    assert.equal(supervised.nextInstructionIndex, 2);
+    assert.equal(supervised.goals.length, 2);
+    assert.equal(supervised.goals[1]?.name, "backend-review");
+    assert.equal(supervised.goals[1]?.goal?.status, "complete");
+    assert.equal(supervised.goals[1]?.elapsedMs, 2_000);
+    assert.equal(supervised.supervisionPauses?.length, 1);
+    assert.equal(
+      supervised.supervisionPauses?.[0]?.afterGoal,
+      "backend-review",
+    );
+    assert.equal(supervised.supervisionPauses?.[0]?.resumedAt, undefined);
+    const legacyState = structuredClone(supervised);
+    delete legacyState.instructionPlan;
+    delete legacyState.supervisionPauses;
+    legacyState.status = "ready";
+    const resumedLegacy = await EvidenceBenchmarkRunner.run({
+      state: legacyState,
+      cwd: supervisedWorkspace,
+      runRoot: path.join(root, "legacy-run"),
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--legacy-plain",
+        "--current-goal",
+        "--fork",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(
+      resumedLegacy.status,
+      "completed",
+      JSON.stringify(resumedLegacy.interruption),
+    );
+    assert.deepEqual(
+      resumedLegacy.goals.map((goal) => [goal.name, goal.relativePath]),
+      LEGACY_PLAIN_ENTRIES,
+    );
+    assert.equal(resumedLegacy.supervisionPauses, undefined);
+    assert.ok(
+      resumedLegacy.instructionPlan?.every(
+        (entry) => entry.kind === "legacy-base",
+      ),
+    );
+    assert.equal(
+      supervisedOutput
+        .filter((output) => output.stream === "stdin")
+        .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+        .filter((request) => request.method === "thread/goal/set").length,
+      1,
+    );
+    const runningPause = structuredClone(supervised);
+    runningPause.status = "running";
+    const recoveredPause = await EvidenceBenchmarkRunner.run({
+      state: runningPause,
+      cwd: supervisedWorkspace,
+      runRoot: supervisedRunRoot,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => assert.fail("Pause recovery must not launch Codex."),
+    });
+    assert.equal(recoveredPause.status, "awaiting-review-verdict");
+    const bypassedReview = structuredClone(runningPause);
+    bypassedReview.status = "interrupted";
+    bypassedReview.supervisionPauses = [];
+    await assert.rejects(
+      EvidenceBenchmarkRunner.run({
+        state: bypassedReview,
+        cwd: supervisedWorkspace,
+        runRoot: supervisedRunRoot,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        command: process.execPath,
+        commandPrefixArguments: prefix,
+        onOutput: () => undefined,
+      }),
+      /boundaries do not match retained pauses/u,
+    );
+    const skippedCompletedGoal = structuredClone(supervised);
+    skippedCompletedGoal.goals = skippedCompletedGoal.goals.filter(
+      (goal) => goal.index !== 0,
+    );
+    await assert.rejects(
+      EvidenceBenchmarkRunner.run({
+        state: skippedCompletedGoal,
+        cwd: supervisedWorkspace,
+        runRoot: supervisedRunRoot,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        command: process.execPath,
+        commandPrefixArguments: prefix,
+        onOutput: () => undefined,
+      }),
+      /completed Goal prefix is invalid/u,
+    );
+    const misplacedSupplement = structuredClone(supervised);
+    misplacedSupplement.instructionPlan!.push({
+      name: "backend-remind-1",
+      relativePath: "plain/backend/remind.md",
+      kind: "review-supplement",
+      reviewScope: "backend",
+      reviewAttempt: 1,
+      reviewFeedback: "Read the omitted controller and its calling tests.",
+    });
+    await assert.rejects(
+      EvidenceBenchmarkRunner.run({
+        state: misplacedSupplement,
+        cwd: supervisedWorkspace,
+        runRoot: supervisedRunRoot,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        command: process.execPath,
+        commandPrefixArguments: prefix,
+        onOutput: () => undefined,
+      }),
+      /supplementation plan is invalid/u,
+    );
+    writeSupervisedState({
+      root: supervisedRunRoot,
+      workspace: supervisedWorkspace,
+      state: supervised,
+    });
+    assert.throws(
+      () =>
+        EvidenceBenchmarkSupervision.decide({
+          runRoot: supervisedRunRoot,
+          instructionsRoot: root,
+          verdictFile: path.join(root, "missing-verdict.json"),
+          inputIdentity: {
+            templateSha256: "a".repeat(64),
+            requirementsSha256: "b".repeat(64),
+            instructionsSha256: "c".repeat(64),
+          },
+        }),
+      /does not match frozen benchmark inputs/u,
+    );
+    const workspaceVerdict: string = path.join(
+      supervisedWorkspace,
+      "verdict.json",
+    );
+    fs.writeFileSync(
+      workspaceVerdict,
+      '{"decision":"pass","rationale":"Complete review."}\n',
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkSupervision.decide({
+          runRoot: supervisedRunRoot,
+          instructionsRoot: root,
+          verdictFile: workspaceVerdict,
+        }),
+      /cannot modify the measured workspace/u,
+    );
+    fs.unlinkSync(workspaceVerdict);
+    const disclosedVerdict: string = path.join(root, "disclosed.json");
+    fs.writeFileSync(
+      disclosedVerdict,
+      '{"decision":"fail","rationale":"Missing work.","feedback":"The external auditor ordered a retry."}\n',
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkSupervision.decide({
+          runRoot: supervisedRunRoot,
+          instructionsRoot: root,
+          verdictFile: disclosedVerdict,
+        }),
+      /discloses benchmark-only machinery/u,
+    );
+    const retryDisclosure: string = path.join(root, "retry-disclosure.json");
+    fs.writeFileSync(
+      retryDisclosure,
+      '{"decision":"fail","rationale":"Missing work.","feedback":"A benchmark reviewer requested another attempt."}\n',
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkSupervision.decide({
+          runRoot: supervisedRunRoot,
+          instructionsRoot: root,
+          verdictFile: retryDisclosure,
+        }),
+      /discloses benchmark-only machinery/u,
+    );
+    const oversizedVerdict: string = path.join(root, "oversized.json");
+    fs.writeFileSync(
+      oversizedVerdict,
+      `${JSON.stringify({
+        decision: "fail",
+        rationale: "Missing work.",
+        feedback: "Read and correct the omitted source. ".repeat(200),
+      })}\n`,
+    );
+    assert.throws(
+      () =>
+        EvidenceBenchmarkSupervision.decide({
+          runRoot: supervisedRunRoot,
+          instructionsRoot: root,
+          verdictFile: oversizedVerdict,
+        }),
+      /Goal characters/u,
+    );
+    const orphanRunRoot: string = path.join(root, "orphan-verdict-run");
+    const orphanWorkspace: string = path.join(orphanRunRoot, "workspace");
+    fs.cpSync(supervisedWorkspace, orphanWorkspace, { recursive: true });
+    writeSupervisedState({
+      root: orphanRunRoot,
+      workspace: orphanWorkspace,
+      state: structuredClone(supervised),
+    });
+    const orphanInput: string = path.join(root, "orphan-pass.json");
+    const orphanBytes = Buffer.from(
+      '{"decision":"pass","rationale":"The retained source review is materially complete."}\n',
+    );
+    fs.writeFileSync(orphanInput, orphanBytes);
+    const orphanTarget: string = path.join(
+      orphanRunRoot,
+      "supervision",
+      "00-backend-0-verdict.json",
+    );
+    fs.mkdirSync(path.dirname(orphanTarget), { recursive: true });
+    fs.writeFileSync(orphanTarget, orphanBytes);
+    assert.equal(
+      EvidenceBenchmarkSupervision.decide({
+        runRoot: orphanRunRoot,
+        instructionsRoot: root,
+        verdictFile: orphanInput,
+      }).action,
+      "final",
+    );
+
+    const failedRunRoot: string = path.join(root, "failed-run");
+    const failedWorkspace: string = path.join(failedRunRoot, "workspace");
+    fs.cpSync(supervisedWorkspace, failedWorkspace, { recursive: true });
+    writeSupervisedState({
+      root: failedRunRoot,
+      workspace: failedWorkspace,
+      state: structuredClone(supervised),
+    });
+    let failedState: IEvidenceBenchmarkRunState = structuredClone(supervised);
+    for (let attempt = 0; attempt <= 4; ++attempt) {
+      const verdictFile: string = path.join(root, `fail-${attempt}.json`);
+      fs.writeFileSync(
+        verdictFile,
+        `${JSON.stringify({
+          decision: "fail",
+          rationale: `Attempt ${attempt} omitted material source review.`,
+          feedback:
+            "Read the omitted source files, repair every resulting defect, then repeat the complete post-edit review.",
+        })}\n`,
+      );
+      const verdict = EvidenceBenchmarkSupervision.decide({
+        runRoot: failedRunRoot,
+        instructionsRoot: root,
+        verdictFile,
+      });
+      assert.equal(verdict.attempt, attempt);
+      assert.equal(verdict.action, attempt === 4 ? "quality-failed" : "retry");
+      failedState = readSupervisedState(path.join(failedRunRoot, "state.json"));
+      if (attempt === 4) break;
+      assert.equal(
+        failedState.instructionPlan?.[failedState.nextInstructionIndex]?.name,
+        `backend-remind-${attempt + 1}`,
+      );
+      const retainedObjectiveFile: string = path.join(
+        failedRunRoot,
+        "retained-objective.txt",
+      );
+      fs.writeFileSync(
+        retainedObjectiveFile,
+        failedState.goals.at(-1)!.objectiveText,
+      );
+      failedState = await EvidenceBenchmarkRunner.run({
+        state: failedState,
+        cwd: failedWorkspace,
+        runRoot: failedRunRoot,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        command: process.execPath,
+        commandPrefixArguments: [
+          ...prefix,
+          "--plain-arm",
+          "--fork",
+          "--current-goal",
+          `--goal-index=${failedState.nextInstructionIndex}`,
+          `--retained-objective-file=${retainedObjectiveFile}`,
+        ],
+        onOutput: () => undefined,
+      });
+      assert.equal(
+        failedState.status,
+        "awaiting-review-verdict",
+        JSON.stringify(failedState.interruption),
+      );
+      assert.equal(failedState.supervisionPauses?.at(-1)?.attempt, attempt + 1);
+      assert.equal(
+        failedState.goals.at(-1)?.name,
+        `backend-remind-${attempt + 1}`,
+      );
+      writeSupervisedState({
+        root: failedRunRoot,
+        workspace: failedWorkspace,
+        state: failedState,
+      });
+    }
+    assert.equal(failedState.status, "quality-failed");
+    assert.equal(failedState.supervisionPauses?.length, 5);
+
+    const passVerdictFile: string = path.join(root, "pass.json");
+    fs.writeFileSync(
+      passVerdictFile,
+      `${JSON.stringify({
+        decision: "pass",
+        rationale:
+          "Substantive full-source review and post-edit closure are proven; only harmless report formatting varied.",
+      })}\n`,
+    );
+    const firstVerdict = EvidenceBenchmarkSupervision.decide({
+      runRoot: supervisedRunRoot,
+      instructionsRoot: root,
+      verdictFile: passVerdictFile,
+    });
+    assert.equal(firstVerdict.decision, "pass");
+    assert.equal(firstVerdict.action, "final");
+    assert.throws(
+      () =>
+        EvidenceBenchmarkSupervision.decide({
+          runRoot: supervisedRunRoot,
+          instructionsRoot: root,
+          verdictFile: passVerdictFile,
+        }),
+      /undecided Plain review boundary/u,
+    );
+    const approved = readSupervisedState(supervisedStatePath);
+    const retainedVerdict: string = path.join(
+      supervisedRunRoot,
+      ...firstVerdict.verdictRelativePath.split("/"),
+    );
+    const retainedVerdictBytes: Buffer = fs.readFileSync(retainedVerdict);
+    fs.appendFileSync(retainedVerdict, " ");
+    await assert.rejects(
+      EvidenceBenchmarkRunner.run({
+        state: approved,
+        cwd: supervisedWorkspace,
+        runRoot: supervisedRunRoot,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        command: process.execPath,
+        commandPrefixArguments: prefix,
+        onOutput: () => undefined,
+      }),
+      /Retained review verdict changed/u,
+    );
+    fs.writeFileSync(retainedVerdict, retainedVerdictBytes);
+    fs.appendFileSync(
+      path.join(supervisedWorkspace, "tracked.txt"),
+      "tamper\n",
+    );
+    await assert.rejects(
+      EvidenceBenchmarkRunner.run({
+        state: approved,
+        cwd: supervisedWorkspace,
+        runRoot: supervisedRunRoot,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        command: process.execPath,
+        commandPrefixArguments: prefix,
+        onOutput: () => undefined,
+      }),
+      /Workspace changed after its review verdict/u,
+    );
+    fs.writeFileSync(path.join(supervisedWorkspace, "tracked.txt"), "base\n");
+
+    const resumedSupervised = await EvidenceBenchmarkRunner.run({
+      state: approved,
+      cwd: supervisedWorkspace,
+      runRoot: supervisedRunRoot,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--plain-arm",
+        "--fork",
+        "--current-goal",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(resumedSupervised.status, "awaiting-review-verdict");
+    assert.equal(resumedSupervised.nextInstructionIndex, 5);
+    assert.equal(resumedSupervised.goals.length, 5);
+    assert.equal(resumedSupervised.goals[2]?.name, "backend-final");
+    assert.equal(resumedSupervised.goals[2]?.goal?.status, "complete");
+    assert.equal(resumedSupervised.goals[3]?.name, "frontend-start");
+    assert.equal(resumedSupervised.goals[3]?.goal?.status, "complete");
+    assert.equal(resumedSupervised.goals[4]?.name, "frontend-review");
+    assert.equal(resumedSupervised.goals[4]?.goal?.status, "complete");
+    assert.equal(resumedSupervised.supervisionPauses?.length, 2);
+    assert.equal(
+      resumedSupervised.supervisionPauses?.[0]?.afterGoal,
+      "backend-review",
+    );
+    assert.ok(resumedSupervised.supervisionPauses?.[0]?.resumedAt);
+    assert.equal(
+      resumedSupervised.supervisionPauses?.[1]?.afterGoal,
+      "frontend-review",
+    );
+    assert.equal(
+      resumedSupervised.supervisionPauses?.[1]?.resumedAt,
+      undefined,
+    );
+    assert.equal(
+      resumedSupervised.supervisionPauses?.[0]?.verdict?.decision,
+      "pass",
+    );
+    fs.appendFileSync(retainedVerdict, "history-tamper");
+    await assert.rejects(
+      EvidenceBenchmarkRunner.run({
+        state: resumedSupervised,
+        cwd: supervisedWorkspace,
+        runRoot: supervisedRunRoot,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        command: process.execPath,
+        commandPrefixArguments: prefix,
+        onOutput: () => undefined,
+      }),
+      /Retained review verdict changed/u,
+    );
+    fs.writeFileSync(retainedVerdict, retainedVerdictBytes);
+    const forkOutput: IEvidenceBenchmarkOutput[] = [];
+    const forked = await EvidenceBenchmarkRunner.run({
+      state: {
+        arm: "evidence",
+        cliVersion: "fixture-cli",
+        nextInstructionIndex: 1,
+        status: "ready",
+        threadTokenUsage: structuredClone(backendStart.tokenUsageEnd),
+        nativeThreadStartInstructionIndex: 1,
+        goals: [evidenceBackendStart],
+        checkpoints: [structuredClone(backendCheckpoint)],
+        inheritedProcessElapsedMs: 1_000,
+        processes: [],
+      },
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      fork: {
+        sourceSessionId: backendCheckpoint.sourceSessionId,
+        terminalTurnId: backendCheckpoint.terminalTurnId,
+      },
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--previous-goal", "--fork"],
+      onOutput: (_processIndex, output) => {
+        forkOutput.push(output);
+      },
+    });
+    assert.equal(forked.status, "completed");
+    assert.equal(forked.sessionId, "fixture-fork");
+    assert.equal(forked.goals.length, ENTRIES.length);
+    assert.equal(forked.goals[0]?.goal?.threadId, "fixture-fork");
+    assert.equal(forked.threadTokenUsage.totalTokens, ENTRIES.length * 10);
+    const forkRequests = forkOutput
+      .filter((output) => output.stream === "stdin")
+      .map((output) => JSON.parse(output.text) as Record<string, unknown>);
+    const initializeRequest = forkRequests.find(
+      (request) => request.method === "initialize",
+    );
+    assert.deepEqual(initializeRequest?.params, {
+      clientInfo: {
+        name: "@samchon/evidence-benchmark",
+        version: "0.4.4",
+      },
+      capabilities: {
+        experimentalApi: true,
+      },
+    });
+    const forkRequest = forkRequests.find(
+      (request) => request.method === "thread/fork",
+    );
+    assert.ok(forkRequest);
+    assert.deepEqual(forkRequest.params, {
+      threadId: "fixture-thread",
+      lastTurnId: "turn-1",
+      model: "fixture-model",
+      cwd: root,
+      runtimeWorkspaceRoots: [root],
+      approvalPolicy: "never",
+      sandbox: "danger-full-access",
+      deferGoalContinuation: true,
+      ephemeral: false,
+    });
+    const clearRequest = forkRequests.find(
+      (request) => request.method === "thread/goal/clear",
+    );
+    assert.deepEqual(clearRequest?.params, {
+      threadId: "fixture-fork",
+    });
+    assert.ok(
+      forkRequests.findIndex((request) => request.method === "thread/fork") <
+        forkRequests.findIndex(
+          (request) => request.method === "thread/goal/clear",
+        ),
+    );
+    assert.ok(
+      forkRequests.findIndex(
+        (request) => request.method === "thread/goal/clear",
+      ) <
+        forkRequests.findIndex(
+          (request) => request.method === "thread/goal/set",
+        ),
+    );
+
+    const plain = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("plain"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(plain.status, "awaiting-review-verdict");
+    assert.equal(plain.goals.length, 2);
+    plain.goals.forEach((goal, index) => {
+      const entry = PLAIN_ENTRIES[index]!;
+      const prescribed: string = readPrescribed(sources, entry[1]);
+      const continuation: string = sources
+        .get("plain/continue.md")!
+        .toString("utf8");
+      assert.equal(goal.relativePath, entry[1]);
+      assert.equal(goal.prescribedText, prescribed);
+      assert.equal(goal.continuationText, continuation);
+      assert.equal(goal.objectiveText, `${prescribed}\n\n${continuation}`);
+      assert.equal(goal.goal?.objective, goal.objectiveText);
+    });
+
+    const detachedStart: IEvidenceBenchmarkRunState = {
+      arm: "plain",
+      cliVersion: "fixture-cli",
+      nextInstructionIndex: 1,
+      status: "ready",
+      instructionPlan: EvidenceBenchmarkInstruction.plan("plain"),
+      threadTokenUsage: {
+        totalTokens: 0,
+        inputTokens: 0,
+        cachedInputTokens: 0,
+        cacheWriteInputTokens: 0,
+        outputTokens: 0,
+        reasoningOutputTokens: 0,
+      },
+      nativeThreadStartInstructionIndex: 1,
+      goals: [structuredClone(plain.goals[0]!)],
+      checkpoints: [structuredClone(backendCheckpoint)],
+      inheritedProcessElapsedMs: 1_000,
+      processes: [],
+    };
+    await assert.rejects(
+      EvidenceBenchmarkRunner.run({
+        state: structuredClone(detachedStart),
+        cwd: path.join(root, "review-workspace"),
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        reviewLedger: "backend",
+        fork: {
+          sourceSessionId: backendCheckpoint.sourceSessionId,
+          terminalTurnId: backendCheckpoint.terminalTurnId,
+        },
+        command: process.execPath,
+        commandPrefixArguments: [...prefix, "--plain-arm", "--ledger-tools"],
+        onOutput: () => undefined,
+      }),
+      /fresh detached review thread/u,
+    );
+    const ledgerOutput: IEvidenceBenchmarkOutput[] = [];
+    const detachedLedger = await EvidenceBenchmarkRunner.run({
+      state: structuredClone(detachedStart),
+      cwd: path.join(root, "review-workspace"),
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      reviewLedger: "backend",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--plain-arm", "--ledger-tools"],
+      onOutput: (_processIndex, output) => {
+        ledgerOutput.push(output);
+      },
+    });
+    assert.equal(
+      detachedLedger.status,
+      "awaiting-review-verdict",
+      `${JSON.stringify(detachedLedger.interruption)}\n${ledgerOutput
+        .filter((output) => output.stream === "stderr")
+        .map((output) => output.text)
+        .join("")}`,
+    );
+    assert.equal(detachedLedger.sessionId, "fixture-ledger-thread");
+    assert.equal(detachedLedger.nextInstructionIndex, 2);
+    assert.equal(detachedLedger.goals[0]?.goal?.threadId, "fixture-thread");
+    assert.equal(
+      detachedLedger.goals[1]?.goal?.threadId,
+      "fixture-ledger-thread",
+    );
+    assert.equal(detachedLedger.goals[1]?.tokenUsageStart.totalTokens, 0);
+    assert.equal(detachedLedger.goals[1]?.tokenUsage.totalTokens, 10);
+    assert.equal(detachedLedger.threadTokenUsage.totalTokens, 10);
+    assert.equal(detachedLedger.reviewLedgers?.length, 1);
+    assert.equal(detachedLedger.reviewLedgers?.[0]?.rounds.length, 2);
+    assert.equal(
+      detachedLedger.reviewLedgers?.[0]?.rounds[0]?.status,
+      "findings",
+    );
+    assert.equal(detachedLedger.reviewLedgers?.[0]?.rounds[1]?.status, "dry");
+    assert.equal(
+      detachedLedger.reviewLedgers?.[0]?.rounds[1]?.reads.length,
+      detachedLedger.reviewLedgers?.[0]?.rounds[1]?.manifest.length,
+    );
+    assert.equal(
+      detachedLedger.reviewLedgers?.[0]?.calibrations?.[0]?.status,
+      "passed",
+    );
+    assert.deepEqual(
+      detachedLedger.reviewLedgers?.[0]?.edits?.map((entry) => entry.phase),
+      ["correction", "calibration-break", "calibration-restore"],
+    );
+    assert.deepEqual(
+      detachedLedger.reviewLedgers?.[0]?.commands?.map((entry) => [
+        entry.command,
+        entry.phase,
+        entry.status,
+      ]),
+      [
+        ["test", "calibration-fail", "expected-failure"],
+        ["test", "calibration-pass", "succeeded"],
+        ["check-watch", "final", "succeeded"],
+        ["test", "final", "succeeded"],
+      ],
+    );
+    const ledgerRequests = ledgerOutput
+      .filter((output) => output.stream === "stdin")
+      .map((output) => JSON.parse(output.text) as Record<string, unknown>);
+    const ledgerThreadStart = ledgerRequests.find(
+      (request) => request.method === "thread/start",
+    );
+    assert.ok(ledgerThreadStart);
+    assert.deepEqual(
+      (
+        (ledgerThreadStart.params as Record<string, unknown>)
+          .dynamicTools as Record<string, unknown>[]
+      ).map((tool) => tool.name),
+      [
+        "review_start_round",
+        "review_read_file",
+        "review_finish_round",
+        "review_start_calibration",
+        "review_edit_file",
+        "review_run_backend_command",
+      ],
+    );
+    assert.equal(
+      (ledgerThreadStart.params as Record<string, unknown>).sandbox,
+      "read-only",
+    );
+    assert.equal(
+      ledgerRequests.some((request) => request.method === "thread/fork"),
+      false,
+    );
+    const nativeGate = await EvidenceBenchmarkRunner.run({
+      state: structuredClone(detachedStart),
+      cwd: path.join(root, "review-workspace"),
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      reviewLedger: "backend",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--plain-arm",
+        "--ledger-tools",
+        "--native-gate",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(nativeGate.status, "interrupted");
+    assert.match(
+      nativeGate.interruption?.message ?? "",
+      /review_run_backend_command/u,
+    );
+    const nativeOverlap = await EvidenceBenchmarkRunner.run({
+      state: structuredClone(detachedStart),
+      cwd: path.join(root, "review-workspace"),
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      reviewLedger: "backend",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--plain-arm",
+        "--ledger-tools",
+        "--native-overlap",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(nativeOverlap.status, "interrupted");
+    assert.match(nativeOverlap.interruption?.message ?? "", /remained active/u);
+    for (const [flag, message] of [
+      ["--native-then-runner", /runner-owned backend command/u],
+      ["--runner-then-native", /runner-owned backend command/u],
+    ] as const) {
+      const crossOverlap = await EvidenceBenchmarkRunner.run({
+        state: structuredClone(detachedStart),
+        cwd: path.join(root, "review-workspace"),
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        reviewLedger: "backend",
+        command: process.execPath,
+        commandPrefixArguments: [
+          ...prefix,
+          "--plain-arm",
+          "--ledger-tools",
+          flag,
+        ],
+        onOutput: () => undefined,
+      });
+      assert.equal(crossOverlap.status, "interrupted");
+      assert.match(crossOverlap.interruption?.message ?? "", message);
+    }
+
+    const ledgerRunRoot: string = path.join(root, "ledger-supervision");
+    fs.mkdirSync(ledgerRunRoot, { recursive: true });
+    const ledgerWorkspace: string = path.join(ledgerRunRoot, "workspace");
+    fs.cpSync(path.join(root, "review-workspace"), ledgerWorkspace, {
+      recursive: true,
+    });
+    fs.cpSync(path.join(root, "plain"), path.join(ledgerWorkspace, "plain"), {
+      recursive: true,
+    });
+    git(ledgerWorkspace, ["init", "-b", "benchmark"]);
+    git(ledgerWorkspace, ["config", "user.name", "Benchmark Fixture"]);
+    git(ledgerWorkspace, ["config", "user.email", "fixture@example.com"]);
+    git(ledgerWorkspace, ["add", "-A"]);
+    git(ledgerWorkspace, ["commit", "-m", "Prepare ledger workspace"]);
+    const ledgerVerdict: string = path.join(root, "ledger-verdict.json");
+    fs.writeFileSync(
+      ledgerVerdict,
+      '{"decision":"pass","rationale":"Every required file was read in a dry post-edit round."}\n',
+      "utf8",
+    );
+    writeSupervisedState({
+      root: ledgerRunRoot,
+      workspace: ledgerWorkspace,
+      state: detachedLedger,
+    });
+    EvidenceBenchmarkSupervision.decide({
+      runRoot: ledgerRunRoot,
+      instructionsRoot: root,
+      verdictFile: ledgerVerdict,
+    });
+    const approvedLedger = readSupervisedState(
+      path.join(ledgerRunRoot, "state.json"),
+    );
+    const finalLedgerOutput: IEvidenceBenchmarkOutput[] = [];
+    const detachedFinal = await EvidenceBenchmarkRunner.run({
+      state: approvedLedger,
+      cwd: ledgerWorkspace,
+      runRoot: ledgerRunRoot,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      reviewLedger: "backend",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--plain-arm",
+        "--ledger-tools",
+        "--current-goal",
+      ],
+      onOutput: (_processIndex, output) => {
+        finalLedgerOutput.push(output);
+      },
+    });
+    assert.equal(
+      detachedFinal.status,
+      "awaiting-review-verdict",
+      `${JSON.stringify(detachedFinal.interruption)}\n${finalLedgerOutput
+        .filter((output) => output.stream === "stderr")
+        .map((output) => output.text)
+        .join("")}`,
+    );
+    assert.equal(detachedFinal.nextInstructionIndex, 5);
+    assert.equal(detachedFinal.reviewLedgers?.length, 1);
+    assert.equal(detachedFinal.reviewLedgers?.[0]?.goalName, "backend-review");
+    assert.equal(detachedFinal.reviewLedgers?.[0]?.rounds[1]?.status, "dry");
+    assert.equal(detachedFinal.goals[2]?.tokenUsageStart.totalTokens, 10);
+    assert.equal(detachedFinal.goals[2]?.tokenUsage.totalTokens, 10);
+    assert.equal(detachedFinal.goals[4]?.name, "frontend-review");
+    assert.equal(detachedFinal.threadTokenUsage.totalTokens, 40);
+
+    const forcedCleanup = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--hang-on-close"],
+      shutdownGraceMs: 50,
+      onOutput: () => undefined,
+    });
+    assert.equal(forcedCleanup.status, "completed");
+    assert.equal(forcedCleanup.nextInstructionIndex, ENTRIES.length);
+    assert.equal(forcedCleanup.processes[0]?.shutdownForced, true);
+    assert.equal(
+      Number.isSafeInteger(forcedCleanup.processes[0]?.processId),
+      true,
+    );
+
+    const retainedCleanup = structuredClone(forcedCleanup);
+    retainedCleanup.status = "interrupted";
+    retainedCleanup.interruption = {
+      name: "Error",
+      message: "Codex app-server survived forced process-tree cleanup.",
+    };
+    delete retainedCleanup.processes[0]?.processId;
+    const recoveredCleanup = await EvidenceBenchmarkRunner.run({
+      state: retainedCleanup,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(recoveredCleanup.status, "completed");
+    assert.equal(recoveredCleanup.interruption, undefined);
+
+    const unrelatedInterruption = structuredClone(retainedCleanup);
+    unrelatedInterruption.interruption = {
+      name: "Error",
+      message: "An unrelated terminal failure.",
+    };
+    const retainedInterruption = await EvidenceBenchmarkRunner.run({
+      state: unrelatedInterruption,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(retainedInterruption.status, "interrupted");
+    assert.equal(
+      retainedInterruption.interruption?.message,
+      "An unrelated terminal failure.",
+    );
+
+    const inheritedStream = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--inherit-stream-after-exit"],
+      shutdownGraceMs: 50,
+      onOutput: () => undefined,
+    });
+    assert.equal(inheritedStream.status, "completed");
+    assert.notEqual(inheritedStream.processes[0]?.exitCode, null);
+    assert.notEqual(inheritedStream.processes[0]?.shutdownForced, true);
+
+    const terminalLineBreakOutput: IEvidenceBenchmarkOutput[] = [];
+    const terminalLineBreak = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--trim-terminal-line-breaks"],
+      onOutput: (_processIndex, output) => {
+        terminalLineBreakOutput.push(output);
+      },
+    });
+    assert.equal(terminalLineBreak.status, "completed");
+    assert.equal(terminalLineBreak.nextInstructionIndex, ENTRIES.length);
+    assert.equal(terminalLineBreak.goals.length, ENTRIES.length);
+    const terminalLineBreakRequests = terminalLineBreakOutput
+      .filter((output) => output.stream === "stdin")
+      .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+      .filter((request) => request.method === "thread/goal/set");
+    assert.equal(terminalLineBreakRequests.length, ENTRIES.length);
+    terminalLineBreak.goals.forEach((goal, index) => {
+      const objective: string = readObjective(root, sources, ENTRIES[index]!);
+      assert.ok(objective.endsWith("\r\n"));
+      assert.equal(goal.objectiveText, objective);
+      assert.deepEqual(Buffer.from(goal.objectiveText), Buffer.from(objective));
+      assert.equal(
+        (terminalLineBreakRequests[index]?.params as Record<string, unknown>)
+          ?.objective,
+        objective,
+      );
+      assert.equal(goal.goal?.objective, objective.replace(/[\r\n]+$/u, ""));
+    });
+
+    const terminalLineBreakBoundary = structuredClone(terminalLineBreak);
+    terminalLineBreakBoundary.status = "interrupted";
+    terminalLineBreakBoundary.nextInstructionIndex = 1;
+    terminalLineBreakBoundary.goals = terminalLineBreakBoundary.goals.slice(
+      0,
+      1,
+    );
+    terminalLineBreakBoundary.threadTokenUsage = structuredClone(
+      terminalLineBreakBoundary.goals[0]!.tokenUsageEnd!,
+    );
+    const terminalLineBreakResume = await EvidenceBenchmarkRunner.run({
+      state: terminalLineBreakBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--previous-goal",
+        "--trim-terminal-line-breaks",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(terminalLineBreakResume.status, "completed");
+
+    if (process.platform === "win32") {
+      const shimDirectory: string = path.join(root, "command shims");
+      const shim: string = path.join(shimDirectory, "codex.cmd");
+      fs.mkdirSync(shimDirectory);
+      fs.writeFileSync(
+        shim,
+        [
+          "@echo off",
+          `"${process.execPath}" --experimental-transform-types "${import.meta.filename}" --fake-app-server %*`,
+          "",
+        ].join("\r\n"),
+      );
+      const pathName: string =
+        Object.keys(process.env).find(
+          (name) => name.toUpperCase() === "PATH",
+        ) ?? "Path";
+      const environment: NodeJS.ProcessEnv = {
+        ...process.env,
+        [pathName]: `${shimDirectory}${path.delimiter}${process.env[pathName] ?? ""}`,
+      };
+      const spacedCommand = await EvidenceBenchmarkRunner.run({
+        state: EvidenceBenchmarkRunner.create("evidence"),
+        cwd: root,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        environment,
+        onOutput: () => undefined,
+      });
+      assert.equal(spacedCommand.status, "completed");
+      assert.deepEqual(spacedCommand.processes[0]?.arguments.slice(0, 3), [
+        "/d",
+        "/s",
+        "/c",
+      ]);
+      assert.match(
+        spacedCommand.processes[0]?.arguments[3] ?? "",
+        /codex\.cmd/,
+      );
+    }
+
+    const lateProtocolError = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--late-error"],
+      onOutput: () => undefined,
+    });
+    assert.equal(lateProtocolError.status, "interrupted");
+    assert.match(
+      lateProtocolError.interruption?.message ?? "",
+      /fixture\/late-error/,
+    );
+    const retainedLateProtocolError = await EvidenceBenchmarkRunner.run({
+      state: lateProtocolError,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(retainedLateProtocolError.status, "interrupted");
+    assert.match(
+      retainedLateProtocolError.interruption?.message ?? "",
+      /fixture\/late-error/,
+    );
+
+    const wrongGoal = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--wrong-goal"],
+      onOutput: () => undefined,
+    });
+    assert.equal(wrongGoal.status, "interrupted");
+    assert.match(
+      wrongGoal.interruption?.message ?? "",
+      /retained thread and objective/,
+    );
+
+    const invalidCursor = structuredClone(completed);
+    invalidCursor.status = "interrupted";
+    invalidCursor.processes.at(-1)!.exitCode = null;
+    const rejectedCursor = await EvidenceBenchmarkRunner.run({
+      state: invalidCursor,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(rejectedCursor.status, "interrupted");
+    assert.match(
+      rejectedCursor.interruption?.message ?? "",
+      /invalid terminal process/,
+    );
+    assert.equal(rejectedCursor.processes.length, 1);
+
+    const invalidMeasurements = structuredClone(completed);
+    invalidMeasurements.status = "interrupted";
+    invalidMeasurements.goals.at(-1)!.tokenUsage.outputTokens++;
+    const rejectedMeasurements = await EvidenceBenchmarkRunner.run({
+      state: invalidMeasurements,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => undefined,
+    });
+    assert.equal(rejectedMeasurements.status, "interrupted");
+    assert.match(
+      rejectedMeasurements.interruption?.message ?? "",
+      /invalid completed Goal/,
+    );
+
+    const interruptedOutput: IEvidenceBenchmarkOutput[] = [];
+    const interrupted = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--fail"],
+      onOutput: (_processIndex, output) => {
+        interruptedOutput.push(output);
+      },
+    });
+    assert.equal(interrupted.status, "interrupted");
+    assert.equal(interrupted.nextInstructionIndex, 0);
+    assert.equal(interrupted.processes[0]!.exitCode, 7);
+    assert.match(
+      interruptedOutput
+        .filter((output) => output.stream === "stderr")
+        .map((output) => output.text)
+        .join(""),
+      /fixture interruption/,
+    );
+
+    const wrongThread = await EvidenceBenchmarkRunner.run({
+      state: interrupted,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--wrong-thread"],
+      onOutput: () => undefined,
+    });
+    assert.equal(wrongThread.status, "interrupted");
+    assert.match(
+      wrongThread.interruption?.message ?? "",
+      /different retained thread/,
+    );
+
+    const blockedThenComplete = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--blocked-then-complete"],
+      onOutput: () => undefined,
+    });
+    assert.equal(blockedThenComplete.status, "interrupted");
+    assert.equal(blockedThenComplete.nextInstructionIndex, 0);
+    assert.equal(blockedThenComplete.goals.length, 1);
+
+    const missingToken = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--omit-token"],
+      onOutput: () => undefined,
+    });
+    assert.equal(missingToken.status, "interrupted");
+    assert.equal(missingToken.nextInstructionIndex, 0);
+    assert.match(
+      missingToken.interruption?.message ?? "",
+      /native token checkpoint/,
+    );
+
+    const staleTerminalToken = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--omit-terminal-token"],
+      onOutput: () => undefined,
+    });
+    assert.equal(staleTerminalToken.status, "interrupted");
+    assert.equal(staleTerminalToken.nextInstructionIndex, 0);
+    assert.match(
+      staleTerminalToken.interruption?.message ?? "",
+      /terminal-turn token checkpoint/,
+    );
+
+    const missingNotificationThread = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--missing-thread-id"],
+      onOutput: () => undefined,
+    });
+    assert.equal(missingNotificationThread.status, "interrupted");
+    assert.equal(missingNotificationThread.nextInstructionIndex, 0);
+    assert.match(
+      missingNotificationThread.interruption?.message ?? "",
+      /notification omitted its thread ID/,
+    );
+
+    const stateFailureOutput: IEvidenceBenchmarkOutput[] = [];
+    let stateCheckpointCount = 0;
+    const stateFailure = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: (_processIndex, output) => {
+        stateFailureOutput.push(output);
+      },
+      onState: (state) => {
+        if (state.sessionId !== undefined && state.goals[0]?.goal === null) {
+          stateCheckpointCount++;
+          if (stateCheckpointCount !== 2) return;
+          throw new Error("fixture durable state failure");
+        }
+      },
+    });
+    assert.equal(stateFailure.status, "interrupted");
+    assert.equal(
+      stateFailure.interruption?.message,
+      "fixture durable state failure",
+    );
+    assert.equal(
+      stateFailureOutput
+        .filter((output) => output.stream === "stdin")
+        .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+        .filter((request) => request.method === "thread/goal/set").length,
+      0,
+    );
+    const undispatchedBoundary = structuredClone(stateFailure);
+    const usedUndispatchedBoundary = structuredClone(stateFailure);
+    const adoptedUndispatchedGoal = await EvidenceBenchmarkRunner.run({
+      state: undispatchedBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--undispatched-active"],
+      onOutput: () => undefined,
+    });
+    assert.equal(adoptedUndispatchedGoal.status, "completed");
+    assert.equal(adoptedUndispatchedGoal.nextInstructionIndex, ENTRIES.length);
+    const rejectedUsedUndispatchedGoal = await EvidenceBenchmarkRunner.run({
+      state: usedUndispatchedBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--undispatched-used"],
+      onOutput: () => undefined,
+    });
+    assert.equal(rejectedUsedUndispatchedGoal.status, "interrupted");
+    assert.match(
+      rejectedUsedUndispatchedGoal.interruption?.message ?? "",
+      /exact retained boundary/,
+    );
+    const nextUndispatchedBoundary = structuredClone(completed);
+    nextUndispatchedBoundary.status = "interrupted";
+    nextUndispatchedBoundary.nextInstructionIndex = 1;
+    nextUndispatchedBoundary.goals = nextUndispatchedBoundary.goals.slice(0, 2);
+    const nextUndispatchedRecord = nextUndispatchedBoundary.goals[1]!;
+    nextUndispatchedRecord.goal = null;
+    nextUndispatchedRecord.terminalTurnId = null;
+    nextUndispatchedRecord.terminalTurnCompleted = false;
+    nextUndispatchedRecord.threadIdle = false;
+    nextUndispatchedRecord.tokenUsageTurnId = null;
+    nextUndispatchedRecord.tokenUsageEnd = null;
+    nextUndispatchedRecord.tokenUsage = {
+      totalTokens: 0,
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
+      outputTokens: 0,
+      reasoningOutputTokens: 0,
+    };
+    nextUndispatchedBoundary.threadTokenUsage = structuredClone(
+      nextUndispatchedBoundary.goals[0]!.tokenUsageEnd!,
+    );
+    const adoptedNextUndispatchedGoal = await EvidenceBenchmarkRunner.run({
+      state: nextUndispatchedBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--undispatched-next"],
+      onOutput: () => undefined,
+    });
+    assert.equal(adoptedNextUndispatchedGoal.status, "completed");
+    assert.equal(
+      adoptedNextUndispatchedGoal.nextInstructionIndex,
+      ENTRIES.length,
+    );
+    const firstBoundaryResume = await EvidenceBenchmarkRunner.run({
+      state: stateFailure,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--empty-goal"],
+      onOutput: () => undefined,
+    });
+    assert.equal(firstBoundaryResume.status, "completed");
+
+    const nextBoundary = structuredClone(completed);
+    nextBoundary.status = "interrupted";
+    nextBoundary.nextInstructionIndex = 1;
+    nextBoundary.goals = nextBoundary.goals.slice(0, 1);
+    nextBoundary.threadTokenUsage = structuredClone(
+      nextBoundary.goals[0]!.tokenUsageEnd!,
+    );
+    const nextBoundaryResume = await EvidenceBenchmarkRunner.run({
+      state: nextBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--previous-goal"],
+      onOutput: () => undefined,
+    });
+    assert.equal(nextBoundaryResume.status, "completed");
+
+    const completedCurrentBoundary = structuredClone(completed);
+    completedCurrentBoundary.status = "interrupted";
+    completedCurrentBoundary.nextInstructionIndex = 1;
+    completedCurrentBoundary.goals = completedCurrentBoundary.goals.slice(0, 2);
+    completedCurrentBoundary.threadTokenUsage = structuredClone(
+      completedCurrentBoundary.goals[1]!.tokenUsageEnd!,
+    );
+    const completedCurrentOutput: IEvidenceBenchmarkOutput[] = [];
+    const completedCurrentResume = await EvidenceBenchmarkRunner.run({
+      state: completedCurrentBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--current-goal",
+        "--late-resume-snapshot",
+      ],
+      onOutput: (_processIndex, output) => {
+        completedCurrentOutput.push(output);
+      },
+    });
+    assert.equal(completedCurrentResume.status, "completed");
+    const resumedGoalRequests = completedCurrentOutput
+      .filter((output) => output.stream === "stdin")
+      .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+      .filter((request) => request.method === "thread/goal/set");
+    assert.equal(resumedGoalRequests.length, ENTRIES.length - 2);
+    assert.equal(
+      (resumedGoalRequests[0]?.params as Record<string, unknown>)?.objective,
+      readObjective(root, sources, ENTRIES[2]!),
+    );
+
+    const regressedGoalStatus = await EvidenceBenchmarkRunner.run({
+      state: completedCurrentBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--current-goal",
+        "--active-goal-get",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(regressedGoalStatus.status, "interrupted");
+    assert.match(
+      regressedGoalStatus.interruption?.message ?? "",
+      /exact retained Goal boundary/,
+    );
+
+    const activeCurrentBoundary = structuredClone(completedCurrentBoundary);
+    const activeCurrentRecord = activeCurrentBoundary.goals[1]!;
+    activeCurrentRecord.goal!.status = "active";
+    activeCurrentRecord.terminalTurnId = null;
+    activeCurrentRecord.terminalTurnCompleted = false;
+    activeCurrentRecord.threadIdle = false;
+    activeCurrentRecord.tokenUsageTurnId = null;
+    activeCurrentRecord.tokenUsageEnd = null;
+    activeCurrentRecord.tokenUsage = {
+      totalTokens: 0,
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      cacheWriteInputTokens: 0,
+      outputTokens: 0,
+      reasoningOutputTokens: 0,
+    };
+    activeCurrentBoundary.threadTokenUsage = structuredClone(
+      activeCurrentBoundary.goals[0]!.tokenUsageEnd!,
+    );
+    const activeCurrentOutput: IEvidenceBenchmarkOutput[] = [];
+    const activeCurrentResume = await EvidenceBenchmarkRunner.run({
+      state: activeCurrentBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--current-active"],
+      onOutput: (_processIndex, output) => {
+        activeCurrentOutput.push(output);
+      },
+    });
+    assert.equal(activeCurrentResume.status, "completed");
+    const activeResumedGoalRequests = activeCurrentOutput
+      .filter((output) => output.stream === "stdin")
+      .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+      .filter((request) => request.method === "thread/goal/set");
+    assert.equal(activeResumedGoalRequests.length, ENTRIES.length - 2);
+    assert.equal(
+      (activeResumedGoalRequests[0]?.params as Record<string, unknown>)
+        ?.objective,
+      readObjective(root, sources, ENTRIES[2]!),
+    );
+
+    const nativeCompletedInterruptedBoundary = structuredClone(
+      activeCurrentBoundary,
+    );
+    nativeCompletedInterruptedBoundary.goals[1]!.tokenUsageTurnId =
+      "turn-interrupted";
+    nativeCompletedInterruptedBoundary.threadTokenUsage = {
+      totalTokens: 15,
+      inputTokens: 9,
+      cachedInputTokens: 3,
+      cacheWriteInputTokens: 1,
+      outputTokens: 6,
+      reasoningOutputTokens: 4,
+    };
+    const nativeCompletedInterruptedOutput: IEvidenceBenchmarkOutput[] = [];
+    const nativeCompletedInterruptedResume = await EvidenceBenchmarkRunner.run({
+      state: nativeCompletedInterruptedBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--native-complete-interrupted"],
+      onOutput: (_processIndex, output) => {
+        nativeCompletedInterruptedOutput.push(output);
+      },
+    });
+    assert.equal(
+      nativeCompletedInterruptedResume.status,
+      "completed",
+      JSON.stringify(nativeCompletedInterruptedResume.interruption),
+    );
+    const nativeCompletedInterruptedGoalRequests =
+      nativeCompletedInterruptedOutput
+        .filter((output) => output.stream === "stdin")
+        .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+        .filter((request) => request.method === "thread/goal/set");
+    assert.equal(
+      nativeCompletedInterruptedGoalRequests.length,
+      ENTRIES.length - 1,
+    );
+    assert.equal(
+      (
+        nativeCompletedInterruptedGoalRequests[0]?.params as Record<
+          string,
+          unknown
+        >
+      )?.objective,
+      readObjective(root, sources, ENTRIES[1]!),
+    );
+
+    const nativeCompletedUnprovenResume = await EvidenceBenchmarkRunner.run({
+      state: nativeCompletedInterruptedBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--native-complete-unproven"],
+      onOutput: () => undefined,
+    });
+    assert.equal(nativeCompletedUnprovenResume.status, "interrupted");
+    assert.match(
+      nativeCompletedUnprovenResume.interruption?.message ?? "",
+      /not proven by the retained interrupted turn/,
+    );
+
+    const activePreviousBoundary = await EvidenceBenchmarkRunner.run({
+      state: nextBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [...prefix, "--previous-active"],
+      onOutput: () => undefined,
+    });
+    assert.equal(activePreviousBoundary.status, "interrupted");
+    assert.match(
+      activePreviousBoundary.interruption?.message ?? "",
+      /resume Goal snapshot/,
+    );
+
+    const blockedCurrentBoundary = structuredClone(activeCurrentBoundary);
+    const blockedCurrentRecord = blockedCurrentBoundary.goals[1]!;
+    blockedCurrentRecord.goal!.status = "blocked";
+    blockedCurrentRecord.tokenUsageTurnId = "turn-2";
+    blockedCurrentBoundary.threadTokenUsage = {
+      totalTokens: 20,
+      inputTokens: 12,
+      cachedInputTokens: 4,
+      cacheWriteInputTokens: 2,
+      outputTokens: 8,
+      reasoningOutputTokens: 6,
+    };
+    const blockedCurrentOutput: IEvidenceBenchmarkOutput[] = [];
+    const blockedCurrentResume = await EvidenceBenchmarkRunner.run({
+      state: blockedCurrentBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--current-blocked",
+        "--resume-status-before-response",
+      ],
+      onOutput: (_processIndex, output) => {
+        blockedCurrentOutput.push(output);
+      },
+    });
+    assert.equal(blockedCurrentResume.status, "completed");
+    const blockedResumedGoalRequests = blockedCurrentOutput
+      .filter((output) => output.stream === "stdin")
+      .map((output) => JSON.parse(output.text) as Record<string, unknown>)
+      .filter((request) => request.method === "thread/goal/set");
+    assert.equal(blockedResumedGoalRequests.length, ENTRIES.length - 1);
+    assert.equal(
+      (blockedResumedGoalRequests[0]?.params as Record<string, unknown>)
+        ?.objective,
+      readObjective(root, sources, ENTRIES[1]!),
+    );
+
+    const advancedBlockedResume = await EvidenceBenchmarkRunner.run({
+      state: blockedCurrentBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--current-blocked",
+        "--advanced-interrupted-replay",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(advancedBlockedResume.status, "completed");
+
+    const uncheckpointedActiveSnapshots: IEvidenceBenchmarkRunState[] = [];
+    const uncheckpointedActiveResume = await EvidenceBenchmarkRunner.run({
+      state: activeCurrentBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--current-active",
+        "--advanced-interrupted-replay",
+      ],
+      onOutput: () => undefined,
+      onState: (state) => {
+        uncheckpointedActiveSnapshots.push(state);
+      },
+    });
+    assert.equal(
+      uncheckpointedActiveResume.status,
+      "completed",
+      JSON.stringify(uncheckpointedActiveResume.interruption),
+    );
+    assert.equal(
+      uncheckpointedActiveSnapshots.some(
+        (snapshot) =>
+          snapshot.threadTokenUsage.totalTokens === 15 &&
+          snapshot.goals[1]?.tokenUsageTurnId === "turn-interrupted",
+      ),
+      true,
+    );
+
+    const unprovenUncheckpointedActiveResume =
+      await EvidenceBenchmarkRunner.run({
+        state: activeCurrentBoundary,
+        cwd: root,
+        instructionsRoot: root,
+        model: "fixture-model",
+        effort: "high",
+        command: process.execPath,
+        commandPrefixArguments: [
+          ...prefix,
+          "--current-active",
+          "--unproven-interrupted-replay",
+        ],
+        onOutput: () => undefined,
+      });
+    assert.equal(unprovenUncheckpointedActiveResume.status, "interrupted");
+    assert.match(
+      unprovenUncheckpointedActiveResume.interruption?.message ?? "",
+      /exact retained or next turn/,
+    );
+
+    const activeInterruptedBoundary = structuredClone(blockedCurrentBoundary);
+    activeInterruptedBoundary.goals[1]!.goal!.status = "active";
+    const activeInterruptedResume = await EvidenceBenchmarkRunner.run({
+      state: activeInterruptedBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--current-interrupted-active",
+        "--same-turn-interrupted-replay",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(
+      activeInterruptedResume.status,
+      "completed",
+      JSON.stringify(activeInterruptedResume.interruption),
+    );
+
+    const unprovenBlockedResume = await EvidenceBenchmarkRunner.run({
+      state: blockedCurrentBoundary,
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: [
+        ...prefix,
+        "--current-blocked",
+        "--unproven-interrupted-replay",
+      ],
+      onOutput: () => undefined,
+    });
+    assert.equal(unprovenBlockedResume.status, "interrupted");
+    assert.match(
+      unprovenBlockedResume.interruption?.message ?? "",
+      /exact retained or next turn/,
+    );
+
+    const outputFailure = await EvidenceBenchmarkRunner.run({
+      state: EvidenceBenchmarkRunner.create("evidence"),
+      cwd: root,
+      instructionsRoot: root,
+      model: "fixture-model",
+      effort: "high",
+      command: process.execPath,
+      commandPrefixArguments: prefix,
+      onOutput: () => {
+        throw new Error("fixture durable output failure");
+      },
+    });
+    assert.equal(outputFailure.status, "interrupted");
+    assert.equal(outputFailure.interruption?.name, "Error");
+    assert.equal(
+      outputFailure.interruption?.message,
+      "fixture durable output failure",
+    );
+    assert.equal(typeof outputFailure.interruption?.stack, "string");
+    assert.doesNotThrow(() => JSON.stringify(outputFailure.interruption));
+
+    for (const [relative, source] of sources)
+      assert.deepEqual(
+        fs.readFileSync(path.join(root, ...relative.split("/"))),
+        source,
+      );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+};
+
+const testReviewLedger = async (workspace: string): Promise<void> => {
+  writeReviewWorkspace(workspace);
+  const zeroUsage = (): IEvidenceBenchmarkTokenUsage => ({
+    totalTokens: 0,
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    cacheWriteInputTokens: 0,
+    outputTokens: 0,
+    reasoningOutputTokens: 0,
+  });
+  const state: IEvidenceBenchmarkRunState =
+    EvidenceBenchmarkRunner.create("plain");
+  state.nextInstructionIndex = 1;
+  const goal: IEvidenceBenchmarkGoalRecord = {
+    index: 1,
+    name: "backend-review",
+    relativePath: "plain/backend/review.md",
+    prescribedText: "review",
+    continuationText: "continue",
+    objectiveText: "review\n\ncontinue",
+    goal: null,
+    terminalTurnId: null,
+    terminalTurnCompleted: false,
+    threadIdle: false,
+    tokenUsageTurnId: null,
+    tokenUsageStart: zeroUsage(),
+    tokenUsageEnd: null,
+    tokenUsage: zeroUsage(),
+    elapsedMs: 0,
+  };
+  const activeCommands: Set<string> = new Set();
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal,
+    method: "item/started",
+    item: {
+      type: "commandExecution",
+      id: "native-read",
+      command: "Get-Content package.json",
+    },
+    active: activeCommands,
+  });
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-overlap",
+        command: "Get-Process node",
+      },
+      active: activeCommands,
+    }),
+  );
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal,
+    method: "item/completed",
+    item: {
+      type: "commandExecution",
+      id: "native-read",
+      command: "Get-Content package.json",
+    },
+    active: activeCommands,
+  });
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-posix-wrapped-gate",
+        command: 'bash -lc "pnpm --dir packages/backend test"',
+      },
+      active: activeCommands,
+    }),
+  );
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal,
+    method: "item/started",
+    item: {
+      type: "commandExecution",
+      id: "native-quoted-search",
+      command: 'pnpm exec rg "x; pnpm test" benchmark',
+    },
+    active: activeCommands,
+  });
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal,
+    method: "item/completed",
+    item: {
+      type: "commandExecution",
+      id: "native-quoted-search",
+      command: 'pnpm exec rg "x; pnpm test" benchmark',
+    },
+    active: activeCommands,
+  });
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-wrapped-gate",
+        command: 'powershell.exe -Command "pnpm --dir=packages/backend test"',
+      },
+      active: activeCommands,
+    }),
+  );
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-exec-generator",
+        command: "pnpm --dir packages/backend exec nestia all",
+      },
+      active: activeCommands,
+    }),
+  );
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal,
+    method: "item/started",
+    item: {
+      type: "commandExecution",
+      id: "native-search",
+      command: 'rg -n "pnpm test" benchmark',
+    },
+    active: activeCommands,
+  });
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal,
+    method: "item/completed",
+    item: {
+      type: "commandExecution",
+      id: "native-search",
+      command: 'rg -n "pnpm test" benchmark',
+    },
+    active: activeCommands,
+  });
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-gate",
+        command: "pnpm test",
+      },
+      active: activeCommands,
+    }),
+  );
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-chained-gate",
+        command: "Get-Content package.json; pnpm test",
+      },
+      active: activeCommands,
+    }),
+  );
+  state.reviewLedgers = [
+    {
+      goalIndex: goal.index,
+      goalName: "backend-review",
+      rounds: [],
+      commands: [
+        {
+          index: 1,
+          command: "test",
+          phase: "correction",
+          callId: "runner-command",
+          turnId: "ledger-turn",
+          startedAt: new Date().toISOString(),
+          manifestSha256: "fixture-manifest",
+          status: "running",
+        },
+      ],
+      calibrations: [],
+    },
+  ];
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.observeNativeCommand({
+      cwd: workspace,
+      state,
+      goal,
+      method: "item/started",
+      item: {
+        type: "commandExecution",
+        id: "native-during-runner",
+        command: "Get-Process node",
+      },
+      active: activeCommands,
+    }),
+  );
+  state.reviewLedgers = [];
+  let callIndex = 0;
+  const invoke = (tool: string, arguments_: unknown) =>
+    EvidenceBenchmarkReviewLedger.handle({
+      cwd: workspace,
+      state,
+      goal,
+      call: {
+        tool,
+        arguments: arguments_,
+        callId: `ledger-call-${++callIndex}`,
+        turnId: "ledger-turn",
+      },
+    });
+
+  const cleanState: IEvidenceBenchmarkRunState =
+    EvidenceBenchmarkRunner.create("plain");
+  cleanState.nextInstructionIndex = 1;
+  let cleanCallIndex = 0;
+  const cleanInvoke = (tool: string, arguments_: unknown) =>
+    EvidenceBenchmarkReviewLedger.handle({
+      cwd: workspace,
+      state: cleanState,
+      goal,
+      call: {
+        tool,
+        arguments: arguments_,
+        callId: `clean-ledger-call-${++cleanCallIndex}`,
+        turnId: "clean-ledger-turn",
+      },
+    });
+  assert.equal(
+    (await cleanInvoke("review_start_calibration", {})).success,
+    false,
+  );
+  assert.equal((await cleanInvoke("review_start_round", {})).success, true);
+  const cleanRound = cleanState.reviewLedgers![0]!.rounds[0]!;
+  for (const entry of cleanRound.manifest)
+    assert.equal(
+      (await cleanInvoke("review_read_file", { path: entry.path })).success,
+      true,
+    );
+  assert.equal(
+    (
+      await cleanInvoke("review_finish_round", {
+        result: "clean",
+        findings: [],
+      })
+    ).success,
+    true,
+  );
+  assert.equal(cleanRound.status, "clean");
+  assert.equal((await cleanInvoke("review_start_round", {})).success, false);
+  assert.equal(
+    (await cleanInvoke("review_start_calibration", {})).success,
+    true,
+  );
+  const undetectedPath = path.join(
+    workspace,
+    "packages/backend/src/backend.ts",
+  );
+  const undetectedBaseline = fs.readFileSync(undetectedPath);
+  const invalidCalibration = cleanState.reviewLedgers![0]!.calibrations![0]!;
+  assert.equal(
+    (
+      await cleanInvoke("review_edit_file", {
+        operation: "replace",
+        phase: "calibration-break",
+        path: "packages/backend/src/backend.ts",
+        expectedSha256: sha256(undetectedBaseline),
+        replacements: [
+          {
+            oldText: undetectedBaseline.toString("utf8"),
+            newText: `${undetectedBaseline.toString("utf8")}undetected\n`,
+          },
+        ],
+      })
+    ).success,
+    true,
+  );
+  assert.ok(invalidCalibration.breakSnapshot);
+  assert.equal(
+    (
+      await cleanInvoke("review_run_backend_command", {
+        command: "test",
+        phase: "calibration-fail",
+      })
+    ).success,
+    false,
+  );
+  assert.deepEqual(fs.readFileSync(undetectedPath), undetectedBaseline);
+  assert.equal(invalidCalibration.status, "invalid");
+  assert.equal(invalidCalibration.restoreOwner, "runner");
+  assert.equal(
+    invalidCalibration.restoredManifestSha256,
+    invalidCalibration.baselineManifestSha256,
+  );
+  assert.equal(invalidCalibration.breakSnapshot, undefined);
+  assert.equal(
+    (await cleanInvoke("review_start_calibration", {})).success,
+    true,
+  );
+  assert.equal(
+    cleanState.reviewLedgers![0]!.calibrations![1]!.baselineManifestSha256,
+    invalidCalibration.baselineManifestSha256,
+  );
+  const undetectedCreated = path.join(
+    workspace,
+    "packages/backend/test/undetected.test.ts",
+  );
+  assert.equal(
+    (
+      await cleanInvoke("review_edit_file", {
+        operation: "create",
+        phase: "calibration-break",
+        path: "packages/backend/test/undetected.test.ts",
+        content: "undetected\n",
+      })
+    ).success,
+    true,
+  );
+  assert.equal(
+    (
+      await cleanInvoke("review_run_backend_command", {
+        command: "test",
+        phase: "calibration-fail",
+      })
+    ).success,
+    false,
+  );
+  assert.equal(fs.existsSync(undetectedCreated), false);
+  assert.equal(
+    (await cleanInvoke("review_start_calibration", {})).success,
+    true,
+  );
+  const undetectedDeleted = path.join(
+    workspace,
+    "packages/backend/test/backend.test.ts",
+  );
+  const undetectedDeletedBaseline = fs.readFileSync(undetectedDeleted);
+  const undetectedDeletedMode = fs.statSync(undetectedDeleted).mode;
+  assert.equal(
+    (
+      await cleanInvoke("review_edit_file", {
+        operation: "delete",
+        phase: "calibration-break",
+        path: "packages/backend/test/backend.test.ts",
+        expectedSha256: sha256(undetectedDeletedBaseline),
+      })
+    ).success,
+    true,
+  );
+  assert.equal(
+    (
+      await cleanInvoke("review_run_backend_command", {
+        command: "test",
+        phase: "calibration-fail",
+      })
+    ).success,
+    false,
+  );
+  assert.deepEqual(
+    fs.readFileSync(undetectedDeleted),
+    undetectedDeletedBaseline,
+  );
+  assert.equal(fs.statSync(undetectedDeleted).mode, undetectedDeletedMode);
+
+  assert.equal((await invoke("review_start_round", {})).success, true);
+  const first = state.reviewLedgers?.[0]?.rounds[0];
+  assert.ok(first);
+  assert.equal(first.status, "reading");
+  assert.equal(
+    first.manifest.some((entry) =>
+      entry.path.startsWith("packages/backend/src/prisma/"),
+    ),
+    false,
+  );
+  assert.deepEqual(
+    first.manifest.map((entry) => entry.section),
+    [...first.manifest.map((entry) => entry.section)].sort(
+      (left, right) =>
+        [
+          "requirements",
+          "schema",
+          "api",
+          "backend",
+          "tests",
+          "configuration",
+        ].indexOf(left) -
+        [
+          "requirements",
+          "schema",
+          "api",
+          "backend",
+          "tests",
+          "configuration",
+        ].indexOf(right),
+    ),
+  );
+  assert.equal(
+    (
+      await invoke("review_read_file", {
+        path: first.manifest.at(-1)!.path,
+      })
+    ).success,
+    false,
+  );
+  const firstRead = await invoke("review_read_file", {
+    path: first.manifest[0]!.path,
+  });
+  assert.equal(firstRead.success, true);
+  assert.equal(
+    firstRead.contentItems[1]?.text,
+    fs.readFileSync(
+      path.join(workspace, ...first.manifest[0]!.path.split("/")),
+      "utf8",
+    ),
+  );
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "create",
+        phase: "correction",
+        path: "packages/backend/test/forbidden.test.ts",
+        content: "forbidden\n",
+      })
+    ).success,
+    false,
+  );
+  const changedDuringRound = first.manifest[1]!.path;
+  const changedDuringRoundAbsolute = path.join(
+    workspace,
+    ...changedDuringRound.split("/"),
+  );
+  const changedDuringRoundBaseline = fs.readFileSync(
+    changedDuringRoundAbsolute,
+  );
+  fs.appendFileSync(changedDuringRoundAbsolute, "changed\n", "utf8");
+  await assert.rejects(
+    invoke("review_read_file", { path: changedDuringRound }),
+    /Fatal backend review protocol violation/u,
+  );
+  assert.equal(first.status, "invalid");
+  fs.writeFileSync(changedDuringRoundAbsolute, changedDuringRoundBaseline);
+  state.reviewLedgers = [];
+
+  assert.equal((await invoke("review_start_round", {})).success, true);
+  const findingsRound = state.reviewLedgers![0]!.rounds[0]!;
+  for (const entry of findingsRound.manifest)
+    assert.equal(
+      (await invoke("review_read_file", { path: entry.path })).success,
+      true,
+    );
+  assert.equal(
+    (
+      await invoke("review_finish_round", {
+        result: "findings",
+        findings: ["fixture finding"],
+      })
+    ).success,
+    true,
+  );
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "replace",
+        phase: "correction",
+        path: "docs/analysis/requirements.md",
+        expectedSha256: sha256(
+          fs.readFileSync(
+            path.join(workspace, "docs/analysis/requirements.md"),
+          ),
+        ),
+        replacements: [{ oldText: "requirements\n", newText: "wrong\n" }],
+      })
+    ).success,
+    false,
+  );
+  const corrected: string = path.join(
+    workspace,
+    "packages/backend/src/backend.ts",
+  );
+  const correctionBaseline: Buffer = fs.readFileSync(corrected);
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "replace",
+        phase: "correction",
+        path: "packages/backend/src/backend.ts",
+        expectedSha256: "0".repeat(64),
+        replacements: [
+          {
+            oldText: correctionBaseline.toString("utf8"),
+            newText: `${correctionBaseline.toString("utf8")}fixed\n`,
+          },
+        ],
+      })
+    ).success,
+    false,
+  );
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "replace",
+        phase: "correction",
+        path: "packages/backend/src/backend.ts",
+        expectedSha256: sha256(correctionBaseline),
+        replacements: [
+          {
+            oldText: correctionBaseline.toString("utf8"),
+            newText: `${correctionBaseline.toString("utf8")}fixed\n`,
+          },
+        ],
+      })
+    ).success,
+    true,
+  );
+  const createdRelative = "packages/backend/test/created.test.ts";
+  const createdAbsolute = path.join(workspace, ...createdRelative.split("/"));
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "create",
+        phase: "correction",
+        path: createdRelative,
+        content: "created\n",
+      })
+    ).success,
+    true,
+  );
+  assert.equal(fs.readFileSync(createdAbsolute, "utf8"), "created\n");
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "delete",
+        phase: "correction",
+        path: createdRelative,
+        expectedSha256: sha256(fs.readFileSync(createdAbsolute)),
+      })
+    ).success,
+    true,
+  );
+  assert.equal(fs.existsSync(createdAbsolute), false);
+  assert.equal(state.reviewLedgers![0]!.edits?.length, 3);
+  for (const command of [
+    "build-prisma",
+    "build-main",
+    "schema",
+    "build-sdk",
+    "build-test",
+    "lint",
+    "format",
+  ] as const)
+    assert.equal(
+      (
+        await invoke("review_run_backend_command", {
+          command,
+          phase: "correction",
+        })
+      ).success,
+      true,
+    );
+  const correctionWatcher = await invoke("review_run_backend_command", {
+    command: "check-watch",
+    phase: "correction",
+  });
+  assert.equal(correctionWatcher.success, true);
+  const childMatch = /CHILD_PID=(\d+)/u.exec(
+    correctionWatcher.contentItems[0]?.text ?? "",
+  );
+  assert.ok(childMatch);
+  const childProcessId = Number(childMatch[1]);
+  const deadline = Date.now() + 2_000;
+  while (isProcessAlive(childProcessId) && Date.now() < deadline)
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  assert.equal(isProcessAlive(childProcessId), false);
+
+  assert.equal((await invoke("review_start_calibration", {})).success, true);
+  const calibrated: string = path.join(
+    workspace,
+    "packages/backend/src/backend.ts",
+  );
+  const baseline: Buffer = fs.readFileSync(calibrated);
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "replace",
+        phase: "calibration-break",
+        path: "packages/backend/src/backend.ts",
+        expectedSha256: sha256(baseline),
+        replacements: [
+          {
+            oldText: baseline.toString("utf8"),
+            newText: `${baseline.toString("utf8")}broken\n`,
+          },
+        ],
+      })
+    ).success,
+    true,
+  );
+  assert.equal(
+    (
+      await invoke("review_run_backend_command", {
+        command: "test",
+        phase: "calibration-fail",
+      })
+    ).success,
+    true,
+  );
+  const broken: Buffer = fs.readFileSync(calibrated);
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "replace",
+        phase: "calibration-restore",
+        path: "packages/backend/src/backend.ts",
+        expectedSha256: sha256(broken),
+        replacements: [
+          {
+            oldText: broken.toString("utf8"),
+            newText: `${baseline.toString("utf8")}not-exact\n`,
+          },
+        ],
+      })
+    ).success,
+    false,
+  );
+  assert.deepEqual(fs.readFileSync(calibrated), broken);
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "replace",
+        phase: "calibration-restore",
+        path: "packages/backend/src/backend.ts",
+        expectedSha256: sha256(broken),
+        replacements: [
+          {
+            oldText: broken.toString("utf8"),
+            newText: baseline.toString("utf8"),
+          },
+        ],
+      })
+    ).success,
+    true,
+  );
+  assert.equal(
+    (
+      await invoke("review_run_backend_command", {
+        command: "test",
+        phase: "calibration-pass",
+      })
+    ).success,
+    true,
+  );
+
+  assert.equal((await invoke("review_start_round", {})).success, true);
+  const dryRound = state.reviewLedgers![0]!.rounds[1]!;
+  for (const entry of dryRound.manifest)
+    assert.equal(
+      (await invoke("review_read_file", { path: entry.path })).success,
+      true,
+    );
+  assert.equal(
+    (
+      await invoke("review_finish_round", {
+        result: "dry",
+        findings: [],
+      })
+    ).success,
+    true,
+  );
+  assert.equal(
+    (
+      await invoke("review_edit_file", {
+        operation: "create",
+        phase: "correction",
+        path: "packages/backend/test/too-late.test.ts",
+        content: "too late\n",
+      })
+    ).success,
+    false,
+  );
+  assert.equal(
+    (
+      await invoke("review_run_backend_command", {
+        command: "check-watch",
+        phase: "final",
+      })
+    ).success,
+    true,
+  );
+  assert.equal(
+    (
+      await invoke("review_run_backend_command", {
+        command: "test",
+        phase: "final",
+      })
+    ).success,
+    true,
+  );
+  assert.doesNotThrow(() =>
+    EvidenceBenchmarkReviewLedger.assertDry({ cwd: workspace, state, goal }),
+  );
+  const residentCommands: Set<string> = new Set();
+  EvidenceBenchmarkReviewLedger.observeNativeCommand({
+    cwd: workspace,
+    state,
+    goal: { ...goal, name: "backend-final" },
+    method: "item/started",
+    item: {
+      type: "commandExecution",
+      id: "resident-backend-dev",
+      command: "pnpm dev",
+    },
+    active: residentCommands,
+  });
+  assert.equal(residentCommands.size, 0);
+  fs.appendFileSync(
+    path.join(workspace, "config/tsconfig.json"),
+    "changed\n",
+    "utf8",
+  );
+  assert.throws(() =>
+    EvidenceBenchmarkReviewLedger.assertDry({ cwd: workspace, state, goal }),
+  );
+};
+
+const writeReviewWorkspace = (workspace: string): void => {
+  const files: Readonly<Record<string, string>> = {
+    "docs/analysis/requirements.md": "requirements\n",
+    "packages/backend/prisma/schema/main.prisma": "schema\n",
+    "packages/api/src/api.ts": "api\n",
+    "packages/api/swagger.json": "{}\n",
+    "packages/backend/src/backend.ts": "backend\n",
+    "packages/backend/src/prisma/client.ts": "generated prisma client\n",
+    "packages/backend/test/backend.test.ts": "test\n",
+    ".node-version": "22\n",
+    "config/lint.config.ts": "export {};\n",
+    "config/package.json": "{}\n",
+    "config/tsconfig.json": "{}\n",
+    "package.json": "{}\n",
+    "packages/api/lint.config.ts": "export {};\n",
+    "packages/api/package.json": "{}\n",
+    "packages/api/tsconfig.json": "{}\n",
+    "packages/backend/.env.example": "FIXTURE=1\n",
+    "packages/backend/lint.config.ts": "export {};\n",
+    "packages/backend/nestia.config.ts": "export {};\n",
+    "packages/backend/package.json": `${JSON.stringify({
+      scripts: {
+        "build:prisma": 'node -e ""',
+        "build:main": 'node -e ""',
+        "build:sdk": 'node -e ""',
+        "build:test": 'node -e ""',
+        "check:watch":
+          "node -e \"const {spawn}=require('node:child_process'); const child=spawn(process.execPath,['-e','setInterval(() => {}, 1000)'],{stdio:'ignore'}); setTimeout(() => { console.log('CHILD_PID='+child.pid); console.log('07:18:39 AM - Found 0 errors. Watching for file changes.'); }, 250); setInterval(() => {}, 1000)\"",
+        format: 'node -e ""',
+        lint: 'node -e ""',
+        schema: 'node -e ""',
+        test: "node -e \"const fs=require('node:fs'); process.exit(fs.readFileSync('src/backend.ts','utf8').includes('broken') ? 1 : 0)\"",
+      },
+    })}\n`,
+    "packages/backend/prisma.config.ts": "export {};\n",
+    "packages/backend/tsconfig.json": "{}\n",
+    "pnpm-workspace.yaml": "packages: []\n",
+  };
+  for (const [relative, content] of Object.entries(files)) {
+    const location: string = path.join(workspace, ...relative.split("/"));
+    fs.mkdirSync(path.dirname(location), { recursive: true });
+    fs.writeFileSync(location, content, "utf8");
+  }
+};
+
+const isProcessAlive = (processId: number): boolean => {
+  try {
+    process.kill(processId, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const sha256 = (value: Buffer): string =>
+  crypto.createHash("sha256").update(value).digest("hex");
+
+const writeInstructions = (root: string): Map<string, Buffer> => {
+  const sources: Map<string, Buffer> = new Map([
+    [
+      "evidence/continue.md",
+      Buffer.from("Continue until this Goal is complete.\r\n"),
+    ],
+    ["plain/continue.md", Buffer.from("Finish the Plain Goal.\r\n")],
+  ]);
+  ENTRIES.forEach(([name, relative]) =>
+    sources.set(relative, Buffer.from(`# ${name}\r\n\r\nExecute exactly.\r\n`)),
+  );
+  PLAIN_ENTRIES.forEach(([name, relative]) =>
+    sources.set(
+      relative,
+      Buffer.from(`# Plain ${name}\r\n\r\nExecute only Plain.\r\n`),
+    ),
+  );
+  PLAIN_REMINDERS.forEach(([name, relative]) =>
+    sources.set(
+      relative,
+      Buffer.from(`# Plain ${name}\r\n\r\nExecute only Plain.\r\n`),
+    ),
+  );
+  for (const [relative, source] of sources) {
+    const location: string = path.join(root, ...relative.split("/"));
+    fs.mkdirSync(path.dirname(location), { recursive: true });
+    fs.writeFileSync(location, source);
+  }
+  return sources;
+};
+
+const readObjective = (
+  root: string,
+  sources: ReadonlyMap<string, Buffer>,
+  entry: (typeof ENTRIES)[number],
+): string => {
+  const prescribed: string = readPrescribed(sources, entry[1]);
+  const continuation: Buffer | undefined = sources.get("evidence/continue.md");
+  assert.ok(
+    continuation,
+    `Missing fixture source: ${path.join(root, "evidence/continue.md")}`,
+  );
+  return `${prescribed}\n\n${continuation.toString("utf8")}`;
+};
+
+const readPrescribed = (
+  sources: ReadonlyMap<string, Buffer>,
+  relativePath: string,
+): string => {
+  const source: Buffer | undefined = sources.get(relativePath);
+  assert.ok(source, `Missing fixture source: ${relativePath}`);
+  const prescribed: string = source.toString("utf8");
+  if (
+    !relativePath.startsWith("plain/") ||
+    !/\/(?:remind|final)\.md$/u.test(relativePath)
+  )
+    return prescribed;
+  const reviewPath: string = relativePath.replace(
+    /\/(?:remind|final)\.md$/u,
+    "/review.md",
+  );
+  const review: Buffer | undefined = sources.get(reviewPath);
+  assert.ok(review, `Missing fixture source: ${reviewPath}`);
+  const lines: string[] = review.toString("utf8").split(/\r\n|\n|\r/u);
+  if (lines.at(-1) === "") lines.pop();
+  const quote: string = lines.map((line) => `> ${line}`).join("\n");
+  const separator: string = prescribed.endsWith("\n") ? "\n" : "\n\n";
+  return `${prescribed}${separator}${quote}`;
+};
+
+const fakeAppServer = (): void => {
+  const fork: boolean = process.argv.includes("--fork");
+  const ledgerTools: boolean = process.argv.includes("--ledger-tools");
+  const nativeGate: boolean = process.argv.includes("--native-gate");
+  const nativeOverlap: boolean = process.argv.includes("--native-overlap");
+  const nativeThenRunner: boolean = process.argv.includes(
+    "--native-then-runner",
+  );
+  const runnerThenNative: boolean = process.argv.includes(
+    "--runner-then-native",
+  );
+  const threadId: string = ledgerTools
+    ? "fixture-ledger-thread"
+    : fork
+      ? "fixture-fork"
+      : "fixture-thread";
+  const fail: boolean = process.argv.includes("--fail");
+  const hangOnClose: boolean = process.argv.includes("--hang-on-close");
+  const inheritStreamAfterExit: boolean = process.argv.includes(
+    "--inherit-stream-after-exit",
+  );
+  const lateError: boolean = process.argv.includes("--late-error");
+  const blockedThenComplete: boolean = process.argv.includes(
+    "--blocked-then-complete",
+  );
+  const activeGoalGet: boolean = process.argv.includes("--active-goal-get");
+  const nativeCompleteInterrupted: boolean = process.argv.includes(
+    "--native-complete-interrupted",
+  );
+  const nativeCompleteUnproven: boolean = process.argv.includes(
+    "--native-complete-unproven",
+  );
+  const nativeComplete: boolean =
+    nativeCompleteInterrupted || nativeCompleteUnproven;
+  const advancedInterruptedReplay: boolean = process.argv.includes(
+    "--advanced-interrupted-replay",
+  );
+  const sameTurnInterruptedReplay: boolean = process.argv.includes(
+    "--same-turn-interrupted-replay",
+  );
+  const unprovenInterruptedReplay: boolean = process.argv.includes(
+    "--unproven-interrupted-replay",
+  );
+  const emptyGoal: boolean = process.argv.includes("--empty-goal");
+  const omitToken: boolean = process.argv.includes("--omit-token");
+  const omitTerminalToken: boolean = process.argv.includes(
+    "--omit-terminal-token",
+  );
+  const currentActive: boolean = process.argv.includes("--current-active");
+  const currentBlocked: boolean = process.argv.includes("--current-blocked");
+  const currentInterruptedActive: boolean = process.argv.includes(
+    "--current-interrupted-active",
+  );
+  const currentGoal: boolean =
+    currentActive ||
+    currentBlocked ||
+    currentInterruptedActive ||
+    nativeComplete ||
+    process.argv.includes("--current-goal");
+  const explicitGoalIndexText: string | undefined = process.argv
+    .find((argument) => argument.startsWith("--goal-index="))
+    ?.slice("--goal-index=".length);
+  const explicitGoalIndex: number | undefined =
+    explicitGoalIndexText === undefined
+      ? undefined
+      : Number(explicitGoalIndexText);
+  const retainedObjectiveFile: string | undefined = process.argv
+    .find((argument) => argument.startsWith("--retained-objective-file="))
+    ?.slice("--retained-objective-file=".length);
+  const lateResumeSnapshot: boolean = process.argv.includes(
+    "--late-resume-snapshot",
+  );
+  const missingThreadId: boolean = process.argv.includes("--missing-thread-id");
+  const previousActive: boolean = process.argv.includes("--previous-active");
+  const undispatchedActive: boolean = process.argv.includes(
+    "--undispatched-active",
+  );
+  const undispatchedUsed: boolean = process.argv.includes(
+    "--undispatched-used",
+  );
+  const undispatchedNext: boolean = process.argv.includes(
+    "--undispatched-next",
+  );
+  const undispatched: boolean =
+    undispatchedActive || undispatchedUsed || undispatchedNext;
+  const previousGoal: boolean =
+    currentGoal ||
+    previousActive ||
+    undispatched ||
+    process.argv.includes("--previous-goal");
+  const fixtureEntries = process.argv.includes("--legacy-plain")
+    ? LEGACY_PLAIN_ENTRIES
+    : process.argv.includes("--plain-arm")
+      ? PLAIN_ENTRIES
+      : ENTRIES;
+  const fixtureArm: "plain" | "evidence" =
+    process.argv.includes("--legacy-plain") ||
+    process.argv.includes("--plain-arm")
+      ? "plain"
+      : "evidence";
+  const resumeStatusBeforeResponse: boolean = process.argv.includes(
+    "--resume-status-before-response",
+  );
+  const wrongGoal: boolean = process.argv.includes("--wrong-goal");
+  const wrongThread: boolean = process.argv.includes("--wrong-thread");
+  const trimTerminalLineBreaks: boolean = process.argv.includes(
+    "--trim-terminal-line-breaks",
+  );
+  let goalIndex =
+    explicitGoalIndex ??
+    (ledgerTools && currentGoal
+      ? 1
+      : undispatchedActive
+        ? 0
+        : currentActive || nativeComplete || undispatchedNext
+          ? 1
+          : currentGoal
+            ? 2
+            : previousGoal
+              ? 1
+              : 0);
+  let undispatchedSnapshotPending = undispatched;
+  let goalCleared = false;
+  let waitingForTurnCompletion = false;
+  const send = (value: unknown, callback?: () => void): void => {
+    process.stdout.write(`${JSON.stringify(value)}\n`, callback);
+  };
+  let serverRequestId = 1_000;
+  const serverRequests = new Map<
+    number,
+    {
+      resolve: (value: Record<string, unknown>) => void;
+      reject: (reason: unknown) => void;
+    }
+  >();
+  const requestTool = (
+    turnId: string,
+    tool: string,
+    arguments_: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> => {
+    const id: number = ++serverRequestId;
+    return new Promise((resolve, reject) => {
+      serverRequests.set(id, { resolve, reject });
+      send({
+        id,
+        method: "item/tool/call",
+        params: {
+          threadId,
+          turnId,
+          callId: `fixture-tool-${id}`,
+          namespace: null,
+          tool,
+          arguments: arguments_,
+        },
+      });
+    });
+  };
+  const goal = (
+    objective: string,
+    status: "active" | "blocked" | "complete",
+  ) => ({
+    threadId,
+    objective: trimTerminalLineBreaks
+      ? objective.replace(/[\r\n]+$/u, "")
+      : objective,
+    status,
+    tokenBudget: null,
+    tokensUsed: undispatchedSnapshotPending
+      ? undispatchedUsed
+        ? 10
+        : 0
+      : goalIndex * 10,
+    timeUsedSeconds: undispatchedSnapshotPending
+      ? undispatchedUsed
+        ? 1
+        : 0
+      : goalIndex,
+    createdAt: 1,
+    updatedAt: goalIndex + 1,
+  });
+  const input = readline.createInterface({ input: process.stdin });
+  const retainedObjective = (): string => {
+    if (retainedObjectiveFile !== undefined)
+      return fs.readFileSync(retainedObjectiveFile, "utf8");
+    const relativePath: string =
+      fixtureEntries[currentGoal || undispatchedNext ? 1 : 0]![1];
+    return `${fs.readFileSync(
+      path.join(process.cwd(), ...relativePath.split("/")),
+      "utf8",
+    )}\n\n${fs.readFileSync(
+      path.join(process.cwd(), fixtureArm, "continue.md"),
+      "utf8",
+    )}`;
+  };
+  input.on("line", (line: string) => {
+    const request = JSON.parse(line) as {
+      id?: number;
+      method?: string;
+      params?: Record<string, unknown>;
+      result?: Record<string, unknown>;
+      error?: unknown;
+    };
+    if (request.id === undefined) return;
+    if (request.method === undefined) {
+      const waiter = serverRequests.get(request.id);
+      if (waiter === undefined) return;
+      serverRequests.delete(request.id);
+      if (request.error !== undefined) waiter.reject(request.error);
+      else if (request.result !== undefined) waiter.resolve(request.result);
+      else
+        waiter.reject(new Error("Fixture tool response omitted its result."));
+      return;
+    }
+    if (request.method === "initialize")
+      return send({ id: request.id, result: {} });
+    if (request.method === "thread/start") {
+      if (ledgerTools) {
+        const tools = request.params?.dynamicTools;
+        assert.ok(Array.isArray(tools));
+        assert.deepEqual(
+          tools.map((tool) => (tool as Record<string, unknown>).name),
+          [
+            "review_start_round",
+            "review_read_file",
+            "review_finish_round",
+            "review_start_calibration",
+            "review_edit_file",
+            "review_run_backend_command",
+          ],
+        );
+        assert.equal(request.params?.sandbox, "read-only");
+      }
+      return send({
+        id: request.id,
+        result: {
+          thread: {
+            id: threadId,
+            cliVersion: "fixture-cli",
+            status: { type: "idle" },
+          },
+        },
+      });
+    }
+    if (
+      request.method === "thread/resume" ||
+      request.method === "thread/fork"
+    ) {
+      if (ledgerTools)
+        assert.equal(
+          request.params?.sandbox,
+          currentGoal ? "danger-full-access" : "read-only",
+        );
+      const respond = (): void =>
+        send(
+          {
+            id: request.id,
+            result: {
+              thread: {
+                id: wrongThread ? "fixture-other-thread" : threadId,
+                cliVersion: "fixture-cli",
+                status: { type: "idle" },
+                ...(fork ? { forkedFromId: "fixture-thread" } : {}),
+                turns: nativeComplete
+                  ? [
+                      { id: "turn-1", status: "completed" },
+                      {
+                        id: "turn-interrupted",
+                        status: nativeCompleteInterrupted
+                          ? "interrupted"
+                          : "completed",
+                      },
+                    ]
+                  : sameTurnInterruptedReplay
+                    ? [
+                        {
+                          id: `turn-${goalIndex}`,
+                          status: "interrupted",
+                        },
+                        {
+                          id: "turn-empty-interrupted",
+                          status: "interrupted",
+                        },
+                      ]
+                    : advancedInterruptedReplay || unprovenInterruptedReplay
+                      ? [
+                          { id: `turn-${goalIndex}`, status: "completed" },
+                          ...(advancedInterruptedReplay
+                            ? [
+                                {
+                                  id: "turn-interrupted",
+                                  status: "interrupted",
+                                },
+                              ]
+                            : []),
+                        ]
+                      : undefined,
+              },
+            },
+          },
+          () => {
+            if (wrongThread) return;
+            if (previousGoal) {
+              if (!undispatched || undispatchedNext) {
+                const advancedTotal =
+                  currentActive || nativeComplete
+                    ? {
+                        totalTokens: 15,
+                        inputTokens: 9,
+                        cachedInputTokens: 3,
+                        cacheWriteInputTokens: 1,
+                        outputTokens: 6,
+                        reasoningOutputTokens: 4,
+                      }
+                    : {
+                        totalTokens: 25,
+                        inputTokens: 15,
+                        cachedInputTokens: 5,
+                        cacheWriteInputTokens: 2,
+                        outputTokens: 10,
+                        reasoningOutputTokens: 7,
+                      };
+                const replay = nativeComplete
+                  ? {
+                      turnId: "turn-interrupted",
+                      total: advancedTotal,
+                    }
+                  : advancedInterruptedReplay ||
+                      unprovenInterruptedReplay ||
+                      sameTurnInterruptedReplay
+                    ? {
+                        turnId: sameTurnInterruptedReplay
+                          ? `turn-${goalIndex}`
+                          : "turn-interrupted",
+                        total: advancedTotal,
+                      }
+                    : {
+                        turnId: `turn-${goalIndex}`,
+                        total: {
+                          totalTokens: goalIndex * 10,
+                          inputTokens: goalIndex * 6,
+                          cachedInputTokens: goalIndex * 2,
+                          cacheWriteInputTokens: goalIndex,
+                          outputTokens: goalIndex * 4,
+                          reasoningOutputTokens: goalIndex * 3,
+                        },
+                      };
+                send({
+                  method: "thread/tokenUsage/updated",
+                  params: {
+                    threadId,
+                    turnId: replay.turnId,
+                    tokenUsage: { total: replay.total },
+                  },
+                });
+              }
+              const continueCurrentGoal = (): void => {
+                goalIndex++;
+                const turnId: string = `turn-${goalIndex}`;
+                const total = {
+                  totalTokens: goalIndex * 10,
+                  inputTokens: goalIndex * 6,
+                  cachedInputTokens: goalIndex * 2,
+                  cacheWriteInputTokens: goalIndex,
+                  outputTokens: goalIndex * 4,
+                  reasoningOutputTokens: goalIndex * 3,
+                };
+                send({
+                  method: "thread/status/changed",
+                  params: {
+                    threadId,
+                    status: { type: "active" },
+                  },
+                });
+                send({
+                  method: "turn/started",
+                  params: {
+                    threadId,
+                    turn: { id: turnId },
+                  },
+                });
+                send({
+                  method: "thread/goal/updated",
+                  params: {
+                    threadId,
+                    goal: goal(retainedObjective(), "complete"),
+                    turnId,
+                  },
+                });
+                send({
+                  method: "thread/tokenUsage/updated",
+                  params: {
+                    threadId,
+                    turnId,
+                    tokenUsage: { total },
+                  },
+                });
+                waitingForTurnCompletion = true;
+                send({
+                  method: "thread/status/changed",
+                  params: {
+                    threadId,
+                    status: { type: "idle" },
+                  },
+                });
+                setTimeout(() => {
+                  waitingForTurnCompletion = false;
+                  send({
+                    method: "turn/completed",
+                    params: {
+                      threadId,
+                      turn: { id: turnId, status: "completed", durationMs: 1 },
+                    },
+                  });
+                }, 10);
+              };
+              const emitSnapshot = (): void =>
+                send(
+                  {
+                    method: "thread/goal/updated",
+                    params: {
+                      threadId,
+                      goal: goal(
+                        retainedObjective(),
+                        currentBlocked
+                          ? "blocked"
+                          : nativeComplete
+                            ? "complete"
+                            : previousActive ||
+                                undispatched ||
+                                currentActive ||
+                                currentInterruptedActive
+                              ? "active"
+                              : "complete",
+                      ),
+                      turnId: null,
+                    },
+                  },
+                  currentActive || currentInterruptedActive
+                    ? continueCurrentGoal
+                    : undefined,
+                );
+              if (lateResumeSnapshot) setTimeout(emitSnapshot, 10);
+              else emitSnapshot();
+            }
+          },
+        );
+      if (resumeStatusBeforeResponse)
+        return send(
+          {
+            method: "thread/status/changed",
+            params: {
+              threadId,
+              status: { type: "idle" },
+            },
+          },
+          respond,
+        );
+      return respond();
+    }
+    if (request.method === "thread/goal/clear") {
+      goalCleared = true;
+      return send({ id: request.id, result: { cleared: true } });
+    }
+    if (request.method === "thread/goal/get")
+      return send({
+        id: request.id,
+        result: {
+          goal:
+            emptyGoal || goalCleared
+              ? null
+              : previousGoal
+                ? goal(
+                    retainedObjective(),
+                    currentBlocked
+                      ? "blocked"
+                      : activeGoalGet ||
+                          previousActive ||
+                          undispatched ||
+                          currentActive ||
+                          currentInterruptedActive
+                        ? "active"
+                        : "complete",
+                  )
+                : null,
+        },
+      });
+    if (
+      request.method !== "thread/goal/set" ||
+      request.params?.status !== "active" ||
+      typeof request.params.objective !== "string" ||
+      waitingForTurnCompletion
+    )
+      return send({
+        id: request.id,
+        error: { message: `Unexpected request: ${request.method}` },
+      });
+    const objective: string = request.params.objective;
+    undispatchedSnapshotPending = false;
+    goalIndex++;
+    if (fail) {
+      process.stderr.write("fixture interruption\n");
+      return send(
+        { id: request.id, result: { goal: goal(objective, "active") } },
+        () => process.exit(7),
+      );
+    }
+    const turnId: string = `turn-${goalIndex}`;
+    const total = {
+      totalTokens: goalIndex * 10,
+      inputTokens: goalIndex * 6,
+      cachedInputTokens: goalIndex * 2,
+      cacheWriteInputTokens: goalIndex,
+      outputTokens: goalIndex * 4,
+      reasoningOutputTokens: goalIndex * 3,
+    };
+    send({
+      id: request.id,
+      result: {
+        goal: goal(
+          wrongGoal ? `${objective}\nwrong objective` : objective,
+          "active",
+        ),
+      },
+    });
+    send({
+      method: "thread/goal/updated",
+      params: {
+        threadId,
+        goal: goal(objective, "active"),
+        turnId: null,
+      },
+    });
+    send({
+      method: "thread/status/changed",
+      params: {
+        threadId,
+        status: { type: "active" },
+      },
+    });
+    if (ledgerTools && goalIndex <= 1) {
+      send({
+        method: "turn/started",
+        params: {
+          threadId,
+          turn: { id: turnId },
+        },
+      });
+      if (nativeGate) {
+        send({
+          method: "item/started",
+          params: {
+            threadId,
+            turnId,
+            item: {
+              type: "commandExecution",
+              id: "native-gate-command",
+              command: "pnpm test",
+              status: "inProgress",
+            },
+          },
+        });
+        return;
+      }
+      if (nativeOverlap) {
+        send({
+          method: "item/started",
+          params: {
+            threadId,
+            turnId,
+            item: {
+              type: "commandExecution",
+              id: "native-first-command",
+              command: "Get-Content package.json",
+              status: "inProgress",
+            },
+          },
+        });
+        send({
+          method: "item/started",
+          params: {
+            threadId,
+            turnId,
+            item: {
+              type: "commandExecution",
+              id: "native-overlap-command",
+              command: "Get-Process node",
+              status: "inProgress",
+            },
+          },
+        });
+        return;
+      }
+      void (async (): Promise<void> => {
+        const readRound = async (result: "findings" | "dry"): Promise<void> => {
+          const started = await requestTool(turnId, "review_start_round", {});
+          assert.equal(started.success, true);
+          const startItems = started.contentItems;
+          assert.ok(Array.isArray(startItems));
+          const manifestText = (startItems[0] as Record<string, unknown>).text;
+          assert.equal(typeof manifestText, "string");
+          const manifestPaths = (manifestText as string).split("\n").slice(4);
+          assert.ok(manifestPaths.length > 0);
+          for (const manifestPath of manifestPaths) {
+            const read = await requestTool(turnId, "review_read_file", {
+              path: manifestPath,
+            });
+            assert.equal(read.success, true);
+            const contentItems = read.contentItems;
+            assert.ok(Array.isArray(contentItems));
+            assert.equal(contentItems.length, 2);
+          }
+          const finished = await requestTool(turnId, "review_finish_round", {
+            result,
+            findings: result === "findings" ? ["fixture finding"] : [],
+          });
+          assert.equal(finished.success, true);
+        };
+        await readRound("findings");
+        if (nativeThenRunner) {
+          send({
+            method: "item/started",
+            params: {
+              threadId,
+              turnId,
+              item: {
+                type: "commandExecution",
+                id: "native-before-runner-command",
+                command: "Get-Process node",
+                status: "inProgress",
+              },
+            },
+          });
+          void requestTool(turnId, "review_run_backend_command", {
+            command: "test",
+            phase: "correction",
+          });
+          return;
+        }
+        if (runnerThenNative) {
+          void requestTool(turnId, "review_run_backend_command", {
+            command: "test",
+            phase: "correction",
+          });
+          send({
+            method: "item/started",
+            params: {
+              threadId,
+              turnId,
+              item: {
+                type: "commandExecution",
+                id: "native-after-runner-command",
+                command: "Get-Process node",
+                status: "inProgress",
+              },
+            },
+          });
+          return;
+        }
+        const backendSource = path.join(
+          process.cwd(),
+          "packages/backend/src/backend.ts",
+        );
+        const correctionBaseline = fs.readFileSync(backendSource);
+        const corrected = Buffer.from(
+          `${correctionBaseline.toString("utf8")}fixed-${goalIndex}\n`,
+          "utf8",
+        );
+        const correction = await requestTool(turnId, "review_edit_file", {
+          operation: "replace",
+          phase: "correction",
+          path: "packages/backend/src/backend.ts",
+          expectedSha256: sha256(correctionBaseline),
+          replacements: [
+            {
+              oldText: correctionBaseline.toString("utf8"),
+              newText: corrected.toString("utf8"),
+            },
+          ],
+        });
+        assert.equal(correction.success, true);
+        const calibration = await requestTool(
+          turnId,
+          "review_start_calibration",
+          {},
+        );
+        assert.equal(calibration.success, true);
+        const baseline = fs.readFileSync(backendSource);
+        const broken = Buffer.from(
+          `${baseline.toString("utf8")}broken\n`,
+          "utf8",
+        );
+        const breakEdit = await requestTool(turnId, "review_edit_file", {
+          operation: "replace",
+          phase: "calibration-break",
+          path: "packages/backend/src/backend.ts",
+          expectedSha256: sha256(baseline),
+          replacements: [
+            {
+              oldText: baseline.toString("utf8"),
+              newText: broken.toString("utf8"),
+            },
+          ],
+        });
+        assert.equal(breakEdit.success, true);
+        const failed = await requestTool(turnId, "review_run_backend_command", {
+          command: "test",
+          phase: "calibration-fail",
+        });
+        assert.equal(failed.success, true);
+        const restoreEdit = await requestTool(turnId, "review_edit_file", {
+          operation: "replace",
+          phase: "calibration-restore",
+          path: "packages/backend/src/backend.ts",
+          expectedSha256: sha256(broken),
+          replacements: [
+            {
+              oldText: broken.toString("utf8"),
+              newText: baseline.toString("utf8"),
+            },
+          ],
+        });
+        assert.equal(restoreEdit.success, true);
+        const passed = await requestTool(turnId, "review_run_backend_command", {
+          command: "test",
+          phase: "calibration-pass",
+        });
+        assert.equal(passed.success, true);
+        await readRound("dry");
+        const watcher = await requestTool(
+          turnId,
+          "review_run_backend_command",
+          { command: "check-watch", phase: "final" },
+        );
+        assert.equal(watcher.success, true);
+        const tested = await requestTool(turnId, "review_run_backend_command", {
+          command: "test",
+          phase: "final",
+        });
+        assert.equal(tested.success, true);
+        send({
+          method: "thread/goal/updated",
+          params: {
+            threadId,
+            goal: goal(objective, "complete"),
+            turnId,
+          },
+        });
+        send({
+          method: "thread/tokenUsage/updated",
+          params: {
+            threadId,
+            turnId,
+            tokenUsage: { total },
+          },
+        });
+        waitingForTurnCompletion = true;
+        send({
+          method: "thread/status/changed",
+          params: {
+            threadId,
+            status: { type: "idle" },
+          },
+        });
+        setTimeout(() => {
+          waitingForTurnCompletion = false;
+          send({
+            method: "turn/completed",
+            params: {
+              threadId,
+              turn: { id: turnId, status: "completed", durationMs: 1 },
+            },
+          });
+        }, 10);
+      })().catch((error: unknown) => {
+        console.error(error);
+        process.exitCode = 1;
+        input.close();
+      });
+      return;
+    }
+    if (blockedThenComplete)
+      send({
+        method: "thread/goal/updated",
+        params: {
+          threadId,
+          goal: goal(objective, "blocked"),
+        },
+      });
+    if (omitTerminalToken) {
+      const previousTurnId: string = `${turnId}-previous`;
+      send({
+        method: "turn/started",
+        params: {
+          threadId,
+          turn: { id: previousTurnId },
+        },
+      });
+      send({
+        method: "thread/tokenUsage/updated",
+        params: {
+          threadId,
+          turnId: previousTurnId,
+          tokenUsage: { total },
+        },
+      });
+      send({
+        method: "thread/status/changed",
+        params: {
+          threadId,
+          status: { type: "idle" },
+        },
+      });
+      send({
+        method: "turn/completed",
+        params: {
+          threadId,
+          turn: { id: previousTurnId, status: "completed", durationMs: 1 },
+        },
+      });
+    }
+    send({
+      method: "turn/started",
+      params: {
+        threadId,
+        turn: { id: turnId },
+      },
+    });
+    send({
+      method: "thread/goal/updated",
+      params: {
+        threadId,
+        goal: goal(objective, "complete"),
+        turnId,
+      },
+    });
+    if (!omitToken && !omitTerminalToken)
+      send({
+        method: "thread/tokenUsage/updated",
+        params: {
+          ...(missingThreadId ? {} : { threadId }),
+          turnId,
+          tokenUsage: { total },
+        },
+      });
+    waitingForTurnCompletion = true;
+    send({
+      method: "thread/status/changed",
+      params: {
+        threadId,
+        status: { type: "idle" },
+      },
+    });
+    setTimeout(() => {
+      waitingForTurnCompletion = false;
+      send({
+        method: "turn/completed",
+        params: {
+          threadId,
+          turn: { id: turnId, status: "completed", durationMs: 1 },
+        },
+      });
+    }, 10);
+  });
+  input.on("close", () => {
+    if (lateError) send({ id: -1, method: "fixture/late-error" });
+    if (hangOnClose) setInterval(() => undefined, 1_000);
+    if (inheritStreamAfterExit)
+      spawn(process.execPath, ["-e", "setTimeout(() => undefined, 500)"], {
+        detached: true,
+        stdio: ["ignore", process.stdout, process.stderr],
+        windowsHide: true,
+      }).unref();
+  });
+};
+
+const writeSupervisedState = (props: {
+  root: string;
+  workspace: string;
+  state: IEvidenceBenchmarkRunState;
+}): void => {
+  const state: string = path.join(props.root, "state.json");
+  fs.writeFileSync(
+    state,
+    `${JSON.stringify(
+      {
+        cell: { arm: "plain", runId: path.basename(props.root) },
+        records: { root: props.root, workspace: props.workspace, state },
+        state: props.state,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+};
+
+const readSupervisedState = (file: string): IEvidenceBenchmarkRunState =>
+  (
+    JSON.parse(fs.readFileSync(file, "utf8")) as {
+      state: IEvidenceBenchmarkRunState;
+    }
+  ).state;
+
+const git = (cwd: string, arguments_: readonly string[]): void => {
+  const result = spawnSync("git", arguments_, {
+    cwd,
+    encoding: "utf8",
+    windowsHide: true,
+  });
+  assert.equal(
+    result.status,
+    0,
+    `${result.stdout ?? ""}${result.stderr ?? ""}`,
+  );
+};
+
+// Spawned as its own child process by the cases below; the runner never
+// passes this flag, so importing this module only defines the test.
+if (process.argv.includes("--fake-app-server")) fakeAppServer();
