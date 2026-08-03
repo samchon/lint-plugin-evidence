@@ -1,6 +1,6 @@
 # Screens
 
-A screen is a route page under `src/components/<domain>/<name>-page.tsx`. Every user-facing requirement needs a screen or a recorded requirement-backed omission, and every screen needs a requirement and generated operations.
+A screen is a route page under `src/components/<domain>/<name>-page.tsx`. Every user-facing requirement needs a screen or a recorded requirement-backed omission, and every screen needs a requirement and the domain hooks that supply its data. Screens do not call accessors directly; `architecture.md` owns that boundary.
 
 ## Plan And Declare
 
