@@ -222,11 +222,13 @@ export namespace EvidenceBenchmarkSupervision {
         ? undefined
         : EvidenceBenchmarkInstruction.reviewBoundary(planEntry);
     const process = retained.state.processes.at(-1);
-    if (
-      retained.cell.subject !== current.subject ||
-      !sameInputIdentity(retained.cell.inputIdentity, current.inputIdentity)
-    )
-      throw new Error("Review verdict does not match frozen benchmark inputs.");
+    // The cell records its own frozen inputs and revision, which is the audit
+    // trail. Comparing them with the repository as it stands would lock every
+    // running Plain cell out of supervision the moment the operator commits a
+    // correction the benchmark skill tells them to commit, and the verdict
+    // concerns a review that already ran against the retained workspace.
+    if (retained.cell.subject !== current.subject)
+      throw new Error("Review verdict does not match its subject.");
     if (
       retained.cell.arm !== "plain" ||
       retained.cell.runId !== path.basename(runRoot) ||
@@ -362,18 +364,6 @@ export namespace EvidenceBenchmarkSupervision {
       left.fileCount === right.fileCount &&
       left.gitHead === right.gitHead &&
       left.gitStatus === right.gitStatus
-    );
-  }
-
-  function sameInputIdentity(
-    left: IEvidenceBenchmarkInputIdentity | undefined,
-    right: IEvidenceBenchmarkInputIdentity | undefined,
-  ): boolean {
-    if (left === undefined || right === undefined) return left === right;
-    return (
-      left.templateSha256 === right.templateSha256 &&
-      left.requirementsSha256 === right.requirementsSha256 &&
-      left.instructionsSha256 === right.instructionsSha256
     );
   }
 
