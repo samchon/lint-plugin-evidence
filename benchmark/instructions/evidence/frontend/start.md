@@ -18,7 +18,7 @@ Complete these stages in order.
 
 `evidence/graph` starts checking `@evidence` and `@evidenceExclude` when a claim's `disabled` property is removed and the first hook, page, or journey function exists.
 
-Removing `disabled` before that layer is complete emits hundreds or thousands of errors for tags not written yet. The output fills context and impairs implementation decisions.
+Removing `disabled` early emits thousands of errors for tags not yet written, which fills context and impairs decisions.
 
 The three claims form a chain. A hook cites the operations it calls, a screen cites the hooks it uses, and a journey cites the screens it walks. Enable them in that order.
 
