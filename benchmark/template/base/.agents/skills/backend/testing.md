@@ -23,7 +23,7 @@ Names match the exported function and describe the behavior or refusal being pro
 
 ## Operation Ownership
 
-Every product operation has tests. `HealthController.get` is marked `@internal`, so the scaffold probe is not a product operation and its existing test stays as it is.
+Every product operation has tests. The scaffold health probe already has its own, which is the one test not written from a requirement.
 
 Each accessor states its own address in its JSDoc `@accessor` tag, so the operation list is exact. From `packages/backend`:
 

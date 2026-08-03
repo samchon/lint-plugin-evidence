@@ -14,8 +14,6 @@ import typia from "typia";
  *
  * @returns Literal marker used by local and deployed health probes.
  *
- * @internal
- *
  * @controller HealthController.get
  * @path GET /health
  * @accessor api.functional.health.get

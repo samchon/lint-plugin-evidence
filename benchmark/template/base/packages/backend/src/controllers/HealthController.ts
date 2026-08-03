@@ -9,8 +9,6 @@ export class HealthController {
    * Returns the process health marker.
    *
    * @returns Literal marker used by local and deployed health probes.
-   *
-   * @internal
    */
   @Get("health")
   @Header("Content-Type", "text/plain")

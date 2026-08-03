@@ -112,12 +112,7 @@ const graph: IEvidenceGraphConfig = {
     {
       name: "backend-tests",
       type: "typescript",
-      files: [
-        "test/features/**/*.ts",
-        // The scaffold probe is marked `@internal` at its controller, so it is
-        // outside the operation population; its test owes no citation either.
-        "!test/features/api/health/**/*.ts",
-      ],
+      files: ["test/features/**/*.ts"],
       symbol: "function",
       reference: [
         {
