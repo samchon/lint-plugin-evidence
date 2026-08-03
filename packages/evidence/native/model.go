@@ -55,24 +55,38 @@ type claimSpec struct {
 type referenceSpec struct {
 	Index  int
 	Type   artifactKind
+	Policy referencePolicy
 	Root   string
 	Base   populationBase
 	Files  globSet
 	Source string
-	// Entry names a module whose public export graph defines the population.
-	// Reachability from it decides membership; identity still belongs to the
-	// file that declares the symbol.
-	Entry string
-	// Package moves the base that Entry and Files resolve against from the
-	// project to an installed package, so the two selections compose rather
-	// than competing.
+	// Package moves the base that Files resolves against from the project to an
+	// installed package. With no globs it also becomes the selection itself: the
+	// package's declaration entry defines the population by reachability, while
+	// identity still belongs to the file that declares each symbol.
 	Package string
 	Symbols symbolSet
 }
 
+// referencePolicy is a reference-local strengthening of the ordinary
+// acknowledgement contract, declared flat on the public reference object. Its
+// zero value preserves every previous graph behavior, so a reference written
+// before these options existed decodes into the same model it always did.
+type referencePolicy struct {
+	// NoExclude refuses @evidenceExclude as an acknowledgement of this
+	// population, leaving its targets owing positive evidence.
+	NoExclude bool
+	// UniqueEvidence allows at most one positive semantic claim host per
+	// selected unit.
+	UniqueEvidence bool
+	// SingleEvidencePerSymbol requires exactly one distinct selected unit from
+	// every selected semantic claim host, including the hosts carrying no tag.
+	SingleEvidencePerSymbol bool
+}
+
 // entrySelected reports whether this reference materializes by traversal.
 func (reference referenceSpec) entrySelected() bool {
-	return reference.Entry != "" || (reference.Package != "" && len(reference.Files.Patterns) == 0)
+	return reference.Package != "" && len(reference.Files.Patterns) == 0
 }
 
 type symbolSet map[string]bool
@@ -140,11 +154,16 @@ func (unit *evidenceUnit) location() string {
 type evidenceDeclaration struct {
 	ID     string
 	HostID string
-	Type   artifactKind
-	Tag    tagKind
-	Target string
-	Reason string
-	Hosts  symbolSet
+	// SemanticHostIDs names the selected graph identities that physically host
+	// this declaration. HostID remains the source-position identity used only
+	// for same-block duplicate detection; policy cardinality must not confuse a
+	// declaration position with the public symbol identity it represents.
+	SemanticHostIDs []string
+	Type            artifactKind
+	Tag             tagKind
+	Target          string
+	Reason          string
+	Hosts           symbolSet
 	// ExclusionCarrier permits only @evidenceExclude to participate without a
 	// selected host kind. File matching, target resolution, and claim-reference
 	// ownership still decide the obligations it can discharge.
@@ -199,8 +218,9 @@ type artifactInventory struct {
 	// A unit is an identity, not a declaration: declaration merging and overload
 	// sets give one identity several nodes. Which of them a rule then cares
 	// about is the rule's own business — this records only that they belong to
-	// one identity. Left nil when a caller has no use for the association, which
-	// keeps the graph's own scan allocating nothing extra.
+	// one identity. The graph scanner uses the association transiently to bind a
+	// physical JSDoc declaration to semantic claim-host identities, then releases
+	// it; callers with no such use leave it nil.
 	UnitNodes map[string][]*shimast.Node
 }
 
@@ -219,16 +239,21 @@ type inventoryProblem struct {
 type claimState struct {
 	Spec         claimSpec
 	Paths        []string
+	Hosts        []*evidenceUnit
 	Declarations []*evidenceDeclaration
 	References   []referenceState
 	Healthy      bool
 }
 
 type referenceState struct {
-	Spec         referenceSpec
-	Paths        []string
-	Units        []*evidenceUnit
-	Scopes       []*evidenceUnit
+	Spec   referenceSpec
+	Paths  []string
+	Units  []*evidenceUnit
+	Scopes []*evidenceUnit
+	// Published names the module-and-address pairs a citation may use, for a
+	// population selected by walking module exports. Left empty when the
+	// population's addresses belong to the files that declare them.
+	Published    []publishedAddress
 	UnitsByScope map[string][]*evidenceUnit
 	Healthy      bool
 }

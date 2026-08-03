@@ -6,20 +6,20 @@ const entryClaimConfig = `{"claims":[{
 	"type":"typescript",
 	"files":["src/views/**"],
 	"symbol":"function",
-	"reference":{"type":"typescript","file":"src/api/index.ts","symbol":"function"}
+	"reference":{"type":"typescript","files":["src/api/index.ts"],"symbol":"function"}
 }]}`
 
 /**
- * Verifies an entry reaches a symbol through `export *` and addresses it by its
- * accessor path.
+ * Verifies a matched module reaches a symbol through `export *` and addresses it
+ * by its accessor path.
  *
- * A glob would have swept the declaring file in by its location; an entry
- * reaches it by what the module actually offers, which is the difference
- * between a population of files and a public contract. The address is what
- * finally makes a re-exported symbol nameable at all.
+ * A glob selects modules, and the population is what those modules publish
+ * rather than what they happen to declare. The declaring file here is outside
+ * the glob, so the symbol belongs to the obligation only through the barrel —
+ * and the accessor address is what makes it nameable at all.
  *
- *  1. Re-export a module's whole surface from an entry.
- *  2. Cite the symbol under the entry-relative address.
+ *  1. Re-export a module's whole surface from a matched barrel.
+ *  2. Cite the symbol under the barrel-relative address.
  *  3. Assert silence, which requires both resolution and coverage to succeed.
  */
 func TestGraphReachesSymbolsThroughStarReExports(t *testing.T) {
@@ -138,6 +138,96 @@ export function detail(): void {}
 }
 
 /**
+ * Verifies a selected module keeps every declaration it exposes as an
+ * obligation.
+ *
+ * Selecting modules rather than declarations is only safe if the two agree on
+ * what a module publishes. A declaration exposed under another name is
+ * inventoried under the name it is exposed as, so matching it by the local
+ * binding it wrote would drop it from the population — and an obligation that
+ * disappears reads exactly like one that was discharged.
+ *
+ *  1. Expose a declaration under a different public name.
+ *  2. Select the module and cite the ordinary declaration beside it.
+ *  3. Assert the renamed declaration is still owed and is citable by that name.
+ */
+func TestGraphKeepsRenamedLocalExportsInThePopulation(t *testing.T) {
+	const config = `{"claims":[{
+		"type":"typescript",
+		"files":["src/ledger.ts"],
+		"symbol":"type",
+		"reference":{"type":"typescript","files":["src/contracts.ts"],"symbol":["type","property"]}
+	}]}`
+	const contracts = `export interface IShape {}
+const local: number = 1;
+export { local as renamed };
+`
+	uncited := runIndexRule(t, map[string]string{
+		"src/contracts.ts": contracts,
+		"src/ledger.ts": `import type { IShape } from "./contracts";
+
+/** @evidence {@link IShape} Mirrors the shape contract. */
+export interface ILedger {}
+`,
+	}, config)
+	assertProblemContains(t, uncited, "Missing acknowledgement for 'renamed'")
+
+	cited := runIndexRule(t, map[string]string{
+		"src/contracts.ts": contracts,
+		"src/ledger.ts": `import type { IShape } from "./contracts";
+import { renamed } from "./contracts";
+
+/**
+ * @evidence {@link IShape} Mirrors the shape contract.
+ * @evidence {@link renamed} Mirrors the renamed constant.
+ */
+export interface ILedger {}
+`,
+	}, config)
+	assertNoProblems(t, cited)
+}
+
+/**
+ * Verifies several selected modules union into one population.
+ *
+ * A glob usually matches a barrel and the modules beneath it at once. Each is a
+ * module a consumer may import, so the symbol is citable through either — and
+ * the two ways of reaching one declaration must still leave one obligation, or
+ * selecting a directory would demand a second citation for every re-export.
+ *
+ *  1. Match both a barrel and the module it forwards.
+ *  2. Cite the declaration through the barrel, then through the declaring module.
+ *  3. Assert each citation alone resolves and completes the obligation.
+ */
+func TestGraphUnionsSeveralSelectedModules(t *testing.T) {
+	const config = `{"claims":[{
+		"type":"typescript",
+		"files":["src/views/**"],
+		"symbol":"function",
+		"reference":{"type":"typescript","files":["src/api/**"],"symbol":"function"}
+	}]}`
+	files := map[string]string{
+		"src/api/questions.ts": "export function get(): void {}\n",
+		"src/api/index.ts":     "export * from \"./questions.js\";\n",
+		"src/views/detail.ts": `
+import type * as api from "./../api/index.js";
+
+/** @evidence {@link api.get} Renders this operation's response. */
+export function detail(): void {}
+`,
+	}
+	assertNoProblems(t, runIndexRule(t, files, config))
+
+	files["src/views/detail.ts"] = `
+import type * as questions from "./../api/questions.js";
+
+/** @evidence {@link questions.get} Renders this operation's response. */
+export function detail(): void {}
+`
+	assertNoProblems(t, runIndexRule(t, files, config))
+}
+
+/**
  * Verifies a property travels with the type that owns it.
  *
  * A property is addressable exactly when its owner is, so an entry that reaches
@@ -167,7 +257,7 @@ export function detail(): void {}
 		"type":"typescript",
 		"files":["src/views/**"],
 		"symbol":"function",
-		"reference":{"type":"typescript","file":"src/api/index.ts","symbol":["type","property"]}
+		"reference":{"type":"typescript","files":["src/api/index.ts"],"symbol":["type","property"]}
 	}]}`))
 }
 
@@ -200,33 +290,33 @@ export function detail(): void {}
 }
 
 /**
- * Verifies a missing entry is reported against the path that was tried.
+ * Verifies a glob matching nothing is reported against what it tried to select.
  *
- * An entry that resolves to nothing materializes no units, and a silent empty
- * population would read as a satisfied obligation — the failure this product
- * exists to prevent.
+ * A population that resolves to no module materializes no units, and a silent
+ * empty population would read as a satisfied obligation — the failure this
+ * product exists to prevent.
  *
- *  1. Point a reference at an entry module that does not exist.
+ *  1. Point a reference at a module that does not exist.
  *  2. Evaluate the graph.
- *  3. Assert the diagnostic names the entry path.
+ *  3. Assert the diagnostic names the attempted population.
  */
-func TestGraphReportsAMissingEntryModule(t *testing.T) {
+func TestGraphReportsAMissingReferenceModule(t *testing.T) {
 	assertProblemContains(t, runIndexRule(t, map[string]string{
 		"src/views/detail.ts": "export function detail(): void {}\n",
-	}, entryClaimConfig), "found no entry module at 'src/api/index.ts'")
+	}, entryClaimConfig), "matched no typescript files for ['src/api/index.ts']")
 }
 
 /**
- * Verifies an entry that exposes none of the selected kinds is reported.
+ * Verifies a matched module exposing none of the selected kinds is reported.
  *
  * The population resolved and is empty, which coverage would otherwise treat as
  * complete. Naming the selector tells the author which half to correct.
  *
- *  1. Expose only a type through an entry while selecting callables.
+ *  1. Publish only a type while selecting callables.
  *  2. Evaluate the graph.
  *  3. Assert the empty population is reported rather than passing.
  */
-func TestGraphReportsAnEntryThatReachesNoSelectedUnits(t *testing.T) {
+func TestGraphReportsAPopulationThatReachesNoSelectedUnits(t *testing.T) {
 	assertProblemContains(t, runIndexRule(t, map[string]string{
 		"src/api/sale.ts": `
 export interface ISale {
@@ -235,7 +325,7 @@ export interface ISale {
 `,
 		"src/api/index.ts":    "export * from \"./sale.js\";\n",
 		"src/views/detail.ts": "export function detail(): void {}\n",
-	}, entryClaimConfig), "reached no selected evidence units")
+	}, entryClaimConfig), "matched 1 file(s) but materialized no selected evidence units (function)")
 }
 
 /**

@@ -7,7 +7,7 @@
     "build": "pnpm build:prisma && pnpm build:main && pnpm build:sdk && pnpm build:test",
     "build:main": "rimraf lib && ttsc",
     "build:prisma": "prisma generate --schema=prisma/schema",
-    "build:sdk": "nestia all && pnpm --dir ../api build",
+    "build:sdk": "nestia all && ttsx test/helpers/writeProductSwagger.ts && pnpm --dir ../api build",
     "build:test": "ttsc --noEmit",
     "check:watch": "ttsc --watch --noEmit --preserveWatchOutput",
     "dev": "ttsx src/executable/server.ts",
