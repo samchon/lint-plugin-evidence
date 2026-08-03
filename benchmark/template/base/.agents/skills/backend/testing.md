@@ -25,12 +25,11 @@ Names match the exported function and describe the behavior or refusal being pro
 
 Every product operation has tests. `api.functional.health.get` keeps only its existing scaffold test and is outside the obligations below.
 
-Each accessor states its own address in its JSDoc `@accessor` tag, so the operation list is exact:
+Each accessor states its own address in its JSDoc `@accessor` tag, so the operation list is exact. From `packages/backend`:
 
 ```bash
 rg --no-filename -o '@accessor \S+' ../api/src/functional | sort
 ```
-
 
 Each test has one primary operation: the accessor it exists to prove. Prerequisite calls that reach the state under test, and follow-up reads that observe the effect, are setup and observation rather than the subject.
 

@@ -47,7 +47,7 @@ Read every operation and DTO in full. Treat each operation and property as a roo
 
 ## Operation Coverage Propagation
 
-Every generated accessor states its own address in its JSDoc, so the operation list is exact rather than reconstructed:
+Every generated accessor states its own address in its JSDoc, so the operation list is exact rather than reconstructed. From the workspace root:
 
 ```bash
 rg --no-filename -o '@accessor \S+' packages/api/src/functional | sort
