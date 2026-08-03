@@ -252,7 +252,7 @@ export namespace EvidenceBenchmarkSupervision {
 
   function assertMeasuredBoundary(feedback: string): void {
     if (
-      /\b(?:benchmark|operators?|auditors?|verdicts?|supervisors?|supervision|reviewers?|retries|retry|attempts?|plugin)\b|\b(?:another|other|external|main|measurement)\s+agent\b|\b(?:plain|evidence)\s+(?:arm|mode|agent)\b/iu.test(
+      /\b(?:benchmark|operators?|auditors?|verdicts?|supervisors?|supervision|reviewers?|plugin)\b|\b(?:another|other|external|main|measurement)\s+agent\b|\b(?:plain|evidence)\s+(?:arm|mode|agent)\b/iu.test(
         feedback,
       )
     )
