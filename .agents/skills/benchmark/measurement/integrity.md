@@ -27,7 +27,7 @@ The workspace carries its own contract, copied in at preparation. Read it there 
 -      disabled: true,
 ```
 
-**Adding a new dependency.** The workspace's `AGENTS.md` freezes *existing* dependency specifiers, package names, and scripts — not the act of installing something new — and `.agents/skills/frontend/SKILL.md` says outright to add a dependency once a concrete need appears.
+**Adding a new dependency.** The workspace's `AGENTS.md` freezes _existing_ dependency specifiers, package names, and scripts — not the act of installing something new — and `.agents/skills/frontend/SKILL.md` says outright to add a dependency once a concrete need appears.
 
 ```diff
    "dependencies": {
