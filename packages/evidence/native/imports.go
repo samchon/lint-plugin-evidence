@@ -199,24 +199,49 @@ func packageTypeEntry(
 			return value
 		}
 	}
+	// `main` is the last channel and only when it names TypeScript. A package
+	// that emits JavaScript declares its declarations in one of the fields
+	// above; one that ships source has nowhere else to say where its entry is.
+	var main string
+	if err := json.Unmarshal(manifest["main"], &main); err == nil {
+		return typeScriptEntryTarget(main)
+	}
 	return ""
 }
 
-// exportsTypeEntry reads the `types` condition of an exports map.
+// typeScriptEntryTarget returns target when it names TypeScript itself.
+//
+// A published package points its runtime entry at emitted JavaScript and keeps
+// its declarations behind a `types` condition, so following that entry would
+// address the wrong file. A source-first workspace package has no emit to point
+// at: pnpm links `packages/api` into `node_modules`, and its entry names
+// `./src/index.ts`, which is both what a consumer imports and where the
+// declarations are. Refusing it there leaves a linked package with no
+// resolvable entry, and a reference that cannot find its entry publishes its
+// units under the module that matched instead — which is how
+// `functional.health.get` collapses to `get`.
+func typeScriptEntryTarget(target string) string {
+	for _, extension := range typeScriptModuleExtensions {
+		if strings.HasSuffix(target, extension) {
+			return target
+		}
+	}
+	return ""
+}
+
+// exportsTypeEntry reads the declaration entry out of an exports map.
 //
 // The map may be a bare string, a condition object, or a subpath object whose
-// values are either. Only the `types` condition is followed, because a
-// citation addresses declarations rather than the runtime entry `import` and
-// `require` name.
+// values are either. The `types` condition is followed first; a bare string is
+// followed only when it names TypeScript, for the reason
+// [typeScriptEntryTarget] gives.
 func exportsTypeEntry(raw json.RawMessage, key string) string {
 	if len(raw) == 0 {
 		return ""
 	}
-	// A bare-string exports map names the runtime entry only, and a citation
-	// addresses declarations, so there is nothing here to follow.
 	var direct string
 	if err := json.Unmarshal(raw, &direct); err == nil {
-		return ""
+		return typeScriptEntryTarget(direct)
 	}
 	object := map[string]json.RawMessage{}
 	if err := json.Unmarshal(raw, &object); err != nil {
@@ -241,7 +266,7 @@ func exportsConditionEntry(raw json.RawMessage) string {
 	}
 	var direct string
 	if err := json.Unmarshal(raw, &direct); err == nil {
-		return ""
+		return typeScriptEntryTarget(direct)
 	}
 	object := map[string]json.RawMessage{}
 	if err := json.Unmarshal(raw, &object); err != nil {

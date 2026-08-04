@@ -361,3 +361,42 @@ func TestGraphPackageGlobsFollowALinkedInstall(t *testing.T) {
 		"reference":{"type":"typescript","package":"@org/api","files":["lib/**"],"symbol":"function"}
 	}]}`), "Missing acknowledgement for 'questions.get'")
 }
+
+/**
+ * Verifies a source-first workspace package resolves its entry from `exports`.
+ *
+ * A pnpm TypeScript monorepo links a package that has no emit: its `exports`
+ * target and `main` both name `./src/index.ts`, which is at once what a
+ * consumer imports and where the declarations are. Refusing that target leaves
+ * the reference with no entry, and units then publish under the module that
+ * matched rather than under the specifier a citation can spell — the state that
+ * turns `functional.health.get` into `get`.
+ *
+ *  1. Install a package whose `exports` names TypeScript source directly.
+ *  2. Select it through a glob, so membership and addressing differ.
+ *  3. Assert the obligation is addressed from the entry, not from the module.
+ */
+func TestGraphResolvesTheEntryOfASourceFirstPackage(t *testing.T) {
+	assertProblemContains(t, runIndexRule(t, map[string]string{
+		"node_modules/@org/api/package.json": `{
+  "name": "@org/api",
+  "main": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" }
+}`,
+		"node_modules/@org/api/src/index.ts": `
+export * as functional from "./functional/index";
+`,
+		"node_modules/@org/api/src/functional/index.ts": `
+export * as health from "./health";
+`,
+		"node_modules/@org/api/src/functional/health.ts": `
+export function get(): void {}
+`,
+		"src/views/detail.ts": "export function detail(): void {}\n",
+	}, `{"claims":[{
+		"type":"typescript",
+		"files":["src/views/**"],
+		"symbol":"function",
+		"reference":{"type":"typescript","package":"@org/api","files":["src/**"],"symbol":"function"}
+	}]}`), "Missing acknowledgement for 'functional.health.get'")
+}

@@ -221,8 +221,15 @@ func isCleanProjectRelativePath(value string) bool {
 // resolvePackage finds the declaration entry of an installed package.
 //
 // The entry comes from the `types` condition of an `exports` map, then
-// `typesVersions`, then `types` or `typings` — never `main`, which names the
-// JavaScript a consumer runs rather than the declarations a citation addresses.
+// `typesVersions`, then `types` or `typings`. A package that emits JavaScript
+// stops there, because its runtime entry names the emit rather than the
+// declarations a citation addresses.
+//
+// A source-first workspace package is followed one step further: when its
+// `exports` target or `main` names TypeScript itself, that file is both the
+// entry a consumer imports and the declarations, so it is the entry. This is
+// the ordinary shape in a pnpm TypeScript monorepo, where the dependency is a
+// link to a package that has no emit to point at.
 func (loader *typeScriptLoader) resolvePackage(specifier string) string {
 	name, subpath := splitPackageSpecifier(specifier)
 	if name == "" {
