@@ -1,6 +1,6 @@
 ---
 name: review
-description: Defines the full-scope review loop until dry and final self-check for backend, frontend, and overall review objectives. Read for a review objective or when a final objective must complete an omitted review.
+description: Defines the full-scope review loop until dry for backend, frontend, and overall review objectives. Read for a review objective or when a final objective must complete an omitted review.
 ---
 
 # Review
@@ -25,7 +25,7 @@ Read the detailed procedure for the current objective before beginning:
 4. Start another literal full reading at the first requirement. Correction work and reads from earlier rounds count as nothing in the new round.
 5. Repeat without any round limit until one entire current round reaches the end, finds no problem, and makes no product or generated-file edit.
 
-This is a real exhaustive review loop, not shorthand, aspiration, or rhetoric. No exception or discretionary judgment may shorten or replace it.
+No exception or discretionary judgment may shorten or replace this procedure.
 
 ## Scope
 
@@ -56,13 +56,13 @@ A file counts as read only when its complete current contents are returned and e
 7. If a product or generated file changes during the round, invalidate the round and restart it from the first requirement against a new manifest.
 8. After compaction or resume, continue only when the exact manifest, round, next item, and completed propagation roots are known. Otherwise restart the round from the first requirement.
 
-Never partition a round by file, package, layer, requirement subset, review lens, time window, or agent. Never compose partial passes into a round.
+Never partition a round by file, package, layer, requirement subset, journey, review lens, time window, or agent. Never compose partial passes into a round.
 
 ## Correction And Completion
 
 When a completed round has findings:
 
-1. fix every finding at its owning layer and every downstream consequence;
+1. fix every finding at its owning layer and every downstream consequence, including every unimplemented requirement regardless of scale or redesign;
 2. regenerate every affected derived artifact;
 3. run the gates named by the instruction and fix every failure;
 4. reconcile every finding with the actual correction; and
@@ -90,19 +90,3 @@ Never stop because:
 - a later Final objective might catch or repair an omission.
 
 None of these satisfy review loop until dry. When a literal dry round is not proven, remain active and continue the same review Goal.
-
-## Final Checklist
-
-- [ ] Literal full reading covered the detailed procedure and every in-scope artifact.
-- [ ] Every round began with one new complete sorted manifest; none was reused or split.
-- [ ] Every command returned content from only one manifest file; every file was fully covered in order, and no truncated read received credit.
-- [ ] No discretionary judgment changed the prescribed scope, round boundaries, stopping conditions, or review procedure.
-- [ ] Every round covered the first requirement through the final artifact and every propagation branch.
-- [ ] No split rounds, composed partial passes, omissions, or search/build/test substitutes.
-- [ ] Every finding and consequence fixed after the complete round.
-- [ ] Every correction or gate-driven change followed by a new full round.
-- [ ] Unlimited repetition reached one dry, edit-free round.
-- [ ] The qualifying dry round remained unchanged through clean current gates.
-- [ ] Scope checklist complete.
-
-Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the applicable literal full-reading Review from the first requirement. In a Final Goal, perform the quoted Review immediately.

@@ -63,15 +63,3 @@ Compare every adjacent boundary in both directions.
 For every user journey, trace the complete path from requirement through request, authorization, backend behavior, database effect, response, cache update, screen state, and browser assertion. Then trace the same path backward from the observed result to its requirement.
 
 Record each failed edge separately in the current Overall finding list, even when one correction can fix several edges. Continue through every remaining root and relationship before applying any correction.
-
-## Final Checklist
-
-- [ ] Review skill gate followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
-- [ ] Literal full reading covered every required instruction and in-scope application artifact.
-- [ ] Backend and Frontend procedures read and their union reviewed as one indivisible round.
-- [ ] Every requirement propagated forward through all layers, tests, states, and journeys.
-- [ ] Every artifact and behavior traced backward to requirements, ownership, consumers, and proof.
-- [ ] Every adjacent layer compared in both directions.
-- [ ] Every journey traced end to end and backward, with each failed edge recorded separately.
-
-Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the literal full-reading Overall Review from the first requirement.

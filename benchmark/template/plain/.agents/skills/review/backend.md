@@ -74,7 +74,7 @@ rg --no-filename -o '@accessor \S+' packages/api/src/functional | sort
 This is a cross-check index built from generated output, which the review does not read. An accessor it names that no controller declares is itself a finding. Use it to guarantee the propagation below reaches every operation, and work it entry by entry.
 
 1. Name, for each accessor, every test that proves it.
-   - An accessor with no test is a finding. Four hundred published operations and two hundred proved ones is a missing feature set, not a thorough suite.
+   - An accessor with no test is a finding: a partially proved operation set is a missing feature set, not a thorough suite.
    - An accessor whose tests leave a behavior its requirements state — a refusal, a boundary, an ownership rule — unproven is a finding. Judge sufficiency against that requirement, never against a test count.
 2. Verify each test actually proves the accessor it names.
    - Confirm the primary call is the operation under test and not a prerequisite that happens to be convenient.
@@ -109,17 +109,3 @@ Read every controller and test file in full.
 3. Record over-implementation, invented restrictions, unrequired exposure, missing tests, and tests that preserve a defect as findings.
 
 Names, types, compilation, internal consistency, and passing tests do not establish semantic correctness.
-
-## Final Checklist
-
-- [ ] Review skill gate followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
-- [ ] Literal full reading covered every required instruction and in-scope backend artifact.
-- [ ] Every requirement propagated through database, API, behavior, and tests.
-- [ ] Every schema element checked against operations, DTOs, behavior, effects, and tests.
-- [ ] Every operation and DTO traced backward to requirements and storage and forward to behavior and tests.
-- [ ] Complete operation inventory read as one sorted list, every accessor named with the tests that prove it and what each proves, and every accessor without sufficient tests recorded as a finding.
-- [ ] Every controller and test read across all success, refusal, boundary, lifecycle, ownership, atomicity, ordering, and concurrency paths.
-- [ ] Every configuration file compared with the baseline; every relaxation reported and restored.
-- [ ] Every finding followed through its full consequence surface.
-
-Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the literal full-reading Backend Review from the first requirement.

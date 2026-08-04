@@ -101,7 +101,7 @@ One native session receives its arm's frozen base sequence, read from `benchmark
 
 `EvidenceBenchmarkInstruction.entries()` is the only authority on that sequence.
 
-The runner joins each objective with the same arm's `instructions/<arm>/continue.md` once, and a Plain reminder or Final also carries its own scope's Review instruction quoted beneath it. An operator warning is the one exception: outside a Plain reminder or Final it replaces the continuation rather than joining it, because `backend/start` already fills 3923 of the 4000 characters Codex accepts.
+The runner joins each objective with the same arm's `instructions/<arm>/continue.md` once, and a Plain reminder or Final also carries its own scope's Review instruction quoted beneath it. An operator warning is the one exception: outside a Plain reminder or Final it replaces the continuation rather than joining it, which keeps the objective inside the 4000 characters Codex accepts however long the warning runs.
 
 The arms share no runtime instruction bytes. Do not add operator prose.
 

@@ -27,9 +27,7 @@ The frontend delivers requirement-backed user journeys through the settled gener
 
 Do not turn every endpoint into a page. Do not omit a user capability because it is difficult.
 
-Consumption and presentation are separate obligations. `architecture.md` owns the first: every published operation is consumed, whatever the interface looks like. What a screen decides is whether that capability earns its own page.
-
-An operation may therefore lack a visible screen only when it is infrastructure, genuinely redundant with a complete user path, or non-user-facing; record the exact reason and invalidating condition in `packages/frontend/wiki/omissions.md`. That record answers for the missing page and never for a missing call.
+Consumption and presentation are separate obligations. `architecture.md` owns consumption: every published operation is consumed, whatever the interface looks like. A screen decides whether that capability earns its own page — an operation may lack a visible screen only when it is infrastructure, redundant with a complete user path, or non-user-facing, with the exact reason and invalidating condition recorded in `packages/frontend/wiki/omissions.md`. That record answers for the missing page, never for a missing call.
 
 If a requirement needs behavior the SDK cannot express, repair the API or backend, regenerate, and re-pass the backend gate.
 

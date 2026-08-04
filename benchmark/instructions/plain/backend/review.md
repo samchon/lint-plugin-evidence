@@ -1,29 +1,10 @@
 # Backend Review
 
-Read `AGENTS.md`, `.agents/skills/review/SKILL.md`, and `.agents/skills/review/backend.md` in full before reviewing.
+Review the entire API and backend, excluding the frontend, through the literal **review loop until dry**. Every round starts by reading every requirement under `docs/analysis/` in full, then reads the complete scope against it. The round gate is a clean `packages/backend` `pnpm check:watch` rebuild.
 
-Review the entire API and backend, excluding the frontend, through a literal **review loop until dry**:
+Read `AGENTS.md`, `.agents/skills/review/SKILL.md`, and `.agents/skills/review/backend.md` in full before reviewing, and follow them without any discretionary change.
 
-Every round must read in full one complete sorted manifest covering `docs/analysis/`, `packages/backend/prisma/schema/`, `packages/api/src/structures/`, `packages/backend/src/controllers/`, and `packages/backend/test/`, including API or backend configuration affecting compilation, generation, persistence, or runtime.
-
-Every round must also build the operation index that Operation Coverage Propagation defines in `.agents/skills/review/backend.md`, and reach every entry in it.
-
-1. Read every requirement in full; compare it with the database, API, and backend tests.
-2. Read the full database design; compare every model, field, and relation with API operations and DTOs.
-3. Read every API operation, DTO, and test in full. Trace each forward through its tests and backward to its requirement.
-4. Complete the round and collect findings as the Review skill requires. Fix every finding and consequence (including every unimplemented requirement regardless of scale or redesign), then await a clean `packages/backend` `pnpm check:watch` rebuild.
-5. After any edit, restart at the first requirement. Repeat without limit until a full round finds nothing and edits nothing.
-
-A dry loop requires complete reading and unlimited rounds. Never substitute:
-
-- searches, summaries, inventories, builds, tests, samples, or prior rounds;
-- dividing files, layers, requirements, or review lenses among rounds; every round covers the entire scope;
-- claims that the review is sufficient, comprehensive, efficient, repetitive, expensive, or unlikely to help; or
-- relying on Final to finish or repeat the review.
-
-## Review Evidence Report
-
-Before completion, report each round's full manifest, findings and fixes, and the final dry, edit-free round. If that evidence reveals missing work, resume the loop and report again after completing it.
+Before completion, report each round's full manifest, findings and fixes, and the final dry, edit-free round. If that evidence reveals missing work, resume the loop and report again.
 
 ## Final Checklist
 

@@ -1,23 +1,17 @@
 # Evidence Backend Review
 
-Read `.agents/skills/review/SKILL.md` before working.
+Review the backend only: find and correct every fake `@evidence` and `@evidenceExclude`, especially tags added only to evade compiler errors.
 
-Confirm every backend claim is enabled. If Backend Start left a prescribed `disabled` property, delete it before review.
-
-The scope is the backend only. Inspect every active `@evidence` and `@evidenceExclude`, including its target, reason, and complete host.
-
-Find and correct every fake tag, especially tags added only to evade compiler errors. Apply the Review skill's proof checks.
-
-Do not make any other `lint.config.ts` change or lower `evidence/graph` from `error`.
-
-Use the backend `pnpm check:watch` process kept running by Backend Start. Fix every diagnostic and wait for a rebuild without diagnostics. Keep it running.
+Read `.agents/skills/review/SKILL.md` and `.agents/skills/review/backend.md` before working, and follow them exactly.
 
 ## Final Checklist
 
 - [ ] Every active backend `@evidence` and `@evidenceExclude`, its target, reason, and complete host inspected.
 - [ ] Every fake `@evidence`, including any added only to evade compiler errors, corrected.
-- [ ] Every `@evidenceExclude` owner or alternative and invalidating condition verified; every fake exclusion corrected.
-- [ ] Every backend claim is enabled; no other claim configuration changed and `evidence/graph` remained `error`.
+- [ ] Every exclusion carrier read in full and every entry decided; each names its owner or alternative and invalidating condition, and every fake exclusion corrected.
+- [ ] No exclusion stands in for an artifact this scope owes, and none sits on a working host instead of its carrier.
+- [ ] Every backend claim is enabled and `evidence/todo` is `error`; no other rule or claim configuration changed and `evidence/graph` remained `error`.
 - [ ] Backend `check:watch` completed a rebuild without diagnostics and remains running.
+- [ ] `pnpm test` exits with code 0 after the last correction.
 
 Any unchecked item leaves the Goal active. Complete that item.
