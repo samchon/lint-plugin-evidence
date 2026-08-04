@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { evidence } from "@samchon/lint-plugin-evidence";
 import type { ITtscLintConfig } from "@ttsc/lint";
 
