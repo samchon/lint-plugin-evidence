@@ -26,7 +26,6 @@ jobs:
   runner:
     name: Benchmark runner (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
