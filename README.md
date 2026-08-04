@@ -173,6 +173,27 @@ Three opt-in properties tighten a single reference:
 
 Counting is by identity, not by text. Repeated tags for one unit count once, merged declarations and overload sets remain one host, and an aggregate target contributes every selected descendant in its scope — so citing a parent of two selected units counts as two.
 
+### Exclusion carriers
+
+`noEvidenceExclude` decides whether a reference accepts an exclusion at all. Where it does, `evidenceExcludeCarriers` decides where that exclusion may be written.
+
+```ts
+{
+  name: "screens",
+  type: "typescript",
+  files: ["src/components/**/*.tsx", "src/components/EXCLUSIONS.ts"],
+  evidenceExcludeCarriers: ["src/components/EXCLUSIONS.ts"],
+  symbol: "function",
+  reference: { type: "markdown", files: ["docs/**/*.md"], symbol: "h2" },
+}
+```
+
+Declared, an `@evidenceExclude` is accepted only from a file these globs match. One written elsewhere in the population is reported where it sits, naming these patterns, and gives no coverage, so its target still owes positive `@evidence`. Omit the property and an exclusion stays eligible wherever it already was.
+
+The patterns use the grammar and the `root` that `files` uses, and they narrow rather than widen: a carrier must already be selected by `files` to host anything.
+
+An exclusion is the one acknowledgement that reports an obligation discharged without anything being built, so reading every exclusion a claim owns is a review that has to happen. Scattered through the population that means reading the population; gathered in a named ledger it means opening one file, with every exclusion the claim has sitting beside its neighbors.
+
 The constraints belong to one reference and never pool. An exclusion the Swagger reference above refuses may still satisfy a Markdown reference in the same claim, and two references over the same files stay independent. Omit all three to keep the behavior a reference had before they existed.
 
 `@evidenceExclude` completion drops a target selected only by references that refuse exclusions. A target any enabled reference still allows stays on offer, because the completion API has no cursor-specific claim context to narrow it further.

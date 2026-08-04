@@ -29,11 +29,6 @@ import type { ITtscLintConfig } from "@ttsc/lint";
  * requirement and screen references accept a reviewed one, so a screen outside
  * the journeys is a decision someone has to write down and defend.
  *
- * A claim that accepts an exclusion names the one file it may be written in, so
- * the carrier is declared rather than conventional and an `@evidenceExclude`
- * written anywhere else is a compile error. The hook claim names none, because
- * its only reference refuses exclusions outright.
- *
  * A journey cites each page it traverses as `{@link ThatPage}` resolved through
  * its own type-only import, so a screen no journey walks surfaces at the
  * compiler rather than in review.
