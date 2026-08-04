@@ -194,7 +194,7 @@ export namespace EvidenceBenchmarkSupervision {
     const action: IEvidenceBenchmarkSupervisionVerdict["action"] =
       submitted.decision === "pass"
         ? "final"
-        : pause.attempt < 4
+        : pause.attempt < EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT
           ? "retry"
           : "quality-failed";
     if (action === "retry") {

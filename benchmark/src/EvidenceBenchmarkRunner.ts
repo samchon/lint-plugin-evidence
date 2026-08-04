@@ -1580,7 +1580,8 @@ export namespace EvidenceBenchmarkRunner {
               entry.reviewAttempt !== index + 1 ||
               entry.reviewFeedback?.trim().length === 0,
           ) ||
-          supplements.length > 4
+          supplements.length >
+            EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT
         )
           throw new Error("Retained review supplementation plan is invalid.");
       }

@@ -12,6 +12,16 @@ export namespace EvidenceBenchmarkInstruction {
   /** Opens an operator warning that replaces an Evidence continuation. */
   export const OPERATOR_WARNING_HEADING = "# Correct This Before Continuing";
 
+  /**
+   * Supplementation attempts a Plain review scope may take before it fails.
+   *
+   * The bound exists so a cell that cannot reach the bar terminates instead of
+   * looping, and the attempt it stops on is itself the measurement. A larger
+   * subject needs more of them: a review that must write one proving test per
+   * published operation has further to travel than one with two dozen.
+   */
+  export const REVIEW_SUPPLEMENT_LIMIT = 8;
+
   /** Returns the frozen base sequence. Plain reminders are adaptive, not base. */
   export function entries(
     arm: EvidenceBenchmarkArm,
@@ -131,7 +141,7 @@ export namespace EvidenceBenchmarkInstruction {
         entry.reviewScope === undefined ||
         entry.reviewAttempt === undefined ||
         entry.reviewAttempt < 1 ||
-        entry.reviewAttempt > 4
+        entry.reviewAttempt > REVIEW_SUPPLEMENT_LIMIT
       )
         throw new Error("Review supplementation plan entry is incomplete.");
       return { scope: entry.reviewScope, attempt: entry.reviewAttempt };

@@ -6,6 +6,7 @@ import path from "node:path";
 import typia from "typia";
 
 import { collectEvidenceBenchmarkApiCost } from "./EvidenceBenchmarkApiCost.ts";
+import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction.ts";
 import type { IEvidenceBenchmarkApiCost } from "./structures/IEvidenceBenchmarkApiCost.ts";
 import type {
   IEvidenceBenchmarkReport,
@@ -455,7 +456,8 @@ const collectReviewVerdicts = (
       (verdict.decision === "fail" &&
         typeof verdict.feedback === "string" &&
         verdict.feedback.trim().length !== 0 &&
-        ((verdict.action === "retry" && pause.attempt < 4) ||
+        ((verdict.action === "retry" &&
+          pause.attempt < EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT) ||
           (verdict.action === "quality-failed" && pause.attempt === 4)));
     if (
       (verdict.decision !== "pass" && verdict.decision !== "fail") ||
