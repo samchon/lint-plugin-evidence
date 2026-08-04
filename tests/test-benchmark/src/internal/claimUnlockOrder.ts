@@ -18,11 +18,11 @@ const UNLOCK = /delete `disabled` from/i;
  * forgot to mention a failure here rather than a silent gap in the campaign.
  *
  * Only the lines that actually prescribe an unlock are read. A document also
- * names its claims while saying where they are declared and what the final
- * checklist covers, and those mentions carry no ordering at all; ranking by
- * first appearance anywhere let one of them put the last claim first. A claim
- * named nowhere in an unlock step fails loudly instead, because that is a claim
- * no cell is told when to open.
+ * names its claims outside the unlock steps — in its claim table, placement,
+ * and prose — and those mentions carry no ordering at all; ranking by first
+ * appearance anywhere let one of them put the last claim first. A claim named
+ * nowhere in an unlock step fails loudly instead, because that is a claim no
+ * cell is told when to open.
  *
  * @param instruction Repository-relative document that prescribes the unlocks.
  * @param claims Claim names discovered in the configuration under test.
