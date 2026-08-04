@@ -400,3 +400,37 @@ export function get(): void {}
 		"reference":{"type":"typescript","package":"@org/api","files":["src/**"],"symbol":"function"}
 	}]}`), "Missing acknowledgement for 'functional.health.get'")
 }
+
+/**
+ * Verifies a declared `types` still wins over a TypeScript runtime entry.
+ *
+ * Following the runtime entry is the last resort, not a preference. A package
+ * that names its declarations has said where they are, and reading its source
+ * entry instead would address a different file than the one it publishes.
+ *
+ *  1. Declare `types` beside an `exports` target that names TypeScript source.
+ *  2. Acknowledge only what the declarations expose.
+ *  3. Assert silence, which is reachable only through `types`.
+ */
+func TestGraphPrefersDeclaredTypesOverATypeScriptRuntimeEntry(t *testing.T) {
+	assertNoProblems(t, runIndexRule(t, map[string]string{
+		"node_modules/@org/api/package.json": `{
+  "name": "@org/api",
+  "types": "./lib/index.d.ts",
+  "exports": { ".": "./src/index.ts" }
+}`,
+		"node_modules/@org/api/lib/index.d.ts": "export declare function get(): void;\n",
+		"node_modules/@org/api/src/index.ts":   "export function get(): void {}\nexport function erase(): void {}\n",
+		"src/views/detail.ts": `
+import type * as api from "@org/api";
+
+/** @evidence {@link api.get} Renders this operation's response. */
+export function detail(): void {}
+`,
+	}, `{"claims":[{
+		"type":"typescript",
+		"files":["src/views/**"],
+		"symbol":"function",
+		"reference":{"type":"typescript","package":"@org/api","symbol":"function"}
+	}]}`))
+}
