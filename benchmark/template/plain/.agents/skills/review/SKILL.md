@@ -1,6 +1,6 @@
 ---
 name: review
-description: Defines the full-scope review loop until dry and final self-check for backend, frontend, and overall review objectives. Read for a review objective or when a final objective must complete an omitted review.
+description: Defines the full-scope review loop until dry for backend, frontend, and overall review objectives. Read for a review objective or when a final objective must complete an omitted review.
 ---
 
 # Review

@@ -40,7 +40,9 @@ An enabled claim is active only when its own `root`, `files`, and `symbol` selec
 - A Prisma `model` claim stays inactive until a matching schema input contains a model.
 - A Markdown claim stays inactive until a matching document contains a selected host.
 
-An unreadable or invalid configured input is not an empty population; loader and parse failures remain diagnostics. Do not add, remove, or change claim objects as implementation advances — after `disabled` is deleted, activation follows the selected host population automatically.
+An unreadable or invalid configured input is not an empty population; loader and parse failures remain diagnostics. Inactivity defers a future layer's coverage until that layer has a host — it does not prove the requirements need no host.
+
+Do not add, remove, or change claim objects as implementation advances — after `disabled` is deleted, activation follows the selected host population automatically.
 
 ## Frozen Configuration
 

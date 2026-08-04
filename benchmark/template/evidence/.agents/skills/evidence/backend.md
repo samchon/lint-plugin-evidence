@@ -96,6 +96,12 @@ export const CONTROLLER_EVIDENCE_EXCLUDE = true;
 
 Schema exclusions are unattached top-level `/// @evidenceExclude` lines in `exclude.schema`, a lint-only file that is not a Prisma generation input.
 
+## Operation Reference
+
+The `backend-tests` operation reference refuses `@evidenceExclude` and admits exactly one operation per test: every published operation is proved by a backend test, or the product is incomplete. Cite the one operation the test proves; write a missing test instead of excluding its operation.
+
+Prerequisite and follow-up calls are setup and observation; leave them uncited.
+
 ## Staged Unlock
 
 Start backend `pnpm check:watch` before implementation while every backend claim is disabled. Delete each `disabled` at exactly the point its layer completes.
@@ -117,9 +123,3 @@ Before the phase completes, this sweep must return nothing:
 ```bash
 rg --hidden -n -F '@todo' packages/api packages/backend --glob '*.ts'
 ```
-
-## Operation Reference
-
-The `backend-tests` operation reference refuses `@evidenceExclude` and admits exactly one operation per test: every published operation is proved by a backend test, or the product is incomplete. Cite the one operation the test proves; write a missing test instead of excluding its operation.
-
-Prerequisite and follow-up calls are setup and observation; leave them uncited.

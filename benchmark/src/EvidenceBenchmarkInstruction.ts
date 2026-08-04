@@ -108,10 +108,11 @@ export namespace EvidenceBenchmarkInstruction {
     const prescribedText: string = readPrescribedText(props);
     // An Evidence objective carries an operator warning in place of the
     // continuation rather than after it. `thread/goal/set` is the runner's only
-    // channel into the thread, and `backend/start` already expands to 3923 of
-    // the 4000 characters Codex accepts, so appending would not fit. The
-    // warning states the same continuation duty in its own words, which is why
-    // substituting it loses nothing.
+    // channel into the thread, and substitution keeps the objective within the
+    // Codex ceiling however long the warning runs — `backend/start` once
+    // expanded to 3923 of the 4000 accepted characters, where appending could
+    // not fit. The warning states the same continuation duty in its own words,
+    // which is why substituting it loses nothing.
     const warned: boolean =
       props.entry.reviewFeedback !== undefined &&
       !isPlainSupplement(props.entry.relativePath);
