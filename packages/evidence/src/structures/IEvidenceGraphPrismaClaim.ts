@@ -42,6 +42,14 @@ import type { IEvidenceGraphClaimBase } from "./IEvidenceGraphClaimBase";
  */
 export interface IEvidenceGraphPrismaClaim extends IEvidenceGraphClaimBase<"prisma"> {
   /**
+   * Glob patterns for the Prisma schema files that must cite the referenced
+   * evidence. Every matching regular file is parsed as part of one schema
+   * regardless of extension, which is what lets a lint-only `.schema` ledger
+   * join the population Prisma generation never reads.
+   */
+  files: string[];
+
+  /**
    * Prisma node kind or kinds eligible to host this claim's ownership evidence.
    *
    * Omit this property to select models, columns, and relations. A single value

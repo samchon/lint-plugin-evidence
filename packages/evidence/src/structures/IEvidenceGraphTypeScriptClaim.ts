@@ -18,6 +18,28 @@ import type { IEvidenceGraphClaimBase } from "./IEvidenceGraphClaimBase";
  */
 export interface IEvidenceGraphTypeScriptClaim extends IEvidenceGraphClaimBase<"typescript"> {
   /**
+   * Directory whose TypeScript population {@link files} select.
+   *
+   * A relative root resolves from the active `ttsc` project root, so a monorepo
+   * package can select an explicitly included sibling with `../api`.
+   *
+   * This property does not add files to the TypeScript Program and never scans
+   * the directory. Only source files already supplied by `ttsc` can match, so
+   * the owning `tsconfig` must include the rooted population explicitly.
+   */
+  root?: string;
+
+  /**
+   * Root-relative glob patterns for TypeScript files in the active `ttsc`
+   * Program that must cite the referenced evidence. A matching file outside the
+   * Program is not available to the rule and does not count as a match.
+   *
+   * For example, `src/**` selects the complete source subtree, while
+   * `scripts/check-?.ts` selects `check-a.ts` but not `check-ab.ts`.
+   */
+  files: string[];
+
+  /**
    * TypeScript symbol kind or kinds eligible to host this claim's ownership
    * evidence.
    *

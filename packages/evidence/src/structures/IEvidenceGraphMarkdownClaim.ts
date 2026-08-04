@@ -19,6 +19,13 @@ import type { IEvidenceGraphClaimBase } from "./IEvidenceGraphClaimBase";
  */
 export interface IEvidenceGraphMarkdownClaim extends IEvidenceGraphClaimBase<"markdown"> {
   /**
+   * Glob patterns for the Markdown files that must cite the referenced
+   * evidence. Every matching regular file is parsed as Markdown regardless of
+   * extension, so exclude non-Markdown assets rather than relying on a suffix.
+   */
+  files: string[];
+
+  /**
    * Markdown node kind or kinds eligible to host this claim's declarations.
    *
    * Omit this property to select documents and H1 through H4 sections. A single
