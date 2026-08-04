@@ -6,7 +6,7 @@ Use the backend `pnpm check:watch` process kept running by Backend Start. Fix ev
 
 Use the frontend `pnpm dev` process kept running by Frontend Start. Fix every diagnostic, wait for a reload without diagnostics, and keep it running.
 
-Each start stage left its suite passing, and a Review correction is usually a tag, not a behavior. Rerunning backend `pnpm test` or frontend `pnpm test:e2e` is your call: both compiler processes report type and lint diagnostics only, so run them when a correction actually touched behavior, and fix every failure.
+Overall Review left both suites passing, and a Final correction is usually a tag, not a behavior. Rerunning backend `pnpm test` or frontend `pnpm test:e2e` is your call: both compiler processes report type and lint diagnostics only, so run them when a correction actually touched behavior, and fix every failure.
 
 ## Final Checklist
 
