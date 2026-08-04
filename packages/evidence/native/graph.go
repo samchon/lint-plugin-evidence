@@ -827,7 +827,7 @@ func evaluateEvidenceGraph(
 		if obligations := outsideCarrier[id]; len(obligations) != 0 {
 			problems = append(
 				problems,
-				"Misplaced @evidenceExclude at "+declaration.location()+" for "+strings.Join(obligations, "; ")+", target '"+displayTarget(declaration.Target)+"': this claim accepts exclusions only in "+outsideCarrierGlobs[id]+". Move the tag there, or delete it and implement the target this claim owes.",
+				"Misplaced @evidenceExclude at "+declaration.location()+" for "+strings.Join(obligations, "; ")+", target '"+displayTarget(declaration.Target)+"': evidenceExcludeCarriers confines this claim's exclusions to "+outsideCarrierGlobs[id]+". Move the tag there, or delete it and implement the target this claim owes.",
 			)
 			continue
 		}

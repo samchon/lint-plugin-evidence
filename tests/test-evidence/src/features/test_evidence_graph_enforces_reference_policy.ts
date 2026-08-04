@@ -20,7 +20,7 @@ const lintConfig: string = [
   '  type: "markdown",',
   '  files: ["docs/spec.md"],',
   '  symbol: "h2",',
-  "  noExclude: true,",
+  "  noEvidenceExclude: true,",
   "  uniqueEvidence: true,",
   "  singleEvidencePerSymbol: true,",
   "};",
@@ -78,7 +78,7 @@ export const test_evidence_graph_enforces_reference_policy = (): void => {
     assertFailure(result, "A strict reference must reject an exclusion.");
     assertIncludes(
       result,
-      "noExclude requires positive @evidence",
+      "noEvidenceExclude requires positive @evidence",
       "The refusal must survive the native config boundary.",
     );
     assertIncludes(

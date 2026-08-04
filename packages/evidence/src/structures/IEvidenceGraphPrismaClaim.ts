@@ -40,9 +40,7 @@ import type { IEvidenceGraphClaimBase } from "./IEvidenceGraphClaimBase";
  * }
  * ```
  */
-export interface IEvidenceGraphPrismaClaim
-  extends IEvidenceGraphClaimBase<"prisma"> {
-
+export interface IEvidenceGraphPrismaClaim extends IEvidenceGraphClaimBase<"prisma"> {
   /**
    * Prisma node kind or kinds eligible to host this claim's ownership evidence.
    *
@@ -58,5 +56,4 @@ export interface IEvidenceGraphPrismaClaim
    * @default ["model", "column", "relation"]
    */
   symbol?: EvidenceGraphPrismaSymbol | EvidenceGraphPrismaSymbol[];
-
 }

@@ -10,8 +10,8 @@ import type { IEvidenceGraphReference } from "./IEvidenceGraphReference";
  * kinds are a property of the language rather than of the claim.
  *
  * Swagger is deliberately absent. An API operation grounds a claim but cannot
- * host `@evidence`, so it extends
- * {@link IEvidenceGraphReferenceBase} instead and never this one.
+ * host `@evidence`, so it extends {@link IEvidenceGraphReferenceBase} instead
+ * and never this one.
  */
 export interface IEvidenceGraphClaimBase<Type extends string> {
   /** Identifies the artifact kind making this claim. */
