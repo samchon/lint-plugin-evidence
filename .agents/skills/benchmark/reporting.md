@@ -40,7 +40,7 @@ Those five columns, in that order, are the whole table. Do not add a run ID, a t
 
 Anomaly detail belongs in the pull-request prose outside the dashboard.
 
-Two columns are misread on sight:
+Two columns are commonly misread:
 
 - **Progress** is the Git delta from the prepared baseline. It measures implementation volume, not a completion percentage.
 - **Cost** is rounded to whole millions, so a cell under half a million tokens reads `0M` — a rounding artifact, not a missing measurement.
@@ -56,7 +56,7 @@ pnpm --filter @samchon/evidence-benchmark audit-suspensions
 pnpm --filter @samchon/evidence-benchmark report
 ```
 
-`report` writes three artifacts from that same retained record:
+`report` writes three artifacts from the retained record:
 
 - `benchmark/aggregate/summary.json`.
 - Stable per-cell JSON under `benchmark/aggregate/cells/<model>/<subject>/<arm>.json`.

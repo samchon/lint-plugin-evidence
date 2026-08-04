@@ -6,7 +6,7 @@ Everything but the arm is frozen while a cohort is measured. An unauthorized cha
 
 - **A measured workspace.** What a cell did to its own workspace is the measurement.
 - **Requirements.** `benchmark/requirements/**` is opaque, authoritative bytes: never edit, rename, add, delete, normalize, summarize, validate, or challenge them.
-- **The three configuration files.** Named in the next section.
+- **The three configuration files.** `tsconfig.json`, `lint.config.ts`, and a `package.json` entry point, detailed below.
 - **The cell's own reasoning.** Do not prompt the measured agent, inject advice, weaken a gate, hard-code a subject answer, or expose Evidence material to Plain. A cell's questions and partial reports do not invite operator input; its continuation instruction already tells it to finish on its own.
 
 ## Three Files Nobody Touches

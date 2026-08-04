@@ -30,7 +30,7 @@ Before resuming a stopped cell, confirm its four ports have no listener and stop
 Resume only when the cell identity, frozen inputs, workspace, CLI version, objective, and native checkpoint still match:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark start <engine> <subject> <arm> <model> <effort> <run-id>
+pnpm --filter @samchon/evidence-benchmark start codex <subject> <evidence|plain> <model> <effort> <run-id>
 ```
 
 Keep the cell's original `benchmarkRevision` frozen. When recovery requires a committed runner correction, resume only from a clean descendant revision, which the runner retains as the new process's `runnerRevision`.
@@ -51,12 +51,22 @@ After `backend-start` completes, the runner stores a durable checkpoint of the m
 When a defect is confined to an instruction after `backend-start`, preserve the source run and create a new checkpoint-derived run:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark start codex <subject> <arm> <model> <effort> --from-backend-start <source-run-id>
+pnpm --filter @samchon/evidence-benchmark start codex <subject> <evidence|plain> <model> <effort> --from-backend-start <source-run-id>
 ```
 
-The command verifies the retained cell and the exact completed `backend-start` boundary, restores that workspace and reinstalls its dependencies, revalidates the restored digests, reapplies the current non-product instruction surface — `AGENTS.md` and `.agents/` — forks the native thread through the retained terminal turn, and starts the new run at `backend-review` with the current downstream instructions. An explicit operator launch does not reject the checkpoint because repository inputs changed after it was created.
+The command then:
 
-Never edit a checkpoint, its source run, or its retained state. A derived run has a new run ID and records its source lineage and inherited timing; report inherited and continuation measurements together, and never describe it as resuming the original run.
+1. Verifies the retained cell and the exact completed `backend-start` boundary.
+2. Restores that workspace, reinstalls its dependencies, and revalidates the restored digests.
+3. Reapplies the current non-product instruction surface — `AGENTS.md` and `.agents/`.
+4. Forks the native thread through the retained terminal turn.
+5. Starts the new run at `backend-review` with the current downstream instructions.
+
+An explicit operator launch does not reject the checkpoint because repository inputs changed after it was created.
+
+Never edit a checkpoint, its source run, or its retained state.
+
+A derived run has a new run ID and records its source lineage and inherited timing. Report inherited and continuation measurements together, and never describe it as resuming the original run.
 
 ## Cancel The Campaign
 
