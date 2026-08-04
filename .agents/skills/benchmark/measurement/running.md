@@ -18,7 +18,7 @@ Freeze every input before launch, and never launch an unauthorized cell or rerun
 - **Material** — requirements, template, instructions, package archive.
 - **Version** — CLI version, benchmark revision.
 
-[intervention/boundary.md](intervention/boundary.md) owns what may change and when.
+[intervention/boundary.md](../intervention/boundary.md) owns what may change and when.
 
 The runner reads the benchmark revision from the repository's `HEAD` and refuses to launch while anything is uncommitted or untracked, so commit or stash first.
 
@@ -28,7 +28,7 @@ pnpm --filter @samchon/evidence-benchmark start codex <subject> <evidence|plain>
 
 Run at most one command for a run ID.
 
-A launch that fails before native work does not consume the authorized cell, as long as its identity and frozen inputs are unchanged. Two such failures are ordinary: an unclean repository, and an occupied port from the cell's own block, whose map [intervention/recovery.md](intervention/recovery.md) owns.
+A launch that fails before native work does not consume the authorized cell, as long as its identity and frozen inputs are unchanged. Two such failures are ordinary: an unclean repository, and an occupied port from the cell's own block, whose map [intervention/recovery.md](../intervention/recovery.md) owns.
 
 ## What The Runner Prepares
 
@@ -75,8 +75,8 @@ Observe every active cell at least every 30 seconds:
 
 - `state.json`, and benchmark and native process liveness.
 - The recency of `events.jsonl` and of the current stage's `<stage>.log`.
-- The three configuration files [intervention/boundary.md](intervention/boundary.md) names, in every cell. The reporting subagent re-reads them on every cycle and reports a hit as a material change, quoting the diff it just read.
+- The frozen configuration files in every cell. The reporting subagent re-reads them on every cycle and reports a hit as a material change, quoting the diff it just read. [integrity.md](integrity.md) owns what is a hit and what is the cell doing its job.
 
 Correct the dashboard on any disagreement immediately, without waiting for its 5-minute interval.
 
-Take anything else to [intervention/SKILL.md](intervention/SKILL.md), and diagnose before touching it.
+Take anything else to [intervention/SKILL.md](../intervention/SKILL.md), and diagnose before touching it.
