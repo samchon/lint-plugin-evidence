@@ -14,7 +14,22 @@ The DTO claims live in the API package because a TypeScript claim selects only f
 
 Every other backend rule lives in the test configuration because `test/tsconfig.json` compiles `../src` together with the tests — the one backend Program that holds controllers and test functions alike — and `pnpm check:watch` runs exactly that Program. `packages/backend/lint.config.ts` stays as shipped: `nestia all` inside `pnpm build:sdk` resolves the package configuration, so leaving it untouched keeps SDK generation free of evidence rules.
 
-`evidence/singular` and `evidence/todo` are also declared in `packages/backend/test/lint.config.ts`. `evidence/singular` keeps one public identity per file, named after the file. `evidence/todo` fails the build on every remaining JSDoc `@todo` in the Program, exported or not.
+## File Rules
+
+`packages/backend/test/lint.config.ts` also declares `evidence/singular` and `evidence/todo` at `error`. They apply to the whole test Program — `packages/backend/src/**` and `packages/backend/test/**` — and to nothing else. `src/prisma/**` is ignored as generated output, and the configuration file itself is ignored. `packages/api` and `packages/frontend` are other Programs and carry neither rule.
+
+**`evidence/singular` — one public identity per file, named after the file.** Declaration merging counts as one identity: the scaffold's own `src/MyGlobal.ts` exports a class and a namespace of that name and passes. A second unrelated export does not.
+
+| File | Its one identity |
+| --- | --- |
+| `src/controllers/ShoppingSaleController.ts` | `export class ShoppingSaleController` |
+| `src/providers/ShoppingSaleProvider.ts` | `export namespace ShoppingSaleProvider` |
+| `src/providers/ShoppingSaleTransformer.ts` | `export namespace ShoppingSaleTransformer` |
+| `test/features/api/shopping/test_api_sale_create.ts` | `export async function test_api_sale_create` |
+
+Split a second export into its own file rather than renaming one to hide it. A payload interface a controller needs belongs beside the guard that produces it, not appended to the controller.
+
+**`evidence/todo` — every remaining JSDoc `@todo` fails the build**, exported or not, with the tag's own text. On this Program a `@todo` is therefore an error the moment it is written, not a marker you park across a gate. The temporary controller stub uses the prose marker `.agents/skills/backend/controllers.md` shows, never a `@todo` tag.
 
 ## Placement
 
