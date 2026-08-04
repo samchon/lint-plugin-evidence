@@ -1,4 +1,4 @@
-import type { IRunResult } from "./IRunResult.ts";
+import type { IRunResult } from "./IRunResult";
 
 /** Fails unless the compiler rejected the project with a real exit status. */
 export const assertFailure = (result: IRunResult, because: string): void => {

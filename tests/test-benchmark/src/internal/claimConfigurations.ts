@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { readClaimNames } from "./activationGates.ts";
+import { readClaimNames } from "./activationGates";
 
 /** One lint configuration that declares evidence claims, and the gate for it. */
 export interface IClaimConfiguration {

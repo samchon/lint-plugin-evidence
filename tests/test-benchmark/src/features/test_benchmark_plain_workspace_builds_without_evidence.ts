@@ -1,12 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { acquireBenchmarkWorkspace } from "../internal/benchmarkWorkspace.ts";
-import { assertStatus } from "../internal/assertStatus.ts";
-import type { IBenchmarkWorkspace } from "../internal/IBenchmarkWorkspace.ts";
-import type { IRunResult } from "../internal/IRunResult.ts";
-import { provisionEnvironment } from "../internal/provisionEnvironment.ts";
-import { runScript } from "../internal/runScript.ts";
+import { acquireBenchmarkWorkspace } from "../internal/benchmarkWorkspace";
+import { assertStatus } from "../internal/assertStatus";
+import type { IBenchmarkWorkspace } from "../internal/IBenchmarkWorkspace";
+import type { IRunResult } from "../internal/IRunResult";
+import { provisionEnvironment } from "../internal/provisionEnvironment";
+import { runScript } from "../internal/runScript";
 
 /**
  * Verifies the Plain arm builds, lints, and tests clean with no evidence

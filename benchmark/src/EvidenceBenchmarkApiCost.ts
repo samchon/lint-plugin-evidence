@@ -1,7 +1,7 @@
 import fs from "node:fs";
 
-import type { IEvidenceBenchmarkApiCost } from "./structures/IEvidenceBenchmarkApiCost.ts";
-import type { IEvidenceBenchmarkTokenUsage } from "./structures/IEvidenceBenchmarkTokenUsage.ts";
+import type { IEvidenceBenchmarkApiCost } from "./structures/IEvidenceBenchmarkApiCost";
+import type { IEvidenceBenchmarkTokenUsage } from "./structures/IEvidenceBenchmarkTokenUsage";
 
 interface ITokenPrice {
   input: number;

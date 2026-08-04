@@ -5,7 +5,7 @@ import {
   createProject,
   runCheck,
   type IEvidenceProject,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies a misconfigured `evidence/documented` names itself once through the

@@ -6,25 +6,25 @@ import {
   readClaimsReferencingAPackage,
   removeActivationGate,
   type IActivationGate,
-} from "../internal/activationGates.ts";
-import { acquireBenchmarkWorkspace } from "../internal/benchmarkWorkspace.ts";
-import { assertClaimActivated } from "../internal/assertClaimActivated.ts";
-import { assertPublishedAccessorsDemanded } from "../internal/assertPublishedAccessorsDemanded.ts";
+} from "../internal/activationGates";
+import { acquireBenchmarkWorkspace } from "../internal/benchmarkWorkspace";
+import { assertClaimActivated } from "../internal/assertClaimActivated";
+import { assertPublishedAccessorsDemanded } from "../internal/assertPublishedAccessorsDemanded";
 import {
   discoverClaimConfigurations,
   type IClaimConfiguration,
-} from "../internal/claimConfigurations.ts";
+} from "../internal/claimConfigurations";
 import {
   claimIsUnlockedBy,
   claimUnlockOrder,
-} from "../internal/claimUnlockOrder.ts";
-import type { IMissingAcknowledgement } from "../internal/evidenceDiagnostics.ts";
-import type { IBenchmarkWorkspace } from "../internal/IBenchmarkWorkspace.ts";
-import { provisionEnvironment } from "../internal/provisionEnvironment.ts";
-import { requirementDocumentsDeclaringSections } from "../internal/requirementDocuments.ts";
-import { runScript } from "../internal/runScript.ts";
-import { stripCitations } from "../internal/stripCitations.ts";
-import { materializeClaimLayer } from "../internal/workspaceLayer.ts";
+} from "../internal/claimUnlockOrder";
+import type { IMissingAcknowledgement } from "../internal/evidenceDiagnostics";
+import type { IBenchmarkWorkspace } from "../internal/IBenchmarkWorkspace";
+import { provisionEnvironment } from "../internal/provisionEnvironment";
+import { requirementDocumentsDeclaringSections } from "../internal/requirementDocuments";
+import { runScript } from "../internal/runScript";
+import { stripCitations } from "../internal/stripCitations";
+import { materializeClaimLayer } from "../internal/workspaceLayer";
 
 /** The objective whose instruction owns the claims this walk covers. */
 const INSTRUCTION = "benchmark/instructions/evidence/backend/start.md";

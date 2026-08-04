@@ -3,7 +3,7 @@ import {
   createProject,
   runCheck,
   type IEvidenceProject,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies overlapping type/model and property/column claims through Prisma.

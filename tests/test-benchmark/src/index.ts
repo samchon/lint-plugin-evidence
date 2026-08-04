@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 
 // Minimal runner. Discovers `test_*` exports under `features/`, runs each, and
 // exits non-zero if any threw.
@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 // modules, call functions, and count failures. Discovery is what keeps the case
 // list out of `package.json`, and running every case keeps one failure from
 // hiding the ones behind it.
-const directory: string = path.dirname(fileURLToPath(import.meta.url));
+const directory: string = __dirname;
 
 const collect = (root: string): string[] => {
   const found: string[] = [];
@@ -34,9 +34,7 @@ const main = async (): Promise<void> => {
 
   const failures: Error[] = [];
   for (const file of files) {
-    const module: Record<string, unknown> = await import(
-      pathToFileURL(file).href
-    );
+    const module: Record<string, unknown> = await import(pathToFileURL(file).href);
     const tests: [string, () => unknown | Promise<unknown>][] = Object.entries(
       module,
     ).filter(

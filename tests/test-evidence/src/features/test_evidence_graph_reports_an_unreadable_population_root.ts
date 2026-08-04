@@ -6,7 +6,7 @@ import {
   runCheck,
   type IEvidenceProject,
   type IRunResult,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies a `root` that names no directory is reported as a root, naming both

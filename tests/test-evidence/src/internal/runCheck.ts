@@ -1,8 +1,8 @@
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import path from "node:path";
-import type { IRunResult } from "./IRunResult.ts";
-import { pluginCacheDirectory } from "./pluginCacheDirectory.ts";
-import { resolveDependency } from "./resolveDependency.ts";
+import type { IRunResult } from "./IRunResult";
+import { pluginCacheDirectory } from "./pluginCacheDirectory";
+import { resolveDependency } from "./resolveDependency";
 
 /**
  * Runs `ttsc check` in the fixture and captures everything it said.

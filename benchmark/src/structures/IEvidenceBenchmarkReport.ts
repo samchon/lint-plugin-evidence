@@ -1,8 +1,8 @@
-import type { EvidenceBenchmarkArm } from "../typings/EvidenceBenchmarkArm.ts";
-import type { EvidenceBenchmarkEffort } from "../typings/EvidenceBenchmarkEffort.ts";
-import type { IEvidenceBenchmarkTokenUsage } from "./IEvidenceBenchmarkTokenUsage.ts";
-import type { IEvidenceBenchmarkApiCost } from "./IEvidenceBenchmarkApiCost.ts";
-import type { IEvidenceBenchmarkSuspension } from "./IEvidenceBenchmarkSuspension.ts";
+import type { EvidenceBenchmarkArm } from "../typings/EvidenceBenchmarkArm";
+import type { EvidenceBenchmarkEffort } from "../typings/EvidenceBenchmarkEffort";
+import type { IEvidenceBenchmarkTokenUsage } from "./IEvidenceBenchmarkTokenUsage";
+import type { IEvidenceBenchmarkApiCost } from "./IEvidenceBenchmarkApiCost";
+import type { IEvidenceBenchmarkSuspension } from "./IEvidenceBenchmarkSuspension";
 
 /** Publishable aggregate of the latest launched benchmark cells. */
 export interface IEvidenceBenchmarkReport {

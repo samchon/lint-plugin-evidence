@@ -1,7 +1,6 @@
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-const here: string = path.dirname(fileURLToPath(import.meta.url));
+const here: string = __dirname;
 
 /**
  * Absolute path of the feature suite's own package root.

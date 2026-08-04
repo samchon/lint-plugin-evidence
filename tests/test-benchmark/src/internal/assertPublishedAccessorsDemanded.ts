@@ -1,8 +1,8 @@
 import path from "node:path";
 
-import type { IMissingAcknowledgement } from "./evidenceDiagnostics.ts";
-import type { IBenchmarkWorkspace } from "./IBenchmarkWorkspace.ts";
-import { sdkAccessorAddresses } from "./sdkAccessorAddresses.ts";
+import type { IMissingAcknowledgement } from "./evidenceDiagnostics";
+import type { IBenchmarkWorkspace } from "./IBenchmarkWorkspace";
+import { sdkAccessorAddresses } from "./sdkAccessorAddresses";
 
 /**
  * Asserts a claim reaching the installed SDK owes every accessor it publishes.

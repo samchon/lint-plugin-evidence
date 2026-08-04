@@ -1,5 +1,5 @@
-import type { IEvidenceBenchmarkWorkspaceIdentity } from "./IEvidenceBenchmarkWorkspaceIdentity.ts";
-import type { EvidenceBenchmarkReviewScope } from "../typings/EvidenceBenchmarkReviewScope.ts";
+import type { IEvidenceBenchmarkWorkspaceIdentity } from "./IEvidenceBenchmarkWorkspaceIdentity";
+import type { EvidenceBenchmarkReviewScope } from "../typings/EvidenceBenchmarkReviewScope";
 
 /** External decision bound to one completed Goal and workspace state. */
 export interface IEvidenceBenchmarkSupervisionVerdict {

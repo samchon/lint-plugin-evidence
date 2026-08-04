@@ -5,7 +5,7 @@ import {
   runCheck,
   type IEvidenceProject,
   type IRunResult,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies the negative twin of the rooted Markdown population case.

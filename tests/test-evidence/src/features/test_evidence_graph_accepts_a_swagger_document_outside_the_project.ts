@@ -5,7 +5,7 @@ import {
   runCheck,
   type IEvidenceProject,
   type IRunResult,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 const CONTRACT: string = [
   'swagger: "2.0"',

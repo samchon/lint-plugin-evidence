@@ -1,4 +1,4 @@
-import type { IRunResult } from "./IRunResult.ts";
+import type { IRunResult } from "./IRunResult";
 
 /**
  * A live `ttsc check --watch` process, driven one rebuild at a time.

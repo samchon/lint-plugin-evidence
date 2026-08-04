@@ -11,7 +11,7 @@ import {
   type IEvidenceProject,
   type IRunResult,
   type IWatchSession,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies a watch rebuild reaches the same verdict as a cold check of the same

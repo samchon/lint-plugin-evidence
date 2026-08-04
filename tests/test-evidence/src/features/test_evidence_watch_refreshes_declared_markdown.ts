@@ -10,7 +10,7 @@ import {
   type IEvidenceProject,
   type IRunResult,
   type IWatchSession,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies a Markdown-only edit refreshes the graph under `ttsc check --watch`,

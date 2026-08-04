@@ -1,4 +1,4 @@
-import type { EvidenceBenchmarkArm } from "../../../../benchmark/src/typings/EvidenceBenchmarkArm.ts";
+import type { EvidenceBenchmarkArm } from "../../../../benchmark/src/typings/EvidenceBenchmarkArm";
 
 /** A prepared benchmark workspace, standing on disk exactly as a launch left it. */
 export interface IBenchmarkWorkspace {

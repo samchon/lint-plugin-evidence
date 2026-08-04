@@ -2,8 +2,8 @@ import {
   readEmptyPopulationReports,
   readMissingAcknowledgements,
   type IMissingAcknowledgement,
-} from "./evidenceDiagnostics.ts";
-import type { IRunResult } from "./IRunResult.ts";
+} from "./evidenceDiagnostics";
+import type { IRunResult } from "./IRunResult";
 
 /**
  * Asserts that removing one claim's activation marker actually turned it on.

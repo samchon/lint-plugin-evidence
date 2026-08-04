@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { EvidenceBenchmarkStageLog } from "./EvidenceBenchmarkStageLog.ts";
-import type { IEvidenceBenchmarkGoalRecord } from "./structures/IEvidenceBenchmarkGoalRecord.ts";
-import type { IEvidenceBenchmarkTokenUsage } from "./structures/IEvidenceBenchmarkTokenUsage.ts";
-import type { EvidenceBenchmarkEffort } from "./typings/EvidenceBenchmarkEffort.ts";
+import { EvidenceBenchmarkStageLog } from "./EvidenceBenchmarkStageLog";
+import type { IEvidenceBenchmarkGoalRecord } from "./structures/IEvidenceBenchmarkGoalRecord";
+import type { IEvidenceBenchmarkTokenUsage } from "./structures/IEvidenceBenchmarkTokenUsage";
+import type { EvidenceBenchmarkEffort } from "./typings/EvidenceBenchmarkEffort";
 
 /**
  * Composes and retains one review inspection performed outside the cell.

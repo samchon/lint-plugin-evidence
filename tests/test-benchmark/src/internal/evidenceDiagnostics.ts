@@ -1,4 +1,4 @@
-import type { IRunResult } from "./IRunResult.ts";
+import type { IRunResult } from "./IRunResult";
 
 /** One obligation `evidence/graph` reported as unacknowledged. */
 export interface IMissingAcknowledgement {

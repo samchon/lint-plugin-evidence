@@ -6,7 +6,7 @@ import {
   runCheck,
   type IEvidenceProject,
   type IRunResult,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies TypeScript, Markdown, and Prisma claims activate only after their

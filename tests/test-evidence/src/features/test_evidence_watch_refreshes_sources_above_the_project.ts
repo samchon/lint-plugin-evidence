@@ -10,7 +10,7 @@ import {
   type IEvidenceProject,
   type IRunResult,
   type IWatchSession,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 const CONTRACT = (operationPath: string): string =>
   `${JSON.stringify(

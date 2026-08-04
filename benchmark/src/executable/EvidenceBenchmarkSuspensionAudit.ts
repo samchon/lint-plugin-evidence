@@ -1,9 +1,9 @@
 import path from "node:path";
 
-import { auditWindowsEvidenceBenchmarkSuspensions } from "../EvidenceBenchmarkSuspensionAudit.ts";
-import type { IEvidenceBenchmarkSuspensionAuditResult } from "../EvidenceBenchmarkSuspensionAudit.ts";
+import { auditWindowsEvidenceBenchmarkSuspensions } from "../EvidenceBenchmarkSuspensionAudit";
+import type { IEvidenceBenchmarkSuspensionAuditResult } from "../EvidenceBenchmarkSuspensionAudit";
 
-const repository: string = path.resolve(import.meta.dirname, "../../..");
+const repository: string = path.resolve(__dirname, "../../..");
 const args: string[] = process.argv.slice(2);
 const runIds: string[] = [];
 for (let index: number = 0; index < args.length; ++index) {

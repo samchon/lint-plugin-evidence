@@ -1,7 +1,7 @@
 import path from "node:path";
 
-import { EvidenceBenchmarkCheckpoint } from "../EvidenceBenchmarkCheckpoint.ts";
-import { EvidenceBenchmarkSupervision } from "../EvidenceBenchmarkSupervision.ts";
+import { EvidenceBenchmarkCheckpoint } from "../EvidenceBenchmarkCheckpoint";
+import { EvidenceBenchmarkSupervision } from "../EvidenceBenchmarkSupervision";
 
 const main = (): void => {
   const [subject, runId, verdictFile] = process.argv.slice(2);
@@ -16,7 +16,7 @@ const main = (): void => {
     process.argv.length !== 5
   )
     throw new Error("Usage: pnpm supervise <subject> <run-id> <verdict.json>");
-  const repository: string = path.resolve(import.meta.dirname, "../../..");
+  const repository: string = path.resolve(__dirname, "../../..");
   const verdict = EvidenceBenchmarkSupervision.decide({
     runRoot: path.join(
       repository,

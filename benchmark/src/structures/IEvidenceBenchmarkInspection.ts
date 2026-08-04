@@ -1,5 +1,5 @@
-import type { IEvidenceBenchmarkTokenUsage } from "./IEvidenceBenchmarkTokenUsage.ts";
-import type { EvidenceBenchmarkEffort } from "../typings/EvidenceBenchmarkEffort.ts";
+import type { IEvidenceBenchmarkTokenUsage } from "./IEvidenceBenchmarkTokenUsage";
+import type { EvidenceBenchmarkEffort } from "../typings/EvidenceBenchmarkEffort";
 
 /**
  * Cost and provenance of one runner-owned review inspection.

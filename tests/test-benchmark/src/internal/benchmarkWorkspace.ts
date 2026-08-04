@@ -3,11 +3,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { EvidenceBenchmarkWorkspace } from "../../../../benchmark/src/EvidenceBenchmarkWorkspace.ts";
-import type { EvidenceBenchmarkArm } from "../../../../benchmark/src/typings/EvidenceBenchmarkArm.ts";
-import type { IBenchmarkWorkspace } from "./IBenchmarkWorkspace.ts";
-import { packEvidenceArchive } from "./packEvidenceArchive.ts";
-import { repositoryRoot } from "./suiteRoot.ts";
+import { EvidenceBenchmarkWorkspace } from "../../../../benchmark/src/EvidenceBenchmarkWorkspace";
+import type { EvidenceBenchmarkArm } from "../../../../benchmark/src/typings/EvidenceBenchmarkArm";
+import type { IBenchmarkWorkspace } from "./IBenchmarkWorkspace";
+import { packEvidenceArchive } from "./packEvidenceArchive";
+import { repositoryRoot } from "./suiteRoot";
 
 /**
  * The requirements directory every case measures against.

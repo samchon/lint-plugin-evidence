@@ -6,11 +6,11 @@ import path from "node:path";
 import typia from "typia";
 import YAML from "yaml";
 
-import type { IEvidenceBenchmarkWorkspaceArtifact } from "./structures/IEvidenceBenchmarkWorkspaceArtifact.ts";
-import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
-import type { IEvidenceBenchmarkWorkspaceRequest } from "./structures/IEvidenceBenchmarkWorkspaceRequest.ts";
-import type { IEvidenceBenchmarkWorkspaceResult } from "./structures/IEvidenceBenchmarkWorkspaceResult.ts";
-import type { IEvidenceBenchmarkWorkspaceVariables } from "./structures/IEvidenceBenchmarkWorkspaceVariables.ts";
+import type { IEvidenceBenchmarkWorkspaceArtifact } from "./structures/IEvidenceBenchmarkWorkspaceArtifact";
+import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime";
+import type { IEvidenceBenchmarkWorkspaceRequest } from "./structures/IEvidenceBenchmarkWorkspaceRequest";
+import type { IEvidenceBenchmarkWorkspaceResult } from "./structures/IEvidenceBenchmarkWorkspaceResult";
+import type { IEvidenceBenchmarkWorkspaceVariables } from "./structures/IEvidenceBenchmarkWorkspaceVariables";
 
 /**
  * Materializes one immutable benchmark workspace before native model work.

@@ -5,10 +5,10 @@ import path from "node:path";
 
 import typia from "typia";
 
-import type { IEvidenceBenchmarkCheckpointStorage } from "./structures/IEvidenceBenchmarkCheckpointStorage.ts";
-import type { IEvidenceBenchmarkInputIdentity } from "./structures/IEvidenceBenchmarkInputIdentity.ts";
-import type { IEvidenceBenchmarkWorkspaceIdentity } from "./structures/IEvidenceBenchmarkWorkspaceIdentity.ts";
-import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm.ts";
+import type { IEvidenceBenchmarkCheckpointStorage } from "./structures/IEvidenceBenchmarkCheckpointStorage";
+import type { IEvidenceBenchmarkInputIdentity } from "./structures/IEvidenceBenchmarkInputIdentity";
+import type { IEvidenceBenchmarkWorkspaceIdentity } from "./structures/IEvidenceBenchmarkWorkspaceIdentity";
+import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm";
 
 interface IWorkspaceSnapshotManifest {
   schemaVersion: 1;

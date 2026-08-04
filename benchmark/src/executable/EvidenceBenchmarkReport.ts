@@ -1,9 +1,9 @@
 import path from "node:path";
 
-import { writeEvidenceBenchmarkReport } from "../EvidenceBenchmarkReport.ts";
-import type { IEvidenceBenchmarkReport } from "../structures/IEvidenceBenchmarkReport.ts";
+import { writeEvidenceBenchmarkReport } from "../EvidenceBenchmarkReport";
+import type { IEvidenceBenchmarkReport } from "../structures/IEvidenceBenchmarkReport";
 
-const repository: string = path.resolve(import.meta.dirname, "../../..");
+const repository: string = path.resolve(__dirname, "../../..");
 const args: string[] = process.argv.slice(2);
 let output: string = path.join(repository, "benchmark", "aggregate");
 const runIds: string[] = [];

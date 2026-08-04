@@ -3,34 +3,32 @@ import path from "node:path";
 
 import {
   readActivationGates,
-  readClaimNames,
   removeActivationGate,
-} from "../internal/activationGates.ts";
-import { acquireBenchmarkWorkspace } from "../internal/benchmarkWorkspace.ts";
-import { discoverClaimConfigurations } from "../internal/claimConfigurations.ts";
+} from "../internal/activationGates";
+import { acquireBenchmarkWorkspace } from "../internal/benchmarkWorkspace";
+import { discoverClaimConfigurations } from "../internal/claimConfigurations";
 import {
   readMissingAcknowledgements,
   type IMissingAcknowledgement,
-} from "../internal/evidenceDiagnostics.ts";
-import type { IBenchmarkWorkspace } from "../internal/IBenchmarkWorkspace.ts";
-import type { IRunResult } from "../internal/IRunResult.ts";
-import { provisionEnvironment } from "../internal/provisionEnvironment.ts";
-import { runScript } from "../internal/runScript.ts";
-import { sdkAccessorAddresses } from "../internal/sdkAccessorAddresses.ts";
-import { stripCitations } from "../internal/stripCitations.ts";
-import { materializeClaimLayer } from "../internal/workspaceLayer.ts";
+} from "../internal/evidenceDiagnostics";
+import type { IBenchmarkWorkspace } from "../internal/IBenchmarkWorkspace";
+import type { IRunResult } from "../internal/IRunResult";
+import { provisionEnvironment } from "../internal/provisionEnvironment";
+import { runScript } from "../internal/runScript";
+import { sdkAccessorAddresses } from "../internal/sdkAccessorAddresses";
+import { stripCitations } from "../internal/stripCitations";
+import { materializeClaimLayer } from "../internal/workspaceLayer";
 
 /**
- * Verifies the backend test Program inherits the package claims and that its
- * own operation claim enumerates the SDK through the workspace link.
+ * Verifies every backend claim owes its units in the Program that compiles it,
+ * and that its operation claim enumerates the SDK through the workspace link.
  *
- * The backend compiles as two Programs, and a claim populates only from the
- * Program that owns its hosts. `packages/backend/lint.config.ts` therefore
- * exports its graph with absolute roots and `test/lint.config.ts` spreads those
- * claims and adds `backend-tests`; if the spread carried nothing, or the
- * absolute roots stopped selecting in the nested Program, the package
- * obligations would vanish from the test build without a single diagnostic
- * changing.
+ * A claim populates only from the Program that owns its hosts, so a claim is
+ * proved by the gate that builds that Program and by no other. Which
+ * configuration declares which claim is a template decision that has already
+ * moved once, so the case discovers the configurations and asks each one's own
+ * gate; naming them would keep it passing after the next move while covering
+ * less than it did before.
  *
  * The operation reference is the sharper edge. It selects the generated
  * accessor surface out of an installed `package`, and a workspace dependency is
@@ -94,8 +92,14 @@ export const test_benchmark_evidence_test_program_carries_the_package_claims =
           runScript({ cwd: backend, script: configuration.script }),
         );
 
-    const testProgram: IRunResult =
-      results.get("build:test") ?? [...results.values()][0]!;
+    // No fallback. The operation surface belongs to the Program that compiles
+    // the e2e suite, and asserting it against whichever gate happened to run
+    // would pass while proving nothing about the claim that owns it.
+    const testProgram: IRunResult | undefined = results.get("build:test");
+    if (testProgram === undefined)
+      throw new Error(
+        `No discovered backend configuration is proved by 'build:test', so the operation surface has no Program to be enumerated in. Either the e2e claim moved, or this suite is no longer finding it.`,
+      );
     const testClaims: string[] = configurations.flatMap(
       (configuration) => configuration.claims,
     );

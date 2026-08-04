@@ -3,7 +3,6 @@
   "name": "test-benchmark",
   "version": "0.5.0",
   "description": "End-to-end feature tests for the benchmark template, standing the real workspace up and running its own gates.",
-  "type": "module",
   "scripts": {
     "check": "tsc --noEmit -p tsconfig.json",
     "start": "ttsx --project tsconfig.json src/index.ts"

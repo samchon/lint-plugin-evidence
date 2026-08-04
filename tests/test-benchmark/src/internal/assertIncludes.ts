@@ -1,4 +1,4 @@
-import type { IRunResult } from "./IRunResult.ts";
+import type { IRunResult } from "./IRunResult";
 
 /** Fails with a message that shows what the workspace command actually said. */
 export const assertIncludes = (

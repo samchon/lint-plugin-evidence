@@ -1,8 +1,8 @@
-import type { IEvidenceBenchmarkCheckpointStorage } from "./IEvidenceBenchmarkCheckpointStorage.ts";
-import type { IEvidenceBenchmarkGoalRecord } from "./IEvidenceBenchmarkGoalRecord.ts";
-import type { IEvidenceBenchmarkOutput } from "./IEvidenceBenchmarkOutput.ts";
-import type { IEvidenceBenchmarkRunState } from "./IEvidenceBenchmarkRunState.ts";
-import type { EvidenceBenchmarkEffort } from "../typings/EvidenceBenchmarkEffort.ts";
+import type { IEvidenceBenchmarkCheckpointStorage } from "./IEvidenceBenchmarkCheckpointStorage";
+import type { IEvidenceBenchmarkGoalRecord } from "./IEvidenceBenchmarkGoalRecord";
+import type { IEvidenceBenchmarkOutput } from "./IEvidenceBenchmarkOutput";
+import type { IEvidenceBenchmarkRunState } from "./IEvidenceBenchmarkRunState";
+import type { EvidenceBenchmarkEffort } from "../typings/EvidenceBenchmarkEffort";
 
 /**
  * Inputs and append-only observers for a Codex benchmark execution.

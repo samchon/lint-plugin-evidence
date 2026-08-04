@@ -27,6 +27,7 @@ type typeScriptLoader struct {
 	parsed   map[string]*artifactInventory
 	resolved map[string]string
 	failures map[string]string
+	installs map[string]installedPackageLocation
 }
 
 func newTypeScriptLoader(
@@ -39,6 +40,7 @@ func newTypeScriptLoader(
 		parsed:   map[string]*artifactInventory{},
 		resolved: map[string]string{},
 		failures: map[string]string{},
+		installs: map[string]installedPackageLocation{},
 	}
 	for _, inventory := range program {
 		if inventory == nil || inventory.Path == "" {
@@ -276,6 +278,28 @@ func (loader *typeScriptLoader) packageEntryModule(name string) string {
 func (loader *typeScriptLoader) installedPackage(
 	name string,
 ) (string, map[string]json.RawMessage) {
+	if cached, exists := loader.installs[name]; exists {
+		return cached.Directory, cached.Manifest
+	}
+	directory, manifest := loader.locateInstalledPackage(name)
+	loader.installs[name] = installedPackageLocation{
+		Directory: directory,
+		Manifest:  manifest,
+	}
+	return directory, manifest
+}
+
+// installedPackageLocation caches one upward search. The walk costs a read per
+// level, and both the glob base and the entry ask for the same package on every
+// rebuild.
+type installedPackageLocation struct {
+	Directory string
+	Manifest  map[string]json.RawMessage
+}
+
+func (loader *typeScriptLoader) locateInstalledPackage(
+	name string,
+) (string, map[string]json.RawMessage) {
 	prefix := ""
 	for range 32 {
 		directory := path.Join(prefix, "node_modules", name)
@@ -381,7 +405,6 @@ func (loader *typeScriptLoader) walk(base string) ([]string, string) {
 	return found, problem
 }
 
-// referenceBase is the directory a reference's entry and globs resolve against.
 // referenceBase gives the directory a package reference enumerates.
 //
 // It asks the loader rather than assuming `node_modules` sits beside the

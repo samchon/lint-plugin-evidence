@@ -5,7 +5,7 @@ import {
   runCheck,
   type IEvidenceProject,
   type IRunResult,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies a rooted TypeScript claim with no selected Program host is inactive.

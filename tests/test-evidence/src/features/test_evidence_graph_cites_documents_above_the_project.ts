@@ -4,7 +4,7 @@ import {
   runCheck,
   type IEvidenceProject,
   type IRunResult,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies a Markdown population declared above the ttsc project resolves, and

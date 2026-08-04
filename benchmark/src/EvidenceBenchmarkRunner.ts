@@ -4,23 +4,23 @@ import path from "node:path";
 
 import typia from "typia";
 
-import { EvidenceBenchmarkInspection } from "./EvidenceBenchmarkInspection.ts";
-import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction.ts";
-import { EvidenceBenchmarkReviewLedger } from "./EvidenceBenchmarkReviewLedger.ts";
-import { EvidenceBenchmarkSupervision } from "./EvidenceBenchmarkSupervision.ts";
-import type { IEvidenceBenchmarkCheckpointStorage } from "./structures/IEvidenceBenchmarkCheckpointStorage.ts";
-import type { IEvidenceBenchmarkExecutable } from "./structures/IEvidenceBenchmarkExecutable.ts";
-import type { IEvidenceBenchmarkGoalRecord } from "./structures/IEvidenceBenchmarkGoalRecord.ts";
-import type { IEvidenceBenchmarkInspection } from "./structures/IEvidenceBenchmarkInspection.ts";
-import type { IEvidenceBenchmarkInterruption } from "./structures/IEvidenceBenchmarkInterruption.ts";
-import type { IEvidenceBenchmarkInstructionPlanEntry } from "./structures/IEvidenceBenchmarkInstructionPlanEntry.ts";
-import type { IEvidenceBenchmarkOutput } from "./structures/IEvidenceBenchmarkOutput.ts";
-import type { IEvidenceBenchmarkProcessRecord } from "./structures/IEvidenceBenchmarkProcessRecord.ts";
-import type { IEvidenceBenchmarkRunProps } from "./structures/IEvidenceBenchmarkRunProps.ts";
-import type { IEvidenceBenchmarkRunState } from "./structures/IEvidenceBenchmarkRunState.ts";
-import type { IEvidenceBenchmarkTokenUsage } from "./structures/IEvidenceBenchmarkTokenUsage.ts";
-import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm.ts";
-import type { EvidenceBenchmarkReviewScope } from "./typings/EvidenceBenchmarkReviewScope.ts";
+import { EvidenceBenchmarkInspection } from "./EvidenceBenchmarkInspection";
+import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction";
+import { EvidenceBenchmarkReviewLedger } from "./EvidenceBenchmarkReviewLedger";
+import { EvidenceBenchmarkSupervision } from "./EvidenceBenchmarkSupervision";
+import type { IEvidenceBenchmarkCheckpointStorage } from "./structures/IEvidenceBenchmarkCheckpointStorage";
+import type { IEvidenceBenchmarkExecutable } from "./structures/IEvidenceBenchmarkExecutable";
+import type { IEvidenceBenchmarkGoalRecord } from "./structures/IEvidenceBenchmarkGoalRecord";
+import type { IEvidenceBenchmarkInspection } from "./structures/IEvidenceBenchmarkInspection";
+import type { IEvidenceBenchmarkInterruption } from "./structures/IEvidenceBenchmarkInterruption";
+import type { IEvidenceBenchmarkInstructionPlanEntry } from "./structures/IEvidenceBenchmarkInstructionPlanEntry";
+import type { IEvidenceBenchmarkOutput } from "./structures/IEvidenceBenchmarkOutput";
+import type { IEvidenceBenchmarkProcessRecord } from "./structures/IEvidenceBenchmarkProcessRecord";
+import type { IEvidenceBenchmarkRunProps } from "./structures/IEvidenceBenchmarkRunProps";
+import type { IEvidenceBenchmarkRunState } from "./structures/IEvidenceBenchmarkRunState";
+import type { IEvidenceBenchmarkTokenUsage } from "./structures/IEvidenceBenchmarkTokenUsage";
+import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm";
+import type { EvidenceBenchmarkReviewScope } from "./typings/EvidenceBenchmarkReviewScope";
 
 /**
  * Executes the retained Codex Goal sequence for one benchmark cell.
@@ -2256,7 +2256,7 @@ export namespace EvidenceBenchmarkRunner {
       process.execPath,
       [
         path.join(
-          import.meta.dirname,
+          __dirname,
           "executable",
           "EvidenceBenchmarkProcessMonitor.mjs",
         ),

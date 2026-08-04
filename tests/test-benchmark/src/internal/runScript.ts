@@ -1,7 +1,7 @@
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 
-import type { IRunResult } from "./IRunResult.ts";
-import { pluginCacheDirectory } from "./pluginCacheDirectory.ts";
+import type { IRunResult } from "./IRunResult";
+import { pluginCacheDirectory } from "./pluginCacheDirectory";
 
 /**
  * Generous because the FIRST lint of a cache key statically links this plugin's
