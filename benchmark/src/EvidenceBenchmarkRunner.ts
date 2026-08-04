@@ -1694,11 +1694,10 @@ export namespace EvidenceBenchmarkRunner {
           verdict.action !== "quality-failed" &&
           (verdict.decision !== "fail" ||
             verdict.action !== "retry" ||
-            verdict.feedback !== undefined ||
             next?.kind !== "review-supplement" ||
             next.reviewScope !== pause.scope ||
             next.reviewAttempt !== pause.attempt + 1 ||
-            next.reviewFeedback !== undefined)) ||
+            next.reviewFeedback !== verdict.feedback)) ||
         (pendingResume
           ? pause.resumedAt !== undefined || verdict.action === "quality-failed"
           : verdict.action === "quality-failed"
