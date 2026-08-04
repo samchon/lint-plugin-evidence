@@ -185,11 +185,14 @@ export namespace EvidenceBenchmarkSupervision {
     const feedback: string | undefined = submitted.feedback?.trim();
     if (rationale.length === 0)
       throw new Error("Review verdict rationale cannot be empty.");
-    if (submitted.decision === "pass" && feedback !== undefined)
-      throw new Error("A passing review verdict cannot inject feedback.");
-    if (submitted.decision === "fail" && !feedback)
-      throw new Error("A failing review verdict requires concrete feedback.");
-    if (feedback !== undefined) assertMeasuredBoundary(feedback);
+    // A verdict decides, it does not review. Naming the defect it found would
+    // hand the cell the product of the work being measured: a review that then
+    // corrects what it was told about has demonstrated that it can act on a
+    // finding, not that it can reach one. Every failed scope therefore receives
+    // the same prescribed reminder, and the operator's reasoning stays in the
+    // retained rationale, which the cell never sees.
+    if (feedback !== undefined)
+      throw new Error("A review verdict cannot inject text into the cell.");
 
     const action: IEvidenceBenchmarkSupervisionVerdict["action"] =
       submitted.decision === "pass"
@@ -205,7 +208,7 @@ export namespace EvidenceBenchmarkSupervision {
         kind: "review-supplement" as const,
         reviewScope: pause.scope,
         reviewAttempt: attempt,
-        reviewFeedback: feedback!,
+
       };
       EvidenceBenchmarkInstruction.objective({
         arm: "plain",
@@ -290,19 +293,24 @@ export namespace EvidenceBenchmarkSupervision {
           next.name !== `${pause.scope}-final`)) ||
       (verdict.action === "retry" &&
         (verdict.decision !== "fail" ||
-          verdict.feedback === undefined ||
+          verdict.feedback !== undefined ||
           next?.kind !== "review-supplement" ||
           next.reviewScope !== pause.scope ||
           next.reviewAttempt !== pause.attempt + 1 ||
-          next.reviewFeedback !== verdict.feedback))
+          next.reviewFeedback !== undefined))
     )
       throw new Error(
         "Review verdict does not match its retained continuation.",
       );
-    const current: IEvidenceBenchmarkWorkspaceIdentity =
-      EvidenceBenchmarkCheckpoint.identifyWorkspace(props.workspace);
-    if (!sameWorkspace(current, verdict.workspace))
-      throw new Error("Workspace changed after its review verdict.");
+    // The workspace is not still while a verdict is pending, and it is not
+    // supposed to be: every arm keeps `pnpm check:watch` running through the
+    // last objective, and the frontend scopes keep dev servers up too. Those
+    // processes write on their own, so re-hashing the tree at resume and
+    // refusing on a difference locks the cell out of the continuation the
+    // verdict just granted — the longer the operator spends judging, the more
+    // certain the refusal. The verdict concerns the review that already ran
+    // against the retained workspace, and its digest is recorded on the
+    // verdict, which is the audit trail.
   }
 
   /** Proves every previously submitted verdict file remains immutable. */

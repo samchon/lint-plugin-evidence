@@ -99,7 +99,11 @@ Write one strict JSON verdict outside the measured workspace:
 }
 ```
 
-Use `pass` with a non-empty `rationale` and no `feedback`, or `fail` with both a non-empty `rationale` and concrete corrective `feedback`. Feedback is measured instruction text: state only verified product-review gaps, and never disclose the benchmark operator, verdict machinery, retries, another arm, or the plugin. Apply it with `pnpm --filter @samchon/evidence-benchmark supervise <subject> <run-id> <verdict.json>`, then resume the same run command. The runner retains the exact submitted verdict digest, workspace digest, Goal index, terminal turn, decision, injected feedback, attempt, transition, and resume history.
+A verdict carries `decision` and `rationale` and nothing else. It decides; it does not review. Naming the defect it found would hand the cell the product of the work being measured — a review that then corrects what it was told about has shown it can act on a finding, not that it can reach one — and it would make one cell's reminder differ from another's, so their attempt counts stop being comparable. Every failed scope receives the same prescribed `remind.md` with its Review quoted, and the rationale stays in the retained record the cell never sees.
+
+Judge the review, not the product. A verdict answers whether the review performed the loop its instruction prescribes and stopped only where that instruction allows. Where a product defect matters is as evidence that it did not: an obligation the review reported as met while the workspace shows otherwise. Record that evidence in the rationale.
+
+An operator warning is the separate channel, and it carries only what no agent can derive from inside its workspace: an authorization, or a frozen boundary it has crossed. It never carries a finding. Apply it with `pnpm --filter @samchon/evidence-benchmark supervise <subject> <run-id> <verdict.json>`, then resume the same run command. The runner retains the exact submitted verdict digest, workspace digest, Goal index, terminal turn, decision, injected feedback, attempt, transition, and resume history.
 
 Final is a finishing and safety stage after a passed Review, not permission to accept a false Review pass. It may correct a small residual defect it independently notices, but the verdict must be based on the Review boundary itself.
 
