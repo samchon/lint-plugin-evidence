@@ -16,7 +16,7 @@ The retained status is `awaiting-review-verdict`, and the cell cannot continue u
 
 At the boundary the runner spawns a fresh Codex thread on the cell's own model and effort. It reads the attempt's stage log and the measured workspace, returns a decision, and the cell continues in the same command.
 
-The inspection costs what a model run costs, and its tokens and time join the cell's `Cost` and `Work time`; [reporting.md](dashboard.md) owns how that appears. Every attempt is retained under `inspection/<NN>-<stage>-<attempt>.*`, so a retry never overwrites the evidence of the attempt before it.
+The inspection costs what a model run costs, and its tokens and time join the cell's `Cost` and `Work time`; [dashboard.md](dashboard.md) owns how that appears. Every attempt is retained under `inspection/<NN>-<stage>-<attempt>.*`, so a retry never overwrites the evidence of the attempt before it.
 
 ## Keep The Inspector Outside The Cell
 
