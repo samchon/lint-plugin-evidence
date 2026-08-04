@@ -208,11 +208,11 @@ export namespace EvidenceBenchmarkWorkspace {
    * `lint.config.ts` under a different loader.
    *
    * The template therefore carries `{{version:<package>}}` where a governed
-   * version would go, and this substitutes each one from
-   * `pnpm-workspace.yaml`. Keeping the token instead of a literal is what stops
-   * the template from stating a version it does not decide, and text
-   * substitution preserves the YAML anchors, so a package bound to `*ttsc`
-   * follows without needing its own catalog entry.
+   * version would go, and this substitutes each one from `pnpm-workspace.yaml`.
+   * Keeping the token instead of a literal is what stops the template from
+   * stating a version it does not decide, and text substitution preserves the
+   * YAML anchors, so a package bound to `*ttsc` follows without needing its own
+   * catalog entry.
    *
    * An unknown token throws. A version the template asks for and the repository
    * does not declare is a broken binding, and resolving it to whatever pnpm

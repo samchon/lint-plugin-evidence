@@ -33,7 +33,7 @@ export default {
           {
             name: "schema-models",
             type: "prisma",
-            root: ".",
+            root: "..",
             files: [
               "prisma/schema/**/*.prisma",
               "prisma/schema/exclude.schema",
@@ -41,7 +41,7 @@ export default {
             symbol: "model",
             reference: {
               type: "markdown",
-              root: "../..",
+              root: "../../..",
               files: ["docs/analysis/**/*.md"],
               symbol: ["h2", "h3"],
             },
@@ -52,19 +52,19 @@ export default {
           {
             name: "api-operations",
             type: "typescript",
-            root: ".",
+            root: "..",
             files: ["src/controllers/**/*.ts"],
             symbol: "function",
             reference: [
               {
                 type: "markdown",
-                root: "../..",
+                root: "../../..",
                 files: ["docs/analysis/**/*.md"],
                 symbol: ["h2", "h3"],
               },
               {
                 type: "prisma",
-                root: ".",
+                root: "..",
                 files: ["prisma/schema/**/*.prisma"],
                 symbol: ["model"],
               },
@@ -81,13 +81,13 @@ export default {
           {
             name: "backend-tests",
             type: "typescript",
-            root: "test",
+            root: ".",
             files: ["features/**/*.ts"],
             symbol: "function",
             reference: [
               {
                 type: "markdown",
-                root: "../..",
+                root: "../../..",
                 files: ["docs/analysis/**/*.md"],
                 symbol: ["h2", "h3"],
               },
