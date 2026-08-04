@@ -74,6 +74,12 @@ There is no small-fix exception. Any scoped change caused by a compiler, generat
 
 The review Goal is complete only after one dry round and unchanged clean gates.
 
+## Mutation Calibration
+
+A round that finds nothing is a clean candidate, not a dry round. Before the round that may qualify as dry, prove the suite can still fail: temporarily remove one material behavior, run its test and require failure, restore the behavior exactly, then require success.
+
+That calibration is itself a scoped change, so it invalidates the round it ran in. Calibrate, then perform a fresh full round, and only that round may qualify as dry.
+
 ## No Discretionary Stop
 
 Never stop because:

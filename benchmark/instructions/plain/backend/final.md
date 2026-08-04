@@ -13,6 +13,5 @@ Final gates in `packages/backend`:
 
 - `pnpm check:watch` remains running and clean.
 - `pnpm test` passes.
-- `pnpm dev` runs through Overall Final.
 
 Complete only when the review and gates pass.

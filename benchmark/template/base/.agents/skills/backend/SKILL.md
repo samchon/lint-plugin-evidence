@@ -76,7 +76,7 @@ The backend compiler process is:
 pnpm check:watch
 ```
 
-The package compiles as two Programs. `tsconfig.json` covers `src/`, and `test/tsconfig.json` covers the tests together with that source; the watcher runs the test Program, so it sees both. Authored API DTOs belong to the API package and are checked by its own build. The watcher automatically reloads its lint configuration and reports type, lint, and contributor diagnostics. The current arm's instruction owns when the watcher starts and stops. The benchmark arms intentionally use different lifecycles; never infer one arm's lifecycle from another. A compiler check is clean only after the latest change rebuilds without a diagnostic.
+The package compiles as two Programs. `tsconfig.json` covers `src/`, and `test/tsconfig.json` covers the tests together with that source; the watcher runs the test Program, so it sees both. Authored API DTOs belong to the API package and are checked by its own build. The watcher automatically reloads its lint configuration and reports type, lint, and contributor diagnostics. Your current objective owns when the watcher starts and stops; follow it exactly rather than a lifecycle you infer from elsewhere. A compiler check is clean only after the latest change rebuilds without a diagnostic.
 
 The provided `tsconfig.json` and lint configuration files are frozen, in the package and in `test/` alike. Do not add, delete, or edit one, and do not toggle claim configuration by phase except where the Evidence skill prescribes deleting a predeclared activation marker.
 
@@ -105,7 +105,7 @@ Start it before live frontend integration and keep it running through Overall Fi
 | Schema model, field, relation, or comment | Settle the schema, then `pnpm build:prisma` and `pnpm schema` |
 | Complete DTO and controller contract | Settle the complete contract, then `pnpm build:sdk` once |
 | Provider or test only | Do not regenerate |
-| Complete backend change | Require a clean watcher rebuild under the current arm's prescribed lifecycle |
+| Complete backend change | Require a clean watcher rebuild under the lifecycle your objective prescribes |
 
 Run mutating generators and runtime tests one at a time. Do not start a second backend watcher.
 

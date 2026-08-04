@@ -1,6 +1,6 @@
 # Design
 
-Design serves the product's work. Most benchmark subjects are operational interfaces, so prefer clear hierarchy, dense readable information, restrained motion, and predictable controls over landing-page spectacle.
+Design serves the product's work. Most subjects here are operational interfaces, so prefer clear hierarchy, dense readable information, restrained motion, and predictable controls over landing-page spectacle.
 
 ## Set The Dials
 

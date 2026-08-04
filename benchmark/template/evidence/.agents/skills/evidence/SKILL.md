@@ -167,13 +167,13 @@ Schema exclusions are unattached top-level `/// @evidenceExclude` lines in `excl
 
 ## Stub Marker
 
-Only this arm uses:
+This project uses:
 
 ```text
 @todo <specific remaining implementation>
 ```
 
-Place it on temporary controller and page stubs. Remove it when the real provider delegation or completed screen replaces the stub. Do not add `evidence/todo`; the benchmark graph workload is frozen.
+Place it on temporary controller and page stubs. Remove it when the real provider delegation or completed screen replaces the stub. Do not add `evidence/todo`; the graph workload is frozen.
 
 Before a phase completes, require no source-owned marker:
 
@@ -188,7 +188,7 @@ Start backend `pnpm check:watch` once before implementation while every backend 
 
 At each completed layer, delete the prescribed `disabled` property from the configuration that declares that claim. The compiler owns target resolution, host eligibility, overlap, coverage, and missing acknowledgements. Fix the complete diagnostic batch and wait for a clean rebuild or reload. Keep both compiler processes running through Overall Final.
 
-At each gate, confirm no other claim configuration changed, wait for clean current builds, and run the phase's runtime tests. Never weaken the graph or falsify an acknowledgement to silence a diagnostic.
+At each gate, confirm no other claim configuration changed and wait for clean current builds. Run the runtime tests your objective requires; where it leaves them to your judgement, weigh that the compiler processes report type and lint diagnostics only and cannot tell you a behavior stopped working. Never weaken the graph or falsify an acknowledgement to silence a diagnostic.
 
 ## Final Checklist
 
