@@ -64,8 +64,9 @@ export const test_benchmark_evidence_test_program_carries_the_package_claims =
     // Discovered, never named. Which Program declares which claim is a
     // template decision that moves, and a case that spelled the files would
     // keep passing after such a move while covering fewer claims than before.
-    const configurations = discoverClaimConfigurations(workspace.workspace)
-      .filter((configuration) => configuration.packageDirectory === backend);
+    const configurations = discoverClaimConfigurations(
+      workspace.workspace,
+    ).filter((configuration) => configuration.packageDirectory === backend);
     if (configurations.length === 0)
       throw new Error(
         `No lint configuration under ${backend} declares a claim. Either the arm no longer stages a backend graph, or this suite is no longer finding it.`,
@@ -93,7 +94,8 @@ export const test_benchmark_evidence_test_program_carries_the_package_claims =
           runScript({ cwd: backend, script: configuration.script }),
         );
 
-    const testProgram: IRunResult = results.get("build:test") ?? [...results.values()][0]!;
+    const testProgram: IRunResult =
+      results.get("build:test") ?? [...results.values()][0]!;
     const testClaims: string[] = configurations.flatMap(
       (configuration) => configuration.claims,
     );
