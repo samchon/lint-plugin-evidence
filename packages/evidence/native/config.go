@@ -182,7 +182,7 @@ func decodeReference(
 		object,
 		[]string{
 			"type",
-			"noExclude",
+			"noEvidenceExclude",
 			"uniqueEvidence",
 			"singleEvidencePerSymbol",
 			"package",
@@ -303,7 +303,7 @@ func decodeReferencePolicy(
 			))
 		}
 	}
-	decodeFlag("noExclude", &policy.NoExclude)
+	decodeFlag("noEvidenceExclude", &policy.NoExclude)
 	decodeFlag("uniqueEvidence", &policy.UniqueEvidence)
 	decodeFlag("singleEvidencePerSymbol", &policy.SingleEvidencePerSymbol)
 	return policy, problems

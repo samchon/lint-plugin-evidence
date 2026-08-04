@@ -1,5 +1,5 @@
 import type { EvidenceGraphTypeScriptSymbol } from "../typings/EvidenceGraphTypeScriptSymbol";
-import type { IEvidenceGraphReference } from "./IEvidenceGraphReference";
+import type { IEvidenceGraphClaimBase } from "./IEvidenceGraphClaimBase";
 
 /**
  * A population of TypeScript declarations claiming its referenced evidence.
@@ -16,65 +16,7 @@ import type { IEvidenceGraphReference } from "./IEvidenceGraphReference";
  * supported public export in the matching {@link files}, without changing the
  * target scope this claim excludes.
  */
-export interface IEvidenceGraphTypeScriptClaim {
-  /** Identifies the claiming artifacts as TypeScript. */
-  type: "typescript";
-
-  /**
-   * Optional human-readable label shown with diagnostics for this claim. It
-   * does not identify evidence nodes or establish relationships between
-   * configuration entries.
-   */
-  name?: string;
-
-  /**
-   * Excludes this claim from graph loading and evaluation.
-   *
-   * The configuration shape is still validated, but this claim contributes no
-   * populations, references, coverage obligations, completion hints, or watched
-   * inputs. Omit this property or set it to `false` to enable the claim.
-   *
-   * @default false
-   */
-  disabled?: boolean;
-
-  /**
-   * Directory whose TypeScript population {@link files} select.
-   *
-   * Omit it to select from the active `ttsc` project root. A relative root
-   * resolves from that project root, so a monorepo package can select an
-   * explicitly included sibling with `../api`.
-   *
-   * This property does not add files to the TypeScript Program and never scans
-   * the directory. Only source files already supplied by `ttsc` can match, so
-   * the owning `tsconfig` must include the rooted population explicitly. File
-   * matching is relative to this root, symbol targets remain unchanged, and
-   * diagnostics retain a project-relative location.
-   */
-  root?: string;
-
-  /**
-   * Root-relative glob patterns for TypeScript files in the active `ttsc`
-   * Program that must cite the referenced evidence. A matching file outside the
-   * Program is not available to the rule and does not count as a match.
-   *
-   * These are globs, not regular expressions. `*` matches within one path
-   * segment, `**` crosses any number of path segments, and `?` matches one
-   * character. Both `/` and `\` are accepted as separators, while path identity
-   * remains case-sensitive on every operating system.
-   *
-   * Patterns are evaluated from left to right. A pattern prefixed with `!`
-   * removes its matches; a later positive pattern can include them again. The
-   * array must contain at least one positive pattern.
-   *
-   * For example, `src/**` selects the complete source subtree, while
-   * `scripts/check-?.ts` selects `check-a.ts` but not `check-ab.ts`.
-   *
-   * A bare directory such as `src` or `src/` does not include its children;
-   * write `src/**` when the whole subtree belongs to this claim.
-   */
-  files: string[];
-
+export interface IEvidenceGraphTypeScriptClaim extends IEvidenceGraphClaimBase<"typescript"> {
   /**
    * TypeScript symbol kind or kinds eligible to host this claim's ownership
    * evidence.
@@ -90,16 +32,4 @@ export interface IEvidenceGraphTypeScriptClaim {
    * @default ["type", "function", "property"]
    */
   symbol?: EvidenceGraphTypeScriptSymbol | EvidenceGraphTypeScriptSymbol[];
-
-  /**
-   * One evidence population or independently complete evidence populations that
-   * this claim must cite.
-   *
-   * A single reference requires this claim's files to acknowledge every
-   * evidence unit it materializes. An array creates a separate 100% obligation
-   * for every element: acknowledgements toward one reference never count toward
-   * another, and partially covered references cannot be pooled. The array must
-   * not be empty.
-   */
-  reference: IEvidenceGraphReference | IEvidenceGraphReference[];
 }
