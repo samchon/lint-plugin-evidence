@@ -39,6 +39,8 @@ Those five columns, in that order, are the whole table. Do not add a run ID, a t
 - **Cost** — retained token usage rounded to the nearest million and written as an integer with `M`. A cell under half a million tokens therefore reads `0M`, which is a rounding artifact rather than a missing measurement.
 - **Work time** — retained work time rounded to whole minutes and written as `7m` or `1h 07m`, after verified suspensions are subtracted. Setup time and operator time stay separate from it, and it is the only duration the dashboard shows.
 
+Cost and Work time both include what judging the cell's Reviews cost, attributed to the stage each inspection judged. [review-verdicts.md](review-verdicts.md) owns why, and the retained `inspection` totals are what separate the judging share from the building share.
+
 Each stage bullet repeats that stage's own cost and work time, then its unrounded shares of the cell's totals rounded to whole percentages. A Plain cell's list also carries one line per retained review verdict, naming the scope, attempt, decision, resulting transition, and the submitted verdict's digest prefix.
 
 Derive an active stage only from the retained thread total and process elapsed time after subtracting the finalized stages.

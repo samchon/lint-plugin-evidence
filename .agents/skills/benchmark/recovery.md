@@ -4,7 +4,7 @@ Intervene immediately on an abnormal interruption or an explicit cancellation. N
 
 ## Diagnose Before Acting
 
-Preserve the run and identify the exact instruction, process result, native session, and failure from `state.json`, `events.jsonl`, and `raw.log`. When the resume conditions below match, resume the same run immediately after diagnosis and any required runner correction; do not wait for operator prose or the next reporting interval.
+Preserve the run and identify the exact instruction, process result, native session, and failure from `state.json`, `events.jsonl`, and the stage logs. Each objective owns one `<stage>.log` in the run root, so the failing instruction names the file to read, and a resumed run appends to the same file rather than starting a new one. When the resume conditions below match, resume the same run immediately after diagnosis and any required runner correction; do not wait for operator prose or the next reporting interval.
 
 Always read the launcher's own output after a resume. A refused launch says so there and nowhere else, which is how a cell that is merely unable to start comes to look dead.
 

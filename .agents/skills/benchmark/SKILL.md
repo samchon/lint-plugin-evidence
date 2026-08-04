@@ -12,7 +12,7 @@ The comparison is worth exactly as much as the guarantee that the two arms diffe
 ## Topics
 
 - **[Dashboard](dashboard.md)** — how the live dashboard is generated and its exact shape. Read before assigning the reporting subagent, and before every refresh.
-- **[Plain Review Verdicts](review-verdicts.md)** — what a verdict judges, how it is written and applied, and what each decision does. Read when a Plain cell reaches `awaiting-review-verdict`.
+- **[Plain Review Verdicts](review-verdicts.md)** — what a verdict judges, how the runner's own inspecting thread produces it and what it costs, and what each decision does. Read when a Plain cell reaches `awaiting-review-verdict`.
 - **[Recovery And Cancellation](recovery.md)** — diagnosis, cell ports and orphan processes, resume eligibility, checkpoint-derived runs, and cancellation. Read when a cell is interrupted, when a launch or resume fails, or when the campaign is cancelled.
 - **[Campaign Completion](completion.md)** — the execution-complete criterion, read-only workspace review, cohort reporting, and closing the pull request. Read when a cohort is closing.
 
@@ -83,7 +83,9 @@ At each step the runner joins that file with the same arm's `instructions/<arm>/
 
 Codex advances only after the retained Goal completes, its terminal turn completes, and the thread becomes idle.
 
-Only Plain pauses, and it pauses for an operator verdict; Evidence runs the eight steps above without stopping. [review-verdicts.md](review-verdicts.md) owns that loop.
+Every retained stream chunk is appended to `<stage>.log` in the run root, named after the Goal that owned the thread when it arrived — `backend-start.log`, `backend-remind-3.log`, `overall-final.log`. The log vocabulary and the dashboard's stage vocabulary are the same one, and reading the files in objective order reproduces the native stream exactly.
+
+Only Plain stops at a Review boundary; Evidence runs the eight steps above without stopping. The runner judges that boundary with its own inspecting thread, whose cost joins the cell's totals, and an operator decides by hand only when that inspection fails. [review-verdicts.md](review-verdicts.md) owns that loop.
 
 After `backend-start` reaches that exact boundary, the runner creates a durable checkpoint before dispatching `backend-review`. The checkpoint retains the material workspace, prepared Git baseline, native session and terminal turn, CLI version, token boundary, input digests, and inherited timing. Reinstallable dependencies, caches, and untracked runtime logs are excluded, while Git-visible files are always retained. It is a recovery point for a later downstream-instruction correction, not permission to modify an active measured workspace.
 
@@ -91,7 +93,7 @@ The runner gives app-server a bounded shutdown grace after closing its input, th
 
 ## Supervise The Run
 
-Observe every active cell at least every 30 seconds. Check `state.json`, benchmark and native process liveness, and `events.jsonl` and `raw.log` recency. Investigate any disagreement immediately and correct the dashboard without waiting for its 5-minute interval.
+Observe every active cell at least every 30 seconds. Check `state.json`, benchmark and native process liveness, and the recency of `events.jsonl` and of the current stage's `<stage>.log`. Investigate any disagreement immediately and correct the dashboard without waiting for its 5-minute interval.
 
 The reporting subagent re-reads the frozen-boundary files in every cell on every cycle and reports a hit as a material change, quoting the diff it just read.
 

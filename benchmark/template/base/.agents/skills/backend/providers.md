@@ -52,9 +52,13 @@ Global grades belong to the actor. Scope-relative roles belong to membership row
 
 ## Transformer
 
+`pnpm build:prisma` writes the generated client under `src/prisma/`, and `packages/backend/tsconfig.json` maps the `@prisma/sdk` alias to it. Reach the generated `Prisma` types and `PrismaClient` through that alias, as `MyGlobal` does.
+
 One transformer namespace owns one DTO's read side:
 
 ```ts
+import { Prisma } from "@prisma/sdk";
+
 export namespace ShoppingSaleTransformer {
   export type Payload = Prisma.shopping_salesGetPayload<
     ReturnType<typeof select>

@@ -4,12 +4,14 @@ import path from "node:path";
 
 import typia from "typia";
 
+import { EvidenceBenchmarkInspection } from "./EvidenceBenchmarkInspection.ts";
 import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction.ts";
 import { EvidenceBenchmarkReviewLedger } from "./EvidenceBenchmarkReviewLedger.ts";
 import { EvidenceBenchmarkSupervision } from "./EvidenceBenchmarkSupervision.ts";
 import type { IEvidenceBenchmarkCheckpointStorage } from "./structures/IEvidenceBenchmarkCheckpointStorage.ts";
 import type { IEvidenceBenchmarkExecutable } from "./structures/IEvidenceBenchmarkExecutable.ts";
 import type { IEvidenceBenchmarkGoalRecord } from "./structures/IEvidenceBenchmarkGoalRecord.ts";
+import type { IEvidenceBenchmarkInspection } from "./structures/IEvidenceBenchmarkInspection.ts";
 import type { IEvidenceBenchmarkInterruption } from "./structures/IEvidenceBenchmarkInterruption.ts";
 import type { IEvidenceBenchmarkInstructionPlanEntry } from "./structures/IEvidenceBenchmarkInstructionPlanEntry.ts";
 import type { IEvidenceBenchmarkOutput } from "./structures/IEvidenceBenchmarkOutput.ts";
@@ -90,6 +92,28 @@ export namespace EvidenceBenchmarkRunner {
     if (state.status === "awaiting-review-verdict") {
       if (props.runRoot === undefined)
         throw new Error("Plain review-verdict resume lacks its retained root.");
+      // A resume retries an inspection that failed rather than waiting for a
+      // hand-written verdict, because the common failures — a spawn that lost
+      // a race, a timeout — are transient and an operator adds nothing to
+      // them. The attempt bound is what keeps a permanently broken inspector
+      // from spending the account one resume at a time; once it is reached,
+      // only an operator can move the boundary, and `assertDecided` below says
+      // so loudly rather than exiting as though the run had progressed.
+      const undecided = state.supervisionPauses?.at(-1);
+      if (
+        undecided !== undefined &&
+        undecided.verdict === undefined &&
+        (undecided.inspections?.length ?? 0) <
+          EvidenceBenchmarkInspection.ATTEMPT_LIMIT
+      ) {
+        await inspectReviewBoundary(props.runRoot);
+        await props.onState?.(structuredClone(state));
+        if (
+          state.status !== "awaiting-review-verdict" ||
+          state.supervisionPauses?.at(-1)?.verdict === undefined
+        )
+          return state;
+      }
       EvidenceBenchmarkSupervision.assertDecided({
         runRoot: props.runRoot,
         workspace: props.cwd,
@@ -310,6 +334,30 @@ export namespace EvidenceBenchmarkRunner {
     child.stderr.setEncoding("utf8");
 
     let sequence = 0;
+    /**
+     * Names the stage that owns a stream chunk arriving right now.
+     *
+     * The cursor selects the Goal being executed. A chunk that arrives after
+     * the last Goal of the run has finished — shutdown chatter, a final
+     * protocol reply, an exit diagnostic — belongs to the stage that just ended
+     * rather than to a file of its own, because the stage logs are read back as
+     * one ordered stream and a chunk parked outside that order could split a
+     * JSON line away from its other half. Before any Goal record exists the
+     * plan's first entry names the stage the run is about to start.
+     */
+    const stage = (): string =>
+      (
+        state.goals.find(
+          (candidate) => candidate.index === state.nextInstructionIndex,
+        ) ??
+        state.goals.reduce<IEvidenceBenchmarkGoalRecord | undefined>(
+          (latest, candidate) =>
+            latest === undefined || candidate.index > latest.index
+              ? candidate
+              : latest,
+          undefined,
+        )
+      )?.name ?? entries[0]!.name;
     const append = (
       stream: IEvidenceBenchmarkOutput["stream"],
       text: string,
@@ -319,6 +367,7 @@ export namespace EvidenceBenchmarkRunner {
         sequence: sequence++,
         elapsedMs: elapsed(started),
         stream,
+        stage: stage(),
         text,
       };
       if (outputFailed) return;
@@ -1394,9 +1443,165 @@ export namespace EvidenceBenchmarkRunner {
       )
         throw new Error("Review-verdict pause omitted its Goal record.");
     }
+    // Inspection happens only after the measured app-server has exited. That
+    // process record counts wall time from spawn to exit, so judging while it
+    // was still alive would put the inspector's minutes inside the cell's
+    // total once already, and adding them would count them twice.
+    if (
+      state.status === "awaiting-review-verdict" &&
+      props.runRoot !== undefined
+    )
+      await inspectReviewBoundary(props.runRoot);
     publish();
     await publication;
     if (publicationFailed) state.status = "interrupted";
+
+    /**
+     * Judges the completed Review attempt in a thread the cell never sees.
+     *
+     * The measured agent must not learn that it is being judged or by what
+     * criteria, so the inspection runs as its own Codex process, reads the
+     * stage log outside the workspace and the workspace itself, and returns a
+     * decision. A failure leaves the pause undecided, which is the same
+     * boundary an operator has always been able to decide by hand.
+     */
+    async function inspectReviewBoundary(runRoot: string): Promise<void> {
+      const pauses = state.supervisionPauses ?? [];
+      const pause = pauses.at(-1);
+      const goal: IEvidenceBenchmarkGoalRecord | undefined = state.goals.find(
+        (candidate) => candidate.index === pause?.goalIndex,
+      );
+      if (pause === undefined || goal === undefined) return;
+      pause.inspections ??= [];
+      const attempt: number = pause.inspections.length + 1;
+      if (attempt > EvidenceBenchmarkInspection.ATTEMPT_LIMIT) return;
+      const inspectionStarted: bigint = process.hrtime.bigint();
+      // The record exists before the attempt so that a failure at any point
+      // after this line is retained as a failed inspection rather than as an
+      // exception thrown once the measured process is already gone.
+      const record: IEvidenceBenchmarkInspection = {
+        attempt,
+        model: props.model,
+        effort: props.effort,
+        startedAt: new Date().toISOString(),
+        elapsedMs: 0,
+        tokenUsage: zeroUsage(),
+        logRelativePath: EvidenceBenchmarkInspection.DIRECTORY,
+        stageLogRelativePath: "",
+      };
+      pause.inspections.push(record);
+      try {
+        const request: EvidenceBenchmarkInspection.IRequest =
+          EvidenceBenchmarkInspection.prepare({
+            runRoot,
+            pauseIndex: pauses.length - 1,
+            attempt,
+            goal,
+            model: props.model,
+            effort: props.effort,
+          });
+        record.logRelativePath = `${EvidenceBenchmarkInspection.DIRECTORY}/${request.prefix}`;
+        record.stageLogRelativePath = request.stageLogRelativePath;
+        const executable: IEvidenceBenchmarkExecutable = resolveExecutable({
+          name: "codex",
+          environment: props.environment ?? process.env,
+          command: props.command,
+          commandPrefixArguments: props.commandPrefixArguments,
+        });
+        const streams = await runInspection(executable, request);
+        record.elapsedMs = elapsed(inspectionStarted);
+        const result: EvidenceBenchmarkInspection.IResult =
+          EvidenceBenchmarkInspection.complete({
+            runRoot,
+            request,
+            ...streams,
+          });
+        record.tokenUsage = result.tokenUsage;
+        if (result.threadId !== undefined) record.threadId = result.threadId;
+        EvidenceBenchmarkSupervision.apply({
+          runRoot,
+          workspace: props.cwd,
+          instructionsRoot: props.instructionsRoot,
+          state,
+          submitted: result.submitted,
+        });
+      } catch (error) {
+        record.elapsedMs = elapsed(inspectionStarted);
+        record.failure = normalizeInterruption(error).message;
+      }
+    }
+
+    /** Drives one inspecting Codex process to completion under a hard bound. */
+    async function runInspection(
+      executable: IEvidenceBenchmarkExecutable,
+      request: EvidenceBenchmarkInspection.IRequest,
+    ): Promise<{
+      stdout: string;
+      stderr: string;
+      exitCode: number | null;
+      signal: NodeJS.Signals | null;
+    }> {
+      const inspector = spawn(
+        executable.command,
+        executable.composeArguments(request.arguments),
+        {
+          cwd: request.cwd,
+          detached: process.platform !== "win32",
+          env: props.environment ?? process.env,
+          shell: false,
+          windowsVerbatimArguments: executable.windowsVerbatimArguments,
+          windowsHide: true,
+          stdio: "pipe",
+        },
+      );
+      let stdout = "";
+      let stderr = "";
+      let exitCode: number | null = null;
+      let signal: NodeJS.Signals | null = null;
+      let failure: unknown;
+      inspector.stdout.setEncoding("utf8");
+      inspector.stderr.setEncoding("utf8");
+      inspector.stdout.on("data", (text: string) => {
+        stdout += text;
+      });
+      inspector.stderr.on("data", (text: string) => {
+        stderr += text;
+      });
+      let resolveClosed!: () => void;
+      const closed = new Promise<void>((resolve) => {
+        resolveClosed = resolve;
+      });
+      inspector.once("error", (error) => {
+        failure ??= error;
+        resolveClosed();
+      });
+      inspector.once("close", (code, terminated) => {
+        exitCode = code;
+        signal = terminated;
+        resolveClosed();
+      });
+      inspector.stdin.on("error", (error) => {
+        failure ??= error;
+      });
+      // The objective travels on standard input rather than as an argument.
+      // It quotes a full instruction, and a Windows command shim would have to
+      // survive escaping every byte of it on the way through `cmd.exe`.
+      inspector.stdin.end(request.prompt, "utf8");
+      const timeoutMs: number = props.inspectionTimeoutMs ?? 3_600_000;
+      if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0)
+        throw new Error(
+          "Review inspection timeout must be a positive integer.",
+        );
+      if (!(await waitFor(closed, timeoutMs))) {
+        if (inspector.pid !== undefined)
+          await terminateProcessTree(inspector.pid);
+        await waitFor(closed, 5_000);
+        throw new Error(`Review inspection exceeded ${timeoutMs} ms.`);
+      }
+      if (failure !== undefined) throw failure;
+      return { stdout, stderr, exitCode, signal };
+    }
+
     return state;
   }
 

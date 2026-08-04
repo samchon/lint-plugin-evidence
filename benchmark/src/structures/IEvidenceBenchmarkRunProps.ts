@@ -56,6 +56,15 @@ export interface IEvidenceBenchmarkRunProps {
   /** Grace period for app-server to exit after its standard input closes. */
   shutdownGraceMs?: number;
 
+  /**
+   * Hard bound on one runner-owned review inspection.
+   *
+   * An inspection that never returns would stall the cell behind a process
+   * nobody is watching, so it is stopped and recorded as a failed inspection,
+   * which leaves the run at the operator boundary instead of nowhere.
+   */
+  inspectionTimeoutMs?: number;
+
   /** Append-only observer for native stream chunks. */
   onOutput: (
     processIndex: number,

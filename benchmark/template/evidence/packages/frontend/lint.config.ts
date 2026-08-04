@@ -7,44 +7,31 @@ import type { ITtscLintConfig } from "@ttsc/lint";
 /**
  * The evidence obligations of the frontend package.
  *
- * Three populations carry citations here, and the first two are deliberately
- * narrow. The screens are the page components in their domain folders: a
- * primitive, the layout chrome, and a composed provider serve every requirement
- * at once and therefore none in particular, so selecting them would breed
- * citations that state nothing. The journeys are the exported functions under
- * `tests/journeys/`; the ui-review and readme specs verify presentation and
- * stay outside the graph.
+ * The three claims form one chain: a hook answers for the operations it calls,
+ * a screen answers for the hooks it uses, and a journey answers for the screens
+ * it walks. Owning an operation is not delivering it, so a hook wrapping an
+ * accessor no screen renders fails at the screen claim rather than passing on
+ * hook coverage alone.
  *
- * The journey claim references the screens as well as the requirements: a spec
- * cites each page it traverses as `{@link ThatPage}` resolved through its own
- * type-only import, so a screen no journey walks surfaces at the compiler
- * rather than in review.
+ * `lib/<domain>/hooks.ts` is the only place a generated accessor is called, so
+ * a hook is the one artifact that can truthfully own an operation. The screen
+ * and journey populations stay narrow for the same reason: a primitive, the
+ * layout chrome, a composed provider, and the presentation-only ui-review and
+ * readme specs serve every requirement at once and therefore none in
+ * particular.
  *
- * Every edge here is many to many. Several screens may serve one requirement,
- * several screens may use one hook, and several journeys may walk one screen,
- * so no obligation counts citations per host; each counts the units that must
- * be covered.
+ * Every edge is many to many, so each obligation counts the units it must cover
+ * rather than citations per host; one hook may cite as many operations as it
+ * calls, and demanding one call per hook would dictate layout instead.
  *
- * The hooks are the third population. `lib/<domain>/hooks.ts` is the only place
- * a generated accessor is called, so a hook is the one artifact that can
- * truthfully own an operation; a page fetches through hooks and would be naming
- * a call it does not make.
- *
- * Owning an operation is not delivering it, so the three claims form one chain:
- * a hook answers for the operations it calls, a screen answers for the hooks it
- * uses, and a journey answers for the screens it walks. A hook wrapping an
- * accessor that no screen ever renders fails at the screen claim, which is the
- * hole that hook coverage alone would leave open.
- *
- * The operation and hook obligations refuse exclusions, because an unconsumed
+ * The operation and hook references refuse exclusions, because an unconsumed
  * operation and an unused hook are missing work rather than decisions. The
- * requirement and screen obligations still accept a reviewed one, so a screen
- * outside the journeys is a decision someone has to write down and defend.
+ * requirement and screen references accept a reviewed one, so a screen outside
+ * the journeys is a decision someone has to write down and defend.
  *
- * The operation obligation does not constrain how many operations one hook may
- * cite. What matters is that nothing goes unconsumed, and a hook composing two
- * calls for one screen is ordinary; demanding one call per hook would dictate
- * layout instead.
+ * A journey cites each page it traverses as `{@link ThatPage}` resolved through
+ * its own type-only import, so a screen no journey walks surfaces at the
+ * compiler rather than in review.
  */
 const graph: IEvidenceGraphConfig = {
   claims: [
@@ -76,8 +63,8 @@ const graph: IEvidenceGraphConfig = {
       // Remove after every required screen and evidence mapping is complete.
       disabled: true,
     },
-    // The browser journeys walk the requirements end to end, through the
-    // screens they cite.
+    // The journeys walk the requirements end to end, through the screens they
+    // cite.
     {
       name: "frontend-journeys",
       type: "typescript",
@@ -99,8 +86,8 @@ const graph: IEvidenceGraphConfig = {
       // Remove after every requirement-backed journey and mapping is complete.
       disabled: true,
     },
-    // The hooks deliver the published API to the product. An operation no hook
-    // reaches is a missing feature rather than a note in `wiki/omissions.md`.
+    // The hooks deliver the published API. An operation no hook reaches is a
+    // missing feature, not a note in `wiki/omissions.md`.
     {
       name: "frontend-hooks",
       type: "typescript",

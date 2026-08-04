@@ -7,10 +7,12 @@ import typia from "typia";
 
 import { collectEvidenceBenchmarkApiCost } from "./EvidenceBenchmarkApiCost.ts";
 import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction.ts";
+import { EvidenceBenchmarkStageLog } from "./EvidenceBenchmarkStageLog.ts";
 import type { IEvidenceBenchmarkApiCost } from "./structures/IEvidenceBenchmarkApiCost.ts";
 import type {
   IEvidenceBenchmarkReport,
   IEvidenceBenchmarkReportCell,
+  IEvidenceBenchmarkReportInspection,
   IEvidenceBenchmarkReportReviewVerdict,
   IEvidenceBenchmarkReportStage,
   IEvidenceBenchmarkReportSuspension,
@@ -83,6 +85,11 @@ interface IDashboardState {
     scope?: "backend" | "frontend" | "overall";
     attempt?: number;
     goalIndex?: number;
+    inspections?: {
+      elapsedMs: number;
+      tokenUsage: IEvidenceBenchmarkTokenUsage;
+      failure?: string;
+    }[];
     verdict?: unknown;
     pausedAt: string;
     resumedAt?: string;
@@ -93,9 +100,9 @@ interface IDashboardState {
 interface IDashboardStateFile {
   cell: IDashboardCell;
   records: {
+    root: string;
     workspace: string;
     events: string;
-    raw?: string;
   };
   state: IDashboardState;
 }
@@ -153,7 +160,6 @@ export const collectEvidenceBenchmarkReport = (
     scanned.map((run) => [run.file.cell.runId, run]),
   );
   return {
-    schemaVersion: 3,
     generatedAt: generatedAt.toISOString(),
     cells: ordered.flatMap(([, runs]) =>
       runs
@@ -394,16 +400,24 @@ const summarizeRun = (
     throw new Error(
       `Benchmark suspension exceeds retained work time: ${file.cell.runId}.`,
     );
-  const workElapsedMs: number = rawWorkElapsedMs - suspendedMs;
+  const threadElapsedMs: number = rawWorkElapsedMs - suspendedMs;
   const detached: boolean = file.cell.reviewLedger === "backend";
-  const totalUsage: IEvidenceBenchmarkTokenUsage = totalTokenUsage(
+  // Judging a Review is part of what an arm costs, so the inspecting thread's
+  // tokens and time join the cell's totals. They arrive from their own retained
+  // record rather than from `threadTokenUsage`, so what the measured agent spent
+  // and what judging it spent stay separable in the same report.
+  const inspection: IEvidenceBenchmarkReportInspection = inspectionCost(
     file.state,
-    detached,
+  );
+  const workElapsedMs: number = threadElapsedMs + inspection.elapsedMs;
+  const totalUsage: IEvidenceBenchmarkTokenUsage = addTokenUsage(
+    totalTokenUsage(file.state, detached),
+    inspection.tokenUsage,
   );
   const totalTokens: number = totalUsage.totalTokens;
   const stages: IEvidenceBenchmarkReportStage[] = stageMeasurements(
     file.state,
-    workElapsedMs,
+    threadElapsedMs,
     detached,
     run.suspensions,
   ).map((measurement) => ({
@@ -427,6 +441,7 @@ const summarizeRun = (
     launchedAt: new Date(run.launchedAt).toISOString(),
     tokens: totalTokens,
     tokenUsage: totalUsage,
+    inspection,
     apiCost: includeApiCost ? collectRunApiCost(run, byRunId) : null,
     suspendedMs,
     suspensions: run.suspensions,
@@ -449,24 +464,26 @@ const collectReviewVerdicts = (
       return [];
     const verdict = pause.verdict;
     const workspace = verdict.workspace;
+    // A failing verdict carries no feedback. Every failed scope receives the
+    // same prescribed reminder, so nothing cell-specific exists to carry, and
+    // the decision itself refuses text bound for the cell.
     const validTransition: boolean =
-      (verdict.decision === "pass" &&
-        verdict.action === "final" &&
-        verdict.feedback === undefined) ||
-      (verdict.decision === "fail" &&
-        typeof verdict.feedback === "string" &&
-        verdict.feedback.trim().length !== 0 &&
-        ((verdict.action === "retry" &&
-          pause.attempt <
-            EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT) ||
-          (verdict.action === "quality-failed" && pause.attempt === 4)));
+      verdict.feedback === undefined &&
+      ((verdict.decision === "pass" && verdict.action === "final") ||
+        (verdict.decision === "fail" &&
+          ((verdict.action === "retry" &&
+            pause.attempt <
+              EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT) ||
+            (verdict.action === "quality-failed" &&
+              pause.attempt ===
+                EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT))));
     if (
       (verdict.decision !== "pass" && verdict.decision !== "fail") ||
       verdict.scope !== pause.scope ||
       verdict.attempt !== pause.attempt ||
       !Number.isSafeInteger(pause.attempt) ||
       pause.attempt < 0 ||
-      pause.attempt > 4 ||
+      pause.attempt > EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT ||
       (verdict.action !== "final" &&
         verdict.action !== "retry" &&
         verdict.action !== "quality-failed") ||
@@ -535,7 +552,7 @@ const collectRunApiCost = (
     file.state.status === "rejected";
   if (file.cell.checkpointSource === undefined)
     return collectEvidenceBenchmarkApiCost({
-      rawLog: file.records.raw,
+      stageLogs: runStageLogs(file),
       model: file.cell.model,
       expected: file.state.threadTokenUsage,
       strict,
@@ -573,14 +590,14 @@ const collectRunApiCost = (
   }
   const inherited: IEvidenceBenchmarkApiCost | null =
     collectEvidenceBenchmarkApiCost({
-      rawLog: source.file.records.raw,
+      stageLogs: runStageLogs(source.file),
       model: file.cell.model,
       expected: initial,
       strict,
     });
   const continuation: IEvidenceBenchmarkApiCost | null =
     collectEvidenceBenchmarkApiCost({
-      rawLog: file.records.raw,
+      stageLogs: runStageLogs(file),
       model: file.cell.model,
       initial:
         file.cell.reviewLedger === "backend" ? emptyTokenUsage() : initial,
@@ -600,6 +617,10 @@ const collectRunApiCost = (
       inherited.longContextRequests + continuation.longContextRequests,
   };
 };
+
+/** Lists one run's retained stage logs in the order the runner wrote them. */
+const runStageLogs = (file: IDashboardStateFile): string[] =>
+  EvidenceBenchmarkStageLog.order(file.records.root, file.state.goals);
 
 const findCheckpointOrigin = (
   run: IDashboardRun,
@@ -757,16 +778,78 @@ const stageMeasurements = (
     state.threadTokenUsage.totalTokens - retainedTokens,
   );
   const activeElapsed: number = Math.max(0, totalElapsed - retainedElapsed);
-  return state.goals.map((instruction) => ({
-    name: instruction.name,
-    tokens:
-      instruction.tokenUsage.totalTokens +
-      (instruction === current ? activeTokens : 0),
-    elapsedMs:
-      correctedInstructionElapsed(state, instruction, suspensions) +
-      (instruction === current ? activeElapsed : 0),
-  }));
+  const inspections: Map<number, IStageMeasurement> = inspectionByGoal(state);
+  return state.goals.map((instruction) => {
+    const inspected: IStageMeasurement | undefined = inspections.get(
+      instruction.index,
+    );
+    return {
+      name: instruction.name,
+      tokens:
+        instruction.tokenUsage.totalTokens +
+        (instruction === current ? activeTokens : 0) +
+        (inspected?.tokens ?? 0),
+      elapsedMs:
+        correctedInstructionElapsed(state, instruction, suspensions) +
+        (instruction === current ? activeElapsed : 0) +
+        (inspected?.elapsedMs ?? 0),
+    };
+  });
 };
+
+/**
+ * Attributes each inspection to the Goal it judged.
+ *
+ * An inspection exists because one Review attempt completed, so its cost
+ * belongs to that attempt's stage. Anything else would leave the stage shares
+ * summing to less than the cell total they are shares of.
+ */
+const inspectionByGoal = (
+  state: IDashboardState,
+): Map<number, IStageMeasurement> => {
+  const found: Map<number, IStageMeasurement> = new Map();
+  for (const pause of state.supervisionPauses ?? []) {
+    if (
+      pause.goalIndex === undefined ||
+      !state.goals.some((goal) => goal.index === pause.goalIndex)
+    )
+      continue;
+    for (const inspection of pause.inspections ?? []) {
+      const retained: IStageMeasurement = found.get(pause.goalIndex) ?? {
+        name: "",
+        tokens: 0,
+        elapsedMs: 0,
+      };
+      found.set(pause.goalIndex, {
+        name: "",
+        tokens: retained.tokens + inspection.tokenUsage.totalTokens,
+        elapsedMs: retained.elapsedMs + inspection.elapsedMs,
+      });
+    }
+  }
+  return found;
+};
+
+/** Totals what judging this cell's Reviews cost, separately from the cell. */
+const inspectionCost = (
+  state: IDashboardState,
+): IEvidenceBenchmarkReportInspection =>
+  (state.supervisionPauses ?? [])
+    .flatMap((pause) =>
+      pause.goalIndex === undefined ||
+      !state.goals.some((goal) => goal.index === pause.goalIndex)
+        ? []
+        : (pause.inspections ?? []),
+    )
+    .reduce<IEvidenceBenchmarkReportInspection>(
+      (total, inspection) => ({
+        attempts: total.attempts + 1,
+        failures: total.failures + (inspection.failure === undefined ? 0 : 1),
+        tokenUsage: addTokenUsage(total.tokenUsage, inspection.tokenUsage),
+        elapsedMs: total.elapsedMs + inspection.elapsedMs,
+      }),
+      { attempts: 0, failures: 0, tokenUsage: emptyTokenUsage(), elapsedMs: 0 },
+    );
 
 const correctedInstructionElapsed = (
   state: IDashboardState,

@@ -150,7 +150,7 @@ export namespace EvidenceBenchmarkSupervision {
     return verdict;
   }
 
-  /** Applies one immutable verdict to the exact paused Review boundary. */
+  /** Applies one immutable verdict file to the exact paused Review boundary. */
   export function decide(props: {
     runRoot: string;
     instructionsRoot: string;
@@ -167,7 +167,46 @@ export namespace EvidenceBenchmarkSupervision {
       subject: props.subject,
       inputIdentity: props.inputIdentity,
     });
-    assertHistory(runRoot, retained.state);
+    const submittedFile: string = path.resolve(props.verdictFile);
+    if (isWithin(retained.records.workspace, submittedFile))
+      throw new Error(
+        "Review verdict input cannot modify the measured workspace.",
+      );
+    const verdict: IEvidenceBenchmarkSupervisionVerdict = apply({
+      runRoot,
+      workspace: retained.records.workspace,
+      instructionsRoot: props.instructionsRoot,
+      state: retained.state,
+      submitted: fs.readFileSync(submittedFile),
+    });
+    replaceDurably(statePath, `${JSON.stringify(retained, null, 2)}\n`);
+    return verdict;
+  }
+
+  /**
+   * Applies one submitted decision to an in-memory paused Review boundary.
+   *
+   * The runner-owned inspection and the operator's own command reach the same
+   * transition through this function, so a decision means exactly one thing
+   * whoever produced it: the same parse, the same refusal to carry text into
+   * the cell, the same immutable retained bytes, and the same continuation.
+   *
+   * The caller owns persistence of the mutated state.
+   */
+  export function apply(props: {
+    runRoot: string;
+    workspace: string;
+    instructionsRoot: string;
+    state: IEvidenceBenchmarkRunState;
+    submitted: Buffer;
+  }): IEvidenceBenchmarkSupervisionVerdict {
+    const runRoot: string = path.resolve(props.runRoot);
+    assertUndecidedBoundary(props.state);
+    assertHistory(runRoot, props.state);
+    const retained = {
+      records: { workspace: props.workspace },
+      state: props.state,
+    };
     const pause = retained.state.supervisionPauses!.at(-1)!;
     const goal = retained.state.goals.at(-1)!;
     const plan = retained.state.instructionPlan!;
@@ -175,12 +214,7 @@ export namespace EvidenceBenchmarkSupervision {
     if (next?.kind !== "base" || next.name !== `${pause.scope}-final`)
       throw new Error("Review verdict does not precede its matching Final.");
 
-    const submittedFile: string = path.resolve(props.verdictFile);
-    if (isWithin(retained.records.workspace, submittedFile))
-      throw new Error(
-        "Review verdict input cannot modify the measured workspace.",
-      );
-    const submittedBytes: Buffer = fs.readFileSync(submittedFile);
+    const submittedBytes: Buffer = props.submitted;
     const submitted: ISubmittedVerdict = parseSubmitted(submittedBytes);
     const rationale: string = submitted.rationale.trim();
     const feedback: string | undefined = submitted.feedback?.trim();
@@ -250,7 +284,6 @@ export namespace EvidenceBenchmarkSupervision {
     };
     pause.verdict = verdict;
     if (action === "quality-failed") retained.state.status = "quality-failed";
-    replaceDurably(statePath, `${JSON.stringify(retained, null, 2)}\n`);
     return verdict;
   }
 
@@ -336,15 +369,6 @@ export namespace EvidenceBenchmarkSupervision {
       inputIdentity?: IEvidenceBenchmarkInputIdentity;
     },
   ): void {
-    const pause = retained.state.supervisionPauses?.at(-1);
-    const goal = retained.state.goals.at(-1);
-    const planEntry =
-      retained.state.instructionPlan?.[retained.state.nextInstructionIndex - 1];
-    const boundary =
-      planEntry === undefined
-        ? undefined
-        : EvidenceBenchmarkInstruction.reviewBoundary(planEntry);
-    const process = retained.state.processes.at(-1);
     // The cell records its own frozen inputs and revision, which is the audit
     // trail. Comparing them with the repository as it stands would lock every
     // running Plain cell out of supervision the moment the operator commits a
@@ -355,14 +379,38 @@ export namespace EvidenceBenchmarkSupervision {
     if (
       retained.cell.arm !== "plain" ||
       retained.cell.runId !== path.basename(runRoot) ||
-      retained.state.arm !== "plain" ||
-      typeof retained.state.sessionId !== "string" ||
-      typeof retained.state.cliVersion !== "string" ||
-      retained.state.status !== "awaiting-review-verdict" ||
-      retained.state.instructionPlan === undefined ||
       !samePath(retained.records.root, runRoot) ||
       !samePath(retained.records.state, statePath) ||
-      !samePath(retained.records.workspace, path.join(runRoot, "workspace")) ||
+      !samePath(retained.records.workspace, path.join(runRoot, "workspace"))
+    )
+      throw new Error("Run is not an exact undecided Plain review boundary.");
+    assertUndecidedBoundary(retained.state);
+  }
+
+  /**
+   * Proves the state itself stopped at an exact undecided Review boundary.
+   *
+   * Whoever produces the decision, it must land on a completed Goal whose
+   * terminal turn, idle checkpoint, and token boundary all agree, in a run
+   * whose native process has already ended. The runner-owned inspection needs
+   * this half without the retained-file half, because it decides before the
+   * state has been written back.
+   */
+  function assertUndecidedBoundary(state: IEvidenceBenchmarkRunState): void {
+    const pause = state.supervisionPauses?.at(-1);
+    const goal = state.goals.at(-1);
+    const planEntry = state.instructionPlan?.[state.nextInstructionIndex - 1];
+    const boundary =
+      planEntry === undefined
+        ? undefined
+        : EvidenceBenchmarkInstruction.reviewBoundary(planEntry);
+    const process = state.processes.at(-1);
+    if (
+      state.arm !== "plain" ||
+      typeof state.sessionId !== "string" ||
+      typeof state.cliVersion !== "string" ||
+      state.status !== "awaiting-review-verdict" ||
+      state.instructionPlan === undefined ||
       pause === undefined ||
       boundary === undefined ||
       boundary.scope !== pause.scope ||
@@ -371,11 +419,11 @@ export namespace EvidenceBenchmarkSupervision {
       pause.verdict !== undefined ||
       goal === undefined ||
       goal.index !== pause.goalIndex ||
-      goal.index !== retained.state.nextInstructionIndex - 1 ||
+      goal.index !== state.nextInstructionIndex - 1 ||
       goal.name !== pause.afterGoal ||
       goal.name !== planEntry?.name ||
       goal.relativePath !== planEntry.relativePath ||
-      goal.goal?.threadId !== retained.state.sessionId ||
+      goal.goal?.threadId !== state.sessionId ||
       goal.goal.status !== "complete" ||
       goal.terminalTurnId === null ||
       goal.terminalTurnCompleted !== true ||

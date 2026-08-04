@@ -17,13 +17,13 @@ Complete these stages in order.
 
 ## Compiler Check
 
-`evidence/graph` starts checking `@evidence` and `@evidenceExclude` when a claim's `disabled` property is removed and the first Prisma model, DTO, controller operation, or test function exists.
+`evidence/graph` starts checking `@evidence` and `@evidenceExclude` when a claim's `disabled` is removed and the first Prisma model, DTO, controller operation, or test function exists.
 
-Removing `disabled` early emits thousands of errors for tags not yet written, which fills context and impairs decisions.
+Removing `disabled` early emits thousands of errors for tags not yet written, filling context and impairing decisions.
 
-The backend graph spans two files, because a claim belongs to the Program its hosts live in. `packages/backend/lint.config.ts` holds the package claims; `packages/backend/test/lint.config.ts` extends it and adds `backend-tests`, hosted by the tests under `test/features/`.
+Delete each `disabled` where declared: `packages/api/lint.config.ts` (DTO; checked by `pnpm build:sdk`), `packages/backend/lint.config.ts`, `packages/backend/test/lint.config.ts`.
 
-Start `pnpm check:watch` from `packages/backend` before implementation while every backend claim is disabled.
+Start backend `pnpm check:watch` before implementation while every backend claim is disabled.
 
 1. After the Prisma schema is complete, delete `disabled` from `schema-models`.
    - Fix every diagnostic and complete its truthful evidence mapping.

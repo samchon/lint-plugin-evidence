@@ -1,5 +1,6 @@
 import type { IEvidenceBenchmarkCheckpoint } from "./IEvidenceBenchmarkCheckpoint.ts";
 import type { IEvidenceBenchmarkGoalRecord } from "./IEvidenceBenchmarkGoalRecord.ts";
+import type { IEvidenceBenchmarkInspection } from "./IEvidenceBenchmarkInspection.ts";
 import type { IEvidenceBenchmarkInstructionPlanEntry } from "./IEvidenceBenchmarkInstructionPlanEntry.ts";
 import type { IEvidenceBenchmarkInterruption } from "./IEvidenceBenchmarkInterruption.ts";
 import type { IEvidenceBenchmarkProcessRecord } from "./IEvidenceBenchmarkProcessRecord.ts";
@@ -60,6 +61,13 @@ export interface IEvidenceBenchmarkRunState {
     afterGoal: string;
     goalIndex: number;
     pausedAt: string;
+    /**
+     * Every runner-owned inspection attempted at this boundary, in order.
+     *
+     * A resumed run retries a failed inspection, so the list holds each
+     * attempt's own cost and failure rather than only the last one.
+     */
+    inspections?: IEvidenceBenchmarkInspection[];
     verdict?: IEvidenceBenchmarkSupervisionVerdict;
     resumedAt?: string;
   }[];

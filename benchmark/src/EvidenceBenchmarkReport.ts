@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { collectEvidenceBenchmarkReport } from "./EvidenceBenchmarkDashboard.ts";
+import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction.ts";
 import type {
   IEvidenceBenchmarkReport,
   IEvidenceBenchmarkReportCell,
@@ -65,7 +66,7 @@ type PhaseName =
   | "overall-review";
 
 const API_PRICE_NOTE =
-  "API cost uses OpenRouter rates from 2026-08-01 and is emitted only after raw requests reconcile with retained counters.";
+  "API cost uses OpenRouter rates from 2026-08-01 and is emitted only after every measured request reconciles with retained counters. Review inspection is inside the token and time totals and outside this price.";
 
 const PHASES: readonly {
   name: PhaseName;
@@ -389,9 +390,18 @@ const phaseValues = (
 };
 
 const stagePhase = (stage: string): PhaseName => {
-  if (/^backend-remind-[1-4]$/u.test(stage)) return "backend-review";
-  if (/^frontend-remind-[1-4]$/u.test(stage)) return "frontend-review";
-  if (/^overall-remind-[1-4]$/u.test(stage)) return "overall-review";
+  // Supplementation reminders belong to the Review they supplement, however
+  // many of them a scope needed. The bound lives on the instruction module, so
+  // raising it there must not silently drop stages out of a chart here.
+  const supplement = /^(backend|frontend|overall)-remind-([1-9][0-9]*)$/u.exec(
+    stage,
+  );
+  if (
+    supplement !== null &&
+    Number(supplement[2]) <=
+      EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT
+  )
+    return `${supplement[1] as "backend" | "frontend" | "overall"}-review`;
   switch (stage) {
     case "backend-start":
       return "backend-development";
