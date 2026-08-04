@@ -28,14 +28,3 @@ Continue after each finding until the complete active-phase population is inspec
 ## Configuration
 
 Compare every configuration the scope document names with the baseline commit. The one permitted edit is deleting a predeclared `disabled` property with the comment that marks it. A reintroduced `disabled`, a changed claim, a changed selector, a lowered severity, or any other difference is a finding to report and restore, whatever it unblocks.
-
-## Final Checklist
-
-- [ ] Every claim for the current phase is enabled.
-- [ ] Inspected every active-phase acknowledgement, its complete host, and its target.
-- [ ] Every `@evidence` reason states how the artifact implements, represents, or proves the target; every fake citation corrected.
-- [ ] Every `@evidenceExclude` is a genuine exclusion; every fake exclusion corrected.
-- [ ] Every scoped `lint.config.ts` matches the baseline except for deleted `disabled` properties.
-- [ ] The scope's compiler and runtime gates passed after the last correction.
-
-If any item is unchecked, keep the Goal active and complete the missing review or correction.

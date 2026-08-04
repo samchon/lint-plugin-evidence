@@ -1,14 +1,14 @@
 ---
 name: evidence
-description: Defines the Evidence Graph tag grammar, truthfulness rules, claim activation, configured claims, placement, exclusions, frozen configuration, and compiler gates. Read before Evidence implementation or handling a graph diagnostic; backend.md and frontend.md carry the per-phase configuration and unlock procedures.
+description: Defines the Evidence Graph tag grammar, truthfulness rules, claim activation, frozen configuration, behavioral proof, citations, exclusions, and the stub marker. Read before Evidence implementation or handling a graph diagnostic; backend.md and frontend.md carry the per-phase claims, placement, examples, and staged unlock.
 ---
 
 # Evidence Graph
 
 ## Topics
 
-- [backend.md](backend.md): which configuration declares which backend claim, the staged unlock order, and the operation reference. Read before Backend Start.
-- [frontend.md](frontend.md): the frontend claim chain and its staged unlock order. Read before Frontend Start.
+- [backend.md](backend.md): the backend claims, their configurations, placement, examples, and the staged unlock order. Read before Backend Start.
+- [frontend.md](frontend.md): the frontend claim chain, its configuration, placement, and staged unlock order. Read before Frontend Start.
 
 ## Tags
 
@@ -42,121 +42,27 @@ An enabled claim is active only when its own `root`, `files`, and `symbol` selec
 
 An unreadable or invalid configured input is not an empty population; loader and parse failures remain diagnostics. Do not add, remove, or change claim objects as implementation advances — after `disabled` is deleted, activation follows the selected host population automatically.
 
-## Configured Claims
+## Frozen Configuration
 
-| Configuration | Claim | Host | References |
-| --- | --- | --- | --- |
-| `packages/backend/test/lint.config.ts` | `schema-models` | Prisma models | requirement H2/H3 |
-| same | `api-operations` | exported controller functions | requirement H2/H3 and Prisma models |
-| `packages/api/lint.config.ts` | `dto-types` | exported DTO types | requirement H2/H3 and Prisma models |
-| same | `dto-properties` | exported DTO properties | Prisma columns |
-| `packages/backend/test/lint.config.ts` | `backend-tests` | exported test functions | requirements and SDK operations |
-| `packages/frontend/lint.config.ts` | `frontend-screens` | exported page functions | requirement H2/H3 and hook functions |
-| same | `frontend-journeys` | exported journey functions | requirements and page functions |
-| same | `frontend-hooks` | exported hook functions | SDK operations |
+A claim is declared in the configuration of the Program its hosts live in; [backend.md](backend.md) and [frontend.md](frontend.md) name each claim's configuration and why it lives there.
 
-A claim is declared in the configuration of the Program its hosts live in. [backend.md](backend.md) states which backend configuration declares which claim and why; the frontend is one Program and one configuration.
-
-All three configuration files and every claim object are frozen except the prescribed `disabled` deletions. Keep `evidence/graph` at `error` in every gate; no environment value turns the graph off, and a result produced with it weakened is invalid. Do not create phase-specific config or compiler files.
+All three configuration files and every claim object are frozen except the prescribed `disabled` deletions. Keep `evidence/graph` at `error` in every gate; no environment value turns the graph off, and a result produced with it weakened is invalid. Do not create phase-specific config or compiler files, and do not add or remove a rule.
 
 ## Placement
 
-| Claim | `@evidence` host | Exclusion carrier |
-| --- | --- | --- |
-| `schema-models` | model `///` comment | `prisma/schema/exclude.schema` |
-| `dto-types`, `dto-properties` | exported type or property JSDoc | `packages/api/src/structures/DTO_EVIDENCE_EXCLUDE.ts` |
-| `api-operations` | controller method JSDoc | `src/controllers/CONTROLLER_EVIDENCE_EXCLUDE.ts` |
-| `backend-tests` | exported test function JSDoc | `test/features/TEST_EVIDENCE_EXCLUDE.ts`, requirements only |
-| `frontend-screens` | exported page function JSDoc | `src/components/SCREEN_EVIDENCE_EXCLUDE.ts`, requirements only |
-| `frontend-journeys` | exported journey function JSDoc | `tests/journeys/JOURNEY_EVIDENCE_EXCLUDE.ts` |
-| `frontend-hooks` | exported hook function JSDoc | none; operations admit no exclusion |
-
-Keep ownership evidence on the actual selected host. An exclusion carrier holds one reviewed exclusion per target scope and never holds ownership evidence. Providers are not selected hosts and carry neither tag.
+Keep ownership evidence on the actual selected host; the per-phase documents table each claim's host and exclusion carrier. An exclusion carrier holds one reviewed exclusion per target scope and never holds ownership evidence. Providers are not selected hosts and carry neither tag.
 
 ## Behavioral Proof
 
 Proof must be target-specific: the test or journey performs the relevant action and asserts the claimed result, refusal, state, or effect. Imports, registries, callability checks, and route or rendering smoke prove only availability and cannot carry unrelated requirements.
 
-## Examples
+## Citations
 
-```prisma
-/// Sale persisted for one seller.
-///
-/// @evidence docs/analysis/02-domain-model.md#sale Stores the required sale
-///           identity, lifecycle, and seller ownership.
-model shopping_sales {
-}
-```
-
-```ts
-/**
- * Public sale summary.
- *
- * @evidence docs/analysis/02-domain-model.md#sale-summary Exposes the summary
- *           fields customers use while browsing.
- * @evidence prisma:shopping_sales Represents the persisted sale.
- */
-export interface IShoppingSale {
-  /**
-   * Current title.
-   *
-   * @evidence prisma:shopping_sales.title Carries the stored title.
-   */
-  title: string;
-}
-```
-
-```ts
-/**
- * Lists sales visible to this seller.
- *
- * @evidence docs/analysis/03-functional-requirements.md#browse-sales Provides
- *           the seller's visibility-filtered browsing operation.
- * @evidence prisma:shopping_sales Exposes persisted sales.
- */
-public async index(): Promise<IPage<IShoppingSale.ISummary>> {
-  // ...
-}
-```
-
-TypeScript targets use imported inline links, resolved through the citing module's own imports:
-
-```ts
-import * as api from "{{apiPackageName}}";
-
-/**
- * @evidence docs/analysis/03-functional-requirements.md#place-order Proves the
- *           order placement the requirement promises.
- * @evidence {@link api.functional.shopping.order.create} Proves the published
- *           order creation operation.
- */
-export async function test_api_order_create(
-  connection: api.IConnection,
-): Promise<void> {
-  // ...
-}
-```
-
-Import the SDK as a namespace — a default import binds the target under `default`, so `{@link api.functional...}` resolves to nothing. `import type` works for a citation-only type import. The braces in `{@link ...}` are required.
-
-The cited operation is the one the test proves. Prerequisite and follow-up calls are setup and observation; leave them uncited.
+TypeScript targets are cited as `{@link ...}` inline links resolved through the citing module's own imports. Import the SDK as a namespace — a default import binds the target under `default`, so `{@link api.functional...}` resolves to nothing. `import type` works for a citation-only import. The braces in `{@link ...}` are required.
 
 ## Exclusions
 
-Use the narrowest truthful target:
-
-```ts
-/**
- * @evidenceExclude docs/analysis/05-user-experience.md#empty-state-copy
- *                  CatalogPage owns this presentation-only wording; this
- *                  exclusion becomes false if the API must return it.
- */
-export const CONTROLLER_EVIDENCE_EXCLUDE = true;
-```
-
-"Not applicable", "internal", "future work", and "not implemented" are conclusions, not reasons; name the actual owner or observable alternative and a concrete invalidating condition.
-
-Schema exclusions are unattached top-level `/// @evidenceExclude` lines in `exclude.schema`, a lint-only file that is not a Prisma generation input.
+Use the narrowest truthful target. "Not applicable", "internal", "future work", and "not implemented" are conclusions, not reasons; name the actual owner or observable alternative and a concrete invalidating condition.
 
 ## Stub Marker
 
@@ -166,27 +72,10 @@ Mark unfinished work with:
 @todo <specific remaining implementation>
 ```
 
-Place it on temporary controller and page stubs; remove it when the real provider delegation or completed screen replaces the stub. `evidence/todo` fails the backend build on every remaining tag, where [backend.md](backend.md) states. The rule set is frozen: do not add or remove a rule.
-
-Before a phase completes, both commands must return nothing:
-
-```bash
-rg --hidden -n -F '@todo' packages/api packages/backend --glob '*.ts'
-rg --hidden -n -F '@todo' packages/frontend --glob '*.ts' --glob '*.tsx'
-```
+Place it on temporary controller and page stubs; remove it when the real provider delegation or completed screen replaces the stub. Before a phase completes, its `@todo` sweep in the per-phase document must return nothing.
 
 ## Compiler Gates
 
-After a claim's `disabled` is deleted, the first selected host activates the complete claim, so an incomplete layer floods the output with diagnostics for artifacts not yet created. Delete each `disabled` only at the staged point [backend.md](backend.md) or [frontend.md](frontend.md) prescribes, with that phase's compiler process already running.
+The compiler owns target resolution, host eligibility, overlap, coverage, and missing acknowledgements. After each prescribed `disabled` deletion, fix the complete diagnostic batch and wait for a clean rebuild or reload; confirm no other claim configuration changed. The per-phase documents own the unlock order and its timing.
 
-The compiler owns target resolution, host eligibility, overlap, coverage, and missing acknowledgements. Fix the complete diagnostic batch and wait for a clean rebuild or reload; confirm no other claim configuration changed. The compiler processes report type and lint diagnostics only — they cannot tell you a behavior stopped working — so run the runtime tests your objective requires. Never weaken the graph or falsify an acknowledgement to silence a diagnostic.
-
-## Final Checklist
-
-- [ ] Every claim for the current phase is enabled; all other claim configuration remains unchanged and `evidence/graph` remains `error`.
-- [ ] Every acknowledgement truthfully matches its target and actual host; none exists only to satisfy the compiler.
-- [ ] Every behavioral acknowledgement is supported by the target-specific action and assertion it claims.
-- [ ] Every exclusion names the actual owner or observable alternative and a concrete invalidating condition.
-- [ ] Current compiler and runtime gates passed after the latest scoped change.
-
-Any unchecked item leaves the current Goal active. Fix its cause and rerun every affected current-state gate.
+The compiler processes report type and lint diagnostics only — they cannot tell you a behavior stopped working — so run the runtime tests your objective requires. Never weaken the graph or falsify an acknowledgement to silence a diagnostic.

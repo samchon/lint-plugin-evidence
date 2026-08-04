@@ -109,17 +109,3 @@ Read every controller and test file in full.
 3. Record over-implementation, invented restrictions, unrequired exposure, missing tests, and tests that preserve a defect as findings.
 
 Names, types, compilation, internal consistency, and passing tests do not establish semantic correctness.
-
-## Final Checklist
-
-- [ ] Review skill gate followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
-- [ ] Literal full reading covered every required instruction and in-scope backend artifact.
-- [ ] Every requirement propagated through database, API, behavior, and tests.
-- [ ] Every schema element checked against operations, DTOs, behavior, effects, and tests.
-- [ ] Every operation and DTO traced backward to requirements and storage and forward to behavior and tests.
-- [ ] Complete operation inventory read as one sorted list, every accessor named with the tests that prove it and what each proves, and every accessor without sufficient tests recorded as a finding.
-- [ ] Every controller and test read across all success, refusal, boundary, lifecycle, ownership, atomicity, ordering, and concurrency paths.
-- [ ] Every configuration file compared with the baseline; every relaxation reported and restored.
-- [ ] Every finding followed through its full consequence surface.
-
-Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the literal full-reading Backend Review from the first requirement.

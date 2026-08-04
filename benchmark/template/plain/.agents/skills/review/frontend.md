@@ -99,17 +99,3 @@ Read every browser test in full and perform every required journey against the l
 3. Verify real network behavior with simulation disabled where the instruction requires it.
 4. Verify that assertions observe user-visible meaning rather than only element existence, URL changes, or mocked responses.
 5. Record missing journeys and tests that preserve a frontend or backend defect as findings.
-
-## Final Checklist
-
-- [ ] Review skill gate followed exactly, with no discretionary changes to scope, round boundaries, stopping conditions, or procedure.
-- [ ] Literal full reading covered every required instruction and in-scope frontend artifact.
-- [ ] Every requirement propagated through API, screens, interactions, states, tests, and journeys.
-- [ ] Every operation and DTO checked against all consumers, data flow, failures, cache and route transitions, and browser proof.
-- [ ] Complete operation inventory read as one sorted list, every accessor named with the hook that calls it, the screen that renders that hook, and the journey that walks that screen, and every break in that chain recorded as a finding.
-- [ ] Every frontend source and browser test read and traced backward to requirements and forward to live behavior.
-- [ ] Every applicable user-visible, responsive, and accessible state checked.
-- [ ] Every configuration file compared with the baseline; every relaxation reported and restored.
-- [ ] Every required journey exercised against the live application.
-
-Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the literal full-reading Frontend Review from the first requirement.

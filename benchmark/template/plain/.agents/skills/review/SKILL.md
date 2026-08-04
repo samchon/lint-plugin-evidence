@@ -90,19 +90,3 @@ Never stop because:
 - a later Final objective might catch or repair an omission.
 
 None of these satisfy review loop until dry. When a literal dry round is not proven, remain active and continue the same review Goal.
-
-## Final Checklist
-
-- [ ] Literal full reading covered the detailed procedure and every in-scope artifact.
-- [ ] Every round began with one new complete sorted manifest; none was reused or split.
-- [ ] Every command returned content from only one manifest file; every file was fully covered in order, and no truncated read received credit.
-- [ ] No discretionary judgment changed the prescribed scope, round boundaries, stopping conditions, or review procedure.
-- [ ] Every round covered the first requirement through the final artifact and every propagation branch.
-- [ ] No split rounds, composed partial passes, omissions, or search/build/test substitutes.
-- [ ] Every finding and consequence fixed after the complete round.
-- [ ] Every correction or gate-driven change followed by a new full round.
-- [ ] Unlimited repetition reached one dry, edit-free round.
-- [ ] The qualifying dry round remained unchanged through clean current gates.
-- [ ] Scope checklist complete.
-
-Any unchecked or uncertain item leaves the Goal Mode completion conditions unmet. Repeat the applicable literal full-reading Review from the first requirement. In a Final Goal, perform the quoted Review immediately.
