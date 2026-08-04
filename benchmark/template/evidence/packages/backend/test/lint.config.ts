@@ -25,9 +25,15 @@ import type { ITtscLintConfig } from "@ttsc/lint";
  * them in the configuration `nestia all` resolves when it compiles
  * `nestia.config.ts` through a project of its own making, and that file is an
  * anonymous default export `evidence/singular` can never accept.
+ *
+ * `include` selects this directory, so the Program holds this file too, and
+ * `evidence/singular` would reach the anonymous default export below for the
+ * same reason it reaches `nestia.config.ts`. Linting the configuration that
+ * declares the rules is never the point, so it is ignored here.
  */
 export default {
   extends: "../lint.config.ts",
+  ignores: ["lint.config.ts"],
   plugins: {
     evidence,
   },
