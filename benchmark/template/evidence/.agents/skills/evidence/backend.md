@@ -100,7 +100,7 @@ Schema exclusions are unattached top-level `/// @evidenceExclude` lines in `excl
 
 Start backend `pnpm check:watch` before implementation while every backend claim is disabled. Delete each `disabled` at exactly the point its layer completes.
 
-- **Too early:** the first selected host activates the complete claim, so the watcher emits thousands of diagnostics for models, operations, and tags not yet written. The flood buries real diagnostics, fills context, and impairs decisions.
+- **Too early:** the watcher erupts with thousands of evidence errors for models, operations, and tags not yet written, polluting context and burying real diagnostics.
 - **Too late:** the layer's obligations arrive as one huge batch after work has moved on. Coverage gaps — a requirement no model, operation, or test answers — surface only then, when fixing them reopens finished layers, and tags retrofitted in bulk drift toward compiler-satisfying filler instead of truthful mappings.
 
 1. After the complete schema passes `pnpm build:prisma` and `pnpm schema`, delete `disabled` from `schema-models` in `packages/backend/test/lint.config.ts`.

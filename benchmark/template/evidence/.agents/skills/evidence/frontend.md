@@ -32,7 +32,7 @@ A journey cites each page it walks as `{@link ThatPage}` resolved through its ow
 
 Start frontend `pnpm dev` before implementation while every frontend claim is disabled. Enable the claims in chain order, each at exactly the point its layer completes.
 
-- **Too early:** the first hook, page, or journey activates the complete claim, so the dev process emits thousands of diagnostics for artifacts not yet written. The flood buries real diagnostics, fills context, and impairs decisions.
+- **Too early:** the dev process erupts with thousands of evidence errors for hooks, screens, and journeys not yet written, polluting context and burying real diagnostics.
 - **Too late:** the chain's obligations arrive as one huge batch after work has moved on. An operation no hook consumes or a screen no journey walks surfaces only then, when fixing it reopens finished layers, and tags retrofitted in bulk drift toward compiler-satisfying filler instead of truthful mappings.
 
 1. After every domain hook is complete, delete `disabled` from `frontend-hooks` in `packages/frontend/lint.config.ts`.
