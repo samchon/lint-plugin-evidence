@@ -11,7 +11,7 @@ The workspace carries its own contract, copied in at preparation. Read it there 
 | Source in the workspace | What it freezes |
 | --- | --- |
 | `AGENTS.md` | Agent instructions, policy overrides, package names and scripts, **existing** dependency specifiers, package-manager and engine resolution, workspace routing, shared lint or compiler configuration, and the fixed gate runners |
-| `.agents/skills/backend/SKILL.md` | Every `tsconfig.json` and lint configuration, in the package and in `test/` alike — no adding, deleting, or editing, and no toggling claim configuration by phase |
+| `.agents/skills/backend/SKILL.md` | The backend package's `tsconfig.json` and lint configuration, in the package and in `test/` alike — no adding, deleting, or editing, and no toggling claim configuration by phase |
 | `.agents/skills/evidence/SKILL.md` | All four claim configuration files and every claim object, except the prescribed `disabled` deletion, with `evidence/graph` held at `error` |
 | `.agents/skills/review/SKILL.md` | The same, restated as a review checklist against the baseline commit |
 
@@ -20,9 +20,10 @@ The workspace carries its own contract, copied in at preparation. Read it there 
 **Deleting a predeclared `disabled` property, together with the comment that marks it.** This is the Evidence arm's prescribed unlock, staged layer by layer by the arm's own instructions — `instructions/evidence/backend/start.md` names each claim and the moment to delete it. A cell that never deletes one has failed to advance; a cell that deletes one on schedule is doing its job.
 
 ```diff
-       files: ["src/controllers/**/*.ts"],
-       reference: [ ... ],
--      // Delete once every controller operation exists.
+           symbol: ["model"],
+         },
+       ],
+-      // Remove after every controller contract is complete and build:sdk passes.
 -      disabled: true,
 ```
 
@@ -37,6 +38,8 @@ The workspace carries its own contract, copied in at preparation. Read it there 
 ```
 
 Neither belongs in a report. A subagent that flags either is producing a false positive that costs a cell a warning it did not earn.
+
+**The first is Evidence-only.** The base template carries no claim and no `disabled` property; both arrive with the Evidence overlay, in `packages/api/lint.config.ts`, `packages/backend/lint.config.ts`, `packages/backend/test/lint.config.ts`, and `packages/frontend/lint.config.ts`. A Plain cell therefore has no legitimate `lint.config.ts` edit at all, and any difference from its baseline is a hit.
 
 ## A Hit
 

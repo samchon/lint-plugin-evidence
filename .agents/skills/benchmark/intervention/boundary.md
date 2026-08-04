@@ -12,7 +12,7 @@ Under `benchmark/template/**`, in either arm, at any nesting level:
 
 Creating or deleting one of those files counts as changing it.
 
-Never either:
+Three more, outside the template:
 
 - **A measured workspace.** What a cell did to its own workspace is the measurement.
 - **`benchmark/requirements/**`.** Opaque, authoritative bytes: never edit, rename, add, delete, normalize, summarize, validate, or challenge them.

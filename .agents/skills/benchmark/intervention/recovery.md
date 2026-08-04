@@ -10,18 +10,7 @@ When the resume conditions below match, resume immediately after diagnosis and a
 
 ## Free The Cell's Ports
 
-Each cell owns a disjoint block of four ports from base 46000, so two cells never contend. What does contend is a cell and its own past: a killed runner leaves its API server, Swagger, Vite, and Playwright children holding that block, and the next launch fails its pre-launch port check.
-
-| subject  | arm      | api   | swagger | vite  | playwright |
-| -------- | -------- | ----- | ------- | ----- | ---------- |
-| todo     | evidence | 46000 | 46001   | 46002 | 46003      |
-| todo     | plain    | 46010 | 46011   | 46012 | 46013      |
-| reddit   | evidence | 46020 | 46021   | 46022 | 46023      |
-| reddit   | plain    | 46030 | 46031   | 46032 | 46033      |
-| shopping | evidence | 46040 | 46041   | 46042 | 46043      |
-| shopping | plain    | 46050 | 46051   | 46052 | 46053      |
-| erp      | evidence | 46060 | 46061   | 46062 | 46063      |
-| erp      | plain    | 46070 | 46071   | 46072 | 46073      |
+A cell never contends with another cell — the blocks are disjoint, and [measurement/running.md](../measurement/running.md) maps them. A cell contends with its own past: a killed runner leaves its API server, Swagger, Vite, and Playwright children holding that block, and the next launch fails its pre-launch port check.
 
 Before resuming a stopped cell, confirm its four ports have no listener and stop whatever holds one. A listener on a cell's port while no runner of its own is alive means orphans are blocking recovery, and the reporting subagent reports that as its own condition rather than as a dead cell.
 
@@ -30,7 +19,7 @@ Before resuming a stopped cell, confirm its four ports have no listener and stop
 Resume only when the cell identity, frozen inputs, workspace, CLI version, objective, and native checkpoint still match:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark start codex <subject> <evidence|plain> <model> <effort> <run-id>
+pnpm --filter @samchon/evidence-benchmark start codex <subject> <evidence|plain> gpt-5.6-luna high <run-id>
 ```
 
 Keep the cell's original `benchmarkRevision` frozen. When recovery requires a committed runner correction, resume only from a clean descendant revision, which the runner retains as the new process's `runnerRevision`.
@@ -51,7 +40,7 @@ After `backend-start` completes, the runner stores a durable checkpoint of the m
 When a defect is confined to an instruction after `backend-start`, preserve the source run and create a new checkpoint-derived run:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark start codex <subject> <evidence|plain> <model> <effort> --from-backend-start <source-run-id>
+pnpm --filter @samchon/evidence-benchmark start codex <subject> <evidence|plain> gpt-5.6-luna high --from-backend-start <source-run-id>
 ```
 
 The command then:

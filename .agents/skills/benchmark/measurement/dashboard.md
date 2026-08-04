@@ -6,7 +6,7 @@ Never reconstruct a value the generator did not produce, and never read workspac
 
 ## Refresh
 
-Run both commands against the reported cohort, then paste what the second printed:
+Run both, then paste what the second printed:
 
 ```bash
 pnpm --filter @samchon/evidence-benchmark audit-suspensions
@@ -15,7 +15,7 @@ pnpm --filter @samchon/evidence-benchmark dashboard
 
 `audit-suspensions` compares each reported run against Windows Kernel-Power disconnected-standby intervals and records a verified idle interval in that run's `suspensions.json`. That file is the only one it may write; it must not modify `state.json` or a measured workspace.
 
-Pass repeated `--run-id <run-id>` arguments to both commands to report an explicit historical cohort instead of the latest launched cell of each subject and arm.
+`dashboard` takes no arguments and always renders the latest launched run of each cell. It cannot be pointed at a historical cohort; `--run-id` belongs to `audit-suspensions` and `report`, and [aggregate.md](aggregate.md) owns that path. Passing it here is accepted silently and changes nothing, so a cohort reported that way would be the live one wearing a historical label.
 
 Refresh every 5 minutes, and immediately after a state change or an anomaly.
 
@@ -26,7 +26,7 @@ Group by authorized model with one H2 per model. Under each model, render one su
 Only the latest launched run of a cell appears, and a cell that has not launched appears nowhere.
 
 ```markdown
-## GPT-5.6-Terra
+## GPT-5.6-Luna
 
 | Cell | Stage | Progress | Cost | Work time |
 | --- | --- | --- | ---: | ---: |

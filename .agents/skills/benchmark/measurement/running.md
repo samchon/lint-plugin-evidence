@@ -22,26 +22,66 @@ Freeze every input before launch, and never launch an unauthorized cell or rerun
 
 The runner reads the benchmark revision from the repository's `HEAD` and refuses to launch while anything is uncommitted or untracked, so commit or stash first.
 
+The engine, model, and effort are fixed for every campaign. Only the subject and arm vary:
+
 ```bash
-pnpm --filter @samchon/evidence-benchmark start codex <subject> <evidence|plain> <model> <effort>
+pnpm --filter @samchon/evidence-benchmark start codex <subject> <evidence|plain> gpt-5.6-luna high
 ```
 
-Run at most one command for a run ID.
+- **`codex`** is the only engine the command line accepts.
+- **`gpt-5.6-luna`** is the authorized model. The price table also carries `gpt-5.6-terra` and `gpt-5.6-sol`, and any unpriced string still launches and is measured but publishes no USD cost — neither fact authorizes running one.
+- **`high`** is the authorized effort. The parser also accepts `low`, `medium`, `xhigh`, `max`, and `ultra`.
 
-A launch that fails before native work does not consume the authorized cell, as long as its identity and frozen inputs are unchanged. Two such failures are ordinary: an unclean repository, and an occupied port from the cell's own block, whose map [intervention/recovery.md](../intervention/recovery.md) owns.
+Never vary the model or effort without the user's explicit instruction. Cost is why the matrix is fixed, and a cell run at another model or effort cannot be compared against the cohort it would join.
+
+Never run two commands against the same run ID at once. A resume reuses the run ID by design, so the rule is about concurrency, not about a second invocation.
+
+A launch that fails before native work does not consume the authorized cell, as long as its identity and frozen inputs are unchanged. Two such failures are ordinary: an unclean repository, and an occupied port from the cell's own block.
+
+### Port Blocks
+
+Every cell owns a disjoint block of four ports from base 46000, so two cells never contend. The runner assigns them before any model use and refuses to launch when one is occupied.
+
+| subject  | arm      | api   | swagger | vite  | playwright |
+| -------- | -------- | ----- | ------- | ----- | ---------- |
+| todo     | evidence | 46000 | 46001   | 46002 | 46003      |
+| todo     | plain    | 46010 | 46011   | 46012 | 46013      |
+| reddit   | evidence | 46020 | 46021   | 46022 | 46023      |
+| reddit   | plain    | 46030 | 46031   | 46032 | 46033      |
+| shopping | evidence | 46040 | 46041   | 46042 | 46043      |
+| shopping | plain    | 46050 | 46051   | 46052 | 46053      |
+| erp      | evidence | 46060 | 46061   | 46062 | 46063      |
+| erp      | plain    | 46070 | 46071   | 46072 | 46073      |
+
+The block reaches the workspace as `API_PORT`, `SWAGGER_PORT`, `VITE_DEV_PORT`, `VITE_API_HOST`, and `PLAYWRIGHT_TEST_PORT`, so the cell's own commands and tests inherit it without being told.
+
+What contends is never another cell — it is a cell and its own past. [intervention/recovery.md](../intervention/recovery.md) owns the orphan case.
 
 ## What The Runner Prepares
 
 Each cell gets a new ignored workspace, prepared before any model use:
 
 1. Copy `benchmark/template/base` and render its variables.
-2. Apply `benchmark/template/<arm>` over it. Plain receives no Evidence package, tag, rule, carrier, or guidance.
+2. Apply `benchmark/template/<arm>` over it. Both arms get an overlay — each splices its own `AGENTS.md` and review skill — but only Evidence adds the package, claims, tags, and graph guidance.
 3. Copy `benchmark/requirements/<subject>/` byte-for-byte into the workspace's `docs/analysis/`.
-4. For Evidence only, install the locally packed Evidence archive. Parallel Evidence cells share one immutable archive and each pins its SHA-256; Plain never reads or installs it.
+4. For Evidence only, install the locally packed Evidence archive and pin its SHA-256 to the cell. Plain never reads or installs it.
 5. Run `pnpm install`.
 6. Initialize the workspace as a Git repository and commit the prepared baseline.
 
 Instructions are never copied into the workspace. The runner reads each Markdown file from this repository when its objective starts, and records the exact text it sent.
+
+### Share One Archive Across Parallel Evidence Cells
+
+A cell with no `EVIDENCE_BENCHMARK_ARCHIVE` in its environment packs its own Evidence tarball, so parallel Evidence cells would each measure a separately built artifact. Pack once and export the path, and every cell copies that one file and pins its digest:
+
+```bash
+pnpm --dir packages/evidence pack --out /tmp/evidence.tgz
+export EVIDENCE_BENCHMARK_ARCHIVE=/tmp/evidence.tgz
+```
+
+That is the same `pack --out` the runner would have run per cell, hoisted to once per campaign.
+
+The runner strips the variable from every child environment, so a measured cell never sees it.
 
 ## The Objective Sequence
 
