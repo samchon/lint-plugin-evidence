@@ -21,6 +21,8 @@ Complete these stages in order.
 
 Removing `disabled` early emits thousands of errors for tags not yet written, which fills context and impairs decisions.
 
+The backend graph spans two files, because a claim belongs to the Program its hosts live in. `packages/backend/lint.config.ts` holds the package claims; `packages/backend/test/lint.config.ts` extends it and adds `backend-tests`, hosted by the tests under `test/features/`.
+
 Start `pnpm check:watch` from `packages/backend` before implementation while every backend claim is disabled.
 
 1. After the Prisma schema is complete, delete `disabled` from `schema-models`.

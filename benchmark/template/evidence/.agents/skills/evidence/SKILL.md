@@ -26,7 +26,7 @@ Several hosts may cite the same target when each independently implements or pro
 
 A claim with `disabled: true` is inactive even when its selector materializes a host. Its configuration is still validated.
 
-When the layer named by the adjacent comment is complete, delete that comment and the claim's final `disabled: true` property, and nothing else. Do not replace it with `false` or restore it later.
+When the layer named by the adjacent comment is complete, delete that comment and the claim's final `disabled: true` property, and nothing else. Delete it in the configuration that declares that claim, which the Configured Claims table names. Do not replace it with `false` or restore it later.
 
 An enabled claim is active only when its own `root`, `files`, and `symbol` selector materializes at least one selected host. If the successfully loaded host population is empty, the entire claim is inactive and none of its reference obligations runs.
 
@@ -48,10 +48,12 @@ Do not add or remove claim objects or change any other claim field as implementa
 | same | `dto-types` | exported DTO types | requirement H2/H3 and Prisma models |
 | same | `dto-properties` | exported DTO properties | Prisma columns |
 | same | `api-operations` | exported controller functions | requirement H2/H3 and Prisma models |
-| same | `backend-tests` | exported test functions | requirements and SDK operations |
+| `packages/backend/test/lint.config.ts` | `backend-tests` | exported test functions | requirements and SDK operations |
 | `packages/frontend/lint.config.ts` | `frontend-screens` | exported page functions | requirement H2/H3 and hook functions |
 | same | `frontend-journeys` | exported journey functions | requirements and page functions |
 | same | `frontend-hooks` | exported hook functions | SDK operations |
+
+A claim is declared in the configuration of the Program its hosts live in, which is why the backend spans two files. The e2e suite under `test/features/` belongs to the backend test Program rather than the package Program, so `backend-tests` is declared in `packages/backend/test/lint.config.ts`. That configuration extends the package one and carries its four claims forward unchanged, so a package claim is declared, and unlocked, once in `packages/backend/lint.config.ts` and holds in both Programs. The frontend is one Program and one configuration.
 
 The frontend claims form one chain: a hook answers for the operations it calls, a screen answers for the hooks it uses, and a journey answers for the screens it walks. Owning an operation is not delivering it, so a hook wrapping an accessor no screen renders fails at the screen claim rather than passing on the hook claim alone.
 
@@ -60,9 +62,9 @@ Both SDK operation obligations refuse `@evidenceExclude`. Every published operat
 They differ in cardinality. A backend test admits exactly one operation, because a test citing eight operations proves only that eight names appear in its JSDoc — cite the one it answers for and let its prerequisites stay uncited. A hook may cite as many as it calls, because consuming the published surface is the obligation and how the calls are grouped is not.
 
 
-Both configuration files and all claim objects are frozen except for the prescribed deletion of each predeclared `disabled` property. Keep `evidence/graph` at `error`. The backend has one `tsconfig.json` containing backend source, tests, and API DTOs. Do not create phase-specific config or compiler files.
+All three configuration files and all claim objects are frozen except for the prescribed deletion of each predeclared `disabled` property. Keep `evidence/graph` at `error`. Each backend Program has its own `tsconfig.json`, and the test one compiles the backend source together with the tests. Do not create phase-specific config or compiler files.
 
-The sealed `NESTIA_SDK_TRANSFORM=1` guard disables the graph only inside Nestia's private transform. It must be absent from every benchmark compiler gate; a result produced with it present is invalid.
+No environment value turns the graph off. `evidence/graph` is `error` in every gate, and a result produced with it weakened is invalid.
 
 ## Placement
 
@@ -184,14 +186,13 @@ rg --hidden -n -F '@todo' packages/frontend --glob '*.ts' --glob '*.tsx'
 
 Start backend `pnpm check:watch` once before implementation while every backend claim is disabled. Start frontend `pnpm dev` once before frontend implementation while every frontend claim is disabled. After `disabled` is removed, the first selected host activates its complete claim, so an incomplete layer can produce graph-wide diagnostics for artifacts that are about to be created.
 
-Confirm `NESTIA_SDK_TRANSFORM` is absent. At each completed layer, delete the prescribed `disabled` property. The compiler owns target resolution, host eligibility, overlap, coverage, and missing acknowledgements. Fix the complete diagnostic batch and wait for a clean rebuild or reload. Keep both compiler processes running through Overall Final.
+At each completed layer, delete the prescribed `disabled` property from the configuration that declares that claim. The compiler owns target resolution, host eligibility, overlap, coverage, and missing acknowledgements. Fix the complete diagnostic batch and wait for a clean rebuild or reload. Keep both compiler processes running through Overall Final.
 
 At each gate, confirm no other claim configuration changed, wait for clean current builds, and run the phase's runtime tests. Never weaken the graph or falsify an acknowledgement to silence a diagnostic.
 
 ## Final Checklist
 
 - [ ] Every claim for the current phase is enabled; all other claim configuration remains unchanged and `evidence/graph` remains `error`.
-- [ ] `NESTIA_SDK_TRANSFORM` was absent from every compiler gate.
 - [ ] Every acknowledgement truthfully matches its target and actual host; none exists only to satisfy the compiler.
 - [ ] Every behavioral acknowledgement is supported by the target-specific action and assertion it claims.
 - [ ] Every exclusion names the actual owner or observable alternative and a concrete invalidating condition.

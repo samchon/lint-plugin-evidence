@@ -8,16 +8,16 @@
     "build:main": "rimraf lib && ttsc",
     "build:prisma": "prisma generate --schema=prisma/schema",
     "build:sdk": "nestia all && pnpm --dir ../api build",
-    "build:test": "ttsc --noEmit",
-    "check:watch": "ttsc --watch --noEmit --preserveWatchOutput",
+    "build:test": "ttsc --project test/tsconfig.json --noEmit",
+    "check:watch": "ttsc --project test/tsconfig.json --noEmit --watch",
     "dev": "ttsx src/executable/server.ts",
     "format": "ttsc format",
     "lint": "ttsc check",
     "schema": "ttsx src/executable/schema.ts",
     "start": "ttsx src/executable/server.ts",
-    "start:prod": "node lib/backend/src/executable/server.js",
+    "start:prod": "node lib/executable/server.js",
     "start:swagger": "ttsx src/executable/swagger.ts",
-    "test": "ttsx --project tsconfig.json test/index.ts"
+    "test": "ttsx --project test/tsconfig.json test/index.ts"
   },
   "dependencies": {
     "@nestia/core": "catalog:samchon",

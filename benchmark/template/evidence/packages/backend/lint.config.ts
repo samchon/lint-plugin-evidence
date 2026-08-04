@@ -4,9 +4,8 @@ import {
 } from "@samchon/lint-plugin-evidence";
 import type { ITtscLintConfig } from "@ttsc/lint";
 
-declare const process: {
-  env: Record<string, string | undefined>;
-};
+/** The directory of this configuration, so a nested Program reuses the graph. */
+const here: string = import.meta.dirname;
 
 /**
  * The evidence obligations of the backend package.
@@ -19,22 +18,21 @@ declare const process: {
  * a test has a single subject, which is why only its operation reference does.
  * DTO claims select the explicitly included sibling API source through a rooted
  * Program population; package references remain the published contract a test
- * actually imports.
+ * actually imports. Every root is absolute, so the test Program inherits these
+ * claims unchanged and adds its own.
  */
-const graph: IEvidenceGraphConfig = {
+export const graph: IEvidenceGraphConfig = {
   claims: [
     // The schema stores what the requirements say must persist.
     {
       name: "schema-models",
       type: "prisma",
-      files: [
-        "prisma/schema/**/*.prisma",
-        "prisma/schema/exclude.schema",
-      ],
+      root: here,
+      files: ["prisma/schema/**/*.prisma", "prisma/schema/exclude.schema"],
       symbol: "model",
       reference: {
         type: "markdown",
-        root: "../..",
+        root: `${here}/../..`,
         files: ["docs/analysis/**/*.md"],
         symbol: ["h2", "h3"],
       },
@@ -47,18 +45,19 @@ const graph: IEvidenceGraphConfig = {
     {
       name: "dto-types",
       type: "typescript",
-      root: "../api",
+      root: `${here}/../api`,
       files: ["src/structures/**/*.ts"],
       symbol: "type",
       reference: [
         {
           type: "markdown",
-          root: "../..",
+          root: `${here}/../..`,
           files: ["docs/analysis/**/*.md"],
           symbol: ["h2", "h3"],
         },
         {
           type: "prisma",
+          root: here,
           files: ["prisma/schema/**/*.prisma"],
           symbol: ["model"],
         },
@@ -70,11 +69,12 @@ const graph: IEvidenceGraphConfig = {
     {
       name: "dto-properties",
       type: "typescript",
-      root: "../api",
+      root: `${here}/../api`,
       files: ["src/structures/**/*.ts"],
       symbol: "property",
       reference: {
         type: "prisma",
+        root: here,
         files: ["prisma/schema/**/*.prisma"],
         symbol: ["column"],
       },
@@ -85,17 +85,19 @@ const graph: IEvidenceGraphConfig = {
     {
       name: "api-operations",
       type: "typescript",
+      root: here,
       files: ["src/controllers/**/*.ts"],
       symbol: "function",
       reference: [
         {
           type: "markdown",
-          root: "../..",
+          root: `${here}/../..`,
           files: ["docs/analysis/**/*.md"],
           symbol: ["h2", "h3"],
         },
         {
           type: "prisma",
+          root: here,
           files: ["prisma/schema/**/*.prisma"],
           symbol: ["model"],
         },
@@ -103,61 +105,11 @@ const graph: IEvidenceGraphConfig = {
       // Remove after every controller contract is complete and build:sdk passes.
       disabled: true,
     },
-    // The e2e suite verifies the requirements and every published operation.
-    // The operation population is the generated SDK accessor surface alone, so
-    // no operation may answer "not applicable" and one test proves exactly one
-    // of them; DTO shapes answer to the DTO claims instead. TypeScript targets
-    // are cited as `{@link ...}` resolved through the test file's own imports.
-    {
-      name: "backend-tests",
-      type: "typescript",
-      files: ["test/features/**/*.ts"],
-      symbol: "function",
-      reference: [
-        {
-          type: "markdown",
-          root: "../..",
-          files: ["docs/analysis/**/*.md"],
-          symbol: ["h2", "h3"],
-        },
-        {
-          type: "typescript",
-          package: "{{apiPackageName}}",
-          files: ["src/functional/**/*.ts"],
-          symbol: ["function"],
-          noExclude: true,
-          singleEvidencePerSymbol: true,
-        },
-      ],
-      // Remove after every public-operation test and evidence mapping is complete.
-      disabled: true,
-    },
-    // Providers are deliberately outside the mechanical graph. Both arms
-    // review operations, requirements, and schema invariants against provider
-    // implementation.
   ],
 };
 
-const isNestiaSdkTransform: boolean =
-  process.env.NESTIA_SDK_TRANSFORM === "1";
-
 export default {
   extends: "../../config/lint.config.ts",
-  // Prisma owns this generated client. The authored schema remains selected by
-  // the graph through its explicit external population.
-  //
-  // The generated SDK is the same case. This package's Program includes the SDK
-  // sources so it can typecheck against the contract it publishes, which drags
-  // Nestia's accessors into this package's linting even though the API package
-  // excludes exactly those files from its own. Nestia types a route with no
-  // response body as `Resolved<void>`, which the shared `no-invalid-void-type`
-  // rule rejects, so every such route would be an error no author could fix
-  // without changing the published contract.
-  ignores: [
-    "src/prisma/**/*.ts",
-    "../api/src/functional/**/*.ts",
-    "**/api/src/functional/**/*.ts",
-  ],
   plugins: {
     evidence,
   },
@@ -166,6 +118,6 @@ export default {
     // treatment variable is the graph and nothing else, so an unrelated rule
     // must not be stricter in one arm than in the other.
     "no-duplicate-imports": ["error", { allowSeparateTypeImports: true }],
-    "evidence/graph": isNestiaSdkTransform ? "off" : ["error", graph],
+    "evidence/graph": ["error", graph],
   },
 } satisfies ITtscLintConfig;

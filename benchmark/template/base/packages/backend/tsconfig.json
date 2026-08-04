@@ -2,10 +2,12 @@
   "extends": "../../config/tsconfig.json",
   "compilerOptions": {
     "outDir": "lib",
-    "rootDir": "..",
-    "declaration": false,
+    "rootDir": "src",
+    "paths": {
+      "@prisma/sdk": ["./src/prisma/client.ts"]
+    },
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "../api/src/**/*.ts"]
+  "include": ["src"]
 }
