@@ -3,6 +3,9 @@ import path from "node:path";
 
 import { repositoryRoot } from "./suiteRoot.ts";
 
+/** The sentence an instruction uses to prescribe one claim's unlock. */
+const UNLOCK = /delete `disabled` from/i;
+
 /**
  * Orders claims the way the Evidence arm's own instruction tells a cell to
  * unlock them.
@@ -15,26 +18,51 @@ import { repositoryRoot } from "./suiteRoot.ts";
  * instruction forgot to mention a failure here rather than a silent gap in the
  * campaign.
  *
+ * Only the lines that actually prescribe an unlock are read. An instruction
+ * also names its claims while saying where they are declared and what the final
+ * checklist covers, and those mentions carry no ordering at all; ranking by
+ * first appearance anywhere let one of them put the last claim first. A claim
+ * named nowhere in an unlock step fails loudly instead, because that is a claim
+ * no cell is told when to open.
+ *
  * @param instruction Repository-relative instruction document to read.
  * @param claims Claim names discovered in the configuration under test.
- * @returns The same names, ordered by first mention in the instruction.
+ * @returns The same names, ordered as the instruction prescribes.
  */
 export const claimUnlockOrder = (
   instruction: string,
   claims: readonly string[],
 ): string[] => {
   const location: string = path.resolve(repositoryRoot, instruction);
-  const source: string = fs.readFileSync(location, "utf8");
-  const positions = new Map<string, number>();
+  const steps: { readonly line: number; readonly text: string }[] = fs
+    .readFileSync(location, "utf8")
+    .split("\n")
+    .map((text, line) => ({ line, text }))
+    .filter((entry) => UNLOCK.test(entry.text));
+  if (steps.length === 0)
+    throw new Error(
+      `${instruction} prescribes no claim unlock, so no order can be read from it. Either the arm no longer stages its claims, or the instruction changed shape and this suite is no longer reading it.`,
+    );
+  // Line first, then position within it: several claims are unlocked by one
+  // sentence, and their order inside that sentence is the order it prescribes.
+  // Folding both into one number would need a bound on line length that
+  // nothing guarantees.
+  const positions = new Map<string, readonly [number, number]>();
   for (const claim of claims) {
-    const at: number = source.indexOf(`\`${claim}\``);
-    if (at === -1)
+    const step = steps.find((entry) => entry.text.includes(`\`${claim}\``));
+    if (step === undefined)
       throw new Error(
-        `${instruction} never names claim '${claim}', so no cell is told when to unlock it.`,
+        `${instruction} never tells a cell when to unlock claim '${claim}'. A staged claim no instruction opens stays disabled for the whole run and measures nothing.`,
       );
-    positions.set(claim, at);
+    positions.set(claim, [step.line, step.text.indexOf(`\`${claim}\``)]);
   }
-  return [...claims].sort(
-    (left, right) => (positions.get(left) ?? 0) - (positions.get(right) ?? 0),
-  );
+  const at = (claim: string): readonly [number, number] =>
+    positions.get(claim) ?? [0, 0];
+  return [...claims].sort((left, right) => {
+    const [leftLine, leftColumn] = at(left);
+    const [rightLine, rightColumn] = at(right);
+    return leftLine === rightLine
+      ? leftColumn - rightColumn
+      : leftLine - rightLine;
+  });
 };
