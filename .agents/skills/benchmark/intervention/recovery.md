@@ -19,8 +19,10 @@ Before resuming a stopped cell, confirm its four ports have no listener and stop
 Resume only when the cell identity, frozen inputs, workspace, CLI version, objective, and native checkpoint still match:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark start codex <subject> <evidence|plain> gpt-5.6-luna high <run-id>
+pnpm --filter @samchon/evidence-benchmark start codex <subject> <evidence|plain> <model> <effort> <run-id>
 ```
+
+Repeat that cell's own model and effort rather than the campaign default. The runner compares engine, subject, arm, model, effort, run ID, stop point, and ledger mode against the retained cell and refuses the resume on any difference.
 
 Keep the cell's original `benchmarkRevision` frozen. When recovery requires a committed runner correction, resume only from a clean descendant revision, which the runner retains as the new process's `runnerRevision`.
 
@@ -40,7 +42,7 @@ After `backend-start` completes, the runner stores a durable checkpoint of the m
 When a defect is confined to an instruction after `backend-start`, preserve the source run and create a new checkpoint-derived run:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark start codex <subject> <evidence|plain> gpt-5.6-luna high --from-backend-start <source-run-id>
+pnpm --filter @samchon/evidence-benchmark start codex <subject> <evidence|plain> <model> <effort> --from-backend-start <source-run-id>
 ```
 
 The command then:

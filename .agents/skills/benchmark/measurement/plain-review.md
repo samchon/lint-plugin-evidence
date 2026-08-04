@@ -80,7 +80,7 @@ An operator warning is a different channel with its own command and contents, an
 It is Plain-only and needs a detached `backend-start` checkpoint thread, so it attaches to an existing run ID or a `--from-backend-start` derivation, never to a fresh cell:
 
 ```bash
-pnpm --filter @samchon/evidence-benchmark start codex <subject> plain gpt-5.6-luna high --review-ledger --from-backend-start <source-run-id>
+pnpm --filter @samchon/evidence-benchmark start codex <subject> plain <model> <effort> --review-ledger --from-backend-start <source-run-id>
 ```
 
 During `backend-review` the runner holds the cell's sandbox read-only and injects six tools as the only mechanisms that receive review credit:

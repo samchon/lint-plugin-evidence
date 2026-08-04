@@ -22,17 +22,17 @@ Freeze every input before launch, and never launch an unauthorized cell or rerun
 
 The runner reads the benchmark revision from the repository's `HEAD` and refuses to launch while anything is uncommitted or untracked, so commit or stash first.
 
-The engine, model, and effort are fixed for every campaign. Only the subject and arm vary:
+Unless the user names something else, every campaign runs the same engine, model, and effort. Only the subject and arm vary:
 
 ```bash
 pnpm --filter @samchon/evidence-benchmark start codex <subject> <evidence|plain> gpt-5.6-luna high
 ```
 
 - **`codex`** is the only engine the command line accepts.
-- **`gpt-5.6-luna`** is the authorized model. The price table also carries `gpt-5.6-terra` and `gpt-5.6-sol`, and any unpriced string still launches and is measured but publishes no USD cost — neither fact authorizes running one.
-- **`high`** is the authorized effort. The parser also accepts `low`, `medium`, `xhigh`, `max`, and `ultra`.
+- **`gpt-5.6-luna`** is the default model. `report` also prices `gpt-5.6-terra` and `gpt-5.6-sol`, and an unpriced string still launches and is measured but publishes no USD cost.
+- **`high`** is the default effort. The parser also accepts `low`, `medium`, `xhigh`, `max`, and `ultra`.
 
-Never vary the model or effort without the user's explicit instruction. Cost is why the matrix is fixed, and a cell run at another model or effort cannot be compared against the cohort it would join.
+The model and effort are defaults, not a menu you pick from. Change either only when the user names it, and record what they authorized in the pull-request body. Cost is why the default is what it is, and a cell run at another model or effort is not comparable with a cohort that used these.
 
 Never run two commands against the same run ID at once. A resume reuses the run ID by design, so the rule is about concurrency, not about a second invocation.
 
