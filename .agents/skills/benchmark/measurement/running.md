@@ -114,6 +114,8 @@ Every run directory holds the record the campaign is reported from:
 - `state.json` — cell identity, frozen inputs, instruction plan and cursor, status, thread token usage, checkpoints, processes, operator warnings, and review history.
 - `events.jsonl` — the complete native stream with observation and process-relative times.
 - `<stage>.log` — one file per objective in the run root, named after the Goal that owned the thread when the chunk arrived: `backend-start.log`, `backend-remind-3.log`, `overall-final.log`. Reading them in objective order reproduces the native stream exactly, and a resumed run appends to the same file.
+- `supervision/` — the exact bytes of every applied decision: `<NN>-<objective>-warning.json` for an operator warning, `<NN>-<scope>-<attempt>-verdict.json` for a review verdict.
+- `inspection/` — every inspecting-thread attempt: prompt, response schema, event stream, standard error, and final message.
 
 Stage names in the logs and on the dashboard are one vocabulary.
 
