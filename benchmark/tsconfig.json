@@ -1,7 +1,6 @@
 {
   "extends": "../config/tsconfig.json",
   "compilerOptions": {
-    "allowImportingTsExtensions": true,
     "declaration": false,
     "noEmit": true,
     "plugins": [
@@ -10,7 +9,6 @@
       }
     ],
     "rootDir": "src",
-    "rewriteRelativeImportExtensions": true,
     "sourceMap": false,
     "types": ["node"]
   },
