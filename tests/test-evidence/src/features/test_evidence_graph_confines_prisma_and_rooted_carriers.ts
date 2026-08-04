@@ -72,7 +72,7 @@ export const test_evidence_graph_confines_prisma_and_rooted_carriers =
     const model: string[] = [
       "/// A persisted sale.",
       "///",
-      "/// @evidence ../docs/spec.md#stored Stores the required sale.",
+      "/// @evidence docs/spec.md#stored Stores the required sale.",
       "model sales {",
       "  id String @id",
       "}",
@@ -96,7 +96,7 @@ export const test_evidence_graph_confines_prisma_and_rooted_carriers =
         "schema/exclude.schema": [
           "/// Lint-only carrier for schema exclusions.",
           "///",
-          `/// @evidenceExclude ../docs/spec.md#deferred ${reason}`,
+          `/// @evidenceExclude docs/spec.md#deferred ${reason}`,
           "",
         ].join("\n"),
       },
@@ -132,7 +132,7 @@ export const test_evidence_graph_confines_prisma_and_rooted_carriers =
         "docs/spec.md": spec,
         "schema/main.prisma": [
           ...model.slice(0, 3),
-          `/// @evidenceExclude ../docs/spec.md#deferred ${reason}`,
+          `/// @evidenceExclude docs/spec.md#deferred ${reason}`,
           ...model.slice(3),
         ].join("\n"),
         "schema/exclude.schema":
