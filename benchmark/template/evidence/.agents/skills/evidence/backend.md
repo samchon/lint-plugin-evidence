@@ -49,7 +49,7 @@ Those four carriers are the only place a backend `@evidenceExclude` may be writt
 - `packages/backend/src/controllers/CONTROLLER_EVIDENCE_EXCLUDE.ts`
 - `packages/backend/test/features/TEST_EVIDENCE_EXCLUDE.ts`
 
-Each ships with a JSDoc block stating what it accepts; read it before adding an entry. `backend-tests` accepts an exclusion for a requirement only — its operation reference refuses one, so a published operation with no test stays a build failure.
+Each claim declares its carrier through `evidenceExcludeCarriers`, so an exclusion written anywhere else is a build error naming the file it belongs in. Each carrier ships with a JSDoc block stating what it accepts; read it before adding an entry. `backend-tests` accepts an exclusion for a requirement only — its operation reference refuses one, so a published operation with no test stays a build failure.
 
 ## Examples
 

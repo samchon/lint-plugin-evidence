@@ -64,9 +64,9 @@ TypeScript targets are cited as `{@link ...}` inline links resolved through the 
 
 ## Exclusions
 
-**Every `@evidenceExclude` goes in its claim's exclusion carrier and nowhere else.** The per-phase documents name the carrier for each claim. A carrier is itself a selected host, so the compiler accepts an exclusion written on a working model, DTO, controller, test, screen, or journey — and accepting it is not the same as it belonging there. A working host carries what it owns; the carrier carries what the claim does not cover. Keeping them apart is what lets a reviewer read every exclusion a claim has by opening one file.
+**Every `@evidenceExclude` goes in its claim's exclusion carrier and nowhere else**, and the compiler enforces it: each claim declares its carrier through `evidenceExcludeCarriers`, so an exclusion written on a working model, DTO, controller, test, screen, or journey is a build error naming the file it belongs in. A working host carries what it owns; the carrier carries what the claim does not cover. Keeping them apart lets a reviewer read every exclusion a claim has by opening one file.
 
-A claim whose carrier is not listed accepts no exclusion at all. Write the missing work instead.
+A claim that declares no carrier accepts no exclusion at all. Write the missing work instead.
 
 Use the narrowest truthful target. "Not applicable", "internal", "future work", and "not implemented" are conclusions, not reasons; name the actual owner or observable alternative and a concrete invalidating condition.
 

@@ -29,9 +29,20 @@ import type { ITtscLintConfig } from "@ttsc/lint";
  * requirement and screen references accept a reviewed one, so a screen outside
  * the journeys is a decision someone has to write down and defend.
  *
+ * A claim that accepts an exclusion names the one file it may be written in, so
+ * the carrier is declared rather than conventional and an `@evidenceExclude`
+ * written anywhere else is a compile error. The hook claim names none, because
+ * its only reference refuses exclusions outright.
+ *
  * A journey cites each page it traverses as `{@link ThatPage}` resolved through
  * its own type-only import, so a screen no journey walks surfaces at the
  * compiler rather than in review.
+ *
+ * The screen and journey claims each name the one file their exclusions may be
+ * written in, so the carrier is declared rather than conventional and an
+ * `@evidenceExclude` on a working screen or journey is a compile error. The
+ * hook claim names none, because its only reference refuses exclusions
+ * outright.
  */
 const graph: IEvidenceGraphConfig = {
   claims: [
@@ -45,6 +56,7 @@ const graph: IEvidenceGraphConfig = {
         "src/components/SCREEN_EVIDENCE_EXCLUDE.ts",
         "!src/components/dev/**",
       ],
+      evidenceExcludeCarriers: ["src/components/SCREEN_EVIDENCE_EXCLUDE.ts"],
       symbol: "function",
       reference: [
         {
@@ -57,7 +69,7 @@ const graph: IEvidenceGraphConfig = {
           type: "typescript",
           files: ["src/lib/*/hooks.ts"],
           symbol: ["function"],
-          noExclude: true,
+          noEvidenceExclude: true,
         },
       ],
       // Remove after every required screen and evidence mapping is complete.
@@ -69,6 +81,7 @@ const graph: IEvidenceGraphConfig = {
       name: "frontend-journeys",
       type: "typescript",
       files: ["tests/journeys/**/*.ts"],
+      evidenceExcludeCarriers: ["tests/journeys/JOURNEY_EVIDENCE_EXCLUDE.ts"],
       symbol: "function",
       reference: [
         {
@@ -98,7 +111,7 @@ const graph: IEvidenceGraphConfig = {
         package: "{{apiPackageName}}",
         files: ["src/functional/**/*.ts"],
         symbol: ["function"],
-        noExclude: true,
+        noEvidenceExclude: true,
       },
       // Remove after every published operation reaches a hook.
       disabled: true,
