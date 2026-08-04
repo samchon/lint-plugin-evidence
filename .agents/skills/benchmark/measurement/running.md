@@ -38,6 +38,16 @@ Never run two commands against the same run ID at once. A resume reuses the run 
 
 A launch that fails before native work does not consume the authorized cell, as long as its identity and frozen inputs are unchanged. Two such failures are ordinary: an unclean repository, and an occupied port from the cell's own block.
 
+### Stop After Backend Start
+
+`--stop-after-backend-start` ends the run once `backend-start` completes and its durable checkpoint exists, retaining status `checkpointed`:
+
+```bash
+pnpm --filter @samchon/evidence-benchmark start codex <subject> <evidence|plain> gpt-5.6-luna high --stop-after-backend-start
+```
+
+That run is finished. It never resumes, and it continues only as a checkpoint-derived run, which is why the flag exists: it seeds a reusable `backend-start` for downstream instruction work without spending the rest of a cell. It cannot be combined with `--from-backend-start`, and the runner refuses the stop if the checkpoint is missing. [intervention/recovery.md](../intervention/recovery.md) owns the derivation.
+
 ### Port Blocks
 
 Every cell owns a disjoint block of four ports from base 46000, so two cells never contend. The runner assigns them before any model use and refuses to launch when one is occupied.
