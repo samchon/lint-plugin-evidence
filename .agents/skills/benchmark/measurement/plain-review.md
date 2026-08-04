@@ -40,7 +40,7 @@ Final is a finishing and safety stage after a passed Review, not permission to a
 ## What Each Decision Does
 
 - **Pass** skips the reminder and advances directly to that scope's Final.
-- **Fail** inserts that scope's `plain/<scope>/remind.md`, which quotes the scope's own Review instruction in full and carries nothing cell-specific, then stops for another decision after the supplementation Goal.
+- **Fail** inserts that scope's `plain/<scope>/remind.md`, joined by the runner with that scope's own Review instruction quoted in full. The reminder carries nothing cell-specific — it asks why completion was reported before the loop ran dry, and nothing else. The cell then stops for another decision after the supplementation Goal.
 
 Eight supplementation attempts are permitted. A failure after the last one retains `quality-failed`, does not dispatch Final, and cannot be resumed. The attempt a scope stops on is itself a measurement, so the bound is set where a cell that can converge still has room to.
 

@@ -8,7 +8,7 @@ Under `benchmark/template/**`, in either arm, at any nesting level:
 
 - **`tsconfig.json`** — any file, any property.
 - **`lint.config.ts`** — any file, any property, including a claim, a selector, a severity, or a `disabled`.
-- **`package.json`** — the top-level `main` and `exports`. Adding a top-level `types` is equally forbidden.
+- **`package.json`** — `main`, `exports`, and `publishConfig`. Adding a top-level `types` or a new `exports` subpath is equally forbidden.
 
 Creating or deleting one of those files counts as changing it.
 

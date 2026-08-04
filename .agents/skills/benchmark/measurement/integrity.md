@@ -67,11 +67,9 @@ Diff against the baseline, discard the prescribed `disabled` deletions and their
 
 ### `package.json`
 
-Three properties are frozen and one is not.
+`.agents/skills/backend/SKILL.md` gives the cell the exact shape and the rule in one line: **never change `main`, `exports`, or `publishConfig`.** Any difference in those three is a hit.
 
-**The top-level `main` and `exports` must stay on source, and no top-level `types` may appear.** `publishConfig` points at build output in the baseline and is never a hit.
-
-Baseline, `packages/api/package.json`:
+The trap is that the baseline legitimately points at build output, in `publishConfig` and only there. Read the two levels separately before reporting:
 
 ```json
 {
@@ -79,12 +77,15 @@ Baseline, `packages/api/package.json`:
   "exports": { ".": "./src/index.ts" },
   "publishConfig": {
     "main": "./lib/index.js",
-    "types": "./lib/index.d.ts"
+    "types": "./lib/index.d.ts",
+    "exports": { ".": { "types": "./lib/index.d.ts", "default": "./lib/index.js" } }
   }
 }
 ```
 
-A hit, because the top level now resolves to build output:
+That is `packages/api/package.json` as committed. The top level resolves to source so every workspace package reads current TypeScript; `publishConfig` switches the same root to compiled output when the package is packed. Neither half is a hit as it stands, and reporting the baseline's `lib` paths is a false positive.
+
+A hit looks like this — the top level now resolves to build output, so a local package can read a missing or stale build:
 
 ```json
 {
@@ -94,7 +95,20 @@ A hit, because the top level now resolves to build output:
 }
 ```
 
+A newly added top-level `types` is a hit on its own, and so is any edit inside `publishConfig`.
+
 Redirecting the SDK package to `lib` breaks the frozen glob that selects the accessor surface, and gives the cell a reason to edit the claim that depends on it. Report it in any package, `packages/api` included but never alone.
+
+**A new subpath in `exports` is a hit too**, and the API package is where it happens. `.agents/skills/api/SKILL.md` and `.agents/skills/project/SKILL.md` both forbid publishing or consuming a `structures` subpath, because a second export surface creates a second contract path — and the accessor-surface glob selects through the first one only.
+
+```json
+{
+  "exports": {
+    ".": "./src/index.ts",
+    "./structures": "./src/structures/index.ts"
+  }
+}
+```
 
 **A changed `name` or `scripts`, or a changed existing dependency specifier**, is also a hit. A newly added dependency is not; that one belongs to the cell's own review.
 
