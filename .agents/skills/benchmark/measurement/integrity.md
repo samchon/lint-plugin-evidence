@@ -11,13 +11,13 @@ The workspace carries its own contract, copied in at preparation. Read it there 
 | Source in the workspace | What it freezes |
 | --- | --- |
 | `AGENTS.md` | Agent instructions, policy overrides, package names and scripts, **existing** dependency specifiers, package-manager and engine resolution, workspace routing, shared lint or compiler configuration, and the fixed gate runners |
-| `.agents/skills/backend/SKILL.md` | The backend package's `tsconfig.json` and lint configuration, in the package and in `test/` alike — no adding, deleting, or editing, and no toggling claim configuration by phase |
+| `.agents/skills/backend/SKILL.md` | The backend package's `tsconfig.json` and lint configuration, in the package and in `test/` alike — no adding, deleting, or editing, and no phase edit beyond the one the active arm's skill prescribes |
 | `.agents/skills/evidence/SKILL.md` | All three claim configuration files and every claim object, except the prescribed `disabled` deletion, with `evidence/graph` held at `error` |
-| `.agents/skills/review/*.md` | Each arm's own review duty, and they differ. Evidence: every `lint.config.ts` against the baseline, the prescribed `disabled` deletion aside. Plain: any difference in an API or backend configuration file, a changed dependency included, is a finding to report and restore |
+| `.agents/skills/review/*.md` | Each arm's own review duty, and they differ. Evidence: every configuration its scope document names against the baseline, the prescribed `disabled` deletion aside. Plain: any difference from the baseline in a scoped configuration file, a changed dependency included, is a finding to report and restore |
 
 ## Legitimate, Never A Hit
 
-**Deleting a predeclared `disabled` property, together with the comment that marks it.** This is the Evidence arm's prescribed unlock, staged layer by layer by the arm's own instructions — `instructions/evidence/backend/start.md` names each claim and the moment to delete it. A cell that never deletes one has failed to advance; a cell that deletes one on schedule is doing its job.
+**Deleting a predeclared `disabled` property, together with the comment that marks it.** This is the Evidence arm's prescribed unlock, staged layer by layer by the arm's own skill — the workspace's `.agents/skills/evidence/backend.md` and `frontend.md` name each claim, its configuration, and the moment to delete it. A cell that never deletes one has failed to advance; a cell that deletes one on schedule is doing its job.
 
 ```diff
            symbol: ["model"],
