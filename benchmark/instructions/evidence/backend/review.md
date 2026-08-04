@@ -8,7 +8,8 @@ Read `.agents/skills/review/SKILL.md` and `.agents/skills/review/backend.md` bef
 
 - [ ] Every active backend `@evidence` and `@evidenceExclude`, its target, reason, and complete host inspected.
 - [ ] Every fake `@evidence`, including any added only to evade compiler errors, corrected.
-- [ ] Every `@evidenceExclude` owner or alternative and invalidating condition verified; every fake exclusion corrected.
+- [ ] Every exclusion carrier read in full and every entry decided; each names its owner or alternative and invalidating condition, and every fake exclusion corrected.
+- [ ] No exclusion stands in for an artifact this scope owes, and none sits on a working host instead of its carrier.
 - [ ] Every backend claim is enabled and `evidence/todo` is `error`; no other rule or claim configuration changed and `evidence/graph` remained `error`.
 - [ ] Backend `check:watch` completed a rebuild without diagnostics and remains running.
 - [ ] `pnpm test` exits with code 0 after the last correction.

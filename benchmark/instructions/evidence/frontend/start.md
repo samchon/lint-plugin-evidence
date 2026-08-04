@@ -15,7 +15,7 @@ Write every `@evidence` and `@evidenceExclude` truthfully; never add a tag only 
 - [ ] Each layer's claims were enabled as that layer completed: hooks first, then screens, then journeys.
 - [ ] Every accessor is called by a hook and every hook used by a screen; every screen is walked or excluded with a reviewed reason.
 - [ ] Every `@evidence` names what its host actually calls, delivers, uses, proves, or walks.
-- [ ] Every `@evidenceExclude` names its owner or alternative and invalidating condition; none exists only to remove a diagnostic.
+- [ ] Every `@evidenceExclude` sits in its claim's exclusion carrier, names its owner or alternative and invalidating condition, and none stands in for work this layer owes or exists only to remove a diagnostic.
 - [ ] The persistent frontend `pnpm dev` process reloaded without diagnostics after the latest change and remains running.
 - [ ] Live-backend `pnpm test:e2e` exits with code 0 after the last frontend change.
 

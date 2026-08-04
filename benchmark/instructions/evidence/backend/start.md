@@ -17,7 +17,7 @@ Write every `@evidence` and `@evidenceExclude` truthfully; never add a tag only 
 - [ ] Every backend claim is enabled and `evidence/todo` is `error`; no other rule or claim configuration changed.
 - [ ] Each layer's claims were enabled as that layer completed: DB schema first, then DTOs and operations, then tests.
 - [ ] Every `@evidence` is on code that implements, represents, or proves its target.
-- [ ] Every `@evidenceExclude` names its owner or alternative and invalidating condition; none exists only to remove a diagnostic.
+- [ ] Every `@evidenceExclude` sits in its claim's exclusion carrier, names its owner or alternative and invalidating condition, and none stands in for work this layer owes or exists only to remove a diagnostic.
 - [ ] The persistent watcher rebuilt without diagnostics after the latest change and remains running.
 - [ ] Prisma generation followed the last schema change, SDK generation followed the last API change, and `pnpm test` exits with code 0.
 

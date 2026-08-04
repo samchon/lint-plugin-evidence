@@ -1,6 +1,8 @@
 # Overall Review Scope
 
-The scope is the whole application: every active acknowledgement in every claim. Read [backend.md](backend.md) and [frontend.md](frontend.md); this scope is their union.
+The scope is the whole application: every active acknowledgement in every claim. Read [backend.md](backend.md) and [frontend.md](frontend.md); this scope is their union, including all six exclusion carriers they name.
+
+An exclusion that names another layer as the owner is checked here against that layer, which is the check neither scope alone can make. A backend entry deferring a requirement to the frontend is a finding unless a screen or journey delivers it, and a frontend entry deferring one to the backend is a finding unless an operation and its test carry it.
 
 ## Configuration
 

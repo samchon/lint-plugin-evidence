@@ -42,6 +42,15 @@ Write the temporary controller stub's marker as `@todo <specific remaining imple
 | `api-operations` | controller method JSDoc | `src/controllers/CONTROLLER_EVIDENCE_EXCLUDE.ts` |
 | `backend-tests` | exported test function JSDoc | `test/features/TEST_EVIDENCE_EXCLUDE.ts`, requirements only |
 
+Those four carriers are the only place a backend `@evidenceExclude` may be written:
+
+- `packages/backend/prisma/schema/exclude.schema`
+- `packages/api/src/structures/DTO_EVIDENCE_EXCLUDE.ts`
+- `packages/backend/src/controllers/CONTROLLER_EVIDENCE_EXCLUDE.ts`
+- `packages/backend/test/features/TEST_EVIDENCE_EXCLUDE.ts`
+
+Each ships with a JSDoc block stating what it accepts; read it before adding an entry. `backend-tests` accepts an exclusion for a requirement only — its operation reference refuses one, so a published operation with no test stays a build failure.
+
 ## Examples
 
 ```prisma

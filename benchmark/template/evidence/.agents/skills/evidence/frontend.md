@@ -28,6 +28,13 @@ A journey cites each page it walks as `{@link ThatPage}` resolved through its ow
 | `frontend-screens` | exported page function JSDoc | `src/components/SCREEN_EVIDENCE_EXCLUDE.ts`, requirements only |
 | `frontend-journeys` | exported journey function JSDoc | `tests/journeys/JOURNEY_EVIDENCE_EXCLUDE.ts` |
 
+Those two carriers are the only place a frontend `@evidenceExclude` may be written:
+
+- `packages/frontend/src/components/SCREEN_EVIDENCE_EXCLUDE.ts`
+- `packages/frontend/tests/journeys/JOURNEY_EVIDENCE_EXCLUDE.ts`
+
+Each ships with a JSDoc block stating what it accepts; read it before adding an entry. `frontend-hooks` has no carrier at all, and the hook reference of `frontend-screens` refuses one too: an operation no hook calls and a hook no screen renders are missing work, so write the hook or the screen.
+
 ## Staged Unlock
 
 Start frontend `pnpm dev` before implementation while every frontend claim is disabled. Enable the claims in chain order, each at exactly the point its layer completes.
