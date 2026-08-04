@@ -85,6 +85,9 @@ export namespace EvidenceBenchmarkWorkspace {
     fs.mkdirSync(parent, { recursive: true });
     const stage: string = fs.mkdtempSync(path.join(parent, ".tmp-"));
     const workspace: string = path.join(stage, "workspace");
+    // Set once the rename succeeds, so a later failure cleans the settled tree
+    // rather than a staging directory that no longer exists.
+    let settled: string | undefined;
     try {
       const template: string = path.resolve(
         request.repository,
@@ -114,8 +117,17 @@ export namespace EvidenceBenchmarkWorkspace {
       for (const name of Object.keys(environment))
         if (name.toUpperCase() === "EVIDENCE_BENCHMARK_ARCHIVE")
           delete environment[name];
-      await run("git", ["init", "-b", "benchmark"], workspace, environment);
-      await run("git", ["add", "-A"], workspace, environment);
+      // Settle the workspace before installing into it. A package manager links
+      // a workspace dependency by absolute path — pnpm writes a junction on
+      // Windows — so an install that runs while the tree is still staged leaves
+      // every `packages/*/node_modules/<dep>` pointing at a staging directory
+      // the rename then destroys. The delivered tree resolves nothing, and the
+      // agent's first act is a repair it should never have had to make.
+      fs.renameSync(stage, output);
+      settled = path.join(output, "workspace");
+      await pnpm(["install", "--no-frozen-lockfile"], settled, environment);
+      await run("git", ["init", "-b", "benchmark"], settled, environment);
+      await run("git", ["add", "-A"], settled, environment);
       await run(
         "git",
         [
@@ -127,29 +139,18 @@ export namespace EvidenceBenchmarkWorkspace {
           "-m",
           "Prepare benchmark workspace",
         ],
-        workspace,
+        settled,
         environment,
       );
-      fs.renameSync(stage, output);
-      // Install where the workspace will live, not where it is staged. A
-      // package manager links a workspace dependency by absolute path — pnpm
-      // writes a junction on Windows — so installing before the rename leaves
-      // every `packages/*/node_modules/<dep>` pointing at a staging directory
-      // that no longer exists. The delivered tree then resolves nothing, and
-      // the agent's first command is a repair it should never have to make.
-      const settled: string = path.join(output, "workspace");
-      try {
-        await pnpm(["install", "--no-frozen-lockfile"], settled, environment);
-      } catch (error) {
-        fs.rmSync(output, { recursive: true, force: true });
-        throw error;
-      }
       return {
         root: output,
         workspace: settled,
       };
     } catch (error) {
-      fs.rmSync(stage, { recursive: true, force: true });
+      fs.rmSync(settled === undefined ? stage : output, {
+        recursive: true,
+        force: true,
+      });
       throw error;
     }
   }

@@ -128,10 +128,7 @@ export const test_benchmark_workspace = async (): Promise<void> => {
         'import path from "node:path";',
         "const stage = path.basename(path.dirname(process.cwd()));",
         'const restored = fs.existsSync(path.join(process.cwd(), ".git"));',
-        'if (!restored && (!stage.startsWith(".tmp-") || stage.length !== 11)) {',
-        "  console.error(`Rejected unbounded stage basename: ${stage}`);",
-        "  process.exitCode = 73;",
-        "} else if (!restored) {",
+        "if (!restored) {",
         '  fs.writeFileSync(path.join(process.cwd(), ".fixture-install.json"), JSON.stringify({ stage }));',
         "}",
         "",
@@ -208,7 +205,11 @@ export const test_benchmark_workspace = async (): Promise<void> => {
         "utf8",
       ),
     ) as { stage: string };
-    assert.match(install.stage, /^\.tmp-.{6}$/);
+    // The install must run against the settled tree, not the staging one. A
+    // package manager links a workspace dependency by absolute path, so an
+    // install performed before the rename leaves every link pointing at a
+    // directory the rename destroys.
+    assert.equal(install.stage, path.basename(plainOutput));
 
     const artifact: string = path.join(root, "evidence.tgz");
     const artifactBytes: Buffer = Buffer.from("immutable evidence archive");
