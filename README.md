@@ -190,7 +190,7 @@ Counting is by identity, not by text. Repeated tags for one unit count once, mer
 
 Declared, an `@evidenceExclude` is accepted only from a file these globs match. One written elsewhere in the population is reported where it sits, naming these patterns, and gives no coverage, so its target still owes positive `@evidence`. Omit the property and an exclusion stays eligible wherever it already was.
 
-The patterns use the grammar and the `root` that `files` uses, and they narrow rather than widen: a carrier must already be selected by `files` to host anything.
+The patterns use the grammar and the `root` that `files` uses, and they narrow rather than widen: a carrier must already be selected by `files` to host anything. A carrier set that selects none of the claim's files is reported against the claim, because a misspelled path would otherwise refuse every exclusion in it and offer a repair nobody can perform.
 
 An exclusion is the one acknowledgement that reports an obligation discharged without anything being built, so reading every exclusion a claim owns is a review that has to happen. Scattered through the population that means reading the population; gathered in a named ledger it means opening one file, with every exclusion the claim has sitting beside its neighbors.
 
