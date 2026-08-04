@@ -19,6 +19,10 @@ import type { ITtscLintConfig } from "@ttsc/lint";
  * `packages/backend/package.json`, so the package manager makes that directory
  * the working directory for each of them.
  *
+ * Each claim names the one file its exclusions may be written in, resolved
+ * against that same root, so the carrier is declared rather than conventional
+ * and an `@evidenceExclude` written anywhere else is a compile error.
+ *
  * The two file rules are declared here rather than on the package for the same
  * reason: this Program includes `../src` alongside the tests, so it already
  * covers every file they should reach. Declaring them on the package would put
@@ -57,6 +61,7 @@ export default {
               "prisma/schema/**/*.prisma",
               "prisma/schema/exclude.schema",
             ],
+            evidenceExcludeCarriers: ["prisma/schema/exclude.schema"],
             symbol: "model",
             reference: {
               type: "markdown",
@@ -73,6 +78,9 @@ export default {
             type: "typescript",
             root: "..",
             files: ["src/controllers/**/*.ts"],
+            evidenceExcludeCarriers: [
+              "src/controllers/CONTROLLER_EVIDENCE_EXCLUDE.ts",
+            ],
             symbol: "function",
             reference: [
               {
@@ -102,6 +110,7 @@ export default {
             type: "typescript",
             root: ".",
             files: ["features/**/*.ts"],
+            evidenceExcludeCarriers: ["features/TEST_EVIDENCE_EXCLUDE.ts"],
             symbol: "function",
             reference: [
               {
@@ -115,7 +124,7 @@ export default {
                 package: "{{apiPackageName}}",
                 files: ["src/functional/**/*.ts"],
                 symbol: ["function"],
-                noExclude: true,
+                noEvidenceExclude: true,
                 singleEvidencePerSymbol: true,
               },
             ],

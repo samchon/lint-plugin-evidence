@@ -45,11 +45,16 @@ type claimSpec struct {
 	// the resolved Base because the two are produced at different times: the
 	// spelling decodes from options alone, while the resolution needs a project
 	// identity the decoder never sees.
-	Root       string
-	Base       populationBase
-	Files      globSet
-	Symbols    symbolSet
-	References []referenceSpec
+	Root  string
+	Base  populationBase
+	Files globSet
+	// ExclusionCarriers narrows where this claim's @evidenceExclude may sit.
+	// Empty keeps the historical behavior, where an exclusion is eligible
+	// anywhere in Files. Declared, only a carrier file hosts one, so every
+	// exclusion a claim owns is read by opening one file.
+	ExclusionCarriers globSet
+	Symbols           symbolSet
+	References        []referenceSpec
 }
 
 type referenceSpec struct {
@@ -248,6 +253,10 @@ type claimState struct {
 	Declarations []*evidenceDeclaration
 	References   []referenceState
 	Healthy      bool
+	// OutsideCarrier names declarations this claim selected from a file its
+	// ExclusionCarriers does not match. Only exclusions are judged by it, and
+	// it stays empty when the claim declares no carrier.
+	OutsideCarrier map[string]bool
 }
 
 type referenceState struct {

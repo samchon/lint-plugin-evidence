@@ -25,7 +25,7 @@ export function testContract(): void {}
 			"type":"markdown",
 			"files":["docs/spec.md"],
 			"symbol":"h2",
-			"noExclude":true
+			"noEvidenceExclude":true
 		}
 	}]}`)
 	assertSilent(t, messages)
@@ -63,7 +63,7 @@ export function testContract(): void {}
 				"type":"markdown",
 				"files":["docs/spec.md"],
 				"symbol":"h2",
-				"noExclude":true
+				"noEvidenceExclude":true
 			},
 			{
 				"type":"markdown",
@@ -104,7 +104,7 @@ export function testContract(): void {}
 			"type":"typescript",
 			"files":["src/contract.ts"],
 			"symbol":"type",
-			"noExclude":true
+			"noEvidenceExclude":true
 		}
 	}]}`)
 	assertSilent(t, messages)

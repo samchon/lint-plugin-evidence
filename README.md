@@ -162,16 +162,37 @@ Three opt-in properties tighten a single reference:
 {
   type: "swagger",
   file: "api/swagger.json",
-  noExclude: true,
+  noEvidenceExclude: true,
   singleEvidencePerSymbol: true,
 }
 ```
 
-- **`noExclude`** refuses `@evidenceExclude` here. The exclusion is reported where it is written and gives this reference no coverage, so its target still owes positive `@evidence`.
+- **`noEvidenceExclude`** refuses `@evidenceExclude` here. The exclusion is reported where it is written and gives this reference no coverage, so its target still owes positive `@evidence`.
 - **`uniqueEvidence`** allows at most one claim host to cite each unit, so the unit has one host answerable for it rather than several.
 - **`singleEvidencePerSymbol`** requires exactly one distinct unit from every host the claim's own `symbol` selector picks. A host with no `@evidence` tag counts as zero and fails, as does a host citing two units.
 
 Counting is by identity, not by text. Repeated tags for one unit count once, merged declarations and overload sets remain one host, and an aggregate target contributes every selected descendant in its scope — so citing a parent of two selected units counts as two.
+
+### Exclusion carriers
+
+`noEvidenceExclude` decides whether a reference accepts an exclusion at all. Where it does, `evidenceExcludeCarriers` decides where that exclusion may be written.
+
+```ts
+{
+  name: "screens",
+  type: "typescript",
+  files: ["src/components/**/*.tsx", "src/components/EXCLUSIONS.ts"],
+  evidenceExcludeCarriers: ["src/components/EXCLUSIONS.ts"],
+  symbol: "function",
+  reference: { type: "markdown", files: ["docs/**/*.md"], symbol: "h2" },
+}
+```
+
+Declared, an `@evidenceExclude` is accepted only from a file these globs match. One written elsewhere in the population is reported where it sits, naming these patterns, and gives no coverage, so its target still owes positive `@evidence`. Omit the property and an exclusion stays eligible wherever it already was.
+
+The patterns use the grammar and the `root` that `files` uses, and they narrow rather than widen: a carrier must already be selected by `files` to host anything. A carrier set that selects none of the claim's files is reported against the claim, because a misspelled path would otherwise refuse every exclusion in it and offer a repair nobody can perform.
+
+An exclusion is the one acknowledgement that reports an obligation discharged without anything being built, so reading every exclusion a claim owns is a review that has to happen. Scattered through the population that means reading the population; gathered in a named ledger it means opening one file, with every exclusion the claim has sitting beside its neighbors.
 
 The constraints belong to one reference and never pool. An exclusion the Swagger reference above refuses may still satisfy a Markdown reference in the same claim, and two references over the same files stay independent. Omit all three to keep the behavior a reference had before they existed.
 
@@ -438,7 +459,7 @@ Markdown cannot cite a TypeScript symbol: it has no import scope in which `{@lin
 <!-- @evidenceExclude docs/requirements/coupons.md#coupon-stacking This section defines wording and intentionally does not implement coupon behavior. -->
 ```
 
-`@evidenceExclude target reason` records that a claim intentionally does not use the target scope. It follows the same hierarchy as `@evidence`, so excluding an H2 also excludes its selected H3/H4 descendants, and excluding a type or namespace excludes its selected children. It affects only the matching claim and never crosses a reference boundary, and a reference declaring `noExclude` refuses it outright. One claim-reference obligation may exclude a selected scope only once; overlapping exclusions are rejected even when they sit on different carriers, because the exclusion reason must have one reviewable owner. Unlike ownership evidence, a TypeScript exclusion may sit on any supported public export in the claim's file population, even when that export's symbol kind is not selected by the claim. Prisma also accepts the lint-only file carrier described above. Unexported TypeScript declarations, unsupported locations, and files outside the claim population do not qualify. Overlapping evidence and exclusion scopes are rejected because they state contradictory intent for the same unit.
+`@evidenceExclude target reason` records that a claim intentionally does not use the target scope. It follows the same hierarchy as `@evidence`, so excluding an H2 also excludes its selected H3/H4 descendants, and excluding a type or namespace excludes its selected children. It affects only the matching claim and never crosses a reference boundary, and a reference declaring `noEvidenceExclude` refuses it outright. One claim-reference obligation may exclude a selected scope only once; overlapping exclusions are rejected even when they sit on different carriers, because the exclusion reason must have one reviewable owner. Unlike ownership evidence, a TypeScript exclusion may sit on any supported public export in the claim's file population, even when that export's symbol kind is not selected by the claim. Prisma also accepts the lint-only file carrier described above. Unexported TypeScript declarations, unsupported locations, and files outside the claim population do not qualify. Overlapping evidence and exclusion scopes are rejected because they state contradictory intent for the same unit.
 
 In an agent workflow the tags cost nothing extra. The agent writes each citation as it implements. You review the stated reasons instead of reverse-engineering the diff. A misreading also surfaces in that review, because the reason sits beside the exact section it claims to honor.
 

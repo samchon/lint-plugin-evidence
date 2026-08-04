@@ -217,9 +217,34 @@ func materializeClaimStates(
 		inventories := inventoriesOf(claim.Type, markdown, prisma, swagger, typescript)
 		paths := matchingInventoryPaths(inventories, claim.Base, claim.Files)
 		state := claimState{
-			Spec:    claim,
-			Paths:   paths,
-			Healthy: populationIsHealthy(inventories, claim.Base, paths),
+			Spec:           claim,
+			Paths:          paths,
+			Healthy:        populationIsHealthy(inventories, claim.Base, paths),
+			OutsideCarrier: map[string]bool{},
+		}
+		carrierPaths := map[string]bool{}
+		if len(claim.ExclusionCarriers.Patterns) != 0 {
+			// The carriers narrow the claim's own population and never widen
+			// it, so a pattern matching a file this claim does not select
+			// contributes nothing and leaves the set empty.
+			claimPaths := map[string]bool{}
+			for _, path := range paths {
+				claimPaths[path] = true
+			}
+			for _, carrier := range matchingInventoryPaths(inventories, claim.Base, claim.ExclusionCarriers) {
+				if claimPaths[carrier] {
+					carrierPaths[carrier] = true
+				}
+			}
+			// A carrier set that selects nothing would silently refuse every
+			// exclusion the claim writes, so the misspelling is reported where
+			// it was made rather than as a placement finding on each tag.
+			if len(carrierPaths) == 0 && len(paths) != 0 {
+				problems = append(
+					problems,
+					claimLabel(claim)+" declares evidenceExcludeCarriers "+describePopulation(claim.Base, claim.ExclusionCarriers)+", which selects none of its "+decimal(len(paths))+" claim file(s). Point the patterns at a file this claim already selects, or drop the property to accept an exclusion anywhere in the population.",
+				)
+			}
 		}
 		if len(paths) == 0 && state.Healthy {
 			problems = append(
@@ -242,6 +267,11 @@ func materializeClaimStates(
 				state.Declarations,
 				inventories[path].Declarations...,
 			)
+			if len(claim.ExclusionCarriers.Patterns) != 0 && !carrierPaths[path] {
+				for _, declaration := range inventories[path].Declarations {
+					state.OutsideCarrier[declaration.ID] = true
+				}
+			}
 		}
 		sortUnits(state.Hosts)
 		for _, reference := range claim.References {
@@ -584,6 +614,11 @@ func evaluateEvidenceGraph(
 	uncertain := map[string]bool{}
 	outOfScope := map[string][]string{}
 	outOfScopeSelections := map[string]symbolSet{}
+	// An exclusion outside its claim's declared carriers is a placement
+	// finding, not a host-kind one, so it carries its own obligations and the
+	// carrier globs its message must name.
+	outsideCarrier := map[string][]string{}
+	outsideCarrierGlobs := map[string]string{}
 	for _, state := range states {
 		if len(state.Paths) == 0 {
 			continue
@@ -639,6 +674,14 @@ func evaluateEvidenceGraph(
 				if len(covered) == 0 {
 					continue
 				}
+				if declaration.Tag == tagExclude && state.OutsideCarrier[declaration.ID] {
+					outsideCarrier[declaration.ID] = appendUniqueString(
+						outsideCarrier[declaration.ID],
+						claimLabel(state.Spec)+" "+referenceLabel(reference.Spec),
+					)
+					outsideCarrierGlobs[declaration.ID] = describePopulation(state.Spec.Base, state.Spec.ExclusionCarriers)
+					continue
+				}
 				if !declarationEligibleForClaim(declaration, state.Spec) {
 					outOfScope[declaration.ID] = appendUniqueString(
 						outOfScope[declaration.ID],
@@ -664,7 +707,7 @@ func evaluateEvidenceGraph(
 				if declaration.Tag == tagExclude && reference.Spec.Policy.NoExclude {
 					problems = append(
 						problems,
-						"Forbidden @evidenceExclude for '"+scopesByID[scopeID].Target+"' at "+declaration.location()+" in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+": noExclude requires positive @evidence for this reference. Remove the exclusion and cite the target from a selected "+string(state.Spec.Type)+" host.",
+						"Forbidden @evidenceExclude for '"+scopesByID[scopeID].Target+"' at "+declaration.location()+" in "+claimLabel(state.Spec)+" "+referenceLabel(reference.Spec)+": noEvidenceExclude requires positive @evidence for this reference. Remove the exclusion and cite the target from a selected "+string(state.Spec.Type)+" host.",
 					)
 					continue
 				}
@@ -799,6 +842,13 @@ func evaluateEvidenceGraph(
 		}
 		declaration := declarations[id]
 		context := declarationObligationContext(owners[id])
+		if obligations := outsideCarrier[id]; len(obligations) != 0 {
+			problems = append(
+				problems,
+				"Misplaced @evidenceExclude at "+declaration.location()+" for "+strings.Join(obligations, "; ")+", target '"+displayTarget(declaration.Target)+"': evidenceExcludeCarriers confines this claim's exclusions to "+outsideCarrierGlobs[id]+". Move the tag there, or delete it and implement the target this claim owes.",
+			)
+			continue
+		}
 		if obligations := outOfScope[id]; len(obligations) != 0 {
 			host := declaration.Hosts.names()
 			if len(declaration.Hosts) == 0 {

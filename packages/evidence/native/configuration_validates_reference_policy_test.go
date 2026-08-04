@@ -24,7 +24,7 @@ func TestReferencePolicyDefaultsPreserveReferenceBehavior(t *testing.T) {
 			{
 				"type":"markdown",
 				"files":["docs/b.md"],
-				"noExclude":false,
+				"noEvidenceExclude":false,
 				"uniqueEvidence":false,
 				"singleEvidencePerSymbol":false
 			}
@@ -53,7 +53,7 @@ func TestReferencePolicyDefaultsPreserveReferenceBehavior(t *testing.T) {
  *  3. Assert each reference retains all three enabled options.
  */
 func TestReferencePolicyAppliesToEveryReferenceKind(t *testing.T) {
-	policy := `"noExclude":true,
+	policy := `"noEvidenceExclude":true,
 		"uniqueEvidence":true,
 		"singleEvidencePerSymbol":true`
 	config, problems := decodeGraphConfig(json.RawMessage(`{"claims":[{
@@ -104,7 +104,7 @@ func TestReferencePolicyRejectsMalformedRuntimeShapes(t *testing.T) {
 		{name: "null", value: `null`},
 	}
 	for _, property := range []string{
-		"noExclude",
+		"noEvidenceExclude",
 		"uniqueEvidence",
 		"singleEvidencePerSymbol",
 	} {
@@ -144,10 +144,10 @@ func TestReferencePolicyIsRejectedOutsideAReferenceObject(t *testing.T) {
 	_, claimLevel := decodeGraphConfig(json.RawMessage(`{"claims":[{
 		"type":"typescript",
 		"files":["src/**"],
-		"noExclude":true,
+		"noEvidenceExclude":true,
 		"reference":{"type":"markdown","files":["docs/**"]}
 	}]}`))
-	assertProblemContains(t, claimLevel, "claims[0].noExclude: unknown property")
+	assertProblemContains(t, claimLevel, "claims[0].noEvidenceExclude: unknown property")
 
 	_, nested := decodeGraphConfig(json.RawMessage(`{"claims":[{
 		"type":"typescript",
@@ -155,8 +155,47 @@ func TestReferencePolicyIsRejectedOutsideAReferenceObject(t *testing.T) {
 		"reference":{
 			"type":"markdown",
 			"files":["docs/**"],
-			"acknowledgement":{"noExclude":true,"singleEvidencePerSymbol":true}
+			"acknowledgement":{"noEvidenceExclude":true,"singleEvidencePerSymbol":true}
 		}
 	}]}`))
 	assertProblemContains(t, nested, "claims[0].reference.acknowledgement: unknown property")
+}
+
+/**
+ * Verifies the exclusion-refusing option answers to its new public name only.
+ *
+ * `noExclude` named the tag family ambiguously: every other public spelling in this surface says `evidence` out loud, and a reader had to already know that "exclude" meant `@evidenceExclude` rather than a population exclusion glob. The rename is breaking on purpose, so the retired spelling has to fail loudly — a silently ignored `noExclude` would decode into a reference that no longer refuses anything while its author still reads the option in the config.
+ *
+ *  1. Decode a reference declaring `noEvidenceExclude`.
+ *  2. Decode the same reference declaring the retired `noExclude`.
+ *  3. Assert the new name takes effect and the old one is refused by name.
+ */
+func TestReferenceExclusionPolicyAnswersToItsRenamedKey(t *testing.T) {
+	config, problems := decodeGraphConfig(json.RawMessage(`{"claims":[{
+		"type":"typescript",
+		"files":["src/**"],
+		"reference":{
+			"type":"markdown",
+			"files":["docs/**"],
+			"noEvidenceExclude":true
+		}
+	}]}`))
+	if len(problems) != 0 {
+		t.Fatalf("the renamed option must decode: %v", problems)
+	}
+	if !config.Claims[0].References[0].Policy.NoExclude {
+		t.Fatalf("the renamed option did not reach the native policy: %+v", config.Claims[0].References[0].Policy)
+	}
+
+	_, retired := decodeGraphConfig(json.RawMessage(`{"claims":[{
+		"type":"typescript",
+		"files":["src/**"],
+		"reference":{
+			"type":"markdown",
+			"files":["docs/**"],
+			"noExclude":true
+		}
+	}]}`))
+	assertProblemContains(t, retired, "claims[0].reference.noExclude: unknown property")
+	assertProblemContains(t, retired, "noEvidenceExclude")
 }

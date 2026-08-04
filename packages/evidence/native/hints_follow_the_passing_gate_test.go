@@ -200,7 +200,7 @@ export interface ILive {}
 					"type":"markdown",
 					"files":["docs/staged.md"],
 					"symbol":"h2",
-					"noExclude":true,
+					"noEvidenceExclude":true,
 					"uniqueEvidence":true,
 					"singleEvidencePerSymbol":true
 				},
@@ -208,7 +208,7 @@ export interface ILive {}
 					"type":"typescript",
 					"files":["src/reference.ts"],
 					"symbol":"type",
-					"noExclude":true
+					"noEvidenceExclude":true
 				}
 			]
 		},

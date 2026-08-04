@@ -15,6 +15,10 @@ import type { ITtscLintConfig } from "@ttsc/lint";
  * Both edges are many to many — one requirement may be represented by several
  * DTOs, and one model exposed by several — so each obligation counts the units
  * it must cover rather than citations per host.
+ *
+ * Both claims name `src/structures/DTO_EVIDENCE_EXCLUDE.ts` as the one file
+ * their exclusions may be written in, so the carrier is declared rather than
+ * conventional and an `@evidenceExclude` on a DTO itself is a compile error.
  */
 export const graph: IEvidenceGraphConfig = {
   claims: [
@@ -25,6 +29,7 @@ export const graph: IEvidenceGraphConfig = {
       type: "typescript",
       root: ".",
       files: ["src/structures/**/*.ts"],
+      evidenceExcludeCarriers: ["src/structures/DTO_EVIDENCE_EXCLUDE.ts"],
       symbol: "type",
       reference: [
         {
@@ -49,6 +54,7 @@ export const graph: IEvidenceGraphConfig = {
       type: "typescript",
       root: ".",
       files: ["src/structures/**/*.ts"],
+      evidenceExcludeCarriers: ["src/structures/DTO_EVIDENCE_EXCLUDE.ts"],
       symbol: "property",
       reference: {
         type: "prisma",

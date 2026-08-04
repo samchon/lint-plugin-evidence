@@ -36,7 +36,7 @@ export interface IEvidenceGraphReferenceBase<Type extends string> {
    *
    * @default false
    */
-  noExclude?: boolean;
+  noEvidenceExclude?: boolean;
 
   /**
    * Whether at most one claim host may cite each unit of this population.
