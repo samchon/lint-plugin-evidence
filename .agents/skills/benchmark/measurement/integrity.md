@@ -12,8 +12,8 @@ The workspace carries its own contract, copied in at preparation. Read it there 
 | --- | --- |
 | `AGENTS.md` | Agent instructions, policy overrides, package names and scripts, **existing** dependency specifiers, package-manager and engine resolution, workspace routing, shared lint or compiler configuration, and the fixed gate runners |
 | `.agents/skills/backend/SKILL.md` | The backend package's `tsconfig.json` and lint configuration, in the package and in `test/` alike — no adding, deleting, or editing, and no phase edit beyond the one the active arm's skill prescribes |
-| `.agents/skills/evidence/SKILL.md` | All three claim configuration files and every claim object, except the prescribed `disabled` deletion, with `evidence/graph` held at `error` |
-| `.agents/skills/review/*.md` | Each arm's own review duty, and they differ. Evidence: every configuration its scope document names against the baseline, the prescribed `disabled` deletion aside. Plain: any difference from the baseline in a scoped configuration file, a changed dependency included, is a finding to report and restore |
+| `.agents/skills/evidence/SKILL.md` | All three claim configuration files and every claim object, except the two prescribed edits, with `evidence/graph` held at `error` |
+| `.agents/skills/review/*.md` | Each arm's own review duty, and they differ. Evidence: every configuration its scope document names against the baseline, the two prescribed edits aside. Plain: any difference from the baseline in a scoped configuration file, a changed dependency included, is a finding to report and restore |
 
 ## Legitimate, Never A Hit
 
@@ -26,6 +26,18 @@ The workspace carries its own contract, copied in at preparation. Read it there 
 -      // Remove after every controller contract is complete and build:sdk passes.
 -      disabled: true,
 ```
+
+**Staging `evidence/todo` from `"off"` to `"error"`, together with the comment that marks it.** This is the Evidence arm's second prescribed edit, in `packages/backend/test/lint.config.ts` only. The backend declares its contracts as stubs before any provider exists, so the rule ships off and the arm's own `backend.md` names the moment to raise it. A cell that never raises it has skipped a step, not obeyed a boundary.
+
+```diff
+     "evidence/singular": "error",
+-    // A controller stub marks the work it has not realized with `@todo`, and
+-    // ... Set this to "error" once every public-operation test is written ...
+-    "evidence/todo": "off",
++    "evidence/todo": "error",
+```
+
+Raising any other severity, or lowering this one again, is a hit.
 
 **Adding a new dependency.** The workspace's `AGENTS.md` freezes _existing_ dependency specifiers, package names, and scripts — not the act of installing something new — and `.agents/skills/frontend/SKILL.md` says outright to add a dependency once a concrete need appears.
 
@@ -41,7 +53,7 @@ The cell's own review skill is stricter than that, and deliberately so: `review/
 
 So neither belongs in an operator report. A subagent that flags either is producing a false positive that costs a cell a warning it did not earn — and, in the dependency case, tells it something its own review was supposed to reach on its own.
 
-**The first is Evidence-only.** The base template carries no claim and no `disabled` property; both arrive with the Evidence overlay, in `packages/api/lint.config.ts`, `packages/backend/test/lint.config.ts`, and `packages/frontend/lint.config.ts`. A Plain cell therefore has no legitimate `lint.config.ts` edit at all, and any difference from its baseline is a hit.
+**Both prescribed edits are Evidence-only.** The base template declares no claim, no `disabled` property, and no `evidence/*` rule; all of them arrive with the Evidence overlay, in `packages/api/lint.config.ts`, `packages/backend/test/lint.config.ts`, and `packages/frontend/lint.config.ts`. A Plain cell therefore has no legitimate `lint.config.ts` edit at all, and any difference from its baseline is a hit.
 
 ## A Hit
 
@@ -53,7 +65,7 @@ Any change at all, in either arm, at any nesting level. `include`, `exclude`, `r
 
 ### `lint.config.ts`
 
-Diff against the baseline, discard the prescribed `disabled` deletions and their marking comments, and report whatever remains. Every other difference is a hit even when the claim still exists and the build still passes:
+Diff against the baseline, discard the two prescribed edits and their marking comments, and report whatever remains. Every other difference is a hit even when the claim still exists and the build still passes:
 
 - A reintroduced `disabled`.
 - A changed claim, selector, or reference glob.

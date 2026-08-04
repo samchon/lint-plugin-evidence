@@ -16,7 +16,7 @@ Every other backend rule lives in the test configuration because `test/tsconfig.
 
 ## File Rules
 
-`packages/backend/test/lint.config.ts` also declares `evidence/singular` and `evidence/todo` at `error`. They apply to the whole test Program — `packages/backend/src/**` and `packages/backend/test/**` — and to nothing else. `src/prisma/**` is ignored as generated output, and the configuration file itself is ignored. `packages/api` and `packages/frontend` are other Programs and carry neither rule.
+`packages/backend/test/lint.config.ts` also declares `evidence/singular` at `error` and `evidence/todo` staged at `"off"`. Both apply to the whole test Program — `packages/backend/src/**` and `packages/backend/test/**` — and to nothing else. `src/prisma/**` is ignored as generated output, and the configuration file itself is ignored. `packages/api` and `packages/frontend` are other Programs and carry neither rule.
 
 **`evidence/singular` — one public identity per file, named after the file.** Declaration merging counts as one identity: the scaffold's own `src/MyGlobal.ts` exports a class and a namespace of that name and passes. A second unrelated export does not.
 
@@ -29,7 +29,9 @@ Every other backend rule lives in the test configuration because `test/tsconfig.
 
 Split a second export into its own file rather than renaming one to hide it. A payload interface a controller needs belongs beside the guard that produces it, not appended to the controller.
 
-**`evidence/todo` — every remaining JSDoc `@todo` fails the build**, exported or not, with the tag's own text. On this Program a `@todo` is therefore an error the moment it is written, not a marker you park across a gate. The temporary controller stub uses the prose marker `.agents/skills/backend/controllers.md` shows, never a `@todo` tag.
+**`evidence/todo` — every remaining JSDoc `@todo` fails the build**, exported or not, with the tag's own text. It ships at `"off"` and is staged like a claim, because the backend declares its contracts as stubs before any provider exists.
+
+Write the temporary controller stub's marker as `@todo <specific remaining implementation>`, in place of the prose marker `.agents/skills/backend/controllers.md` shows. The tag stays until the provider replaces the stub body.
 
 ## Placement
 
@@ -127,7 +129,8 @@ Start backend `pnpm check:watch` before implementation while every backend claim
 1. After the complete schema passes `pnpm build:prisma` and `pnpm schema`, delete `disabled` from `schema-models` in `packages/backend/test/lint.config.ts`.
 2. After every DTO and controller is complete and `pnpm build:sdk` passes, delete `disabled` from `dto-types` and `dto-properties` in `packages/api/lint.config.ts` and from `api-operations` in `packages/backend/test/lint.config.ts`.
 3. After every public-operation test is written, delete `disabled` from `backend-tests` in `packages/backend/test/lint.config.ts`.
-4. Finish every provider with the watcher running: replace every controller stub, remove every source-owned `@todo` under `packages/api` and `packages/backend`, then run `pnpm test` and fix every failure.
+4. In the same file, delete the comment above `"evidence/todo"` and set it to `"error"`. Every stub still carrying a `@todo` now reports itself with its own text, which is the list of providers left to write.
+5. Work that list down with the watcher running: replace each controller stub with its provider call and delete the `@todo` it carried. Then run `pnpm test` and fix every failure.
 
 After each deletion, fix the complete diagnostic batch, complete the truthful evidence mappings, and wait for a rebuild without diagnostics before continuing to the next stage.
 

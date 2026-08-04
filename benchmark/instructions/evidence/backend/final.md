@@ -8,7 +8,7 @@ Backend Review left `pnpm test` passing, and a Final correction is usually a tag
 
 ## Final Checklist
 
-- [ ] Every backend claim remained enabled; `lint.config.ts` otherwise remained unchanged and `evidence/graph` remained `error`.
+- [ ] Every backend claim remained enabled and `evidence/todo` remained `error`; `lint.config.ts` otherwise remained unchanged and `evidence/graph` remained `error`.
 - [ ] After the last backend file change, `check:watch` completed a rebuild without diagnostics.
 - [ ] Backend `check:watch` remains running.
 

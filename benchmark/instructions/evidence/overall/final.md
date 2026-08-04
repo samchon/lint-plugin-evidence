@@ -10,7 +10,7 @@ Overall Review left both suites passing, and a Final correction is usually a tag
 
 ## Final Checklist
 
-- [ ] Every claim remained enabled; `lint.config.ts` otherwise remained unchanged and `evidence/graph` remained `error`.
+- [ ] Every claim remained enabled and `evidence/todo` remained `error`; `lint.config.ts` otherwise remained unchanged and `evidence/graph` remained `error`.
 - [ ] After the last file change, backend `check:watch` completed a rebuild without diagnostics.
 - [ ] After the last file change, frontend `pnpm dev` completed a reload without diagnostics and remains running.
 - [ ] Backend `check:watch` stopped after that rebuild.

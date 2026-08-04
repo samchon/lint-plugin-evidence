@@ -14,7 +14,7 @@ Write every `@evidence` and `@evidenceExclude` truthfully; never add a tag only 
 
 - [ ] Every required schema model, DTO, controller, public-operation test, and provider implemented.
 - [ ] Every published operation has its proving tests.
-- [ ] Every backend claim is enabled; no other claim configuration changed.
+- [ ] Every backend claim is enabled and `evidence/todo` is `error`; no other rule or claim configuration changed.
 - [ ] Each layer's claims were enabled as that layer completed: DB schema first, then DTOs and operations, then tests.
 - [ ] Every `@evidence` is on code that implements, represents, or proves its target.
 - [ ] Every `@evidenceExclude` names its owner or alternative and invalidating condition; none exists only to remove a diagnostic.

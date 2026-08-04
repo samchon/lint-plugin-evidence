@@ -68,15 +68,15 @@ Use the narrowest truthful target. "Not applicable", "internal", "future work", 
 
 ## Stub Marker
 
-A temporary stub carries the prose marker its layer's skill shows, and the marker goes when the real provider delegation or completed screen replaces the stub.
-
-Where no rule forbids it, unfinished work may also carry:
+Mark unfinished work with:
 
 ```text
 @todo <specific remaining implementation>
 ```
 
-The backend Program is not such a place: [backend.md](backend.md) declares `evidence/todo` at `error`, so a `@todo` there fails the build the moment it is written. Before a phase completes, its `@todo` sweep in the per-phase document must return nothing.
+Place it on temporary controller and page stubs; remove it when the real provider delegation or completed screen replaces the stub.
+
+On the backend the marker is also enforced: [backend.md](backend.md) stages `evidence/todo` to `error` once the tests are written, so every remaining tag reports itself as work left to do. Before a phase completes, its `@todo` sweep in the per-phase document must return nothing.
 
 ## Compiler Gates
 

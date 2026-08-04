@@ -9,7 +9,7 @@ Read `.agents/skills/review/SKILL.md` and `.agents/skills/review/overall.md` bef
 - [ ] Every active `@evidence` and `@evidenceExclude`, its target, reason, and complete host inspected.
 - [ ] Every fake `@evidence`, including any added only to evade compiler errors, corrected.
 - [ ] Every `@evidenceExclude` owner or alternative and invalidating condition verified; every fake exclusion corrected.
-- [ ] Every claim is enabled; no other claim configuration changed and `evidence/graph` remained `error`.
+- [ ] Every claim is enabled and `evidence/todo` is `error`; no other rule or claim configuration changed and `evidence/graph` remained `error`.
 - [ ] Backend `check:watch` completed a rebuild without diagnostics and remains running.
 - [ ] Both `pnpm dev` processes reported no diagnostics after the last file change.
 - [ ] Backend `pnpm test` and live-backend `pnpm test:e2e` exit with code 0 after the last correction.
