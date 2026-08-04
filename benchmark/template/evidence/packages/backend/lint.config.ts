@@ -5,7 +5,7 @@ import {
 import type { ITtscLintConfig } from "@ttsc/lint";
 
 /** The directory of this configuration, so a nested Program reuses the graph. */
-const here: string = import.meta.dirname;
+const here: string = __dirname;
 
 /**
  * The evidence obligations of the backend package.

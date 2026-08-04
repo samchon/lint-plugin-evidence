@@ -4,7 +4,7 @@ import type { ITtscLintConfig } from "@ttsc/lint";
 import { graph } from "../lint.config.ts";
 
 /** The directory of this configuration. */
-const here: string = import.meta.dirname;
+const here: string = __dirname;
 
 /**
  * The backend test Program inherits the package policy and its evidence graph.
