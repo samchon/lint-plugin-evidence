@@ -99,7 +99,9 @@ Write one strict JSON verdict outside the measured workspace:
 }
 ```
 
-A verdict carries `decision` and `rationale` and nothing else. It decides; it does not review. Naming the defect it found would hand the cell the product of the work being measured — a review that then corrects what it was told about has shown it can act on a finding, not that it can reach one — and it would make one cell's reminder differ from another's, so their attempt counts stop being comparable. Every failed scope receives the same prescribed `remind.md` with its Review quoted, and the rationale stays in the retained record the cell never sees.
+A verdict decides; it does not review. Naming a defect the operator had to read code to find would hand the cell the product of the work being measured — a review that then corrects what it was told about has shown it can act on a finding, not that it can reach one — and it would make one cell's reminder differ from another's, so their attempt counts stop comparing. Every failed scope receives the same prescribed `remind.md` with its Review quoted, and the reasoning stays in the retained `rationale`, which the cell never sees.
+
+`feedback` is optional and bounded to what a directory listing already shows: a layer that is simply absent, such as no controllers, no DTOs, or no tests at all. That much an agent could see without reviewing, so stating it takes nothing from the measurement, while a cell that produced nothing at all would otherwise spend an attempt discovering it was asked for something. Anything that required reading a file — which test asserts nothing, which requirement lost its route, which contract widened — is the review's own work and stays out.
 
 Judge the review, not the product. A verdict answers whether the review performed the loop its instruction prescribes and stopped only where that instruction allows. Where a product defect matters is as evidence that it did not: an obligation the review reported as met while the workspace shows otherwise. Record that evidence in the rationale.
 

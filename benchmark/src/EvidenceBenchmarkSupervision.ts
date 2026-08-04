@@ -208,7 +208,7 @@ export namespace EvidenceBenchmarkSupervision {
         kind: "review-supplement" as const,
         reviewScope: pause.scope,
         reviewAttempt: attempt,
-
+        ...(feedback === undefined ? {} : { reviewFeedback: feedback }),
       };
       EvidenceBenchmarkInstruction.objective({
         arm: "plain",
