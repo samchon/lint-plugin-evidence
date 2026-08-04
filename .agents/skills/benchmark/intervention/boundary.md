@@ -15,7 +15,7 @@ Under `benchmark/template/**`, in either arm, at any nesting level:
 
 - `tsconfig.json`
 - `lint.config.ts`
-- a `package.json` `main`, `types`, or `exports` value
+- a `package.json` top-level `main`, `types`, or `exports` value
 
 Creating or deleting one counts as touching it, and so does adding, removing, or reordering `include`, `exclude`, `ignores`, `paths`, `rootDir`, `extends`, `plugins`, `rules`, or a claim.
 
@@ -27,11 +27,57 @@ Creating or deleting one counts as touching it, and so does adding, removing, or
 
 The reporting subagent applies these to every cell on every cycle. A confirmed hit is [warned](warning.md) and resumed, never restarted.
 
-**`lint.config.ts`** — Diff against the run's baseline commit, discard `disabled:` lines and pure comments, and report whatever remains. Removing a `disabled` property is Evidence's prescribed unlock as each layer completes. Every other edit is tampering, including narrowing a reference `files` glob, redirecting it to build output, and deleting it.
+### `lint.config.ts`
 
-**`tsconfig.json`** — Report any change at all. `include`, `exclude`, `rootDir`, `paths`, and `extends` decide which files enter a Program, and a claim populates only from the Program that owns it.
+Diff against the run's baseline commit, discard lines containing `disabled:` and pure comments, and report whatever remains.
 
-**Any `package.json`** — Report any `main`, `types`, or `exports` value resolving to build output instead of source, in every package, `packages/api` included but never alone. Redirecting the SDK package to `lib` is the case that has occurred: it breaks the frozen glob that selects the accessor surface, and gives the cell a reason to edit the claim that depends on it.
+Removing a `disabled` property is the Evidence arm's prescribed unlock as each layer completes, and is not a hit:
+
+```diff
+       files: ["src/controllers/**/*.ts"],
+       reference: [ ... ],
+-      disabled: true,
+```
+
+Every other edit is tampering. Narrowing a reference glob is the common one, and it is a hit even though the claim still exists and the build still passes:
+
+```diff
+-      files: ["src/controllers/**/*.ts"],
++      files: ["src/controllers/health.controller.ts"],
+```
+
+### `tsconfig.json`
+
+Report any change at all. `include`, `exclude`, `rootDir`, `paths`, and `extends` decide which files enter a Program, and a claim populates only from the Program that owns it.
+
+### Any `package.json`
+
+Only the top-level `main`, `types`, and `exports` are frozen on source. `publishConfig` points at build output in the baseline and is never a hit.
+
+Baseline, `packages/api/package.json`:
+
+```json
+{
+  "main": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "publishConfig": {
+    "main": "./lib/index.js",
+    "types": "./lib/index.d.ts"
+  }
+}
+```
+
+A hit, because the top level now resolves to build output:
+
+```json
+{
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": { ".": "./lib/index.js" }
+}
+```
+
+Redirecting the SDK package to `lib` breaks the frozen glob that selects the accessor surface, and gives the cell a reason to edit the claim that depends on it. Report it in any package, `packages/api` included but never alone.
 
 ## Where A Defect May Be Corrected
 
