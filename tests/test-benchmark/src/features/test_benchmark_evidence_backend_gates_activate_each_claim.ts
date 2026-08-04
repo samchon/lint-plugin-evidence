@@ -10,7 +10,14 @@ import {
 import { acquireBenchmarkWorkspace } from "../internal/benchmarkWorkspace.ts";
 import { assertClaimActivated } from "../internal/assertClaimActivated.ts";
 import { assertPublishedAccessorsDemanded } from "../internal/assertPublishedAccessorsDemanded.ts";
-import { claimUnlockOrder } from "../internal/claimUnlockOrder.ts";
+import {
+  discoverClaimConfigurations,
+  type IClaimConfiguration,
+} from "../internal/claimConfigurations.ts";
+import {
+  claimIsUnlockedBy,
+  claimUnlockOrder,
+} from "../internal/claimUnlockOrder.ts";
 import type { IMissingAcknowledgement } from "../internal/evidenceDiagnostics.ts";
 import type { IBenchmarkWorkspace } from "../internal/IBenchmarkWorkspace.ts";
 import { provisionEnvironment } from "../internal/provisionEnvironment.ts";
@@ -18,6 +25,9 @@ import { requirementDocumentsDeclaringSections } from "../internal/requirementDo
 import { runScript } from "../internal/runScript.ts";
 import { stripCitations } from "../internal/stripCitations.ts";
 import { materializeClaimLayer } from "../internal/workspaceLayer.ts";
+
+/** The objective whose instruction owns the claims this walk covers. */
+const INSTRUCTION = "benchmark/instructions/evidence/backend/start.md";
 
 /**
  * Verifies every staged backend claim really activates when its marker is
@@ -69,13 +79,26 @@ export const test_benchmark_evidence_backend_gates_activate_each_claim =
     for (const script of ["build:prisma", "build:sdk"])
       requireZero(backend, script);
 
-    const configurations: readonly string[] = [
-      path.join(backend, "lint.config.ts"),
-      path.join(backend, "test", "lint.config.ts"),
-    ];
-    const gates: IActivationGate[] = readStagedClaims(configurations);
-    const throughTheInstall: string[] = configurations.flatMap((file) =>
-      readClaimsReferencingAPackage(file),
+    // Discovered rather than named. Which package declares which claim is a
+    // template decision that has already moved once; a case that named the two
+    // backend configurations would keep passing after the next move while
+    // covering fewer claims than it did before.
+    const configurations: IClaimConfiguration[] = discoverClaimConfigurations(
+      workspace.workspace,
+    ).filter((configuration) =>
+      configuration.claims.some((claim) =>
+        claimIsUnlockedBy(INSTRUCTION, claim),
+      ),
+    );
+    if (configurations.length === 0)
+      throw new Error(
+        `No lint configuration in the prepared workspace declares a claim that ${INSTRUCTION} unlocks. Either the arm no longer stages a backend graph, or this suite is no longer finding it.`,
+      );
+    const gates: IActivationGate[] = readStagedClaims(
+      configurations.map((configuration) => configuration.file),
+    );
+    const throughTheInstall: string[] = configurations.flatMap(
+      (configuration) => readClaimsReferencingAPackage(configuration.file),
     );
     if (throughTheInstall.length === 0)
       throw new Error(
@@ -88,7 +111,7 @@ export const test_benchmark_evidence_backend_gates_activate_each_claim =
     stripCitations(path.join(backend, "test", "features"));
 
     const order: string[] = claimUnlockOrder(
-      "benchmark/instructions/evidence/backend/start.md",
+      INSTRUCTION,
       gates.map((gate) => gate.claim),
     );
     for (const claim of order) {
@@ -97,17 +120,17 @@ export const test_benchmark_evidence_backend_gates_activate_each_claim =
       removeActivationGate(gate.file, claim);
 
       // A claim populates only from the Program that owns its hosts, so the
-      // gate that proves it is the one compiling that Program: the package's
-      // own lint for the package configuration, the test Program build for the
-      // configuration that extends it.
-      const script: string = gate.file.includes(`${path.sep}test${path.sep}`)
-        ? "build:test"
-        : "lint";
+      // gate that proves it is the one compiling that Program — which is the
+      // script its own configuration carries.
+      const owner: IClaimConfiguration = owning(configurations, gate.file);
       // Mirrors the workspace-root `lint` script, which regenerates the Prisma
       // client before linting so a schema edit cannot leave the Program stale.
       requireZero(backend, "build:prisma");
       const obligations: IMissingAcknowledgement[] = assertClaimActivated({
-        result: runScript({ cwd: backend, script }),
+        result: runScript({
+          cwd: owner.packageDirectory,
+          script: owner.script,
+        }),
         claim,
       });
       assertRequirementsReached(workspace.workspace, claim, obligations);
@@ -209,6 +232,18 @@ const assertRequirementsReached = (
       throw new Error(
         `Claim '${claim}' demanded evidence from '${file}', which is not a delivered requirement document. The reference resolved against something other than \`docs/analysis/\`.`,
       );
+};
+
+const owning = (
+  configurations: readonly IClaimConfiguration[],
+  file: string,
+): IClaimConfiguration => {
+  const found: IClaimConfiguration | undefined = configurations.find(
+    (configuration) => configuration.file === file,
+  );
+  if (found === undefined)
+    throw new Error(`No discovered configuration owns ${file}.`);
+  return found;
 };
 
 const locate = (

@@ -5,6 +5,7 @@ export * from "./assertIncludes.ts";
 export * from "./assertPublishedAccessorsDemanded.ts";
 export * from "./assertStatus.ts";
 export * from "./benchmarkWorkspace.ts";
+export * from "./claimConfigurations.ts";
 export * from "./claimUnlockOrder.ts";
 export * from "./evidenceDiagnostics.ts";
 export * from "./IBenchmarkWorkspace.ts";

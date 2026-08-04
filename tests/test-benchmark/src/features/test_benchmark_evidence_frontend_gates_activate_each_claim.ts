@@ -1,5 +1,3 @@
-import path from "node:path";
-
 import {
   readActivationGates,
   readClaimNames,
@@ -10,11 +8,21 @@ import {
 import { acquireBenchmarkWorkspace } from "../internal/benchmarkWorkspace.ts";
 import { assertClaimActivated } from "../internal/assertClaimActivated.ts";
 import { assertPublishedAccessorsDemanded } from "../internal/assertPublishedAccessorsDemanded.ts";
-import { claimUnlockOrder } from "../internal/claimUnlockOrder.ts";
+import {
+  discoverClaimConfigurations,
+  type IClaimConfiguration,
+} from "../internal/claimConfigurations.ts";
+import {
+  claimIsUnlockedBy,
+  claimUnlockOrder,
+} from "../internal/claimUnlockOrder.ts";
 import type { IMissingAcknowledgement } from "../internal/evidenceDiagnostics.ts";
 import type { IBenchmarkWorkspace } from "../internal/IBenchmarkWorkspace.ts";
 import { runScript } from "../internal/runScript.ts";
 import { materializeClaimLayer } from "../internal/workspaceLayer.ts";
+
+/** The objective whose instruction owns the claims this walk covers. */
+const INSTRUCTION = "benchmark/instructions/evidence/frontend/start.md";
 
 /**
  * Verifies every staged frontend claim activates in its instructed order, and
@@ -43,12 +51,19 @@ export const test_benchmark_evidence_frontend_gates_activate_each_claim =
   async (): Promise<void> => {
     const workspace: IBenchmarkWorkspace =
       await acquireBenchmarkWorkspace("evidence");
-    const frontend: string = path.join(
+    // Discovered rather than named, so a claim that moves between packages
+    // stays covered by the objective whose instruction unlocks it.
+    const owners: IClaimConfiguration[] = discoverClaimConfigurations(
       workspace.workspace,
-      "packages",
-      "frontend",
+    ).filter((candidate) =>
+      candidate.claims.some((claim) => claimIsUnlockedBy(INSTRUCTION, claim)),
     );
-    const configuration: string = path.join(frontend, "lint.config.ts");
+    if (owners.length !== 1)
+      throw new Error(
+        `${String(owners.length)} lint configuration(s) declare a claim that ${INSTRUCTION} unlocks; the frontend graph is declared in exactly one.`,
+      );
+    const owner: IClaimConfiguration = owners[0]!;
+    const configuration: string = owner.file;
 
     const declared: string[] = readClaimNames(configuration);
     const gates: IActivationGate[] = readActivationGates(configuration);
@@ -77,14 +92,17 @@ export const test_benchmark_evidence_frontend_gates_activate_each_claim =
       );
 
     const order: string[] = claimUnlockOrder(
-      "benchmark/instructions/evidence/frontend/start.md",
+      INSTRUCTION,
       gates.map((gate) => gate.claim),
     );
     for (const claim of order) {
       materializeClaimLayer({ workspace: workspace.workspace, claim });
       removeActivationGate(configuration, claim);
       const obligations: IMissingAcknowledgement[] = assertClaimActivated({
-        result: runScript({ cwd: frontend, script: "lint" }),
+        result: runScript({
+          cwd: owner.packageDirectory,
+          script: owner.script,
+        }),
         claim,
       });
       if (throughTheInstall.includes(claim))

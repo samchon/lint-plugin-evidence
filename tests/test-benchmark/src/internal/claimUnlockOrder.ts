@@ -33,16 +33,7 @@ export const claimUnlockOrder = (
   instruction: string,
   claims: readonly string[],
 ): string[] => {
-  const location: string = path.resolve(repositoryRoot, instruction);
-  const steps: { readonly line: number; readonly text: string }[] = fs
-    .readFileSync(location, "utf8")
-    .split("\n")
-    .map((text, line) => ({ line, text }))
-    .filter((entry) => UNLOCK.test(entry.text));
-  if (steps.length === 0)
-    throw new Error(
-      `${instruction} prescribes no claim unlock, so no order can be read from it. Either the arm no longer stages its claims, or the instruction changed shape and this suite is no longer reading it.`,
-    );
+  const steps = unlockSteps(instruction);
   // Line first, then position within it: several claims are unlocked by one
   // sentence, and their order inside that sentence is the order it prescribes.
   // Folding both into one number would need a bound on line length that
@@ -65,4 +56,34 @@ export const claimUnlockOrder = (
       ? leftColumn - rightColumn
       : leftLine - rightLine;
   });
+};
+
+/**
+ * Answers whether one instruction is the one that tells a cell to open a claim.
+ *
+ * This is how a walk decides which of the workspace's configurations it owns,
+ * without naming any of them. An objective governs the claims its own
+ * instruction unlocks, wherever the template happens to declare them, so a
+ * claim that moves between packages stays covered by the same walk.
+ */
+export const claimIsUnlockedBy = (
+  instruction: string,
+  claim: string,
+): boolean =>
+  unlockSteps(instruction).some((entry) => entry.text.includes(`\`${claim}\``));
+
+const unlockSteps = (
+  instruction: string,
+): { readonly line: number; readonly text: string }[] => {
+  const location: string = path.resolve(repositoryRoot, instruction);
+  const steps = fs
+    .readFileSync(location, "utf8")
+    .split("\n")
+    .map((text, line) => ({ line, text }))
+    .filter((entry) => UNLOCK.test(entry.text));
+  if (steps.length === 0)
+    throw new Error(
+      `${instruction} prescribes no claim unlock, so no order can be read from it. Either the arm no longer stages its claims, or the instruction changed shape and this suite is no longer reading it.`,
+    );
+  return steps;
 };
