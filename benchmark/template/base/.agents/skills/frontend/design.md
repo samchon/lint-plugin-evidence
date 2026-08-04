@@ -26,7 +26,7 @@ Choose values from the product and apply them consistently. Customize radius, pa
 - no raw em dash or en dash in user-facing copy; and
 - no hand-drawn SVG when an established icon set already provides the symbol.
 
-These are not a substitute for taste. Remove decoration that has no product meaning.
+Remove decoration that has no product meaning.
 
 ## Accessibility
 

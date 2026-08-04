@@ -31,7 +31,7 @@ Fix a defect at its owner. A provider must not compensate for a missing column, 
 
 ## API Package Entry
 
-This pnpm TypeScript monorepo uses source files during development and build files when the package is packed or published. Keep this shape in `packages/api/package.json`:
+Keep this shape in `packages/api/package.json`:
 
 ```json
 {
@@ -78,7 +78,7 @@ pnpm check:watch
 
 The package compiles as two Programs. `tsconfig.json` covers `src/`, and `test/tsconfig.json` covers the tests together with that source; the watcher runs the test Program, so it sees both. Authored API DTOs belong to the API package and are checked by its own build. The watcher automatically reloads its lint configuration and reports type, lint, and contributor diagnostics. Your current objective owns when the watcher starts and stops; follow it exactly rather than a lifecycle you infer from elsewhere. A compiler check is clean only after the latest change rebuilds without a diagnostic.
 
-The provided `tsconfig.json` and lint configuration files are frozen, in the package and in `test/` alike. Do not add, delete, or edit one, and do not toggle claim configuration by phase except where the Evidence skill prescribes deleting a predeclared activation marker.
+The provided `tsconfig.json` and lint configuration files are frozen, in the package and in `test/` alike. Do not add, delete, or edit one, and do not change rule configuration by phase except an edit the active arm's skill explicitly prescribes.
 
 ## Environment And Runtime
 

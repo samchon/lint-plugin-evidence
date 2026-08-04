@@ -21,8 +21,9 @@ import type { IBenchmarkWorkspace } from "../internal/IBenchmarkWorkspace";
 import { runScript } from "../internal/runScript";
 import { materializeClaimLayer } from "../internal/workspaceLayer";
 
-/** The objective whose instruction owns the claims this walk covers. */
-const INSTRUCTION = "benchmark/instructions/evidence/frontend/start.md";
+/** The skill document that prescribes the staged unlock this walk covers. */
+const INSTRUCTION =
+  "benchmark/template/evidence/.agents/skills/evidence/frontend.md";
 
 /**
  * Verifies every staged frontend claim activates in its instructed order, and

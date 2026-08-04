@@ -25,7 +25,7 @@ Read the detailed procedure for the current objective before beginning:
 4. Start another literal full reading at the first requirement. Correction work and reads from earlier rounds count as nothing in the new round.
 5. Repeat without any round limit until one entire current round reaches the end, finds no problem, and makes no product or generated-file edit.
 
-This is a real exhaustive review loop, not shorthand, aspiration, or rhetoric. No exception or discretionary judgment may shorten or replace it.
+No exception or discretionary judgment may shorten or replace this procedure.
 
 ## Scope
 
@@ -62,7 +62,7 @@ Never partition a round by file, package, layer, requirement subset, review lens
 
 When a completed round has findings:
 
-1. fix every finding at its owning layer and every downstream consequence;
+1. fix every finding at its owning layer and every downstream consequence, including every unimplemented requirement regardless of scale or redesign;
 2. regenerate every affected derived artifact;
 3. run the gates named by the instruction and fix every failure;
 4. reconcile every finding with the actual correction; and

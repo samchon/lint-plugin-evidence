@@ -26,8 +26,9 @@ import { runScript } from "../internal/runScript";
 import { stripCitations } from "../internal/stripCitations";
 import { materializeClaimLayer } from "../internal/workspaceLayer";
 
-/** The objective whose instruction owns the claims this walk covers. */
-const INSTRUCTION = "benchmark/instructions/evidence/backend/start.md";
+/** The skill document that prescribes the staged unlock this walk covers. */
+const INSTRUCTION =
+  "benchmark/template/evidence/.agents/skills/evidence/backend.md";
 
 /**
  * Verifies every staged backend claim really activates when its marker is

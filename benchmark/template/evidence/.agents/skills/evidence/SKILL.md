@@ -1,9 +1,14 @@
 ---
 name: evidence
-description: Defines Evidence Graph claims, zero-host activation, truthful behavioral proof, acknowledgement syntax, placement, exclusions, frozen configuration, and compiler gates. Read before Evidence implementation or handling a graph diagnostic.
+description: Defines the Evidence Graph tag grammar, truthfulness rules, claim activation, configured claims, placement, exclusions, frozen configuration, and compiler gates. Read before Evidence implementation or handling a graph diagnostic; backend.md and frontend.md carry the per-phase configuration and unlock procedures.
 ---
 
 # Evidence Graph
+
+## Topics
+
+- [backend.md](backend.md): which configuration declares which backend claim, the staged unlock order, and the operation reference. Read before Backend Start.
+- [frontend.md](frontend.md): the frontend claim chain and its staged unlock order. Read before Frontend Start.
 
 ## Tags
 
@@ -12,33 +17,30 @@ description: Defines Evidence Graph claims, zero-host activation, truthful behav
 @evidenceExclude <target> <reason>
 ```
 
-`@evidence` states that the selected host implements, represents, or proves the target. `@evidenceExclude` states that this claim does not apply and names the actual owner or observable alternative plus the condition that would make the exclusion false.
+`@evidence` states that the host implements, represents, or proves the target. `@evidenceExclude` states that the claim does not apply to the target and names the actual owner or observable alternative plus the condition that would invalidate the exclusion.
 
-The target and non-empty reason are mandatory. One acknowledgement covers the selected target and its selected descendants. Keep evidence and exclusion scopes disjoint within one claim-reference obligation.
+Target and non-empty reason are mandatory. One acknowledgement covers the selected target and its selected descendants. Write the reason as a specific responsibility current code could falsify, not a restatement of the target name.
 
-Reasons are reviewed by people. Write a specific responsibility that current code could falsify, not a restatement of the target name.
+Every tag must truthfully describe the current host's relation to the target. Never write, move, consolidate, or invent an acknowledgement to pass the compiler: a diagnostic identifies an obligation, not the truthful acknowledgement for it, and a clean gate proves structure, not truth.
 
-Every `@evidence` and `@evidenceExclude` must truthfully describe the current host's relation to the target. Never write, move, consolidate, or invent an acknowledgement only to pass the compiler. A diagnostic identifies an obligation, not the truthful acknowledgement for it. A clean graph proves structure, not truth.
-
-Several hosts may cite the same target when each independently implements or proves it. One host cites one resolved target once. Within one claim-reference obligation, `@evidenceExclude` scopes must never overlap, even across carriers, and must never overlap `@evidence`. A parent target is truthful only when the host owns the complete selected subtree.
+- Several hosts may cite the same target when each independently implements or proves it.
+- One host cites one resolved target once.
+- Within one claim-reference obligation, `@evidenceExclude` scopes never overlap each other or any `@evidence` scope, even across carriers.
+- A parent target is truthful only when the host owns the complete selected subtree.
 
 ## Claim Activation
 
-A claim with `disabled: true` is inactive even when its selector materializes a host. Its configuration is still validated.
+A claim with `disabled: true` is inactive even when its selector materializes a host; its configuration is still validated.
 
-When the layer named by the adjacent comment is complete, delete that comment and the claim's final `disabled: true` property, and nothing else. Delete it in the configuration that declares that claim, which the Configured Claims table names. Do not replace it with `false` or restore it later.
+When the layer named by the adjacent comment is complete, delete that comment and the claim's final `disabled: true` property — nothing else — in the configuration that declares the claim. Do not replace it with `false` or restore it later.
 
-An enabled claim is active only when its own `root`, `files`, and `symbol` selector materializes at least one selected host. If the successfully loaded host population is empty, the entire claim is inactive and none of its reference obligations runs.
+An enabled claim is active only when its own `root`, `files`, and `symbol` selector materializes at least one selected host. With zero selected hosts the entire claim is inactive and none of its reference obligations runs. This applies to TypeScript, Prisma, and Markdown claims alike:
 
-This rule applies equally to TypeScript, Prisma, and Markdown claims.
+- TypeScript selects semantic exported symbols. Under `symbol: "function"`, an exported `const` initialized with an arrow or function expression is a function; an ordinary exported variable is a property and selects nothing.
+- A Prisma `model` claim stays inactive until a matching schema input contains a model.
+- A Markdown claim stays inactive until a matching document contains a selected host.
 
-For TypeScript, the selector uses semantic exported symbols. With `symbol: "function"`, a file containing only exported non-function variables has zero selected hosts and the claim remains inactive. An exported `const` initialized with an arrow or function expression is a function; an ordinary exported variable is a property.
-
-For Prisma, a claim selecting `model` remains inactive until a matching schema input contains a model. For Markdown, a claim remains inactive until its matching documents contain a host selected by its symbol selector.
-
-An unreadable or invalid configured input is not an empty population. Loader and parse failures remain diagnostics. Inactivity prevents future-layer coverage from firing before that layer has a host; it does not prove the requirements need no host.
-
-Do not add or remove claim objects or change any other claim field as implementation advances. After `disabled` is deleted, activation follows the current selected host population automatically.
+An unreadable or invalid configured input is not an empty population; loader and parse failures remain diagnostics. Do not add, remove, or change claim objects as implementation advances — after `disabled` is deleted, activation follows the selected host population automatically.
 
 ## Configured Claims
 
@@ -53,18 +55,9 @@ Do not add or remove claim objects or change any other claim field as implementa
 | same | `frontend-journeys` | exported journey functions | requirements and page functions |
 | same | `frontend-hooks` | exported hook functions | SDK operations |
 
-A claim is declared in the configuration of the Program its hosts live in, and a claim cannot reach a population its own `tsconfig` does not include. The authored DTOs under `packages/api/src/structures/` belong to the API Program, so `dto-types` and `dto-properties` are declared in `packages/api/lint.config.ts`. Every backend claim is declared in `packages/backend/test/lint.config.ts`, because `test/tsconfig.json` compiles the backend source together with the tests and is therefore the one Program that holds controllers and test functions alike; the package Program sees only `src/` and could never reach `test/features/`. The frontend is one Program and one configuration.
+A claim is declared in the configuration of the Program its hosts live in. [backend.md](backend.md) states which backend configuration declares which claim and why; the frontend is one Program and one configuration.
 
-The frontend claims form one chain: a hook answers for the operations it calls, a screen answers for the hooks it uses, and a journey answers for the screens it walks. Owning an operation is not delivering it, so a hook wrapping an accessor no screen renders fails at the screen claim rather than passing on the hook claim alone.
-
-Both SDK operation obligations refuse `@evidenceExclude`. Every published operation is proved by a backend test and called by a frontend hook, or the product is incomplete, and "not applicable" is the sentence that hides the second case.
-
-They differ in cardinality. A backend test admits exactly one operation, because a test citing eight operations proves only that eight names appear in its JSDoc — cite the one it answers for and let its prerequisites stay uncited. A hook may cite as many as it calls, because consuming the published surface is the obligation and how the calls are grouped is not.
-
-
-All three configuration files and all claim objects are frozen except for the prescribed deletion of each predeclared `disabled` property. Keep `evidence/graph` at `error`. Each backend Program has its own `tsconfig.json`, and the test one compiles the backend source together with the tests. Do not create phase-specific config or compiler files.
-
-No environment value turns the graph off. `evidence/graph` is `error` in every gate, and a result produced with it weakened is invalid.
+All three configuration files and every claim object are frozen except the prescribed `disabled` deletions. Keep `evidence/graph` at `error` in every gate; no environment value turns the graph off, and a result produced with it weakened is invalid. Do not create phase-specific config or compiler files.
 
 ## Placement
 
@@ -78,11 +71,11 @@ No environment value turns the graph off. `evidence/graph` is `error` in every g
 | `frontend-journeys` | exported journey function JSDoc | `tests/journeys/JOURNEY_EVIDENCE_EXCLUDE.ts` |
 | `frontend-hooks` | exported hook function JSDoc | none; operations admit no exclusion |
 
-Keep ownership evidence on the actual selected host. Exclusion carriers contain only one reviewed exclusion per target scope and never contain ownership evidence. Providers are not selected hosts and carry neither tag.
+Keep ownership evidence on the actual selected host. An exclusion carrier holds one reviewed exclusion per target scope and never holds ownership evidence. Providers are not selected hosts and carry neither tag.
 
 ## Behavioral Proof
 
-Proof must be target-specific. A test or journey must perform the relevant action and assert the claimed result, refusal, state, or effect. Imports, registries, callability checks, and route or rendering smoke prove only availability or reachability; they cannot carry unrelated requirements.
+Proof must be target-specific: the test or journey performs the relevant action and asserts the claimed result, refusal, state, or effect. Imports, registries, callability checks, and route or rendering smoke prove only availability and cannot carry unrelated requirements.
 
 ## Examples
 
@@ -144,9 +137,9 @@ export async function test_api_order_create(
 }
 ```
 
-The cited operation is the one the test proves. Prerequisite and follow-up calls are not cited; they are setup and observation, and the operation reference admits one citation per test.
+Import the SDK as a namespace — a default import binds the target under `default`, so `{@link api.functional...}` resolves to nothing. `import type` works for a citation-only type import. The braces in `{@link ...}` are required.
 
-Import the SDK as a namespace. A default import binds the target name under `default`, so `{@link api.functional...}` then resolves to nothing. Use `import type` for a citation-only type import. Braces in `{@link ...}` are required.
+The cited operation is the one the test proves. Prerequisite and follow-up calls are setup and observation; leave them uncited.
 
 ## Exclusions
 
@@ -161,9 +154,9 @@ Use the narrowest truthful target:
 export const CONTROLLER_EVIDENCE_EXCLUDE = true;
 ```
 
-“Not applicable,” “internal,” “future work,” and “not implemented” are conclusions, not reasons. Name the actual owner or observable alternative and a concrete veto condition.
+"Not applicable", "internal", "future work", and "not implemented" are conclusions, not reasons; name the actual owner or observable alternative and a concrete invalidating condition.
 
-Schema exclusions are unattached top-level `/// @evidenceExclude` lines in `exclude.schema`. The file is lint-only and is not a Prisma generation input.
+Schema exclusions are unattached top-level `/// @evidenceExclude` lines in `exclude.schema`, a lint-only file that is not a Prisma generation input.
 
 ## Stub Marker
 
@@ -173,9 +166,9 @@ Mark unfinished work with:
 @todo <specific remaining implementation>
 ```
 
-Place it on temporary controller and page stubs. Remove it when the real provider delegation or completed screen replaces the stub. Do not add `evidence/todo`; the graph workload is frozen.
+Place it on temporary controller and page stubs; remove it when the real provider delegation or completed screen replaces the stub. `evidence/todo` fails the backend build on every remaining tag, where [backend.md](backend.md) states. The rule set is frozen: do not add or remove a rule.
 
-Before a phase completes, require no source-owned marker:
+Before a phase completes, both commands must return nothing:
 
 ```bash
 rg --hidden -n -F '@todo' packages/api packages/backend --glob '*.ts'
@@ -184,11 +177,9 @@ rg --hidden -n -F '@todo' packages/frontend --glob '*.ts' --glob '*.tsx'
 
 ## Compiler Gates
 
-Start backend `pnpm check:watch` once before implementation while every backend claim is disabled. Start frontend `pnpm dev` once before frontend implementation while every frontend claim is disabled. After `disabled` is removed, the first selected host activates its complete claim, so an incomplete layer can produce graph-wide diagnostics for artifacts that are about to be created.
+After a claim's `disabled` is deleted, the first selected host activates the complete claim, so an incomplete layer floods the output with diagnostics for artifacts not yet created. Delete each `disabled` only at the staged point [backend.md](backend.md) or [frontend.md](frontend.md) prescribes, with that phase's compiler process already running.
 
-At each completed layer, delete the prescribed `disabled` property from the configuration that declares that claim. The compiler owns target resolution, host eligibility, overlap, coverage, and missing acknowledgements. Fix the complete diagnostic batch and wait for a clean rebuild or reload. Keep both compiler processes running through Overall Final.
-
-At each gate, confirm no other claim configuration changed and wait for clean current builds. Run the runtime tests your objective requires; where it leaves them to your judgement, weigh that the compiler processes report type and lint diagnostics only and cannot tell you a behavior stopped working. Never weaken the graph or falsify an acknowledgement to silence a diagnostic.
+The compiler owns target resolution, host eligibility, overlap, coverage, and missing acknowledgements. Fix the complete diagnostic batch and wait for a clean rebuild or reload; confirm no other claim configuration changed. The compiler processes report type and lint diagnostics only — they cannot tell you a behavior stopped working — so run the runtime tests your objective requires. Never weaken the graph or falsify an acknowledgement to silence a diagnostic.
 
 ## Final Checklist
 
