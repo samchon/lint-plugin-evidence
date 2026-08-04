@@ -6,6 +6,7 @@ import path from "node:path";
 import typia from "typia";
 
 import type { IEvidenceBenchmarkWorkspaceArtifact } from "./structures/IEvidenceBenchmarkWorkspaceArtifact.ts";
+import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
 import type { IEvidenceBenchmarkWorkspaceRequest } from "./structures/IEvidenceBenchmarkWorkspaceRequest.ts";
 import type { IEvidenceBenchmarkWorkspaceResult } from "./structures/IEvidenceBenchmarkWorkspaceResult.ts";
 import type { IEvidenceBenchmarkWorkspaceVariables } from "./structures/IEvidenceBenchmarkWorkspaceVariables.ts";
@@ -117,6 +118,9 @@ export namespace EvidenceBenchmarkWorkspace {
       for (const name of Object.keys(environment))
         if (name.toUpperCase() === "EVIDENCE_BENCHMARK_ARCHIVE")
           delete environment[name];
+      // Preparation runs the same package manager the cell will, so it must not
+      // carry the launching agent's identity either.
+      EvidenceBenchmarkRuntime.stripLauncherIdentity(environment);
       // Settle the workspace before installing into it. A package manager links
       // a workspace dependency by absolute path — pnpm writes a junction on
       // Windows — so an install that runs while the tree is still staged leaves
