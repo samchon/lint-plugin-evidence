@@ -9,6 +9,9 @@ import type { EvidenceBenchmarkReviewScope } from "./typings/EvidenceBenchmarkRe
 export namespace EvidenceBenchmarkInstruction {
   export const GOAL_OBJECTIVE_MAX_CHARACTERS = 4_000;
 
+  /** Opens an operator warning that replaces an Evidence continuation. */
+  export const OPERATOR_WARNING_HEADING = "# Correct This Before Continuing";
+
   /** Returns the frozen base sequence. Plain reminders are adaptive, not base. */
   export function entries(
     arm: EvidenceBenchmarkArm,
@@ -93,13 +96,23 @@ export namespace EvidenceBenchmarkInstruction {
     objectiveText: string;
   } {
     const prescribedText: string = readPrescribedText(props);
-    const continuationText: string = fs.readFileSync(
-      path.join(
-        props.instructionsRoot,
-        ...continuationPath(props.arm).split("/"),
-      ),
-      "utf8",
-    );
+    // An Evidence objective carries an operator warning in place of the
+    // continuation rather than after it. `thread/goal/set` is the runner's only
+    // channel into the thread, and `backend/start` already expands to 3923 of
+    // the 4000 characters Codex accepts, so appending would not fit. The
+    // warning states the same continuation duty in its own words, which is why
+    // substituting it loses nothing.
+    const warned: boolean =
+      props.arm === "evidence" && props.entry.reviewFeedback !== undefined;
+    const continuationText: string = warned
+      ? `${OPERATOR_WARNING_HEADING}\n\n${props.entry.reviewFeedback!.trim()}`
+      : fs.readFileSync(
+          path.join(
+            props.instructionsRoot,
+            ...continuationPath(props.arm).split("/"),
+          ),
+          "utf8",
+        );
     const objectiveText: string = `${prescribedText}\n\n${continuationText}`;
     if (objectiveText.length > GOAL_OBJECTIVE_MAX_CHARACTERS)
       throw new Error(
@@ -148,8 +161,13 @@ export namespace EvidenceBenchmarkInstruction {
       !props.entry.relativePath.startsWith("plain/") ||
       !/\/(?:remind|final)\.md$/u.test(props.entry.relativePath)
     ) {
-      if (props.entry.reviewFeedback !== undefined)
-        throw new Error("Review feedback may extend only a Plain reminder.");
+      if (
+        props.entry.reviewFeedback !== undefined &&
+        !props.entry.relativePath.startsWith("evidence/")
+      )
+        throw new Error(
+          "Review feedback may extend only a Plain reminder or an Evidence objective.",
+        );
       return prescribedText;
     }
     const reviewPath: string = props.entry.relativePath.replace(

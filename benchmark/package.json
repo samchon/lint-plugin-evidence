@@ -12,6 +12,7 @@
     "audit-suspensions": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkSuspensionAudit.ts",
     "start": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkCommandLine.ts",
     "supervise": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkSupervision.ts",
+    "warn": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkWarning.ts",
     "dashboard": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkDashboard.ts",
     "report": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkReport.ts",
     "check": "tsc --noEmit -p tsconfig.json"

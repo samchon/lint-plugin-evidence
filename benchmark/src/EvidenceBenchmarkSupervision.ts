@@ -34,6 +34,110 @@ interface ISubmittedVerdict {
 
 /** Retains and verifies Plain review decisions outside the measured thread. */
 export namespace EvidenceBenchmarkSupervision {
+  /**
+   * Attaches one operator warning to a stopped Evidence cell's current
+   * objective.
+   *
+   * The Evidence arm never pauses for a verdict, and `thread/goal/set` is the
+   * runner's only channel into the thread, so a warning reaches an Evidence
+   * cell exactly one way: stop the cell, attach the warning, resume. The
+   * warning replaces the arm continuation rather than extending the objective,
+   * because `backend/start` already expands to within 77 characters of the
+   * limit Codex accepts.
+   *
+   * A warning states the frozen boundary and the edit that crossed it. It is
+   * the alternative to restarting a cell over a correctable violation, which
+   * destroys the evidence of that violation along with the cell's work.
+   */
+  export function warn(props: {
+    runRoot: string;
+    instructionsRoot: string;
+    warningFile: string;
+    subject?: string;
+  }): IEvidenceBenchmarkSupervisionVerdict {
+    const runRoot: string = path.resolve(props.runRoot);
+    const statePath: string = path.join(runRoot, "state.json");
+    const retained = typia.assert<ISupervisedStateFile>(
+      JSON.parse(fs.readFileSync(statePath, "utf8")),
+    );
+    if (props.subject !== undefined && retained.cell.subject !== props.subject)
+      throw new Error("Operator warning does not match its subject.");
+    if (retained.cell.arm !== "evidence" || retained.state.arm !== "evidence")
+      throw new Error("Operator warnings address only an Evidence cell.");
+    if (retained.state.status === "running")
+      throw new Error("Stop the cell before attaching an operator warning.");
+    const plan = retained.state.instructionPlan;
+    if (plan === undefined) throw new Error("Retained instruction plan is missing.");
+    const index: number = retained.state.nextInstructionIndex;
+    const entry = plan[index];
+    if (entry === undefined)
+      throw new Error("No current objective can carry the warning.");
+
+    const submittedFile: string = path.resolve(props.warningFile);
+    if (isWithin(retained.records.workspace, submittedFile))
+      throw new Error(
+        "Operator warning input cannot modify the measured workspace.",
+      );
+    const submittedBytes: Buffer = fs.readFileSync(submittedFile);
+    const submitted: ISubmittedVerdict = parseSubmitted(submittedBytes);
+    const rationale: string = submitted.rationale.trim();
+    const feedback: string | undefined = submitted.feedback?.trim();
+    if (submitted.decision !== "fail")
+      throw new Error("An operator warning is always a failing decision.");
+    if (rationale.length === 0)
+      throw new Error("Operator warning rationale cannot be empty.");
+    if (!feedback)
+      throw new Error("An operator warning requires concrete feedback.");
+    assertMeasuredBoundary(feedback);
+
+    entry.reviewFeedback = feedback;
+    // Composing here rejects an oversized warning before it can reach the
+    // thread, and the runner recomposes the objective only when no Goal record
+    // occupies the index, so the stale one is dropped.
+    EvidenceBenchmarkInstruction.objective({
+      arm: "evidence",
+      instructionsRoot: props.instructionsRoot,
+      entry,
+    });
+    retained.state.goals = retained.state.goals.filter(
+      (record) => record.index !== index,
+    );
+
+    const workspace: IEvidenceBenchmarkWorkspaceIdentity =
+      EvidenceBenchmarkCheckpoint.identifyWorkspace(retained.records.workspace);
+    const directory: string = path.join(runRoot, "supervision");
+    fs.mkdirSync(directory, { recursive: true });
+    const warnings: number = fs
+      .readdirSync(directory)
+      .filter((name) => name.includes("-warning.json")).length;
+    const verdictRelativePath: string = path.posix.join(
+      "supervision",
+      `${String(warnings).padStart(2, "0")}-${entry.name}-warning.json`,
+    );
+    const verdictTarget: string = resolveWithin(runRoot, verdictRelativePath);
+    if (fs.existsSync(verdictTarget)) {
+      if (!fs.readFileSync(verdictTarget).equals(submittedBytes))
+        throw new Error("A different warning already occupies this boundary.");
+    } else writeExclusive(verdictTarget, submittedBytes);
+
+    const verdict: IEvidenceBenchmarkSupervisionVerdict = {
+      scope: "backend",
+      attempt: warnings,
+      decision: "fail",
+      action: "retry",
+      decidedAt: new Date().toISOString(),
+      goalIndex: index,
+      terminalTurnId: "",
+      rationale,
+      feedback,
+      verdictRelativePath,
+      verdictSha256: sha256(submittedBytes),
+      workspace,
+    };
+    replaceDurably(statePath, `${JSON.stringify(retained, null, 2)}\n`);
+    return verdict;
+  }
+
   /** Applies one immutable verdict to the exact paused Review boundary. */
   export function decide(props: {
     runRoot: string;
