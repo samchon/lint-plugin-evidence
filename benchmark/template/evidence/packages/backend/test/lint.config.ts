@@ -18,6 +18,13 @@ import type { ITtscLintConfig } from "@ttsc/lint";
  * command runs from: `check:watch`, `build:sdk`, and `test` are declared in
  * `packages/backend/package.json`, so the package manager makes that directory
  * the working directory for each of them.
+ *
+ * The two file rules are declared here rather than on the package for the same
+ * reason: this Program includes `../src` alongside the tests, so it already
+ * covers every file they should reach. Declaring them on the package would put
+ * them in the configuration `nestia all` resolves when it compiles
+ * `nestia.config.ts` through a project of its own making, and that file is an
+ * anonymous default export `evidence/singular` can never accept.
  */
 export default {
   extends: "../lint.config.ts",
@@ -25,6 +32,8 @@ export default {
     evidence,
   },
   rules: {
+    "evidence/singular": "error",
+    "evidence/todo": "error",
     "evidence/graph": [
       "error",
       {
