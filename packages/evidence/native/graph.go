@@ -1043,7 +1043,7 @@ func materializePackageGlobReference(
 			return state, problems
 		}
 		return state, []string{
-			claimLabel(claim) + " " + referenceLabel(reference) + " matched no files inside package '" + reference.Package + "' for " + describePatterns(reference.Files) + ". Fix the package-relative globs; they resolve against the package root, not the project root.",
+			claimLabel(claim) + " " + referenceLabel(reference) + " matched no files inside package '" + reference.Package + "' for " + describePatterns(reference.Files) + ". The globs resolve against the package root, not the project root. Check that the installed package actually contains those paths before changing the reference: an empty population demands nothing, so a claim that reaches this state reports full coverage while checking nothing.",
 		}
 	}
 	// The glob decides membership, the entry decides addresses. A matched module
