@@ -13,7 +13,9 @@ pnpm --filter @samchon/evidence-benchmark audit-suspensions
 pnpm --filter @samchon/evidence-benchmark dashboard
 ```
 
-`audit-suspensions` compares each reported run against Windows Kernel-Power disconnected-standby intervals and records a verified idle interval in that run's `suspensions.json`. That file is the only one it may write; it must not modify `state.json` or a measured workspace.
+`audit-suspensions` compares each reported run against Windows Kernel-Power disconnected-standby events and records a verified idle interval in that run's `suspensions.json`. That file is the only one it may write; it must not modify `state.json` or a measured workspace.
+
+It is Windows-only and says so by throwing: off `win32` it refuses rather than reporting zero intervals, because silently crediting a suspended run with its idle time as work would inflate the arm that happened to be running when the machine slept. On another platform the campaign runs, and its work time carries whatever suspensions the record could not subtract.
 
 `dashboard` takes no arguments and always renders the latest launched run of each cell. It cannot be pointed at a historical cohort; `--run-id` belongs to `audit-suspensions` and `report`, and [aggregate.md](aggregate.md) owns that path. Passing it here is accepted silently and changes nothing, so a cohort reported that way would be the live one wearing a historical label.
 
