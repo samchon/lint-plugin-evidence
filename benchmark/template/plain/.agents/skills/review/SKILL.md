@@ -56,7 +56,7 @@ A file counts as read only when its complete current contents are returned and e
 7. If a product or generated file changes during the round, invalidate the round and restart it from the first requirement against a new manifest.
 8. After compaction or resume, continue only when the exact manifest, round, next item, and completed propagation roots are known. Otherwise restart the round from the first requirement.
 
-Never partition a round by file, package, layer, requirement subset, review lens, time window, or agent. Never compose partial passes into a round.
+Never partition a round by file, package, layer, requirement subset, journey, review lens, time window, or agent. Never compose partial passes into a round.
 
 ## Correction And Completion
 
