@@ -160,11 +160,21 @@ export namespace EvidenceBenchmarkRunner {
       const entry = entries[state.nextInstructionIndex];
       if (entry === undefined)
         throw new Error("Instruction cursor is invalid.");
+      // An operator warning lives on the state rather than the plan, whose base
+      // sequence must stay byte-identical to the frozen one. It reaches the
+      // thread the only way anything does: as part of the objective composed
+      // when this index has no retained Goal record.
+      const warning = state.operatorWarnings?.find(
+        (record) => record.instructionIndex === state.nextInstructionIndex,
+      );
       const { prescribedText, continuationText, objectiveText } =
         EvidenceBenchmarkInstruction.objective({
           arm: state.arm,
           instructionsRoot: props.instructionsRoot,
-          entry,
+          entry:
+            warning === undefined
+              ? entry
+              : { ...entry, reviewFeedback: warning.feedback },
         });
       const record: IEvidenceBenchmarkGoalRecord = {
         index: state.nextInstructionIndex,

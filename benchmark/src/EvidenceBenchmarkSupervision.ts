@@ -90,19 +90,18 @@ export namespace EvidenceBenchmarkSupervision {
       throw new Error("An operator warning requires concrete feedback.");
     assertMeasuredBoundary(feedback);
 
-    entry.reviewFeedback = feedback;
     // Composing here rejects an oversized warning before it can reach the
     // thread, and the runner recomposes the objective only when no Goal record
-    // occupies the index, so the stale one is dropped.
+    // occupies the index, so the stale one is dropped. The plan itself is left
+    // untouched: its base sequence must stay byte-identical to the frozen one.
     EvidenceBenchmarkInstruction.objective({
       arm: retained.state.arm,
       instructionsRoot: props.instructionsRoot,
-      entry,
+      entry: { relativePath: entry.relativePath, reviewFeedback: feedback },
     });
     retained.state.goals = retained.state.goals.filter(
       (record) => record.index !== index,
     );
-
     const workspace: IEvidenceBenchmarkWorkspaceIdentity =
       EvidenceBenchmarkCheckpoint.identifyWorkspace(retained.records.workspace);
     const directory: string = path.join(runRoot, "supervision");
@@ -119,6 +118,18 @@ export namespace EvidenceBenchmarkSupervision {
       if (!fs.readFileSync(verdictTarget).equals(submittedBytes))
         throw new Error("A different warning already occupies this boundary.");
     } else writeExclusive(verdictTarget, submittedBytes);
+    retained.state.operatorWarnings = [
+      ...(retained.state.operatorWarnings ?? []).filter(
+        (warning) => warning.instructionIndex !== index,
+      ),
+      {
+        instructionIndex: index,
+        instructionName: entry.name,
+        feedback,
+        warnedAt: new Date().toISOString(),
+        verdictRelativePath,
+      },
+    ];
 
     const verdict: IEvidenceBenchmarkSupervisionVerdict = {
       scope: "backend",

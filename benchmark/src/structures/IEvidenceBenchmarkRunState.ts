@@ -64,6 +64,23 @@ export interface IEvidenceBenchmarkRunState {
     resumedAt?: string;
   }[];
 
+  /**
+   * Operator warnings attached to a stopped cell's objective.
+   *
+   * A warning names a frozen boundary the cell crossed, or supplies an
+   * authorization it correctly refused to fabricate. It lives here rather than
+   * on the instruction plan because the plan's base sequence must stay
+   * byte-identical to the frozen one, which is what proves nobody rewrote the
+   * objectives themselves.
+   */
+  operatorWarnings?: {
+    instructionIndex: number;
+    instructionName: string;
+    feedback: string;
+    warnedAt: string;
+    verdictRelativePath: string;
+  }[];
+
   /** Process time inherited by a checkpoint-derived run. */
   inheritedProcessElapsedMs?: number;
 
