@@ -7,13 +7,11 @@
     "start": "ttsx --no-plugins src/index.ts"
   },
   "devDependencies": {
+    "@nestia/e2e": "catalog:samchon",
     "@samchon/lint-plugin-evidence": "workspace:*",
     "@ttsc/lint": "catalog:typescript",
     "@types/node": "catalog:utils",
     "ttsc": "catalog:typescript",
     "typescript": "catalog:typescript"
-  },
-  "dependencies": {
-    "@nestia/e2e": "catalog:samchon"
   }
 }

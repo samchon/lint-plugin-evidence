@@ -8,12 +8,10 @@
     "start": "ttsx --project tsconfig.json src/index.ts"
   },
   "devDependencies": {
+    "@nestia/e2e": "catalog:samchon",
     "@types/node": "catalog:utils",
     "ttsc": "catalog:typescript",
-    "typia": "catalog:samchon",
-    "typescript": "catalog:typescript"
-  },
-  "dependencies": {
-    "@nestia/e2e": "catalog:samchon"
+    "typescript": "catalog:typescript",
+    "typia": "catalog:samchon"
   }
 }

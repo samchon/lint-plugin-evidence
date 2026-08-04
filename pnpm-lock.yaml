@@ -125,11 +125,10 @@ importers:
         version: 7.0.2
 
   tests/test-benchmark:
-    dependencies:
+    devDependencies:
       '@nestia/e2e':
         specifier: catalog:samchon
         version: 12.1.0
-    devDependencies:
       '@types/node':
         specifier: catalog:utils
         version: 25.9.5
@@ -144,11 +143,10 @@ importers:
         version: 13.2.0(@types/node@25.9.5)(ttsc@0.24.0)
 
   tests/test-evidence:
-    dependencies:
+    devDependencies:
       '@nestia/e2e':
         specifier: catalog:samchon
         version: 12.1.0
-    devDependencies:
       '@samchon/lint-plugin-evidence':
         specifier: workspace:*
         version: link:../../packages/evidence
