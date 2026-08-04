@@ -526,18 +526,6 @@ export namespace EvidenceBenchmarkSupervision {
     return process.platform === "win32" ? resolved.toLowerCase() : resolved;
   }
 
-  function sameWorkspace(
-    left: IEvidenceBenchmarkWorkspaceIdentity,
-    right: IEvidenceBenchmarkWorkspaceIdentity,
-  ): boolean {
-    return (
-      left.materialSha256 === right.materialSha256 &&
-      left.fileCount === right.fileCount &&
-      left.gitHead === right.gitHead &&
-      left.gitStatus === right.gitStatus
-    );
-  }
-
   function sha256(content: Buffer): string {
     return crypto.createHash("sha256").update(content).digest("hex");
   }
