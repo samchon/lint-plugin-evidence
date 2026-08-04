@@ -101,6 +101,13 @@ const readStagedClaims = (configurations: readonly string[]) => {
   for (const file of configurations) {
     const declared: string[] = readClaimNames(file);
     const staged: IActivationGate[] = readActivationGates(file);
+    // A configuration this suite can no longer read yields nothing, and a walk
+    // over nothing passes while proving nothing. Refuse it before the counts
+    // agree with each other at zero.
+    if (declared.length === 0)
+      throw new Error(
+        `${file} yielded no claim name. Either it declares none, or its shape changed and this suite is no longer reading it.`,
+      );
     if (staged.length !== declared.length)
       throw new Error(
         `${file} declares ${String(declared.length)} claim(s) but stages ${String(staged.length)}. Every claim ships disabled so a cell unlocks it when its layer is complete.`,

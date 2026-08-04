@@ -5,7 +5,6 @@ import {
   readActivationGates,
   readClaimNames,
   removeActivationGate,
-  type IActivationGate,
 } from "../internal/activationGates.ts";
 import { acquireBenchmarkWorkspace } from "../internal/benchmarkWorkspace.ts";
 import {
@@ -64,8 +63,20 @@ export const test_benchmark_evidence_test_program_carries_the_package_claims =
     const testConfig: string = path.join(backend, "test", "lint.config.ts");
     const packageClaims: string[] = readClaimNames(packageConfig);
     const testClaims: string[] = readClaimNames(testConfig);
+    // Without this, a configuration whose claims this suite could no longer
+    // read would make every comparison below iterate an empty list and pass
+    // while asserting nothing — the same vacuous green an empty population
+    // produces, one level up.
+    for (const [file, claims] of [
+      [packageConfig, packageClaims],
+      [testConfig, testClaims],
+    ] as const)
+      if (claims.length === 0)
+        throw new Error(
+          `${file} yielded no claim name. Either the configuration declares none, or its shape changed and this suite is no longer reading it.`,
+        );
     for (const file of [packageConfig, testConfig])
-      for (const gate of readActivationGates(file) as IActivationGate[]) {
+      for (const gate of readActivationGates(file)) {
         materializeClaimLayer({
           workspace: workspace.workspace,
           claim: gate.claim,

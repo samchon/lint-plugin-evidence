@@ -52,6 +52,13 @@ export const test_benchmark_evidence_frontend_gates_activate_each_claim =
 
     const declared: string[] = readClaimNames(configuration);
     const gates: IActivationGate[] = readActivationGates(configuration);
+    // A configuration this suite can no longer read yields nothing, and a walk
+    // over nothing passes while proving nothing. Refuse it before the counts
+    // agree with each other at zero.
+    if (declared.length === 0)
+      throw new Error(
+        `${configuration} yielded no claim name. Either it declares none, or its shape changed and this suite is no longer reading it.`,
+      );
     if (gates.length !== declared.length)
       throw new Error(
         `${configuration} declares ${String(declared.length)} claim(s) but stages ${String(gates.length)}. Every claim ships disabled so a cell unlocks it when its layer is complete.`,
