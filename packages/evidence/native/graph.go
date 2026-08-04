@@ -227,6 +227,15 @@ func materializeClaimStates(
 			for _, carrier := range matchingInventoryPaths(inventories, claim.Base, claim.ExclusionCarriers) {
 				carrierPaths[carrier] = true
 			}
+			// A carrier set that selects nothing would silently refuse every
+			// exclusion the claim writes, so the misspelling is reported where
+			// it was made rather than as a placement finding on each tag.
+			if len(carrierPaths) == 0 && len(paths) != 0 {
+				problems = append(
+					problems,
+					claimLabel(claim)+" declares evidenceExcludeCarriers "+describePopulation(claim.Base, claim.ExclusionCarriers)+", which selects none of its "+decimal(len(paths))+" claim file(s). Point the patterns at a file this claim already selects, or drop the property to accept an exclusion anywhere in the population.",
+				)
+			}
 		}
 		if len(paths) == 0 && state.Healthy {
 			problems = append(
