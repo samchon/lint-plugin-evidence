@@ -64,8 +64,17 @@ export const runScript = (props: {
       windowsHide: true,
     },
   );
+  const elapsedMs: number = Date.now() - started;
   const stdout: string = result.stdout ?? "";
-  const stderr: string = result.stderr ?? "";
+  // A killed or unspawnable run reports its cause on `error` and nothing on
+  // either stream, so without this an exhausted timeout — the likeliest way
+  // these gates fail, because the first lint of a cache key links this
+  // plugin's Go — would be reported as a null exit status with an empty
+  // transcript and no stated reason.
+  const stderr: string =
+    result.error === undefined
+      ? (result.stderr ?? "")
+      : `${result.stderr ?? ""}\n${props.script} did not complete after ${String(elapsedMs)} ms: ${result.error.message}\n`;
   return {
     script: props.script,
     cwd: props.cwd,
@@ -73,6 +82,6 @@ export const runScript = (props: {
     stdout,
     stderr,
     output: `${stdout}${stderr}`,
-    elapsedMs: Date.now() - started,
+    elapsedMs,
   };
 };
