@@ -911,7 +911,13 @@ const replaceDurably = (file: string, content: string): void => {
   fs.renameSync(temporary, file);
 };
 
-if (require.main === module)
+// Compared against `process.argv[1]` rather than `require.main`, which under
+// `ttsx` is the launcher that registers the runtime hooks and never this file,
+// so a `require.main === module` guard would refuse to run the command line.
+if (
+  process.argv[1] !== undefined &&
+  path.resolve(process.argv[1]) === __filename
+)
   main().catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;

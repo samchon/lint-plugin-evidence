@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import path from "node:path";
 
 import {
@@ -166,16 +165,6 @@ const obligationsFor = (
   readMissingAcknowledgements(result).filter(
     (obligation) => obligation.claim === claim,
   );
-
-const walk = (directory: string): string[] => {
-  const found: string[] = [];
-  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-    const location: string = path.join(directory, entry.name);
-    if (entry.isDirectory()) found.push(...walk(location));
-    else if (entry.isFile() && entry.name.endsWith(".ts")) found.push(location);
-  }
-  return found;
-};
 
 const requireZero = (cwd: string, script: string): void => {
   const result = runScript({ cwd, script });
