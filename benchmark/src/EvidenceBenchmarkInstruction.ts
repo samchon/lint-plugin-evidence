@@ -103,7 +103,8 @@ export namespace EvidenceBenchmarkInstruction {
     // warning states the same continuation duty in its own words, which is why
     // substituting it loses nothing.
     const warned: boolean =
-      props.arm === "evidence" && props.entry.reviewFeedback !== undefined;
+      props.entry.reviewFeedback !== undefined &&
+      !isPlainSupplement(props.entry.relativePath);
     const continuationText: string = warned
       ? `${OPERATOR_WARNING_HEADING}\n\n${props.entry.reviewFeedback!.trim()}`
       : fs.readFileSync(
@@ -161,13 +162,6 @@ export namespace EvidenceBenchmarkInstruction {
       !props.entry.relativePath.startsWith("plain/") ||
       !/\/(?:remind|final)\.md$/u.test(props.entry.relativePath)
     ) {
-      if (
-        props.entry.reviewFeedback !== undefined &&
-        !props.entry.relativePath.startsWith("evidence/")
-      )
-        throw new Error(
-          "Review feedback may extend only a Plain reminder or an Evidence objective.",
-        );
       return prescribedText;
     }
     const reviewPath: string = props.entry.relativePath.replace(
@@ -184,6 +178,14 @@ export namespace EvidenceBenchmarkInstruction {
         ? ""
         : `Correct these verified gaps:\n\n${props.entry.reviewFeedback.trim()}\n\n`;
     return `${prescribedText}${separator}${feedback}${quoteMarkdown(reviewText)}`;
+  }
+
+  /** Reports whether an entry is a Plain reminder, which quotes its Review. */
+  function isPlainSupplement(relativePath: string): boolean {
+    return (
+      relativePath.startsWith("plain/") &&
+      /\/(?:remind|final)\.md$/u.test(relativePath)
+    );
   }
 
   function quoteMarkdown(text: string): string {

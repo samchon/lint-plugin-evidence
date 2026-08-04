@@ -62,8 +62,8 @@ export namespace EvidenceBenchmarkSupervision {
     );
     if (props.subject !== undefined && retained.cell.subject !== props.subject)
       throw new Error("Operator warning does not match its subject.");
-    if (retained.cell.arm !== "evidence" || retained.state.arm !== "evidence")
-      throw new Error("Operator warnings address only an Evidence cell.");
+    if (retained.cell.arm !== retained.state.arm)
+      throw new Error("Retained cell and state disagree about the arm.");
     if (retained.state.status === "running")
       throw new Error("Stop the cell before attaching an operator warning.");
     const plan = retained.state.instructionPlan;
@@ -95,7 +95,7 @@ export namespace EvidenceBenchmarkSupervision {
     // thread, and the runner recomposes the objective only when no Goal record
     // occupies the index, so the stale one is dropped.
     EvidenceBenchmarkInstruction.objective({
-      arm: "evidence",
+      arm: retained.state.arm,
       instructionsRoot: props.instructionsRoot,
       entry,
     });

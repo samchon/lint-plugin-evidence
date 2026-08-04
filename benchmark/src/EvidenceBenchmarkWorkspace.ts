@@ -114,7 +114,6 @@ export namespace EvidenceBenchmarkWorkspace {
       for (const name of Object.keys(environment))
         if (name.toUpperCase() === "EVIDENCE_BENCHMARK_ARCHIVE")
           delete environment[name];
-      await pnpm(["install", "--no-frozen-lockfile"], workspace, environment);
       await run("git", ["init", "-b", "benchmark"], workspace, environment);
       await run("git", ["add", "-A"], workspace, environment);
       await run(
@@ -132,9 +131,22 @@ export namespace EvidenceBenchmarkWorkspace {
         environment,
       );
       fs.renameSync(stage, output);
+      // Install where the workspace will live, not where it is staged. A
+      // package manager links a workspace dependency by absolute path — pnpm
+      // writes a junction on Windows — so installing before the rename leaves
+      // every `packages/*/node_modules/<dep>` pointing at a staging directory
+      // that no longer exists. The delivered tree then resolves nothing, and
+      // the agent's first command is a repair it should never have to make.
+      const settled: string = path.join(output, "workspace");
+      try {
+        await pnpm(["install", "--no-frozen-lockfile"], settled, environment);
+      } catch (error) {
+        fs.rmSync(output, { recursive: true, force: true });
+        throw error;
+      }
       return {
         root: output,
-        workspace: path.join(output, "workspace"),
+        workspace: settled,
       };
     } catch (error) {
       fs.rmSync(stage, { recursive: true, force: true });
