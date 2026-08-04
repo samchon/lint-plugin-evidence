@@ -83,6 +83,11 @@ export const test_evidence_graph_reports_an_exclusion_outside_its_carrier =
       );
       assertIncludes(
         result,
+        "evidenceExcludeCarriers",
+        "The repair must name the property that confined the exclusion.",
+      );
+      assertIncludes(
+        result,
         "'src/LEDGER.ts'",
         "The repair must name the configured carrier the exclusion belongs in.",
       );
