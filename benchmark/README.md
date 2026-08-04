@@ -1,6 +1,6 @@
 # Evidence benchmark
 
-This benchmark compares the same coding engine building the same application with and without `@samchon/lint-plugin-evidence`. Both arms receive the same requirements, shared template, instruction order, engine, model, and effort. Only the Evidence arm receives the package, its claims and tags, and Evidence-specific guidance.
+This benchmark compares the same coding engine building the same application with and without `@samchon/lint-plugin-evidence`. Both arms receive the same requirements, shared template, base instruction order, engine, model, and effort. Only the Evidence arm receives the package, its claims and tags, and Evidence-specific guidance.
 
 The runner prepares an isolated workspace, drives the prescribed instructions in one native session, and retains the native execution record. It does not validate requirements, judge the generated application, or repair a measured workspace.
 
