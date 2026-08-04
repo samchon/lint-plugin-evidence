@@ -13,7 +13,7 @@ The workspace carries its own contract, copied in at preparation. Read it there 
 | `AGENTS.md` | Agent instructions, policy overrides, package names and scripts, **existing** dependency specifiers, package-manager and engine resolution, workspace routing, shared lint or compiler configuration, and the fixed gate runners |
 | `.agents/skills/backend/SKILL.md` | The backend package's `tsconfig.json` and lint configuration, in the package and in `test/` alike — no adding, deleting, or editing, and no toggling claim configuration by phase |
 | `.agents/skills/evidence/SKILL.md` | All four claim configuration files and every claim object, except the prescribed `disabled` deletion, with `evidence/graph` held at `error` |
-| `.agents/skills/review/*.md` | The same as a checklist against the baseline commit, plus a stricter rule of its own: any difference in an API or backend configuration file, a changed dependency included, is a finding the cell must report and restore |
+| `.agents/skills/review/*.md` | Each arm's own review duty, and they differ. Evidence: every `lint.config.ts` against the baseline, the prescribed `disabled` deletion aside. Plain: any difference in an API or backend configuration file, a changed dependency included, is a finding to report and restore |
 
 ## Legitimate, Never A Hit
 
@@ -97,7 +97,7 @@ A hit looks like this — the top level now resolves to build output, so a local
 
 A newly added top-level `types` is a hit on its own, and so is any edit inside `publishConfig`.
 
-Redirecting the SDK package to `lib` breaks the frozen glob that selects the accessor surface, and gives the cell a reason to edit the claim that depends on it. Report it in any package, `packages/api` included but never alone.
+Redirecting the SDK package to `lib` breaks the frozen glob that selects the accessor surface, and gives the cell a reason to edit the claim that depends on it. Check every package for it, not `packages/api` alone.
 
 **A new subpath in `exports` is a hit too**, and the API package is where it happens. `.agents/skills/api/SKILL.md` and `.agents/skills/project/SKILL.md` both forbid publishing or consuming a `structures` subpath, because a second export surface creates a second contract path — and the accessor-surface glob selects through the first one only.
 
@@ -111,6 +111,14 @@ Redirecting the SDK package to `lib` breaks the frozen glob that selects the acc
 ```
 
 **A changed `name` or `scripts`, or a changed existing dependency specifier**, is also a hit. A newly added dependency is not; that one belongs to the cell's own review.
+
+### Workspace And Toolchain
+
+`pnpm-workspace.yaml`, `.node-version`, and the root `packageManager` are frozen by the workspace `AGENTS.md` as workspace routing and package-manager or engine resolution. Report any change.
+
+`pnpm-workspace.yaml` is the one a cell has a plausible reason to touch: adding a dependency through a `catalog:` specifier means adding the catalog entry here, which is a hit even though the dependency itself is not. The cell installs with an explicit version instead.
+
+The runner's own review manifest reaches further than these — `config/lint.config.ts`, `config/package.json`, `config/tsconfig.json`, `packages/backend/nestia.config.ts`, `packages/backend/prisma.config.ts`, and `packages/backend/.env.example` are all configuration the cell must read and reconcile. Those belong to the cell's review, not to your hit criteria; `EvidenceBenchmarkReviewLedger.ts` holds the full list.
 
 ## Why These Decide The Measurement
 
