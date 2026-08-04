@@ -1,7 +1,7 @@
 import {
   assertExcludes,
-  assertIncludes,
   assertFailure,
+  assertIncludes,
   assertStatus,
   createProject,
   runCheck,
@@ -18,11 +18,15 @@ import {
  * separate path from the one every TypeScript fixture exercises, so confinement
  * proved on exported symbols proves nothing about it.
  *
- * A rooted carrier is the second: `root` moves the population's base, and a
- * carrier pattern that resolved against the project root instead would match
- * nothing and reject every exclusion the ledger legitimately holds. Both shapes
- * ship in this repository's own benchmark template, where getting either wrong
- * fails the workspace before a cell writes anything.
+ * A rooted carrier is the second. `root` moves the population's base, and a
+ * carrier pattern resolved against the project root instead would match nothing
+ * and reject every exclusion the ledger legitimately holds. Both shapes ship in
+ * this repository's own benchmark template, where getting either wrong fails
+ * the workspace before a cell writes anything.
+ *
+ * The two runs share one configuration and one pair of schema sources. Only the
+ * file holding the exclusion moves, so a difference in outcome is attributable
+ * to placement and to nothing else.
  *
  * 1. Root a Prisma claim above the project and confine it to `exclude.schema`.
  * 2. Assert the ledger's own exclusion discharges its target and the build passes.
@@ -63,7 +67,9 @@ export const test_evidence_graph_confines_prisma_and_rooted_carriers =
     ].join("\n");
 
     const spec: string = "## Stored {#stored}\n\n## Deferred {#deferred}\n";
-    const stored: string = [
+    const reason: string =
+      "The frontend owns this presentation-only section; reject this exclusion if it gains persisted state.";
+    const model: string[] = [
       "/// A persisted sale.",
       "///",
       "/// @evidence ../docs/spec.md#stored Stores the required sale.",
@@ -71,20 +77,26 @@ export const test_evidence_graph_confines_prisma_and_rooted_carriers =
       "  id String @id",
       "}",
       "",
-    ].join("\n");
+    ];
+    // The claim selects a Prisma population above the project, so the project
+    // itself only needs one source for ttsc to compile.
+    const files: Record<string, string> = {
+      "src/placeholder.ts": "export const placeholder = true;\n",
+    };
 
-    // The exclusion sits in the lint-only ledger, which is where the claim
-    // says exclusions live.
+    // The exclusion sits in the lint-only ledger, which is where the claim says
+    // exclusions live.
     const confined: IEvidenceProject = createProject({
       name: "prisma-carrier-confined",
       lintConfig,
-      files: {
-        "../docs/spec.md": spec,
-        "../schema/main.prisma": stored,
-        "../schema/exclude.schema": [
+      files,
+      workspaceFiles: {
+        "docs/spec.md": spec,
+        "schema/main.prisma": model.join("\n"),
+        "schema/exclude.schema": [
           "/// Lint-only carrier for schema exclusions.",
           "///",
-          "/// @evidenceExclude ../docs/spec.md#deferred The frontend owns this presentation-only section; reject this exclusion if it gains persisted state.",
+          `/// @evidenceExclude ../docs/spec.md#deferred ${reason}`,
           "",
         ].join("\n"),
       },
@@ -110,24 +122,20 @@ export const test_evidence_graph_confines_prisma_and_rooted_carriers =
       confined.cleanup();
     }
 
-    // The same exclusion, moved onto the model that the claim selects. The
-    // host is legal; the file is not the declared carrier.
+    // The same exclusion, moved onto the model the claim selects. The host is
+    // legal for this claim; the file is not the declared carrier.
     const misplaced: IEvidenceProject = createProject({
       name: "prisma-carrier-misplaced",
       lintConfig,
-      files: {
-        "../docs/spec.md": spec,
-        "../schema/main.prisma": [
-          "/// A persisted sale.",
-          "///",
-          "/// @evidence ../docs/spec.md#stored Stores the required sale.",
-          "/// @evidenceExclude ../docs/spec.md#deferred The frontend owns this presentation-only section; reject this exclusion if it gains persisted state.",
-          "model sales {",
-          "  id String @id",
-          "}",
-          "",
+      files,
+      workspaceFiles: {
+        "docs/spec.md": spec,
+        "schema/main.prisma": [
+          ...model.slice(0, 3),
+          `/// @evidenceExclude ../docs/spec.md#deferred ${reason}`,
+          ...model.slice(3),
         ].join("\n"),
-        "../schema/exclude.schema":
+        "schema/exclude.schema":
           "/// Lint-only carrier for schema exclusions.\n",
       },
     });
