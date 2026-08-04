@@ -10,7 +10,11 @@ export default {
   // a route with no response body as `Resolved<void>`, which the shared
   // `no-invalid-void-type` rule rejects, so every such route would be an error
   // no author can fix without changing the published contract.
-  ignores: ["src/prisma/**/*.ts", "**/api/src/functional/**/*.ts"],
+  ignores: [
+    "src/prisma/**/*.ts",
+    "../api/src/functional/**/*.ts",
+    "**/api/src/functional/**/*.ts",
+  ],
   rules: {
     "no-duplicate-imports": ["error", { allowSeparateTypeImports: true }],
   },

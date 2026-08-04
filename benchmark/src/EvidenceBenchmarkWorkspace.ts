@@ -63,6 +63,9 @@ export namespace EvidenceBenchmarkWorkspace {
     for (const name of Object.keys(environment))
       if (name.toUpperCase() === "EVIDENCE_BENCHMARK_ARCHIVE")
         delete environment[name];
+    // Restoring a checkpoint installs the same way preparation does, so it must
+    // strip the launching agent's identity for the same reason.
+    EvidenceBenchmarkRuntime.stripLauncherIdentity(environment);
     await pnpm(
       ["install", "--no-frozen-lockfile"],
       path.resolve(workspace),

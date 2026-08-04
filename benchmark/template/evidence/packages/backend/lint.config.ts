@@ -145,7 +145,19 @@ export default {
   extends: "../../config/lint.config.ts",
   // Prisma owns this generated client. The authored schema remains selected by
   // the graph through its explicit external population.
-  ignores: ["src/prisma/**/*.ts"],
+  //
+  // The generated SDK is the same case. This package's Program includes the SDK
+  // sources so it can typecheck against the contract it publishes, which drags
+  // Nestia's accessors into this package's linting even though the API package
+  // excludes exactly those files from its own. Nestia types a route with no
+  // response body as `Resolved<void>`, which the shared `no-invalid-void-type`
+  // rule rejects, so every such route would be an error no author could fix
+  // without changing the published contract.
+  ignores: [
+    "src/prisma/**/*.ts",
+    "../api/src/functional/**/*.ts",
+    "**/api/src/functional/**/*.ts",
+  ],
   plugins: {
     evidence,
   },
