@@ -29,7 +29,7 @@ export function testContract(): void {}
 				"type":"markdown",
 				"files":["docs/spec.md"],
 				"symbol":"h2",
-				"noExclude":true
+				"noEvidenceExclude":true
 			},
 			{
 				"type":"markdown",
@@ -41,7 +41,7 @@ export function testContract(): void {}
 	if count := countProblemsContaining(messages, "Forbidden @evidenceExclude"); count != 1 {
 		t.Fatalf("expected one strict-reference exclusion diagnostic, got %d:\n%s", count, strings.Join(messages, "\n"))
 	}
-	assertProblemContains(t, messages, "reference 1 (markdown, symbols: h2): noExclude")
+	assertProblemContains(t, messages, "reference 1 (markdown, symbols: h2): noEvidenceExclude")
 	if count := countProblemsContaining(messages, "Missing acknowledgement"); count != 1 {
 		t.Fatalf("the ordinary reference must remain acknowledged, got %d missing diagnostics:\n%s", count, strings.Join(messages, "\n"))
 	}

@@ -217,9 +217,16 @@ func materializeClaimStates(
 		inventories := inventoriesOf(claim.Type, markdown, prisma, swagger, typescript)
 		paths := matchingInventoryPaths(inventories, claim.Base, claim.Files)
 		state := claimState{
-			Spec:    claim,
-			Paths:   paths,
-			Healthy: populationIsHealthy(inventories, claim.Base, paths),
+			Spec:           claim,
+			Paths:          paths,
+			Healthy:        populationIsHealthy(inventories, claim.Base, paths),
+			OutsideCarrier: map[string]bool{},
+		}
+		carrierPaths := map[string]bool{}
+		if len(claim.ExclusionCarriers.Patterns) != 0 {
+			for _, carrier := range matchingInventoryPaths(inventories, claim.Base, claim.ExclusionCarriers) {
+				carrierPaths[carrier] = true
+			}
 		}
 		if len(paths) == 0 && state.Healthy {
 			problems = append(
@@ -242,6 +249,11 @@ func materializeClaimStates(
 				state.Declarations,
 				inventories[path].Declarations...,
 			)
+			if len(claim.ExclusionCarriers.Patterns) != 0 && !carrierPaths[path] {
+				for _, declaration := range inventories[path].Declarations {
+					state.OutsideCarrier[declaration.ID] = true
+				}
+			}
 		}
 		sortUnits(state.Hosts)
 		for _, reference := range claim.References {
@@ -584,6 +596,11 @@ func evaluateEvidenceGraph(
 	uncertain := map[string]bool{}
 	outOfScope := map[string][]string{}
 	outOfScopeSelections := map[string]symbolSet{}
+	// An exclusion outside its claim's declared carriers is a placement
+	// finding, not a host-kind one, so it carries its own obligations and the
+	// carrier globs its message must name.
+	outsideCarrier := map[string][]string{}
+	outsideCarrierGlobs := map[string]string{}
 	for _, state := range states {
 		if len(state.Paths) == 0 {
 			continue
@@ -637,6 +654,14 @@ func evaluateEvidenceGraph(
 				scopeID := resolved[declaration.ID]
 				covered := reference.UnitsByScope[scopeID]
 				if len(covered) == 0 {
+					continue
+				}
+				if declaration.Tag == tagExclude && state.OutsideCarrier[declaration.ID] {
+					outsideCarrier[declaration.ID] = appendUniqueString(
+						outsideCarrier[declaration.ID],
+						claimLabel(state.Spec)+" "+referenceLabel(reference.Spec),
+					)
+					outsideCarrierGlobs[declaration.ID] = describePopulation(state.Spec.Base, state.Spec.ExclusionCarriers)
 					continue
 				}
 				if !declarationEligibleForClaim(declaration, state.Spec) {
@@ -799,6 +824,13 @@ func evaluateEvidenceGraph(
 		}
 		declaration := declarations[id]
 		context := declarationObligationContext(owners[id])
+		if obligations := outsideCarrier[id]; len(obligations) != 0 {
+			problems = append(
+				problems,
+				"Misplaced @evidenceExclude at "+declaration.location()+" for "+strings.Join(obligations, "; ")+", target '"+displayTarget(declaration.Target)+"': this claim accepts exclusions only in "+outsideCarrierGlobs[id]+". Move the tag there, or delete it and implement the target this claim owes.",
+			)
+			continue
+		}
 		if obligations := outOfScope[id]; len(obligations) != 0 {
 			host := declaration.Hosts.names()
 			if len(declaration.Hosts) == 0 {

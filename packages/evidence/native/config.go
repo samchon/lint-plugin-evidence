@@ -54,7 +54,7 @@ func decodeClaim(raw json.RawMessage, index int) (claimSpec, []string) {
 	}
 	problems := rejectUnknownFields(
 		object,
-		[]string{"type", "name", "disabled", "root", "files", "symbol", "reference"},
+		[]string{"type", "name", "disabled", "root", "files", "evidenceExcludeCarriers", "symbol", "reference"},
 		graphRuleName,
 		path,
 	)
@@ -82,6 +82,12 @@ func decodeClaim(raw json.RawMessage, index int) (claimSpec, []string) {
 	problems = append(problems, rootProblems...)
 	files, fileProblems := decodeFiles(object["files"], path+".files")
 	problems = append(problems, fileProblems...)
+	carriers := globSet{}
+	if raw, exists := object["evidenceExcludeCarriers"]; exists {
+		decoded, carrierProblems := decodeFiles(raw, path+".evidenceExcludeCarriers")
+		problems = append(problems, carrierProblems...)
+		carriers = decoded
+	}
 	symbols, symbolProblems := decodeSymbols(object["symbol"], kind, false, graphRuleName, path+".symbol")
 	problems = append(problems, symbolProblems...)
 	references, referenceProblems := decodeReferences(kind, object["reference"], path+".reference")
@@ -90,14 +96,15 @@ func decodeClaim(raw json.RawMessage, index int) (claimSpec, []string) {
 		return claimSpec{}, problems
 	}
 	return claimSpec{
-		Index:      index,
-		Type:       kind,
-		Name:       name,
-		Disabled:   disabled,
-		Root:       root,
-		Files:      files,
-		Symbols:    symbols,
-		References: references,
+		Index:             index,
+		Type:              kind,
+		Name:              name,
+		Disabled:          disabled,
+		Root:              root,
+		Files:             files,
+		ExclusionCarriers: carriers,
+		Symbols:           symbols,
+		References:        references,
 	}, nil
 }
 
