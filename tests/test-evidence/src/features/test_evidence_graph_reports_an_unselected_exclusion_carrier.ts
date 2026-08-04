@@ -33,7 +33,7 @@ export const test_evidence_graph_reports_an_unselected_exclusion_carrier =
         '      name: "operations",',
         '      type: "typescript",',
         '      files: ["src/**/*.ts"],',
-        '      evidenceExcludeCarriers: ["src/MISSPELLED.ts"],',
+        '      evidenceExcludeCarriers: ["vendor/LEDGER.ts"],',
         '      symbol: "function",',
         "      reference: {",
         '        type: "markdown",',
@@ -72,8 +72,8 @@ export const test_evidence_graph_reports_an_unselected_exclusion_carrier =
       );
       assertIncludes(
         result,
-        "'src/MISSPELLED.ts'",
-        "The finding must quote the patterns so the misspelling is visible.",
+        "'vendor/LEDGER.ts'",
+        "The finding must quote the patterns so the unselected path is visible.",
       );
     } finally {
       project.cleanup();

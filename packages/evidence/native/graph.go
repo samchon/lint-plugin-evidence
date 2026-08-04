@@ -224,8 +224,17 @@ func materializeClaimStates(
 		}
 		carrierPaths := map[string]bool{}
 		if len(claim.ExclusionCarriers.Patterns) != 0 {
+			// The carriers narrow the claim's own population and never widen
+			// it, so a pattern matching a file this claim does not select
+			// contributes nothing and leaves the set empty.
+			claimPaths := map[string]bool{}
+			for _, path := range paths {
+				claimPaths[path] = true
+			}
 			for _, carrier := range matchingInventoryPaths(inventories, claim.Base, claim.ExclusionCarriers) {
-				carrierPaths[carrier] = true
+				if claimPaths[carrier] {
+					carrierPaths[carrier] = true
+				}
 			}
 			// A carrier set that selects nothing would silently refuse every
 			// exclusion the claim writes, so the misspelling is reported where
