@@ -167,7 +167,7 @@ Schema exclusions are unattached top-level `/// @evidenceExclude` lines in `excl
 
 ## Stub Marker
 
-This project uses:
+Mark unfinished work with:
 
 ```text
 @todo <specific remaining implementation>
