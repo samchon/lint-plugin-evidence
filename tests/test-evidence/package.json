@@ -12,5 +12,8 @@
     "@types/node": "catalog:utils",
     "ttsc": "catalog:typescript",
     "typescript": "catalog:typescript"
+  },
+  "dependencies": {
+    "@nestia/e2e": "catalog:samchon"
   }
 }

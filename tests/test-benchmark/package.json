@@ -12,5 +12,8 @@
     "ttsc": "catalog:typescript",
     "typia": "catalog:samchon",
     "typescript": "catalog:typescript"
+  },
+  "dependencies": {
+    "@nestia/e2e": "catalog:samchon"
   }
 }

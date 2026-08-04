@@ -10,6 +10,9 @@ catalogs:
       specifier: 7.10.0-2.d0368e25c88e68caa4d283b5f2d88d1b76ed9356
       version: 7.10.0-2.d0368e25c88e68caa4d283b5f2d88d1b76ed9356
   samchon:
+    '@nestia/e2e':
+      specifier: ^12.1.0
+      version: 12.1.0
     '@typia/interface':
       specifier: ^13.2.0
       version: 13.2.0
@@ -122,6 +125,10 @@ importers:
         version: 7.0.2
 
   tests/test-benchmark:
+    dependencies:
+      '@nestia/e2e':
+        specifier: catalog:samchon
+        version: 12.1.0
     devDependencies:
       '@types/node':
         specifier: catalog:utils
@@ -137,6 +144,10 @@ importers:
         version: 13.2.0(@types/node@25.9.5)(ttsc@0.24.0)
 
   tests/test-evidence:
+    dependencies:
+      '@nestia/e2e':
+        specifier: catalog:samchon
+        version: 12.1.0
     devDependencies:
       '@samchon/lint-plugin-evidence':
         specifier: workspace:*
@@ -214,6 +225,9 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@nestia/e2e@12.1.0':
+    resolution: {integrity: sha512-WjhNi9YGBDPEq5ik8ApgTPxI6RxezzWdvDiBx7hmqnhEKqzdHxGD5T+aleuNkJdvKYPrSdS0crDynLfe+38fMw==}
 
   '@prisma/prisma-schema-wasm@7.10.0-2.d0368e25c88e68caa4d283b5f2d88d1b76ed9356':
     resolution: {integrity: sha512-loEbWBr+xUSqtIYaoJCrIuDeVs/fSY29Efshp+3rrTgQtyEqJ2iGuLTt9XnRZYBUE+eWC8ps0nOblyckgBehJQ==}
@@ -998,6 +1012,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@nestia/e2e@12.1.0': {}
 
   '@prisma/prisma-schema-wasm@7.10.0-2.d0368e25c88e68caa4d283b5f2d88d1b76ed9356': {}
 
