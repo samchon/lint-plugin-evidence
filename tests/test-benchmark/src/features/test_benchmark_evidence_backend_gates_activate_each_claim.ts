@@ -102,7 +102,7 @@ export const test_benchmark_evidence_backend_gates_activate_each_claim =
     );
     if (throughTheInstall.length === 0)
       throw new Error(
-        `Neither backend configuration declares a \`package\` reference. That is the reference an unwalkable workspace link empties out, and without it this walk no longer covers the failure it exists for.`,
+        `No configuration this objective unlocks declares a \`package\` reference. That is the reference an unwalkable workspace link empties out, and without it this walk no longer covers the failure it exists for.`,
       );
     // The overlay's e2e test already cites the one published operation, and a
     // satisfied obligation is indistinguishable from one that does not exist.
