@@ -20,7 +20,8 @@
   "devDependencies": {
     "@types/node": "catalog:utils",
     "ttsc": "catalog:typescript",
+    "typescript": "catalog:typescript",
     "typia": "catalog:samchon",
-    "typescript": "catalog:typescript"
+    "yaml": "catalog:utils"
   }
 }

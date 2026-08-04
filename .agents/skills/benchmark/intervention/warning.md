@@ -15,8 +15,8 @@ The warning file is a failing decision with a retained `rationale` and the `feed
 ```json
 {
   "decision": "fail",
-  "rationale": "The cell narrowed the reference files glob in packages/backend/lint.config.ts.",
-  "feedback": "Restore packages/backend/lint.config.ts to its committed baseline. Its lint configuration is not yours to change."
+  "rationale": "The cell narrowed the reference files glob in packages/backend/test/lint.config.ts.",
+  "feedback": "Restore packages/backend/test/lint.config.ts to its committed baseline. Its lint configuration is not yours to change."
 }
 ```
 

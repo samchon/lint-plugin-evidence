@@ -44,7 +44,7 @@ Do not add or remove claim objects or change any other claim field as implementa
 
 | Configuration | Claim | Host | References |
 | --- | --- | --- | --- |
-| `packages/backend/lint.config.ts` | `schema-models` | Prisma models | requirement H2/H3 |
+| `packages/backend/test/lint.config.ts` | `schema-models` | Prisma models | requirement H2/H3 |
 | same | `api-operations` | exported controller functions | requirement H2/H3 and Prisma models |
 | `packages/api/lint.config.ts` | `dto-types` | exported DTO types | requirement H2/H3 and Prisma models |
 | same | `dto-properties` | exported DTO properties | Prisma columns |
@@ -53,7 +53,7 @@ Do not add or remove claim objects or change any other claim field as implementa
 | same | `frontend-journeys` | exported journey functions | requirements and page functions |
 | same | `frontend-hooks` | exported hook functions | SDK operations |
 
-A claim is declared in the configuration of the Program its hosts live in. The authored DTOs under `packages/api/src/structures/` belong to the API Program, so `dto-types` and `dto-properties` are declared in `packages/api/lint.config.ts`; a claim cannot reach a population its own `tsconfig` does not include. The e2e suite under `test/features/` belongs to the backend test Program rather than the package Program, so `backend-tests` is declared in `packages/backend/test/lint.config.ts`. That configuration extends the package one and carries its two claims forward unchanged, so a backend package claim is declared, and unlocked, once in `packages/backend/lint.config.ts` and holds in both Programs. The frontend is one Program and one configuration.
+A claim is declared in the configuration of the Program its hosts live in, and a claim cannot reach a population its own `tsconfig` does not include. The authored DTOs under `packages/api/src/structures/` belong to the API Program, so `dto-types` and `dto-properties` are declared in `packages/api/lint.config.ts`. Every backend claim is declared in `packages/backend/test/lint.config.ts`, because `test/tsconfig.json` compiles the backend source together with the tests and is therefore the one Program that holds controllers and test functions alike; the package Program sees only `src/` and could never reach `test/features/`. The frontend is one Program and one configuration.
 
 The frontend claims form one chain: a hook answers for the operations it calls, a screen answers for the hooks it uses, and a journey answers for the screens it walks. Owning an operation is not delivering it, so a hook wrapping an accessor no screen renders fails at the screen claim rather than passing on the hook claim alone.
 
@@ -62,7 +62,7 @@ Both SDK operation obligations refuse `@evidenceExclude`. Every published operat
 They differ in cardinality. A backend test admits exactly one operation, because a test citing eight operations proves only that eight names appear in its JSDoc — cite the one it answers for and let its prerequisites stay uncited. A hook may cite as many as it calls, because consuming the published surface is the obligation and how the calls are grouped is not.
 
 
-All four configuration files and all claim objects are frozen except for the prescribed deletion of each predeclared `disabled` property. Keep `evidence/graph` at `error`. Each backend Program has its own `tsconfig.json`, and the test one compiles the backend source together with the tests. Do not create phase-specific config or compiler files.
+All three configuration files and all claim objects are frozen except for the prescribed deletion of each predeclared `disabled` property. Keep `evidence/graph` at `error`. Each backend Program has its own `tsconfig.json`, and the test one compiles the backend source together with the tests. Do not create phase-specific config or compiler files.
 
 No environment value turns the graph off. `evidence/graph` is `error` in every gate, and a result produced with it weakened is invalid.
 

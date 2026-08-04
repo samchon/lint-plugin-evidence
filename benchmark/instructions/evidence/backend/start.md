@@ -21,7 +21,7 @@ Complete these stages in order.
 
 Removing `disabled` early emits thousands of errors for tags not yet written, filling context and impairing decisions.
 
-Delete each `disabled` where declared: `packages/api/lint.config.ts` (DTO; checked by `pnpm build:sdk`), `packages/backend/lint.config.ts`, `packages/backend/test/lint.config.ts`.
+Delete each `disabled` where declared: `packages/api/lint.config.ts` (DTO; checked by `pnpm build:sdk`) and `packages/backend/test/lint.config.ts` (schema, operations, and tests).
 
 Start backend `pnpm check:watch` before implementation while every backend claim is disabled.
 
