@@ -160,11 +160,21 @@ export namespace EvidenceBenchmarkRunner {
       const entry = entries[state.nextInstructionIndex];
       if (entry === undefined)
         throw new Error("Instruction cursor is invalid.");
+      // An operator warning lives on the state rather than the plan, whose base
+      // sequence must stay byte-identical to the frozen one. It reaches the
+      // thread the only way anything does: as part of the objective composed
+      // when this index has no retained Goal record.
+      const warning = state.operatorWarnings?.find(
+        (record) => record.instructionIndex === state.nextInstructionIndex,
+      );
       const { prescribedText, continuationText, objectiveText } =
         EvidenceBenchmarkInstruction.objective({
           arm: state.arm,
           instructionsRoot: props.instructionsRoot,
-          entry,
+          entry:
+            warning === undefined
+              ? entry
+              : { ...entry, reviewFeedback: warning.feedback },
         });
       const record: IEvidenceBenchmarkGoalRecord = {
         index: state.nextInstructionIndex,
@@ -1570,7 +1580,8 @@ export namespace EvidenceBenchmarkRunner {
               entry.reviewAttempt !== index + 1 ||
               entry.reviewFeedback?.trim().length === 0,
           ) ||
-          supplements.length > 4
+          supplements.length >
+            EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT
         )
           throw new Error("Retained review supplementation plan is invalid.");
       }
@@ -1683,7 +1694,6 @@ export namespace EvidenceBenchmarkRunner {
           verdict.action !== "quality-failed" &&
           (verdict.decision !== "fail" ||
             verdict.action !== "retry" ||
-            verdict.feedback === undefined ||
             next?.kind !== "review-supplement" ||
             next.reviewScope !== pause.scope ||
             next.reviewAttempt !== pause.attempt + 1 ||
@@ -1694,7 +1704,8 @@ export namespace EvidenceBenchmarkRunner {
             ? !latest ||
               state.status !== "quality-failed" ||
               verdict.decision !== "fail" ||
-              pause.attempt !== 4 ||
+              pause.attempt !==
+                EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT ||
               pause.resumedAt !== undefined ||
               state.nextInstructionIndex !== pause.goalIndex + 1
             : pause.resumedAt === undefined)
@@ -1779,7 +1790,10 @@ export namespace EvidenceBenchmarkRunner {
         composeArguments: (arguments_) => [...arguments_],
         windowsVerbatimArguments: false,
       };
-    const command: string | undefined = props.environment.ComSpec;
+    const command: string | undefined = readEnvironment(
+      props.environment,
+      "ComSpec",
+    );
     if (command === undefined)
       throw new Error("Windows command processor was not found.");
     return {
@@ -1835,6 +1849,23 @@ export namespace EvidenceBenchmarkRunner {
 
   function canOwnInterruptedUsageReplay(value: unknown): boolean {
     return value === "active" || isInterruptedGoalStatus(value);
+  }
+
+  /**
+   * Reads one Windows environment variable without depending on its spelling.
+   *
+   * `process.env` is case-insensitive on Windows, but the sanitized copy the
+   * runner passes to children is an ordinary object, so a shell that exports
+   * `COMSPEC` rather than `ComSpec` would otherwise look unset.
+   */
+  function readEnvironment(
+    environment: NodeJS.ProcessEnv,
+    name: string,
+  ): string | undefined {
+    const wanted: string = name.toUpperCase();
+    for (const [key, value] of Object.entries(environment))
+      if (key.toUpperCase() === wanted && value !== undefined) return value;
+    return undefined;
   }
 
   function locateWindowsCommand(

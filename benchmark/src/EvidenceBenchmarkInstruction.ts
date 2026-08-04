@@ -9,6 +9,19 @@ import type { EvidenceBenchmarkReviewScope } from "./typings/EvidenceBenchmarkRe
 export namespace EvidenceBenchmarkInstruction {
   export const GOAL_OBJECTIVE_MAX_CHARACTERS = 4_000;
 
+  /** Opens an operator warning that replaces an Evidence continuation. */
+  export const OPERATOR_WARNING_HEADING = "# Correct This Before Continuing";
+
+  /**
+   * Supplementation attempts a Plain review scope may take before it fails.
+   *
+   * The bound exists so a cell that cannot reach the bar terminates instead of
+   * looping, and the attempt it stops on is itself the measurement. A larger
+   * subject needs more of them: a review that must write one proving test per
+   * published operation has further to travel than one with two dozen.
+   */
+  export const REVIEW_SUPPLEMENT_LIMIT = 8;
+
   /** Returns the frozen base sequence. Plain reminders are adaptive, not base. */
   export function entries(
     arm: EvidenceBenchmarkArm,
@@ -93,13 +106,24 @@ export namespace EvidenceBenchmarkInstruction {
     objectiveText: string;
   } {
     const prescribedText: string = readPrescribedText(props);
-    const continuationText: string = fs.readFileSync(
-      path.join(
-        props.instructionsRoot,
-        ...continuationPath(props.arm).split("/"),
-      ),
-      "utf8",
-    );
+    // An Evidence objective carries an operator warning in place of the
+    // continuation rather than after it. `thread/goal/set` is the runner's only
+    // channel into the thread, and `backend/start` already expands to 3923 of
+    // the 4000 characters Codex accepts, so appending would not fit. The
+    // warning states the same continuation duty in its own words, which is why
+    // substituting it loses nothing.
+    const warned: boolean =
+      props.entry.reviewFeedback !== undefined &&
+      !isPlainSupplement(props.entry.relativePath);
+    const continuationText: string = warned
+      ? `${OPERATOR_WARNING_HEADING}\n\n${props.entry.reviewFeedback!.trim()}`
+      : fs.readFileSync(
+          path.join(
+            props.instructionsRoot,
+            ...continuationPath(props.arm).split("/"),
+          ),
+          "utf8",
+        );
     const objectiveText: string = `${prescribedText}\n\n${continuationText}`;
     if (objectiveText.length > GOAL_OBJECTIVE_MAX_CHARACTERS)
       throw new Error(
@@ -117,7 +141,7 @@ export namespace EvidenceBenchmarkInstruction {
         entry.reviewScope === undefined ||
         entry.reviewAttempt === undefined ||
         entry.reviewAttempt < 1 ||
-        entry.reviewAttempt > 4
+        entry.reviewAttempt > REVIEW_SUPPLEMENT_LIMIT
       )
         throw new Error("Review supplementation plan entry is incomplete.");
       return { scope: entry.reviewScope, attempt: entry.reviewAttempt };
@@ -148,8 +172,6 @@ export namespace EvidenceBenchmarkInstruction {
       !props.entry.relativePath.startsWith("plain/") ||
       !/\/(?:remind|final)\.md$/u.test(props.entry.relativePath)
     ) {
-      if (props.entry.reviewFeedback !== undefined)
-        throw new Error("Review feedback may extend only a Plain reminder.");
       return prescribedText;
     }
     const reviewPath: string = props.entry.relativePath.replace(
@@ -166,6 +188,14 @@ export namespace EvidenceBenchmarkInstruction {
         ? ""
         : `Correct these verified gaps:\n\n${props.entry.reviewFeedback.trim()}\n\n`;
     return `${prescribedText}${separator}${feedback}${quoteMarkdown(reviewText)}`;
+  }
+
+  /** Reports whether an entry is a Plain reminder, which quotes its Review. */
+  function isPlainSupplement(relativePath: string): boolean {
+    return (
+      relativePath.startsWith("plain/") &&
+      /\/(?:remind|final)\.md$/u.test(relativePath)
+    );
   }
 
   function quoteMarkdown(text: string): string {

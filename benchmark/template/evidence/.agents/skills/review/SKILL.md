@@ -17,7 +17,7 @@ Several hosts may truthfully cite one target. Do not consolidate them. A clean c
 
 Continue after each finding until the complete active-phase population is inspected. Correct every fake tag, then require a clean current compiler gate.
 
-Compare every `lint.config.ts` with the baseline commit. Deleting a predeclared `disabled` property is the one permitted edit; a reintroduced `disabled`, a changed claim, a changed selector, a lowered severity, or any other difference is a finding to report and restore, whatever it unblocks.
+Compare every `lint.config.ts` with the baseline commit. Deleting a predeclared `disabled` property, with the comment that marks it, is the one permitted edit; a reintroduced `disabled`, a changed claim, a changed selector, a lowered severity, or any other difference is a finding to report and restore, whatever it unblocks.
 
 ## Final Checklist
 

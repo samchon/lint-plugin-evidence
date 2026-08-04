@@ -6,6 +6,7 @@ import path from "node:path";
 import typia from "typia";
 
 import type { IEvidenceBenchmarkWorkspaceArtifact } from "./structures/IEvidenceBenchmarkWorkspaceArtifact.ts";
+import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
 import type { IEvidenceBenchmarkWorkspaceRequest } from "./structures/IEvidenceBenchmarkWorkspaceRequest.ts";
 import type { IEvidenceBenchmarkWorkspaceResult } from "./structures/IEvidenceBenchmarkWorkspaceResult.ts";
 import type { IEvidenceBenchmarkWorkspaceVariables } from "./structures/IEvidenceBenchmarkWorkspaceVariables.ts";
@@ -85,6 +86,9 @@ export namespace EvidenceBenchmarkWorkspace {
     fs.mkdirSync(parent, { recursive: true });
     const stage: string = fs.mkdtempSync(path.join(parent, ".tmp-"));
     const workspace: string = path.join(stage, "workspace");
+    // Set once the rename succeeds, so a later failure cleans the settled tree
+    // rather than a staging directory that no longer exists.
+    let settled: string | undefined;
     try {
       const template: string = path.resolve(
         request.repository,
@@ -114,9 +118,20 @@ export namespace EvidenceBenchmarkWorkspace {
       for (const name of Object.keys(environment))
         if (name.toUpperCase() === "EVIDENCE_BENCHMARK_ARCHIVE")
           delete environment[name];
-      await pnpm(["install", "--no-frozen-lockfile"], workspace, environment);
-      await run("git", ["init", "-b", "benchmark"], workspace, environment);
-      await run("git", ["add", "-A"], workspace, environment);
+      // Preparation runs the same package manager the cell will, so it must not
+      // carry the launching agent's identity either.
+      EvidenceBenchmarkRuntime.stripLauncherIdentity(environment);
+      // Settle the workspace before installing into it. A package manager links
+      // a workspace dependency by absolute path — pnpm writes a junction on
+      // Windows — so an install that runs while the tree is still staged leaves
+      // every `packages/*/node_modules/<dep>` pointing at a staging directory
+      // the rename then destroys. The delivered tree resolves nothing, and the
+      // agent's first act is a repair it should never have had to make.
+      fs.renameSync(stage, output);
+      settled = path.join(output, "workspace");
+      await pnpm(["install", "--no-frozen-lockfile"], settled, environment);
+      await run("git", ["init", "-b", "benchmark"], settled, environment);
+      await run("git", ["add", "-A"], settled, environment);
       await run(
         "git",
         [
@@ -128,16 +143,18 @@ export namespace EvidenceBenchmarkWorkspace {
           "-m",
           "Prepare benchmark workspace",
         ],
-        workspace,
+        settled,
         environment,
       );
-      fs.renameSync(stage, output);
       return {
         root: output,
-        workspace: path.join(output, "workspace"),
+        workspace: settled,
       };
     } catch (error) {
-      fs.rmSync(stage, { recursive: true, force: true });
+      fs.rmSync(settled === undefined ? stage : output, {
+        recursive: true,
+        force: true,
+      });
       throw error;
     }
   }

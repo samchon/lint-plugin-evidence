@@ -26,7 +26,7 @@ Several hosts may cite the same target when each independently implements or pro
 
 A claim with `disabled: true` is inactive even when its selector materializes a host. Its configuration is still validated.
 
-When the layer named by the adjacent comment is complete, delete only the claim's final `disabled: true` property. Do not replace it with `false` or restore it later.
+When the layer named by the adjacent comment is complete, delete that comment and the claim's final `disabled: true` property, and nothing else. Do not replace it with `false` or restore it later.
 
 An enabled claim is active only when its own `root`, `files`, and `symbol` selector materializes at least one selected host. If the successfully loaded host population is empty, the entire claim is inactive and none of its reference obligations runs.
 

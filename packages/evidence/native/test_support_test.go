@@ -3,7 +3,9 @@ package evidence
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -411,4 +413,20 @@ func countProblemsContaining(messages []string, expected string) int {
 		}
 	}
 	return count
+}
+
+// linkDirectory installs a directory the way a package manager does. A symlink
+// needs a privilege Windows withholds by default, which is why pnpm uses a
+// junction there; both are links a naive walker refuses to descend into, so
+// either one exercises the case under test.
+func linkDirectory(target string, link string) error {
+	if err := os.Symlink(target, link); err == nil {
+		return err
+	} else if runtime.GOOS != "windows" {
+		return err
+	}
+	return exec.Command(
+		"cmd", "/c", "mklink", "/J",
+		filepath.FromSlash(link), filepath.FromSlash(target),
+	).Run()
 }

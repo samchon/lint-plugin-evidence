@@ -6,6 +6,7 @@ import path from "node:path";
 import typia from "typia";
 
 import { collectEvidenceBenchmarkApiCost } from "./EvidenceBenchmarkApiCost.ts";
+import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction.ts";
 import type { IEvidenceBenchmarkApiCost } from "./structures/IEvidenceBenchmarkApiCost.ts";
 import type {
   IEvidenceBenchmarkReport,
@@ -455,7 +456,9 @@ const collectReviewVerdicts = (
       (verdict.decision === "fail" &&
         typeof verdict.feedback === "string" &&
         verdict.feedback.trim().length !== 0 &&
-        ((verdict.action === "retry" && pause.attempt < 4) ||
+        ((verdict.action === "retry" &&
+          pause.attempt <
+            EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT) ||
           (verdict.action === "quality-failed" && pause.attempt === 4)));
     if (
       (verdict.decision !== "pass" && verdict.decision !== "fail") ||
@@ -887,8 +890,18 @@ const git = (
       encoding: "utf8",
       env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", ...environment },
       windowsHide: true,
+      // A workspace that accumulates an untracked dependency tree produces a
+      // diff far past Node's default pipe buffer, and the overflow arrives as
+      // a spawn error with a null status rather than a failed exit. Without
+      // room and an explicit check, the dashboard either dies or reports the
+      // truncated half it managed to read.
+      maxBuffer: 512 * 1024 * 1024,
     },
   );
+  if (result.error !== undefined)
+    throw new Error(
+      `Git dashboard query could not run (${args.join(" ")}): ${result.error.message}`,
+    );
   if (result.status !== 0)
     throw new Error(
       `Git dashboard query failed (${args.join(" ")}): ${result.stderr}`,

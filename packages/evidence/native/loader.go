@@ -251,6 +251,35 @@ func (loader *typeScriptLoader) packageEntryModule(name string) string {
 	return loader.resolvePackage(name)
 }
 
+// resolveLinkedDirectory returns the directory a path ultimately names.
+//
+// `filepath.EvalSymlinks` answers this for a POSIX symlink but not for a
+// Windows junction, which is exactly what pnpm creates for a workspace
+// dependency there: it returns the junction unchanged, so a caller that trusts
+// it walks the link and finds nothing. `os.Readlink` does report a junction's
+// target, and `os.Stat` sees through both, so ask those instead.
+func resolveLinkedDirectory(directory string) string {
+	current := directory
+	for range 32 {
+		info, err := os.Lstat(current)
+		if err != nil || info.IsDir() {
+			return current
+		}
+		if target, err := os.Stat(current); err != nil || !target.IsDir() {
+			return current
+		}
+		linked, err := os.Readlink(current)
+		if err != nil {
+			return current
+		}
+		if !filepath.IsAbs(linked) {
+			linked = filepath.Join(filepath.Dir(current), linked)
+		}
+		current = filepath.ToSlash(linked)
+	}
+	return current
+}
+
 // walk lists the project-relative TypeScript files below a directory.
 //
 // A package's files are enumerated from disk for the same reason its entry is
@@ -258,9 +287,23 @@ func (loader *typeScriptLoader) packageEntryModule(name string) string {
 // ones nothing imported, so the Program cannot be the source of truth.
 func (loader *typeScriptLoader) walk(base string) ([]string, string) {
 	root := path.Join(loader.root, base)
+	// A workspace dependency is a link, not a directory: pnpm installs one that
+	// way on every platform, and npm and Yarn do the same for a linked package.
+	// `filepath.WalkDir` reports a link as a plain entry and descends into
+	// nothing, so walking the spelled path finds no files and the reference
+	// looks empty rather than unresolvable. Walk what the link points at, and
+	// report the files under the spelled path so addresses stay stable.
+	walked := resolveLinkedDirectory(root)
 	found := []string{}
 	problem := ""
-	err := filepath.WalkDir(root, func(current string, entry fs.DirEntry, err error) error {
+	err := filepath.WalkDir(walked, func(current string, entry fs.DirEntry, err error) error {
+		if walked != root {
+			if inside, ok := containedProjectPath(walked, filepath.ToSlash(current)); ok {
+				current = path.Join(root, inside)
+			} else if filepath.ToSlash(current) == walked {
+				current = root
+			}
+		}
 		if err != nil {
 			if problem == "" {
 				problem = err.Error()

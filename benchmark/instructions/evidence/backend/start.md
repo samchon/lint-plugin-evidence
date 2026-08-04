@@ -12,14 +12,14 @@ Complete these stages in order.
 
 1. Design the complete requirement-derived database under `packages/backend/prisma/schema/`. Run backend `pnpm build:prisma` and `pnpm schema`.
 2. Design every controller under `packages/backend/src/controllers/` and every DTO under `packages/api/src/structures/`. Run backend `pnpm build:sdk`.
-3. Write public-operation tests under `packages/backend/test/features/` for every requirement and API operation. Each test proves one primary operation. Follow Operation Ownership in `.agents/skills/backend/testing.md`.
+3. Write public-operation tests under `packages/backend/test/features/`, following Operation Ownership in `.agents/skills/backend/testing.md`.
 4. Finish every provider. Replace every controller stub and remove every source-owned `@todo` under `packages/api` and `packages/backend`.
 
 ## Compiler Check
 
 `evidence/graph` starts checking `@evidence` and `@evidenceExclude` when a claim's `disabled` property is removed and the first Prisma model, DTO, controller operation, or test function exists.
 
-Removing `disabled` before that layer is complete emits hundreds or thousands of errors for tags not written yet. The output fills context and impairs implementation decisions.
+Removing `disabled` early emits thousands of errors for tags not yet written, which fills context and impairs decisions.
 
 Start `pnpm check:watch` from `packages/backend` before implementation while every backend claim is disabled.
 
@@ -31,8 +31,7 @@ Start `pnpm check:watch` from `packages/backend` before implementation while eve
    - Wait for a rebuild without diagnostics.
 3. After every public-operation test is written, delete `disabled` from `backend-tests`.
    - Fix every diagnostic, complete its truthful evidence mapping, and wait for a rebuild without diagnostics.
-   - The operation reference refuses `@evidenceExclude`, so answer an unproved operation by writing its tests.
-   - It also requires exactly one operation citation per test. Cite the operation the test proves; its prerequisite and follow-up calls are setup and observation and stay uncited. Split a test that genuinely has two subjects.
+   - That reference refuses `@evidenceExclude` and takes exactly one operation per test. Write the missing tests; cite only the operation each test proves.
    - Keep it running through Overall Final.
 4. Finish every provider and controller body while the watcher runs.
    - Fix every new diagnostic and wait for a rebuild without diagnostics.
@@ -43,7 +42,7 @@ Keep the watcher running because `pnpm test` does not report every type or lint 
 ## Final Checklist
 
 - [ ] Every required schema model, DTO, controller, public-operation test, and provider implemented.
-- [ ] Every published operation has its proving tests, each proving one primary operation.
+- [ ] Every published operation has its proving tests.
 - [ ] Every backend claim is enabled; no other claim configuration changed.
 - [ ] Every `@evidence` is on code that implements, represents, or proves its linked requirement, Prisma item, API operation, or DTO.
 - [ ] Every `@evidenceExclude` names its owner or alternative and invalidating condition; none exists only to remove a diagnostic.

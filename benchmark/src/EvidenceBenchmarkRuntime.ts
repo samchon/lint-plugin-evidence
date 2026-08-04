@@ -68,6 +68,37 @@ export namespace EvidenceBenchmarkRuntime {
     environment.VITE_API_HOST = assignment.apiHost;
     environment.VITE_DEV_PORT = String(assignment.viteDevelopmentPort);
     environment.PLAYWRIGHT_TEST_PORT = String(assignment.playwrightPort);
+    stripLauncherIdentity(environment);
+  }
+
+  /**
+   * Markers a coding agent exports to announce itself to the tools it runs.
+   *
+   * Whoever launches a campaign leaves these in the environment, and a child
+   * process inherits them the whole way down. Prisma reads exactly this set and
+   * refuses a destructive command when it finds one, which is how a Codex cell
+   * came to be told it "was invoked by Claude Code" and blocked on a consent
+   * only a human could give. A measured cell must behave the same whoever
+   * started it, so the operator's tooling identity does not travel into it.
+   */
+  const LAUNCHER_IDENTITY_VARIABLES: readonly string[] = [
+    "CLAUDECODE",
+    "CLAUDE_CODE",
+    "CLAUDE_CODE_ENTRYPOINT",
+    "CURSOR_AGENT",
+    "GEMINI_CLI",
+    "REPLIT_CLI",
+  ];
+
+  /** Removes the launching agent's self-announcement from a child environment. */
+  export function stripLauncherIdentity(environment: NodeJS.ProcessEnv): void {
+    for (const name of Object.keys(environment))
+      if (
+        LAUNCHER_IDENTITY_VARIABLES.some(
+          (marker) => marker === name.toUpperCase(),
+        )
+      )
+        delete environment[name];
   }
 
   /** Fails before model use when any selected endpoint is already occupied. */

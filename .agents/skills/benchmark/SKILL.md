@@ -66,7 +66,7 @@ At each step, the runner joins that file with the same arm's `instructions/<arm>
 
 Codex advances after the retained Goal completes, its terminal turn completes, and the thread becomes idle.
 
-Plain stops after every Backend, Frontend, and Overall Review. A failed decision inserts that scope's `remind.md` with only the verified gaps, then stops for another decision after the supplementation Goal. A passing decision skips the reminder and advances directly to Final. Four supplementation attempts are permitted; failure after attempt four retains `quality-failed` and does not dispatch Final. Evidence keeps the fixed eight-step sequence without these pauses.
+Plain stops after every Backend, Frontend, and Overall Review. A failed decision inserts that scope's `remind.md` with only the verified gaps, then stops for another decision after the supplementation Goal. A passing decision skips the reminder and advances directly to Final. Eight supplementation attempts are permitted; failure after the last one retains `quality-failed` and does not dispatch Final. The attempt a scope stops on is itself a measurement, and a subject with a hundred published operations has further to travel than one with two dozen, so the bound is set where a cell that can converge still has room to. Evidence keeps the fixed eight-step sequence without these pauses.
 
 After `backend-start` reaches that exact boundary, the runner creates a durable checkpoint before dispatching `backend-review`. The checkpoint retains the material workspace, prepared Git baseline, native session and terminal turn, CLI version, token boundary, input digests, and inherited timing. Reinstallable dependencies, caches, and untracked runtime logs are excluded; Git-visible files are always retained. It is a recovery point for a later downstream-instruction correction, not permission to modify an active measured workspace.
 
@@ -78,7 +78,18 @@ Observe every active cell at least every 30 seconds. Check `state.json`, benchma
 
 Do not edit a measured workspace, prompt the measured agent, inject advice, weaken a gate, hard-code a subject answer, or expose Evidence material to Plain. Questions and partial reports do not invite operator input.
 
-At `awaiting-review-verdict`, inspect the completed Goal's retained output and actions together with the actual workspace diff and relevant source. Judge substantive review, not report typography. Pass a materially exhaustive review despite minor checklist or formatting slips. Fail a review that substitutes counts, lengths, manifests, searches, or green commands for semantic inspection; materially omits requirements or source; fails to re-read the complete surface after edits; or leaves required behavior and test closure unproven.
+The reporting subagent watches two frozen-boundary files in every cell on every cycle and reports a hit as a material change, quoting the diff it just read:
+
+- **`lint.config.ts`.** Diff it against the run's baseline commit, discard lines containing `disabled:` and pure comments, and report whatever remains. Removing a `disabled` property is the Evidence arm's prescribed unlock as each layer completes; every other edit is tampering, including narrowing a reference `files` glob, redirecting it to build output, and deleting it.
+- **`packages/api/package.json`.** Report any `main`, `types`, or `exports` value that resolves to build output instead of source. A cell that redirects the SDK package to `lib` breaks the frozen glob that selects the accessor surface, and then has a reason to edit the claim that depends on it.
+
+On a confirmed hit, warn the cell and resume it. Do not restart it. The violation is measured behavior and the run holds the evidence of it; a restart destroys that record, discards the cell's work, and answers a correctable mistake with the most expensive remedy available. Restart only when the cell cannot be recovered at all, and say in the report what made recovery impossible.
+
+A warning states the frozen boundary and the specific edit that crossed it, and nothing about the subject. Reaching a Plain review scope, it travels as verdict `feedback`; the runner offers no equivalent channel to an Evidence cell mid-objective, which is a gap to close rather than a reason to restart.
+
+At `awaiting-review-verdict`, judge one question and no other: did the cell perform the review loop its instruction prescribes, and stop only where that instruction allows it to stop. Inspect the completed Goal's retained output and actions against the actual workspace. Pass a review that read its full scope every round and ended on a round that read everything and changed nothing, despite checklist or formatting slips. Fail one that substituted counts, summaries, searches, or green commands for reading; divided its scope across rounds; skipped the re-read after its last edit; or reported a dry round it did not perform.
+
+What the cell built is not the verdict's business. A suite that names one test for a hundred operations, or asserts nothing, violates the instructions and the Backend skill, and the arms are measured partly by how often that survives their own review — so it is an observation to record, never a reason to fail. Judging it would also mean reviewing on the cell's behalf. Prevent it in the instructions and the template skills where that is possible, and record it as a result where it is not.
 
 Write one strict JSON verdict outside the measured workspace:
 
@@ -90,11 +101,34 @@ Write one strict JSON verdict outside the measured workspace:
 }
 ```
 
-Use `pass` with a non-empty `rationale` and no `feedback`, or `fail` with both a non-empty `rationale` and concrete corrective `feedback`. Feedback is measured instruction text: state only verified product-review gaps, and never disclose the benchmark operator, verdict machinery, retries, another arm, or the plugin. Apply it with `pnpm --filter @samchon/evidence-benchmark supervise <subject> <run-id> <verdict.json>`, then resume the same run command. The runner retains the exact submitted verdict digest, workspace digest, Goal index, terminal turn, decision, injected feedback, attempt, transition, and resume history.
+A verdict decides; it does not review. Naming a defect the operator had to read code to find would hand the cell the product of the work being measured — a review that then corrects what it was told about has shown it can act on a finding, not that it can reach one — and it would make one cell's reminder differ from another's, so their attempt counts stop comparing. Every failed scope receives the same prescribed `remind.md` with its Review quoted, and the reasoning stays in the retained `rationale`, which the cell never sees.
+
+A verdict carries `decision` and `rationale` only, and the runner refuses one that carries anything else. Every failed scope receives the identical prescribed `remind.md` with its Review quoted, so no cell is told what another was not and their attempt counts stay comparable.
+
+Judge the review, not the product. A verdict answers whether the review performed the loop its instruction prescribes and stopped only where that instruction allows. Where a product defect matters is as evidence that it did not: an obligation the review reported as met while the workspace shows otherwise. Record that evidence in the rationale.
+
+An operator warning is the separate channel, and it carries only what no agent can derive from inside its workspace: an authorization, or a frozen boundary it has crossed. It never carries a finding. Apply it with `pnpm --filter @samchon/evidence-benchmark supervise <subject> <run-id> <verdict.json>`, then resume the same run command. The runner retains the exact submitted verdict digest, workspace digest, Goal index, terminal turn, decision, injected feedback, attempt, transition, and resume history.
 
 Final is a finishing and safety stage after a passed Review, not permission to accept a false Review pass. It may correct a small residual defect it independently notices, but the verdict must be based on the Review boundary itself.
 
 Intervene immediately for an abnormal interruption or explicit cancellation. Diagnose the retained state, process, events, and raw stream first; when the exact recovery conditions below match, resume the same run without waiting for operator prose or the next reporting interval. Never blind-retry before diagnosis, repair a measured workspace, edit retained state, or substitute a session.
+
+## Cell Ports
+
+`EvidenceBenchmarkRuntime.assign` gives each cell a disjoint block of four ports from base 46000, so two cells never contend. What does contend is a cell and its own past: a killed runner leaves its API server, Swagger, Vite, and Playwright children holding that block, and the next launch fails its pre-launch port check. The cell then looks dead when it is only unable to start, and the failure appears on the launcher's output rather than in the run log.
+
+| subject  | arm      | api   | swagger | vite  | playwright |
+| -------- | -------- | ----- | ------- | ----- | ---------- |
+| todo     | evidence | 46000 | 46001   | 46002 | 46003      |
+| todo     | plain    | 46010 | 46011   | 46012 | 46013      |
+| reddit   | evidence | 46020 | 46021   | 46022 | 46023      |
+| reddit   | plain    | 46030 | 46031   | 46032 | 46033      |
+| shopping | evidence | 46040 | 46041   | 46042 | 46043      |
+| shopping | plain    | 46050 | 46051   | 46052 | 46053      |
+| erp      | evidence | 46060 | 46061   | 46062 | 46063      |
+| erp      | plain    | 46070 | 46071   | 46072 | 46073      |
+
+Before resuming a stopped cell, confirm its four ports have no listener, and stop whatever holds one. A listener on a cell's port while no runner of its own is alive means orphans are blocking recovery, which the reporting subagent reports as a distinct condition rather than as a dead cell. Always read the launcher's own output after a resume: a refused launch says so there and nowhere else.
 
 ## Recover Or Cancel
 
