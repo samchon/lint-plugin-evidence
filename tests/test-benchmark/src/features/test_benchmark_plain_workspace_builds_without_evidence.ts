@@ -103,12 +103,20 @@ const assertNoEvidenceMachinery = (workspace: string): void => {
     );
 };
 
-/** Fails when a Plain gate reported a rule only the Evidence arm configures. */
+/**
+ * Fails when a Plain gate reported anything only the Evidence arm configures.
+ *
+ * The markers name the plugin and its rule rather than a bare `evidence/`
+ * prefix, which the workspace's own temporary path can contain by coincidence.
+ * A control arm that fails for a coincidence is as useless as one that passes
+ * for a leak.
+ */
 const assertNoEvidenceRule = (result: IRunResult): void => {
-  if (!result.output.includes("evidence/")) return;
-  throw new Error(
-    `A Plain gate reported an \`evidence/\` rule, so the treatment leaked into the control arm.\n\nCommand: pnpm run ${result.script}\nDirectory: ${result.cwd}\n\nActual output:\n${result.output}`,
-  );
+  for (const marker of ["evidence/graph", "@samchon/lint-plugin-evidence"])
+    if (result.output.includes(marker))
+      throw new Error(
+        `A Plain gate named \`${marker}\`, so the treatment leaked into the control arm.\n\nCommand: pnpm run ${result.script}\nDirectory: ${result.cwd}\n\nActual output:\n${result.output}`,
+      );
 };
 
 const walk = (directory: string): string[] => {

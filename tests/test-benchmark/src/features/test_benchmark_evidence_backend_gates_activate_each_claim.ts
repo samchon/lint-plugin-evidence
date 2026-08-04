@@ -125,6 +125,12 @@ const readStagedClaims = (configurations: readonly string[]) => {
  * saying so — the same silent shrinkage as an empty population, one document at
  * a time — and a reference that named a document the workspace does not carry
  * resolved against something other than the delivered requirements.
+ *
+ * Documents are matched by file name rather than by the whole address. A
+ * Markdown target is spelled relative to the root its reference declares, and
+ * these references declare roots that climb out of the package; pinning the
+ * exact prefix would make this assert the addressing convention instead of the
+ * property, and fail for a reason that has nothing to do with coverage.
  */
 const assertRequirementsReached = (
   workspace: string,
@@ -144,17 +150,24 @@ const assertRequirementsReached = (
   // all; only a claim that reached one is held to reaching them all.
   if (reached.size === 0) return;
   const expected: string[] = requirementDocumentsDeclaringSections(workspace);
-  const missing: string[] = expected.filter(
-    (document) => !reached.has(document),
-  );
+  const named = (document: string): boolean => {
+    const basename: string = document.slice(document.lastIndexOf("/") + 1);
+    return [...reached].some(
+      (file) => file === document || file.endsWith(`/${basename}`),
+    );
+  };
+  const missing: string[] = expected.filter((document) => !named(document));
   if (missing.length !== 0)
     throw new Error(
       `Claim '${claim}' demanded evidence from ${String(reached.size)} of the ${String(expected.length)} delivered requirement documents; nothing was owed for ${missing.join(", ")}.`,
     );
-  for (const document of reached)
-    if (!expected.includes(document))
+  const delivered: string[] = expected.map((document) =>
+    document.slice(document.lastIndexOf("/") + 1),
+  );
+  for (const file of reached)
+    if (!delivered.some((basename) => file.endsWith(basename)))
       throw new Error(
-        `Claim '${claim}' demanded evidence from '${document}', which is not a delivered requirement document. The reference resolved against something other than \`docs/analysis/\`.`,
+        `Claim '${claim}' demanded evidence from '${file}', which is not a delivered requirement document. The reference resolved against something other than \`docs/analysis/\`.`,
       );
 };
 

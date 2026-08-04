@@ -136,9 +136,14 @@ const assertOperationSurfaceEnumerated = (
   const demanded: string[] = [];
   for (const claim of testClaims)
     for (const obligation of obligationsFor(testProgram, claim))
-      // Every other reference on these claims resolves a Markdown document,
-      // and a Markdown target always carries its path.
-      if (!obligation.target.includes(".md")) demanded.push(obligation.target);
+      // A Markdown target always carries its document path and a Prisma target
+      // always carries its `prisma:` prefix, so what remains is what the
+      // TypeScript package reference selected.
+      if (
+        !obligation.target.includes(".md") &&
+        !obligation.target.startsWith("prisma:")
+      )
+        demanded.push(obligation.target);
   const unique: string[] = [...new Set(demanded)].sort((left, right) =>
     left.localeCompare(right),
   );
