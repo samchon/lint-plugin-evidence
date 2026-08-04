@@ -117,16 +117,16 @@ Intervene immediately for an abnormal interruption or explicit cancellation. Dia
 
 `EvidenceBenchmarkRuntime.assign` gives each cell a disjoint block of four ports from base 46000, so two cells never contend. What does contend is a cell and its own past: a killed runner leaves its API server, Swagger, Vite, and Playwright children holding that block, and the next launch fails its pre-launch port check. The cell then looks dead when it is only unable to start, and the failure appears on the launcher's output rather than in the run log.
 
-| subject | arm | api | swagger | vite | playwright |
-|---|---|---|---|---|---|
-| todo | evidence | 46000 | 46001 | 46002 | 46003 |
-| todo | plain | 46010 | 46011 | 46012 | 46013 |
-| reddit | evidence | 46020 | 46021 | 46022 | 46023 |
-| reddit | plain | 46030 | 46031 | 46032 | 46033 |
-| shopping | evidence | 46040 | 46041 | 46042 | 46043 |
-| shopping | plain | 46050 | 46051 | 46052 | 46053 |
-| erp | evidence | 46060 | 46061 | 46062 | 46063 |
-| erp | plain | 46070 | 46071 | 46072 | 46073 |
+| subject  | arm      | api   | swagger | vite  | playwright |
+| -------- | -------- | ----- | ------- | ----- | ---------- |
+| todo     | evidence | 46000 | 46001   | 46002 | 46003      |
+| todo     | plain    | 46010 | 46011   | 46012 | 46013      |
+| reddit   | evidence | 46020 | 46021   | 46022 | 46023      |
+| reddit   | plain    | 46030 | 46031   | 46032 | 46033      |
+| shopping | evidence | 46040 | 46041   | 46042 | 46043      |
+| shopping | plain    | 46050 | 46051   | 46052 | 46053      |
+| erp      | evidence | 46060 | 46061   | 46062 | 46063      |
+| erp      | plain    | 46070 | 46071   | 46072 | 46073      |
 
 Before resuming a stopped cell, confirm its four ports have no listener, and stop whatever holds one. A listener on a cell's port while no runner of its own is alive means orphans are blocking recovery, which the reporting subagent reports as a distinct condition rather than as a dead cell. Always read the launcher's own output after a resume: a refused launch says so there and nowhere else.
 

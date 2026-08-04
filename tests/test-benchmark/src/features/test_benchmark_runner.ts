@@ -618,52 +618,36 @@ export const test_benchmark_runner = async (): Promise<void> => {
       /cannot modify the measured workspace/u,
     );
     fs.unlinkSync(workspaceVerdict);
-    const disclosedVerdict: string = path.join(root, "disclosed.json");
-    fs.writeFileSync(
-      disclosedVerdict,
-      '{"decision":"fail","rationale":"Missing work.","feedback":"The external auditor ordered a retry."}\n',
-    );
-    assert.throws(
-      () =>
-        EvidenceBenchmarkSupervision.decide({
-          runRoot: supervisedRunRoot,
-          instructionsRoot: root,
-          verdictFile: disclosedVerdict,
-        }),
-      /discloses benchmark-only machinery/u,
-    );
-    const retryDisclosure: string = path.join(root, "retry-disclosure.json");
-    fs.writeFileSync(
-      retryDisclosure,
-      '{"decision":"fail","rationale":"Missing work.","feedback":"A benchmark reviewer requested another attempt."}\n',
-    );
-    assert.throws(
-      () =>
-        EvidenceBenchmarkSupervision.decide({
-          runRoot: supervisedRunRoot,
-          instructionsRoot: root,
-          verdictFile: retryDisclosure,
-        }),
-      /discloses benchmark-only machinery/u,
-    );
-    const oversizedVerdict: string = path.join(root, "oversized.json");
-    fs.writeFileSync(
-      oversizedVerdict,
-      `${JSON.stringify({
-        decision: "fail",
-        rationale: "Missing work.",
-        feedback: "Read and correct the omitted source. ".repeat(200),
-      })}\n`,
-    );
-    assert.throws(
-      () =>
-        EvidenceBenchmarkSupervision.decide({
-          runRoot: supervisedRunRoot,
-          instructionsRoot: root,
-          verdictFile: oversizedVerdict,
-        }),
-      /Goal characters/u,
-    );
+    // A verdict decides and carries nothing into the cell, so every one of
+    // these is refused at the same place: what it would have said no longer
+    // matters. Disclosure and length remain enforced on the warning path, which
+    // is the only channel that still delivers operator text.
+    for (const [name, feedback] of [
+      ["disclosed", "The external auditor ordered a retry."],
+      ["retry-disclosure", "A benchmark reviewer requested another attempt."],
+      ["oversized", "Read and correct the omitted source. ".repeat(200)],
+      ["ordinary", "Re-read the omitted source and repeat the review."],
+    ] as const) {
+      const file: string = path.join(root, `${name}.json`);
+      fs.writeFileSync(
+        file,
+        `${JSON.stringify({
+          decision: "fail",
+          rationale: "Missing work.",
+          feedback,
+        })}
+`,
+      );
+      assert.throws(
+        () =>
+          EvidenceBenchmarkSupervision.decide({
+            runRoot: supervisedRunRoot,
+            instructionsRoot: root,
+            verdictFile: file,
+          }),
+        /cannot inject text into the cell/u,
+      );
+    }
     const orphanRunRoot: string = path.join(root, "orphan-verdict-run");
     const orphanWorkspace: string = path.join(orphanRunRoot, "workspace");
     fs.cpSync(supervisedWorkspace, orphanWorkspace, { recursive: true });
@@ -702,15 +686,17 @@ export const test_benchmark_runner = async (): Promise<void> => {
       state: structuredClone(supervised),
     });
     let failedState: IEvidenceBenchmarkRunState = structuredClone(supervised);
-    for (let attempt = 0; attempt <= 4; ++attempt) {
+    for (
+      let attempt = 0;
+      attempt <= EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT;
+      ++attempt
+    ) {
       const verdictFile: string = path.join(root, `fail-${attempt}.json`);
       fs.writeFileSync(
         verdictFile,
         `${JSON.stringify({
           decision: "fail",
           rationale: `Attempt ${attempt} omitted material source review.`,
-          feedback:
-            "Read the omitted source files, repair every resulting defect, then repeat the complete post-edit review.",
         })}\n`,
       );
       const verdict = EvidenceBenchmarkSupervision.decide({
@@ -719,9 +705,15 @@ export const test_benchmark_runner = async (): Promise<void> => {
         verdictFile,
       });
       assert.equal(verdict.attempt, attempt);
-      assert.equal(verdict.action, attempt === 4 ? "quality-failed" : "retry");
+      assert.equal(
+        verdict.action,
+        attempt === EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT
+          ? "quality-failed"
+          : "retry",
+      );
       failedState = readSupervisedState(path.join(failedRunRoot, "state.json"));
-      if (attempt === 4) break;
+      if (attempt === EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT)
+        break;
       assert.equal(
         failedState.instructionPlan?.[failedState.nextInstructionIndex]?.name,
         `backend-remind-${attempt + 1}`,
@@ -769,7 +761,10 @@ export const test_benchmark_runner = async (): Promise<void> => {
       });
     }
     assert.equal(failedState.status, "quality-failed");
-    assert.equal(failedState.supervisionPauses?.length, 5);
+    assert.equal(
+      failedState.supervisionPauses?.length,
+      EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT + 1,
+    );
 
     const passVerdictFile: string = path.join(root, "pass.json");
     fs.writeFileSync(
@@ -818,25 +813,12 @@ export const test_benchmark_runner = async (): Promise<void> => {
       /Retained review verdict changed/u,
     );
     fs.writeFileSync(retainedVerdict, retainedVerdictBytes);
-    fs.appendFileSync(
-      path.join(supervisedWorkspace, "tracked.txt"),
-      "tamper\n",
-    );
-    await assert.rejects(
-      EvidenceBenchmarkRunner.run({
-        state: approved,
-        cwd: supervisedWorkspace,
-        runRoot: supervisedRunRoot,
-        instructionsRoot: root,
-        model: "fixture-model",
-        effort: "high",
-        command: process.execPath,
-        commandPrefixArguments: prefix,
-        onOutput: () => undefined,
-      }),
-      /Workspace changed after its review verdict/u,
-    );
-    fs.writeFileSync(path.join(supervisedWorkspace, "tracked.txt"), "base\n");
+    // The workspace keeps changing while a verdict is pending, because every
+    // arm keeps `check:watch` running and the frontend scopes keep dev servers
+    // up. Refusing a resume on that difference would lock the cell out of the
+    // continuation the verdict just granted, and the longer an operator spent
+    // judging the more certain the refusal, so a resume tolerates it.
+    fs.appendFileSync(path.join(supervisedWorkspace, "tracked.txt"), "watch\n");
 
     const resumedSupervised = await EvidenceBenchmarkRunner.run({
       state: approved,

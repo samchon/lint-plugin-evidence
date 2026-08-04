@@ -457,7 +457,8 @@ const collectReviewVerdicts = (
         typeof verdict.feedback === "string" &&
         verdict.feedback.trim().length !== 0 &&
         ((verdict.action === "retry" &&
-          pause.attempt < EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT) ||
+          pause.attempt <
+            EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT) ||
           (verdict.action === "quality-failed" && pause.attempt === 4)));
     if (
       (verdict.decision !== "pass" && verdict.decision !== "fail") ||

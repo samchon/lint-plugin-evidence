@@ -1694,18 +1694,19 @@ export namespace EvidenceBenchmarkRunner {
           verdict.action !== "quality-failed" &&
           (verdict.decision !== "fail" ||
             verdict.action !== "retry" ||
-            verdict.feedback === undefined ||
+            verdict.feedback !== undefined ||
             next?.kind !== "review-supplement" ||
             next.reviewScope !== pause.scope ||
             next.reviewAttempt !== pause.attempt + 1 ||
-            next.reviewFeedback !== verdict.feedback)) ||
+            next.reviewFeedback !== undefined)) ||
         (pendingResume
           ? pause.resumedAt !== undefined || verdict.action === "quality-failed"
           : verdict.action === "quality-failed"
             ? !latest ||
               state.status !== "quality-failed" ||
               verdict.decision !== "fail" ||
-              pause.attempt !== 4 ||
+              pause.attempt !==
+                EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT ||
               pause.resumedAt !== undefined ||
               state.nextInstructionIndex !== pause.goalIndex + 1
             : pause.resumedAt === undefined)

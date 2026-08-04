@@ -67,7 +67,8 @@ export namespace EvidenceBenchmarkSupervision {
     if (retained.state.status === "running")
       throw new Error("Stop the cell before attaching an operator warning.");
     const plan = retained.state.instructionPlan;
-    if (plan === undefined) throw new Error("Retained instruction plan is missing.");
+    if (plan === undefined)
+      throw new Error("Retained instruction plan is missing.");
     const index: number = retained.state.nextInstructionIndex;
     const entry = plan[index];
     if (entry === undefined)
