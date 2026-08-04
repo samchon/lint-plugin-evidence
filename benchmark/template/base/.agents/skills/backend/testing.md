@@ -89,7 +89,7 @@ export async function test_api_sale_unit_belongs_to_sale(
 }
 ```
 
-The authorization, section, and sale calls establish the state the operation needs. The final read observes its effect. The unit creation is the primary operation, and it is the one this test's JSDoc and evidence name.
+The authorization, section, and sale calls establish the state the operation needs. The final read observes its effect. The unit creation is the primary operation, and it is the one this test's JSDoc names.
 
 The final assertion observes the effect through a public read. Checking only the create response proves that the response echoed input, not that state persisted.
 
@@ -187,4 +187,4 @@ From `packages/backend`:
 pnpm test
 ```
 
-The command builds the API package, compiles the configured test Program, boots the application against SQLite, runs every exported test function, and closes it.
+The command compiles the `test/tsconfig.json` Program, which covers the tests together with the backend source, boots the application against SQLite, runs every exported test function, and closes it. It regenerates nothing, so run `pnpm build:sdk` after a contract change before relying on it.

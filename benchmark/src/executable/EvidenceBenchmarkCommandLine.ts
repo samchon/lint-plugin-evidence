@@ -11,6 +11,7 @@ import { EvidenceBenchmarkCheckpoint } from "../EvidenceBenchmarkCheckpoint.ts";
 import { EvidenceBenchmarkInstruction } from "../EvidenceBenchmarkInstruction.ts";
 import { EvidenceBenchmarkRunner } from "../EvidenceBenchmarkRunner.ts";
 import { EvidenceBenchmarkRuntime } from "../EvidenceBenchmarkRuntime.ts";
+import { EvidenceBenchmarkStageLog } from "../EvidenceBenchmarkStageLog.ts";
 import { EvidenceBenchmarkWorkspace } from "../EvidenceBenchmarkWorkspace.ts";
 import { sanitizeBenchmarkEnvironment } from "../sanitizeBenchmarkEnvironment.ts";
 import type { IEvidenceBenchmarkCheckpoint } from "../structures/IEvidenceBenchmarkCheckpoint.ts";
@@ -68,7 +69,6 @@ interface IEvidenceBenchmarkRecordPaths {
   workspace: string;
   state: string;
   events: string;
-  raw: string;
 }
 
 interface IEvidenceBenchmarkStateFile {
@@ -293,7 +293,6 @@ const main = async (): Promise<void> => {
   )
     throw new Error("Prepared benchmark workspace has an invalid path.");
   initializeAppendOnly(records.events);
-  initializeAppendOnly(records.raw);
   await runBenchmark(
     cell,
     records,
@@ -411,7 +410,6 @@ const runFromBackendStartCheckpoint = async (props: {
       instructionSurfaceSha256,
     };
     initializeAppendOnly(props.records.events);
-    initializeAppendOnly(props.records.raw);
   } catch (error) {
     if (restored)
       fs.rmSync(props.records.root, { recursive: true, force: true });
@@ -463,7 +461,6 @@ const runBenchmark = async (
   assertDirectory(records.root);
   assertDirectory(records.workspace);
   assertRegularFile(records.events);
-  assertRegularFile(records.raw);
   if (cell.arm === "evidence") {
     const archive: string = path.join(
       records.workspace,
@@ -481,7 +478,19 @@ const runBenchmark = async (
   if (cell.runtime !== undefined)
     EvidenceBenchmarkRuntime.apply(environment, cell.runtime);
   const eventDescriptor: number = fs.openSync(records.events, "a");
-  const rawDescriptor: number = fs.openSync(records.raw, "a");
+  // One append-only log per stage, opened when that stage first speaks. A
+  // resumed run reopens the file it was interrupted inside and appends, so the
+  // bytes already retained are neither lost nor written twice.
+  const stageDescriptors: Map<string, number> = new Map();
+  const stageDescriptor = (stage: string): number => {
+    const retained: number | undefined = stageDescriptors.get(stage);
+    if (retained !== undefined) return retained;
+    const file: string = EvidenceBenchmarkStageLog.resolve(records.root, stage);
+    if (fs.existsSync(file)) assertRegularFile(file);
+    const descriptor: number = fs.openSync(file, "a");
+    stageDescriptors.set(stage, descriptor);
+    return descriptor;
+  };
   try {
     const onOutput = (
       processIndex: number,
@@ -496,59 +505,85 @@ const runBenchmark = async (
         })}\n`,
         "utf8",
       );
-      fs.writeFileSync(rawDescriptor, output.text, "utf8");
+      fs.writeFileSync(stageDescriptor(output.stage), output.text, "utf8");
     };
     const onState = (state: EvidenceBenchmarkState): void => {
       fs.fsyncSync(eventDescriptor);
-      fs.fsyncSync(rawDescriptor);
+      for (const descriptor of stageDescriptors.values())
+        fs.fsyncSync(descriptor);
       replaceDurably(
         records.state,
         `${JSON.stringify({ cell, records, state }, null, 2)}\n`,
       );
     };
     onState(initialState);
-    const result = await EvidenceBenchmarkRunner.run({
-      state: initialState,
-      cwd: records.workspace,
-      runRoot: records.root,
-      instructionsRoot: path.join(repository, "benchmark", "instructions"),
-      model: cell.model,
-      effort: cell.effort,
-      runnerRevision,
-      fork,
-      stopAfterGoal: cell.stopAfter,
-      reviewLedger: cell.reviewLedger,
-      environment,
-      onOutput,
-      onState,
-      onCheckpoint: () =>
-        EvidenceBenchmarkCheckpoint.createWorkspaceSnapshot({
-          runRoot: records.root,
-          workspace: records.workspace,
-          inheritedWallElapsedMs: Math.max(
-            0,
-            Date.now() -
-              Date.parse(cell.launchedAt ?? new Date().toISOString()),
-          ),
-        }),
-    });
-    if (
-      result.status !== "completed" &&
-      !(
-        result.status === "checkpointed" && cell.stopAfter === "backend-start"
-      ) &&
-      result.status !== "awaiting-review-verdict" &&
-      result.status !== "quality-failed"
-    )
-      throw new Error(
-        "Benchmark run was interrupted; resume the retained run.",
-      );
+    let state: EvidenceBenchmarkState = initialState;
+    for (;;) {
+      const result = await EvidenceBenchmarkRunner.run({
+        state,
+        cwd: records.workspace,
+        runRoot: records.root,
+        instructionsRoot: path.join(repository, "benchmark", "instructions"),
+        model: cell.model,
+        effort: cell.effort,
+        runnerRevision,
+        fork,
+        stopAfterGoal: cell.stopAfter,
+        reviewLedger: cell.reviewLedger,
+        environment,
+        onOutput,
+        onState,
+        onCheckpoint: () =>
+          EvidenceBenchmarkCheckpoint.createWorkspaceSnapshot({
+            runRoot: records.root,
+            workspace: records.workspace,
+            inheritedWallElapsedMs: Math.max(
+              0,
+              Date.now() -
+                Date.parse(cell.launchedAt ?? new Date().toISOString()),
+            ),
+          }),
+      });
+      // The runner decides its own Review boundaries now, so a decided pause is
+      // a continuation rather than a stop. Each pass consumes exactly one
+      // decision — the next `run` stamps `resumedAt` on it — so the loop
+      // advances the cursor every time and cannot spin.
+      if (decidedReviewPause(result)) {
+        state = result;
+        fork = undefined;
+        continue;
+      }
+      if (
+        result.status !== "completed" &&
+        !(
+          result.status === "checkpointed" && cell.stopAfter === "backend-start"
+        ) &&
+        result.status !== "awaiting-review-verdict" &&
+        result.status !== "quality-failed"
+      )
+        throw new Error(
+          "Benchmark run was interrupted; resume the retained run.",
+        );
+      return;
+    }
   } finally {
     fs.fsyncSync(eventDescriptor);
-    fs.fsyncSync(rawDescriptor);
     fs.closeSync(eventDescriptor);
-    fs.closeSync(rawDescriptor);
+    for (const descriptor of stageDescriptors.values()) {
+      fs.fsyncSync(descriptor);
+      fs.closeSync(descriptor);
+    }
   }
+};
+
+/** Reports whether a run stopped on a Review boundary it already decided. */
+const decidedReviewPause = (state: EvidenceBenchmarkState): boolean => {
+  const pause = state.supervisionPauses?.at(-1);
+  return (
+    state.status === "awaiting-review-verdict" &&
+    pause?.verdict !== undefined &&
+    pause.resumedAt === undefined
+  );
 };
 
 const evidenceBenchmarkOutputPath = (
@@ -837,7 +872,6 @@ export const evidenceBenchmarkRecordPaths = (
   workspace: path.join(path.resolve(root), "workspace"),
   state: path.join(path.resolve(root), "state.json"),
   events: path.join(path.resolve(root), "events.jsonl"),
-  raw: path.join(path.resolve(root), "raw.log"),
 });
 
 export const sameEvidenceBenchmarkRecordPaths = (
@@ -852,8 +886,7 @@ export const sameEvidenceBenchmarkRecordPaths = (
     normalize(left.root) === normalize(right.root) &&
     normalize(left.workspace) === normalize(right.workspace) &&
     normalize(left.state) === normalize(right.state) &&
-    normalize(left.events) === normalize(right.events) &&
-    normalize(left.raw) === normalize(right.raw)
+    normalize(left.events) === normalize(right.events)
   );
 };
 

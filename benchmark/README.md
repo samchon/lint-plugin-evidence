@@ -85,7 +85,7 @@ Engine completion is recorded execution behavior, not a quality verdict.
 The runner retains facts in delivery order:
 
 - the exact prescribed, continuation, and combined user text;
-- complete native stdin, stdout, and stderr in `events.jsonl` and `raw.log`, with observation and process-relative times;
+- complete native stdin, stdout, and stderr in `events.jsonl` and in one `<stage>.log` per objective, with observation and process-relative times;
 - project, engine, arm, benchmark Git revision, Evidence artifact SHA-256 when applicable, requested model, effort, CLI version, session, instruction, and process identity;
 - the current instruction cursor and engine-specific terminal checkpoints;
 - native token categories, process elapsed time, exit code, and signal.

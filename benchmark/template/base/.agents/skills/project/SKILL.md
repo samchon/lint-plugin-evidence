@@ -39,7 +39,7 @@ Do not begin frontend implementation before the backend contract and tests pass.
 
 ## Compiler Gates And Development Processes
 
-- Run `pnpm check:watch` from `packages/backend` with the lifecycle prescribed by the current arm's instruction. It checks backend source, backend tests, API DTOs, lint rules, and configured contributors through the package's single `tsconfig.json`. The benchmark arms intentionally use different watcher lifecycles; never carry one arm's lifecycle into another.
+- Run `pnpm check:watch` from `packages/backend` with the lifecycle prescribed by the current arm's instruction. It runs the `test/tsconfig.json` Program, which compiles the backend tests together with the backend source, and reports lint rules and configured contributors for both. The API package checks its own DTOs. The benchmark arms intentionally use different watcher lifecycles; never carry one arm's lifecycle into another.
 - Start `pnpm dev` from `packages/frontend` before frontend authoring. Keep it running through Overall Final. Vite and `@ttsc/unplugin` report type, lint, and contributor diagnostics on reload.
 - Start the backend server with `pnpm dev` from `packages/backend` before live frontend integration. Keep it running through Overall Final.
 

@@ -21,7 +21,14 @@ interface ITokenUsageUpdate {
 }
 
 export interface IEvidenceBenchmarkApiCostProps {
-  rawLog: string | undefined;
+  /**
+   * Retained stage logs of one run, in objective order.
+   *
+   * The native stream is split across one file per stage, and a chunk boundary
+   * can fall inside a JSON line, so these are read as a single concatenated
+   * stream rather than as independent files.
+   */
+  stageLogs: readonly string[];
   model: string;
   initial?: IEvidenceBenchmarkTokenUsage;
   expected: IEvidenceBenchmarkTokenUsage;
@@ -83,9 +90,11 @@ export const collectEvidenceBenchmarkApiCost = (
   const prices: IModelPrice | undefined =
     MODEL_PRICES[props.model.toLowerCase()];
   if (prices === undefined) return null;
-  if (props.rawLog === undefined || !fs.existsSync(props.rawLog))
-    return unavailable(props, "native raw log is missing");
-  const rawLog: string = props.rawLog;
+  const stageLogs: string[] = props.stageLogs.filter((file) =>
+    fs.existsSync(file),
+  );
+  if (stageLogs.length === 0)
+    return unavailable(props, "native stage logs are missing");
 
   let observed: IEvidenceBenchmarkTokenUsage = structuredClone(
     props.initial ?? emptyUsage(),
@@ -96,7 +105,7 @@ export const collectEvidenceBenchmarkApiCost = (
   let longContextRequests: number = 0;
   let invalid: string | undefined;
   let reachedExpected: boolean = sameUsage(observed, props.expected);
-  forEachLine(rawLog, (line) => {
+  forEachLine(stageLogs, (line) => {
     if (invalid !== undefined || reachedExpected) return;
     if (!line.includes('"method":"thread/tokenUsage/updated"')) return;
     const update: ITokenUsageUpdate | null = readUsageUpdate(line);
@@ -128,7 +137,7 @@ export const collectEvidenceBenchmarkApiCost = (
     else shortContextRequests += 1;
   });
   if (invalid !== undefined)
-    return unavailable(props, `${invalid} in ${rawLog}`);
+    return unavailable(props, `${invalid} in ${stageLogs.join(", ")}`);
   if (!sameUsage(observed, props.expected))
     return unavailable(
       props,
@@ -235,31 +244,44 @@ const validateUsage = (
   return undefined;
 };
 
-const forEachLine = (file: string, closure: (line: string) => void): void => {
-  const descriptor: number = fs.openSync(file, "r");
+/**
+ * Reads ordered stage logs as one continuous line stream.
+ *
+ * The remainder carries across files on purpose. The runner routes each stream
+ * chunk to the stage that owned the thread when it arrived, and a chunk can end
+ * mid-line, so the last line of one stage log and the first line of the next
+ * are frequently two halves of the same JSON message.
+ */
+const forEachLine = (
+  files: readonly string[],
+  closure: (line: string) => void,
+): void => {
   const buffer: Buffer = Buffer.alloc(4 * 1024 * 1024);
   let remainder: string = "";
-  try {
-    while (true) {
-      const length: number = fs.readSync(
-        descriptor,
-        buffer,
-        0,
-        buffer.length,
-        null,
-      );
-      if (length === 0) break;
-      const lines: string[] =
-        `${remainder}${buffer.subarray(0, length).toString("utf8")}`.split(
-          "\n",
+  for (const file of files) {
+    const descriptor: number = fs.openSync(file, "r");
+    try {
+      while (true) {
+        const length: number = fs.readSync(
+          descriptor,
+          buffer,
+          0,
+          buffer.length,
+          null,
         );
-      remainder = lines.pop()!;
-      for (const line of lines) closure(line);
+        if (length === 0) break;
+        const lines: string[] =
+          `${remainder}${buffer.subarray(0, length).toString("utf8")}`.split(
+            "\n",
+          );
+        remainder = lines.pop()!;
+        for (const line of lines) closure(line);
+      }
+    } finally {
+      fs.closeSync(descriptor);
     }
-    if (remainder.length !== 0) closure(remainder);
-  } finally {
-    fs.closeSync(descriptor);
   }
+  if (remainder.length !== 0) closure(remainder);
 };
 
 const emptyUsage = (): IEvidenceBenchmarkTokenUsage => ({
