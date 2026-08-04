@@ -1014,7 +1014,7 @@ func materializePackageGlobReference(
 		UnitsByScope: map[string][]*evidenceUnit{},
 		Healthy:      true,
 	}
-	base := referenceBase(reference)
+	base := referenceBase(loader, reference)
 	candidates, walkProblem := loader.walk(base)
 	if walkProblem != "" {
 		state.Healthy = false
