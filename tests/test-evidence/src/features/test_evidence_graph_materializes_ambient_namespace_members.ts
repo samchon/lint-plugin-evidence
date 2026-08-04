@@ -4,7 +4,7 @@ import {
   createProject,
   runCheck,
   type IEvidenceProject,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies ambient namespace members through the packaged compiler boundary.

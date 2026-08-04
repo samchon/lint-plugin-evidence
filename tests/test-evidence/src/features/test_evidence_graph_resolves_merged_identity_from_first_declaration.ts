@@ -5,7 +5,7 @@ import {
   createProject,
   runCheck,
   type IEvidenceProject,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies the packaged graph judges a merged identity, not the declaration

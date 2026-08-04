@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { repositoryRoot } from "./suiteRoot.ts";
+import { repositoryRoot } from "./suiteRoot";
 
 /** The sentence an instruction uses to prescribe one claim's unlock. */
 const UNLOCK = /delete `disabled` from/i;

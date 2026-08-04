@@ -3,14 +3,12 @@
   "compilerOptions": {
     "declaration": false,
     "noEmit": true,
-    "allowImportingTsExtensions": true,
     "plugins": [
       {
         "transform": "typia/lib/transform"
       }
     ],
-    "rootDir": "../..",
-    "rewriteRelativeImportExtensions": true
+    "rootDir": "../.."
   },
   "include": ["src"]
 }

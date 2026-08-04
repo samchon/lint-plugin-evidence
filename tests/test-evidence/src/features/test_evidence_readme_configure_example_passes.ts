@@ -3,7 +3,7 @@ import {
   createProject,
   runCheck,
   type IEvidenceProject,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies the README's opening `lint.config.ts` against the real binary.

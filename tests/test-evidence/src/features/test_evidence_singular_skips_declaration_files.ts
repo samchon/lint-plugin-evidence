@@ -4,7 +4,7 @@ import {
   createProject,
   runCheck,
   type IEvidenceProject,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies declaration files are not visited by the singular rule.

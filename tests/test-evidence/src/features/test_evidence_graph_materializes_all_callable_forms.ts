@@ -4,7 +4,7 @@ import {
   createProject,
   runCheck,
   type IEvidenceProject,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies every public callable form as TypeScript evidence.

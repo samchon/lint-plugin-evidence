@@ -3,7 +3,7 @@ import {
   createProject,
   runCheck,
   type IEvidenceProject,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies the optionless typing of `evidence/singular` in a real consumer

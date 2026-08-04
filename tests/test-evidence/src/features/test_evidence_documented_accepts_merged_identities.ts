@@ -4,7 +4,7 @@ import {
   createProject,
   runCheck,
   type IEvidenceProject,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies the packaged rule accepts a merged identity documented at its first

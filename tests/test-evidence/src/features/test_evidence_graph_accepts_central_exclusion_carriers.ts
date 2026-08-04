@@ -6,7 +6,7 @@ import {
   createProject,
   runCheck,
   type IEvidenceProject,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies central TypeScript and Prisma exclusion carriers through the

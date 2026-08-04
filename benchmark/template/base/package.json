@@ -2,7 +2,7 @@
   "private": true,
   "name": "{{name}}",
   "version": "0.1.0",
-  "description": "Benchmark full-stack application for {{name}}",
+  "description": "Full-stack application for {{name}}",
   "packageManager": "pnpm@10.10.0",
   "engines": {
     "node": ">=22.15"

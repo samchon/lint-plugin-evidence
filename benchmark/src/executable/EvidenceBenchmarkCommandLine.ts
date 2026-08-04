@@ -3,24 +3,23 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 
 import typia from "typia";
 
-import { EvidenceBenchmarkCheckpoint } from "../EvidenceBenchmarkCheckpoint.ts";
-import { EvidenceBenchmarkInstruction } from "../EvidenceBenchmarkInstruction.ts";
-import { EvidenceBenchmarkRunner } from "../EvidenceBenchmarkRunner.ts";
-import { EvidenceBenchmarkRuntime } from "../EvidenceBenchmarkRuntime.ts";
-import { EvidenceBenchmarkStageLog } from "../EvidenceBenchmarkStageLog.ts";
-import { EvidenceBenchmarkWorkspace } from "../EvidenceBenchmarkWorkspace.ts";
-import { sanitizeBenchmarkEnvironment } from "../sanitizeBenchmarkEnvironment.ts";
-import type { IEvidenceBenchmarkCheckpoint } from "../structures/IEvidenceBenchmarkCheckpoint.ts";
-import type { IEvidenceBenchmarkInputIdentity } from "../structures/IEvidenceBenchmarkInputIdentity.ts";
-import type { IEvidenceBenchmarkOutput } from "../structures/IEvidenceBenchmarkOutput.ts";
-import type { IEvidenceBenchmarkRunState } from "../structures/IEvidenceBenchmarkRunState.ts";
-import type { IEvidenceBenchmarkWorkspaceResult } from "../structures/IEvidenceBenchmarkWorkspaceResult.ts";
-import type { EvidenceBenchmarkArm } from "../typings/EvidenceBenchmarkArm.ts";
-import type { EvidenceBenchmarkEffort } from "../typings/EvidenceBenchmarkEffort.ts";
+import { EvidenceBenchmarkCheckpoint } from "../EvidenceBenchmarkCheckpoint";
+import { EvidenceBenchmarkInstruction } from "../EvidenceBenchmarkInstruction";
+import { EvidenceBenchmarkRunner } from "../EvidenceBenchmarkRunner";
+import { EvidenceBenchmarkRuntime } from "../EvidenceBenchmarkRuntime";
+import { EvidenceBenchmarkStageLog } from "../EvidenceBenchmarkStageLog";
+import { EvidenceBenchmarkWorkspace } from "../EvidenceBenchmarkWorkspace";
+import { sanitizeBenchmarkEnvironment } from "../sanitizeBenchmarkEnvironment";
+import type { IEvidenceBenchmarkCheckpoint } from "../structures/IEvidenceBenchmarkCheckpoint";
+import type { IEvidenceBenchmarkInputIdentity } from "../structures/IEvidenceBenchmarkInputIdentity";
+import type { IEvidenceBenchmarkOutput } from "../structures/IEvidenceBenchmarkOutput";
+import type { IEvidenceBenchmarkRunState } from "../structures/IEvidenceBenchmarkRunState";
+import type { IEvidenceBenchmarkWorkspaceResult } from "../structures/IEvidenceBenchmarkWorkspaceResult";
+import type { EvidenceBenchmarkArm } from "../typings/EvidenceBenchmarkArm";
+import type { EvidenceBenchmarkEffort } from "../typings/EvidenceBenchmarkEffort";
 
 type EvidenceBenchmarkEngine = "codex";
 type EvidenceBenchmarkState = IEvidenceBenchmarkRunState;
@@ -80,7 +79,7 @@ interface IEvidenceBenchmarkStateFile {
 const EVIDENCE_BENCHMARK_PACKAGE_NAME = "@samchon/lint-plugin-evidence";
 
 const main = async (): Promise<void> => {
-  const repository: string = path.resolve(import.meta.dirname, "../../..");
+  const repository: string = path.resolve(__dirname, "../../..");
   const options: IEvidenceBenchmarkArguments = parseEvidenceBenchmarkArguments(
     process.argv.slice(2),
   );
@@ -471,7 +470,7 @@ const runBenchmark = async (
     if (sha256(archive) !== cell.evidenceArtifactSha256)
       throw new Error("Evidence benchmark artifact no longer matches its SHA.");
   }
-  const repository: string = path.resolve(import.meta.dirname, "../../..");
+  const repository: string = path.resolve(__dirname, "../../..");
   const environment: NodeJS.ProcessEnv = sanitizeBenchmarkEnvironment(
     process.env,
   );
@@ -912,9 +911,12 @@ const replaceDurably = (file: string, content: string): void => {
   fs.renameSync(temporary, file);
 };
 
+// Compared against `process.argv[1]` rather than `require.main`, which under
+// `ttsx` is the launcher that registers the runtime hooks and never this file,
+// so a `require.main === module` guard would refuse to run the command line.
 if (
   process.argv[1] !== undefined &&
-  pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url
+  path.resolve(process.argv[1]) === __filename
 )
   main().catch((error: unknown) => {
     console.error(error);

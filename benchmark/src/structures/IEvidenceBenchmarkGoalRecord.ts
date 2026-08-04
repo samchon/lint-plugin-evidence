@@ -1,4 +1,4 @@
-import type { IEvidenceBenchmarkTokenUsage } from "./IEvidenceBenchmarkTokenUsage.ts";
+import type { IEvidenceBenchmarkTokenUsage } from "./IEvidenceBenchmarkTokenUsage";
 
 /**
  * Retained Codex state for one prescribed benchmark objective.

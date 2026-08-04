@@ -4,12 +4,12 @@ import path from "node:path";
 
 import typia from "typia";
 
-import { EvidenceBenchmarkCheckpoint } from "./EvidenceBenchmarkCheckpoint.ts";
-import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction.ts";
-import type { IEvidenceBenchmarkInputIdentity } from "./structures/IEvidenceBenchmarkInputIdentity.ts";
-import type { IEvidenceBenchmarkRunState } from "./structures/IEvidenceBenchmarkRunState.ts";
-import type { IEvidenceBenchmarkSupervisionVerdict } from "./structures/IEvidenceBenchmarkSupervisionVerdict.ts";
-import type { IEvidenceBenchmarkWorkspaceIdentity } from "./structures/IEvidenceBenchmarkWorkspaceIdentity.ts";
+import { EvidenceBenchmarkCheckpoint } from "./EvidenceBenchmarkCheckpoint";
+import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction";
+import type { IEvidenceBenchmarkInputIdentity } from "./structures/IEvidenceBenchmarkInputIdentity";
+import type { IEvidenceBenchmarkRunState } from "./structures/IEvidenceBenchmarkRunState";
+import type { IEvidenceBenchmarkSupervisionVerdict } from "./structures/IEvidenceBenchmarkSupervisionVerdict";
+import type { IEvidenceBenchmarkWorkspaceIdentity } from "./structures/IEvidenceBenchmarkWorkspaceIdentity";
 
 interface ISupervisedStateFile {
   cell: {
@@ -524,18 +524,6 @@ export namespace EvidenceBenchmarkSupervision {
       ? fs.realpathSync.native(absolute)
       : absolute;
     return process.platform === "win32" ? resolved.toLowerCase() : resolved;
-  }
-
-  function sameWorkspace(
-    left: IEvidenceBenchmarkWorkspaceIdentity,
-    right: IEvidenceBenchmarkWorkspaceIdentity,
-  ): boolean {
-    return (
-      left.materialSha256 === right.materialSha256 &&
-      left.fileCount === right.fileCount &&
-      left.gitHead === right.gitHead &&
-      left.gitStatus === right.gitStatus
-    );
   }
 
   function sha256(content: Buffer): string {

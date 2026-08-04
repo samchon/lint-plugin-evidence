@@ -1,4 +1,4 @@
-import type { EvidenceBenchmarkReviewScope } from "../typings/EvidenceBenchmarkReviewScope.ts";
+import type { EvidenceBenchmarkReviewScope } from "../typings/EvidenceBenchmarkReviewScope";
 
 /** One immutable objective slot in a run's retained adaptive plan. */
 export interface IEvidenceBenchmarkInstructionPlanEntry {

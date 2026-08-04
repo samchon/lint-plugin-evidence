@@ -190,13 +190,47 @@ func packageTypeEntry(
 	if entry := typesVersionsEntry(manifest["typesVersions"], key); entry != "" {
 		return entry
 	}
+	if subpath == "" {
+		for _, field := range []string{"types", "typings"} {
+			var value string
+			if err := json.Unmarshal(manifest[field], &value); err == nil && value != "" {
+				return value
+			}
+		}
+	}
+	// Every declaration channel above has been asked first, because a package
+	// that names one has said where its declarations are and its runtime entry
+	// is not it. Only when none answers is the runtime entry considered, and
+	// only when it names TypeScript: a source-first workspace package has no
+	// other way to say where its entry is.
+	if entry := exportsRuntimeEntry(manifest["exports"], key); entry != "" {
+		return entry
+	}
 	if subpath != "" {
 		return ""
 	}
-	for _, field := range []string{"types", "typings"} {
-		var value string
-		if err := json.Unmarshal(manifest[field], &value); err == nil && value != "" {
-			return value
+	var main string
+	if err := json.Unmarshal(manifest["main"], &main); err == nil {
+		return typeScriptEntryTarget(main)
+	}
+	return ""
+}
+
+// typeScriptEntryTarget returns target when it names TypeScript itself.
+//
+// A published package points its runtime entry at emitted JavaScript and keeps
+// its declarations behind a `types` condition, so following that entry would
+// address the wrong file. A source-first workspace package has no emit to point
+// at: pnpm links `packages/api` into `node_modules`, and its entry names
+// `./src/index.ts`, which is both what a consumer imports and where the
+// declarations are. Refusing it there leaves a linked package with no
+// resolvable entry, and a reference that cannot find its entry publishes its
+// units under the module that matched instead — which is how
+// `functional.health.get` collapses to `get`.
+func typeScriptEntryTarget(target string) string {
+	for _, extension := range typeScriptModuleExtensions {
+		if strings.HasSuffix(target, extension) {
+			return target
 		}
 	}
 	return ""
@@ -207,7 +241,8 @@ func packageTypeEntry(
 // The map may be a bare string, a condition object, or a subpath object whose
 // values are either. Only the `types` condition is followed, because a
 // citation addresses declarations rather than the runtime entry `import` and
-// `require` name.
+// `require` name. [exportsRuntimeEntry] answers for the package that has no
+// declaration channel at all.
 func exportsTypeEntry(raw json.RawMessage, key string) string {
 	if len(raw) == 0 {
 		return ""
@@ -257,6 +292,63 @@ func exportsConditionEntry(raw json.RawMessage) string {
 	for _, condition := range []string{"import", "default"} {
 		if nested, exists := object[condition]; exists {
 			if entry := exportsConditionEntry(nested); entry != "" {
+				return entry
+			}
+		}
+	}
+	return ""
+}
+
+// exportsRuntimeEntry reads the runtime entry of an exports map, and returns
+// it only when it names TypeScript.
+//
+// It mirrors [exportsTypeEntry] over the same three shapes, following the
+// target a consumer actually imports rather than the `types` condition. That
+// target is the declarations exactly when it is TypeScript, which is the
+// source-first workspace package [typeScriptEntryTarget] describes.
+func exportsRuntimeEntry(raw json.RawMessage, key string) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var direct string
+	if err := json.Unmarshal(raw, &direct); err == nil {
+		if key != "." {
+			return ""
+		}
+		return typeScriptEntryTarget(direct)
+	}
+	object := map[string]json.RawMessage{}
+	if err := json.Unmarshal(raw, &object); err != nil {
+		return ""
+	}
+	if _, subpaths := object["."]; subpaths || strings.HasPrefix(key, "./") {
+		entry, exists := object[key]
+		if !exists {
+			return ""
+		}
+		return runtimeConditionEntry(entry)
+	}
+	if key != "." {
+		return ""
+	}
+	return runtimeConditionEntry(raw)
+}
+
+func runtimeConditionEntry(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var direct string
+	if err := json.Unmarshal(raw, &direct); err == nil {
+		return typeScriptEntryTarget(direct)
+	}
+	object := map[string]json.RawMessage{}
+	if err := json.Unmarshal(raw, &object); err != nil {
+		return ""
+	}
+	for _, condition := range []string{"import", "default", "require"} {
+		if nested, exists := object[condition]; exists {
+			if entry := runtimeConditionEntry(nested); entry != "" {
 				return entry
 			}
 		}

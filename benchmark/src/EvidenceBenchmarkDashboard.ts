@@ -5,10 +5,10 @@ import path from "node:path";
 
 import typia from "typia";
 
-import { collectEvidenceBenchmarkApiCost } from "./EvidenceBenchmarkApiCost.ts";
-import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction.ts";
-import { EvidenceBenchmarkStageLog } from "./EvidenceBenchmarkStageLog.ts";
-import type { IEvidenceBenchmarkApiCost } from "./structures/IEvidenceBenchmarkApiCost.ts";
+import { collectEvidenceBenchmarkApiCost } from "./EvidenceBenchmarkApiCost";
+import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction";
+import { EvidenceBenchmarkStageLog } from "./EvidenceBenchmarkStageLog";
+import type { IEvidenceBenchmarkApiCost } from "./structures/IEvidenceBenchmarkApiCost";
 import type {
   IEvidenceBenchmarkReport,
   IEvidenceBenchmarkReportCell,
@@ -17,13 +17,13 @@ import type {
   IEvidenceBenchmarkReportStage,
   IEvidenceBenchmarkReportSuspension,
   IEvidenceBenchmarkReportWorktree,
-} from "./structures/IEvidenceBenchmarkReport.ts";
+} from "./structures/IEvidenceBenchmarkReport";
 import type {
   IEvidenceBenchmarkSuspension,
   IEvidenceBenchmarkSuspensionLog,
-} from "./structures/IEvidenceBenchmarkSuspension.ts";
-import type { IEvidenceBenchmarkTokenUsage } from "./structures/IEvidenceBenchmarkTokenUsage.ts";
-import type { EvidenceBenchmarkEffort } from "./typings/EvidenceBenchmarkEffort.ts";
+} from "./structures/IEvidenceBenchmarkSuspension";
+import type { IEvidenceBenchmarkTokenUsage } from "./structures/IEvidenceBenchmarkTokenUsage";
+import type { EvidenceBenchmarkEffort } from "./typings/EvidenceBenchmarkEffort";
 
 interface IDashboardCell {
   engine: "codex";

@@ -1,11 +1,11 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { ICreateProjectProps } from "./ICreateProjectProps.ts";
-import type { IEvidenceProject } from "./IEvidenceProject.ts";
-import { linkDirectory } from "./linkDirectory.ts";
-import { resolveDependency } from "./resolveDependency.ts";
-import { suiteRoot } from "./suiteRoot.ts";
+import type { ICreateProjectProps } from "./ICreateProjectProps";
+import type { IEvidenceProject } from "./IEvidenceProject";
+import { linkDirectory } from "./linkDirectory";
+import { resolveDependency } from "./resolveDependency";
+import { suiteRoot } from "./suiteRoot";
 
 /**
  * Materializes a throwaway project wired to the real toolchain.

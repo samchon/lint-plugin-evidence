@@ -11,7 +11,7 @@ import {
   type IEvidenceProject,
   type IRunResult,
   type IWatchSession,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies an edit to a declared local Swagger document refreshes the graph

@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-import type { IEvidenceBenchmarkGoalRecord } from "./structures/IEvidenceBenchmarkGoalRecord.ts";
+import type { IEvidenceBenchmarkGoalRecord } from "./structures/IEvidenceBenchmarkGoalRecord";
 import type {
   IEvidenceBenchmarkReviewLedger,
   IEvidenceBenchmarkReviewCalibration,
@@ -11,8 +11,8 @@ import type {
   IEvidenceBenchmarkReviewEdit,
   IEvidenceBenchmarkReviewManifestEntry,
   IEvidenceBenchmarkReviewRound,
-} from "./structures/IEvidenceBenchmarkReviewLedger.ts";
-import type { IEvidenceBenchmarkRunState } from "./structures/IEvidenceBenchmarkRunState.ts";
+} from "./structures/IEvidenceBenchmarkReviewLedger";
+import type { IEvidenceBenchmarkRunState } from "./structures/IEvidenceBenchmarkRunState";
 
 interface IToolCall {
   tool: string;

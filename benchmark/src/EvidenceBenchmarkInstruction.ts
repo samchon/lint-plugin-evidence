@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import type { IEvidenceBenchmarkInstructionPlanEntry } from "./structures/IEvidenceBenchmarkInstructionPlanEntry.ts";
-import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm.ts";
-import type { EvidenceBenchmarkReviewScope } from "./typings/EvidenceBenchmarkReviewScope.ts";
+import type { IEvidenceBenchmarkInstructionPlanEntry } from "./structures/IEvidenceBenchmarkInstructionPlanEntry";
+import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm";
+import type { EvidenceBenchmarkReviewScope } from "./typings/EvidenceBenchmarkReviewScope";
 
 /** Owns frozen and dynamically supplemented benchmark objective text. */
 export namespace EvidenceBenchmarkInstruction {

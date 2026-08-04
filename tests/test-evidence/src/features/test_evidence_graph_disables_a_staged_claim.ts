@@ -10,7 +10,7 @@ import {
   startWatch,
   type IEvidenceProject,
   type IWatchSession,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies a typed consumer can disable and later enable one claim through the

@@ -1,6 +1,6 @@
 import net from "node:net";
 
-import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm.ts";
+import type { EvidenceBenchmarkArm } from "./typings/EvidenceBenchmarkArm";
 
 /** Assigns and validates process-level resources owned by one benchmark cell. */
 export namespace EvidenceBenchmarkRuntime {

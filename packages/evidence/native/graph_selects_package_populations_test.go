@@ -361,3 +361,122 @@ func TestGraphPackageGlobsFollowALinkedInstall(t *testing.T) {
 		"reference":{"type":"typescript","package":"@org/api","files":["lib/**"],"symbol":"function"}
 	}]}`), "Missing acknowledgement for 'questions.get'")
 }
+
+/**
+ * Verifies a source-first workspace package resolves its entry from `exports`.
+ *
+ * A pnpm TypeScript monorepo links a package that has no emit: its `exports`
+ * target and `main` both name `./src/index.ts`, which is at once what a
+ * consumer imports and where the declarations are. Refusing that target leaves
+ * the reference with no entry, and units then publish under the module that
+ * matched rather than under the specifier a citation can spell — the state that
+ * turns `functional.health.get` into `get`.
+ *
+ *  1. Install a package whose `exports` names TypeScript source directly.
+ *  2. Select it through a glob, so membership and addressing differ.
+ *  3. Assert the obligation is addressed from the entry, not from the module.
+ */
+func TestGraphResolvesTheEntryOfASourceFirstPackage(t *testing.T) {
+	assertProblemContains(t, runIndexRule(t, map[string]string{
+		"node_modules/@org/api/package.json": `{
+  "name": "@org/api",
+  "main": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" }
+}`,
+		"node_modules/@org/api/src/index.ts": `
+export * as functional from "./functional/index";
+`,
+		"node_modules/@org/api/src/functional/index.ts": `
+export * as health from "./health";
+`,
+		"node_modules/@org/api/src/functional/health.ts": `
+export function get(): void {}
+`,
+		"src/views/detail.ts": "export function detail(): void {}\n",
+	}, `{"claims":[{
+		"type":"typescript",
+		"files":["src/views/**"],
+		"symbol":"function",
+		"reference":{"type":"typescript","package":"@org/api","files":["src/**"],"symbol":"function"}
+	}]}`), "Missing acknowledgement for 'functional.health.get'")
+}
+
+/**
+ * Verifies a declared `types` still wins over a TypeScript runtime entry.
+ *
+ * Following the runtime entry is the last resort, not a preference. A package
+ * that names its declarations has said where they are, and reading its source
+ * entry instead would address a different file than the one it publishes.
+ *
+ *  1. Declare `types` beside an `exports` target that names TypeScript source.
+ *  2. Acknowledge only what the declarations expose.
+ *  3. Assert silence, which is reachable only through `types`.
+ */
+func TestGraphPrefersDeclaredTypesOverATypeScriptRuntimeEntry(t *testing.T) {
+	assertNoProblems(t, runIndexRule(t, map[string]string{
+		"node_modules/@org/api/package.json": `{
+  "name": "@org/api",
+  "types": "./lib/index.d.ts",
+  "exports": { ".": "./src/index.ts" }
+}`,
+		"node_modules/@org/api/lib/index.d.ts": "export declare function get(): void;\n",
+		"node_modules/@org/api/src/index.ts":   "export function get(): void {}\nexport function erase(): void {}\n",
+		"src/views/detail.ts": `
+import type * as api from "@org/api";
+
+/** @evidence {@link api.get} Renders this operation's response. */
+export function detail(): void {}
+`,
+	}, `{"claims":[{
+		"type":"typescript",
+		"files":["src/views/**"],
+		"symbol":"function",
+		"reference":{"type":"typescript","package":"@org/api","symbol":"function"}
+	}]}`))
+}
+
+/**
+ * Verifies a nested Program resolves a package installed above it.
+ *
+ * `packages/backend/test` is its own ttsc project, but the package manager
+ * installed into `packages/backend/node_modules` one level up. Looking only
+ * beside the project root leaves that Program unable to read the manifest of a
+ * package it imports, and a reference with no resolved entry addresses its
+ * units through the module that matched instead of the specifier a citation can
+ * spell.
+ *
+ *  1. Install the package one directory above the project root.
+ *  2. Select it from the nested project.
+ *  3. Assert the obligation carries the address the entry gives it.
+ */
+func TestGraphResolvesAPackageInstalledAboveTheProject(t *testing.T) {
+	root := t.TempDir()
+	project := filepath.Join(root, "test")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{
+		"node_modules/@org/api/package.json": `{
+  "name": "@org/api",
+  "exports": { ".": "./src/index.ts" }
+}`,
+		"node_modules/@org/api/src/index.ts":  "export * as health from \"./health\";\n",
+		"node_modules/@org/api/src/health.ts": "export function get(): void {}\n",
+	} {
+		absolute := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(absolute), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(absolute, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assertProblemContains(t, runIndexRuleAtRoot(t, project, map[string]string{
+		"features/detail.ts": "export function detail(): void {}\n",
+	}, `{"claims":[{
+		"type":"typescript",
+		"files":["features/**"],
+		"symbol":"function",
+		"reference":{"type":"typescript","package":"@org/api","files":["src/**"],"symbol":"function"}
+	}]}`), "Missing acknowledgement for 'health.get'")
+}

@@ -1,14 +1,14 @@
-import type { IEvidenceBenchmarkCheckpoint } from "./IEvidenceBenchmarkCheckpoint.ts";
-import type { IEvidenceBenchmarkGoalRecord } from "./IEvidenceBenchmarkGoalRecord.ts";
-import type { IEvidenceBenchmarkInspection } from "./IEvidenceBenchmarkInspection.ts";
-import type { IEvidenceBenchmarkInstructionPlanEntry } from "./IEvidenceBenchmarkInstructionPlanEntry.ts";
-import type { IEvidenceBenchmarkInterruption } from "./IEvidenceBenchmarkInterruption.ts";
-import type { IEvidenceBenchmarkProcessRecord } from "./IEvidenceBenchmarkProcessRecord.ts";
-import type { IEvidenceBenchmarkReviewLedger } from "./IEvidenceBenchmarkReviewLedger.ts";
-import type { IEvidenceBenchmarkSupervisionVerdict } from "./IEvidenceBenchmarkSupervisionVerdict.ts";
-import type { IEvidenceBenchmarkTokenUsage } from "./IEvidenceBenchmarkTokenUsage.ts";
-import type { EvidenceBenchmarkArm } from "../typings/EvidenceBenchmarkArm.ts";
-import type { EvidenceBenchmarkReviewScope } from "../typings/EvidenceBenchmarkReviewScope.ts";
+import type { IEvidenceBenchmarkCheckpoint } from "./IEvidenceBenchmarkCheckpoint";
+import type { IEvidenceBenchmarkGoalRecord } from "./IEvidenceBenchmarkGoalRecord";
+import type { IEvidenceBenchmarkInspection } from "./IEvidenceBenchmarkInspection";
+import type { IEvidenceBenchmarkInstructionPlanEntry } from "./IEvidenceBenchmarkInstructionPlanEntry";
+import type { IEvidenceBenchmarkInterruption } from "./IEvidenceBenchmarkInterruption";
+import type { IEvidenceBenchmarkProcessRecord } from "./IEvidenceBenchmarkProcessRecord";
+import type { IEvidenceBenchmarkReviewLedger } from "./IEvidenceBenchmarkReviewLedger";
+import type { IEvidenceBenchmarkSupervisionVerdict } from "./IEvidenceBenchmarkSupervisionVerdict";
+import type { IEvidenceBenchmarkTokenUsage } from "./IEvidenceBenchmarkTokenUsage";
+import type { EvidenceBenchmarkArm } from "../typings/EvidenceBenchmarkArm";
+import type { EvidenceBenchmarkReviewScope } from "../typings/EvidenceBenchmarkReviewScope";
 
 /**
  * Complete resumable Codex state for one benchmark cell.

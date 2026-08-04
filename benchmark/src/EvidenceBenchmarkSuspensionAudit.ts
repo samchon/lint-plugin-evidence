@@ -7,7 +7,7 @@ import typia from "typia";
 import type {
   IEvidenceBenchmarkSuspension,
   IEvidenceBenchmarkSuspensionLog,
-} from "./structures/IEvidenceBenchmarkSuspension.ts";
+} from "./structures/IEvidenceBenchmarkSuspension";
 
 export interface IEvidenceBenchmarkPowerInterval {
   startedAt: string;

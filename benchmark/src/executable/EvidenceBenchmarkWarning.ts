@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { EvidenceBenchmarkSupervision } from "../EvidenceBenchmarkSupervision.ts";
+import { EvidenceBenchmarkSupervision } from "../EvidenceBenchmarkSupervision";
 
 const main = (): void => {
   const [subject, arm, runId, warningFile] = process.argv.slice(2);
@@ -18,7 +18,7 @@ const main = (): void => {
     throw new Error(
       "Usage: pnpm warn <subject> <evidence|plain> <run-id> <warning.json>",
     );
-  const repository: string = path.resolve(import.meta.dirname, "../../..");
+  const repository: string = path.resolve(__dirname, "../../..");
   const verdict = EvidenceBenchmarkSupervision.warn({
     runRoot: path.join(
       repository,

@@ -1,6 +1,6 @@
 ---
 name: project
-description: Defines the benchmark workspace, package boundaries, generated artifacts, phase order, compiler gates, development processes, and canonical commands. Read before choosing where to work or which command to run.
+description: Defines the workspace, package boundaries, generated artifacts, phase order, compiler gates, development processes, and canonical commands. Read before choosing where to work or which command to run.
 ---
 
 # Project
@@ -39,7 +39,7 @@ Do not begin frontend implementation before the backend contract and tests pass.
 
 ## Compiler Gates And Development Processes
 
-- Run `pnpm check:watch` from `packages/backend` with the lifecycle prescribed by the current arm's instruction. It runs the `test/tsconfig.json` Program, which compiles the backend tests together with the backend source, and reports lint rules and configured contributors for both. The API package checks its own DTOs. The benchmark arms intentionally use different watcher lifecycles; never carry one arm's lifecycle into another.
+- Run `pnpm check:watch` from `packages/backend` with the lifecycle your current objective prescribes. It runs the `test/tsconfig.json` Program, which compiles the backend tests together with the backend source, and reports lint rules and configured contributors for both. The API package checks its own DTOs.
 - Start `pnpm dev` from `packages/frontend` before frontend authoring. Keep it running through Overall Final. Vite and `@ttsc/unplugin` report type, lint, and contributor diagnostics on reload.
 - Start the backend server with `pnpm dev` from `packages/backend` before live frontend integration. Keep it running through Overall Final.
 
@@ -77,7 +77,7 @@ pnpm test:e2e
 
 `pnpm build:prisma` generates the client and ERD. `pnpm schema` resets the disposable SQLite database. `pnpm build:sdk` generates the SDK and compiles the API package. `pnpm test` runs the backend suite. Frontend `pnpm test:e2e` builds the production bundle and runs browser journeys.
 
-Follow the current arm's instruction for `check:watch`. Run generators only after their complete authored input settles, and run mutating generators and runtime tests one at a time because they share generated files and the SQLite database.
+Follow your current objective's instruction for `check:watch`. Run generators only after their complete authored input settles, and run mutating generators and runtime tests one at a time because they share generated files and the SQLite database.
 
 The workspace-root `pnpm build` and `pnpm test` are Overall-phase commands. Do not use a root build to judge an unfinished layer.
 

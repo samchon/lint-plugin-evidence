@@ -36,11 +36,9 @@ Each test has one primary operation: the accessor it exists to prove. Prerequisi
 | Rule | Detail |
 | --- | --- |
 | one primary operation | the accessor this test proves, named in its JSDoc scenario |
-| at least two tests per operation | a success path and a refusal path cannot share one test |
-| one success case | each operation has a proven working path |
-| at least one non-success case | each operation has a proven refusal, boundary, or effect |
+| at least one test per operation | every published operation has a proven working path |
 
-Name each test after the behavior it proves, so `test_api_sale_unit_create_success` and `test_api_sale_unit_create_rejects_foreign_seller` are two tests of one operation rather than one test doing both.
+How much further to go is yours to judge from the requirements. An operation whose requirements state a refusal, a boundary, or an ownership rule usually needs a test for each, and splitting them is how each one gets a name that says what it proves — `test_api_sale_unit_create_success` beside `test_api_sale_unit_create_rejects_foreign_seller`. An operation the requirements describe in one behavior needs one test.
 
 ## Scenario Shape
 
@@ -131,7 +129,7 @@ Generate helpers call one existing accessor. Path parameters and foreign keys co
 
 ## Coverage
 
-For every requirement, name a test that would fail if the behavior disappeared. For every operation, cover success and every stated refusal, across the separate tests Operation Ownership requires. For every exchanged DTO shape, construct or read it through an applicable operation.
+For every requirement, name a test that would fail if the behavior disappeared. For every operation, cover its working path and every refusal the requirements state. For every exchanged DTO shape, construct or read it through an applicable operation.
 
 Minimum behavioral cases:
 
@@ -174,8 +172,6 @@ Never:
 - weaken an assertion to make the suite pass;
 - present a prerequisite call as the operation under test; or
 - prove one operation's success and refusal inside a single test.
-
-Before a backend or overall review that may qualify as clean, temporarily remove one material behavior, run its test and require failure, restore the behavior exactly, then require success. Complete this mutation calibration before the qualifying review begins.
 
 ## Running
 

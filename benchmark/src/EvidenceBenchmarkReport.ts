@@ -1,12 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { collectEvidenceBenchmarkReport } from "./EvidenceBenchmarkDashboard.ts";
-import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction.ts";
+import { collectEvidenceBenchmarkReport } from "./EvidenceBenchmarkDashboard";
+import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction";
 import type {
   IEvidenceBenchmarkReport,
   IEvidenceBenchmarkReportCell,
-} from "./structures/IEvidenceBenchmarkReport.ts";
+} from "./structures/IEvidenceBenchmarkReport";
 
 export interface IEvidenceBenchmarkReportOptions {
   repository: string;

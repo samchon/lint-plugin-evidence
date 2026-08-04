@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { suiteRoot } from "./suiteRoot.ts";
+import { suiteRoot } from "./suiteRoot";
 
 /**
  * Pins the ttsc plugin build cache to one suite-owned directory.

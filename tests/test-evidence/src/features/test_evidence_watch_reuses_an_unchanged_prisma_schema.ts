@@ -11,7 +11,7 @@ import {
   type IEvidenceProject,
   type IRunResult,
   type IWatchSession,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 /**
  * Verifies a resident session stops re-parsing a Prisma schema nobody touched.

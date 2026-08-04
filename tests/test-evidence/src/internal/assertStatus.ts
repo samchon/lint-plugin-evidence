@@ -1,4 +1,4 @@
-import type { IRunResult } from "./IRunResult.ts";
+import type { IRunResult } from "./IRunResult";
 
 /** Fails when the real compiler exits with an unexpected status. */
 export const assertStatus = (

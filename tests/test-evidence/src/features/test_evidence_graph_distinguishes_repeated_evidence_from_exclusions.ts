@@ -8,7 +8,7 @@ import {
   type ICreateProjectProps,
   type IEvidenceProject,
   type IRunResult,
-} from "../internal/index.ts";
+} from "../internal/index";
 
 const lintConfig: string = [
   'import type { ITtscLintConfig } from "@ttsc/lint";',

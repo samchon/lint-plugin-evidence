@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { suiteRoot } from "./suiteRoot.ts";
+import { suiteRoot } from "./suiteRoot";
 
 /**
  * Replaces a fixture's linked plugin `lib` with a private copy it may damage.

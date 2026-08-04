@@ -4,12 +4,13 @@ import os from "node:os";
 import path from "node:path";
 
 import typia from "typia";
+import YAML from "yaml";
 
-import type { IEvidenceBenchmarkWorkspaceArtifact } from "./structures/IEvidenceBenchmarkWorkspaceArtifact.ts";
-import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime.ts";
-import type { IEvidenceBenchmarkWorkspaceRequest } from "./structures/IEvidenceBenchmarkWorkspaceRequest.ts";
-import type { IEvidenceBenchmarkWorkspaceResult } from "./structures/IEvidenceBenchmarkWorkspaceResult.ts";
-import type { IEvidenceBenchmarkWorkspaceVariables } from "./structures/IEvidenceBenchmarkWorkspaceVariables.ts";
+import type { IEvidenceBenchmarkWorkspaceArtifact } from "./structures/IEvidenceBenchmarkWorkspaceArtifact";
+import { EvidenceBenchmarkRuntime } from "./EvidenceBenchmarkRuntime";
+import type { IEvidenceBenchmarkWorkspaceRequest } from "./structures/IEvidenceBenchmarkWorkspaceRequest";
+import type { IEvidenceBenchmarkWorkspaceResult } from "./structures/IEvidenceBenchmarkWorkspaceResult";
+import type { IEvidenceBenchmarkWorkspaceVariables } from "./structures/IEvidenceBenchmarkWorkspaceVariables";
 
 /**
  * Materializes one immutable benchmark workspace before native model work.
@@ -132,6 +133,7 @@ export namespace EvidenceBenchmarkWorkspace {
       // agent's first act is a repair it should never have had to make.
       fs.renameSync(stage, output);
       settled = path.join(output, "workspace");
+      adoptRepositoryCatalog(request.repository, settled);
       await pnpm(["install", "--no-frozen-lockfile"], settled, environment);
       await run("git", ["init", "-b", "benchmark"], settled, environment);
       await run("git", ["add", "-A"], settled, environment);
@@ -196,6 +198,66 @@ export namespace EvidenceBenchmarkWorkspace {
       fs.writeFileSync(target, render(content, variables));
     });
   }
+  /**
+   * Binds the workspace catalog to this repository's own dependency versions.
+   *
+   * The measured workspace is its own pnpm workspace, so nothing about it
+   * follows the repository that packs the plugin into it. That skew is not
+   * theoretical: the archive is compiled against this repository's `ttsc` and
+   * `@ttsc/lint`, and a workspace pinned to an older pair evaluates the same
+   * `lint.config.ts` under a different loader.
+   *
+   * The template therefore carries `{{version:<package>}}` where a governed
+   * version would go, and this substitutes each one from `pnpm-workspace.yaml`.
+   * Keeping the token instead of a literal is what stops the template from
+   * stating a version it does not decide, and text substitution preserves the
+   * YAML anchors, so a package bound to `*ttsc` follows without needing its own
+   * catalog entry.
+   *
+   * An unknown token throws. A version the template asks for and the repository
+   * does not declare is a broken binding, and resolving it to whatever pnpm
+   * finds would measure a dependency nobody chose.
+   */
+  function adoptRepositoryCatalog(repository: string, workspace: string): void {
+    const target: string = path.join(workspace, "pnpm-workspace.yaml");
+    const source: string = fs.readFileSync(target, "utf8");
+    if (!source.includes("{{version:")) return;
+    const versions: Map<string, string> = repositoryCatalogVersions(repository);
+    const output: string = source.replace(
+      /\{\{version:([^}]+)\}\}/g,
+      (_match, name: string) => {
+        const version: string | undefined = versions.get(name);
+        if (version === undefined)
+          throw new Error(
+            `Benchmark template requests "${name}" from the repository catalog, which does not declare it.`,
+          );
+        return version;
+      },
+    );
+    fs.writeFileSync(target, output);
+  }
+
+  /** Flattens every repository catalog group into one package-to-version map. */
+  function repositoryCatalogVersions(repository: string): Map<string, string> {
+    const parsed: unknown = YAML.parse(
+      fs.readFileSync(path.join(repository, "pnpm-workspace.yaml"), "utf8"),
+    );
+    const catalogs = typia.assert<{
+      catalogs?: Record<string, Record<string, string>>;
+    }>(parsed).catalogs;
+    const versions: Map<string, string> = new Map();
+    for (const group of Object.values(catalogs ?? {}))
+      for (const [name, version] of Object.entries(group)) {
+        const previous: string | undefined = versions.get(name);
+        if (previous !== undefined && previous !== version)
+          throw new Error(
+            `Repository catalog declares "${name}" as both ${previous} and ${version}.`,
+          );
+        versions.set(name, version);
+      }
+    return versions;
+  }
+
   function markdownBody(source: string): string {
     const withoutFrontmatter: string = source.replace(
       /^(?:\uFEFF)?---\r?\n[\s\S]*?\r?\n---\r?\n/,

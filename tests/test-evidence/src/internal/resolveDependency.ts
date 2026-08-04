@@ -1,5 +1,4 @@
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 /**
  * Resolves a dependency's package root, not its entry point.
@@ -8,8 +7,6 @@ import { fileURLToPath } from "node:url";
  * resolves to a launcher, and what is needed here is the package root.
  */
 export const resolveDependency = (specifier: string): string => {
-  const manifest: string = fileURLToPath(
-    import.meta.resolve(`${specifier}/package.json`),
-  );
+  const manifest: string = require.resolve(`${specifier}/package.json`);
   return path.dirname(manifest);
 };

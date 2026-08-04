@@ -1,9 +1,9 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
-import type { IRunResult } from "./IRunResult.ts";
-import type { IWatchSession } from "./IWatchSession.ts";
-import { pluginCacheDirectory } from "./pluginCacheDirectory.ts";
-import { resolveDependency } from "./resolveDependency.ts";
+import type { IRunResult } from "./IRunResult";
+import type { IWatchSession } from "./IWatchSession";
+import { pluginCacheDirectory } from "./pluginCacheDirectory";
+import { resolveDependency } from "./resolveDependency";
 
 /** Terminates one rebuild, whichever way it ended. */
 const BUILD_MARKER = /\[ttsc\] watch build (complete|failed)\r?\n/g;

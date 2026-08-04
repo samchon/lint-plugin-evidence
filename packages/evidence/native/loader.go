@@ -1,6 +1,7 @@
 package evidence
 
 import (
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path"
@@ -26,6 +27,7 @@ type typeScriptLoader struct {
 	parsed   map[string]*artifactInventory
 	resolved map[string]string
 	failures map[string]string
+	installs map[string]installedPackageLocation
 }
 
 func newTypeScriptLoader(
@@ -38,6 +40,7 @@ func newTypeScriptLoader(
 		parsed:   map[string]*artifactInventory{},
 		resolved: map[string]string{},
 		failures: map[string]string{},
+		installs: map[string]installedPackageLocation{},
 	}
 	for _, inventory := range program {
 		if inventory == nil || inventory.Path == "" {
@@ -221,15 +224,21 @@ func isCleanProjectRelativePath(value string) bool {
 // resolvePackage finds the declaration entry of an installed package.
 //
 // The entry comes from the `types` condition of an `exports` map, then
-// `typesVersions`, then `types` or `typings` — never `main`, which names the
-// JavaScript a consumer runs rather than the declarations a citation addresses.
+// `typesVersions`, then `types` or `typings`. A package that emits JavaScript
+// stops there, because its runtime entry names the emit rather than the
+// declarations a citation addresses.
+//
+// A source-first workspace package is followed one step further: when its
+// `exports` target or `main` names TypeScript itself, that file is both the
+// entry a consumer imports and the declarations, so it is the entry. This is
+// the ordinary shape in a pnpm TypeScript monorepo, where the dependency is a
+// link to a package that has no emit to point at.
 func (loader *typeScriptLoader) resolvePackage(specifier string) string {
 	name, subpath := splitPackageSpecifier(specifier)
 	if name == "" {
 		return ""
 	}
-	directory := path.Join("node_modules", name)
-	manifest := readPackageManifest(loader.root, path.Join(directory, "package.json"))
+	directory, manifest := loader.installedPackage(name)
 	entry := packageTypeEntry(manifest, subpath)
 	if entry == "" {
 		if subpath == "" {
@@ -249,6 +258,61 @@ func (loader *typeScriptLoader) resolvePackage(specifier string) string {
 // its traversal from.
 func (loader *typeScriptLoader) packageEntryModule(name string) string {
 	return loader.resolvePackage(name)
+}
+
+// installedPackage finds where a package is installed, and its manifest.
+//
+// Resolution walks up from the project root the way Node's own does, because a
+// nested Program does not have its own install. `packages/backend/test` is its
+// own ttsc project — `test/tsconfig.json` compiles the tests together with the
+// backend source — but the package manager installed into
+// `packages/backend/node_modules`, one level above. Looking only beside the
+// project root leaves that Program unable to see a dependency it imports, and a
+// package reference that cannot read a manifest resolves no entry, which
+// publishes its units under the module that matched instead of under the
+// specifier a citation can spell.
+//
+// The walk stops at the filesystem root. A directory that holds no
+// `node_modules` for this name simply is not the install, so the loop asks the
+// parent rather than concluding the package is absent.
+func (loader *typeScriptLoader) installedPackage(
+	name string,
+) (string, map[string]json.RawMessage) {
+	if cached, exists := loader.installs[name]; exists {
+		return cached.Directory, cached.Manifest
+	}
+	directory, manifest := loader.locateInstalledPackage(name)
+	loader.installs[name] = installedPackageLocation{
+		Directory: directory,
+		Manifest:  manifest,
+	}
+	return directory, manifest
+}
+
+// installedPackageLocation caches one upward search. The walk costs a read per
+// level, and both the glob base and the entry ask for the same package on every
+// rebuild.
+type installedPackageLocation struct {
+	Directory string
+	Manifest  map[string]json.RawMessage
+}
+
+func (loader *typeScriptLoader) locateInstalledPackage(
+	name string,
+) (string, map[string]json.RawMessage) {
+	prefix := ""
+	for range 32 {
+		directory := path.Join(prefix, "node_modules", name)
+		manifest := readPackageManifest(
+			loader.root,
+			path.Join(directory, "package.json"),
+		)
+		if manifest != nil {
+			return directory, manifest
+		}
+		prefix = path.Join(prefix, "..")
+	}
+	return path.Join("node_modules", name), nil
 }
 
 // resolveLinkedDirectory returns the directory a path ultimately names.
@@ -320,7 +384,15 @@ func (loader *typeScriptLoader) walk(base string) ([]string, string) {
 			return nil
 		}
 		relative, ok := relativeProjectPath(loader.root, filepath.ToSlash(current))
-		if !ok || !isTypeScriptPath(relative) {
+		if !ok {
+			// An install can sit above the project: a nested Program resolves its
+			// dependencies out of an ancestor's `node_modules`. Name such a file
+			// through the project the same way a rooted population above the
+			// project is named, rather than dropping it and reporting the package
+			// as empty.
+			relative = loader.projectPath(filepath.ToSlash(current))
+		}
+		if relative == "" || !isTypeScriptPath(relative) {
 			return nil
 		}
 		found = append(found, relative)
@@ -333,10 +405,20 @@ func (loader *typeScriptLoader) walk(base string) ([]string, string) {
 	return found, problem
 }
 
-// referenceBase is the directory a reference's entry and globs resolve against.
-func referenceBase(reference referenceSpec) string {
+// referenceBase gives the directory a package reference enumerates.
+//
+// It asks the loader rather than assuming `node_modules` sits beside the
+// project root, so the walk and the entry agree on where the package is. A
+// nested Program is installed into an ancestor's `node_modules`, and a walk
+// that looked only beside its own root would enumerate nothing while the entry
+// resolved fine.
+func referenceBase(loader *typeScriptLoader, reference referenceSpec) string {
 	if reference.Package == "" {
 		return ""
 	}
-	return path.Join("node_modules", reference.Package)
+	if loader == nil {
+		return path.Join("node_modules", reference.Package)
+	}
+	directory, _ := loader.installedPackage(reference.Package)
+	return directory
 }

@@ -1,4 +1,4 @@
-import type { IRunResult } from "./IRunResult.ts";
+import type { IRunResult } from "./IRunResult";
 
 /**
  * Fails when a workspace command printed something a case requires to be

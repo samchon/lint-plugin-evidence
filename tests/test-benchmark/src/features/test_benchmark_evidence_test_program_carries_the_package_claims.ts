@@ -1,35 +1,33 @@
-import fs from "node:fs";
 import path from "node:path";
 
 import {
   readActivationGates,
-  readClaimNames,
   removeActivationGate,
-} from "../internal/activationGates.ts";
-import { acquireBenchmarkWorkspace } from "../internal/benchmarkWorkspace.ts";
+} from "../internal/activationGates";
+import { acquireBenchmarkWorkspace } from "../internal/benchmarkWorkspace";
+import { discoverClaimConfigurations } from "../internal/claimConfigurations";
 import {
   readMissingAcknowledgements,
   type IMissingAcknowledgement,
-} from "../internal/evidenceDiagnostics.ts";
-import type { IBenchmarkWorkspace } from "../internal/IBenchmarkWorkspace.ts";
-import type { IRunResult } from "../internal/IRunResult.ts";
-import { provisionEnvironment } from "../internal/provisionEnvironment.ts";
-import { runScript } from "../internal/runScript.ts";
-import { sdkAccessorAddresses } from "../internal/sdkAccessorAddresses.ts";
-import { stripCitations } from "../internal/stripCitations.ts";
-import { materializeClaimLayer } from "../internal/workspaceLayer.ts";
+} from "../internal/evidenceDiagnostics";
+import type { IBenchmarkWorkspace } from "../internal/IBenchmarkWorkspace";
+import type { IRunResult } from "../internal/IRunResult";
+import { provisionEnvironment } from "../internal/provisionEnvironment";
+import { runScript } from "../internal/runScript";
+import { sdkAccessorAddresses } from "../internal/sdkAccessorAddresses";
+import { stripCitations } from "../internal/stripCitations";
+import { materializeClaimLayer } from "../internal/workspaceLayer";
 
 /**
- * Verifies the backend test Program inherits the package claims and that its
- * own operation claim enumerates the SDK through the workspace link.
+ * Verifies every backend claim owes its units in the Program that compiles it,
+ * and that its operation claim enumerates the SDK through the workspace link.
  *
- * The backend compiles as two Programs, and a claim populates only from the
- * Program that owns its hosts. `packages/backend/lint.config.ts` therefore
- * exports its graph with absolute roots and `test/lint.config.ts` spreads those
- * claims and adds `backend-tests`; if the spread carried nothing, or the
- * absolute roots stopped selecting in the nested Program, the package
- * obligations would vanish from the test build without a single diagnostic
- * changing.
+ * A claim populates only from the Program that owns its hosts, so a claim is
+ * proved by the gate that builds that Program and by no other. Which
+ * configuration declares which claim is a template decision that has already
+ * moved once, so the case discovers the configurations and asks each one's own
+ * gate; naming them would keep it passing after the next move while covering
+ * less than it did before.
  *
  * The operation reference is the sharper edge. It selects the generated
  * accessor surface out of an installed `package`, and a workspace dependency is
@@ -60,68 +58,63 @@ export const test_benchmark_evidence_test_program_carries_the_package_claims =
     for (const script of ["build:prisma", "build:sdk"])
       requireZero(backend, script);
 
-    const packageConfig: string = path.join(backend, "lint.config.ts");
-    const testConfig: string = path.join(backend, "test", "lint.config.ts");
-    const packageClaims: string[] = readClaimNames(packageConfig);
-    const testClaims: string[] = readClaimNames(testConfig);
-    // Without this, a configuration whose claims this suite could no longer
-    // read would make every comparison below iterate an empty list and pass
-    // while asserting nothing — the same vacuous green an empty population
-    // produces, one level up.
-    for (const [file, claims] of [
-      [packageConfig, packageClaims],
-      [testConfig, testClaims],
-    ] as const)
-      if (claims.length === 0)
-        throw new Error(
-          `${file} yielded no claim name. Either the configuration declares none, or its shape changed and this suite is no longer reading it.`,
-        );
-    for (const file of [packageConfig, testConfig])
-      for (const gate of readActivationGates(file)) {
+    // Discovered, never named. Which Program declares which claim is a
+    // template decision that moves, and a case that spelled the files would
+    // keep passing after such a move while covering fewer claims than before.
+    const configurations = discoverClaimConfigurations(
+      workspace.workspace,
+    ).filter((configuration) => configuration.packageDirectory === backend);
+    if (configurations.length === 0)
+      throw new Error(
+        `No lint configuration under ${backend} declares a claim. Either the arm no longer stages a backend graph, or this suite is no longer finding it.`,
+      );
+
+    for (const configuration of configurations)
+      for (const gate of readActivationGates(configuration.file)) {
         materializeClaimLayer({
           workspace: workspace.workspace,
           claim: gate.claim,
         });
-        removeActivationGate(file, gate.claim);
+        removeActivationGate(configuration.file, gate.claim);
       }
     stripCitations(path.join(backend, "test", "features"));
     requireZero(backend, "build:prisma");
 
-    const packageProgram: IRunResult = runScript({
-      cwd: backend,
-      script: "lint",
-    });
-    const testProgram: IRunResult = runScript({
-      cwd: backend,
-      script: "build:test",
-    });
+    // Each configuration is proved by the gate that compiles the Program it
+    // governs. A claim populates only from the Program its hosts live in, so
+    // running any other gate would prove nothing about it.
+    const results = new Map<string, IRunResult>();
+    for (const configuration of configurations)
+      if (!results.has(configuration.script))
+        results.set(
+          configuration.script,
+          runScript({ cwd: backend, script: configuration.script }),
+        );
 
-    // The spread is the claim under test. An absolute root is what lets one
-    // declaration select the same population from two Programs, so a package
-    // claim that reports in one and not the other means the nested Program
-    // silently stopped owing it.
-    for (const claim of packageClaims)
-      for (const [program, result] of [
-        ["package", packageProgram],
-        ["test", testProgram],
-      ] as const)
+    // No fallback. The operation surface belongs to the Program that compiles
+    // the e2e suite, and asserting it against whichever gate happened to run
+    // would pass while proving nothing about the claim that owns it.
+    const testProgram: IRunResult | undefined = results.get("build:test");
+    if (testProgram === undefined)
+      throw new Error(
+        `No discovered backend configuration is proved by 'build:test', so the operation surface has no Program to be enumerated in. Either the e2e claim moved, or this suite is no longer finding it.`,
+      );
+    const testClaims: string[] = configurations.flatMap(
+      (configuration) => configuration.claims,
+    );
+
+    for (const configuration of configurations) {
+      const result: IRunResult = results.get(configuration.script)!;
+      for (const claim of configuration.claims)
         if (obligationsFor(result, claim).length === 0)
           throw new Error(
-            `Claim '${claim}' reported no obligation in the ${program} Program. The package configuration exports its graph with absolute roots and the test configuration spreads it, so this claim must owe the same units in both.\n\nCommand: pnpm run ${result.script}\n\nActual output:\n${result.output}`,
-          );
+            `Claim '${claim}' reported no obligation in the Program '${configuration.script}' compiles, which is the Program its hosts live in.
 
-    // The negative twin. `backend-tests` hosts on the e2e suite, which the
-    // package Program does not compile, so a claim reporting there would mean
-    // the graph is not bounded by the Program that owns its hosts.
-    for (const claim of testClaims) {
-      if (obligationsFor(testProgram, claim).length === 0)
-        throw new Error(
-          `Claim '${claim}' reported no obligation in the test Program, which is the only Program its hosts live in.\n\nActual output:\n${testProgram.output}`,
-        );
-      if (obligationsFor(packageProgram, claim).length !== 0)
-        throw new Error(
-          `Claim '${claim}' reported an obligation in the package Program, whose sources do not include its hosts.\n\nActual output:\n${packageProgram.output}`,
-        );
+Command: pnpm run ${result.script}
+
+Actual output:
+${result.output}`,
+          );
     }
 
     assertOperationSurfaceEnumerated(workspace, testProgram, testClaims);
@@ -172,16 +165,6 @@ const obligationsFor = (
   readMissingAcknowledgements(result).filter(
     (obligation) => obligation.claim === claim,
   );
-
-const walk = (directory: string): string[] => {
-  const found: string[] = [];
-  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-    const location: string = path.join(directory, entry.name);
-    if (entry.isDirectory()) found.push(...walk(location));
-    else if (entry.isFile() && entry.name.endsWith(".ts")) found.push(location);
-  }
-  return found;
-};
 
 const requireZero = (cwd: string, script: string): void => {
   const result = runScript({ cwd, script });

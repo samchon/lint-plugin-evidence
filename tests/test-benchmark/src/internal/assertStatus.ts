@@ -1,4 +1,4 @@
-import type { IRunResult } from "./IRunResult.ts";
+import type { IRunResult } from "./IRunResult";
 
 /** Fails when a real workspace command exits with an unexpected status. */
 export const assertStatus = (

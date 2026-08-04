@@ -1,6 +1,6 @@
-import type { IEvidenceBenchmarkWorkspaceArtifact } from "./IEvidenceBenchmarkWorkspaceArtifact.ts";
-import type { IEvidenceBenchmarkWorkspaceVariables } from "./IEvidenceBenchmarkWorkspaceVariables.ts";
-import type { EvidenceBenchmarkArm } from "../typings/EvidenceBenchmarkArm.ts";
+import type { IEvidenceBenchmarkWorkspaceArtifact } from "./IEvidenceBenchmarkWorkspaceArtifact";
+import type { IEvidenceBenchmarkWorkspaceVariables } from "./IEvidenceBenchmarkWorkspaceVariables";
+import type { EvidenceBenchmarkArm } from "../typings/EvidenceBenchmarkArm";
 
 /**
  * Frozen inputs used to materialize one benchmark workspace.

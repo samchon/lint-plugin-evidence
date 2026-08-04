@@ -4,9 +4,6 @@ import {
 } from "@samchon/lint-plugin-evidence";
 import type { ITtscLintConfig } from "@ttsc/lint";
 
-/** The directory of this configuration. */
-const here: string = __dirname;
-
 /**
  * The evidence obligations of the API package.
  *
@@ -26,19 +23,19 @@ export const graph: IEvidenceGraphConfig = {
     {
       name: "dto-types",
       type: "typescript",
-      root: here,
+      root: ".",
       files: ["src/structures/**/*.ts"],
       symbol: "type",
       reference: [
         {
           type: "markdown",
-          root: `${here}/../..`,
+          root: "../..",
           files: ["docs/analysis/**/*.md"],
           symbol: ["h2", "h3"],
         },
         {
           type: "prisma",
-          root: `${here}/../backend`,
+          root: "../backend",
           files: ["prisma/schema/**/*.prisma"],
           symbol: ["model"],
         },
@@ -50,12 +47,12 @@ export const graph: IEvidenceGraphConfig = {
     {
       name: "dto-properties",
       type: "typescript",
-      root: here,
+      root: ".",
       files: ["src/structures/**/*.ts"],
       symbol: "property",
       reference: {
         type: "prisma",
-        root: `${here}/../backend`,
+        root: "../backend",
         files: ["prisma/schema/**/*.prisma"],
         symbol: ["column"],
       },

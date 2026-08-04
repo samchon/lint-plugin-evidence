@@ -4,6 +4,8 @@ Confirm every frontend claim remains enabled. Do not edit `lint.config.ts` or lo
 
 Use the frontend `pnpm dev` process kept running by Frontend Start. Fix every diagnostic and wait for a reload without diagnostics. Keep it running.
 
+Frontend Start left this workspace with a live-backend `pnpm test:e2e` passing, and a Review correction is usually a tag, not a behavior. Rerunning it with `VITE_API_SIMULATE=false` is your call: a clean reload proves the bundle compiles, not that a journey still completes, so run it when a correction actually touched behavior, and fix every failure.
+
 ## Final Checklist
 
 - [ ] Every frontend claim remained enabled; `lint.config.ts` otherwise remained unchanged and `evidence/graph` remained `error`.
