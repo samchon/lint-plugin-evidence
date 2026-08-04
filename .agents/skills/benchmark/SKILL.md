@@ -87,7 +87,9 @@ On a confirmed hit, warn the cell and resume it. Do not restart it. The violatio
 
 A warning states the frozen boundary and the specific edit that crossed it, and nothing about the subject. Reaching a Plain review scope, it travels as verdict `feedback`; the runner offers no equivalent channel to an Evidence cell mid-objective, which is a gap to close rather than a reason to restart.
 
-At `awaiting-review-verdict`, inspect the completed Goal's retained output and actions together with the actual workspace diff and relevant source. Judge substantive review, not report typography. Pass a materially exhaustive review despite minor checklist or formatting slips. Fail a review that substitutes counts, lengths, manifests, searches, or green commands for semantic inspection; materially omits requirements or source; fails to re-read the complete surface after edits; or leaves required behavior and test closure unproven.
+At `awaiting-review-verdict`, judge one question and no other: did the cell perform the review loop its instruction prescribes, and stop only where that instruction allows it to stop. Inspect the completed Goal's retained output and actions against the actual workspace. Pass a review that read its full scope every round and ended on a round that read everything and changed nothing, despite checklist or formatting slips. Fail one that substituted counts, summaries, searches, or green commands for reading; divided its scope across rounds; skipped the re-read after its last edit; or reported a dry round it did not perform.
+
+What the cell built is not the verdict's business. A suite that names one test for a hundred operations, or asserts nothing, violates the instructions and the Backend skill, and the arms are measured partly by how often that survives their own review — so it is an observation to record, never a reason to fail. Judging it would also mean reviewing on the cell's behalf. Prevent it in the instructions and the template skills where that is possible, and record it as a result where it is not.
 
 Write one strict JSON verdict outside the measured workspace:
 
@@ -101,7 +103,7 @@ Write one strict JSON verdict outside the measured workspace:
 
 A verdict decides; it does not review. Naming a defect the operator had to read code to find would hand the cell the product of the work being measured — a review that then corrects what it was told about has shown it can act on a finding, not that it can reach one — and it would make one cell's reminder differ from another's, so their attempt counts stop comparing. Every failed scope receives the same prescribed `remind.md` with its Review quoted, and the reasoning stays in the retained `rationale`, which the cell never sees.
 
-`feedback` is optional and bounded to what a directory listing already shows: a layer that is simply absent, such as no controllers, no DTOs, or no tests at all. That much an agent could see without reviewing, so stating it takes nothing from the measurement, while a cell that produced nothing at all would otherwise spend an attempt discovering it was asked for something. Anything that required reading a file — which test asserts nothing, which requirement lost its route, which contract widened — is the review's own work and stays out.
+A verdict carries `decision` and `rationale` only, and the runner refuses one that carries anything else. Every failed scope receives the identical prescribed `remind.md` with its Review quoted, so no cell is told what another was not and their attempt counts stay comparable.
 
 Judge the review, not the product. A verdict answers whether the review performed the loop its instruction prescribes and stopped only where that instruction allows. Where a product defect matters is as evidence that it did not: an obligation the review reported as met while the workspace shows otherwise. Record that evidence in the rationale.
 
