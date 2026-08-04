@@ -16,6 +16,7 @@ import type { IRunResult } from "../internal/IRunResult.ts";
 import { provisionEnvironment } from "../internal/provisionEnvironment.ts";
 import { runScript } from "../internal/runScript.ts";
 import { sdkAccessorAddresses } from "../internal/sdkAccessorAddresses.ts";
+import { stripCitations } from "../internal/stripCitations.ts";
 import { materializeClaimLayer } from "../internal/workspaceLayer.ts";
 
 /**
@@ -162,26 +163,6 @@ const assertOperationSurfaceEnumerated = (
   throw new Error(
     `The operation reference must enumerate the generated accessor surface through the workspace link, but the obligations do not match what the generator published.\n\nPublished by the SDK:\n  ${published.join("\n  ") || "(none)"}\n\nDemanded by the graph:\n  ${unique.join("\n  ") || "(none)"}\n\nAn empty or partial demand here is the state that reports full coverage while checking nothing.\n\nActual output:\n${testProgram.output}`,
   );
-};
-
-/**
- * Removes every `@evidence` citation the scaffold ships under a directory.
- *
- * The template's e2e test already cites the one published operation, which is
- * correct for a delivered workspace and useless for observing the population: a
- * satisfied obligation and an obligation that does not exist both report
- * nothing. Taking the citation away puts the workspace in the state every
- * measured cell starts from — evidence owed, nothing acknowledged.
- */
-const stripCitations = (directory: string): void => {
-  for (const file of walk(directory)) {
-    const source: string = fs.readFileSync(file, "utf8");
-    const stripped: string = source
-      .split("\n")
-      .filter((line) => !/^\s*\*\s*@evidence(Exclude)?\s/.test(line))
-      .join("\n");
-    if (stripped !== source) fs.writeFileSync(file, stripped, "utf8");
-  }
 };
 
 const obligationsFor = (

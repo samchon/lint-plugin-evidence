@@ -9,11 +9,11 @@ import {
 } from "../internal/activationGates.ts";
 import { acquireBenchmarkWorkspace } from "../internal/benchmarkWorkspace.ts";
 import { assertClaimActivated } from "../internal/assertClaimActivated.ts";
+import { assertPublishedAccessorsDemanded } from "../internal/assertPublishedAccessorsDemanded.ts";
 import { claimUnlockOrder } from "../internal/claimUnlockOrder.ts";
 import type { IMissingAcknowledgement } from "../internal/evidenceDiagnostics.ts";
 import type { IBenchmarkWorkspace } from "../internal/IBenchmarkWorkspace.ts";
 import { runScript } from "../internal/runScript.ts";
-import { sdkAccessorAddresses } from "../internal/sdkAccessorAddresses.ts";
 import { materializeClaimLayer } from "../internal/workspaceLayer.ts";
 
 /**
@@ -88,36 +88,6 @@ export const test_benchmark_evidence_frontend_gates_activate_each_claim =
         claim,
       });
       if (throughTheInstall.includes(claim))
-        assertOperationSurface(workspace, claim, obligations);
+        assertPublishedAccessorsDemanded({ workspace, claim, obligations });
     }
   };
-
-/**
- * Asserts a claim referencing the installed SDK demanded its whole surface.
- *
- * Every published accessor must be owed. Presence of _some_ accessor would not
- * do: a reference that resolved the link partially demands less than the
- * generator published, and the operations it drops are exactly the ones no hook
- * will ever be required to call. An empty demand is the state that reports full
- * coverage of a frontend that reaches no API at all, so it fails here rather
- * than passing quietly.
- */
-const assertOperationSurface = (
-  workspace: IBenchmarkWorkspace,
-  claim: string,
-  obligations: readonly IMissingAcknowledgement[],
-): void => {
-  const published: string[] = sdkAccessorAddresses(
-    path.join(workspace.workspace, "packages", "api", "src", "functional"),
-  );
-  const demanded = new Set<string>(
-    obligations.map((obligation) => obligation.target),
-  );
-  const missing: string[] = published.filter(
-    (address) => !demanded.has(address),
-  );
-  if (missing.length === 0) return;
-  throw new Error(
-    `Claim '${claim}' reaches the generated SDK through the installed package, but nothing was owed for ${missing.join(", ")} of the ${String(published.length)} published accessor(s).\n\nPublished by the SDK:\n  ${published.join("\n  ")}\n\nDemanded by this claim:\n  ${[...demanded].join("\n  ") || "(nothing)"}\n\nA package reference that enumerates a workspace link as a plain entry returns an empty population, and an empty population reports full coverage while checking nothing.`,
-  );
-};

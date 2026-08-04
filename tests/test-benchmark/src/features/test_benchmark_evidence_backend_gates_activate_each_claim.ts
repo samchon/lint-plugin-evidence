@@ -3,17 +3,20 @@ import path from "node:path";
 import {
   readActivationGates,
   readClaimNames,
+  readClaimsReferencingAPackage,
   removeActivationGate,
   type IActivationGate,
 } from "../internal/activationGates.ts";
 import { acquireBenchmarkWorkspace } from "../internal/benchmarkWorkspace.ts";
 import { assertClaimActivated } from "../internal/assertClaimActivated.ts";
+import { assertPublishedAccessorsDemanded } from "../internal/assertPublishedAccessorsDemanded.ts";
 import { claimUnlockOrder } from "../internal/claimUnlockOrder.ts";
 import type { IMissingAcknowledgement } from "../internal/evidenceDiagnostics.ts";
 import type { IBenchmarkWorkspace } from "../internal/IBenchmarkWorkspace.ts";
 import { provisionEnvironment } from "../internal/provisionEnvironment.ts";
 import { requirementDocumentsDeclaringSections } from "../internal/requirementDocuments.ts";
 import { runScript } from "../internal/runScript.ts";
+import { stripCitations } from "../internal/stripCitations.ts";
 import { materializeClaimLayer } from "../internal/workspaceLayer.ts";
 
 /**
@@ -57,10 +60,24 @@ export const test_benchmark_evidence_backend_gates_activate_each_claim =
     for (const script of ["build:prisma", "build:sdk"])
       requireZero(backend, script);
 
-    const gates: IActivationGate[] = readStagedClaims([
+    const configurations: readonly string[] = [
       path.join(backend, "lint.config.ts"),
       path.join(backend, "test", "lint.config.ts"),
-    ]);
+    ];
+    const gates: IActivationGate[] = readStagedClaims(configurations);
+    const throughTheInstall: string[] = configurations.flatMap((file) =>
+      readClaimsReferencingAPackage(file),
+    );
+    if (throughTheInstall.length === 0)
+      throw new Error(
+        `Neither backend configuration declares a \`package\` reference. That is the reference an unwalkable workspace link empties out, and without it this walk no longer covers the failure it exists for.`,
+      );
+    // The overlay's e2e test already cites the one published operation, and a
+    // satisfied obligation is indistinguishable from one that does not exist.
+    // Every claim below must therefore be walked against a workspace that
+    // acknowledges nothing at all.
+    stripCitations(path.join(backend, "test", "features"));
+
     const order: string[] = claimUnlockOrder(
       "benchmark/instructions/evidence/backend/start.md",
       gates.map((gate) => gate.claim),
@@ -85,6 +102,13 @@ export const test_benchmark_evidence_backend_gates_activate_each_claim =
         claim,
       });
       assertRequirementsReached(workspace.workspace, claim, obligations);
+      // Claim-level activation is not enough for a claim that also references
+      // an installed package: its Markdown reference stays healthy and keeps
+      // reporting, so the claim looks active while the population that reaches
+      // through the install has gone empty. Only naming the accessors separates
+      // those two states.
+      if (throughTheInstall.includes(claim))
+        assertPublishedAccessorsDemanded({ workspace, claim, obligations });
     }
   };
 
