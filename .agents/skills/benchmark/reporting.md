@@ -1,8 +1,8 @@
 # Reporting
 
-The dashboard is the campaign's live public record, and it lives in the draft pull-request body.
+Everything a campaign reports is generated, never written by hand: `dashboard` for the live pull-request body, `report` for the tracked `benchmark/aggregate` artifacts. Run the generator and paste what it printed.
 
-Every number below comes from the retained record. Never reconstruct a value the generator did not produce, and never read workspace source to rebuild one.
+Never reconstruct a value the generator did not produce, and never read workspace source to rebuild one.
 
 ## Refresh The Dashboard
 

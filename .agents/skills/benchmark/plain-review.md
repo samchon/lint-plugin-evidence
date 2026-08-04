@@ -1,38 +1,22 @@
 # Plain Review
 
-Only the Plain arm stops for a verdict.
+A Plain cell at `awaiting-review-verdict` is waiting for a decision, and three facts answer most of why:
 
-It stops after every Backend, Frontend, and Overall Review, and again after each supplementation Goal. The retained status is `awaiting-review-verdict`, and the cell cannot continue until a verdict is applied.
+- **The runner judges it itself.** A fresh inspecting thread decides, and the cell continues in the same command.
+- **A resume retries a failed inspection.** Three attempts are permitted at one boundary.
+- **Only after the third failure do you write a verdict by hand.**
 
-## The Runner-Owned Backend Review Ledger
+## Where Plain Stops
 
-`--review-ledger` makes the backend review loop a runner-owned mechanism instead of a self-reported one.
+Every Plain cell stops after its Backend, Frontend, and Overall Review, and again after each supplementation Goal. Evidence never stops.
 
-It is Plain-only and requires a detached `backend-start` checkpoint thread, so it attaches to an existing run ID or a `--from-backend-start` derivation, never to a fresh cell:
+The retained status is `awaiting-review-verdict`, and the cell cannot continue until a verdict is applied.
 
-```bash
-pnpm --filter @samchon/evidence-benchmark start codex <subject> plain <model> <effort> --review-ledger --from-backend-start <source-run-id>
-```
+## Who Judges
 
-During `backend-review` the runner runs the cell's sandbox read-only and injects six tools as the only mechanisms that receive review credit:
+At the boundary the runner spawns a fresh Codex thread on the cell's own model and effort. It reads the attempt's stage log and the measured workspace, returns a decision, and the cell continues in the same command.
 
-`review_start_round` · `review_read_file` · `review_finish_round` · `review_start_calibration` · `review_edit_file` · `review_run_backend_command`
-
-The runner builds the canonical manifest, hands back exactly the next file, and records every round, edit, command, and calibration.
-
-The objective cannot complete on a claim. `backend-review` and `backend-final` fail unless a runner-owned round ended `dry` and the workspace manifest still hashes to what that round read. A shell inventory, a self-authored manifest, or a summary earns nothing.
-
-A ledger run needs a fresh native thread, so a derived one starts a thread rather than forking the retained turn, and its thread token total restarts at zero. Report it as a distinct measurement, never as a continuation of the source cell's totals.
-
-## Who Produces The Verdict
-
-The runner produces it. At the boundary it spawns a fresh Codex thread on the cell's own model and effort, which reads the attempt's stage log and the measured workspace and returns a decision. The cell then continues in the same command.
-
-An operator writes a verdict by hand only when that inspection could not produce one.
-
-The inspecting thread's tokens and elapsed time join the cell's `Cost` and `Work time`, because judging is work the arm requires and a comparison that hid it would credit whichever arm needs the most judging.
-
-Every attempt stays separable on `supervisionPauses[].inspections`, and each retains its own prompt, schema, event stream, standard error, and final message under `inspection/<NN>-<stage>-<attempt>.*`.
+The inspection costs what a model run costs, and its tokens and time join the cell's `Cost` and `Work time`; [reporting.md](reporting.md) owns how that appears. Every attempt is retained under `inspection/<NN>-<stage>-<attempt>.*`, so a retry never overwrites the evidence of the attempt before it.
 
 ## Keep The Inspector Outside The Cell
 
@@ -40,7 +24,7 @@ The measured agent must not learn that it is being judged or by what criteria. A
 
 - **A separate thread.** The inspection never runs inside the measured thread and never speaks to it.
 - **Read-only.** It reads the attempt's stage log, which lives in the run root outside the workspace, and the workspace. It writes nothing into either.
-- **No text reaches the cell.** A decision carries `decision` and `rationale` only, and the runner refuses one that carries anything else. Every failing scope receives the identical prescribed reminder, so attempt counts stay comparable between cells.
+- **No text reaches the cell.** A decision carries `decision` and `rationale` only, and the runner refuses one carrying a `feedback` property. Every failing scope receives the identical prescribed reminder, so attempt counts stay comparable between cells.
 
 ## What A Verdict Judges
 
@@ -58,11 +42,9 @@ Final is a finishing and safety stage after a passed Review, not permission to a
 - **Pass** skips the reminder and advances directly to that scope's Final.
 - **Fail** inserts that scope's `plain/<scope>/remind.md`, which quotes the scope's own Review instruction in full and carries nothing cell-specific, then stops for another decision after the supplementation Goal.
 
-Eight supplementation attempts are permitted. A failure after the last one retains `quality-failed`, does not dispatch Final, and cannot be resumed.
+Eight supplementation attempts are permitted. A failure after the last one retains `quality-failed`, does not dispatch Final, and cannot be resumed. The attempt a scope stops on is itself a measurement, so the bound is set where a cell that can converge still has room to.
 
-The attempt a scope stops on is itself a measurement, and a subject with a hundred published operations has further to travel than one with two dozen.
-
-The runner retains the exact decision bytes and their digest, the workspace digest, the Goal index, the terminal turn, the decision, the attempt, the transition, and the resume history. It refuses a decision whose earlier retained verdict files no longer match their digests.
+The runner retains each decision's exact bytes and digest alongside the workspace digest and Goal boundary, and refuses a decision whose earlier retained verdict files no longer match their digests.
 
 ## When The Inspection Cannot Decide
 
@@ -90,3 +72,23 @@ Then resume the same run command.
 A hand-written verdict answers the same two questions and obeys the same rules: no `feedback` property, and the reasoning stays in the retained `rationale`, which the cell never sees.
 
 An operator warning is a different channel with its own command and contents, and [intervention/warning.md](intervention/warning.md) owns it. Do not reach for a verdict to deliver one.
+
+## Optional: The Backend Review Ledger
+
+`--review-ledger` makes the backend review loop mechanically provable instead of self-reported. It is an addition to everything above, not a replacement for any of it.
+
+It is Plain-only and needs a detached `backend-start` checkpoint thread, so it attaches to an existing run ID or a `--from-backend-start` derivation, never to a fresh cell:
+
+```bash
+pnpm --filter @samchon/evidence-benchmark start codex <subject> plain <model> <effort> --review-ledger --from-backend-start <source-run-id>
+```
+
+During `backend-review` the runner holds the cell's sandbox read-only and injects six tools as the only mechanisms that receive review credit:
+
+`review_start_round` · `review_read_file` · `review_finish_round` · `review_start_calibration` · `review_edit_file` · `review_run_backend_command`
+
+`backend-review` and `backend-final` then refuse to complete unless a runner-owned round ended `dry` and the workspace manifest still hashes to what that round read. A shell inventory, a self-authored manifest, or a summary earns nothing.
+
+**The verdict boundary still fires.** `backend-review` stops at `awaiting-review-verdict` exactly as it does without the flag, because the boundary is computed from the arm and the instruction alone. The inspecting thread also knows nothing about the ledger, so it still judges the loop from the stage log. Expect a ledger run to stop for a verdict, and do not read that stop as a stall.
+
+The fresh thread restarts its token counter at zero, and the dashboard adds the inherited pre-thread goals back into the cell's total. Report what the generator printed and never hand-compute a ledger run's totals.

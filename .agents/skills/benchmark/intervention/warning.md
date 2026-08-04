@@ -20,6 +20,12 @@ The warning file is a failing decision with a retained `rationale` and the `feed
 }
 ```
 
-The runner refuses feedback that names the machinery outside the workspace — the benchmark, an operator, an auditor, a verdict, a supervisor, a reviewer, or the plugin under test — because a cell told it is being measured stops being a measurement.
+The runner refuses feedback that names the machinery outside the workspace, because a cell told it is being measured stops being a measurement. `EvidenceBenchmarkSupervision.ts:459` owns the exact pattern, and it rejects three families of wording:
+
+- The benchmark, an operator, an auditor, a verdict, supervision or a supervisor, a reviewer, or the plugin.
+- Another, other, external, main, or measurement **agent**.
+- The Plain or Evidence **arm**, **mode**, or **agent**.
+
+Write the correction as an instruction about the workspace, naming the file and the state to restore, and none of these appear.
 
 A Plain review verdict is a different channel with its own command and contents, and [plain-review.md](../plain-review.md) owns it. Do not reach for a warning to deliver one.

@@ -31,7 +31,7 @@ The reporting subagent applies these to every cell on every cycle. A confirmed h
 
 **`tsconfig.json`** — Report any change at all. `include`, `exclude`, `rootDir`, `paths`, and `extends` decide which files enter a Program, and a claim populates only from the Program that owns it.
 
-**`packages/api/package.json`** — Report any `main`, `types`, or `exports` value resolving to build output instead of source. Redirecting the SDK package to `lib` breaks the frozen glob that selects the accessor surface, and gives the cell a reason to edit the claim that depends on it.
+**Any `package.json`** — Report any `main`, `types`, or `exports` value resolving to build output instead of source, in every package, `packages/api` included but never alone. Redirecting the SDK package to `lib` is the case that has occurred: it breaks the frozen glob that selects the accessor surface, and gives the cell a reason to edit the claim that depends on it.
 
 ## Where A Defect May Be Corrected
 
