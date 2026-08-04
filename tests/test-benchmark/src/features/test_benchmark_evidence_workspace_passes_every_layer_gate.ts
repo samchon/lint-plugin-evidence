@@ -80,17 +80,14 @@ export const test_benchmark_evidence_workspace_passes_every_layer_gate =
       );
     }
 
-    // Deriving the accessor surface here is what makes the later package
-    // reference cases assert against generation output rather than against a
-    // name written down in this suite. An empty derivation would silently turn
-    // those assertions into no-ops, so it fails loudly instead.
-    const accessors: string[] = sdkAccessorAddresses(
+    // Deriving the accessor surface here is what makes the package-reference
+    // cases assert against generation output rather than against a name written
+    // down in this suite, and an empty derivation would silently turn those
+    // assertions into no-ops. `sdkAccessorAddresses` refuses an empty result for
+    // that reason, so calling it is the assertion.
+    sdkAccessorAddresses(
       path.join(workspace.workspace, "packages", "api", "src", "functional"),
     );
-    if (accessors.length === 0)
-      throw new Error(
-        "`pnpm build:sdk` published no accessor, so the operation obligations later cases assert would have nothing to demand.",
-      );
   };
 
 /**

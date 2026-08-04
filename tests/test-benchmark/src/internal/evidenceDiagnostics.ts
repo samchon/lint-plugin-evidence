@@ -41,9 +41,16 @@ export const readMissingAcknowledgements = (
     if (opened === -1) return found;
     const from: number = opened + OPENING.length;
     const closed: number = text.indexOf("'", from);
-    const joined: number = text.indexOf(JOIN, closed);
     cursor = from;
-    if (closed === -1 || joined === -1) continue;
+    if (closed === -1) continue;
+    // Bounded so a malformed message cannot borrow the claim label of a later
+    // one and report an obligation against a claim that never owed it. The
+    // readable segment between them carries a declaration name and a source
+    // location, which is long but not unbounded.
+    const window: string = text.slice(closed, closed + 600);
+    const offset: number = window.indexOf(JOIN);
+    if (offset === -1) continue;
+    const joined: number = closed + offset;
     const parsed: RegExpExecArray | null =
       /^ in Claim \d+ \('([^']+)'\) reference (\d+) \(/.exec(
         text.slice(joined, joined + 200),
