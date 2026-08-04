@@ -29,8 +29,16 @@ import { materializeClaimLayer } from "../internal/workspaceLayer.ts";
  * like a claim that is satisfied: both exit zero. That is how a `package`
  * reference walking a pnpm junction as a plain entry voided a cohort — every
  * population came back empty, and an empty population demands nothing. So each
- * step asserts the claim demanded something, against a workspace whose freshly
- * written layer carries no citation at all.
+ * step asserts the claim demanded something, against a workspace that
+ * acknowledges nothing at all: the layers written here carry no citation, and
+ * the one citation the overlay ships is removed first.
+ *
+ * Claim-level activation alone would not have caught that cohort's defect. The
+ * claim reaching the installed SDK also references the delivered requirements,
+ * and that reference stays healthy, so the claim keeps reporting and keeps
+ * looking active while the population reached through the install is empty.
+ * Every claim declaring a `package` reference is therefore held to naming each
+ * accessor the generator published.
  *
  * The order is read from the instruction the measured agent receives rather
  * than fixed here, because the order is a real property of the graph: a claim
@@ -40,8 +48,9 @@ import { materializeClaimLayer } from "../internal/workspaceLayer.ts";
  * 2. Assert every declared claim ships staged, with a comment naming its layer.
  * 3. For each claim in the instructed order, write its host layer, delete its
  *    marker, and run the gate that compiles the Program owning its hosts.
- * 4. Assert the claim reported obligations, and that its requirement reference
- *    reached every delivered document that declares a section.
+ * 4. Assert the claim reported obligations, that its requirement reference reached
+ *    every delivered document declaring a section, and that a package reference
+ *    owed every published accessor.
  */
 export const test_benchmark_evidence_backend_gates_activate_each_claim =
   async (): Promise<void> => {

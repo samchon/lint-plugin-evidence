@@ -36,8 +36,8 @@ import { materializeClaimLayer } from "../internal/workspaceLayer.ts";
  * 1. Read the staged claims from the frontend configuration.
  * 2. Order them by the instruction the measured agent receives.
  * 3. For each, write its host layer, delete its marker, and lint the package.
- * 4. Assert the claim reported obligations, and that the hook claim demanded
- *    exactly the accessors the SDK publishes.
+ * 4. Assert the claim reported obligations, and that the claim reaching the
+ *    install owed every accessor the SDK publishes.
  */
 export const test_benchmark_evidence_frontend_gates_activate_each_claim =
   async (): Promise<void> => {
