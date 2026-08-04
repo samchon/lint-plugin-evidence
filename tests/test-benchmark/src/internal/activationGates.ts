@@ -37,6 +37,33 @@ export const readClaimNames = (file: string): string[] => {
   return names;
 };
 
+/**
+ * Reads which claims reference an installed package rather than local sources.
+ *
+ * A `package` reference is the one that reaches through the install, so it is
+ * the one a workspace link can hide: pnpm writes a junction for a workspace
+ * dependency, and a walker that treats the junction as a plain entry returns an
+ * empty population that demands nothing. Naming these claims from the
+ * configuration rather than from a list kept here is what lets a case hold
+ * exactly the claims that carry that risk, and hold a new one automatically.
+ */
+export const readClaimsReferencingAPackage = (file: string): string[] => {
+  const found: string[] = [];
+  let claim: string = "";
+  for (const line of lines(file)) {
+    const named: RegExpExecArray | null = /^\s*name:\s*"([^"]+)",?\s*$/.exec(
+      line,
+    );
+    if (named?.[1] !== undefined) {
+      claim = named[1];
+      continue;
+    }
+    if (!/^\s*package:\s*"/.test(line) || claim === "") continue;
+    if (!found.includes(claim)) found.push(claim);
+  }
+  return found;
+};
+
 /** Reads every activation marker a graph configuration ships, in file order. */
 export const readActivationGates = (file: string): IActivationGate[] => {
   const source: string[] = lines(file);
