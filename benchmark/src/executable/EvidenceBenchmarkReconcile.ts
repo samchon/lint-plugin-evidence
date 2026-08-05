@@ -6,9 +6,9 @@ import { EvidenceBenchmarkReconcile } from "../EvidenceBenchmarkReconcile";
 /**
  * Reconciles one cell the runner can no longer resume.
  *
- * Stages are named in objective order. A stage the direct drive touched carries
- * its console after an `=`; a stage only the runner drove carries the name
- * alone. Both sources are read, never assumed.
+ * Stages are named in objective order. A stage whose cost must come from the
+ * rollout carries a trailing `+`; a stage the runner measured carries the name
+ * alone and is left exactly as the runner wrote it.
  *
  * The list must name every stage the run performed, including those the runner
  * never recorded, because it is what the run's goal order is rewritten to be. A
@@ -24,7 +24,7 @@ const main = async (): Promise<void> => {
     stages.length === 0
   )
     throw new Error(
-      "Usage: pnpm reconcile <subject> <evidence|plain> <run-id> <rollout.jsonl> <stage[=console.log]>...",
+      "Usage: pnpm reconcile <subject> <evidence|plain> <run-id> <rollout.jsonl> <stage[+]>...",
     );
   if (!fs.existsSync(rollout))
     throw new Error(`Codex session rollout not found: ${rollout}.`);
@@ -47,17 +47,14 @@ const main = async (): Promise<void> => {
     runRoot,
     rollout,
     instructionRoot: path.join(repository, "benchmark", "instructions", arm),
-    stages: stages.map((entry) => {
-      const [name, log] = entry.split("=");
-      return {
-        name: name!,
-        ...(log === undefined ? {} : { console: log }),
-      };
-    }),
+    stages: stages.map((entry) => ({
+      name: entry.replace(/\+$/, ""),
+      ...(entry.endsWith("+") ? { derive: true } : {}),
+    })),
   });
   for (const stage of written)
     console.log(
-      `  ${stage.index} ${stage.name.padEnd(17)} ${stage.tokens.toLocaleString().padStart(12)}  ${Math.round(stage.elapsedMs / 60000)}m (runner ${Math.round(stage.runnerMs / 60000)}m + direct ${Math.round(stage.directMs / 60000)}m)`,
+      `  ${String(stage.index).padStart(2)} ${stage.name.padEnd(18)} ${stage.tokens.toLocaleString().padStart(12)}  ${String(Math.round(stage.elapsedMs / 60000)).padStart(4)}m  ${stage.derived ? "derived" : "runner"}`,
     );
 };
 
