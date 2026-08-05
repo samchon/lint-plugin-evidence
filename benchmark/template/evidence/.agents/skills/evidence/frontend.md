@@ -37,10 +37,12 @@ Each claim declares its carrier through `evidenceExcludeCarriers`, so an exclusi
 
 ## Staged Unlock
 
-Start frontend `pnpm dev` before implementation while every frontend claim is disabled. Enable the claims in chain order, each at exactly the point its layer completes.
+Start frontend `pnpm dev` before implementation while every frontend claim is disabled. Unlock each claim in chain order at exactly the point its layer completes — after that layer's last artifact, before the next layer's first. Both directions are wrong, and neither is the safe one:
 
 - **Too early:** the dev process erupts with thousands of evidence errors for hooks, screens, and journeys not yet written, polluting context and burying real diagnostics.
-- **Too late:** the chain's obligations arrive as one huge batch after work has moved on. An operation no hook consumes or a screen no journey walks surfaces only then, when fixing it reopens finished layers, and tags retrofitted in bulk drift toward compiler-satisfying filler instead of truthful mappings.
+- **Too late:** the chain's obligations arrive as one huge batch after work has moved on. An operation no hook consumes or a screen no journey walks surfaces only then, when fixing it reopens finished layers, and tags retrofitted in bulk drift toward compiler-satisfying filler instead of truthful mappings. Carrying every claim to the end turns the review that follows into the authorship this stage was supposed to finish.
+
+Unlocking on time is what keeps each batch small enough to answer truthfully. A claim opened at its own layer asks about artifacts still in hand; the same claim opened three layers later asks about work already declared done.
 
 1. After every domain hook is complete, delete `disabled` from `frontend-hooks` in `packages/frontend/lint.config.ts`.
 2. After every screen is complete, delete `disabled` from `frontend-screens` in `packages/frontend/lint.config.ts`.
