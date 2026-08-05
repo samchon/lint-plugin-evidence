@@ -55,7 +55,9 @@ export namespace EvidenceBenchmarkReconcile {
    * because the process records already hold the runner's.
    */
   export async function run(props: IProps): Promise<IReconciled[]> {
-    const points: [number, number][] = await readRollout(props.rollout);
+    const points: [number, Record<string, number>][] = await readRollout(
+      props.rollout,
+    );
     const spans: Map<string, { lo: number; hi: number }> =
       await readRunnerSpans(path.join(props.runRoot, "events.jsonl"));
     const statePath: string = path.join(props.runRoot, "state.json");
@@ -80,7 +82,7 @@ export namespace EvidenceBenchmarkReconcile {
     });
 
     const written: IReconciled[] = [];
-    let previousCumulative: number = 0;
+    let previousCumulative: Record<string, number> = {};
     let directTotal: number = 0;
     for (let order: number = 0; order < props.stages.length; ++order) {
       const stage: IStage = props.stages[order]!;
@@ -90,15 +92,19 @@ export namespace EvidenceBenchmarkReconcile {
       const end: number | undefined = ends[order];
       if (record === undefined || end === undefined) continue;
 
-      const cumulative: number = cumulativeAt(points, end);
-      const tokens: number = Math.max(0, cumulative - previousCumulative);
+      const cumulative: Record<string, number> = cumulativeAt(points, end);
+      const usage: Record<string, number> = usageDelta(
+        cumulative,
+        previousCumulative,
+      );
+      const tokens: number = usage.totalTokens!;
       const span = spans.get(stage.name);
       const runnerMs: number =
         span === undefined ? 0 : Math.max(0, Math.min(span.hi, end) - span.lo);
       const directMs: number = consoleSpan(stage.console);
       directTotal += directMs;
 
-      record.tokenUsage = { totalTokens: tokens };
+      record.tokenUsage = usage;
       record.elapsedMs = runnerMs + directMs;
       if (record.goal !== null)
         record.goal = {
@@ -120,8 +126,10 @@ export namespace EvidenceBenchmarkReconcile {
     // still running has spent the difference, and the report hands that share to
     // whichever stage is current. Flattening it to the sum reports zero for work
     // that is happening right now.
-    const latest: number = points.at(-1)?.[1] ?? 0;
-    state.threadTokenUsage.totalTokens = Math.max(latest, previousCumulative);
+    const latest: Record<string, number> = points.at(-1)?.[1] ?? {};
+    const total: Record<string, number> = usageDelta(latest, {});
+    if (total.totalTokens! >= (previousCumulative.total_tokens ?? 0))
+      state.threadTokenUsage = { ...state.threadTokenUsage, ...total };
     state.inheritedProcessElapsedMs = directTotal;
     // A finished run's cursor sits past its last goal. Left on the last goal,
     // the report treats that stage as current and pours the unattributed wall
@@ -160,21 +168,45 @@ export namespace EvidenceBenchmarkReconcile {
     return Math.max(0, Math.round(stat.mtimeMs - stat.birthtimeMs));
   }
 
+  /** The counter's reading at a moment, with every field it carries. */
   function cumulativeAt(
-    points: readonly [number, number][],
+    points: readonly [number, Record<string, number>][],
     at: number,
-  ): number {
-    let value: number = 0;
-    for (const [moment, total] of points) {
+  ): Record<string, number> {
+    let value: Record<string, number> = {};
+    for (const [moment, usage] of points) {
       if (moment > at) break;
-      value = total;
+      value = usage;
     }
     return value;
   }
 
-  function readRollout(file: string): Promise<[number, number][]> {
+  /**
+   * A stage's usage is the counter's rise in every field, not only the total.
+   * The retained shape is validated on load, so a partial object would make the
+   * run unreadable — which is how a derivation of one cell first failed.
+   */
+  function usageDelta(
+    to: Record<string, number>,
+    from: Record<string, number>,
+  ): Record<string, number> {
+    const rise = (key: string): number =>
+      Math.max(0, (to[key] ?? 0) - (from[key] ?? 0));
+    return {
+      totalTokens: rise("total_tokens"),
+      inputTokens: rise("input_tokens"),
+      cachedInputTokens: rise("cached_input_tokens"),
+      cacheWriteInputTokens: rise("cache_write_input_tokens"),
+      outputTokens: rise("output_tokens"),
+      reasoningOutputTokens: rise("reasoning_output_tokens"),
+    };
+  }
+
+  function readRollout(
+    file: string,
+  ): Promise<[number, Record<string, number>][]> {
     return new Promise((resolve) => {
-      const points: [number, number][] = [];
+      const points: [number, Record<string, number>][] = [];
       readline
         .createInterface({ input: fs.createReadStream(file) })
         .on("line", (line) => {
@@ -182,10 +214,10 @@ export namespace EvidenceBenchmarkReconcile {
           try {
             const record: Record<string, any> = JSON.parse(line);
             const at: number = Date.parse(record.timestamp);
-            const total: unknown =
-              record.payload?.info?.total_token_usage?.total_tokens;
-            if (Number.isFinite(at) && typeof total === "number")
-              points.push([at, total]);
+            const usage: Record<string, unknown> | undefined =
+              record.payload?.info?.total_token_usage;
+            if (Number.isFinite(at) && typeof usage?.total_tokens === "number")
+              points.push([at, usage as Record<string, number>]);
           } catch {
             return;
           }
