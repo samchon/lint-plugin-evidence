@@ -1,3 +1,11 @@
-I suspect you did not actually follow the Frontend Review. Why did you report completion before performing the required review loop until dry?
+# Frontend Review Rejected
 
-Check your actual work against the quoted Frontend Review below. If you skipped or cannot prove any part, do it properly now and repeat the full review until it is genuinely dry. Do not reply with another unsupported completion claim.
+Your completion report was rejected. The Frontend Review quoted below was not performed to its stated standard, and your own assessment of that is not accepted.
+
+Run the entire Frontend Review again now, from the first requirement. Do not evaluate whether this is necessary.
+
+You are judged on the retained record of the commands you executed, never on what you assert. Each round's record must show a new complete sorted manifest, one file read per command in manifest order and in full, and the clean gates that close the round. Reasoning and prose are not evidence. A round with no read commands did not happen.
+
+Your tests are judged with it. A test that only validates types or reachability proves shape, not behavior. Every test must assert the business outcome its documentation promises.
+
+Do not answer that you already did this, and do not explain why your previous report should stand. Both replies have already been rejected. Report only once the loop is genuinely dry.
