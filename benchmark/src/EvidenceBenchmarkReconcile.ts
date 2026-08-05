@@ -190,6 +190,13 @@ export namespace EvidenceBenchmarkReconcile {
           (sum, block) => sum + Math.max(0, block.to - block.from),
           0,
         );
+        // The runner records the counter as it stood at each end of a stage,
+        // and refuses to load a run whose current stage has no reading to
+        // start from. Those two readings are the block's own boundaries, so
+        // they are written here rather than left null — a null start is what
+        // stopped one reconciled cell from being resumed at all.
+        record.tokenUsageStart = usageDelta(own[0]!.opening, {});
+        record.tokenUsageEnd = usageDelta(own.at(-1)!.closing, {});
       }
       // `timeUsedSeconds` is the thread's running total, not this stage's
       // share: the report reads a stage as the difference between its own
