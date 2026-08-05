@@ -22,7 +22,6 @@ import readline from "node:readline";
 export namespace EvidenceBenchmarkReconcile {
   /** One stage's boundary sources: the runner's events, its console, or both. */
   export interface IStage {
-    index: number;
     name: string;
     /** Console log of the direct drive, when one drove this stage. */
     console?: string;
@@ -31,6 +30,9 @@ export namespace EvidenceBenchmarkReconcile {
   export interface IProps {
     runRoot: string;
     rollout: string;
+    /** Instruction root of the cell's arm, for a stage the runner never wrote. */
+    instructionRoot: string;
+    /** Every stage the run performed, in objective order. */
     stages: readonly IStage[];
   }
 
@@ -66,6 +68,31 @@ export namespace EvidenceBenchmarkReconcile {
     );
     const state: Record<string, any> = file.state ?? file;
 
+    // The runner is the only writer of a goal, so a stage it never drove has no
+    // record to reconcile and the earlier version of this pass skipped it. That
+    // is why the direct drives kept being costed by hand, and every hand-made
+    // figure so far has been wrong in some way. The list below is authoritative:
+    // a stage without a record gets one, and the records are then ordered and
+    // renumbered to match, because a goal's index is its position and matching
+    // on it while inserting would attach every later stage to the wrong record.
+    const records: Record<string, any>[] = props.stages.map((stage) => {
+      const found: Record<string, any> | undefined = state.goals.find(
+        (goal: Record<string, any>) => goal.name === stage.name,
+      );
+      return found ?? created(stage.name, props.instructionRoot, state.goals);
+    });
+    const named: Set<string> = new Set(props.stages.map((stage) => stage.name));
+    const orphan: Record<string, any> | undefined = state.goals.find(
+      (goal: Record<string, any>) => !named.has(goal.name),
+    );
+    if (orphan !== undefined)
+      throw new Error(
+        `Stage list omits a stage the run already recorded: ${String(orphan.name)}. ` +
+          `Reordering an incomplete list would renumber the run's goals against their own positions.`,
+      );
+    records.forEach((record, order) => (record.index = order));
+    state.goals = records;
+
     // A stage ends where the next one starts, so the boundaries are read in one
     // pass first: a stage that the runner kept an open cursor on would otherwise
     // absorb every later event it never did any work for.
@@ -87,11 +114,12 @@ export namespace EvidenceBenchmarkReconcile {
     let directTotal: number = 0;
     for (let order: number = 0; order < props.stages.length; ++order) {
       const stage: IStage = props.stages[order]!;
-      const record: Record<string, any> | undefined = state.goals.find(
-        (goal: Record<string, any>) => goal.index === stage.index,
-      );
+      const record: Record<string, any> = records[order]!;
       const end: number | undefined = ends[order];
-      if (record === undefined || end === undefined) continue;
+      // A stage with neither a runner span nor a console left no record of when
+      // it ran, so nothing about it is derivable and inventing a figure is the
+      // very thing this module exists to stop.
+      if (end === undefined) continue;
 
       const cumulative: Record<string, number> = cumulativeAt(points, end);
       // Where the runner recorded both boundaries itself, its own delta is
@@ -129,7 +157,7 @@ export namespace EvidenceBenchmarkReconcile {
         record.goal.timeUsedSeconds = cumulativeSeconds;
       }
       written.push({
-        index: stage.index,
+        index: order,
         name: stage.name,
         tokens,
         elapsedMs: record.elapsedMs,
@@ -151,10 +179,70 @@ export namespace EvidenceBenchmarkReconcile {
     // A finished run's cursor sits past its last goal. Left on the last goal,
     // the report treats that stage as current and pours the unattributed wall
     // clock into it.
+    //
+    // A running one's cursor is the last stage with a record of having started,
+    // which the runner would have advanced itself. Left where the runner lost
+    // it, the report names a stage that finished hours ago as the current one
+    // and hands it every token the stages after it actually spent.
     if (state.status === "completed")
       state.nextInstructionIndex = state.goals.length;
+    else if (written.length !== 0)
+      state.nextInstructionIndex = written.at(-1)!.index;
     fs.writeFileSync(statePath, JSON.stringify(file, null, 2), "utf8");
     return written;
+  }
+
+  /**
+   * The record a stage would have had if the runner had driven it.
+   *
+   * Only what is derivable is written. The instruction is read from the arm's
+   * own file rather than restated, and the fields the runner alone can know —
+   * the turn a stage terminated on above all — stay null, because a fabricated
+   * one would make a later checkpoint derive against a turn that never existed.
+   * The continuation is copied from a sibling because every stage of a run
+   * receives the same one.
+   */
+  function created(
+    name: string,
+    instructionRoot: string,
+    siblings: readonly Record<string, any>[],
+  ): Record<string, any> {
+    // `overall-remind-3` is the third sending of `overall/remind.md`: the
+    // attempt number is the runner's, not part of the instruction's identity.
+    const base: string = name.replace(/-\d+$/, "");
+    const split: number = base.indexOf("-");
+    const relativePath: string = path.join(
+      path.basename(instructionRoot),
+      split < 0 ? `${base}.md` : base.slice(0, split),
+      split < 0 ? "" : `${base.slice(split + 1)}.md`,
+    );
+    const file: string = path.join(
+      instructionRoot,
+      ...relativePath.split(path.sep).slice(1),
+    );
+    if (!fs.existsSync(file))
+      throw new Error(
+        `Stage ${name} has no instruction at ${file}, so its record cannot be written from the arm's own text.`,
+      );
+    return {
+      index: -1,
+      name,
+      relativePath: relativePath.split(path.sep).join("/"),
+      goal: null,
+      terminalTurnId: null,
+      terminalTurnCompleted: true,
+      threadIdle: true,
+      tokenUsageTurnId: null,
+      tokenUsageStart: null,
+      tokenUsageEnd: null,
+      tokenUsage: usageDelta({}, {}),
+      elapsedMs: 0,
+      prescribedText: fs.readFileSync(file, "utf8"),
+      continuationText: siblings.find(
+        (goal) => typeof goal.continuationText === "string",
+      )?.continuationText,
+      objectiveText: "",
+    };
   }
 
   function boundary(

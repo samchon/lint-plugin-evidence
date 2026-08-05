@@ -9,6 +9,10 @@ import { EvidenceBenchmarkReconcile } from "../EvidenceBenchmarkReconcile";
  * Stages are named in objective order. A stage the direct drive touched carries
  * its console after an `=`; a stage only the runner drove carries the name
  * alone. Both sources are read, never assumed.
+ *
+ * The list must name every stage the run performed, including those the runner
+ * never recorded, because it is what the run's goal order is rewritten to be. A
+ * list that omits a recorded stage is refused rather than partially applied.
  */
 const main = async (): Promise<void> => {
   const [subject, arm, runId, rollout, ...stages] = process.argv.slice(2);
@@ -42,10 +46,10 @@ const main = async (): Promise<void> => {
   const written = await EvidenceBenchmarkReconcile.run({
     runRoot,
     rollout,
-    stages: stages.map((entry, index) => {
+    instructionRoot: path.join(repository, "benchmark", "instructions", arm),
+    stages: stages.map((entry) => {
       const [name, log] = entry.split("=");
       return {
-        index,
         name: name!,
         ...(log === undefined ? {} : { console: log }),
       };
