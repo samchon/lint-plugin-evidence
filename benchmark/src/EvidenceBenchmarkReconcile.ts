@@ -165,10 +165,15 @@ export namespace EvidenceBenchmarkReconcile {
       throw new Error(
         `The rollout holds ${blocks.length} dispatches but ${wanted} are claimed by the stages asking to be derived from it.`,
       );
-    // The derived stages are the run's last, so their dispatches are the
-    // rollout's last, handed out in order.
+    // Where the runner measured the stages before them, the derived stages are
+    // the run's last and so are their dispatches: they take the rollout's last
+    // blocks. Where the runner measured none, they are the run's first and take
+    // the rollout's first, and any block left over belongs to stages this list
+    // does not name. Tail-aligning that case shifts every stage by the number
+    // of unnamed dispatches, which is how one cell's first stage was credited
+    // with its second stage's cost.
     const taken: IBlock[][] = [];
-    let cursor: number = blocks.length - wanted;
+    let cursor: number = derived[0] === 0 ? 0 : blocks.length - wanted;
     for (const span of spans) {
       taken.push(blocks.slice(cursor, cursor + span));
       cursor += span;
