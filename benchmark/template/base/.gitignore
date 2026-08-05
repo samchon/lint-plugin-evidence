@@ -24,3 +24,8 @@ packages/backend/prisma/db.sqlite-wal
 # Browser diagnostics
 packages/frontend/playwright-report/
 packages/frontend/test-results/
+
+# Process output. A watcher or dev server redirected to a file is tooling
+# noise, not authored work, and counting it as a source change misreports how
+# much of the product exists.
+*.log

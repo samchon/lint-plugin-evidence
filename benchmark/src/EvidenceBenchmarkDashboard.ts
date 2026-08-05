@@ -619,8 +619,30 @@ const collectRunApiCost = (
 };
 
 /** Lists one run's retained stage logs in the order the runner wrote them. */
-const runStageLogs = (file: IDashboardStateFile): string[] =>
-  EvidenceBenchmarkStageLog.order(file.records.root, file.state.goals);
+/**
+ * Names every native stream one run produced, for pricing.
+ *
+ * A Review inspection is a model run on the cell's own model and effort, so its
+ * requests cost what the cell's cost. Its tokens and time already join the
+ * cell's totals; leaving its stream out of this list priced everything the cell
+ * spent except what judging it spent, which understated exactly the arm that
+ * pays for a judge.
+ */
+const runStageLogs = (file: IDashboardStateFile): string[] => [
+  ...EvidenceBenchmarkStageLog.order(file.records.root, file.state.goals),
+  ...inspectionStreams(file.records.root),
+];
+
+/** Retained inspection event streams, in attempt order. */
+const inspectionStreams = (root: string): string[] => {
+  const directory: string = path.join(root, "inspection");
+  if (!fs.existsSync(directory)) return [];
+  return fs
+    .readdirSync(directory)
+    .filter((entry) => entry.endsWith(".jsonl"))
+    .sort()
+    .map((entry) => path.join(directory, entry));
+};
 
 const findCheckpointOrigin = (
   run: IDashboardRun,

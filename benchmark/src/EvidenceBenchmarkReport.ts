@@ -66,7 +66,7 @@ type PhaseName =
   | "overall-review";
 
 const API_PRICE_NOTE =
-  "API cost uses OpenRouter rates from 2026-08-01 and is emitted only after every measured request reconciles with retained counters. Review inspection is inside the token and time totals and outside this price.";
+  "API cost uses OpenRouter rates from 2026-08-01 and is emitted only after every measured request reconciles with retained counters. Review inspection runs on the cell's own model and effort, so its tokens, time, and price all sit inside these totals.";
 
 const PHASES: readonly {
   name: PhaseName;
