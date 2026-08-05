@@ -40,9 +40,11 @@ Final is a finishing and safety stage after a passed Review, not permission to a
 ## What Each Decision Does
 
 - **Pass** skips the reminder and advances directly to that scope's Final.
-- **Fail** inserts that scope's `plain/<scope>/remind.md`, joined by the runner with that scope's own Review instruction quoted in full. The reminder carries nothing cell-specific — it asks why completion was reported before the loop ran dry, and nothing else. The cell then stops for another decision after the supplementation Goal.
+- **Fail** inserts that scope's `plain/<scope>/remind.md`, joined by the runner with that scope's own Review instruction quoted in full. The reminder carries nothing cell-specific — it asserts that the report was rejected, orders the full Review again unconditionally, and states the evidentiary standard the inspection applies. The cell then stops for another decision after the supplementation Goal.
 
-Eight supplementation attempts are permitted. A failure after the last one retains `quality-failed`, does not dispatch Final, and cannot be resumed. The attempt a scope stops on is itself a measurement, so the bound is set where a cell that can converge still has room to.
+Four supplementation attempts are permitted. A failure after the last one retains `quality-failed`, does not dispatch Final, and cannot be resumed. The attempt a scope stops on is itself a measurement, so the bound is set where a cell that can converge still has room to.
+
+Four rather than eight because a cell that answers a reminder answers the first one. The `todo` Plain cell of the first `0.6.0` cohort spent all eight: its first supplementation ran 346 commands and changed 9 files, and the seven after it ran 8 commands between them and changed nothing, the last executing no command at all. Attempts past the point of movement measure nothing and are charged at full inspection price.
 
 The runner retains each decision's exact bytes and digest alongside the workspace digest and Goal boundary, and refuses a decision whose earlier retained verdict files no longer match their digests.
 

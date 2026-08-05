@@ -6,7 +6,7 @@ import path from "node:path";
 import typia from "typia";
 
 import { collectEvidenceBenchmarkApiCost } from "./EvidenceBenchmarkApiCost";
-import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction";
+
 import { EvidenceBenchmarkStageLog } from "./EvidenceBenchmarkStageLog";
 import type { IEvidenceBenchmarkApiCost } from "./structures/IEvidenceBenchmarkApiCost";
 import type {
@@ -377,10 +377,6 @@ const renderRun = (run: IEvidenceBenchmarkReportCell): IRenderedRun => {
         (measurement) =>
           `  - \`${measurement.name}\`: ${formatCost(measurement.tokens)} · ${formatTime(measurement.elapsedMs)} · ${measurement.tokenPercent}% tokens · ${measurement.timePercent}% time`,
       ),
-      ...run.reviewVerdicts.map(
-        (verdict) =>
-          `  - review \`${verdict.scope}\` attempt ${verdict.attempt}: ${verdict.decision} -> ${verdict.action} (${verdict.verdictSha256.slice(0, 12)})`,
-      ),
     ],
   };
 };
@@ -452,10 +448,37 @@ const summarizeRun = (
   };
 };
 
+/**
+ * Reads the retained review decisions of one run.
+ *
+ * Validation here is structural rather than bounded. The supplementation limit
+ * governs which attempt the runner may issue next, and it can be lowered
+ * between cohorts; a run recorded while it was higher is a faithful record of
+ * what the rules then permitted, not a corrupt one. Reporting is the wrong
+ * place to relitigate that, and reading history through the current bound
+ * refuses whole cohorts for having obeyed the old one.
+ *
+ * What the record must still prove about itself: attempts within a scope are
+ * numbered from zero without a gap, and `quality-failed` closes that scope, so
+ * it can only sit on its last retained attempt.
+ */
 const collectReviewVerdicts = (
   state: IDashboardState,
-): IEvidenceBenchmarkReportReviewVerdict[] =>
-  (state.supervisionPauses ?? []).flatMap((pause) => {
+): IEvidenceBenchmarkReportReviewVerdict[] => {
+  const pauses = state.supervisionPauses ?? [];
+  const scopeOrdinals = new Map<unknown, number>();
+  const ordinals: number[] = pauses.map((pause) => {
+    const seen: number = scopeOrdinals.get(pause.scope) ?? 0;
+    scopeOrdinals.set(pause.scope, seen + 1);
+    return seen;
+  });
+  const lastOfScope: boolean[] = pauses.map(
+    (pause, index) =>
+      !pauses.some(
+        (candidate, other) => other > index && candidate.scope === pause.scope,
+      ),
+  );
+  return pauses.flatMap((pause, index) => {
     if (
       pause.scope === undefined ||
       pause.attempt === undefined ||
@@ -471,19 +494,16 @@ const collectReviewVerdicts = (
       verdict.feedback === undefined &&
       ((verdict.decision === "pass" && verdict.action === "final") ||
         (verdict.decision === "fail" &&
-          ((verdict.action === "retry" &&
-            pause.attempt <
-              EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT) ||
+          (verdict.action === "retry" ||
             (verdict.action === "quality-failed" &&
-              pause.attempt ===
-                EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT))));
+              lastOfScope[index] === true))));
     if (
       (verdict.decision !== "pass" && verdict.decision !== "fail") ||
       verdict.scope !== pause.scope ||
       verdict.attempt !== pause.attempt ||
       !Number.isSafeInteger(pause.attempt) ||
       pause.attempt < 0 ||
-      pause.attempt > EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT ||
+      pause.attempt !== ordinals[index] ||
       (verdict.action !== "final" &&
         verdict.action !== "retry" &&
         verdict.action !== "quality-failed") ||
@@ -537,6 +557,7 @@ const collectReviewVerdicts = (
       },
     ];
   });
+};
 
 const collectRunApiCost = (
   run: IDashboardRun,
@@ -619,8 +640,30 @@ const collectRunApiCost = (
 };
 
 /** Lists one run's retained stage logs in the order the runner wrote them. */
-const runStageLogs = (file: IDashboardStateFile): string[] =>
-  EvidenceBenchmarkStageLog.order(file.records.root, file.state.goals);
+/**
+ * Names every native stream one run produced, for pricing.
+ *
+ * A Review inspection is a model run on the cell's own model and effort, so its
+ * requests cost what the cell's cost. Its tokens and time already join the
+ * cell's totals; leaving its stream out of this list priced everything the cell
+ * spent except what judging it spent, which understated exactly the arm that
+ * pays for a judge.
+ */
+const runStageLogs = (file: IDashboardStateFile): string[] => [
+  ...EvidenceBenchmarkStageLog.order(file.records.root, file.state.goals),
+  ...inspectionStreams(file.records.root),
+];
+
+/** Retained inspection event streams, in attempt order. */
+const inspectionStreams = (root: string): string[] => {
+  const directory: string = path.join(root, "inspection");
+  if (!fs.existsSync(directory)) return [];
+  return fs
+    .readdirSync(directory)
+    .filter((entry) => entry.endsWith(".jsonl"))
+    .sort()
+    .map((entry) => path.join(directory, entry));
+};
 
 const findCheckpointOrigin = (
   run: IDashboardRun,

@@ -6,7 +6,7 @@ Read `AGENTS.md` and every document under `.agents/skills/backend/` and `.agents
 
 Start backend `pnpm check:watch` before implementation while every backend claim is disabled, and keep it running through Overall Final.
 
-As each layer completes, delete that claim's `disabled` property in its declaring `lint.config.ts`, in the staged order `.agents/skills/evidence/backend.md` prescribes — never earlier.
+Unlock each claim when its layer completes and before the next begins, in the staged order `.agents/skills/evidence/backend.md` prescribes. Neither earlier nor later. The claims live in `packages/backend/test/lint.config.ts` and `packages/api/lint.config.ts`.
 
 Write every `@evidence` and `@evidenceExclude` truthfully; never add a tag only to remove a compiler diagnostic.
 
@@ -15,7 +15,7 @@ Write every `@evidence` and `@evidenceExclude` truthfully; never add a tag only 
 - [ ] Every required schema model, DTO, controller, public-operation test, and provider implemented.
 - [ ] Every published operation has its proving tests.
 - [ ] Every backend claim is enabled and `evidence/todo` is `error`; no other rule or claim configuration changed.
-- [ ] Each layer's claims were enabled as that layer completed: DB schema first, then DTOs and operations, then tests.
+- [ ] Each layer's claims were unlocked when that layer completed and before the next began: DB schema first, then DTOs and operations, then tests; no claim was carried past its own layer.
 - [ ] Every `@evidence` is on code that implements, represents, or proves its target.
 - [ ] Every `@evidenceExclude` sits in its claim's exclusion carrier, names its owner or alternative and invalidating condition, and none stands in for work this layer owes or exists only to remove a diagnostic.
 - [ ] The persistent watcher rebuilt without diagnostics after the latest change and remains running.

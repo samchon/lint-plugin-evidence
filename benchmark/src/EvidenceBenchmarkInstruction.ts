@@ -16,11 +16,16 @@ export namespace EvidenceBenchmarkInstruction {
    * Supplementation attempts a Plain review scope may take before it fails.
    *
    * The bound exists so a cell that cannot reach the bar terminates instead of
-   * looping, and the attempt it stops on is itself the measurement. A larger
-   * subject needs more of them: a review that must write one proving test per
-   * published operation has further to travel than one with two dozen.
+   * looping, and the attempt it stops on is itself the measurement.
+   *
+   * It is four because a cell that answers a reminder answers the first one.
+   * The `todo` Plain cell of the first `0.6.0` cohort spent all eight: its
+   * first supplementation ran 346 commands and changed 9 files, and the seven
+   * after it ran 8 commands between them and changed nothing, the last
+   * executing no command at all. Attempts past the point of movement measure
+   * nothing and are charged at full inspection price.
    */
-  export const REVIEW_SUPPLEMENT_LIMIT = 8;
+  export const REVIEW_SUPPLEMENT_LIMIT = 4;
 
   /** Returns the frozen base sequence. Plain reminders are adaptive, not base. */
   export function entries(
