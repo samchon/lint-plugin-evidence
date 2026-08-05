@@ -143,7 +143,6 @@ export namespace EvidenceBenchmarkReconcile {
 
     const written: IReconciled[] = [];
     let cumulativeSeconds: number = 0;
-    let derivedMs: number = 0;
     for (let order: number = 0; order < props.stages.length; ++order) {
       const record: Record<string, any> = records[order]!;
       const at: number = derived.indexOf(order);
@@ -151,7 +150,6 @@ export namespace EvidenceBenchmarkReconcile {
         const block: IBlock = taken[at]!;
         record.tokenUsage = usageDelta(block.closing, block.opening);
         record.elapsedMs = Math.max(0, block.to - block.from);
-        derivedMs += record.elapsedMs;
       }
       // `timeUsedSeconds` is the thread's running total, not this stage's
       // share: the report reads a stage as the difference between its own
@@ -182,7 +180,21 @@ export namespace EvidenceBenchmarkReconcile {
       ...state.threadTokenUsage,
       ...usageDelta(latest, {}),
     };
-    state.inheritedProcessElapsedMs = derivedMs;
+    // The report derives a cell's total from the runner's own process records
+    // and derives each stage row from the goals, so the two disagree by exactly
+    // the work the runner did not spawn — which for a cell it lost is most of
+    // the run. Declaring only what this pass derived leaves the rest missing:
+    // one cell's header read half the sum of its own rows. What is inherited is
+    // therefore every minute the goals account for that no process does.
+    const spawnedMs: number = (state.processes ?? []).reduce(
+      (sum: number, process: Record<string, any>) =>
+        sum + (process.elapsedMs ?? 0),
+      0,
+    );
+    state.inheritedProcessElapsedMs = Math.max(
+      0,
+      cumulativeSeconds * 1_000 - spawnedMs,
+    );
     // A finished run's cursor sits past its last goal. Left on the last goal,
     // the report treats that stage as current and pours the unattributed wall
     // clock into it. A running one's cursor is its last stage, which the runner
