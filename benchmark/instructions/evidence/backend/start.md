@@ -6,7 +6,7 @@ Read `AGENTS.md` and every document under `.agents/skills/backend/` and `.agents
 
 Start backend `pnpm check:watch` before implementation while every backend claim is disabled, and keep it running through Overall Final.
 
-Unlock each claim the moment its layer is complete and before starting the next one, in the staged order `.agents/skills/evidence/backend.md` prescribes. Delete the `disabled` property in its declaring `lint.config.ts` neither earlier nor later: unlocking before the layer exists buries real diagnostics under errors for artifacts not yet written, and carrying a claim past its layer defers its obligations into a batch that arrives after the work has moved on, where they reopen finished layers and invite tags written to satisfy the compiler rather than to state a truth. Finish each layer's diagnostics before the next layer begins.
+Unlock each claim when its layer completes and before the next begins, in the staged order `.agents/skills/evidence/backend.md` prescribes. Neither earlier nor later.
 
 Write every `@evidence` and `@evidenceExclude` truthfully; never add a tag only to remove a compiler diagnostic.
 

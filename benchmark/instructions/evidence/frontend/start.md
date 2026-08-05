@@ -6,7 +6,7 @@ Read `AGENTS.md` and every document under `.agents/skills/frontend/` and `.agent
 
 Start `pnpm dev` from `packages/frontend` before implementation while every frontend claim is disabled, and keep it running through Overall Final.
 
-Unlock each claim the moment its layer is complete and before starting the next one, in the hook, screen, journey order `.agents/skills/evidence/frontend.md` prescribes. Delete the `disabled` property in `packages/frontend/lint.config.ts` neither earlier nor later: unlocking before the layer exists buries real diagnostics under errors for artifacts not yet written, and carrying a claim past its layer defers its obligations into a batch that arrives after the work has moved on, where they reopen finished layers and invite tags written to satisfy the compiler rather than to state a truth. Finish each layer's diagnostics before the next layer begins.
+Unlock each claim when its layer completes and before the next begins, in the hook, screen, journey order `.agents/skills/evidence/frontend.md` prescribes. Neither earlier nor later.
 
 Write every `@evidence` and `@evidenceExclude` truthfully; never add a tag only to remove a compiler diagnostic.
 
