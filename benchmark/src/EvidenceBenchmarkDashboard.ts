@@ -377,10 +377,6 @@ const renderRun = (run: IEvidenceBenchmarkReportCell): IRenderedRun => {
         (measurement) =>
           `  - \`${measurement.name}\`: ${formatCost(measurement.tokens)} · ${formatTime(measurement.elapsedMs)} · ${measurement.tokenPercent}% tokens · ${measurement.timePercent}% time`,
       ),
-      ...run.reviewVerdicts.map(
-        (verdict) =>
-          `  - review \`${verdict.scope}\` attempt ${verdict.attempt}: ${verdict.decision} -> ${verdict.action} (${verdict.verdictSha256.slice(0, 12)})`,
-      ),
     ],
   };
 };
