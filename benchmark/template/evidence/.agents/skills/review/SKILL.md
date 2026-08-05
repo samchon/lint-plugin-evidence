@@ -19,7 +19,15 @@ Before review, confirm every claim for the current phase is enabled. If an earli
 
 For every `@evidence`, read the target, reason, and complete current host. A citation is justified only when the artifact actually implements, represents, or proves the target and the reason states that specific relation; mere relevance is not enough. Correct every fake citation.
 
-Reading the target means reading what it requires, then checking the host against it. A citation whose relation is real but whose host gets the requirement wrong is a finding, and it is the one the compiler cannot make: resolution proves the target exists and coverage proves it was cited, neither proves it was obeyed. A tag that cites a rule the code contradicts asserts conformance that is not there, so correct the code, not the tag.
+Reading the target means reading what it requires, then checking the host against it. A disagreement between the two is a finding the compiler cannot make: resolution proves the target exists and coverage proves it was cited, neither proves it was obeyed.
+
+Which of the three is wrong decides what you correct, and the requirement is not one of them — it is a frozen input and it is right by definition:
+
+- **The code.** The host is genuinely answerable for this target and does not do what it says. Correct the code.
+- **The reason.** The relation is real but the sentence misstates it, so the tag asserts a conformance nobody claimed. Correct the reason.
+- **The target.** The host was never answerable for this requirement and the anchor was reached for to satisfy coverage. Correct the tag, and check whether the artifact this target actually needs was ever built.
+
+Decide which by asking what the requirement obliges and whether this host is the thing obliged to deliver it. Do not correct the code on a target that was never its own; that repairs a citation error by writing to the wrong file.
 
 Where two artifacts cite one target — a type and the provider behind it, an operation and the test that proves it — read them against the target together. A published contract that promises what its implementation refuses is a finding on both.
 
