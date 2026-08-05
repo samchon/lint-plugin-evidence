@@ -31,7 +31,16 @@ export namespace EvidenceBenchmarkRuntime {
     arm: EvidenceBenchmarkArm,
     portBase: number = DEFAULT_PORT_BASE,
   ): IAssignment {
-    const subjects = ["todo", "reddit", "shopping", "erp", "todo2"] as const;
+    const subjects = [
+      "todo",
+      "reddit",
+      "shopping",
+      "erp",
+      "todo2",
+      "todo3",
+      "reddit2",
+      "shopping2",
+    ] as const;
     const arms: readonly EvidenceBenchmarkArm[] = ["evidence", "plain"];
     const subjectIndex: number = subjects.indexOf(
       subject as (typeof subjects)[number],
