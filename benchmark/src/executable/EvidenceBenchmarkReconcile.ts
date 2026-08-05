@@ -24,7 +24,7 @@ const main = async (): Promise<void> => {
     stages.length === 0
   )
     throw new Error(
-      "Usage: pnpm reconcile <subject> <evidence|plain> <run-id> <rollout.jsonl> <stage[+]>...",
+      "Usage: pnpm reconcile <subject> <evidence|plain> <run-id> <rollout.jsonl> <stage[+[dispatches]]>...",
     );
   if (!fs.existsSync(rollout))
     throw new Error(`Codex session rollout not found: ${rollout}.`);
@@ -47,10 +47,19 @@ const main = async (): Promise<void> => {
     runRoot,
     rollout,
     instructionRoot: path.join(repository, "benchmark", "instructions", arm),
-    stages: stages.map((entry) => ({
-      name: entry.replace(/\+$/, ""),
-      ...(entry.endsWith("+") ? { derive: true } : {}),
-    })),
+    stages: stages.map((entry) => {
+      // `overall-final+3` is one stage that took three dispatches to finish.
+      const match = /^(.*?)(?:\+(\d*))?$/u.exec(entry)!;
+      return {
+        name: match[1]!,
+        ...(match[2] === undefined
+          ? {}
+          : {
+              derive: true,
+              ...(match[2] === "" ? {} : { dispatches: Number(match[2]) }),
+            }),
+      };
+    }),
   });
   for (const stage of written)
     console.log(

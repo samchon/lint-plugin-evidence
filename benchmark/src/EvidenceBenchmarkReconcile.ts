@@ -42,6 +42,16 @@ export namespace EvidenceBenchmarkReconcile {
     name: string;
     /** Whether this stage's cost must come from the rollout. */
     derive?: boolean;
+    /**
+     * How many rollout dispatches this stage spans. One unless stated.
+     *
+     * A stage that died and was restarted is still one stage, and every
+     * attempt is work it spent. How many attempts it took is not derivable
+     * from the rollout — an idle gap looks the same whether the next dispatch
+     * resumed the stage or began the next one — so the caller states it from
+     * the record of what it dispatched, and the arithmetic stays exact.
+     */
+    dispatches?: number;
   }
 
   export interface IProps {
@@ -135,11 +145,22 @@ export namespace EvidenceBenchmarkReconcile {
       throw new Error(
         "Stages to derive must be consecutive: a run leaves the runner once and does not return to it.",
       );
-    if (derived.length > blocks.length)
+    const spans: number[] = derived.map((order) =>
+      Math.max(1, props.stages[order]!.dispatches ?? 1),
+    );
+    const wanted: number = spans.reduce((sum, span) => sum + span, 0);
+    if (wanted > blocks.length)
       throw new Error(
-        `The rollout holds ${blocks.length} dispatches but ${derived.length} stages ask to be derived from it.`,
+        `The rollout holds ${blocks.length} dispatches but ${wanted} are claimed by the stages asking to be derived from it.`,
       );
-    const taken: IBlock[] = blocks.slice(blocks.length - derived.length);
+    // The derived stages are the run's last, so their dispatches are the
+    // rollout's last, handed out in order.
+    const taken: IBlock[][] = [];
+    let cursor: number = blocks.length - wanted;
+    for (const span of spans) {
+      taken.push(blocks.slice(cursor, cursor + span));
+      cursor += span;
+    }
 
     const written: IReconciled[] = [];
     let cumulativeSeconds: number = 0;
@@ -147,9 +168,16 @@ export namespace EvidenceBenchmarkReconcile {
       const record: Record<string, any> = records[order]!;
       const at: number = derived.indexOf(order);
       if (at !== -1) {
-        const block: IBlock = taken[at]!;
-        record.tokenUsage = usageDelta(block.closing, block.opening);
-        record.elapsedMs = Math.max(0, block.to - block.from);
+        const own: IBlock[] = taken[at]!;
+        // A restarted stage is credited with what each attempt spent and with
+        // the time each attempt ran, never with the idleness between them: no
+        // work happened while nothing was dispatched, and charging that gap to
+        // the stage is the error this module was written to stop.
+        record.tokenUsage = usageDelta(own.at(-1)!.closing, own[0]!.opening);
+        record.elapsedMs = own.reduce(
+          (sum, block) => sum + Math.max(0, block.to - block.from),
+          0,
+        );
       }
       // `timeUsedSeconds` is the thread's running total, not this stage's
       // share: the report reads a stage as the difference between its own
