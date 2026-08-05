@@ -6,7 +6,7 @@ import path from "node:path";
 import typia from "typia";
 
 import { collectEvidenceBenchmarkApiCost } from "./EvidenceBenchmarkApiCost";
-import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction";
+
 import { EvidenceBenchmarkStageLog } from "./EvidenceBenchmarkStageLog";
 import type { IEvidenceBenchmarkApiCost } from "./structures/IEvidenceBenchmarkApiCost";
 import type {
@@ -452,10 +452,37 @@ const summarizeRun = (
   };
 };
 
+/**
+ * Reads the retained review decisions of one run.
+ *
+ * Validation here is structural rather than bounded. The supplementation limit
+ * governs which attempt the runner may issue next, and it can be lowered
+ * between cohorts; a run recorded while it was higher is a faithful record of
+ * what the rules then permitted, not a corrupt one. Reporting is the wrong
+ * place to relitigate that, and reading history through the current bound
+ * refuses whole cohorts for having obeyed the old one.
+ *
+ * What the record must still prove about itself: attempts within a scope are
+ * numbered from zero without a gap, and `quality-failed` closes that scope, so
+ * it can only sit on its last retained attempt.
+ */
 const collectReviewVerdicts = (
   state: IDashboardState,
-): IEvidenceBenchmarkReportReviewVerdict[] =>
-  (state.supervisionPauses ?? []).flatMap((pause) => {
+): IEvidenceBenchmarkReportReviewVerdict[] => {
+  const pauses = state.supervisionPauses ?? [];
+  const scopeOrdinals = new Map<unknown, number>();
+  const ordinals: number[] = pauses.map((pause) => {
+    const seen: number = scopeOrdinals.get(pause.scope) ?? 0;
+    scopeOrdinals.set(pause.scope, seen + 1);
+    return seen;
+  });
+  const lastOfScope: boolean[] = pauses.map(
+    (pause, index) =>
+      !pauses.some(
+        (candidate, other) => other > index && candidate.scope === pause.scope,
+      ),
+  );
+  return pauses.flatMap((pause, index) => {
     if (
       pause.scope === undefined ||
       pause.attempt === undefined ||
@@ -471,19 +498,16 @@ const collectReviewVerdicts = (
       verdict.feedback === undefined &&
       ((verdict.decision === "pass" && verdict.action === "final") ||
         (verdict.decision === "fail" &&
-          ((verdict.action === "retry" &&
-            pause.attempt <
-              EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT) ||
+          (verdict.action === "retry" ||
             (verdict.action === "quality-failed" &&
-              pause.attempt ===
-                EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT))));
+              lastOfScope[index] === true))));
     if (
       (verdict.decision !== "pass" && verdict.decision !== "fail") ||
       verdict.scope !== pause.scope ||
       verdict.attempt !== pause.attempt ||
       !Number.isSafeInteger(pause.attempt) ||
       pause.attempt < 0 ||
-      pause.attempt > EvidenceBenchmarkInstruction.REVIEW_SUPPLEMENT_LIMIT ||
+      pause.attempt !== ordinals[index] ||
       (verdict.action !== "final" &&
         verdict.action !== "retry" &&
         verdict.action !== "quality-failed") ||
@@ -537,6 +561,7 @@ const collectReviewVerdicts = (
       },
     ];
   });
+};
 
 const collectRunApiCost = (
   run: IDashboardRun,
