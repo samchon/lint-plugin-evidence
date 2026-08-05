@@ -130,10 +130,12 @@ Prerequisite and follow-up calls are setup and observation; leave them uncited.
 
 ## Staged Unlock
 
-Start backend `pnpm check:watch` before implementation while every backend claim is disabled. Delete each `disabled` at exactly the point its layer completes.
+Start backend `pnpm check:watch` before implementation while every backend claim is disabled. Unlock each claim at exactly the point its layer completes — after that layer's last artifact, before the next layer's first. Both directions are wrong, and neither is the safe one:
 
 - **Too early:** the watcher erupts with thousands of evidence errors for models, operations, and tags not yet written, polluting context and burying real diagnostics.
-- **Too late:** the layer's obligations arrive as one huge batch after work has moved on. Coverage gaps — a requirement no model, operation, or test answers — surface only then, when fixing them reopens finished layers, and tags retrofitted in bulk drift toward compiler-satisfying filler instead of truthful mappings.
+- **Too late:** the layer's obligations arrive as one huge batch after work has moved on. Coverage gaps — a requirement no model, operation, or test answers — surface only then, when fixing them reopens finished layers, and tags retrofitted in bulk drift toward compiler-satisfying filler instead of truthful mappings. Carrying every claim to the end turns the review that follows into the authorship this stage was supposed to finish.
+
+Unlocking on time is what keeps each batch small enough to answer truthfully. A claim opened at its own layer asks about artifacts still in hand; the same claim opened three layers later asks about work already declared done.
 
 1. After the complete schema passes `pnpm build:prisma` and `pnpm schema`, delete `disabled` from `schema-models` in `packages/backend/test/lint.config.ts`.
 2. After every DTO and controller is complete and `pnpm build:sdk` passes, delete `disabled` from `dto-types` and `dto-properties` in `packages/api/lint.config.ts` and from `api-operations` in `packages/backend/test/lint.config.ts`.
