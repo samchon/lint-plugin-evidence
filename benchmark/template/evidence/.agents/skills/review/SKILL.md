@@ -1,11 +1,11 @@
 ---
 name: review
-description: Defines the review of @evidence and @evidenceExclude for fake citations and exclusions created solely to evade compiler errors, of configuration edited beyond the one permitted activation, and of the compiler and runtime gates each scope must pass. Read only for a review objective; backend.md, frontend.md, and overall.md carry the per-scope configuration and gates.
+description: Defines the review of @evidence and @evidenceExclude for fake citations, for cited requirements the code contradicts, and for exclusions created solely to evade compiler errors, of configuration edited beyond the one permitted activation, and of the compiler and runtime gates each scope must pass. Read only for a review objective; backend.md, frontend.md, and overall.md carry the per-scope configuration and gates.
 ---
 
 # Review
 
-The compiler owns target resolution, host eligibility, overlap, and coverage. Review inspects the full acknowledgement population for fake citations and exclusions created solely to evade compiler errors, then proves the gates its scope names.
+The compiler owns target resolution, host eligibility, overlap, and coverage. What it cannot own is whether a cited requirement was obeyed, because that is a question about behavior rather than about the graph. Review inspects the full acknowledgement population for fake citations, for cited requirements the code contradicts, and for exclusions created solely to evade compiler errors, then proves the gates its scope names.
 
 Read the per-scope document for the current objective before beginning:
 
@@ -18,6 +18,10 @@ Read the per-scope document for the current objective before beginning:
 Before review, confirm every claim for the current phase is enabled. If an earlier stage left a prescribed `disabled` property, delete it before reviewing.
 
 For every `@evidence`, read the target, reason, and complete current host. A citation is justified only when the artifact actually implements, represents, or proves the target and the reason states that specific relation; mere relevance is not enough. Correct every fake citation.
+
+Reading the target means reading what it requires, then checking the host against it. A citation whose relation is real but whose host gets the requirement wrong is a finding, and it is the one the compiler cannot make: resolution proves the target exists and coverage proves it was cited, neither proves it was obeyed. A tag that cites a rule the code contradicts asserts conformance that is not there, so correct the code, not the tag.
+
+Where two artifacts cite one target — a type and the provider behind it, an operation and the test that proves it — read them against the target together. A published contract that promises what its implementation refuses is a finding on both.
 
 Several hosts may truthfully cite one target; do not consolidate them. A clean compiler gate does not prove a tag truthful.
 
