@@ -23,6 +23,8 @@ coverage/
 
 # Raw benchmark runs and measured workspaces are local measurement output.
 /benchmark/output/
+# A path built without its separator once created this and it was not ignored.
+/benchmarkoutput/
 
 # AI assistant data
 .claude/
