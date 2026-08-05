@@ -93,10 +93,18 @@ export namespace EvidenceBenchmarkReconcile {
       if (record === undefined || end === undefined) continue;
 
       const cumulative: Record<string, number> = cumulativeAt(points, end);
-      const usage: Record<string, number> = usageDelta(
-        cumulative,
-        previousCumulative,
-      );
+      // Where the runner recorded both boundaries itself, its own delta is
+      // the measurement and a rollout-derived one must not replace it: a
+      // checkpoint verifies a fork against exactly these numbers, and changing
+      // them makes the source underivable.
+      const measured: boolean =
+        record.tokenUsageStart != null && record.tokenUsageEnd != null;
+      const usage: Record<string, number> = measured
+        ? usageDelta(
+            asCounter(record.tokenUsageEnd),
+            asCounter(record.tokenUsageStart),
+          )
+        : usageDelta(cumulative, previousCumulative);
       const tokens: number = usage.totalTokens!;
       const span = spans.get(stage.name);
       const runnerMs: number =
@@ -162,6 +170,18 @@ export namespace EvidenceBenchmarkReconcile {
     if (runner === undefined) return direct;
     if (direct === undefined) return runner;
     return edge === "lo" ? Math.min(runner, direct) : Math.max(runner, direct);
+  }
+
+  /** Reads a retained usage object in the rollout's own field spelling. */
+  function asCounter(usage: Record<string, number>): Record<string, number> {
+    return {
+      total_tokens: usage.totalTokens ?? 0,
+      input_tokens: usage.inputTokens ?? 0,
+      cached_input_tokens: usage.cachedInputTokens ?? 0,
+      cache_write_input_tokens: usage.cacheWriteInputTokens ?? 0,
+      output_tokens: usage.outputTokens ?? 0,
+      reasoning_output_tokens: usage.reasoningOutputTokens ?? 0,
+    };
   }
 
   function consoleSpan(file: string | undefined): number {
