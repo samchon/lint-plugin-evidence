@@ -40,6 +40,7 @@ export namespace EvidenceBenchmarkRuntime {
       "todo3",
       "reddit2",
       "shopping2",
+      "erp2",
     ] as const;
     const arms: readonly EvidenceBenchmarkArm[] = ["evidence", "plain"];
     const subjectIndex: number = subjects.indexOf(
