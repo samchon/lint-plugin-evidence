@@ -1,0 +1,3 @@
+import type { tags } from "typia"; import type { IPage } from "../typings";
+export interface IEquipment { id: string & tags.Format<"uuid">; code: string; name: string; status: string; locationId: null | string; custodianEmployeeId: null | string; acquiredAt: null | (string & tags.Format<"date-time">); createdAt: string & tags.Format<"date-time">; updatedAt: string & tags.Format<"date-time">; }
+export namespace IEquipment { export interface ICreate { code: string; name: string; locationId?: null | string; custodianEmployeeId?: null | string; acquiredAt?: null | (string & tags.Format<"date-time">); } export interface IRequest extends IPage.IRequest { status?: string; } export interface IStatus { status: "active" | "inactive" | "retired"; } }
