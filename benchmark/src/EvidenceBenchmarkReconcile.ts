@@ -106,11 +106,13 @@ export namespace EvidenceBenchmarkReconcile {
 
       record.tokenUsage = usage;
       record.elapsedMs = runnerMs + directMs;
-      if (record.goal !== null)
-        record.goal = {
-          status: record.goal?.status ?? "complete",
-          timeUsedSeconds: Math.round(record.elapsedMs / 1000),
-        };
+      // Only the timing is reconciled. Replacing the Goal object would drop
+      // what the runner put there — the thread it ran on above all — and a
+      // checkpoint derivation compares that thread against its own record.
+      if (record.goal !== null && record.goal !== undefined) {
+        record.goal.status = record.goal.status ?? "complete";
+        record.goal.timeUsedSeconds = Math.round(record.elapsedMs / 1000);
+      }
       written.push({
         index: stage.index,
         name: stage.name,
