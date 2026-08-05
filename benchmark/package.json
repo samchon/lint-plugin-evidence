@@ -14,7 +14,8 @@
     "warn": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkWarning.ts",
     "dashboard": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkDashboard.ts",
     "report": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkReport.ts",
-    "check": "tsc --noEmit -p tsconfig.json"
+    "check": "tsc --noEmit -p tsconfig.json",
+    "reconcile": "ttsx --project tsconfig.json src/executable/EvidenceBenchmarkReconcile.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:utils",
