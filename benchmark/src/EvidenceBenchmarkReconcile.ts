@@ -62,6 +62,18 @@ export namespace EvidenceBenchmarkReconcile {
     /** Every stage the run performed, in objective order. */
     stages: readonly IStage[];
     /**
+     * Whether the run reached its objective and is finished.
+     *
+     * This is the one thing here that is declared rather than derived. The
+     * runner writes a run's terminal status and a run it lost never receives
+     * one, so a hand-driven cell would otherwise read `running` forever. The
+     * operator states it from the last stage's own report, and states it here
+     * rather than by editing the retained record, because hand-editing that
+     * record is what produced every accounting error this module exists to
+     * stop.
+     */
+    completed?: boolean;
+    /**
      * Idleness that separates one dispatch from the next, in minutes.
      *
      * A turn's own pauses are well under this and the wait between dispatches
@@ -228,6 +240,7 @@ export namespace EvidenceBenchmarkReconcile {
     // clock into it. A running one's cursor is its last stage, which the runner
     // would have advanced itself; left where the runner lost it, the report
     // names a stage that finished hours ago as the current one.
+    if (props.completed === true) state.status = "completed";
     state.nextInstructionIndex =
       state.status === "completed"
         ? state.goals.length

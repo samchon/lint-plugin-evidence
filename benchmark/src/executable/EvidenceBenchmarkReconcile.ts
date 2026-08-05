@@ -15,7 +15,13 @@ import { EvidenceBenchmarkReconcile } from "../EvidenceBenchmarkReconcile";
  * list that omits a recorded stage is refused rather than partially applied.
  */
 const main = async (): Promise<void> => {
-  const [subject, arm, runId, rollout, ...stages] = process.argv.slice(2);
+  const argv: string[] = process.argv.slice(2);
+  // `--completed` states that the run reached its objective. It is the one
+  // declared input here; everything else is read from the rollout.
+  const completed: boolean = argv.includes("--completed");
+  const [subject, arm, runId, rollout, ...stages] = argv.filter(
+    (entry) => entry !== "--completed",
+  );
   if (
     subject === undefined ||
     (arm !== "evidence" && arm !== "plain") ||
@@ -24,7 +30,7 @@ const main = async (): Promise<void> => {
     stages.length === 0
   )
     throw new Error(
-      "Usage: pnpm reconcile <subject> <evidence|plain> <run-id> <rollout.jsonl> <stage[+[dispatches]]>...",
+      "Usage: pnpm reconcile <subject> <evidence|plain> <run-id> <rollout.jsonl> <stage[+[dispatches]]>... [--completed]",
     );
   if (!fs.existsSync(rollout))
     throw new Error(`Codex session rollout not found: ${rollout}.`);
@@ -47,6 +53,7 @@ const main = async (): Promise<void> => {
     runRoot,
     rollout,
     instructionRoot: path.join(repository, "benchmark", "instructions", arm),
+    ...(completed ? { completed: true } : {}),
     stages: stages.map((entry) => {
       // `overall-final+3` is one stage that took three dispatches to finish.
       const match = /^(.*?)(?:\+(\d*))?$/u.exec(entry)!;
