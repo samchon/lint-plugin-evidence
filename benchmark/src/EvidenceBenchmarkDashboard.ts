@@ -971,7 +971,19 @@ const inspectWorktree = (
   try {
     fs.copyFileSync(path.join(gitDirectory, "index"), index);
     const environment: NodeJS.ProcessEnv = { GIT_INDEX_FILE: index };
-    git(workspace, ["add", "--intent-to-add", "--", "."], environment);
+    // A path git cannot index costs its own line, never the whole report. One
+    // cell redirected build output to `CON`, and because that name is a device
+    // rather than a file on Windows, git refused the whole `add` — which
+    // stopped every figure for all twelve cells until the file was moved. The
+    // workspaces are separate subjects and a defect in one is a result about
+    // that one, so the failure stays where it happened: what did index is
+    // diffed, and what did not is absent from that cell's count alone.
+    git(
+      workspace,
+      ["add", "--intent-to-add", "--ignore-errors", "--", "."],
+      environment,
+      true,
+    );
     const numstat: string = git(
       workspace,
       ["diff", "--numstat", baseline, "--"],
@@ -1001,6 +1013,14 @@ const git = (
   workspace: string,
   args: string[],
   environment: NodeJS.ProcessEnv = {},
+  /**
+   * Whether a non-zero exit is a partial result rather than a failure.
+   *
+   * Only a query that still answers usefully when it refuses part of its input
+   * may set this. A query that cannot run at all still throws, because a
+   * missing answer must never read as an empty one.
+   */
+  partial: boolean = false,
 ): string => {
   const result = spawnSync(
     "git",
@@ -1028,7 +1048,7 @@ const git = (
     throw new Error(
       `Git dashboard query could not run (${args.join(" ")}): ${result.error.message}`,
     );
-  if (result.status !== 0)
+  if (result.status !== 0 && partial === false)
     throw new Error(
       `Git dashboard query failed (${args.join(" ")}): ${result.stderr}`,
     );
