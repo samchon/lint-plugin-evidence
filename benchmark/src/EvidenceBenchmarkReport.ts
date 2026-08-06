@@ -2,10 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
+  applyDirectStage,
+  applySessionTokens,
   baseSubject,
   collectEvidenceBenchmarkReport,
   PUBLISHED,
 } from "./EvidenceBenchmarkDashboard";
+import { EvidenceBenchmarkDirectStage } from "./EvidenceBenchmarkDirectStage";
 import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction";
 import { EvidenceBenchmarkSessionCost } from "./EvidenceBenchmarkSessionCost";
 import type {
@@ -45,21 +48,53 @@ export const writeEvidenceBenchmarkReport = async (
   > = await EvidenceBenchmarkSessionCost.totals(
     collected.cells[0]?.model ?? "gpt-5.6-luna",
   );
+  // The same correction the dashboard applies: a cell driven past the runner's
+  // last record still reads `completed` in `state.json`, and a chart that
+  // believed that would draw Erp Plain as a finished result while four of its
+  // stages were being re-run.
+  const dispatches: ReadonlyMap<
+    string,
+    EvidenceBenchmarkDirectStage.IDirectStage
+  > = await EvidenceBenchmarkDirectStage.collect(
+    path.join(options.repository, "benchmark", "instructions"),
+  );
   const report: IEvidenceBenchmarkReport = {
     ...collected,
-    cells: collected.cells.map((cell) =>
-      cell.apiCost !== null
-        ? cell
-        : { ...cell, apiCost: sessions.get(cell.runId)?.cost ?? null },
-    ),
+    cells: collected.cells
+      .map((cell) =>
+        cell.apiCost !== null
+          ? cell
+          : { ...cell, apiCost: sessions.get(cell.runId)?.cost ?? null },
+      )
+      .map((cell) =>
+        applyDirectStage(cell, options.repository, dispatches.get(cell.runId)),
+      )
+      .map((cell) => applySessionTokens(cell, sessions.get(cell.runId))),
   };
   // The charts show one cell per arm per subject, the same eight the dashboard
   // publishes. Five Evidence cells were re-run and the runs that lost are not
   // a second subject: charting `reddit2` beside `reddit` drew a comparison
   // nobody made, and a repeat's figures belong to the subject it repeats.
-  const charted: IEvidenceBenchmarkReportCell[] = report.cells
+  const published: IEvidenceBenchmarkReportCell[] = report.cells
     .filter((cell) => PUBLISHED.has(`${cell.subject}/${cell.arm}`))
     .map((cell) => ({ ...cell, subject: baseSubject(cell.subject) }));
+  // A subject is charted once both its arms have finished. A bar for a cell
+  // still working reads as its result, and it is not one: half its stages have
+  // not run, so it would show the arm ahead on every spend axis for no reason
+  // except that it stopped earlier. Subjects arrive in the charts as they
+  // complete rather than being drawn in advance.
+  const finished: ReadonlySet<string> = new Set(
+    [...Map.groupBy(published, (cell) => cell.subject)]
+      .filter(
+        ([, cells]) =>
+          cells.length >= 2 &&
+          cells.every((cell) => cell.status === "completed"),
+      )
+      .map(([subject]) => subject),
+  );
+  const charted: IEvidenceBenchmarkReportCell[] = published.filter((cell) =>
+    finished.has(cell.subject),
+  );
   const chartReport: IEvidenceBenchmarkReport = {
     ...report,
     cells: charted,

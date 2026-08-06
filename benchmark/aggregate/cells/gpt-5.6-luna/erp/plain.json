@@ -6,17 +6,17 @@
   "benchmarkRevision": "cdbda42111ecc8f459f2772065caf067b6db3f91",
   "model": "gpt-5.6-luna",
   "effort": "high",
-  "status": "completed",
-  "stage": "overall-final",
+  "status": "working",
+  "stage": "frontend-review",
   "launchedAt": "2026-08-04T22:56:46.636Z",
-  "tokens": 509741021,
+  "tokens": 606190002,
   "tokenUsage": {
-    "totalTokens": 509741021,
-    "inputTokens": 508946549,
-    "cachedInputTokens": 502116352,
+    "totalTokens": 606190002,
+    "inputTokens": 605242547,
+    "cachedInputTokens": 596919040,
     "cacheWriteInputTokens": 0,
-    "outputTokens": 794472,
-    "reasoningOutputTokens": 180940
+    "outputTokens": 947455,
+    "reasoningOutputTokens": 228803
   },
   "inspection": {
     "attempts": 0,

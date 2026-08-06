@@ -205,7 +205,7 @@ export const renderEvidenceBenchmarkDashboard = async (
  * whole the record wins, because it separates the measured thread from what
  * judging it cost and the session cannot.
  */
-const applySessionTokens = (
+export const applySessionTokens = (
   cell: IEvidenceBenchmarkReportCell,
   totals: EvidenceBenchmarkSessionCost.ISessionTotals | undefined,
 ): IEvidenceBenchmarkReportCell => {
@@ -243,7 +243,7 @@ const QUIET_MS: number = 30 * 60 * 1_000;
  * against the instruction's unnumbered `backend-remind` — and the numbered name
  * is the better one.
  */
-const applyDirectStage = (
+export const applyDirectStage = (
   cell: IEvidenceBenchmarkReportCell,
   repository: string,
   dispatch: EvidenceBenchmarkDirectStage.IDirectStage | undefined,
