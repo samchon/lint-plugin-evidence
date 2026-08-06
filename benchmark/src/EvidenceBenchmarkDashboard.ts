@@ -267,14 +267,6 @@ export const applyDirectStage = (
   dispatch: EvidenceBenchmarkDirectStage.IDirectStage | undefined,
 ): IEvidenceBenchmarkReportCell => {
   if (dispatch === undefined) return cell;
-  // Finishing a chain by hand is not reopening one. Where the record already
-  // holds the chain complete and the last thing dispatched is the stage it
-  // completed on, the hand drive is how the cell got there, and the record is
-  // the better word. Only a dispatch naming some other stage means work
-  // resumed after the close — which is what separates Todo Plain, driven to
-  // its own `overall-final`, from Reddit and Erp Plain, both sent back to a
-  // frontend review their `overall-final` had already passed.
-  if (cell.status === "completed" && dispatch.stage === cell.stage) return cell;
   // The baseline is the last event the runner recorded, not when `state.json`
   // was last written. Reconciliation rewrites that file long after the run
   // ended, which would date the runner's knowledge to whenever the report was
@@ -292,20 +284,73 @@ export const applyDirectStage = (
       "events.jsonl",
     ),
   );
-  if (observed === undefined || dispatch.dispatchedAt <= observed) return cell;
-  // A stage still producing output and one abandoned mid-way both look the same
-  // to the runner, and a status view whose whole job is to say where the cohort
-  // is must not merge them. The session file grows on every turn, so silence
-  // longer than a turn ever lasts here is the cell having stopped.
-  const quiet: boolean = Date.now() - dispatch.lastActivityAt > QUIET_MS;
-  // A hand-driven chain that reached its last instruction and then went quiet
-  // has finished, and saying otherwise leaves it `stopped` forever: the runner
-  // is the only thing that writes `completed` and it never saw these stages.
-  // Shopping Plain ran every stage to `overall-final` and would have been
-  // excluded from every chart on a technicality about who dispatched it.
-  if (quiet && dispatch.stage === TERMINAL_STAGE)
+  // An events file that cannot be read is no evidence the runner is current,
+  // and treating it as such is what kept Erp Plain on its stale record: its
+  // last line is megabytes long, so the tail scan never finds a parseable one
+  // and returns nothing. Only a timestamp that actually postdates the dispatch
+  // keeps the record.
+  if (observed !== undefined && dispatch.dispatchedAt <= observed) return cell;
+  // Finishing a chain by hand is not reopening one, so where the record holds
+  // the chain complete and nothing has been dispatched since, the record is the
+  // better word. It is tested here rather than first, because a stage name is
+  // not an identity: Erp Plain's record and its re-run both end at
+  // `overall-final`, seven hours apart, and comparing the names alone made the
+  // report call a working cell finished.
+  if (
+    cell.status === "completed" &&
+    dispatch.stage === cell.stage &&
+    !liveSessions().has(dispatch.sessionId)
+  )
+    return cell;
+  // Silence is not the end of the work. A cell running its closing e2e suite
+  // takes no model turn for half an hour, so the rollout stops growing while
+  // the cell is at its busiest — and `completed` is the label an operator acts
+  // on. Erp Plain was called finished while it was running `pnpm test:e2e`.
+  // The session's own process is the signal: while one lives, the cell is
+  // working whatever its file mtimes say.
+  const alive: boolean = liveSessions().has(dispatch.sessionId);
+  if (alive) return { ...cell, stage: dispatch.stage, status: "working" };
+  // A hand-driven chain whose session has exited on its last instruction has
+  // finished, and saying otherwise leaves it `stopped` forever: the runner is
+  // the only thing that writes `completed` and it never saw these stages.
+  if (dispatch.stage === TERMINAL_STAGE)
     return { ...cell, stage: dispatch.stage, status: "completed" };
-  return { ...cell, stage: dispatch.stage, status: quiet ? "stopped" : "working" };
+  return { ...cell, stage: dispatch.stage, status: "stopped" };
+};
+
+/**
+ * Codex sessions with a living process, read once per report.
+ *
+ * The session id appears in the resuming process's command line, which is what
+ * separates a cell between turns from a cell whose driver exited.
+ */
+let LIVE_SESSIONS: ReadonlySet<string> | undefined;
+
+const liveSessions = (): ReadonlySet<string> => {
+  if (LIVE_SESSIONS !== undefined) return LIVE_SESSIONS;
+  const found: Set<string> = new Set();
+  try {
+    const result = spawnSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*exec resume*' } | ForEach-Object { $_.CommandLine }",
+      ],
+      { encoding: "utf8", timeout: 30_000 },
+    );
+    for (const match of (result.stdout ?? "").matchAll(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gu,
+    ))
+      found.add(match[0]);
+  } catch {
+    // A report that cannot enumerate processes falls back to the file times,
+    // which is the previous behaviour rather than a new failure.
+  }
+  if (process.env.DBG_LIVE) console.error("[live]", [...found]);
+  LIVE_SESSIONS = found;
+  return LIVE_SESSIONS;
 };
 
 /** The last instruction of either arm's sequence. */
