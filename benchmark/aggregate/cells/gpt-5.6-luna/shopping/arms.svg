@@ -44,14 +44,14 @@
 <text x="1404" y="252" text-anchor="end" class="group-meta">higher is better</text>
 <text x="60" y="298" class="row-label" fill="#4c78a8">Shopping Plain</text>
 <rect x="210" y="277" width="994" height="30" rx="7" class="track"/>
-<rect x="210" y="277" width="398.59" height="30" rx="7" fill="#4c78a8" data-coverage="40.1"/>
-<text x="1404" y="299" text-anchor="end" class="value" fill="#4c78a8">40%</text>
+<rect x="210" y="277" width="398.84" height="30" rx="7" fill="#4c78a8" data-coverage="40.12511413497504"/>
+<text x="1404" y="299" text-anchor="end" class="value" fill="#4c78a8">40.1%</text>
 <text x="60" y="338" class="row-label" fill="#f58518">Evidence (every)</text>
 <rect x="210" y="317" width="994" height="30" rx="7" class="track"/>
 <rect x="210" y="317" width="994.00" height="30" rx="7" fill="#f58518" data-coverage="100"/>
-<text x="1404" y="339" text-anchor="end" class="value" fill="#f58518">100%</text>
+<text x="1404" y="339" text-anchor="end" class="value" fill="#f58518">100.0%</text>
 <text x="36" y="386" class="table-note">Coverage measured by Claude Code Opus 5 — thirteen graph edges read from the source, composed so serial hops multiply and branches average.</text>
-<text x="36" y="401" class="table-note">Reported whole: two readings of one unchanged workspace reproduced the seven mechanical edges exactly and moved the five needing a judgement by up to 0.09.</text>
+<text x="36" y="401" class="table-note">Two readings of one unchanged workspace reproduced the seven mechanical edges exactly and moved the five needing a judgement by up to 0.09.</text>
 <text x="36" y="416" class="table-note">Evidence is 100% by construction: a cell that misses an edge does not compile.</text>
 <rect x="28" y="437" width="1384" height="194" rx="10" class="group" fill-opacity="0.78"/>
 <text x="60" y="466" class="group-title">Tokens</text>
@@ -134,5 +134,5 @@
 <text x="1404" y="995" text-anchor="end" class="value">$3.35 (-65%)</text>
 <text x="36" y="1082" class="table-note">API cost uses OpenRouter rates from 2026-08-01, emitted only after every measured request reconciles with retained counters.</text>
 <text x="36" y="1097" class="table-note">Review inspection runs on the cell&apos;s own model and effort, so its tokens, time and price all sit inside these totals.</text>
-<text x="36" y="1115" class="generated">Generated 2026-08-06T09:03:15.371Z</text>
+<text x="36" y="1115" class="generated">Generated 2026-08-06T09:08:36.091Z</text>
 </svg>

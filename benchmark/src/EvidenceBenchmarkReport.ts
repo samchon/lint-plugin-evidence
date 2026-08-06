@@ -265,11 +265,73 @@ const CHART_STYLE: string = [
  * Evidence carries no entry because it is not measured: a cell that misses an
  * edge does not compile, so the arm is 100% by construction.
  */
-const COVERAGE: Readonly<Record<string, number>> = {
-  todo: 80.1,
-  reddit: 62.4,
-  shopping: 40.1,
+interface ICoverageEdges {
+  /** requirement → Prisma model */ C1: number;
+  /** requirement → controller operation */ C2: number;
+  /** model → operation */ C3: number;
+  /** requirement → DTO type */ C4: number;
+  /** model → DTO type */ C5: number;
+  /** column → DTO property */ C6: number;
+  /** requirement → backend test */ C7: number;
+  /** accessor → asserting test */ C8: number;
+  /** accessor → hook */ C9: number;
+  /** requirement → screen */ C10a: number;
+  /** hook → screen */ C10b: number;
+  /** requirement → journey */ C11a: number;
+  /** screen → journey */ C11b: number;
+}
+
+/** Each Plain subject's thirteen measured edges, as fractions. */
+const COVERAGE_EDGES: Readonly<Record<string, ICoverageEdges>> = {
+  todo: {
+    C1: 1, C2: 1, C3: 1, C4: 0.733, C5: 1, C6: 0.706, C7: 1,
+    C8: 1, C9: 1, C10a: 0.969, C10b: 1, C11a: 0.813, C11b: 0.8,
+  },
+  reddit: {
+    C1: 0.982, C2: 1, C3: 0.938, C4: 0.893, C5: 0.938, C6: 0.674, C7: 0.758,
+    C8: 1, C9: 1, C10a: 0.886, C10b: 1, C11a: 0.086, C11b: 0.778,
+  },
+  shopping: {
+    C1: 106 / 107, C2: 226 / 235, C3: 1, C4: 103 / 107, C5: 25 / 28,
+    C6: 167 / 227, C7: 139 / 235, C8: 100 / 110, C9: 23 / 110,
+    C10a: 27 / 124, C10b: 23 / 110, C11a: 3 / 124, C11b: 5 / 13,
+  },
 };
+
+/**
+ * The composite the formula produces, from the edges rather than by hand.
+ *
+ * Serial hops multiply and branches average: fold from the leaves up, then
+ * average the six obligations a requirement carries. Holding a typed-in
+ * percentage here instead would put a rounding of my own between the formula
+ * and what the chart prints.
+ */
+const composite = (edges: ICoverageEdges): number => {
+  const mean = (values: readonly number[]): number =>
+    values.reduce((sum, value) => sum + value, 0) / values.length;
+  const dto: number = edges.C6;
+  const screen: number = edges.C11b;
+  const hook: number = edges.C10b * screen;
+  const api: number = mean([edges.C8, edges.C9 * hook]);
+  const model: number = mean([edges.C3 * api, edges.C5 * dto]);
+  return (
+    mean([
+      edges.C1 * model,
+      edges.C2 * api,
+      edges.C4 * dto,
+      edges.C7,
+      edges.C10a * screen,
+      edges.C11a,
+    ]) * 100
+  );
+};
+
+const COVERAGE: Readonly<Record<string, number>> = Object.fromEntries(
+  Object.entries(COVERAGE_EDGES).map(([subject, edges]) => [
+    subject,
+    composite(edges),
+  ]),
+);
 
 /**
  * Whole percent, and the reason it is not finer.
@@ -281,7 +343,7 @@ const COVERAGE: Readonly<Record<string, number>> = {
  */
 const COVERAGE_NOTES: readonly string[] = [
   "Coverage measured by Claude Code Opus 5 — thirteen graph edges read from the source, composed so serial hops multiply and branches average.",
-  "Reported whole: two readings of one unchanged workspace reproduced the seven mechanical edges exactly and moved the five needing a judgement by up to 0.09.",
+  "Two readings of one unchanged workspace reproduced the seven mechanical edges exactly and moved the five needing a judgement by up to 0.09.",
   "Evidence is 100% by construction: a cell that misses an edge does not compile.",
 ];
 
@@ -580,7 +642,7 @@ const renderCoverage = (
       `<text x="${props.labelX}" y="${y + 24}" class="row-label" fill="${armColor(row.arm)}">${escapeXml(row.label)}</text>`,
       `<rect x="${props.barX}" y="${y + 3}" width="${props.barMaximumWidth}" height="30" rx="7" class="track"/>`,
       `<rect x="${props.barX}" y="${y + 3}" width="${filled.toFixed(2)}" height="30" rx="7" fill="${armColor(row.arm)}" data-coverage="${row.percent}"/>`,
-      `<text x="${props.valueX}" y="${y + 25}" text-anchor="end" class="value" fill="${armColor(row.arm)}">${Math.round(row.percent)}%</text>`,
+      `<text x="${props.valueX}" y="${y + 25}" text-anchor="end" class="value" fill="${armColor(row.arm)}">${row.percent.toFixed(1)}%</text>`,
     );
   });
   return { body, height };
