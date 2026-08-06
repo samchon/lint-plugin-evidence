@@ -59,6 +59,7 @@ export namespace EvidenceBenchmarkSessionCost {
     longTokens: number;
     shortTokens: number;
     requests: number;
+    workElapsedMs: number;
   }
 
   const RUN_ID =
@@ -76,6 +77,16 @@ export namespace EvidenceBenchmarkSessionCost {
   export interface ISessionTotals {
     cost: IEvidenceBenchmarkApiCost;
     tokenUsage: IEvidenceBenchmarkTokenUsage;
+    /**
+     * Time the session was working, idleness between dispatches excluded.
+     *
+     * Wall clock from first turn to last would count the hours a cell sat
+     * waiting for someone to dispatch its next stage. Turns inside a dispatch
+     * follow each other in seconds while dispatches are minutes apart, so a
+     * three-minute gap separates them and only the blocks are summed — the same
+     * rule the reconciler applies to the same file.
+     */
+    workElapsedMs: number;
   }
 
   /** Every benchmark run's session totals, keyed by run id. */
@@ -87,13 +98,24 @@ export namespace EvidenceBenchmarkSessionCost {
     const result: Map<string, ISessionTotals> = new Map();
     for (const [runId, cost] of costs) {
       const usage: IEvidenceBenchmarkTokenUsage | undefined = USAGE.get(runId);
-      if (usage !== undefined) result.set(runId, { cost, tokenUsage: usage });
+      if (usage !== undefined)
+        result.set(runId, {
+          cost,
+          tokenUsage: usage,
+          workElapsedMs: ELAPSED.get(runId) ?? 0,
+        });
     }
     return result;
   };
 
   /** Token totals gathered by the last `collect`, keyed by run id. */
   const USAGE: Map<string, IEvidenceBenchmarkTokenUsage> = new Map();
+
+  /** Working time gathered by the last `collect`, keyed by run id. */
+  const ELAPSED: Map<string, number> = new Map();
+
+  /** Turns closer than this belong to one dispatch. */
+  const IDLE_GAP_MS: number = 3 * 60_000;
 
   /** Every benchmark run priced from its sessions, keyed by run id. */
   export const collect = async (
@@ -156,6 +178,10 @@ export namespace EvidenceBenchmarkSessionCost {
           0,
         ),
       });
+      ELAPSED.set(
+        runId,
+        sessions.reduce((sum, session) => sum + session.workElapsedMs, 0),
+      );
       result.set(runId, {
         provider: "openrouter",
         pricingAsOf: PRICING_AS_OF,
@@ -225,6 +251,8 @@ export namespace EvidenceBenchmarkSessionCost {
       let longTokens: number = 0;
       let shortTokens: number = 0;
       let requests: number = 0;
+      let workElapsedMs: number = 0;
+      let previous: number | undefined;
       readline
         .createInterface({ input: fs.createReadStream(file) })
         .on("line", (line) => {
@@ -255,12 +283,29 @@ export namespace EvidenceBenchmarkSessionCost {
           if (last.input_tokens >= LONG_CONTEXT_THRESHOLD_TOKENS)
             longTokens += last.total_tokens ?? 0;
           else shortTokens += last.total_tokens ?? 0;
+          // Each usage line stamps the end of one turn. Consecutive turns of a
+          // dispatch are seconds apart and dispatches are minutes apart, so a
+          // gap under the threshold is work and anything longer is the cell
+          // waiting to be given its next stage.
+          const at: number = Date.parse(record.timestamp ?? "");
+          if (Number.isFinite(at)) {
+            if (previous !== undefined && at - previous <= IDLE_GAP_MS)
+              workElapsedMs += at - previous;
+            previous = at;
+          }
         })
         .on("close", () =>
           resolve(
             final === undefined
               ? undefined
-              : { runId, final, longTokens, shortTokens, requests },
+              : {
+                  runId,
+                  final,
+                  longTokens,
+                  shortTokens,
+                  requests,
+                  workElapsedMs,
+                },
           ),
         );
     });

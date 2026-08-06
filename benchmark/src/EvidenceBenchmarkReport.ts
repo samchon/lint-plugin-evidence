@@ -434,6 +434,10 @@ const phaseLegend = (margin: number): string[] => {
     );
     legendX += 250;
   });
+  legend.push(
+    `<rect x="${legendX}" y="82" width="18" height="12" rx="3" fill="#94a3b8"/>`,
+    `<text x="${legendX + 25}" y="93" class="legend">Review inspection</text>`,
+  );
   return legend;
 };
 
@@ -599,6 +603,17 @@ const renderPhaseChart = (
           );
         offset += segmentWidth;
       });
+      // Judging a cell's Reviews belongs to no stage, so the phases summed to
+      // less than the total the same row's label reported and the widest bar
+      // stopped short of its own scale. It gets a segment of its own.
+      const judged: number =
+        metric.cellValue(cell) -
+        phases.reduce((sum, phase) => sum + phase.value, 0);
+      const judgedWidth: number = (judged / maximum) * barMaximumWidth;
+      if (judgedWidth > 0.5)
+        body.push(
+          `<rect x="${(barX + offset).toFixed(2)}" y="${y + 3}" width="${judgedWidth.toFixed(2)}" height="36" fill="#94a3b8" class="phase-segment" data-phase="review-inspection" data-${metric.dataAttribute}="${judged}"/>`,
+        );
       body.push(
         `<text x="${valueX}" y="${y + 19}" text-anchor="end" class="value">${escapeXml(label)}</text>`,
         `<text x="${valueX}" y="${y + 43}" text-anchor="end" class="cost-value">${escapeXml(cost)}</text>`,
@@ -606,15 +621,7 @@ const renderPhaseChart = (
     });
     cursor += blockHeight + groupGap;
   });
-  const legend: string[] = [];
-  let legendX: number = margin;
-  PHASES.forEach((phase, index) => {
-    legend.push(
-      `<rect x="${legendX}" y="82" width="18" height="12" rx="3" fill="${armColor("plain")}" fill-opacity="${PHASE_OPACITY[index]}"/>`,
-      `<text x="${legendX + 25}" y="93" class="legend">${escapeXml(phase.label)}</text>`,
-    );
-    legendX += 250;
-  });
+  const legend: string[] = phaseLegend(margin);
   const empty: string[] =
     report.cells.length === 0
       ? [

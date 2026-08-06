@@ -210,12 +210,25 @@ export const applySessionTokens = (
   totals: EvidenceBenchmarkSessionCost.ISessionTotals | undefined,
 ): IEvidenceBenchmarkReportCell => {
   if (totals === undefined) return cell;
-  if (cell.status !== "working" && cell.status !== "stopped") return cell;
-  if (totals.tokenUsage.totalTokens <= cell.tokens) return cell;
+  // A record that never reached the chain's last instruction stopped short of
+  // the cell, whatever it says its status is. Shopping Plain's stopped at
+  // `backend-remind-4` and six hand-driven stages followed, so its price and
+  // token count came from the session while its work time still came from the
+  // records — 9h 21m for a cell that had been working past thirteen hours,
+  // beside a token count that did include those stages.
+  const short: boolean = !cell.stages.some(
+    (stage) => stage.name === TERMINAL_STAGE,
+  );
+  if (short === false && cell.status !== "working" && cell.status !== "stopped")
+    return cell;
   return {
     ...cell,
-    tokens: totals.tokenUsage.totalTokens,
-    tokenUsage: totals.tokenUsage,
+    ...(totals.tokenUsage.totalTokens > cell.tokens
+      ? { tokens: totals.tokenUsage.totalTokens, tokenUsage: totals.tokenUsage }
+      : {}),
+    ...(short && totals.workElapsedMs > cell.workElapsedMs
+      ? { workElapsedMs: totals.workElapsedMs }
+      : {}),
   };
 };
 

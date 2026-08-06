@@ -34,6 +34,8 @@
 <text x="811" y="93" class="legend">Frontend Review</text>
 <rect x="1036" y="82" width="18" height="12" rx="3" fill="#4c78a8" fill-opacity="1"/>
 <text x="1061" y="93" class="legend">Overall Review</text>
+<rect x="1286" y="82" width="18" height="12" rx="3" fill="#94a3b8"/>
+<text x="1311" y="93" class="legend">Review inspection</text>
 <rect x="28" y="124" width="1384" height="146" rx="10" class="group" fill-opacity="0.78"/>
 <text x="60" y="155" class="group-title">Coverage</text>
 <text x="1404" y="154" text-anchor="end" class="group-meta">higher is better</text>
@@ -128,5 +130,5 @@
 <text x="568.15" y="865" text-anchor="middle" class="segment-label">Overall</text>
 <text x="1404" y="864" text-anchor="end" class="value">$2.65 (-59%)</text>
 <text x="36" y="966" class="table-note">API cost uses OpenRouter rates from 2026-08-01 and is emitted only after every measured request reconciles with retained counters. Review inspection runs on the cell&apos;s own model and effort, so its tokens, time, and price all sit inside these totals.</text>
-<text x="36" y="984" class="generated">Generated 2026-08-06T08:14:28.812Z</text>
+<text x="36" y="984" class="generated">Generated 2026-08-06T08:22:07.641Z</text>
 </svg>

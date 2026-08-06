@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-06T08:14:28.812Z",
+  "generatedAt": "2026-08-06T08:22:07.641Z",
   "cells": [
     {
       "engine": "codex",
@@ -564,7 +564,7 @@
       "workElapsedMs": 50074428.7455,
       "worktree": {
         "files": 157,
-        "additions": 21370,
+        "additions": 21378,
         "deletions": 145
       },
       "reviewVerdicts": [
@@ -882,7 +882,7 @@
       "benchmarkRevision": "cdbda42111ecc8f459f2772065caf067b6db3f91",
       "model": "gpt-5.6-luna",
       "effort": "high",
-      "status": "working",
+      "status": "completed",
       "stage": "overall-final",
       "launchedAt": "2026-08-05T10:35:07.515Z",
       "tokens": 798198850,
@@ -920,10 +920,10 @@
       },
       "suspendedMs": 0,
       "suspensions": [],
-      "workElapsedMs": 33640688.8602,
+      "workElapsedMs": 40477213,
       "worktree": {
         "files": 169,
-        "additions": 24617,
+        "additions": 24627,
         "deletions": 114
       },
       "reviewVerdicts": [
@@ -1245,16 +1245,16 @@
       "model": "gpt-5.6-luna",
       "effort": "high",
       "status": "working",
-      "stage": "frontend-review",
+      "stage": "frontend-final",
       "launchedAt": "2026-08-04T22:56:46.636Z",
-      "tokens": 623698112,
+      "tokens": 626397973,
       "tokenUsage": {
-        "totalTokens": 623698112,
-        "inputTokens": 622731230,
-        "cachedInputTokens": 614110976,
+        "totalTokens": 626397973,
+        "inputTokens": 625422788,
+        "cachedInputTokens": 616709376,
         "cacheWriteInputTokens": 0,
-        "outputTokens": 966882,
-        "reasoningOutputTokens": 234523
+        "outputTokens": 975185,
+        "reasoningOutputTokens": 238332
       },
       "inspection": {
         "attempts": 0,
@@ -1274,9 +1274,9 @@
         "pricingAsOf": "2026-08-01",
         "priceSource": "https://openrouter.ai/api/v1/models",
         "currency": "USD",
-        "amountUsd": 7.58943835,
-        "requests": 5652,
-        "shortContextRequests": 5647,
+        "amountUsd": 7.62972993,
+        "requests": 5683,
+        "shortContextRequests": 5678,
         "longContextRequests": 5,
         "longContextThresholdTokens": 272000
       },

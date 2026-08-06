@@ -7,16 +7,16 @@
   "model": "gpt-5.6-luna",
   "effort": "high",
   "status": "working",
-  "stage": "frontend-review",
+  "stage": "frontend-final",
   "launchedAt": "2026-08-04T22:56:46.636Z",
-  "tokens": 623698112,
+  "tokens": 626397973,
   "tokenUsage": {
-    "totalTokens": 623698112,
-    "inputTokens": 622731230,
-    "cachedInputTokens": 614110976,
+    "totalTokens": 626397973,
+    "inputTokens": 625422788,
+    "cachedInputTokens": 616709376,
     "cacheWriteInputTokens": 0,
-    "outputTokens": 966882,
-    "reasoningOutputTokens": 234523
+    "outputTokens": 975185,
+    "reasoningOutputTokens": 238332
   },
   "inspection": {
     "attempts": 0,
@@ -36,9 +36,9 @@
     "pricingAsOf": "2026-08-01",
     "priceSource": "https://openrouter.ai/api/v1/models",
     "currency": "USD",
-    "amountUsd": 7.58943835,
-    "requests": 5652,
-    "shortContextRequests": 5647,
+    "amountUsd": 7.62972993,
+    "requests": 5683,
+    "shortContextRequests": 5678,
     "longContextRequests": 5,
     "longContextThresholdTokens": 272000
   },
