@@ -216,11 +216,16 @@ export const applySessionTokens = (
   // token count came from the session while its work time still came from the
   // records — 9h 21m for a cell that had been working past thirteen hours,
   // beside a token count that did include those stages.
-  const short: boolean = !cell.stages.some(
-    (stage) => stage.name === TERMINAL_STAGE,
-  );
-  if (short === false && cell.status !== "working" && cell.status !== "stopped")
-    return cell;
+  // Two ways a record can fall behind its cell: it never reached the chain's
+  // last instruction, or it did and the cell was sent back past it. Erp Plain
+  // is the second — its three records end at `overall-final` while four re-run
+  // stages have been working for hours, so testing only the first left its
+  // hours frozen beside a price and a token count that both kept moving.
+  const short: boolean =
+    !cell.stages.some((stage) => stage.name === TERMINAL_STAGE) ||
+    cell.status === "working" ||
+    cell.status === "stopped";
+  if (short === false) return cell;
   return {
     ...cell,
     ...(totals.tokenUsage.totalTokens > cell.tokens

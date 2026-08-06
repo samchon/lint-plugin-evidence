@@ -271,8 +271,19 @@ const COVERAGE: Readonly<Record<string, number>> = {
   shopping: 40.1,
 };
 
-const COVERAGE_NOTE =
-  "Coverage measured by Claude Code Opus 5 — thirteen graph edges read from the source, composed so serial hops multiply and branches average. Evidence is 100% by construction: a cell that misses an edge does not compile." as const;
+/**
+ * Whole percent, and the reason it is not finer.
+ *
+ * Two independent readings of one workspace that had not changed a byte
+ * reproduced the seven edges a machine can settle exactly, and moved the five
+ * that need a judgement by up to 0.09 — every one of them upward. A decimal
+ * place would claim a precision the second reading refuted.
+ */
+const COVERAGE_NOTES: readonly string[] = [
+  "Coverage measured by Claude Code Opus 5 — thirteen graph edges read from the source, composed so serial hops multiply and branches average.",
+  "Reported whole: two readings of one unchanged workspace reproduced the seven mechanical edges exactly and moved the five needing a judgement by up to 0.09.",
+  "Evidence is 100% by construction: a cell that misses an edge does not compile.",
+];
 
 const renderSummaryChart = (report: IEvidenceBenchmarkReport): string =>
   renderPhaseChart(report, {
@@ -392,7 +403,7 @@ const renderSubjectChart = (
     },
   );
   const coverageHeight: number =
-    coverage.height === 0 ? 0 : coverage.height + 36;
+    coverage.height === 0 ? 0 : coverage.height + 24 + COVERAGE_NOTES.length * 15;
   const height: number =
     header + coverageHeight + axes.length * (blockHeight + 16) + 62;
   const body: string[] = [
@@ -400,7 +411,10 @@ const renderSubjectChart = (
     ...(coverage.height === 0
       ? []
       : [
-          `<text x="${margin}" y="${header + coverage.height + 18}" class="table-note">${escapeXml(COVERAGE_NOTE)}</text>`,
+          ...COVERAGE_NOTES.map(
+            (note, index) =>
+              `<text x="${margin}" y="${header + coverage.height + 18 + index * 15}" class="table-note">${escapeXml(note)}</text>`,
+          ),
         ]),
   ];
   let cursor: number = header + coverageHeight;
@@ -566,7 +580,7 @@ const renderCoverage = (
       `<text x="${props.labelX}" y="${y + 24}" class="row-label" fill="${armColor(row.arm)}">${escapeXml(row.label)}</text>`,
       `<rect x="${props.barX}" y="${y + 3}" width="${props.barMaximumWidth}" height="30" rx="7" class="track"/>`,
       `<rect x="${props.barX}" y="${y + 3}" width="${filled.toFixed(2)}" height="30" rx="7" fill="${armColor(row.arm)}" data-coverage="${row.percent}"/>`,
-      `<text x="${props.valueX}" y="${y + 25}" text-anchor="end" class="value" fill="${armColor(row.arm)}">${row.percent.toFixed(1)}%</text>`,
+      `<text x="${props.valueX}" y="${y + 25}" text-anchor="end" class="value" fill="${armColor(row.arm)}">${Math.round(row.percent)}%</text>`,
     );
   });
   return { body, height };
@@ -620,7 +634,7 @@ const renderPhaseChart = (
     rowHeight: 40,
   });
   const coverageHeight: number =
-    coverage.height === 0 ? 0 : coverage.height + groupGap + 20;
+    coverage.height === 0 ? 0 : coverage.height + groupGap + 20 + COVERAGE_NOTES.length * 15;
   const height: number =
     headerHeight +
     coverageHeight +
@@ -645,7 +659,10 @@ const renderPhaseChart = (
     ...(coverage.height === 0
       ? []
       : [
-          `<text x="${margin}" y="${headerHeight + coverage.height + 18}" class="table-note">${escapeXml(COVERAGE_NOTE)}</text>`,
+          ...COVERAGE_NOTES.map(
+            (note, index) =>
+              `<text x="${margin}" y="${headerHeight + coverage.height + 18 + index * 15}" class="table-note">${escapeXml(note)}</text>`,
+          ),
         ]),
   ];
   groups.forEach(([subject, unsorted], groupIndex) => {
