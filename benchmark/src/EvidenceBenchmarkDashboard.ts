@@ -63,6 +63,7 @@ interface IDashboardInstruction {
     reasoningOutputTokens?: number;
   };
   tokenUsageEnd?: IEvidenceBenchmarkTokenUsage | null;
+  derivedFromRollout?: boolean;
 }
 
 interface IDashboardState {
@@ -131,6 +132,7 @@ export const renderEvidenceBenchmarkDashboard = (
     undefined,
     undefined,
     true,
+    false,
   );
   const models: Map<string, IEvidenceBenchmarkReportCell[]> = Map.groupBy(
     report.cells,
@@ -147,6 +149,15 @@ export const collectEvidenceBenchmarkReport = (
   generatedAt: Date = new Date(),
   runIds?: readonly string[],
   includeApiCost: boolean = false,
+  /**
+   * Whether a run that cannot be priced exactly is an error.
+   *
+   * The published report says yes: a figure it prints must be exact, and a
+   * run it cannot replay is a defect to fix before publishing. The dashboard
+   * says no, because it is a status view of thirteen cells and one cell whose
+   * request stream was never retained must not blank the other twelve.
+   */
+  strictApiCost: boolean = true,
 ): IEvidenceBenchmarkReport => {
   const scanned: IDashboardRun[] = scanRuns(
     path.join(repository, "benchmark", "output"),
@@ -173,7 +184,7 @@ export const collectEvidenceBenchmarkReport = (
     cells: ordered.flatMap(([, runs]) =>
       runs
         .sort(compareRuns)
-        .map((run) => summarizeRun(run, includeApiCost, byRunId)),
+        .map((run) => summarizeRun(run, includeApiCost, strictApiCost, byRunId)),
     ),
   };
 };
@@ -393,6 +404,7 @@ const renderRun = (run: IEvidenceBenchmarkReportCell): IRenderedRun => {
 const summarizeRun = (
   run: IDashboardRun,
   includeApiCost: boolean,
+  strictApiCost: boolean,
   byRunId: ReadonlyMap<string, IDashboardRun>,
 ): IEvidenceBenchmarkReportCell => {
   const file: IDashboardStateFile = run.file;
@@ -447,7 +459,9 @@ const summarizeRun = (
     tokens: totalTokens,
     tokenUsage: totalUsage,
     inspection,
-    apiCost: includeApiCost ? collectRunApiCost(run, byRunId) : null,
+    apiCost: includeApiCost
+      ? collectRunApiCost(run, byRunId, strictApiCost)
+      : null,
     suspendedMs,
     suspensions: run.suspensions,
     workElapsedMs,
@@ -571,15 +585,28 @@ const collectReviewVerdicts = (
 const collectRunApiCost = (
   run: IDashboardRun,
   byRunId: ReadonlyMap<string, IDashboardRun>,
+  strictApiCost: boolean,
 ): IEvidenceBenchmarkApiCost | null => {
   const file: IDashboardStateFile = run.file;
+  // A terminal run must price exactly, because its record should be complete.
+  // That holds only where the runner drove it. A stage reconciled from the
+  // rollout has figures but no retained request stream to replay — the drive
+  // that produced it wrote its console somewhere the runner never indexed — so
+  // demanding exactness there fails the whole report over one cell's absence.
+  // The stage says which it is, and a run carrying any derived stage is priced
+  // leniently: it answers with nothing rather than with an approximation.
+  const derived: boolean = file.state.goals.some(
+    (goal) => goal.derivedFromRollout === true,
+  );
   const strict: boolean =
-    file.state.status === "completed" ||
-    file.state.status === "checkpointed" ||
-    file.state.status === "awaiting-review-verdict" ||
-    file.state.status === "quality-failed" ||
-    file.state.status === "awaiting-supervision" ||
-    file.state.status === "rejected";
+    strictApiCost &&
+    !derived &&
+    (file.state.status === "completed" ||
+      file.state.status === "checkpointed" ||
+      file.state.status === "awaiting-review-verdict" ||
+      file.state.status === "quality-failed" ||
+      file.state.status === "awaiting-supervision" ||
+      file.state.status === "rejected");
   if (file.cell.checkpointSource === undefined)
     return collectEvidenceBenchmarkApiCost({
       stageLogs: runStageLogs(file),
