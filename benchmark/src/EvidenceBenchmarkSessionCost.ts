@@ -37,21 +37,32 @@ export namespace EvidenceBenchmarkSessionCost {
   const PRICING_AS_OF = "2026-08-01" as const;
   const PRICE_SOURCE = "https://openrouter.ai/api/v1/models" as const;
 
-  const PRICES: Readonly<Record<string, { short: ITokenPrice; long: ITokenPrice }>> =
-    {
-      "gpt-5.6-luna": {
-        short: { input: 0.1, cachedInput: 0.01, cacheWriteInput: 0.125, output: 0.6 },
-        long: { input: 0.2, cachedInput: 0.02, cacheWriteInput: 0.25, output: 0.9 },
+  const PRICES: Readonly<
+    Record<string, { short: ITokenPrice; long: ITokenPrice }>
+  > = {
+    "gpt-5.6-luna": {
+      short: {
+        input: 0.1,
+        cachedInput: 0.01,
+        cacheWriteInput: 0.125,
+        output: 0.6,
       },
-      "gpt-5.6-terra": {
-        short: { input: 1, cachedInput: 0.1, cacheWriteInput: 1.25, output: 6 },
-        long: { input: 2, cachedInput: 0.2, cacheWriteInput: 2.5, output: 9 },
+      long: {
+        input: 0.2,
+        cachedInput: 0.02,
+        cacheWriteInput: 0.25,
+        output: 0.9,
       },
-      "gpt-5.6-sol": {
-        short: { input: 5, cachedInput: 0.5, cacheWriteInput: 6.25, output: 30 },
-        long: { input: 10, cachedInput: 1, cacheWriteInput: 12.5, output: 45 },
-      },
-    };
+    },
+    "gpt-5.6-terra": {
+      short: { input: 1, cachedInput: 0.1, cacheWriteInput: 1.25, output: 6 },
+      long: { input: 2, cachedInput: 0.2, cacheWriteInput: 2.5, output: 9 },
+    },
+    "gpt-5.6-sol": {
+      short: { input: 5, cachedInput: 0.5, cacheWriteInput: 6.25, output: 30 },
+      long: { input: 10, cachedInput: 1, cacheWriteInput: 12.5, output: 45 },
+    },
+  };
 
   interface ISession {
     runId: string;
@@ -150,7 +161,8 @@ export namespace EvidenceBenchmarkSessionCost {
           cost(session.final, prices.long) * share;
         requests += session.requests;
         longContextRequests += Math.round(session.requests * share);
-        shortContextRequests += session.requests - Math.round(session.requests * share);
+        shortContextRequests +=
+          session.requests - Math.round(session.requests * share);
       }
       USAGE.set(runId, {
         totalTokens: sessions.reduce(
@@ -197,10 +209,7 @@ export namespace EvidenceBenchmarkSessionCost {
     return result;
   };
 
-  const cost = (
-    usage: Record<string, number>,
-    price: ITokenPrice,
-  ): number => {
+  const cost = (usage: Record<string, number>, price: ITokenPrice): number => {
     const uncached: number =
       (usage.input_tokens ?? 0) -
       (usage.cached_input_tokens ?? 0) -
@@ -235,7 +244,13 @@ export namespace EvidenceBenchmarkSessionCost {
     const buffer: Buffer = Buffer.alloc(4096);
     const descriptor: number = fs.openSync(file, "r");
     try {
-      const length: number = fs.readSync(descriptor, buffer, 0, buffer.length, 0);
+      const length: number = fs.readSync(
+        descriptor,
+        buffer,
+        0,
+        buffer.length,
+        0,
+      );
       return RUN_ID.exec(buffer.subarray(0, length).toString("utf8"))?.[1];
     } finally {
       fs.closeSync(descriptor);
@@ -266,7 +281,8 @@ export namespace EvidenceBenchmarkSessionCost {
           const info: Record<string, any> | undefined = record.payload?.info;
           const total: Record<string, number> | undefined =
             info?.total_token_usage;
-          const last: Record<string, number> | undefined = info?.last_token_usage;
+          const last: Record<string, number> | undefined =
+            info?.last_token_usage;
           if (
             total === undefined ||
             last === undefined ||
@@ -277,7 +293,10 @@ export namespace EvidenceBenchmarkSessionCost {
           // The counter is the session's own and a resumed process continues
           // it, so the highest reading is the session's end whatever order the
           // lines arrived in.
-          if (final === undefined || total.total_tokens > (final.total_tokens ?? 0))
+          if (
+            final === undefined ||
+            total.total_tokens > (final.total_tokens ?? 0)
+          )
             final = total;
           requests += 1;
           if (last.input_tokens >= LONG_CONTEXT_THRESHOLD_TOKENS)

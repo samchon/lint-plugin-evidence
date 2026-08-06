@@ -36,7 +36,8 @@ export namespace EvidenceBenchmarkReconcile {
    * One stage of the run, in objective order.
    *
    * A stage the runner measured is named alone and is not touched. A stage it
-   * never recorded is marked `derive`, and takes one block of rollout activity.
+   * never recorded is marked `derive`, and takes one block of rollout
+   * activity.
    */
   export interface IStage {
     name: string;
@@ -45,11 +46,11 @@ export namespace EvidenceBenchmarkReconcile {
     /**
      * How many rollout dispatches this stage spans. One unless stated.
      *
-     * A stage that died and was restarted is still one stage, and every
-     * attempt is work it spent. How many attempts it took is not derivable
-     * from the rollout — an idle gap looks the same whether the next dispatch
-     * resumed the stage or began the next one — so the caller states it from
-     * the record of what it dispatched, and the arithmetic stays exact.
+     * A stage that died and was restarted is still one stage, and every attempt
+     * is work it spent. How many attempts it took is not derivable from the
+     * rollout — an idle gap looks the same whether the next dispatch resumed
+     * the stage or began the next one — so the caller states it from the record
+     * of what it dispatched, and the arithmetic stays exact.
      */
     dispatches?: number;
   }
@@ -200,7 +201,8 @@ export namespace EvidenceBenchmarkReconcile {
           before?.tokenUsageEnd == null
             ? undefined
             : asCounter(before.tokenUsageEnd);
-        if (handoff !== undefined && at === 0) own[0] = { ...own[0]!, opening: handoff };
+        if (handoff !== undefined && at === 0)
+          own[0] = { ...own[0]!, opening: handoff };
         // A restarted stage is credited with what each attempt spent and with
         // the time each attempt ran, never with the idleness between them: no
         // work happened while nothing was dispatched, and charging that gap to
@@ -232,7 +234,10 @@ export namespace EvidenceBenchmarkReconcile {
       // every published duration a difference of two unrelated numbers.
       cumulativeSeconds += Math.round((record.elapsedMs ?? 0) / 1000);
       if (record.goal === null || record.goal === undefined)
-        record.goal = { status: "complete", timeUsedSeconds: cumulativeSeconds };
+        record.goal = {
+          status: "complete",
+          timeUsedSeconds: cumulativeSeconds,
+        };
       else {
         record.goal.status = record.goal.status ?? "complete";
         record.goal.timeUsedSeconds = cumulativeSeconds;
@@ -304,7 +309,9 @@ export namespace EvidenceBenchmarkReconcile {
     const base: string = name.replace(/-\d+$/, "");
     const split: number = base.indexOf("-");
     const tail: string =
-      split < 0 ? `${base}.md` : `${base.slice(0, split)}/${base.slice(split + 1)}.md`;
+      split < 0
+        ? `${base}.md`
+        : `${base.slice(0, split)}/${base.slice(split + 1)}.md`;
     const file: string = path.join(instructionRoot, ...tail.split("/"));
     if (!fs.existsSync(file))
       throw new Error(
@@ -364,7 +371,10 @@ export namespace EvidenceBenchmarkReconcile {
       const handedOver: boolean =
         previous !== undefined &&
         dispatches.some((at) => at > previous![0] && at <= point[0]);
-      if (previous !== undefined && (handedOver || point[0] - previous[0] > idle)) {
+      if (
+        previous !== undefined &&
+        (handedOver || point[0] - previous[0] > idle)
+      ) {
         blocks.push({
           from: from!,
           to: previous[0],

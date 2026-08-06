@@ -29,8 +29,8 @@ export interface IEvidenceBenchmarkReportOptions {
  * Prices are collected the way the dashboard collects them: the runner's
  * retained request stream where it can answer, the cell's own Codex session
  * where it cannot. Insisting on the replay alone stopped this report from
- * regenerating at all once the campaign started driving cells by hand, which
- * is how its charts came to be three days older than the run they describe.
+ * regenerating at all once the campaign started driving cells by hand, which is
+ * how its charts came to be three days older than the run they describe.
  */
 export const writeEvidenceBenchmarkReport = async (
   options: IEvidenceBenchmarkReportOptions,
@@ -139,7 +139,10 @@ export const writeEvidenceBenchmarkReport = async (
   // for — took the space they left.
   fs.rmSync(path.join(output, "tokens.svg"), { force: true });
   fs.rmSync(path.join(output, "time.svg"), { force: true });
-  fs.writeFileSync(path.join(output, "summary.svg"), renderSummaryChart(chartReport));
+  fs.writeFileSync(
+    path.join(output, "summary.svg"),
+    renderSummaryChart(chartReport),
+  );
   return report;
 };
 
@@ -272,35 +275,67 @@ const CHART_STYLE: string = [
  * edge does not compile, so the arm is 100% by construction.
  */
 interface ICoverageEdges {
-  /** requirement → Prisma model */ C1: number;
-  /** requirement → controller operation */ C2: number;
-  /** model → operation */ C3: number;
-  /** requirement → DTO type */ C4: number;
-  /** model → DTO type */ C5: number;
-  /** column → DTO property */ C6: number;
-  /** requirement → backend test */ C7: number;
-  /** accessor → asserting test */ C8: number;
-  /** accessor → hook */ C9: number;
-  /** requirement → screen */ C10a: number;
-  /** hook → screen */ C10b: number;
-  /** requirement → journey */ C11a: number;
-  /** screen → journey */ C11b: number;
+  /** Requirement → Prisma model */ C1: number;
+  /** Requirement → controller operation */ C2: number;
+  /** Model → operation */ C3: number;
+  /** Requirement → DTO type */ C4: number;
+  /** Model → DTO type */ C5: number;
+  /** Column → DTO property */ C6: number;
+  /** Requirement → backend test */ C7: number;
+  /** Accessor → asserting test */ C8: number;
+  /** Accessor → hook */ C9: number;
+  /** Requirement → screen */ C10a: number;
+  /** Hook → screen */ C10b: number;
+  /** Requirement → journey */ C11a: number;
+  /** Screen → journey */ C11b: number;
 }
 
 /** Each Plain subject's thirteen measured edges, as fractions. */
 const COVERAGE_EDGES: Readonly<Record<string, ICoverageEdges>> = {
   todo: {
-    C1: 1, C2: 1, C3: 1, C4: 0.733, C5: 1, C6: 0.706, C7: 1,
-    C8: 1, C9: 1, C10a: 0.969, C10b: 1, C11a: 0.813, C11b: 0.8,
+    C1: 1,
+    C2: 1,
+    C3: 1,
+    C4: 0.733,
+    C5: 1,
+    C6: 0.706,
+    C7: 1,
+    C8: 1,
+    C9: 1,
+    C10a: 0.969,
+    C10b: 1,
+    C11a: 0.813,
+    C11b: 0.8,
   },
   reddit: {
-    C1: 0.982, C2: 1, C3: 0.938, C4: 0.893, C5: 0.938, C6: 0.674, C7: 0.758,
-    C8: 1, C9: 1, C10a: 0.886, C10b: 1, C11a: 0.086, C11b: 0.778,
+    C1: 0.982,
+    C2: 1,
+    C3: 0.938,
+    C4: 0.893,
+    C5: 0.938,
+    C6: 0.674,
+    C7: 0.758,
+    C8: 1,
+    C9: 1,
+    C10a: 0.886,
+    C10b: 1,
+    C11a: 0.086,
+    C11b: 0.778,
   },
   shopping: {
-    C1: 106 / 107, C2: 226 / 235, C3: 1, C4: 103 / 107, C5: 25 / 28,
-    C6: 167 / 227, C7: 139 / 235, C8: 100 / 110, C9: 23 / 110,
-    C10a: 27 / 124, C10b: 23 / 110, C11a: 3 / 124, C11b: 5 / 13,
+    C1: 106 / 107,
+    C2: 226 / 235,
+    C3: 1,
+    C4: 103 / 107,
+    C5: 25 / 28,
+    C6: 167 / 227,
+    C7: 139 / 235,
+    C8: 100 / 110,
+    C9: 23 / 110,
+    C10a: 27 / 124,
+    C10b: 23 / 110,
+    C11a: 3 / 124,
+    C11b: 5 / 13,
   },
   // Measured after this cell's second pass. The first pass read 30.0%: the
   // re-run moved four edges and three of them are the frontend's — journeys
@@ -308,9 +343,19 @@ const COVERAGE_EDGES: Readonly<Record<string, ICoverageEdges>> = {
   // bought nothing on `accessor → asserting test`, which is the edge that
   // binds this subject.
   erp: {
-    C1: 282 / 451, C2: 893 / 947, C3: 71 / 71, C4: 282 / 451, C5: 67 / 71,
-    C6: 566 / 682, C7: 624 / 947, C8: 78 / 557, C9: 35 / 557,
-    C10a: 201 / 691, C10b: 8 / 9, C11a: 44 / 691, C11b: 7 / 7,
+    C1: 282 / 451,
+    C2: 893 / 947,
+    C3: 71 / 71,
+    C4: 282 / 451,
+    C5: 67 / 71,
+    C6: 566 / 682,
+    C7: 624 / 947,
+    C8: 78 / 557,
+    C9: 35 / 557,
+    C10a: 201 / 691,
+    C10b: 8 / 9,
+    C11a: 44 / 691,
+    C11b: 7 / 7,
   },
 };
 
@@ -431,9 +476,7 @@ const renderSubjectChart = (
     label: string;
     hint: string;
     value: (cell: IEvidenceBenchmarkReportCell) => number;
-    phase: (
-      cell: IEvidenceBenchmarkReportCell,
-    ) => readonly IPhaseValue[];
+    phase: (cell: IEvidenceBenchmarkReportCell) => readonly IPhaseValue[];
     format: (value: number) => string;
   }[] = [
     {
@@ -482,7 +525,9 @@ const renderSubjectChart = (
     },
   );
   const coverageHeight: number =
-    coverage.height === 0 ? 0 : coverage.height + 24 + COVERAGE_NOTES.length * 15;
+    coverage.height === 0
+      ? 0
+      : coverage.height + 24 + COVERAGE_NOTES.length * 15;
   const height: number =
     header + coverageHeight + axes.length * (blockHeight + 16) + 62;
   const body: string[] = [
@@ -575,26 +620,30 @@ const renderSubjectChart = (
  * The shade key, one entry per line with what the stage actually is.
  *
  * Six shades of one colour across a row said which segment was which and
- * nothing about what any of them meant, and the names alone do not carry it:
- * a reader cannot tell from "Backend Review" that it is a loop that repeats
- * until a round changes nothing. Stacked vertically there is room to say so.
+ * nothing about what any of them meant, and the names alone do not carry it: a
+ * reader cannot tell from "Backend Review" that it is a loop that repeats until
+ * a round changes nothing. Stacked vertically there is room to say so.
  */
 const phaseLegend = (margin: number): string[] => {
-  const entries: { fill: string; opacity: number; label: string; hint: string }[] =
-    [
-      ...PHASES.map((phase, index) => ({
-        fill: armColor("plain"),
-        opacity: PHASE_OPACITY[index] ?? 1,
-        label: phase.label,
-        hint: phase.hint,
-      })),
-      {
-        fill: "#94a3b8",
-        opacity: 1,
-        label: "Review inspection",
-        hint: "What judging a Review cost — spend that belongs to no stage",
-      },
-    ];
+  const entries: {
+    fill: string;
+    opacity: number;
+    label: string;
+    hint: string;
+  }[] = [
+    ...PHASES.map((phase, index) => ({
+      fill: armColor("plain"),
+      opacity: PHASE_OPACITY[index] ?? 1,
+      label: phase.label,
+      hint: phase.hint,
+    })),
+    {
+      fill: "#94a3b8",
+      opacity: 1,
+      label: "Review inspection",
+      hint: "What judging a Review cost — spend that belongs to no stage",
+    },
+  ];
   return entries.flatMap((entry, index) => {
     const y: number = LEGEND_TOP + index * LEGEND_ROW_HEIGHT;
     return [
@@ -635,14 +684,15 @@ const renderCoverage = (
     .filter((subject) => COVERAGE[subject] !== undefined)
     .sort((left, right) => subjectRank(left) - subjectRank(right));
   if (subjects.length === 0) return { body: [], height: 0 };
-  const rows: { label: string; percent: number; arm: "plain" | "evidence" }[] = [
-    ...subjects.map((subject) => ({
-      label: `${title(subject)} Plain`,
-      percent: COVERAGE[subject]!,
-      arm: "plain" as const,
-    })),
-    { label: "Evidence (every)", percent: 100, arm: "evidence" as const },
-  ];
+  const rows: { label: string; percent: number; arm: "plain" | "evidence" }[] =
+    [
+      ...subjects.map((subject) => ({
+        label: `${title(subject)} Plain`,
+        percent: COVERAGE[subject]!,
+        arm: "plain" as const,
+      })),
+      { label: "Evidence (every)", percent: 100, arm: "evidence" as const },
+    ];
   const height: number = 52 + rows.length * props.rowHeight + 14;
   const body: string[] = [
     `<rect x="${props.margin - 8}" y="${props.top}" width="${props.width - 2 * props.margin + 16}" height="${height}" rx="10" class="group" fill-opacity="0.78"/>`,
@@ -713,7 +763,9 @@ const renderPhaseChart = (
     rowHeight: 40,
   });
   const coverageHeight: number =
-    coverage.height === 0 ? 0 : coverage.height + groupGap + 20 + COVERAGE_NOTES.length * 15;
+    coverage.height === 0
+      ? 0
+      : coverage.height + groupGap + 20 + COVERAGE_NOTES.length * 15;
   const height: number =
     headerHeight +
     coverageHeight +
@@ -911,10 +963,10 @@ const phaseValueLabel = (
 /**
  * The two axes that carry no bar of their own.
  *
- * Work time and price track token spend closely enough that three charts of
- * the same shape said one thing three times. They read as text beside the bar
- * that does carry a shape, where a reader who wants them finds them and a
- * reader comparing spend is not asked to compare three pictures.
+ * Work time and price track token spend closely enough that three charts of the
+ * same shape said one thing three times. They read as text beside the bar that
+ * does carry a shape, where a reader who wants them finds them and a reader
+ * comparing spend is not asked to compare three pictures.
  */
 const formatApiCostLine = (cell: IEvidenceBenchmarkReportCell): string => {
   const time: string = formatDuration(cell.workElapsedMs);

@@ -20,8 +20,9 @@ import readline from "node:readline";
  * stage a cell is on is recoverable from the same source as what it spent, and
  * one cannot drift from the other.
  *
- * What this reports is the last stage *dispatched*, never that it finished.
- * Finishing is the runner's word to give and a hand-driven stage never gets it.
+ * What this reports is the last stage _dispatched_, never that it finished.
+ * Finishing is the runner's word to give and a hand-driven stage never gets
+ * it.
  */
 export namespace EvidenceBenchmarkDirectStage {
   export interface IDirectStage {
@@ -57,7 +58,8 @@ export namespace EvidenceBenchmarkDirectStage {
   export const collect = async (
     instructionsRoot: string,
   ): Promise<ReadonlyMap<string, IDirectStage>> => {
-    const headings: ReadonlyMap<string, string> = readHeadings(instructionsRoot);
+    const headings: ReadonlyMap<string, string> =
+      readHeadings(instructionsRoot);
     const result: Map<string, IDirectStage> = new Map();
     if (headings.size === 0) return result;
     for (const file of rollouts()) {
@@ -84,10 +86,14 @@ export namespace EvidenceBenchmarkDirectStage {
    * where the runner would have said `backend-remind-3` understates what is
    * known rather than inventing an attempt number.
    */
-  const readHeadings = (instructionsRoot: string): ReadonlyMap<string, string> => {
+  const readHeadings = (
+    instructionsRoot: string,
+  ): ReadonlyMap<string, string> => {
     const headings: Map<string, string> = new Map();
     if (!fs.existsSync(instructionsRoot)) return headings;
-    for (const arm of fs.readdirSync(instructionsRoot, { withFileTypes: true })) {
+    for (const arm of fs.readdirSync(instructionsRoot, {
+      withFileTypes: true,
+    })) {
       if (!arm.isDirectory()) continue;
       const armRoot: string = path.join(instructionsRoot, arm.name);
       for (const group of fs.readdirSync(armRoot, { withFileTypes: true })) {
@@ -135,7 +141,13 @@ export namespace EvidenceBenchmarkDirectStage {
     const buffer: Buffer = Buffer.alloc(4096);
     const descriptor: number = fs.openSync(file, "r");
     try {
-      const length: number = fs.readSync(descriptor, buffer, 0, buffer.length, 0);
+      const length: number = fs.readSync(
+        descriptor,
+        buffer,
+        0,
+        buffer.length,
+        0,
+      );
       return RUN_ID.exec(buffer.subarray(0, length).toString("utf8"))?.[1];
     } finally {
       fs.closeSync(descriptor);

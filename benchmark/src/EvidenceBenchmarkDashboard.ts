@@ -162,19 +162,23 @@ export const renderEvidenceBenchmarkDashboard = async (
   // replay, and every hand-driven cell in this campaign is one. Its Codex
   // session still carries the counter, so the price is read from there rather
   // than left blank; the replay stays preferred wherever it can answer.
-  const sessions: ReadonlyMap<string, EvidenceBenchmarkSessionCost.ISessionTotals> =
-    await EvidenceBenchmarkSessionCost.totals(
-      report.cells[0]?.model ?? "gpt-5.6-luna",
-    );
+  const sessions: ReadonlyMap<
+    string,
+    EvidenceBenchmarkSessionCost.ISessionTotals
+  > = await EvidenceBenchmarkSessionCost.totals(
+    report.cells[0]?.model ?? "gpt-5.6-luna",
+  );
   // A stage driven by hand never reaches a Goal record, so the runner's last
   // word outlives the cell's real position: two cells here read `quality-failed`
   // and `completed` while both were building frontends. The session that
   // received the instruction is the one source that sees every dispatch, and it
   // is the source the price already comes from.
-  const dispatches: ReadonlyMap<string, EvidenceBenchmarkDirectStage.IDirectStage> =
-    await EvidenceBenchmarkDirectStage.collect(
-      path.join(repository, "benchmark", "instructions"),
-    );
+  const dispatches: ReadonlyMap<
+    string,
+    EvidenceBenchmarkDirectStage.IDirectStage
+  > = await EvidenceBenchmarkDirectStage.collect(
+    path.join(repository, "benchmark", "instructions"),
+  );
   const cells: IEvidenceBenchmarkReportCell[] = report.cells
     .filter((cell) => PUBLISHED.has(`${cell.subject}/${cell.arm}`))
     .map((cell) =>
@@ -182,7 +186,9 @@ export const renderEvidenceBenchmarkDashboard = async (
         ? cell
         : { ...cell, apiCost: sessions.get(cell.runId)?.cost ?? null },
     )
-    .map((cell) => applyDirectStage(cell, repository, dispatches.get(cell.runId)))
+    .map((cell) =>
+      applyDirectStage(cell, repository, dispatches.get(cell.runId)),
+    )
     .map((cell) => applySessionTokens(cell, sessions.get(cell.runId)));
   const models: Map<string, IEvidenceBenchmarkReportCell[]> = Map.groupBy(
     cells,
@@ -365,9 +371,9 @@ export const collectEvidenceBenchmarkReport = (
   /**
    * Whether a run that cannot be priced exactly is an error.
    *
-   * The published report says yes: a figure it prints must be exact, and a
-   * run it cannot replay is a defect to fix before publishing. The dashboard
-   * says no, because it is a status view of thirteen cells and one cell whose
+   * The published report says yes: a figure it prints must be exact, and a run
+   * it cannot replay is a defect to fix before publishing. The dashboard says
+   * no, because it is a status view of thirteen cells and one cell whose
    * request stream was never retained must not blank the other twelve.
    */
   strictApiCost: boolean = true,
@@ -397,7 +403,9 @@ export const collectEvidenceBenchmarkReport = (
     cells: ordered.flatMap(([, runs]) =>
       runs
         .sort(compareRuns)
-        .map((run) => summarizeRun(run, includeApiCost, strictApiCost, byRunId)),
+        .map((run) =>
+          summarizeRun(run, includeApiCost, strictApiCost, byRunId),
+        ),
     ),
   };
 };
@@ -584,7 +592,8 @@ const renderModel = (
 
 /** The base subject a repeat belongs to: `reddit2` sorts with `reddit`. */
 /** A repeat run belongs to the subject it repeats. */
-export const baseSubject = (subject: string): string => subject.replace(/\d+$/u, "");
+export const baseSubject = (subject: string): string =>
+  subject.replace(/\d+$/u, "");
 
 const compareRuns = (left: IDashboardRun, right: IDashboardRun): number => {
   const subjects: readonly string[] = ["todo", "reddit", "shopping", "erp"];
