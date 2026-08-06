@@ -121,8 +121,17 @@ interface IOutputEvent {
 export const renderEvidenceBenchmarkDashboard = (
   repository: string,
 ): string => {
-  const report: IEvidenceBenchmarkReport =
-    collectEvidenceBenchmarkReport(repository);
+  // Priced from the retained request stream rather than from the token totals,
+  // because the rate depends on how each request was composed: cached input,
+  // freshly written cache, and output are billed differently, and a request
+  // whose input passes the long-context threshold is billed at another rate
+  // again. A cell's price is therefore not derivable from its token count.
+  const report: IEvidenceBenchmarkReport = collectEvidenceBenchmarkReport(
+    repository,
+    undefined,
+    undefined,
+    true,
+  );
   const models: Map<string, IEvidenceBenchmarkReportCell[]> = Map.groupBy(
     report.cells,
     (cell) => cell.model,
@@ -341,8 +350,8 @@ const renderModel = (
   return [
     `## ${displayModel(model)}`,
     "",
-    "| Cell | Stage | Progress | Cost | Work time |",
-    "| --- | --- | --- | ---: | ---: |",
+    "| Cell | Stage | Progress | Tokens | API cost | Work time |",
+    "| --- | --- | --- | ---: | ---: | ---: |",
     ...cells.map((cell) => cell.summary),
     "",
     ...cells.flatMap((cell) => cell.details),
@@ -370,7 +379,7 @@ interface IRenderedRun {
 const renderRun = (run: IEvidenceBenchmarkReportCell): IRenderedRun => {
   const cell: string = `${title(run.subject)} ${title(run.arm)}`;
   return {
-    summary: `| ${cell} | ${formatStage(run)} | ${formatDelta(run.worktree)} | ${formatCost(run.tokens)} | ${formatTime(run.workElapsedMs)} |`,
+    summary: `| ${cell} | ${formatStage(run)} | ${formatDelta(run.worktree)} | ${formatCost(run.tokens)} | ${formatApiCost(run)} | ${formatTime(run.workElapsedMs)} |`,
     details: [
       `- **${cell} stages**`,
       ...run.stages.map(
@@ -1136,6 +1145,22 @@ const isOutputEvent = (value: unknown): value is IOutputEvent =>
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
+
+/**
+ * A cell's price, or a dash when it cannot be stated exactly.
+ *
+ * The calculation replays every retained request and refuses to answer unless
+ * the replay reconciles with the run's own counters, so a cell whose stages
+ * were driven outside the runner — and whose request stream is therefore not
+ * fully retained — shows nothing rather than an approximation.
+ */
+const formatApiCost = (run: IEvidenceBenchmarkReportCell): string =>
+  run.apiCost === null
+    ? "—"
+    : `$${run.apiCost.amountUsd.toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
 
 const formatTime = (elapsedMs: number): string => {
   const minutes: number = Math.round(elapsedMs / 60_000);
