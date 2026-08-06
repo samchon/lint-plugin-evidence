@@ -1,11 +1,11 @@
 ---
 name: review
-description: Defines the review of @evidence and @evidenceExclude for fake citations and exclusions created solely to evade compiler errors, of configuration edited beyond the one permitted activation, and of the compiler and runtime gates each scope must pass. Read only for a review objective; backend.md, frontend.md, and overall.md carry the per-scope configuration and gates.
+description: Defines the review of @evidence and @evidenceExclude for fake citations, for cited requirements the code contradicts, and for exclusions created solely to evade compiler errors, of configuration edited beyond the one permitted activation, and of the compiler and runtime gates each scope must pass. Read only for a review objective; backend.md, frontend.md, and overall.md carry the per-scope configuration and gates.
 ---
 
 # Review
 
-The compiler owns target resolution, host eligibility, overlap, and coverage. Review inspects the full acknowledgement population for fake citations and exclusions created solely to evade compiler errors, then proves the gates its scope names.
+The compiler owns target resolution, host eligibility, overlap, and coverage. What it cannot own is whether a cited requirement was obeyed, because that is a question about behavior rather than about the graph. Review inspects the full acknowledgement population for fake citations, for cited requirements the code contradicts, and for exclusions created solely to evade compiler errors, then proves the gates its scope names.
 
 Read the per-scope document for the current objective before beginning:
 
@@ -18,6 +18,18 @@ Read the per-scope document for the current objective before beginning:
 Before review, confirm every claim for the current phase is enabled. If an earlier stage left a prescribed `disabled` property, delete it before reviewing.
 
 For every `@evidence`, read the target, reason, and complete current host. A citation is justified only when the artifact actually implements, represents, or proves the target and the reason states that specific relation; mere relevance is not enough. Correct every fake citation.
+
+Reading the target means reading what it requires, then checking the host against it. A disagreement between the two is a finding the compiler cannot make: resolution proves the target exists and coverage proves it was cited, neither proves it was obeyed.
+
+Which of the three is wrong decides what you correct, and the requirement is not one of them — it is a frozen input and it is right by definition:
+
+- **The code.** The host is genuinely answerable for this target and does not do what it says. Correct the code.
+- **The reason.** The relation is real but the sentence misstates it, so the tag asserts a conformance nobody claimed. Correct the reason.
+- **The target.** The host was never answerable for this requirement and the anchor was reached for to satisfy coverage. Correct the tag, and check whether the artifact this target actually needs was ever built.
+
+Decide which by asking what the requirement obliges and whether this host is the thing obliged to deliver it. Do not correct the code on a target that was never its own; that repairs a citation error by writing to the wrong file.
+
+Where two artifacts cite one target — a type and the provider behind it, an operation and the test that proves it — read them against the target together. A published contract that promises what its implementation refuses is a finding on both.
 
 Several hosts may truthfully cite one target; do not consolidate them. A clean compiler gate does not prove a tag truthful.
 

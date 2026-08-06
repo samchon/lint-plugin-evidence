@@ -20,11 +20,17 @@ for (let i: number = 0; i < args.length; ++i) {
   } else throw new Error(`Unexpected benchmark report argument: ${argument}.`);
 }
 
-const report: IEvidenceBenchmarkReport = writeEvidenceBenchmarkReport({
-  repository,
-  output,
-  ...(runIds.length === 0 ? {} : { runIds }),
+const main = async (): Promise<void> => {
+  const report: IEvidenceBenchmarkReport = await writeEvidenceBenchmarkReport({
+    repository,
+    output,
+    ...(runIds.length === 0 ? {} : { runIds }),
+  });
+  process.stdout.write(
+    `Wrote ${report.cells.length} benchmark cells to ${output}.\n`,
+  );
+};
+main().catch((error: unknown) => {
+  process.stderr.write(`${String(error)}\n`);
+  process.exit(1);
 });
-process.stdout.write(
-  `Wrote ${report.cells.length} benchmark cells to ${output}.\n`,
-);

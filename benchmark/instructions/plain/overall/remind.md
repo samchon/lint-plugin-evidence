@@ -4,7 +4,7 @@ Your completion report was rejected. The Overall Review quoted below was not per
 
 Run the entire Overall Review again now, from the first requirement. Do not evaluate whether this is necessary.
 
-You are judged on the retained record of the commands you executed, never on what you assert. Each round's record must show a new complete sorted manifest, one file read per command in manifest order and in full, and the clean gates that close the round. Reasoning and prose are not evidence. A round with no read commands did not happen.
+You are judged on what the record shows you obtained, never on what you assert about it and never on markers you emit yourself. A command that runs without its result reaching you proves nothing, whatever it is named; a line you print announcing your own compliance is not evidence of it. The record must show the content each finding rests on, in the form you actually worked from.
 
 Your tests are judged with it. A test that only validates types or reachability proves shape, not behavior. Every test must assert the business outcome its documentation promises.
 

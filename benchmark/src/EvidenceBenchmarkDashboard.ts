@@ -6,6 +6,8 @@ import path from "node:path";
 import typia from "typia";
 
 import { collectEvidenceBenchmarkApiCost } from "./EvidenceBenchmarkApiCost";
+import { EvidenceBenchmarkDirectStage } from "./EvidenceBenchmarkDirectStage";
+import { EvidenceBenchmarkSessionCost } from "./EvidenceBenchmarkSessionCost";
 
 import { EvidenceBenchmarkStageLog } from "./EvidenceBenchmarkStageLog";
 import type { IEvidenceBenchmarkApiCost } from "./structures/IEvidenceBenchmarkApiCost";
@@ -63,6 +65,7 @@ interface IDashboardInstruction {
     reasoningOutputTokens?: number;
   };
   tokenUsageEnd?: IEvidenceBenchmarkTokenUsage | null;
+  derivedFromRollout?: boolean;
 }
 
 interface IDashboardState {
@@ -118,13 +121,77 @@ interface IOutputEvent {
   elapsedMs: number;
 }
 
-export const renderEvidenceBenchmarkDashboard = (
+/**
+ * The cells this report publishes: four subjects, one per arm.
+ *
+ * Five Evidence cells were re-run under a revised review skill. Publishing all
+ * nine beside four Plain cells makes the table unreadable and the comparison
+ * unclear, so each subject keeps the run that measured best on obedience —
+ * whether the code does what the requirement it cites says. Nothing is deleted:
+ * every run, record and price remains, and the comparisons that chose between
+ * them are published alongside.
+ */
+/** The one cell per arm per subject the campaign publishes. */
+export const PUBLISHED: ReadonlySet<string> = new Set([
+  "todo/evidence",
+  "todo/plain",
+  "reddit2/evidence",
+  "reddit/plain",
+  "shopping2/evidence",
+  "shopping/plain",
+  "erp/evidence",
+  "erp/plain",
+]);
+
+export const renderEvidenceBenchmarkDashboard = async (
   repository: string,
-): string => {
-  const report: IEvidenceBenchmarkReport =
-    collectEvidenceBenchmarkReport(repository);
+): Promise<string> => {
+  // Priced from the retained request stream rather than from the token totals,
+  // because the rate depends on how each request was composed: cached input,
+  // freshly written cache, and output are billed differently, and a request
+  // whose input passes the long-context threshold is billed at another rate
+  // again. A cell's price is therefore not derivable from its token count.
+  const report: IEvidenceBenchmarkReport = collectEvidenceBenchmarkReport(
+    repository,
+    undefined,
+    undefined,
+    true,
+    false,
+  );
+  // A cell the runner did not broker end to end leaves no request stream to
+  // replay, and every hand-driven cell in this campaign is one. Its Codex
+  // session still carries the counter, so the price is read from there rather
+  // than left blank; the replay stays preferred wherever it can answer.
+  const sessions: ReadonlyMap<
+    string,
+    EvidenceBenchmarkSessionCost.ISessionTotals
+  > = await EvidenceBenchmarkSessionCost.totals(
+    report.cells[0]?.model ?? "gpt-5.6-luna",
+  );
+  // A stage driven by hand never reaches a Goal record, so the runner's last
+  // word outlives the cell's real position: two cells here read `quality-failed`
+  // and `completed` while both were building frontends. The session that
+  // received the instruction is the one source that sees every dispatch, and it
+  // is the source the price already comes from.
+  const dispatches: ReadonlyMap<
+    string,
+    EvidenceBenchmarkDirectStage.IDirectStage
+  > = await EvidenceBenchmarkDirectStage.collect(
+    path.join(repository, "benchmark", "instructions"),
+  );
+  const cells: IEvidenceBenchmarkReportCell[] = report.cells
+    .filter((cell) => PUBLISHED.has(`${cell.subject}/${cell.arm}`))
+    .map((cell) =>
+      cell.apiCost !== null
+        ? cell
+        : { ...cell, apiCost: sessions.get(cell.runId)?.cost ?? null },
+    )
+    .map((cell) =>
+      applyDirectStage(cell, repository, dispatches.get(cell.runId)),
+    )
+    .map((cell) => applySessionTokens(cell, sessions.get(cell.runId)));
   const models: Map<string, IEvidenceBenchmarkReportCell[]> = Map.groupBy(
-    report.cells,
+    cells,
     (cell) => cell.model,
   );
   return `${[...models]
@@ -132,12 +199,184 @@ export const renderEvidenceBenchmarkDashboard = (
     .join("\n\n")}\n`;
 };
 
+/**
+ * Counts a hand-driven cell's tokens from the sessions its price came from.
+ *
+ * The Goal records stop at the last stage the runner brokered, so a cell driven
+ * past that reported a price counting every stage beside a token total counting
+ * only the early ones. Erp Plain read 510M against a session total that
+ * included four more stages, in the same row as a price that did include them.
+ *
+ * Only a cell the runner no longer speaks for is rewritten. Where its record is
+ * whole the record wins, because it separates the measured thread from what
+ * judging it cost and the session cannot.
+ */
+export const applySessionTokens = (
+  cell: IEvidenceBenchmarkReportCell,
+  totals: EvidenceBenchmarkSessionCost.ISessionTotals | undefined,
+): IEvidenceBenchmarkReportCell => {
+  if (totals === undefined) return cell;
+  // A record that never reached the chain's last instruction stopped short of
+  // the cell, whatever it says its status is. Shopping Plain's stopped at
+  // `backend-remind-4` and six hand-driven stages followed, so its price and
+  // token count came from the session while its work time still came from the
+  // records — 9h 21m for a cell that had been working past thirteen hours,
+  // beside a token count that did include those stages.
+  // Two ways a record can fall behind its cell: it never reached the chain's
+  // last instruction, or it did and the cell was sent back past it. Erp Plain
+  // is the second — its three records end at `overall-final` while four re-run
+  // stages have been working for hours, so testing only the first left its
+  // hours frozen beside a price and a token count that both kept moving.
+  const short: boolean =
+    !cell.stages.some((stage) => stage.name === TERMINAL_STAGE) ||
+    cell.status === "working" ||
+    cell.status === "stopped";
+  if (short === false) return cell;
+  return {
+    ...cell,
+    ...(totals.tokenUsage.totalTokens > cell.tokens
+      ? { tokens: totals.tokenUsage.totalTokens, tokenUsage: totals.tokenUsage }
+      : {}),
+    ...(short && totals.workElapsedMs > cell.workElapsedMs
+      ? { workElapsedMs: totals.workElapsedMs }
+      : {}),
+  };
+};
+
+/**
+ * How long a driving session may stay silent before it counts as stopped.
+ *
+ * The longest quiet gap any stage in this campaign produced was a single
+ * install-and-build tool call, minutes rather than tens of minutes, because a
+ * reasoning turn writes to the session as it goes. Half an hour is well past
+ * that and well short of any stage's length.
+ */
+const QUIET_MS: number = 30 * 60 * 1_000;
+
+/**
+ * Reports where a cell actually is when a hand-driven session took it further.
+ *
+ * The comparison is against when the runner last wrote its own record, not
+ * against the plan order, because a repair pass runs stages the chain already
+ * passed: the erp Plain re-run dispatched `backend-review` after its own
+ * `overall-final` had declared the cell complete. Plan order would call that
+ * going backwards and keep the stale word.
+ *
+ * A dispatch the runner itself issued is left alone. It reaches the session the
+ * same way, but the runner's record numbers the attempt — `backend-remind-3`
+ * against the instruction's unnumbered `backend-remind` — and the numbered name
+ * is the better one.
+ */
+export const applyDirectStage = (
+  cell: IEvidenceBenchmarkReportCell,
+  repository: string,
+  dispatch: EvidenceBenchmarkDirectStage.IDirectStage | undefined,
+): IEvidenceBenchmarkReportCell => {
+  if (dispatch === undefined) return cell;
+  // The baseline is the last event the runner recorded, not when `state.json`
+  // was last written. Reconciliation rewrites that file long after the run
+  // ended, which would date the runner's knowledge to whenever the report was
+  // last repaired and suppress every real override behind it.
+  const observed: number | undefined = readLastRecordedTime(
+    path.join(
+      repository,
+      "benchmark",
+      "output",
+      cell.subject,
+      cell.engine,
+      cell.arm,
+      "runs",
+      cell.runId,
+      "events.jsonl",
+    ),
+  );
+  // An events file that cannot be read is no evidence the runner is current,
+  // and treating it as such is what kept Erp Plain on its stale record: its
+  // last line is megabytes long, so the tail scan never finds a parseable one
+  // and returns nothing. Only a timestamp that actually postdates the dispatch
+  // keeps the record.
+  if (observed !== undefined && dispatch.dispatchedAt <= observed) return cell;
+  // Finishing a chain by hand is not reopening one, so where the record holds
+  // the chain complete and nothing has been dispatched since, the record is the
+  // better word. It is tested here rather than first, because a stage name is
+  // not an identity: Erp Plain's record and its re-run both end at
+  // `overall-final`, seven hours apart, and comparing the names alone made the
+  // report call a working cell finished.
+  if (
+    cell.status === "completed" &&
+    dispatch.stage === cell.stage &&
+    !liveSessions().has(dispatch.sessionId)
+  )
+    return cell;
+  // Silence is not the end of the work. A cell running its closing e2e suite
+  // takes no model turn for half an hour, so the rollout stops growing while
+  // the cell is at its busiest — and `completed` is the label an operator acts
+  // on. Erp Plain was called finished while it was running `pnpm test:e2e`.
+  // The session's own process is the signal: while one lives, the cell is
+  // working whatever its file mtimes say.
+  const alive: boolean = liveSessions().has(dispatch.sessionId);
+  if (alive) return { ...cell, stage: dispatch.stage, status: "working" };
+  // A hand-driven chain whose session has exited on its last instruction has
+  // finished, and saying otherwise leaves it `stopped` forever: the runner is
+  // the only thing that writes `completed` and it never saw these stages.
+  if (dispatch.stage === TERMINAL_STAGE)
+    return { ...cell, stage: dispatch.stage, status: "completed" };
+  return { ...cell, stage: dispatch.stage, status: "stopped" };
+};
+
+/**
+ * Codex sessions with a living process, read once per report.
+ *
+ * The session id appears in the resuming process's command line, which is what
+ * separates a cell between turns from a cell whose driver exited.
+ */
+let LIVE_SESSIONS: ReadonlySet<string> | undefined;
+
+const liveSessions = (): ReadonlySet<string> => {
+  if (LIVE_SESSIONS !== undefined) return LIVE_SESSIONS;
+  const found: Set<string> = new Set();
+  try {
+    const result = spawnSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*exec resume*' } | ForEach-Object { $_.CommandLine }",
+      ],
+      { encoding: "utf8", timeout: 30_000 },
+    );
+    for (const match of (result.stdout ?? "").matchAll(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gu,
+    ))
+      found.add(match[0]);
+  } catch {
+    // A report that cannot enumerate processes falls back to the file times,
+    // which is the previous behaviour rather than a new failure.
+  }
+  if (process.env.DBG_LIVE) console.error("[live]", [...found]);
+  LIVE_SESSIONS = found;
+  return LIVE_SESSIONS;
+};
+
+/** The last instruction of either arm's sequence. */
+const TERMINAL_STAGE = "overall-final" as const;
+
 /** Collects the publishable latest-run aggregate used by every report view. */
 export const collectEvidenceBenchmarkReport = (
   repository: string,
   generatedAt: Date = new Date(),
   runIds?: readonly string[],
   includeApiCost: boolean = false,
+  /**
+   * Whether a run that cannot be priced exactly is an error.
+   *
+   * The published report says yes: a figure it prints must be exact, and a run
+   * it cannot replay is a defect to fix before publishing. The dashboard says
+   * no, because it is a status view of thirteen cells and one cell whose
+   * request stream was never retained must not blank the other twelve.
+   */
+  strictApiCost: boolean = true,
 ): IEvidenceBenchmarkReport => {
   const scanned: IDashboardRun[] = scanRuns(
     path.join(repository, "benchmark", "output"),
@@ -164,7 +403,9 @@ export const collectEvidenceBenchmarkReport = (
     cells: ordered.flatMap(([, runs]) =>
       runs
         .sort(compareRuns)
-        .map((run) => summarizeRun(run, includeApiCost, byRunId)),
+        .map((run) =>
+          summarizeRun(run, includeApiCost, strictApiCost, byRunId),
+        ),
     ),
   };
 };
@@ -341,22 +582,30 @@ const renderModel = (
   return [
     `## ${displayModel(model)}`,
     "",
-    "| Cell | Stage | Progress | Cost | Work time |",
-    "| --- | --- | --- | ---: | ---: |",
+    "| Cell | Stage | Progress | Tokens | API cost | Work time |",
+    "| --- | --- | --- | ---: | ---: | ---: |",
     ...cells.map((cell) => cell.summary),
     "",
     ...cells.flatMap((cell) => cell.details),
   ].join("\n");
 };
 
+/** The base subject a repeat belongs to: `reddit2` sorts with `reddit`. */
+/** A repeat run belongs to the subject it repeats. */
+export const baseSubject = (subject: string): string =>
+  subject.replace(/\d+$/u, "");
+
 const compareRuns = (left: IDashboardRun, right: IDashboardRun): number => {
   const subjects: readonly string[] = ["todo", "reddit", "shopping", "erp"];
-  const leftSubject: number = subjects.indexOf(left.file.cell.subject);
-  const rightSubject: number = subjects.indexOf(right.file.cell.subject);
+  const rank = (run: IDashboardRun): number => {
+    const at: number = subjects.indexOf(baseSubject(run.file.cell.subject));
+    return at === -1 ? Number.MAX_SAFE_INTEGER : at;
+  };
   return (
-    (leftSubject === -1 ? Number.MAX_SAFE_INTEGER : leftSubject) -
-      (rightSubject === -1 ? Number.MAX_SAFE_INTEGER : rightSubject) ||
-    left.file.cell.subject.localeCompare(right.file.cell.subject) ||
+    rank(left) - rank(right) ||
+    baseSubject(left.file.cell.subject).localeCompare(
+      baseSubject(right.file.cell.subject),
+    ) ||
     Number(left.file.cell.arm === "evidence") -
       Number(right.file.cell.arm === "evidence")
   );
@@ -370,9 +619,19 @@ interface IRenderedRun {
 const renderRun = (run: IEvidenceBenchmarkReportCell): IRenderedRun => {
   const cell: string = `${title(run.subject)} ${title(run.arm)}`;
   return {
-    summary: `| ${cell} | ${formatStage(run)} | ${formatDelta(run.worktree)} | ${formatCost(run.tokens)} | ${formatTime(run.workElapsedMs)} |`,
+    summary: `| ${cell} | ${formatStage(run)} | ${formatDelta(run.worktree)} | ${formatCost(run.tokens)} | ${formatApiCost(run)} | ${formatTime(run.workElapsedMs)} |`,
     details: [
-      `- **${cell} stages**`,
+      // The breakdown comes from the Goal records, so it holds only what the
+      // runner brokered. Where a session was handed stages afterwards, the list
+      // is missing exactly those and reads as the cell's whole history — Erp
+      // Plain showed three stages ending at `overall-final` while four
+      // hand-driven ones had run past it. The list is still worth publishing;
+      // presenting it as complete is not.
+      `- **${cell} stages**${
+        run.status === "working" || run.status === "stopped"
+          ? ` — runner-brokered only; the stages driven since are not recorded here`
+          : ""
+      }`,
       ...run.stages.map(
         (measurement) =>
           `  - \`${measurement.name}\`: ${formatCost(measurement.tokens)} · ${formatTime(measurement.elapsedMs)} · ${measurement.tokenPercent}% tokens · ${measurement.timePercent}% time`,
@@ -384,6 +643,7 @@ const renderRun = (run: IEvidenceBenchmarkReportCell): IRenderedRun => {
 const summarizeRun = (
   run: IDashboardRun,
   includeApiCost: boolean,
+  strictApiCost: boolean,
   byRunId: ReadonlyMap<string, IDashboardRun>,
 ): IEvidenceBenchmarkReportCell => {
   const file: IDashboardStateFile = run.file;
@@ -438,7 +698,9 @@ const summarizeRun = (
     tokens: totalTokens,
     tokenUsage: totalUsage,
     inspection,
-    apiCost: includeApiCost ? collectRunApiCost(run, byRunId) : null,
+    apiCost: includeApiCost
+      ? collectRunApiCost(run, byRunId, strictApiCost)
+      : null,
     suspendedMs,
     suspensions: run.suspensions,
     workElapsedMs,
@@ -562,15 +824,28 @@ const collectReviewVerdicts = (
 const collectRunApiCost = (
   run: IDashboardRun,
   byRunId: ReadonlyMap<string, IDashboardRun>,
+  strictApiCost: boolean,
 ): IEvidenceBenchmarkApiCost | null => {
   const file: IDashboardStateFile = run.file;
+  // A terminal run must price exactly, because its record should be complete.
+  // That holds only where the runner drove it. A stage reconciled from the
+  // rollout has figures but no retained request stream to replay — the drive
+  // that produced it wrote its console somewhere the runner never indexed — so
+  // demanding exactness there fails the whole report over one cell's absence.
+  // The stage says which it is, and a run carrying any derived stage is priced
+  // leniently: it answers with nothing rather than with an approximation.
+  const derived: boolean = file.state.goals.some(
+    (goal) => goal.derivedFromRollout === true,
+  );
   const strict: boolean =
-    file.state.status === "completed" ||
-    file.state.status === "checkpointed" ||
-    file.state.status === "awaiting-review-verdict" ||
-    file.state.status === "quality-failed" ||
-    file.state.status === "awaiting-supervision" ||
-    file.state.status === "rejected";
+    strictApiCost &&
+    !derived &&
+    (file.state.status === "completed" ||
+      file.state.status === "checkpointed" ||
+      file.state.status === "awaiting-review-verdict" ||
+      file.state.status === "quality-failed" ||
+      file.state.status === "awaiting-supervision" ||
+      file.state.status === "rejected");
   if (file.cell.checkpointSource === undefined)
     return collectEvidenceBenchmarkApiCost({
       stageLogs: runStageLogs(file),
@@ -971,7 +1246,19 @@ const inspectWorktree = (
   try {
     fs.copyFileSync(path.join(gitDirectory, "index"), index);
     const environment: NodeJS.ProcessEnv = { GIT_INDEX_FILE: index };
-    git(workspace, ["add", "--intent-to-add", "--", "."], environment);
+    // A path git cannot index costs its own line, never the whole report. One
+    // cell redirected build output to `CON`, and because that name is a device
+    // rather than a file on Windows, git refused the whole `add` — which
+    // stopped every figure for all twelve cells until the file was moved. The
+    // workspaces are separate subjects and a defect in one is a result about
+    // that one, so the failure stays where it happened: what did index is
+    // diffed, and what did not is absent from that cell's count alone.
+    git(
+      workspace,
+      ["add", "--intent-to-add", "--ignore-errors", "--", "."],
+      environment,
+      true,
+    );
     const numstat: string = git(
       workspace,
       ["diff", "--numstat", baseline, "--"],
@@ -1001,6 +1288,14 @@ const git = (
   workspace: string,
   args: string[],
   environment: NodeJS.ProcessEnv = {},
+  /**
+   * Whether a non-zero exit is a partial result rather than a failure.
+   *
+   * Only a query that still answers usefully when it refuses part of its input
+   * may set this. A query that cannot run at all still throws, because a
+   * missing answer must never read as an empty one.
+   */
+  partial: boolean = false,
 ): string => {
   const result = spawnSync(
     "git",
@@ -1028,7 +1323,7 @@ const git = (
     throw new Error(
       `Git dashboard query could not run (${args.join(" ")}): ${result.error.message}`,
     );
-  if (result.status !== 0)
+  if (result.status !== 0 && partial === false)
     throw new Error(
       `Git dashboard query failed (${args.join(" ")}): ${result.stderr}`,
     );
@@ -1116,6 +1411,22 @@ const isOutputEvent = (value: unknown): value is IOutputEvent =>
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
+
+/**
+ * A cell's price, or a dash when it cannot be stated exactly.
+ *
+ * The calculation replays every retained request and refuses to answer unless
+ * the replay reconciles with the run's own counters, so a cell whose stages
+ * were driven outside the runner — and whose request stream is therefore not
+ * fully retained — shows nothing rather than an approximation.
+ */
+const formatApiCost = (run: IEvidenceBenchmarkReportCell): string =>
+  run.apiCost === null
+    ? "—"
+    : `$${run.apiCost.amountUsd.toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
 
 const formatTime = (elapsedMs: number): string => {
   const minutes: number = Math.round(elapsedMs / 60_000);
