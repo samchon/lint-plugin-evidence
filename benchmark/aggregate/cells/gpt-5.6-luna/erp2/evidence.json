@@ -1,0 +1,77 @@
+{
+  "engine": "codex",
+  "subject": "erp2",
+  "arm": "evidence",
+  "runId": "0f59a2b4-14eb-4266-8cab-3e4fb3a52d06",
+  "benchmarkRevision": "c65aa790690f358550561c599266256f96b3b44a",
+  "model": "gpt-5.6-luna",
+  "effort": "high",
+  "status": "completed",
+  "stage": "overall-final",
+  "launchedAt": "2026-08-05T17:06:17.168Z",
+  "tokens": 145065737,
+  "tokenUsage": {
+    "totalTokens": 145065737,
+    "inputTokens": 144802264,
+    "cachedInputTokens": 142797824,
+    "cacheWriteInputTokens": 0,
+    "outputTokens": 263473,
+    "reasoningOutputTokens": 98761
+  },
+  "inspection": {
+    "attempts": 0,
+    "failures": 0,
+    "tokenUsage": {
+      "totalTokens": 0,
+      "inputTokens": 0,
+      "cachedInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "outputTokens": 0,
+      "reasoningOutputTokens": 0
+    },
+    "elapsedMs": 0
+  },
+  "apiCost": {
+    "provider": "openrouter",
+    "pricingAsOf": "2026-08-01",
+    "priceSource": "https://openrouter.ai/api/v1/models",
+    "currency": "USD",
+    "amountUsd": 1.78650604,
+    "requests": 1134,
+    "shortContextRequests": 1134,
+    "longContextRequests": 0,
+    "longContextThresholdTokens": 272000
+  },
+  "suspendedMs": 0,
+  "suspensions": [],
+  "workElapsedMs": 17232000,
+  "worktree": {
+    "files": 1332,
+    "additions": 102977,
+    "deletions": 127
+  },
+  "reviewVerdicts": [],
+  "stages": [
+    {
+      "name": "backend-start",
+      "tokens": 15916136,
+      "elapsedMs": 3089000,
+      "tokenPercent": 11,
+      "timePercent": 18
+    },
+    {
+      "name": "backend-review",
+      "tokens": 14001827,
+      "elapsedMs": 2031000,
+      "tokenPercent": 10,
+      "timePercent": 12
+    },
+    {
+      "name": "overall-final",
+      "tokens": 115147774,
+      "elapsedMs": 12112000,
+      "tokenPercent": 79,
+      "timePercent": 70
+    }
+  ]
+}

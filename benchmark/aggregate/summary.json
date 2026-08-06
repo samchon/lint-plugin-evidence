@@ -1,172 +1,181 @@
 {
-  "schemaVersion": 3,
-  "generatedAt": "2026-08-02T17:10:48.713Z",
+  "generatedAt": "2026-08-06T07:45:15.523Z",
   "cells": [
     {
       "engine": "codex",
       "subject": "todo",
       "arm": "plain",
-      "runId": "fb8508b9-a281-4d5b-8804-74471b63f509",
-      "benchmarkRevision": "e59e92b26225e6b1193d34b8d8b8a3ff20a5fd9e",
+      "runId": "2a44f046-1acb-4607-b826-30a3e7fa784b",
+      "benchmarkRevision": "cdbda42111ecc8f459f2772065caf067b6db3f91",
       "model": "gpt-5.6-luna",
       "effort": "high",
       "status": "completed",
       "stage": "overall-final",
-      "launchedAt": "2026-08-02T03:19:12.163Z",
-      "tokens": 552192534,
+      "launchedAt": "2026-08-04T22:56:35.678Z",
+      "tokens": 550208042,
       "tokenUsage": {
-        "totalTokens": 552192534,
-        "inputTokens": 551411552,
-        "cachedInputTokens": 543941632,
+        "totalTokens": 550208042,
+        "inputTokens": 549450600,
+        "cachedInputTokens": 540780032,
         "cacheWriteInputTokens": 0,
-        "outputTokens": 780982,
-        "reasoningOutputTokens": 209934
+        "outputTokens": 757442,
+        "reasoningOutputTokens": 219624
+      },
+      "inspection": {
+        "attempts": 2,
+        "failures": 0,
+        "tokenUsage": {
+          "totalTokens": 5076126,
+          "inputTokens": 5052440,
+          "cachedInputTokens": 4742400,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 23686,
+          "reasoningOutputTokens": 13551
+        },
+        "elapsedMs": 677418.1623
       },
       "apiCost": {
         "provider": "openrouter",
         "pricingAsOf": "2026-08-01",
         "priceSource": "https://openrouter.ai/api/v1/models",
         "currency": "USD",
-        "amountUsd": 6.65499752,
-        "requests": 4180,
-        "shortContextRequests": 4180,
+        "amountUsd": 7.03830834,
+        "requests": 6154,
+        "shortContextRequests": 6154,
         "longContextRequests": 0,
         "longContextThresholdTokens": 272000
       },
-      "suspendedMs": 17231387,
-      "suspensions": [
-        {
-          "processIndex": 2,
-          "instructionIndex": 5,
-          "startedAt": "2026-08-02T05:43:39.071Z",
-          "endedAt": "2026-08-02T05:56:27.381Z",
-          "source": "verified-power-log",
-          "elapsedMs": 768310
-        },
-        {
-          "processIndex": 2,
-          "instructionIndex": 5,
-          "startedAt": "2026-08-02T06:14:41.449Z",
-          "endedAt": "2026-08-02T06:46:39.068Z",
-          "source": "verified-power-log",
-          "elapsedMs": 1917619
-        },
-        {
-          "processIndex": 2,
-          "instructionIndex": 9,
-          "startedAt": "2026-08-02T11:10:34.242Z",
-          "endedAt": "2026-08-02T11:50:36.776Z",
-          "source": "verified-power-log",
-          "elapsedMs": 2402534
-        },
-        {
-          "processIndex": 2,
-          "instructionIndex": 9,
-          "startedAt": "2026-08-02T12:01:39.636Z",
-          "endedAt": "2026-08-02T12:31:17.466Z",
-          "source": "verified-power-log",
-          "elapsedMs": 1777830
-        },
-        {
-          "processIndex": 2,
-          "instructionIndex": 9,
-          "startedAt": "2026-08-02T12:49:25.609Z",
-          "endedAt": "2026-08-02T12:49:37.704Z",
-          "source": "verified-power-log",
-          "elapsedMs": 12095
-        },
-        {
-          "processIndex": 2,
-          "instructionIndex": 9,
-          "startedAt": "2026-08-02T13:00:50.451Z",
-          "endedAt": "2026-08-02T15:53:23.450Z",
-          "source": "verified-power-log",
-          "elapsedMs": 10352999
-        }
-      ],
-      "workElapsedMs": 31706373.113999993,
+      "suspendedMs": 0,
+      "suspensions": [],
+      "workElapsedMs": 41872418.1623,
       "worktree": {
         "files": 58,
-        "additions": 5724,
-        "deletions": 228
+        "additions": 6550,
+        "deletions": 134
       },
+      "reviewVerdicts": [
+        {
+          "scope": "backend",
+          "attempt": 0,
+          "decision": "fail",
+          "action": "retry",
+          "goalIndex": 1,
+          "terminalTurnId": "beb05a5f-6e8a-4904-acfb-b9159cf2d608",
+          "rationale": "Both questions fail. The review skill requires a complete manifest and one full-file read per command in manifest order (workspace/.agents/skills/review/SKILL.md:48-55). The claimed final dry round emitted a 60-file manifest at backend-review.log positions 28135-28196, but its subsequent commands only reread requirements and a few test/config files (positions 28205, 28334, 28520, 28778, 29074-29125); position 29135 is an rg search, which counts as zero. There are no final-round reads of the manifest's API, schema, controllers, providers, or most tests, despite the dry claim at position 29281 and final report at position 30320. The tests also violate the workspace testing rule that every test needs a business assertion and typia.assert alone proves only shape (workspace/.agents/skills/backend/testing.md:149-160): test_api_auth_login (workspace/packages/backend/test/features/api/requirements/test_api_requirements.ts:48-57), test_api_auth_refresh (:65-71), and test_api_auth_recover (:124-133) contain only typia.assert calls with no business assertion. Unverified: none.",
+          "pausedAt": "2026-08-05T01:00:09.817Z",
+          "decidedAt": "2026-08-05T01:05:53.845Z",
+          "resumedAt": "2026-08-05T01:05:53.854Z",
+          "verdictRelativePath": "supervision/00-backend-0-verdict.json",
+          "verdictSha256": "f8568dd2fa0a4180822087b0daaf073e11a5ac05d88316811170a62319f7f8b5",
+          "workspaceMaterialSha256": "0aa9d294bd06514a3b1dbdd9426be2dfac91a8d751e18b72570ab2912b769c02"
+        },
+        {
+          "scope": "backend",
+          "attempt": 1,
+          "decision": "fail",
+          "action": "retry",
+          "goalIndex": 2,
+          "terminalTurnId": "f2dca2a1-d83a-4873-b6f4-d149ea4b8582",
+          "rationale": "Question 1 is not proven. The review skill requires a new sorted manifest before every round and a fresh full round after calibration (workspace/.agents/skills/review/SKILL.md:50-57, 79-81). The stream’s manifest commands occur at backend-remind-1.log:231, 3303, and 6254 only. Calibration changed the product at :14719 and was restored by :14954; the purported final round starts at :15062 with direct requirement reads at :15065, with no new manifest. Requirements are also reread out of sequence at :15065-15897 and :15964-16821. Thus the claimed final dry round at :26495 is unsupported; a fresh clean check:watch rebuild is likewise unverified (the final command only tails an existing log at :25516). Question 2 is no. The workspace testing rule says every test needs a business assertion and typia.assert alone proves only shape (workspace/.agents/skills/backend/testing.md:151-160). test_api_auth_login and test_api_auth_refresh contain only typia.assert calls for their success and follow-up observations, with no business assertion (workspace/packages/backend/test/features/api/requirements/test_api_requirements.ts:59-70, 79-87).",
+          "pausedAt": "2026-08-05T02:02:46.353Z",
+          "decidedAt": "2026-08-05T02:08:34.655Z",
+          "resumedAt": "2026-08-05T02:08:34.671Z",
+          "verdictRelativePath": "supervision/01-backend-1-verdict.json",
+          "verdictSha256": "fabbb82360aff6ff17b5c391510319a164141220f9b7a36df3721fab1fe95dd7",
+          "workspaceMaterialSha256": "54345e5735a991f0efd47b7c9bbe6e29ad309b509021945236baefe6346f6843"
+        }
+      ],
       "stages": [
         {
           "name": "backend-start",
-          "tokens": 29652523,
-          "elapsedMs": 2505000,
+          "tokens": 29872719,
+          "elapsedMs": 2768000,
           "tokenPercent": 5,
-          "timePercent": 8
+          "timePercent": 7
         },
         {
           "name": "backend-review",
-          "tokens": 51752598,
-          "elapsedMs": 2594000,
-          "tokenPercent": 9,
-          "timePercent": 8
+          "tokens": 76412747,
+          "elapsedMs": 4974126.7557,
+          "tokenPercent": 14,
+          "timePercent": 12
         },
         {
-          "name": "backend-remind",
-          "tokens": 27583310,
-          "elapsedMs": 1628000,
-          "tokenPercent": 5,
-          "timePercent": 5
+          "name": "backend-remind-1",
+          "tokens": 53757022,
+          "elapsedMs": 3757291.4066,
+          "tokenPercent": 10,
+          "timePercent": 9
+        },
+        {
+          "name": "backend-remind-2",
+          "tokens": 77182440,
+          "elapsedMs": 4151000,
+          "tokenPercent": 14,
+          "timePercent": 10
         },
         {
           "name": "backend-final",
-          "tokens": 18352202,
-          "elapsedMs": 1123000,
+          "tokens": 17813133,
+          "elapsedMs": 1081000,
           "tokenPercent": 3,
-          "timePercent": 4
+          "timePercent": 3
         },
         {
           "name": "frontend-start",
-          "tokens": 11666726,
-          "elapsedMs": 1145000,
-          "tokenPercent": 2,
-          "timePercent": 4
+          "tokens": 26279528,
+          "elapsedMs": 2352000,
+          "tokenPercent": 5,
+          "timePercent": 6
         },
         {
           "name": "frontend-review",
-          "tokens": 117132212,
-          "elapsedMs": 6024071,
-          "tokenPercent": 21,
-          "timePercent": 19
-        },
-        {
-          "name": "frontend-remind",
-          "tokens": 139220719,
-          "elapsedMs": 7631000,
-          "tokenPercent": 25,
-          "timePercent": 24
+          "tokens": 65607292,
+          "elapsedMs": 5020000,
+          "tokenPercent": 12,
+          "timePercent": 12
         },
         {
           "name": "frontend-final",
-          "tokens": 27433682,
-          "elapsedMs": 1304000,
+          "tokens": 29374477,
+          "elapsedMs": 2197000,
           "tokenPercent": 5,
-          "timePercent": 4
-        },
-        {
-          "name": "overall-review",
-          "tokens": 33389435,
-          "elapsedMs": 1725000,
-          "tokenPercent": 6,
           "timePercent": 5
         },
         {
-          "name": "overall-remind",
-          "tokens": 79027123,
-          "elapsedMs": 4697542,
-          "tokenPercent": 14,
-          "timePercent": 15
+          "name": "overall-review",
+          "tokens": 42281833,
+          "elapsedMs": 4512000,
+          "tokenPercent": 8,
+          "timePercent": 11
+        },
+        {
+          "name": "overall-remind-1",
+          "tokens": 19115354,
+          "elapsedMs": 2501000,
+          "tokenPercent": 3,
+          "timePercent": 6
+        },
+        {
+          "name": "overall-remind-2",
+          "tokens": 58582861,
+          "elapsedMs": 3857000,
+          "tokenPercent": 11,
+          "timePercent": 9
+        },
+        {
+          "name": "overall-remind-3",
+          "tokens": 15216940,
+          "elapsedMs": 1777000,
+          "tokenPercent": 3,
+          "timePercent": 4
         },
         {
           "name": "overall-final",
-          "tokens": 16982004,
-          "elapsedMs": 1133000,
-          "tokenPercent": 3,
-          "timePercent": 4
+          "tokens": 33466068,
+          "elapsedMs": 2925000,
+          "tokenPercent": 6,
+          "timePercent": 7
         }
       ]
     },
@@ -174,122 +183,1322 @@
       "engine": "codex",
       "subject": "todo",
       "arm": "evidence",
-      "runId": "41dc60ef-b2f4-4397-851d-448bb0022d0b",
-      "benchmarkRevision": "80940f1585ac9b3b3e47952983042b349393054a",
+      "runId": "0e710f75-6acc-435b-9352-2f6128feae89",
+      "benchmarkRevision": "cdbda42111ecc8f459f2772065caf067b6db3f91",
       "model": "gpt-5.6-luna",
       "effort": "high",
       "status": "completed",
       "stage": "overall-final",
-      "launchedAt": "2026-08-02T04:23:14.899Z",
-      "tokens": 197131412,
+      "launchedAt": "2026-08-04T22:56:37.190Z",
+      "tokens": 129928059,
       "tokenUsage": {
-        "totalTokens": 197131412,
-        "inputTokens": 196702941,
-        "cachedInputTokens": 193375232,
+        "totalTokens": 129928059,
+        "inputTokens": 129599653,
+        "cachedInputTokens": 128005888,
         "cacheWriteInputTokens": 0,
-        "outputTokens": 428471,
-        "reasoningOutputTokens": 124244
+        "outputTokens": 328406,
+        "reasoningOutputTokens": 75709
+      },
+      "inspection": {
+        "attempts": 0,
+        "failures": 0,
+        "tokenUsage": {
+          "totalTokens": 0,
+          "inputTokens": 0,
+          "cachedInputTokens": 0,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 0,
+          "reasoningOutputTokens": 0
+        },
+        "elapsedMs": 0
       },
       "apiCost": {
         "provider": "openrouter",
         "pricingAsOf": "2026-08-01",
         "priceSource": "https://openrouter.ai/api/v1/models",
         "currency": "USD",
-        "amountUsd": 2.52360582,
-        "requests": 1488,
-        "shortContextRequests": 1488,
+        "amountUsd": 1.63647898,
+        "requests": 973,
+        "shortContextRequests": 973,
         "longContextRequests": 0,
         "longContextThresholdTokens": 272000
       },
-      "suspendedMs": 5088463,
-      "suspensions": [
-        {
-          "processIndex": 0,
-          "instructionIndex": 0,
-          "startedAt": "2026-08-02T05:43:39.071Z",
-          "endedAt": "2026-08-02T05:56:27.381Z",
-          "source": "verified-power-log",
-          "elapsedMs": 768310
-        },
-        {
-          "processIndex": 0,
-          "instructionIndex": 1,
-          "startedAt": "2026-08-02T06:14:41.449Z",
-          "endedAt": "2026-08-02T06:46:39.068Z",
-          "source": "verified-power-log",
-          "elapsedMs": 1917619
-        },
-        {
-          "processIndex": 3,
-          "instructionIndex": 6,
-          "startedAt": "2026-08-02T11:10:34.242Z",
-          "endedAt": "2026-08-02T11:50:36.776Z",
-          "source": "verified-power-log",
-          "elapsedMs": 2402534
-        }
-      ],
-      "workElapsedMs": 16477504.185600001,
+      "suspendedMs": 0,
+      "suspensions": [],
+      "workElapsedMs": 13635887.9596,
       "worktree": {
-        "files": 82,
-        "additions": 6706,
-        "deletions": 160
+        "files": 113,
+        "additions": 6810,
+        "deletions": 136
       },
+      "reviewVerdicts": [],
       "stages": [
         {
           "name": "backend-start",
-          "tokens": 64130286,
-          "elapsedMs": 5583690,
-          "tokenPercent": 33,
-          "timePercent": 34
+          "tokens": 32474293,
+          "elapsedMs": 3857000,
+          "tokenPercent": 25,
+          "timePercent": 28
         },
         {
           "name": "backend-review",
-          "tokens": 17249904,
-          "elapsedMs": 1417381,
-          "tokenPercent": 9,
-          "timePercent": 9
+          "tokens": 24618646,
+          "elapsedMs": 2630000,
+          "tokenPercent": 19,
+          "timePercent": 19
         },
         {
           "name": "backend-final",
-          "tokens": 554050,
-          "elapsedMs": 17000,
+          "tokens": 449038,
+          "elapsedMs": 50000,
           "tokenPercent": 0,
           "timePercent": 0
         },
         {
           "name": "frontend-start",
-          "tokens": 84786013,
-          "elapsedMs": 6949000,
-          "tokenPercent": 43,
-          "timePercent": 42
+          "tokens": 35876257,
+          "elapsedMs": 3692000,
+          "tokenPercent": 28,
+          "timePercent": 27
         },
         {
           "name": "frontend-review",
-          "tokens": 8648980,
-          "elapsedMs": 859000,
-          "tokenPercent": 4,
+          "tokens": 24149238,
+          "elapsedMs": 1559000,
+          "tokenPercent": 19,
+          "timePercent": 11
+        },
+        {
+          "name": "frontend-final",
+          "tokens": 662024,
+          "elapsedMs": 12000,
+          "tokenPercent": 1,
+          "timePercent": 0
+        },
+        {
+          "name": "overall-review",
+          "tokens": 10142522,
+          "elapsedMs": 1373000,
+          "tokenPercent": 8,
+          "timePercent": 10
+        },
+        {
+          "name": "overall-final",
+          "tokens": 1556041,
+          "elapsedMs": 138000,
+          "tokenPercent": 1,
+          "timePercent": 1
+        }
+      ]
+    },
+    {
+      "engine": "codex",
+      "subject": "todo2",
+      "arm": "evidence",
+      "runId": "73920acd-b557-4e41-adaf-10aab5c0826c",
+      "benchmarkRevision": "88d98b82a25780410af11e8d02c654d9f7c898cd",
+      "model": "gpt-5.6-luna",
+      "effort": "high",
+      "status": "completed",
+      "stage": "overall-final",
+      "launchedAt": "2026-08-05T01:08:51.250Z",
+      "tokens": 154280965,
+      "tokenUsage": {
+        "totalTokens": 154280965,
+        "inputTokens": 81214417,
+        "cachedInputTokens": 79647744,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 122687,
+        "reasoningOutputTokens": 39634
+      },
+      "inspection": {
+        "attempts": 0,
+        "failures": 0,
+        "tokenUsage": {
+          "totalTokens": 0,
+          "inputTokens": 0,
+          "cachedInputTokens": 0,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 0,
+          "reasoningOutputTokens": 0
+        },
+        "elapsedMs": 0
+      },
+      "apiCost": {
+        "provider": "openrouter",
+        "pricingAsOf": "2026-08-01",
+        "priceSource": "https://openrouter.ai/api/v1/models",
+        "currency": "USD",
+        "amountUsd": 1.88104458,
+        "requests": 1088,
+        "shortContextRequests": 1088,
+        "longContextRequests": 0,
+        "longContextThresholdTokens": 272000
+      },
+      "suspendedMs": 0,
+      "suspensions": [],
+      "workElapsedMs": 23496499.2557,
+      "worktree": {
+        "files": 125,
+        "additions": 7860,
+        "deletions": 150
+      },
+      "reviewVerdicts": [],
+      "stages": [
+        {
+          "name": "backend-start",
+          "tokens": 31940800,
+          "elapsedMs": 3142000,
+          "tokenPercent": 21,
+          "timePercent": 13
+        },
+        {
+          "name": "backend-review",
+          "tokens": 9470720,
+          "elapsedMs": 1429330,
+          "tokenPercent": 6,
+          "timePercent": 6
+        },
+        {
+          "name": "backend-final",
+          "tokens": 2378535,
+          "elapsedMs": 415571,
+          "tokenPercent": 2,
+          "timePercent": 2
+        },
+        {
+          "name": "frontend-start",
+          "tokens": 48379152,
+          "elapsedMs": 4236000,
+          "tokenPercent": 31,
+          "timePercent": 18
+        },
+        {
+          "name": "frontend-review",
+          "tokens": 24256406,
+          "elapsedMs": 1785948,
+          "tokenPercent": 16,
+          "timePercent": 8
+        },
+        {
+          "name": "frontend-final",
+          "tokens": 8285487,
+          "elapsedMs": 479072,
+          "tokenPercent": 5,
+          "timePercent": 2
+        },
+        {
+          "name": "overall-review",
+          "tokens": 29208866,
+          "elapsedMs": 2566000,
+          "tokenPercent": 19,
+          "timePercent": 11
+        },
+        {
+          "name": "overall-final",
+          "tokens": 360999,
+          "elapsedMs": 87575,
+          "tokenPercent": 0,
+          "timePercent": 0
+        }
+      ]
+    },
+    {
+      "engine": "codex",
+      "subject": "todo3",
+      "arm": "evidence",
+      "runId": "672baed4-7597-4e0a-a1bb-c757fc9e4d92",
+      "benchmarkRevision": "0f465f52c69b4b7e6b25fab1c1676de5ea6db15f",
+      "model": "gpt-5.6-luna",
+      "effort": "high",
+      "status": "completed",
+      "stage": "overall-final",
+      "launchedAt": "2026-08-05T11:43:04.078Z",
+      "tokens": 187317564,
+      "tokenUsage": {
+        "totalTokens": 187317564,
+        "inputTokens": 186926624,
+        "cachedInputTokens": 184657664,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 390940,
+        "reasoningOutputTokens": 101634
+      },
+      "inspection": {
+        "attempts": 0,
+        "failures": 0,
+        "tokenUsage": {
+          "totalTokens": 0,
+          "inputTokens": 0,
+          "cachedInputTokens": 0,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 0,
+          "reasoningOutputTokens": 0
+        },
+        "elapsedMs": 0
+      },
+      "apiCost": {
+        "provider": "openrouter",
+        "pricingAsOf": "2026-08-01",
+        "priceSource": "https://openrouter.ai/api/v1/models",
+        "currency": "USD",
+        "amountUsd": 2.30803664,
+        "requests": 1322,
+        "shortContextRequests": 1322,
+        "longContextRequests": 0,
+        "longContextThresholdTokens": 272000
+      },
+      "suspendedMs": 0,
+      "suspensions": [],
+      "workElapsedMs": 19278671.9278,
+      "worktree": {
+        "files": 122,
+        "additions": 6990,
+        "deletions": 165
+      },
+      "reviewVerdicts": [],
+      "stages": [
+        {
+          "name": "backend-start",
+          "tokens": 47960805,
+          "elapsedMs": 5294000,
+          "tokenPercent": 26,
+          "timePercent": 27
+        },
+        {
+          "name": "backend-review",
+          "tokens": 27608673,
+          "elapsedMs": 1972000,
+          "tokenPercent": 15,
+          "timePercent": 10
+        },
+        {
+          "name": "backend-final",
+          "tokens": 1436064,
+          "elapsedMs": 57000,
+          "tokenPercent": 1,
+          "timePercent": 0
+        },
+        {
+          "name": "frontend-start",
+          "tokens": 63580228,
+          "elapsedMs": 4761000,
+          "tokenPercent": 34,
+          "timePercent": 25
+        },
+        {
+          "name": "frontend-review",
+          "tokens": 17816558,
+          "elapsedMs": 2458000,
+          "tokenPercent": 10,
+          "timePercent": 13
+        },
+        {
+          "name": "frontend-final",
+          "tokens": 9891699,
+          "elapsedMs": 1240000,
+          "tokenPercent": 5,
+          "timePercent": 6
+        },
+        {
+          "name": "overall-review",
+          "tokens": 13788853,
+          "elapsedMs": 2437000,
+          "tokenPercent": 7,
+          "timePercent": 13
+        },
+        {
+          "name": "overall-final",
+          "tokens": 5234684,
+          "elapsedMs": 954000,
+          "tokenPercent": 3,
+          "timePercent": 5
+        }
+      ]
+    },
+    {
+      "engine": "codex",
+      "subject": "reddit",
+      "arm": "plain",
+      "runId": "b8e996fe-3b6c-42c9-bfe0-ea36ccd5799a",
+      "benchmarkRevision": "cdbda42111ecc8f459f2772065caf067b6db3f91",
+      "model": "gpt-5.6-luna",
+      "effort": "high",
+      "status": "completed",
+      "stage": "overall-final",
+      "launchedAt": "2026-08-04T22:56:34.736Z",
+      "tokens": 507893364,
+      "tokenUsage": {
+        "totalTokens": 507893364,
+        "inputTokens": 507204295,
+        "cachedInputTokens": 501348608,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 689069,
+        "reasoningOutputTokens": 172430
+      },
+      "inspection": {
+        "attempts": 1,
+        "failures": 0,
+        "tokenUsage": {
+          "totalTokens": 2485559,
+          "inputTokens": 2473832,
+          "cachedInputTokens": 2307072,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 11727,
+          "reasoningOutputTokens": 6732
+        },
+        "elapsedMs": 450292.7752
+      },
+      "apiCost": {
+        "provider": "openrouter",
+        "pricingAsOf": "2026-08-01",
+        "priceSource": "https://openrouter.ai/api/v1/models",
+        "currency": "USD",
+        "amountUsd": 6.37637004,
+        "requests": 4060,
+        "shortContextRequests": 4060,
+        "longContextRequests": 0,
+        "longContextThresholdTokens": 272000
+      },
+      "suspendedMs": 0,
+      "suspensions": [],
+      "workElapsedMs": 50074428.7455,
+      "worktree": {
+        "files": 157,
+        "additions": 21351,
+        "deletions": 145
+      },
+      "reviewVerdicts": [
+        {
+          "scope": "backend",
+          "attempt": 0,
+          "decision": "fail",
+          "action": "retry",
+          "goalIndex": 1,
+          "terminalTurnId": "364e8d8d-2bc1-4880-868b-4b3044d87457",
+          "rationale": "The prescribed loop did not run to dryness. The attempt announced its final edit-free round at backend-review.log:L22582, built a manifest at L22583, but the purported full reads at L22676-L22908 only returned character counts (e.g. `read ... chars=...`), not file contents. workspace/.agents/skills/review/SKILL.md:L48-L55 explicitly says counts/summaries are zero and requires complete contents, so the final round was not a valid full round; the completion claim at backend-review.log:L23927 is contradicted by the stream. Tests are also improperly written. The workspace testing rules require a business assertion in every test and say type validation alone proves only shape (workspace/.agents/skills/backend/testing.md:L149-L160). `test_api_reddit_recovery_complete` has no assertion and merely awaits the call (workspace/packages/backend/test/features/api/reddit/test_api_reddit_operations.ts:L24-L25), while subscription, ban-list, ban-history, and report-history tests only call `typia.assert` with no business assertion (same file:L38-L39, L62-L65, L68-L69).",
+          "pausedAt": "2026-08-05T03:00:48.182Z",
+          "decidedAt": "2026-08-05T03:08:32.471Z",
+          "resumedAt": "2026-08-05T03:08:32.481Z",
+          "verdictRelativePath": "supervision/00-backend-0-verdict.json",
+          "verdictSha256": "97147aa65d5ac93cbcf5dadd67d88b64788cb32661f77d4e8cf28ce05aa0cff0",
+          "workspaceMaterialSha256": "97b3cde17ec572337133b2d5cb076ca69184613563b1998c9e9a475e95c91315"
+        }
+      ],
+      "stages": [
+        {
+          "name": "backend-start",
+          "tokens": 17450090,
+          "elapsedMs": 2301000,
+          "tokenPercent": 3,
+          "timePercent": 5
+        },
+        {
+          "name": "backend-review",
+          "tokens": 165158901,
+          "elapsedMs": 12800292.7752,
+          "tokenPercent": 33,
+          "timePercent": 26
+        },
+        {
+          "name": "backend-remind-1",
+          "tokens": 138892661,
+          "elapsedMs": 8309000,
+          "tokenPercent": 27,
+          "timePercent": 17
+        },
+        {
+          "name": "backend-final",
+          "tokens": 48759929,
+          "elapsedMs": 2486000,
+          "tokenPercent": 10,
+          "timePercent": 5
+        },
+        {
+          "name": "frontend-start",
+          "tokens": 31723600,
+          "elapsedMs": 15381000,
+          "tokenPercent": 6,
+          "timePercent": 31
+        },
+        {
+          "name": "frontend-review",
+          "tokens": 50035842,
+          "elapsedMs": 3662000,
+          "tokenPercent": 10,
+          "timePercent": 7
+        },
+        {
+          "name": "frontend-final",
+          "tokens": 38799644,
+          "elapsedMs": 3376000,
+          "tokenPercent": 8,
+          "timePercent": 7
+        },
+        {
+          "name": "overall-review",
+          "tokens": 14809736,
+          "elapsedMs": 1768000,
+          "tokenPercent": 3,
+          "timePercent": 4
+        },
+        {
+          "name": "overall-final",
+          "tokens": 1895546,
+          "elapsedMs": 441000,
+          "tokenPercent": 0,
+          "timePercent": 1
+        }
+      ]
+    },
+    {
+      "engine": "codex",
+      "subject": "reddit",
+      "arm": "evidence",
+      "runId": "56a8c2a7-0b98-4eb4-8848-c9fb44ef80d2",
+      "benchmarkRevision": "cdbda42111ecc8f459f2772065caf067b6db3f91",
+      "model": "gpt-5.6-luna",
+      "effort": "high",
+      "status": "completed",
+      "stage": "overall-final",
+      "launchedAt": "2026-08-04T22:56:40.360Z",
+      "tokens": 258008344,
+      "tokenUsage": {
+        "totalTokens": 258008344,
+        "inputTokens": 257535407,
+        "cachedInputTokens": 254037248,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 472937,
+        "reasoningOutputTokens": 156981
+      },
+      "inspection": {
+        "attempts": 0,
+        "failures": 0,
+        "tokenUsage": {
+          "totalTokens": 0,
+          "inputTokens": 0,
+          "cachedInputTokens": 0,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 0,
+          "reasoningOutputTokens": 0
+        },
+        "elapsedMs": 0
+      },
+      "apiCost": {
+        "provider": "openrouter",
+        "pricingAsOf": "2026-08-01",
+        "priceSource": "https://openrouter.ai/api/v1/models",
+        "currency": "USD",
+        "amountUsd": 3.17395058,
+        "requests": 1815,
+        "shortContextRequests": 1815,
+        "longContextRequests": 0,
+        "longContextThresholdTokens": 272000
+      },
+      "suspendedMs": 0,
+      "suspensions": [],
+      "workElapsedMs": 23411291.2256,
+      "worktree": {
+        "files": 160,
+        "additions": 14176,
+        "deletions": 121
+      },
+      "reviewVerdicts": [],
+      "stages": [
+        {
+          "name": "backend-start",
+          "tokens": 57619976,
+          "elapsedMs": 5327000,
+          "tokenPercent": 22,
+          "timePercent": 23
+        },
+        {
+          "name": "backend-review",
+          "tokens": 17301024,
+          "elapsedMs": 2792000,
+          "tokenPercent": 7,
+          "timePercent": 12
+        },
+        {
+          "name": "backend-final",
+          "tokens": 739958,
+          "elapsedMs": 33000,
+          "tokenPercent": 0,
+          "timePercent": 0
+        },
+        {
+          "name": "frontend-start",
+          "tokens": 102746093,
+          "elapsedMs": 8362000,
+          "tokenPercent": 40,
+          "timePercent": 36
+        },
+        {
+          "name": "frontend-review",
+          "tokens": 32335367,
+          "elapsedMs": 2800000,
+          "tokenPercent": 13,
+          "timePercent": 12
+        },
+        {
+          "name": "frontend-final",
+          "tokens": 3846088,
+          "elapsedMs": 383000,
+          "tokenPercent": 1,
+          "timePercent": 2
+        },
+        {
+          "name": "overall-review",
+          "tokens": 37116212,
+          "elapsedMs": 3193000,
+          "tokenPercent": 14,
+          "timePercent": 14
+        },
+        {
+          "name": "overall-final",
+          "tokens": 6303626,
+          "elapsedMs": 428000,
+          "tokenPercent": 2,
+          "timePercent": 2
+        }
+      ]
+    },
+    {
+      "engine": "codex",
+      "subject": "reddit2",
+      "arm": "evidence",
+      "runId": "dfec73eb-2e01-4e0c-bb93-9b21df14da77",
+      "benchmarkRevision": "0f465f52c69b4b7e6b25fab1c1676de5ea6db15f",
+      "model": "gpt-5.6-luna",
+      "effort": "high",
+      "status": "completed",
+      "stage": "overall-final",
+      "launchedAt": "2026-08-05T11:50:02.929Z",
+      "tokens": 215369781,
+      "tokenUsage": {
+        "totalTokens": 215369781,
+        "inputTokens": 214995138,
+        "cachedInputTokens": 211989248,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 374643,
+        "reasoningOutputTokens": 112660
+      },
+      "inspection": {
+        "attempts": 0,
+        "failures": 0,
+        "tokenUsage": {
+          "totalTokens": 0,
+          "inputTokens": 0,
+          "cachedInputTokens": 0,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 0,
+          "reasoningOutputTokens": 0
+        },
+        "elapsedMs": 0
+      },
+      "apiCost": {
+        "provider": "openrouter",
+        "pricingAsOf": "2026-08-01",
+        "priceSource": "https://openrouter.ai/api/v1/models",
+        "currency": "USD",
+        "amountUsd": 2.64526728,
+        "requests": 1605,
+        "shortContextRequests": 1605,
+        "longContextRequests": 0,
+        "longContextThresholdTokens": 272000
+      },
+      "suspendedMs": 0,
+      "suspensions": [],
+      "workElapsedMs": 17905711.1109,
+      "worktree": {
+        "files": 224,
+        "additions": 15641,
+        "deletions": 70
+      },
+      "reviewVerdicts": [],
+      "stages": [
+        {
+          "name": "backend-start",
+          "tokens": 20078882,
+          "elapsedMs": 2321000,
+          "tokenPercent": 9,
+          "timePercent": 13
+        },
+        {
+          "name": "backend-review",
+          "tokens": 21232045,
+          "elapsedMs": 1941000,
+          "tokenPercent": 10,
+          "timePercent": 11
+        },
+        {
+          "name": "backend-final",
+          "tokens": 787363,
+          "elapsedMs": 26000,
+          "tokenPercent": 0,
+          "timePercent": 0
+        },
+        {
+          "name": "frontend-start",
+          "tokens": 47141668,
+          "elapsedMs": 4544000,
+          "tokenPercent": 22,
+          "timePercent": 25
+        },
+        {
+          "name": "frontend-review",
+          "tokens": 49550289,
+          "elapsedMs": 3307000,
+          "tokenPercent": 23,
+          "timePercent": 18
+        },
+        {
+          "name": "frontend-final",
+          "tokens": 2034081,
+          "elapsedMs": 80000,
+          "tokenPercent": 1,
+          "timePercent": 0
+        },
+        {
+          "name": "overall-review",
+          "tokens": 72196159,
+          "elapsedMs": 5342000,
+          "tokenPercent": 34,
+          "timePercent": 30
+        },
+        {
+          "name": "overall-final",
+          "tokens": 2349294,
+          "elapsedMs": 248000,
+          "tokenPercent": 1,
+          "timePercent": 1
+        }
+      ]
+    },
+    {
+      "engine": "codex",
+      "subject": "shopping",
+      "arm": "plain",
+      "runId": "4a0eedc2-7991-4ec2-bdab-0100e6a8b2b3",
+      "benchmarkRevision": "cdbda42111ecc8f459f2772065caf067b6db3f91",
+      "model": "gpt-5.6-luna",
+      "effort": "high",
+      "status": "quality-failed",
+      "stage": "backend-remind-4",
+      "launchedAt": "2026-08-05T10:35:07.515Z",
+      "tokens": 647092654,
+      "tokenUsage": {
+        "totalTokens": 647092654,
+        "inputTokens": 646304178,
+        "cachedInputTokens": 637500160,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 788476,
+        "reasoningOutputTokens": 213124
+      },
+      "inspection": {
+        "attempts": 5,
+        "failures": 0,
+        "tokenUsage": {
+          "totalTokens": 16257151,
+          "inputTokens": 16198331,
+          "cachedInputTokens": 15365632,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 58820,
+          "reasoningOutputTokens": 30901
+        },
+        "elapsedMs": 1689542.0947
+      },
+      "apiCost": {
+        "provider": "openrouter",
+        "pricingAsOf": "2026-08-01",
+        "priceSource": "https://openrouter.ai/api/v1/models",
+        "currency": "USD",
+        "amountUsd": 9.59604882,
+        "requests": 5943,
+        "shortContextRequests": 5943,
+        "longContextRequests": 0,
+        "longContextThresholdTokens": 272000
+      },
+      "suspendedMs": 0,
+      "suspensions": [],
+      "workElapsedMs": 33640688.8602,
+      "worktree": {
+        "files": 169,
+        "additions": 24603,
+        "deletions": 114
+      },
+      "reviewVerdicts": [
+        {
+          "scope": "backend",
+          "attempt": 0,
+          "decision": "fail",
+          "action": "retry",
+          "goalIndex": 1,
+          "terminalTurnId": "f68ed320-bec4-4803-80dd-45524379c9c2",
+          "rationale": "Question 1: fail. The review skill requires complete contents returned, exactly one manifest file per command, and rejects summaries/counts as reads (workspace/.agents/skills/review/SKILL.md:48-55). After the last reported fix (backend-review.log:53690), the Round 6 manifest was created (backend-review.log:53691), but one command then looped over all requirements and all 64 manifest files together (backend-review.log:53701); its output contained only READ line/character counts and MANIFEST 01-64 labels, not file contents (backend-review.log:53840). Therefore the claimed final dry Round 6 (backend-review.log:54461) is not proven. Question 2: fail. Testing instructions require a proven working path for every published operation and a business assertion (workspace/.agents/skills/backend/testing.md:26,39,132,158). The stream reports 106 accessors and 106 smoke tests (backend-review.log:16234), but the tests for sellerDashboard appear only as an unauthenticated guard call (workspace/packages/backend/test/features/api/test_api_operation_guards.ts:427-429). The requirement requires an authenticated seller summary containing four concrete counts (workspace/docs/analysis/03-functional-requirements.md:567-576), and no test observes that success behavior. Unverified facts: none.",
+          "pausedAt": "2026-08-05T12:36:05.253Z",
+          "decidedAt": "2026-08-05T12:42:34.781Z",
+          "resumedAt": "2026-08-05T12:42:34.787Z",
+          "verdictRelativePath": "supervision/00-backend-0-verdict.json",
+          "verdictSha256": "2f48a5d39803c632b0a9655c8d00b82069ef57275bf5380b90b82b32e08153bb",
+          "workspaceMaterialSha256": "b90896c1a1cba260cd51c42e855424d0a844309be96bcacd94395ad208342f18"
+        },
+        {
+          "scope": "backend",
+          "attempt": 1,
+          "decision": "fail",
+          "action": "retry",
+          "goalIndex": 2,
+          "terminalTurnId": "fd4b2188-9576-4d1c-bfb7-8b628a825669",
+          "rationale": "Q1 is no. After scoped edits at backend-remind-1.log stream lines 184472-184473 and 184820-184821, the supposed final manifest was only added at 184926-184927. The subsequent commands at 184935-184941 and 185027-185160 looped over all manifest paths, emitting hashes/counts rather than returning each file in full, and each command read many files, contrary to workspace/.agents/skills/review/SKILL.md:50-54. No ordered per-file full reads follow that manifest before tests at 185167 and the completion claim at 185804-185809. The check:watch attempts at 185197-185208, 185220-185245, and 185266-185298 failed with exit 124; the later command at 185418-185433 only observed process liveness, not a clean diagnostic rebuild. Thus no final dry round is evidenced. Q2 is no. workspace/.agents/skills/backend/testing.md:26,34,39,138,158 requires per-operation tests with one primary operation, working-path coverage, and business assertions. packages/backend/test/features/api/test_api_business_journey.ts:22-320 is one exported test invoking dozens of different accessors, despite claiming to exercise each published operation, violating the one-primary-operation rule. packages/backend/test/features/api/test_api_operation_guards.ts:4-10 and :20-543 mostly wrap calls in a generic 401 helper; specifically :180-218 labels customer/seller login and recovery as unauthenticated actor-guard refusals, while docs/analysis/01-actors-and-auth.md:17-19,47-51,71-73,101-105 require successful login and recovery flows. These tests therefore do not prove the promised business behavior. I did not independently verify every other accessor-to-test mapping; that is unverified, but these documented violations suffice.",
+          "pausedAt": "2026-08-05T18:14:36.913Z",
+          "decidedAt": "2026-08-05T18:21:02.458Z",
+          "resumedAt": "2026-08-05T18:21:02.468Z",
+          "verdictRelativePath": "supervision/01-backend-1-verdict.json",
+          "verdictSha256": "6c5d89bc57810367868791480951d7dcb8beaffca9fbd5d86685c6e5df516a63",
+          "workspaceMaterialSha256": "f631d9bb0f29a24127cdbc7480b74bd6cbd292e121e50e77f112e83e01ee46e7"
+        },
+        {
+          "scope": "backend",
+          "attempt": 2,
+          "decision": "fail",
+          "action": "retry",
+          "goalIndex": 3,
+          "terminalTurnId": "e09d31dc-41ff-407a-a170-7d7a574f481c",
+          "rationale": "The review loop did not produce a qualifying dry round. In the claimed final round, every manifest command from backend-remind-2.log:23163 through 23693 used `Get-Content -Raw | Out-Null` and retained only a `READ ...` marker (for example :23163-23166), whereas workspace/.agents/skills/review/SKILL.md:48-54 requires complete file contents to be returned and examined. The manifest was only line-counted after the round at backend-remind-2.log:23865-23874, and the dry claim at :24173 is therefore unverified/contradicted by the retained reads. The tests are also not properly written: workspace/.agents/skills/backend/testing.md:34-41 requires one primary operation per test and a proven working path, but test_api_business_journey.ts:21-30 declares one test that calls many operations (continuing through :47-177), rather than one primary operation per test. Thus both judged questions are no.",
+          "pausedAt": "2026-08-05T18:50:29.364Z",
+          "decidedAt": "2026-08-05T18:55:48.933Z",
+          "resumedAt": "2026-08-05T18:55:48.965Z",
+          "verdictRelativePath": "supervision/02-backend-2-verdict.json",
+          "verdictSha256": "9bdb4542396ecdcc87a35817c603f43c2cd9ec519c8318e32e321f36e5b67ef0",
+          "workspaceMaterialSha256": "dfc318eb9e6756d59582c58b154aedc8e03b0cbe6f38092bd57fe07551223fa2"
+        },
+        {
+          "scope": "backend",
+          "attempt": 3,
+          "decision": "fail",
+          "action": "retry",
+          "goalIndex": 4,
+          "terminalTurnId": "7d8cdfcc-3392-4c53-bc80-5618ae6c3a34",
+          "rationale": "The review loop did not produce a qualifying dry round. The final candidate manifest was generated at backend-remind-3.log:13757-13875 and claimed strict reading at :13882, but each subsequent manifest command only assigned Get-Content -Raw to $s and emitted a character count, not the file contents: docs/analysis/01 at :13957-13964, and backend tests at :14259-14265. This violates the review procedure's full-return requirement; the later completion claim at :14995-15000 cannot establish otherwise. The tests are also insufficient. Workspace/.agents/skills/backend/testing.md requires operation-sized behavioral proof (lines 26, 138, 158). test_api_operation_guards.ts contains 106 operation-named tests; representative tests at lines 19-26, 351-358, and 466-474 only call expectUnauthenticated, while the sole typia.assert examples at lines 13-16 prove shape. They do not prove successful business behavior or persisted outcomes for those operations. The claimed gates and TEST_AUTOMATION_REPORT in the stream are unverified as substantive behavioral proof.",
+          "pausedAt": "2026-08-05T20:23:48.992Z",
+          "decidedAt": "2026-08-05T20:29:31.521Z",
+          "resumedAt": "2026-08-05T20:29:31.531Z",
+          "verdictRelativePath": "supervision/03-backend-3-verdict.json",
+          "verdictSha256": "b8e01a8b718b9ee96179c81fd786f0bb90294ed161b405104d1211f25766032e",
+          "workspaceMaterialSha256": "1b44c6fabf420487abd6a7d0a88026932a7f9373cb16cd6d33810270357dcec4"
+        },
+        {
+          "scope": "backend",
+          "attempt": 4,
+          "decision": "fail",
+          "action": "quality-failed",
+          "goalIndex": 5,
+          "terminalTurnId": "add51c82-673a-489c-ac73-04be44fd9297",
+          "rationale": "Question 1: no. The restart22 manifest was created at backend-remind-4.log:14644 and lists docs/analysis in 01–05 order (output at :14771), but the recorded reads start with 01, then 05, then packages/api at :14777–14779; 02 is only read later at :15054 (with 03/04 later still). Thus the claimed dry round at :28848 was not a manifest-order full round, and no later manifest/read sequence repairs it. Question 2: no. Workspace testing instructions require one primary operation per test and a business assertion beyond type validation (workspace/.agents/skills/backend/testing.md:34-39,151-158). test_api_seller_recovery.ts documents identity preservation but only performs typia.assert calls and never asserts identity or a business outcome (workspace/packages/backend/test/features/api/seller/test_api_seller_recovery.ts:4-13). test_api_health.ts likewise documents reachability/contract validation and only calls the accessor plus typia.assert (workspace/packages/backend/test/features/api/health/test_api_health.ts:4-14,24-28). The business journey also claims to exercise each published operation in one function (workspace/packages/backend/test/features/api/test_api_business_journey.ts:21-22) while invoking many operations, contrary to the one-primary-operation rule. No unverified facts are relied upon.",
+          "pausedAt": "2026-08-05T20:40:20.412Z",
+          "decidedAt": "2026-08-05T20:44:59.232Z",
+          "verdictRelativePath": "supervision/04-backend-4-verdict.json",
+          "verdictSha256": "85ae352dfa42f9fc8335239e4e6a86a2e6ef2a6d44f1aa23a8b9d12685c5c925",
+          "workspaceMaterialSha256": "ea863f571a3d04d60cf290972e629e8c0816f213d16b3cf89d8f3cea710baf40"
+        }
+      ],
+      "stages": [
+        {
+          "name": "backend-start",
+          "tokens": 255451467,
+          "elapsedMs": 21763000,
+          "tokenPercent": 39,
+          "timePercent": 65
+        },
+        {
+          "name": "backend-review",
+          "tokens": 96330115,
+          "elapsedMs": 7271683.5983,
+          "tokenPercent": 15,
+          "timePercent": 22
+        },
+        {
+          "name": "backend-remind-1",
+          "tokens": 200349760,
+          "elapsedMs": 16978096.0348,
+          "tokenPercent": 31,
+          "timePercent": 50
+        },
+        {
+          "name": "backend-remind-2",
+          "tokens": 53548586,
+          "elapsedMs": 2060624.6206,
+          "tokenPercent": 8,
+          "timePercent": 6
+        },
+        {
+          "name": "backend-remind-3",
+          "tokens": 33982000,
+          "elapsedMs": 1866808.7756,
+          "tokenPercent": 5,
+          "timePercent": 6
+        },
+        {
+          "name": "backend-remind-4",
+          "tokens": 7430726,
+          "elapsedMs": 860329.0654,
+          "tokenPercent": 1,
+          "timePercent": 3
+        }
+      ]
+    },
+    {
+      "engine": "codex",
+      "subject": "shopping",
+      "arm": "evidence",
+      "runId": "f02ffc06-1bc0-4210-9929-db07e9859a20",
+      "benchmarkRevision": "cdbda42111ecc8f459f2772065caf067b6db3f91",
+      "model": "gpt-5.6-luna",
+      "effort": "high",
+      "status": "completed",
+      "stage": "overall-final",
+      "launchedAt": "2026-08-04T22:56:46.664Z",
+      "tokens": 211576264,
+      "tokenUsage": {
+        "totalTokens": 211576264,
+        "inputTokens": 143212876,
+        "cachedInputTokens": 141057792,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 325675,
+        "reasoningOutputTokens": 104257
+      },
+      "inspection": {
+        "attempts": 0,
+        "failures": 0,
+        "tokenUsage": {
+          "totalTokens": 0,
+          "inputTokens": 0,
+          "cachedInputTokens": 0,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 0,
+          "reasoningOutputTokens": 0
+        },
+        "elapsedMs": 0
+      },
+      "apiCost": {
+        "provider": "openrouter",
+        "pricingAsOf": "2026-08-01",
+        "priceSource": "https://openrouter.ai/api/v1/models",
+        "currency": "USD",
+        "amountUsd": 2.91788182,
+        "requests": 1690,
+        "shortContextRequests": 1690,
+        "longContextRequests": 0,
+        "longContextThresholdTokens": 272000
+      },
+      "suspendedMs": 0,
+      "suspensions": [],
+      "workElapsedMs": 20596612.647800002,
+      "worktree": {
+        "files": 323,
+        "additions": 22190,
+        "deletions": 147
+      },
+      "reviewVerdicts": [],
+      "stages": [
+        {
+          "name": "backend-start",
+          "tokens": 66022752,
+          "elapsedMs": 7209000,
+          "tokenPercent": 31,
+          "timePercent": 35
+        },
+        {
+          "name": "backend-review",
+          "tokens": 27028742,
+          "elapsedMs": 2822218,
+          "tokenPercent": 13,
+          "timePercent": 14
+        },
+        {
+          "name": "backend-final",
+          "tokens": 1869234,
+          "elapsedMs": 160211,
+          "tokenPercent": 1,
+          "timePercent": 1
+        },
+        {
+          "name": "frontend-start",
+          "tokens": 67583789,
+          "elapsedMs": 10206000,
+          "tokenPercent": 32,
+          "timePercent": 50
+        },
+        {
+          "name": "frontend-review",
+          "tokens": 10322409,
+          "elapsedMs": 1064577,
+          "tokenPercent": 5,
           "timePercent": 5
         },
         {
           "name": "frontend-final",
-          "tokens": 618899,
-          "elapsedMs": 25000,
+          "tokens": 912917,
+          "elapsedMs": 65159,
           "tokenPercent": 0,
           "timePercent": 0
         },
         {
           "name": "overall-review",
-          "tokens": 19451203,
-          "elapsedMs": 1449466,
-          "tokenPercent": 10,
-          "timePercent": 9
+          "tokens": 35438770,
+          "elapsedMs": 2466000,
+          "tokenPercent": 17,
+          "timePercent": 12
         },
         {
           "name": "overall-final",
-          "tokens": 1692077,
-          "elapsedMs": 86000,
+          "tokens": 2397651,
+          "elapsedMs": 119829,
           "tokenPercent": 1,
           "timePercent": 1
+        }
+      ]
+    },
+    {
+      "engine": "codex",
+      "subject": "shopping2",
+      "arm": "evidence",
+      "runId": "9f03b6ac-ec6a-4792-b331-170925f71769",
+      "benchmarkRevision": "0f465f52c69b4b7e6b25fab1c1676de5ea6db15f",
+      "model": "gpt-5.6-luna",
+      "effort": "high",
+      "status": "completed",
+      "stage": "overall-final",
+      "launchedAt": "2026-08-05T11:43:04.638Z",
+      "tokens": 271608864,
+      "tokenUsage": {
+        "totalTokens": 271608864,
+        "inputTokens": 271102963,
+        "cachedInputTokens": 267391232,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 505901,
+        "reasoningOutputTokens": 142867
+      },
+      "inspection": {
+        "attempts": 0,
+        "failures": 0,
+        "tokenUsage": {
+          "totalTokens": 0,
+          "inputTokens": 0,
+          "cachedInputTokens": 0,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 0,
+          "reasoningOutputTokens": 0
+        },
+        "elapsedMs": 0
+      },
+      "apiCost": {
+        "provider": "openrouter",
+        "pricingAsOf": "2026-08-01",
+        "priceSource": "https://openrouter.ai/api/v1/models",
+        "currency": "USD",
+        "amountUsd": 3.34862602,
+        "requests": 1949,
+        "shortContextRequests": 1949,
+        "longContextRequests": 0,
+        "longContextThresholdTokens": 272000
+      },
+      "suspendedMs": 0,
+      "suspensions": [],
+      "workElapsedMs": 30952076.0124,
+      "worktree": {
+        "files": 304,
+        "additions": 22398,
+        "deletions": 64
+      },
+      "reviewVerdicts": [],
+      "stages": [
+        {
+          "name": "backend-start",
+          "tokens": 77076340,
+          "elapsedMs": 6936000,
+          "tokenPercent": 28,
+          "timePercent": 22
+        },
+        {
+          "name": "backend-review",
+          "tokens": 142169643,
+          "elapsedMs": 11055000,
+          "tokenPercent": 52,
+          "timePercent": 36
+        },
+        {
+          "name": "overall-final",
+          "tokens": 52362881,
+          "elapsedMs": 4641000,
+          "tokenPercent": 19,
+          "timePercent": 15
+        }
+      ]
+    },
+    {
+      "engine": "codex",
+      "subject": "erp",
+      "arm": "plain",
+      "runId": "afd81c7f-af9a-4201-bf14-ce8318059eff",
+      "benchmarkRevision": "cdbda42111ecc8f459f2772065caf067b6db3f91",
+      "model": "gpt-5.6-luna",
+      "effort": "high",
+      "status": "completed",
+      "stage": "overall-final",
+      "launchedAt": "2026-08-04T22:56:46.636Z",
+      "tokens": 509741021,
+      "tokenUsage": {
+        "totalTokens": 509741021,
+        "inputTokens": 508946549,
+        "cachedInputTokens": 502116352,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 794472,
+        "reasoningOutputTokens": 180940
+      },
+      "inspection": {
+        "attempts": 0,
+        "failures": 0,
+        "tokenUsage": {
+          "totalTokens": 0,
+          "inputTokens": 0,
+          "cachedInputTokens": 0,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 0,
+          "reasoningOutputTokens": 0
+        },
+        "elapsedMs": 0
+      },
+      "apiCost": {
+        "provider": "openrouter",
+        "pricingAsOf": "2026-08-01",
+        "priceSource": "https://openrouter.ai/api/v1/models",
+        "currency": "USD",
+        "amountUsd": 7.37615343,
+        "requests": 5555,
+        "shortContextRequests": 5550,
+        "longContextRequests": 5,
+        "longContextThresholdTokens": 272000
+      },
+      "suspendedMs": 0,
+      "suspensions": [],
+      "workElapsedMs": 77879958.3676,
+      "worktree": {
+        "files": 528,
+        "additions": 81126,
+        "deletions": 175
+      },
+      "reviewVerdicts": [],
+      "stages": [
+        {
+          "name": "backend-start",
+          "tokens": 221659787,
+          "elapsedMs": 27278000,
+          "tokenPercent": 43,
+          "timePercent": 35
+        },
+        {
+          "name": "backend-review",
+          "tokens": 198406214,
+          "elapsedMs": 28264000,
+          "tokenPercent": 39,
+          "timePercent": 36
+        },
+        {
+          "name": "overall-final",
+          "tokens": 89675020,
+          "elapsedMs": 9081000,
+          "tokenPercent": 18,
+          "timePercent": 12
+        }
+      ]
+    },
+    {
+      "engine": "codex",
+      "subject": "erp",
+      "arm": "evidence",
+      "runId": "db8f5371-abfe-4ee0-ae11-bab409742e61",
+      "benchmarkRevision": "cdbda42111ecc8f459f2772065caf067b6db3f91",
+      "model": "gpt-5.6-luna",
+      "effort": "high",
+      "status": "completed",
+      "stage": "overall-final",
+      "launchedAt": "2026-08-04T22:56:46.982Z",
+      "tokens": 777597677,
+      "tokenUsage": {
+        "totalTokens": 777597677,
+        "inputTokens": 776407136,
+        "cachedInputTokens": 765122816,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 1190541,
+        "reasoningOutputTokens": 275214
+      },
+      "inspection": {
+        "attempts": 0,
+        "failures": 0,
+        "tokenUsage": {
+          "totalTokens": 0,
+          "inputTokens": 0,
+          "cachedInputTokens": 0,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 0,
+          "reasoningOutputTokens": 0
+        },
+        "elapsedMs": 0
+      },
+      "apiCost": {
+        "provider": "openrouter",
+        "pricingAsOf": "2026-08-01",
+        "priceSource": "https://openrouter.ai/api/v1/models",
+        "currency": "USD",
+        "amountUsd": 9.49726732,
+        "requests": 5600,
+        "shortContextRequests": 5598,
+        "longContextRequests": 2,
+        "longContextThresholdTokens": 272000
+      },
+      "suspendedMs": 0,
+      "suspensions": [],
+      "workElapsedMs": 94511255.90850002,
+      "worktree": {
+        "files": 1469,
+        "additions": 104541,
+        "deletions": 104
+      },
+      "reviewVerdicts": [],
+      "stages": [
+        {
+          "name": "backend-start",
+          "tokens": 645364359,
+          "elapsedMs": 83545000,
+          "tokenPercent": 83,
+          "timePercent": 88
+        },
+        {
+          "name": "backend-review",
+          "tokens": 38058969,
+          "elapsedMs": 3272000,
+          "tokenPercent": 5,
+          "timePercent": 3
+        },
+        {
+          "name": "backend-final",
+          "tokens": 1301536,
+          "elapsedMs": 262000,
+          "tokenPercent": 0,
+          "timePercent": 0
+        },
+        {
+          "name": "frontend-start",
+          "tokens": 29445251,
+          "elapsedMs": 2334000,
+          "tokenPercent": 4,
+          "timePercent": 2
+        },
+        {
+          "name": "frontend-review",
+          "tokens": 8217738,
+          "elapsedMs": 911000,
+          "tokenPercent": 1,
+          "timePercent": 1
+        },
+        {
+          "name": "frontend-final",
+          "tokens": 2089303,
+          "elapsedMs": 110000,
+          "tokenPercent": 0,
+          "timePercent": 0
+        },
+        {
+          "name": "overall-review",
+          "tokens": 47811404,
+          "elapsedMs": 3667000,
+          "tokenPercent": 6,
+          "timePercent": 4
+        },
+        {
+          "name": "overall-final",
+          "tokens": 5309117,
+          "elapsedMs": 333000,
+          "tokenPercent": 1,
+          "timePercent": 0
+        }
+      ]
+    },
+    {
+      "engine": "codex",
+      "subject": "erp2",
+      "arm": "evidence",
+      "runId": "0f59a2b4-14eb-4266-8cab-3e4fb3a52d06",
+      "benchmarkRevision": "c65aa790690f358550561c599266256f96b3b44a",
+      "model": "gpt-5.6-luna",
+      "effort": "high",
+      "status": "completed",
+      "stage": "overall-final",
+      "launchedAt": "2026-08-05T17:06:17.168Z",
+      "tokens": 145065737,
+      "tokenUsage": {
+        "totalTokens": 145065737,
+        "inputTokens": 144802264,
+        "cachedInputTokens": 142797824,
+        "cacheWriteInputTokens": 0,
+        "outputTokens": 263473,
+        "reasoningOutputTokens": 98761
+      },
+      "inspection": {
+        "attempts": 0,
+        "failures": 0,
+        "tokenUsage": {
+          "totalTokens": 0,
+          "inputTokens": 0,
+          "cachedInputTokens": 0,
+          "cacheWriteInputTokens": 0,
+          "outputTokens": 0,
+          "reasoningOutputTokens": 0
+        },
+        "elapsedMs": 0
+      },
+      "apiCost": {
+        "provider": "openrouter",
+        "pricingAsOf": "2026-08-01",
+        "priceSource": "https://openrouter.ai/api/v1/models",
+        "currency": "USD",
+        "amountUsd": 1.78650604,
+        "requests": 1134,
+        "shortContextRequests": 1134,
+        "longContextRequests": 0,
+        "longContextThresholdTokens": 272000
+      },
+      "suspendedMs": 0,
+      "suspensions": [],
+      "workElapsedMs": 17232000,
+      "worktree": {
+        "files": 1332,
+        "additions": 102977,
+        "deletions": 127
+      },
+      "reviewVerdicts": [],
+      "stages": [
+        {
+          "name": "backend-start",
+          "tokens": 15916136,
+          "elapsedMs": 3089000,
+          "tokenPercent": 11,
+          "timePercent": 18
+        },
+        {
+          "name": "backend-review",
+          "tokens": 14001827,
+          "elapsedMs": 2031000,
+          "tokenPercent": 10,
+          "timePercent": 12
+        },
+        {
+          "name": "overall-final",
+          "tokens": 115147774,
+          "elapsedMs": 12112000,
+          "tokenPercent": 79,
+          "timePercent": 70
         }
       ]
     }

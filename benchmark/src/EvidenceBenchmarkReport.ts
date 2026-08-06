@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { collectEvidenceBenchmarkReport } from "./EvidenceBenchmarkDashboard";
 import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction";
+import { EvidenceBenchmarkSessionCost } from "./EvidenceBenchmarkSessionCost";
 import type {
   IEvidenceBenchmarkReport,
   IEvidenceBenchmarkReportCell,
@@ -15,16 +16,39 @@ export interface IEvidenceBenchmarkReportOptions {
   runIds?: readonly string[];
 }
 
-/** Writes the latest-run JSON aggregate, stable cells, and comparison charts. */
-export const writeEvidenceBenchmarkReport = (
+/**
+ * Writes the latest-run JSON aggregate, stable cells, and comparison charts.
+ *
+ * Prices are collected the way the dashboard collects them: the runner's
+ * retained request stream where it can answer, the cell's own Codex session
+ * where it cannot. Insisting on the replay alone stopped this report from
+ * regenerating at all once the campaign started driving cells by hand, which
+ * is how its charts came to be three days older than the run they describe.
+ */
+export const writeEvidenceBenchmarkReport = async (
   options: IEvidenceBenchmarkReportOptions,
-): IEvidenceBenchmarkReport => {
-  const report: IEvidenceBenchmarkReport = collectEvidenceBenchmarkReport(
+): Promise<IEvidenceBenchmarkReport> => {
+  const collected: IEvidenceBenchmarkReport = collectEvidenceBenchmarkReport(
     options.repository,
     options.generatedAt,
     options.runIds,
     true,
+    false,
   );
+  const sessions: ReadonlyMap<
+    string,
+    EvidenceBenchmarkSessionCost.ISessionTotals
+  > = await EvidenceBenchmarkSessionCost.totals(
+    collected.cells[0]?.model ?? "gpt-5.6-luna",
+  );
+  const report: IEvidenceBenchmarkReport = {
+    ...collected,
+    cells: collected.cells.map((cell) =>
+      cell.apiCost !== null
+        ? cell
+        : { ...cell, apiCost: sessions.get(cell.runId)?.cost ?? null },
+    ),
+  };
   const output: string = path.resolve(options.output);
   fs.mkdirSync(output, { recursive: true });
   for (const entry of fs.readdirSync(output, { withFileTypes: true }))
@@ -46,8 +70,23 @@ export const writeEvidenceBenchmarkReport = (
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, `${JSON.stringify(cell, null, 2)}\n`);
   }
-  fs.writeFileSync(path.join(output, "tokens.svg"), renderTokenChart(report));
-  fs.writeFileSync(path.join(output, "time.svg"), renderWorkTimeChart(report));
+  // A subject's chart belongs beside the JSON holding the same run's figures,
+  // so opening a subject's directory gives its numbers and its picture at once.
+  for (const [model, subjects] of Map.groupBy(
+    report.cells,
+    (cell) => cell.model,
+  ))
+    for (const subject of new Set(subjects.map((cell) => cell.subject)))
+      fs.writeFileSync(
+        path.join(cells, pathSegment(model), pathSegment(subject), "arms.svg"),
+        renderSubjectChart(report, subject),
+      );
+  // One chart rather than three. Work time and price moved to text beside the
+  // token bar they track, and coverage — the axis the other two cannot stand in
+  // for — took the space they left.
+  fs.rmSync(path.join(output, "tokens.svg"), { force: true });
+  fs.rmSync(path.join(output, "time.svg"), { force: true });
+  fs.writeFileSync(path.join(output, "summary.svg"), renderSummaryChart(report));
   return report;
 };
 
@@ -125,25 +164,36 @@ const TOKEN_TABLE_COLUMNS: IPhaseMetric["tableColumns"] = [
   { label: "Reasoning", x: 1_395 },
 ];
 
-const WORK_TIME_TABLE_COLUMNS: IPhaseMetric["tableColumns"] = [
-  { label: "Project", x: 60 },
-  { label: "Arm", x: 145 },
-  { label: "API cost", x: 300 },
-  { label: "Total", x: 430 },
-  { label: "Backend Dev", x: 620 },
-  { label: "Backend Review", x: 815 },
-  { label: "Frontend Dev", x: 1_000 },
-  { label: "Frontend Review", x: 1_190 },
-  { label: "Overall Review", x: 1_395 },
-];
+/** One stylesheet for every chart this module writes. */
+const CHART_STYLE ="<style>\n  text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #172033; }\n  .title { font-size: 27px; font-weight: 700; }\n  .subtitle, .generated, .group-meta, .row-status { font-size: 13px; fill: #667085; }\n  .group { fill: #e8f2fb; }\n  .group-title { font-size: 21px; font-weight: 700; }\n  .row-label { font-size: 17px; font-weight: 700; }\n  .value { font-size: 16px; font-weight: 700; }\n  .cost-value { font-size: 13px; font-weight: 600; fill: #526b82; }\n  .legend { font-size: 12px; fill: #526b82; }\n  .segment-label { font-size: 10px; font-weight: 700; fill: #ffffff; paint-order: stroke; stroke: #172033; stroke-opacity: 0.28; stroke-width: 1px; }\n  .phase-segment { stroke: #ffffff; stroke-opacity: 0.86; stroke-width: 1px; }\n  .track { fill: #e7edf4; stroke: #d5dee9; stroke-width: 1px; }\n  .empty { font-size: 15px; fill: #667085; }\n  .table-title { font-size: 15px; font-weight: 600; }\n  .table-header { font-size: 11px; font-weight: 600; fill: #667085; }\n  .table-cell { font-size: 12px; fill: #334155; }\n  .table-rule { stroke: #dbe4ee; stroke-width: 1px; }\n  .table-note { font-size: 11px; fill: #667085; }\n</style>";
 
-const renderTokenChart = (report: IEvidenceBenchmarkReport): string =>
+/**
+ * What share of the provenance graph each Plain subject satisfied.
+ *
+ * These are read from the source by hand rather than emitted by a run, so they
+ * live here as data rather than arriving on the report. Thirteen edges are
+ * measured per subject and composed so serial hops multiply and branches
+ * average; a subject absent from this map has not been measured yet, and its
+ * bar is omitted rather than drawn at zero.
+ *
+ * Evidence carries no entry because it is not measured: a cell that misses an
+ * edge does not compile, so the arm is 100% by construction.
+ */
+const COVERAGE: Readonly<Record<string, number>> = {
+  todo: 80.1,
+  reddit: 62.4,
+};
+
+const COVERAGE_NOTE =
+  "Coverage measured by Claude Code Opus 5 — thirteen graph edges read from the source, composed so serial hops multiply and branches average. Evidence is 100% by construction: a cell that misses an edge does not compile." as const;
+
+const renderSummaryChart = (report: IEvidenceBenchmarkReport): string =>
   renderPhaseChart(report, {
-    title: "Benchmark token usage by project",
+    title: "Benchmark: Plain against Evidence",
     description:
-      "Plain and Evidence share one token axis. Stacked shades separate backend development and review, frontend development and review, and overall review.",
+      "Coverage of the provenance graph per subject, then token spend per subject with stacked shades for backend development and review, frontend development and review, and overall review. Work time and API cost read beside each bar.",
     subtitle:
-      "Plain and Evidence share one token axis; stacked shades show development and review phases (lower is better).",
+      "Coverage is higher-is-better. Token spend is lower-is-better and shares one axis across subjects; stacked shades show development and review phases, and work time and cost sit beside each bar.",
     tableTitle: "Token counter details",
     tableColumns: TOKEN_TABLE_COLUMNS,
     tableValues: (cell) => [
@@ -167,31 +217,219 @@ const renderTokenChart = (report: IEvidenceBenchmarkReport): string =>
     format: formatTokens,
   });
 
-const renderWorkTimeChart = (report: IEvidenceBenchmarkReport): string =>
-  renderPhaseChart(report, {
-    title: "Benchmark work time by project",
-    description:
-      "Plain and Evidence share one work-time axis. Stacked shades separate backend development and review, frontend development and review, and overall review.",
-    subtitle:
-      "Plain and Evidence share one Work Time axis; stacked shades show development and review phases (lower is better).",
-    tableTitle: "Work Time details",
-    tableColumns: WORK_TIME_TABLE_COLUMNS,
-    tableValues: (cell, phases) => [
-      title(cell.subject),
-      title(cell.arm),
-      formatApiCost(cell),
-      formatDuration(cell.workElapsedMs),
-      ...phases.map((phase) => formatDuration(phase.value)),
-    ],
-    tableNotes: [
-      "Each Final is included in Review; the gray remainder is native process overhead. Verified system suspensions are excluded.",
-      API_PRICE_NOTE,
-    ],
-    dataAttribute: "ms",
-    cellValue: (cell) => cell.workElapsedMs,
-    stageValue: (stage) => stage.elapsedMs,
-    format: formatDuration,
+/**
+ * One subject's two arms across every measured axis.
+ *
+ * Coverage carries no phases because it is a property of the artifact rather
+ * than of the work that made it. The three spend axes carry the same stacked
+ * shades, so a reader comparing them sees which phase moved rather than only
+ * that a total did.
+ *
+ * Cost has no per-phase counter of its own. Its segments are the cell's price
+ * apportioned by each phase's token share, which is exact wherever every
+ * request was billed at one rate and an apportionment otherwise; the footnote
+ * says so rather than letting the bar imply a measurement.
+ */
+const renderSubjectChart = (
+  report: IEvidenceBenchmarkReport,
+  subject: string,
+): string => {
+  const width: number = 1_440;
+  const margin: number = 36;
+  const labelX: number = 60;
+  const barX: number = 210;
+  const barMaximumWidth: number = 900;
+  const valueX: number = width - margin;
+  const rowHeight: number = 68;
+  const cells: IEvidenceBenchmarkReportCell[] = report.cells
+    .filter((cell) => cell.subject === subject)
+    .sort((left, right) => armOrder(left.arm) - armOrder(right.arm));
+  const models: string = [
+    ...new Set(cells.map((cell) => displayModel(cell.model))),
+  ].join(", ");
+  const axes: {
+    label: string;
+    hint: string;
+    value: (cell: IEvidenceBenchmarkReportCell) => number;
+    phase: (
+      cell: IEvidenceBenchmarkReportCell,
+    ) => readonly IPhaseValue[];
+    format: (value: number) => string;
+  }[] = [
+    {
+      label: "Tokens",
+      hint: "lower is better",
+      value: (cell) => cell.tokens,
+      phase: (cell) => phaseValues(cell, (stage) => stage.tokens),
+      format: formatTokens,
+    },
+    {
+      label: "Work time",
+      hint: "lower is better",
+      value: (cell) => cell.workElapsedMs,
+      phase: (cell) => phaseValues(cell, (stage) => stage.elapsedMs),
+      format: formatDuration,
+    },
+    {
+      label: "API cost",
+      hint: "lower is better · apportioned by token share",
+      value: (cell) => cell.apiCost?.amountUsd ?? 0,
+      phase: (cell) => {
+        const price: number = cell.apiCost?.amountUsd ?? 0;
+        const total: number = Math.max(1, cell.tokens);
+        return phaseValues(cell, (stage) => stage.tokens).map((phase) => ({
+          ...phase,
+          value: (phase.value / total) * price,
+        }));
+      },
+      format: (value) => `$${formatPrice(value)}`,
+    },
+  ];
+  const header: number = 124;
+  const blockHeight: number = 44 + Math.max(1, cells.length) * rowHeight + 14;
+  const coverage = renderCoverage(
+    { ...report, cells },
+    {
+      top: header,
+      margin,
+      width,
+      labelX,
+      barX,
+      barMaximumWidth,
+      valueX,
+      rowHeight: 40,
+    },
+  );
+  const coverageHeight: number =
+    coverage.height === 0 ? 0 : coverage.height + 36;
+  const height: number =
+    header + coverageHeight + axes.length * (blockHeight + 16) + 62;
+  const body: string[] = [
+    ...coverage.body,
+    ...(coverage.height === 0
+      ? []
+      : [
+          `<text x="${margin}" y="${header + coverage.height + 18}" class="table-note">${escapeXml(COVERAGE_NOTE)}</text>`,
+        ]),
+  ];
+  let cursor: number = header + coverageHeight;
+  axes.forEach((axis, axisIndex) => {
+    const maximum: number = Math.max(1, ...cells.map(axis.value));
+    body.push(
+      `<rect x="${margin - 8}" y="${cursor}" width="${width - 2 * margin + 16}" height="${blockHeight}" rx="10" class="group" fill-opacity="${axisIndex % 2 === 0 ? "0.78" : "0.42"}"/>`,
+      `<text x="${labelX}" y="${cursor + 29}" class="group-title">${escapeXml(axis.label)}</text>`,
+      `<text x="${valueX}" y="${cursor + 28}" text-anchor="end" class="group-meta">${escapeXml(axis.hint)}</text>`,
+    );
+    cells.forEach((cell, index) => {
+      const y: number = cursor + 44 + index * rowHeight;
+      body.push(
+        `<text x="${labelX}" y="${y + 21}" class="row-label" fill="${armColor(cell.arm)}">${escapeXml(title(cell.arm))}</text>`,
+        `<text x="${labelX}" y="${y + 44}" class="row-status">${escapeXml(cell.status)}</text>`,
+        `<rect x="${barX}" y="${y + 3}" width="${barMaximumWidth}" height="36" rx="7" class="track"/>`,
+      );
+      let offset: number = 0;
+      axis.phase(cell).forEach((phase, phaseIndex) => {
+        const segmentWidth: number = (phase.value / maximum) * barMaximumWidth;
+        if (segmentWidth <= 0) return;
+        body.push(
+          `<rect x="${(barX + offset).toFixed(2)}" y="${y + 3}" width="${segmentWidth.toFixed(2)}" height="36" fill="${armColor(cell.arm)}" fill-opacity="${PHASE_OPACITY[phaseIndex] ?? PHASE_OPACITY.at(-1)!}" class="phase-segment" data-phase="${phase.name}"/>`,
+        );
+        if (segmentWidth >= phase.short.length * 6.5 + 12)
+          body.push(
+            `<text x="${(barX + offset + segmentWidth / 2).toFixed(2)}" y="${y + 27}" text-anchor="middle" class="segment-label">${escapeXml(phase.short)}</text>`,
+          );
+        offset += segmentWidth;
+      });
+      const baseline: IEvidenceBenchmarkReportCell | undefined = cells.find(
+        (candidate) => candidate.arm === "plain",
+      );
+      const delta: string =
+        baseline === undefined ||
+        cell.arm === "plain" ||
+        axis.value(baseline) === 0
+          ? ""
+          : ` (${Math.round((axis.value(cell) / axis.value(baseline) - 1) * 100)}%)`;
+      body.push(
+        `<text x="${valueX}" y="${y + 26}" text-anchor="end" class="value">${escapeXml(`${axis.format(axis.value(cell))}${delta}`)}</text>`,
+      );
+    });
+    cursor += blockHeight + 16;
   });
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title description" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">`,
+    `<title id="title">${escapeXml(title(subject))}: Plain against Evidence</title>`,
+    `<desc id="description">Coverage of the provenance graph, then token spend, work time and API cost. Every spend axis carries the same stacked phase shades.</desc>`,
+    CHART_STYLE,
+    `<rect width="${width}" height="${height}" fill="#ffffff"/>`,
+    `<text x="${margin}" y="38" class="title">${escapeXml(title(subject))}: Plain against Evidence</text>`,
+    `<text x="${margin}" y="62" class="subtitle">One subject, one instruction sequence, ${escapeXml(models)}. The Evidence arm adds a compiler-enforced provenance graph.</text>`,
+    ...phaseLegend(margin),
+    ...body,
+    `<text x="${margin}" y="${height - 32}" class="table-note">${escapeXml(API_PRICE_NOTE)}</text>`,
+    `<text x="${margin}" y="${height - 14}" class="generated">Generated ${escapeXml(report.generatedAt)}</text>`,
+    "</svg>",
+    "",
+  ].join("\n");
+};
+
+/** The shared phase legend, drawn under every chart's subtitle. */
+const phaseLegend = (margin: number): string[] => {
+  const legend: string[] = [];
+  let legendX: number = margin;
+  PHASES.forEach((phase, index) => {
+    legend.push(
+      `<rect x="${legendX}" y="82" width="18" height="12" rx="3" fill="${armColor("plain")}" fill-opacity="${PHASE_OPACITY[index]}"/>`,
+      `<text x="${legendX + 25}" y="93" class="legend">${escapeXml(phase.label)}</text>`,
+    );
+    legendX += 250;
+  });
+  return legend;
+};
+
+const renderCoverage = (
+  report: IEvidenceBenchmarkReport,
+  props: {
+    top: number;
+    margin: number;
+    width: number;
+    labelX: number;
+    barX: number;
+    barMaximumWidth: number;
+    valueX: number;
+    rowHeight: number;
+  },
+): { body: string[]; height: number } => {
+  const subjects: string[] = [
+    ...new Set(report.cells.map((cell) => cell.subject)),
+  ]
+    .filter((subject) => COVERAGE[subject] !== undefined)
+    .sort();
+  if (subjects.length === 0) return { body: [], height: 0 };
+  const rows: { label: string; percent: number; arm: "plain" | "evidence" }[] = [
+    ...subjects.map((subject) => ({
+      label: `${title(subject)} Plain`,
+      percent: COVERAGE[subject]!,
+      arm: "plain" as const,
+    })),
+    { label: "Evidence — every subject", percent: 100, arm: "evidence" as const },
+  ];
+  const height: number = 52 + rows.length * props.rowHeight + 14;
+  const body: string[] = [
+    `<rect x="${props.margin - 8}" y="${props.top}" width="${props.width - 2 * props.margin + 16}" height="${height}" rx="10" class="group" fill-opacity="0.78"/>`,
+    `<text x="${props.labelX}" y="${props.top + 31}" class="group-title">Coverage</text>`,
+    `<text x="${props.valueX}" y="${props.top + 30}" text-anchor="end" class="group-meta">higher is better</text>`,
+  ];
+  rows.forEach((row, index) => {
+    const y: number = props.top + 52 + index * props.rowHeight;
+    body.push(
+      `<text x="${props.labelX}" y="${y + 24}" class="row-label" fill="${armColor(row.arm)}">${escapeXml(row.label)}</text>`,
+      `<rect x="${props.barX}" y="${y + 3}" width="${props.barMaximumWidth}" height="30" rx="7" class="track"/>`,
+      `<rect x="${props.barX}" y="${y + 3}" width="${((row.percent / 100) * props.barMaximumWidth).toFixed(2)}" height="30" rx="7" fill="${armColor(row.arm)}" data-coverage="${row.percent}"/>`,
+      `<text x="${props.valueX}" y="${y + 25}" text-anchor="end" class="value">${row.percent.toFixed(1)}%${row.arm === "evidence" ? " by construction" : ""}</text>`,
+    );
+  });
+  return { body, height };
+};
 
 const renderPhaseChart = (
   report: IEvidenceBenchmarkReport,
@@ -230,11 +468,34 @@ const renderPhaseChart = (
       -groupGap,
     ),
   );
+  const coverage = renderCoverage(report, {
+    top: headerHeight,
+    margin,
+    width,
+    labelX,
+    barX,
+    barMaximumWidth,
+    valueX,
+    rowHeight: 40,
+  });
+  const coverageHeight: number =
+    coverage.height === 0 ? 0 : coverage.height + groupGap + 20;
   const height: number =
-    headerHeight + groupContentHeight + tableHeight + footerHeight;
+    headerHeight +
+    coverageHeight +
+    groupContentHeight +
+    tableHeight +
+    footerHeight;
   const maximum: number = Math.max(1, ...report.cells.map(metric.cellValue));
-  let cursor: number = headerHeight;
-  const body: string[] = [];
+  let cursor: number = headerHeight + coverageHeight;
+  const body: string[] = [
+    ...coverage.body,
+    ...(coverage.height === 0
+      ? []
+      : [
+          `<text x="${margin}" y="${headerHeight + coverage.height + 18}" class="table-note">${escapeXml(COVERAGE_NOTE)}</text>`,
+        ]),
+  ];
   groups.forEach(([subject, unsorted], groupIndex) => {
     const cells: IEvidenceBenchmarkReportCell[] = [...unsorted].sort(
       (left, right) =>
@@ -301,7 +562,8 @@ const renderPhaseChart = (
           `<text x="${labelX}" y="${headerHeight + 28}" class="empty">No launched cells</text>`,
         ]
       : [];
-  const tableY: number = headerHeight + groupContentHeight + 26;
+  const tableY: number =
+    headerHeight + coverageHeight + groupContentHeight + 26;
   const columns: IPhaseMetric["tableColumns"] = metric.tableColumns;
   const table: string[] = [
     `<text x="${margin}" y="${tableY}" class="table-title">${escapeXml(metric.tableTitle)}</text>`,
@@ -336,26 +598,7 @@ const renderPhaseChart = (
     `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title description" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">`,
     `<title id="title">${escapeXml(metric.title)}</title>`,
     `<desc id="description">${escapeXml(metric.description)}</desc>`,
-    "<style>",
-    "  text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #172033; }",
-    "  .title { font-size: 27px; font-weight: 700; }",
-    "  .subtitle, .generated, .group-meta, .row-status { font-size: 13px; fill: #667085; }",
-    "  .group { fill: #e8f2fb; }",
-    "  .group-title { font-size: 21px; font-weight: 700; }",
-    "  .row-label { font-size: 17px; font-weight: 700; }",
-    "  .value { font-size: 16px; font-weight: 700; }",
-    "  .cost-value { font-size: 13px; font-weight: 600; fill: #526b82; }",
-    "  .legend { font-size: 12px; fill: #526b82; }",
-    "  .segment-label { font-size: 10px; font-weight: 700; fill: #ffffff; paint-order: stroke; stroke: #172033; stroke-opacity: 0.28; stroke-width: 1px; }",
-    "  .phase-segment { stroke: #ffffff; stroke-opacity: 0.86; stroke-width: 1px; }",
-    "  .track { fill: #e7edf4; stroke: #d5dee9; stroke-width: 1px; }",
-    "  .empty { font-size: 15px; fill: #667085; }",
-    "  .table-title { font-size: 15px; font-weight: 600; }",
-    "  .table-header { font-size: 11px; font-weight: 600; fill: #667085; }",
-    "  .table-cell { font-size: 12px; fill: #334155; }",
-    "  .table-rule { stroke: #dbe4ee; stroke-width: 1px; }",
-    "  .table-note { font-size: 11px; fill: #667085; }",
-    "</style>",
+    CHART_STYLE,
     `<rect width="${width}" height="${height}" fill="#ffffff"/>`,
     `<text x="${margin}" y="38" class="title">${escapeXml(metric.title)}</text>`,
     `<text x="${margin}" y="62" class="subtitle">${escapeXml(metric.subtitle)}</text>`,
@@ -442,9 +685,18 @@ const phaseValueLabel = (
   return `${metric.format(value)} (${change > 0 ? "+" : ""}${change}%)`;
 };
 
+/**
+ * The two axes that carry no bar of their own.
+ *
+ * Work time and price track token spend closely enough that three charts of
+ * the same shape said one thing three times. They read as text beside the bar
+ * that does carry a shape, where a reader who wants them finds them and a
+ * reader comparing spend is not asked to compare three pictures.
+ */
 const formatApiCostLine = (cell: IEvidenceBenchmarkReportCell): string => {
-  if (cell.apiCost === null) return "API cost unavailable";
-  return `API cost $${formatPrice(cell.apiCost.amountUsd)}`;
+  const time: string = formatDuration(cell.workElapsedMs);
+  if (cell.apiCost === null) return `${time} · API cost unavailable`;
+  return `${time} · $${formatPrice(cell.apiCost.amountUsd)}`;
 };
 
 const armOrder = (arm: "plain" | "evidence"): number =>
@@ -483,10 +735,14 @@ const stripTrailingZero = (value: string): string => value.replace(/\.0$/u, "");
 const title = (value: string): string =>
   `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 
-const displayModel = (model: string): string =>
-  model
-    .replace(/^gpt-/iu, "GPT-")
-    .replace(/-([^-]+)$/u, (_, family: string) => `-${title(family)}`);
+/**
+ * Names the model as the engine that ran it names it.
+ *
+ * Title-casing it produced `GPT-5.6-Luna`, which is nothing the runner, the
+ * session or the price list calls it. A reader who wants to reproduce a figure
+ * needs the string those accept, and the engine is part of it.
+ */
+const displayModel = (model: string): string => `codex ${model}`;
 
 const escapeXml = (value: string): string =>
   value
