@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-06T07:45:15.523Z",
+  "generatedAt": "2026-08-06T07:50:50.840Z",
   "cells": [
     {
       "engine": "codex",
@@ -912,9 +912,9 @@
         "pricingAsOf": "2026-08-01",
         "priceSource": "https://openrouter.ai/api/v1/models",
         "currency": "USD",
-        "amountUsd": 9.59604882,
-        "requests": 5943,
-        "shortContextRequests": 5943,
+        "amountUsd": 9.64183656,
+        "requests": 5967,
+        "shortContextRequests": 5967,
         "longContextRequests": 0,
         "longContextThresholdTokens": 272000
       },
@@ -923,7 +923,7 @@
       "workElapsedMs": 33640688.8602,
       "worktree": {
         "files": 169,
-        "additions": 24603,
+        "additions": 24609,
         "deletions": 114
       },
       "reviewVerdicts": [

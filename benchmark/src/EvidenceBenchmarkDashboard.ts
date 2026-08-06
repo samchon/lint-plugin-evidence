@@ -131,7 +131,8 @@ interface IOutputEvent {
  * every run, record and price remains, and the comparisons that chose between
  * them are published alongside.
  */
-const PUBLISHED: ReadonlySet<string> = new Set([
+/** The one cell per arm per subject the campaign publishes. */
+export const PUBLISHED: ReadonlySet<string> = new Set([
   "todo/evidence",
   "todo/plain",
   "reddit2/evidence",
@@ -509,7 +510,8 @@ const renderModel = (
 };
 
 /** The base subject a repeat belongs to: `reddit2` sorts with `reddit`. */
-const baseSubject = (subject: string): string => subject.replace(/\d+$/u, "");
+/** A repeat run belongs to the subject it repeats. */
+export const baseSubject = (subject: string): string => subject.replace(/\d+$/u, "");
 
 const compareRuns = (left: IDashboardRun, right: IDashboardRun): number => {
   const subjects: readonly string[] = ["todo", "reddit", "shopping", "erp"];

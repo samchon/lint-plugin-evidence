@@ -48,14 +48,13 @@
 <text x="60" y="257" class="row-label" fill="#f58518">Evidence</text>
 <text x="60" y="280" class="row-status">completed</text>
 <rect x="210" y="239" width="900" height="36" rx="7" class="track"/>
-<rect x="210.00" y="239" width="91.83" height="36" fill="#f58518" fill-opacity="0.44" class="phase-segment" data-phase="backend-development"/>
-<text x="255.91" y="263" text-anchor="middle" class="segment-label">BE Dev</text>
-<rect x="301.83" y="239" width="40.19" height="36" fill="#f58518" fill-opacity="0.58" class="phase-segment" data-phase="backend-review"/>
-<rect x="342.02" y="239" width="94.00" height="36" fill="#f58518" fill-opacity="0.7" class="phase-segment" data-phase="frontend-development"/>
-<text x="389.02" y="263" text-anchor="middle" class="segment-label">FE Dev</text>
-<rect x="436.02" y="239" width="15.63" height="36" fill="#f58518" fill-opacity="0.84" class="phase-segment" data-phase="frontend-review"/>
-<rect x="451.64" y="239" width="52.62" height="36" fill="#f58518" fill-opacity="1" class="phase-segment" data-phase="overall-review"/>
-<text x="1404" y="262" text-anchor="end" class="value">211.6M tokens (-67%)</text>
+<rect x="210.00" y="239" width="107.20" height="36" fill="#f58518" fill-opacity="0.44" class="phase-segment" data-phase="backend-development"/>
+<text x="263.60" y="263" text-anchor="middle" class="segment-label">BE Dev</text>
+<rect x="317.20" y="239" width="197.73" height="36" fill="#f58518" fill-opacity="0.58" class="phase-segment" data-phase="backend-review"/>
+<text x="416.07" y="263" text-anchor="middle" class="segment-label">BE Rev</text>
+<rect x="514.94" y="239" width="72.83" height="36" fill="#f58518" fill-opacity="1" class="phase-segment" data-phase="overall-review"/>
+<text x="551.35" y="263" text-anchor="middle" class="segment-label">Overall</text>
+<text x="1404" y="262" text-anchor="end" class="value">271.6M tokens (-58%)</text>
 <rect x="28" y="334" width="1384" height="194" rx="10" class="group" fill-opacity="0.42"/>
 <text x="60" y="363" class="group-title">Work time</text>
 <text x="1404" y="362" text-anchor="end" class="group-meta">lower is better</text>
@@ -70,16 +69,13 @@
 <text x="60" y="467" class="row-label" fill="#f58518">Evidence</text>
 <text x="60" y="490" class="row-status">completed</text>
 <rect x="210" y="449" width="900" height="36" rx="7" class="track"/>
-<rect x="210.00" y="449" width="192.86" height="36" fill="#f58518" fill-opacity="0.44" class="phase-segment" data-phase="backend-development"/>
-<text x="306.43" y="473" text-anchor="middle" class="segment-label">BE Dev</text>
-<rect x="402.86" y="449" width="79.79" height="36" fill="#f58518" fill-opacity="0.58" class="phase-segment" data-phase="backend-review"/>
-<text x="442.76" y="473" text-anchor="middle" class="segment-label">BE Rev</text>
-<rect x="482.65" y="449" width="273.04" height="36" fill="#f58518" fill-opacity="0.7" class="phase-segment" data-phase="frontend-development"/>
-<text x="619.18" y="473" text-anchor="middle" class="segment-label">FE Dev</text>
-<rect x="755.70" y="449" width="30.22" height="36" fill="#f58518" fill-opacity="0.84" class="phase-segment" data-phase="frontend-review"/>
-<rect x="785.92" y="449" width="69.18" height="36" fill="#f58518" fill-opacity="1" class="phase-segment" data-phase="overall-review"/>
-<text x="820.51" y="473" text-anchor="middle" class="segment-label">Overall</text>
-<text x="1404" y="472" text-anchor="end" class="value">5h 43m (-39%)</text>
+<rect x="210.00" y="449" width="185.56" height="36" fill="#f58518" fill-opacity="0.44" class="phase-segment" data-phase="backend-development"/>
+<text x="302.78" y="473" text-anchor="middle" class="segment-label">BE Dev</text>
+<rect x="395.56" y="449" width="295.76" height="36" fill="#f58518" fill-opacity="0.58" class="phase-segment" data-phase="backend-review"/>
+<text x="543.44" y="473" text-anchor="middle" class="segment-label">BE Rev</text>
+<rect x="691.32" y="449" width="124.16" height="36" fill="#f58518" fill-opacity="1" class="phase-segment" data-phase="overall-review"/>
+<text x="753.40" y="473" text-anchor="middle" class="segment-label">Overall</text>
+<text x="1404" y="472" text-anchor="end" class="value">8h 36m (-8%)</text>
 <rect x="28" y="544" width="1384" height="194" rx="10" class="group" fill-opacity="0.78"/>
 <text x="60" y="573" class="group-title">API cost</text>
 <text x="1404" y="572" text-anchor="end" class="group-meta">lower is better · apportioned by token share</text>
@@ -90,18 +86,17 @@
 <text x="387.65" y="615" text-anchor="middle" class="segment-label">BE Dev</text>
 <rect x="565.29" y="591" width="544.71" height="36" fill="#4c78a8" fill-opacity="0.58" class="phase-segment" data-phase="backend-review"/>
 <text x="837.65" y="615" text-anchor="middle" class="segment-label">BE Rev</text>
-<text x="1404" y="614" text-anchor="end" class="value">$9.60</text>
+<text x="1404" y="614" text-anchor="end" class="value">$9.64</text>
 <text x="60" y="677" class="row-label" fill="#f58518">Evidence</text>
 <text x="60" y="700" class="row-status">completed</text>
 <rect x="210" y="659" width="900" height="36" rx="7" class="track"/>
-<rect x="210.00" y="659" width="85.40" height="36" fill="#f58518" fill-opacity="0.44" class="phase-segment" data-phase="backend-development"/>
-<text x="252.70" y="683" text-anchor="middle" class="segment-label">BE Dev</text>
-<rect x="295.40" y="659" width="37.38" height="36" fill="#f58518" fill-opacity="0.58" class="phase-segment" data-phase="backend-review"/>
-<rect x="332.78" y="659" width="87.42" height="36" fill="#f58518" fill-opacity="0.7" class="phase-segment" data-phase="frontend-development"/>
-<text x="376.48" y="683" text-anchor="middle" class="segment-label">FE Dev</text>
-<rect x="420.19" y="659" width="14.53" height="36" fill="#f58518" fill-opacity="0.84" class="phase-segment" data-phase="frontend-review"/>
-<rect x="434.72" y="659" width="48.94" height="36" fill="#f58518" fill-opacity="1" class="phase-segment" data-phase="overall-review"/>
-<text x="1404" y="682" text-anchor="end" class="value">$2.92 (-70%)</text>
+<rect x="210.00" y="659" width="88.70" height="36" fill="#f58518" fill-opacity="0.44" class="phase-segment" data-phase="backend-development"/>
+<text x="254.35" y="683" text-anchor="middle" class="segment-label">BE Dev</text>
+<rect x="298.70" y="659" width="163.61" height="36" fill="#f58518" fill-opacity="0.58" class="phase-segment" data-phase="backend-review"/>
+<text x="380.51" y="683" text-anchor="middle" class="segment-label">BE Rev</text>
+<rect x="462.31" y="659" width="60.26" height="36" fill="#f58518" fill-opacity="1" class="phase-segment" data-phase="overall-review"/>
+<text x="492.44" y="683" text-anchor="middle" class="segment-label">Overall</text>
+<text x="1404" y="682" text-anchor="end" class="value">$3.35 (-65%)</text>
 <text x="36" y="784" class="table-note">API cost uses OpenRouter rates from 2026-08-01 and is emitted only after every measured request reconciles with retained counters. Review inspection runs on the cell&apos;s own model and effort, so its tokens, time, and price all sit inside these totals.</text>
-<text x="36" y="802" class="generated">Generated 2026-08-06T07:45:15.523Z</text>
+<text x="36" y="802" class="generated">Generated 2026-08-06T07:50:50.840Z</text>
 </svg>

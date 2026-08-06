@@ -1,7 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { collectEvidenceBenchmarkReport } from "./EvidenceBenchmarkDashboard";
+import {
+  baseSubject,
+  collectEvidenceBenchmarkReport,
+  PUBLISHED,
+} from "./EvidenceBenchmarkDashboard";
 import { EvidenceBenchmarkInstruction } from "./EvidenceBenchmarkInstruction";
 import { EvidenceBenchmarkSessionCost } from "./EvidenceBenchmarkSessionCost";
 import type {
@@ -49,6 +53,17 @@ export const writeEvidenceBenchmarkReport = async (
         : { ...cell, apiCost: sessions.get(cell.runId)?.cost ?? null },
     ),
   };
+  // The charts show one cell per arm per subject, the same eight the dashboard
+  // publishes. Five Evidence cells were re-run and the runs that lost are not
+  // a second subject: charting `reddit2` beside `reddit` drew a comparison
+  // nobody made, and a repeat's figures belong to the subject it repeats.
+  const charted: IEvidenceBenchmarkReportCell[] = report.cells
+    .filter((cell) => PUBLISHED.has(`${cell.subject}/${cell.arm}`))
+    .map((cell) => ({ ...cell, subject: baseSubject(cell.subject) }));
+  const chartReport: IEvidenceBenchmarkReport = {
+    ...report,
+    cells: charted,
+  };
   const output: string = path.resolve(options.output);
   fs.mkdirSync(output, { recursive: true });
   for (const entry of fs.readdirSync(output, { withFileTypes: true }))
@@ -72,21 +87,18 @@ export const writeEvidenceBenchmarkReport = async (
   }
   // A subject's chart belongs beside the JSON holding the same run's figures,
   // so opening a subject's directory gives its numbers and its picture at once.
-  for (const [model, subjects] of Map.groupBy(
-    report.cells,
-    (cell) => cell.model,
-  ))
+  for (const [model, subjects] of Map.groupBy(charted, (cell) => cell.model))
     for (const subject of new Set(subjects.map((cell) => cell.subject)))
       fs.writeFileSync(
         path.join(cells, pathSegment(model), pathSegment(subject), "arms.svg"),
-        renderSubjectChart(report, subject),
+        renderSubjectChart(chartReport, subject),
       );
   // One chart rather than three. Work time and price moved to text beside the
   // token bar they track, and coverage — the axis the other two cannot stand in
   // for — took the space they left.
   fs.rmSync(path.join(output, "tokens.svg"), { force: true });
   fs.rmSync(path.join(output, "time.svg"), { force: true });
-  fs.writeFileSync(path.join(output, "summary.svg"), renderSummaryChart(report));
+  fs.writeFileSync(path.join(output, "summary.svg"), renderSummaryChart(chartReport));
   return report;
 };
 
@@ -443,11 +455,7 @@ const renderPhaseChart = (
   const groupHeaderHeight: number = 44;
   const rowHeight: number = 68;
   const groupPaddingBottom: number = 14;
-  const tableRowHeight: number = 28;
-  const tableHeight: number =
-    76 +
-    Math.max(1, report.cells.length) * tableRowHeight +
-    metric.tableNotes.length * 15;
+  const notesHeight: number = metric.tableNotes.length * 15 + 30;
   const labelX: number = 60;
   const barX: number = 210;
   const barMaximumWidth: number = 900;
@@ -484,7 +492,7 @@ const renderPhaseChart = (
     headerHeight +
     coverageHeight +
     groupContentHeight +
-    tableHeight +
+    notesHeight +
     footerHeight;
   const maximum: number = Math.max(1, ...report.cells.map(metric.cellValue));
   let cursor: number = headerHeight + coverageHeight;
@@ -562,37 +570,9 @@ const renderPhaseChart = (
           `<text x="${labelX}" y="${headerHeight + 28}" class="empty">No launched cells</text>`,
         ]
       : [];
-  const tableY: number =
-    headerHeight + coverageHeight + groupContentHeight + 26;
-  const columns: IPhaseMetric["tableColumns"] = metric.tableColumns;
-  const table: string[] = [
-    `<text x="${margin}" y="${tableY}" class="table-title">${escapeXml(metric.tableTitle)}</text>`,
-    `<line x1="${margin}" y1="${tableY + 16}" x2="${width - margin}" y2="${tableY + 16}" class="table-rule"/>`,
-    ...columns.map(
-      (column, index) =>
-        `<text x="${column.x}" y="${tableY + 38}"${index >= 2 ? ' text-anchor="end"' : ""} class="table-header">${escapeXml(column.label)}</text>`,
-    ),
-    `<line x1="${margin}" y1="${tableY + 47}" x2="${width - margin}" y2="${tableY + 47}" class="table-rule"/>`,
-  ];
-  report.cells.forEach((cell, index) => {
-    const y: number = tableY + 48 + index * tableRowHeight;
-    const values: readonly string[] = metric.tableValues(
-      cell,
-      phaseValues(cell, metric.stageValue),
-    );
-    values.forEach((value, columnIndex) =>
-      table.push(
-        `<text x="${columns[columnIndex]!.x}" y="${y + 19}"${columnIndex >= 2 ? ' text-anchor="end"' : ""} class="table-cell">${escapeXml(value)}</text>`,
-      ),
-    );
-    table.push(
-      `<line x1="${margin}" y1="${y + tableRowHeight}" x2="${width - margin}" y2="${y + tableRowHeight}" class="table-rule"/>`,
-    );
-  });
-  metric.tableNotes.forEach((note, index) =>
-    table.push(
-      `<text x="${margin}" y="${tableY + 65 + Math.max(1, report.cells.length) * tableRowHeight + index * 15}" class="table-note">${escapeXml(note)}</text>`,
-    ),
+  const notes: string[] = metric.tableNotes.map(
+    (note, index) =>
+      `<text x="${margin}" y="${height - 34 - (metric.tableNotes.length - 1 - index) * 15}" class="table-note">${escapeXml(note)}</text>`,
   );
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title description" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">`,
@@ -605,7 +585,7 @@ const renderPhaseChart = (
     ...legend,
     ...body,
     ...empty,
-    ...table,
+    ...notes,
     `<text x="${margin}" y="${height - 14}" class="generated">Generated ${escapeXml(report.generatedAt)}</text>`,
     "</svg>",
     "",
