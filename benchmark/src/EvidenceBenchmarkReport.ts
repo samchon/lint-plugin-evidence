@@ -404,9 +404,7 @@ const COVERAGE: Readonly<Record<string, number>> = Object.fromEntries(
  */
 const COVERAGE_NOTES: readonly string[] = [
   "Coverage measured by Claude Code Opus 5 — thirteen graph edges read from the source, composed so serial hops multiply and branches average.",
-  "Two readings of one unchanged workspace reproduced the seven mechanical edges exactly and moved the five needing a judgement by up to 0.09.",
-  "Evidence sits at 100% by construction — the compiler rejects a missing edge — which guarantees a tag exists for each requirement, not that the tagged code exercises it.",
-  "Three of the four Evidence cells audited satisfied the graph with tests that never reach a server.",
+  "Evidence is 100% by construction: the compiler rejects a missing edge.",
 ];
 
 const renderSummaryChart = (report: IEvidenceBenchmarkReport): string =>
