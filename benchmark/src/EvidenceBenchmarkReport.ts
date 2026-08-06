@@ -296,6 +296,16 @@ const COVERAGE_EDGES: Readonly<Record<string, ICoverageEdges>> = {
     C6: 167 / 227, C7: 139 / 235, C8: 100 / 110, C9: 23 / 110,
     C10a: 27 / 124, C10b: 23 / 110, C11a: 3 / 124, C11b: 5 / 13,
   },
+  // Measured after this cell's second pass. The first pass read 30.0%: the
+  // re-run moved four edges and three of them are the frontend's — journeys
+  // reaching every screen, two dead hooks removed. Its large backend effort
+  // bought nothing on `accessor → asserting test`, which is the edge that
+  // binds this subject.
+  erp: {
+    C1: 282 / 451, C2: 893 / 947, C3: 71 / 71, C4: 282 / 451, C5: 67 / 71,
+    C6: 566 / 682, C7: 624 / 947, C8: 78 / 557, C9: 35 / 557,
+    C10a: 201 / 691, C10b: 8 / 9, C11a: 44 / 691, C11b: 7 / 7,
+  },
 };
 
 /**
