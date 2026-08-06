@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 452" width="920" height="452" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <style>
+    .bg    { fill: #ffffff; }
+    .title { fill: #0f172a; font-size: 19px; font-weight: 700; }
+    .sub   { fill: #64748b; font-size: 12.5px; }
+    .panel { fill: #334155; font-size: 13px; font-weight: 600; }
+    .axis  { stroke: #cbd5e1; stroke-width: 1; }
+    .val   { fill: #0f172a; font-size: 13px; font-weight: 700; }
+    .arm   { fill: #64748b; font-size: 11.5px; }
+    .note  { fill: #2563eb; font-size: 11.5px; font-weight: 600; }
+    .foot  { fill: #94a3b8; font-size: 11px; }
+    .plain { fill: #94a3b8; }
+    .evid  { fill: #2563eb; }
+    @media (prefers-color-scheme: dark) {
+      .bg    { fill: #0d1117; }
+      .title { fill: #e6edf3; }
+      .sub   { fill: #8b949e; }
+      .panel { fill: #c9d1d9; }
+      .axis  { stroke: #30363d; }
+      .val   { fill: #e6edf3; }
+      .arm   { fill: #8b949e; }
+      .note  { fill: #58a6ff; }
+      .foot  { fill: #6e7681; }
+      .plain { fill: #6e7681; }
+      .evid  { fill: #58a6ff; }
+    }
+  </style>
+
+  <rect class="bg" x="0" y="0" width="920" height="452"/>
+
+  <text class="title" x="32" y="32">Todo — Plain vs Evidence</text>
+  <text class="sub"   x="32" y="53">One subject, one model, one instruction sequence. The Evidence arm adds a compiler-enforced provenance graph.</text>
+
+  <!-- ── Tokens ───────────────────────────────────────────────── -->
+  <text class="panel" x="137" y="88" text-anchor="middle">Tokens</text>
+  <line class="axis" x1="32" y1="330" x2="242" y2="330"/>
+  <rect class="plain" x="69"  y="100" width="56" height="230" rx="3"/>
+  <rect class="evid"  x="149" y="276" width="56" height="54"  rx="3"/>
+  <text class="val" x="97"  y="93"  text-anchor="middle">550M</text>
+  <text class="val" x="177" y="269" text-anchor="middle">130M</text>
+  <text class="arm" x="97"  y="349" text-anchor="middle">Plain</text>
+  <text class="arm" x="177" y="349" text-anchor="middle">Evidence</text>
+  <text class="note" x="137" y="378" text-anchor="middle">4.2× fewer</text>
+
+  <!-- ── Time ─────────────────────────────────────────────────── -->
+  <text class="panel" x="359" y="88" text-anchor="middle">Work time</text>
+  <line class="axis" x1="254" y1="330" x2="464" y2="330"/>
+  <rect class="plain" x="291" y="100" width="56" height="230" rx="3"/>
+  <rect class="evid"  x="371" y="255" width="56" height="75"  rx="3"/>
+  <text class="val" x="319" y="93"  text-anchor="middle">11h 38m</text>
+  <text class="val" x="399" y="248" text-anchor="middle">3h 47m</text>
+  <text class="arm" x="319" y="349" text-anchor="middle">Plain</text>
+  <text class="arm" x="399" y="349" text-anchor="middle">Evidence</text>
+  <text class="note" x="359" y="378" text-anchor="middle">3.1× faster</text>
+
+  <!-- ── Cost ─────────────────────────────────────────────────── -->
+  <text class="panel" x="581" y="88" text-anchor="middle">API cost</text>
+  <line class="axis" x1="476" y1="330" x2="686" y2="330"/>
+  <rect class="plain" x="513" y="100" width="56" height="230" rx="3"/>
+  <rect class="evid"  x="593" y="276" width="56" height="54"  rx="3"/>
+  <text class="val" x="541" y="93"  text-anchor="middle">$7.04</text>
+  <text class="val" x="621" y="269" text-anchor="middle">$1.64</text>
+  <text class="arm" x="541" y="349" text-anchor="middle">Plain</text>
+  <text class="arm" x="621" y="349" text-anchor="middle">Evidence</text>
+  <text class="note" x="581" y="378" text-anchor="middle">4.3× cheaper</text>
+
+  <!-- ── Coverage ─────────────────────────────────────────────── -->
+  <text class="panel" x="803" y="88" text-anchor="middle">Requirement coverage</text>
+  <line class="axis" x1="698" y1="330" x2="908" y2="330"/>
+  <rect class="plain" x="735" y="146" width="56" height="184" rx="3"/>
+  <rect class="evid"  x="815" y="100" width="56" height="230" rx="3"/>
+  <text class="val" x="763" y="139" text-anchor="middle">80.1%</text>
+  <text class="val" x="843" y="93"  text-anchor="middle">100%</text>
+  <text class="arm" x="763" y="349" text-anchor="middle">Plain</text>
+  <text class="arm" x="843" y="349" text-anchor="middle">Evidence</text>
+  <text class="note" x="803" y="378" text-anchor="middle">+19.9 pt</text>
+
+  <!-- ── Footnotes ────────────────────────────────────────────── -->
+  <line class="axis" x1="32" y1="398" x2="908" y2="398"/>
+  <text class="foot" x="32" y="418">Coverage composes thirteen measured graph edges — serial hops multiply, branches average. Evidence is 100% by construction: a cell that misses an edge does not compile.</text>
+  <text class="foot" x="32" y="435">Each bar is scaled within its own panel. Tokens and cost are the cell's own totals including what judging its Reviews cost.</text>
+</svg>
