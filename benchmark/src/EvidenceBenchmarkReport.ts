@@ -288,7 +288,7 @@ const renderSubjectChart = (
   // The track runs to where the value text begins rather than stopping at a
   // round number, because a bar that ends 300px short of the canvas reads as a
   // bar that fell short. Only the widest label needs to clear it.
-  const barMaximumWidth: number = width - margin - barX - 150;
+  const barMaximumWidth: number = width - margin - barX - 200;
   const valueX: number = width - margin;
   const rowHeight: number = 68;
   const cells: IEvidenceBenchmarkReportCell[] = report.cells
@@ -365,7 +365,18 @@ const renderSubjectChart = (
   ];
   let cursor: number = header + coverageHeight;
   axes.forEach((axis, axisIndex) => {
-    const maximum: number = Math.max(1, ...cells.map(axis.value));
+    // A stage record can sum to more than the cell total it belongs to — the
+    // total excludes idleness the records keep — so scaling by the total alone
+    // let a bar run past its own track and off the canvas.
+    const maximum: number = Math.max(
+      1,
+      ...cells.map((cell) =>
+        Math.max(
+          axis.value(cell),
+          axis.phase(cell).reduce((sum, phase) => sum + phase.value, 0),
+        ),
+      ),
+    );
     body.push(
       `<rect x="${margin - 8}" y="${cursor}" width="${width - 2 * margin + 16}" height="${blockHeight}" rx="10" class="group" fill-opacity="${axisIndex % 2 === 0 ? "0.78" : "0.42"}"/>`,
       `<text x="${labelX}" y="${cursor + 29}" class="group-title">${escapeXml(axis.label)}</text>`,
@@ -488,7 +499,7 @@ const renderCoverage = (
       `<text x="${props.labelX}" y="${y + 24}" class="row-label" fill="${armColor(row.arm)}">${escapeXml(row.label)}</text>`,
       `<rect x="${props.barX}" y="${y + 3}" width="${props.barMaximumWidth}" height="30" rx="7" class="track"/>`,
       `<rect x="${props.barX}" y="${y + 3}" width="${filled.toFixed(2)}" height="30" rx="7" fill="${armColor(row.arm)}" data-coverage="${row.percent}"/>`,
-      `<text x="${(props.barX + filled + 12).toFixed(2)}" y="${y + 25}" class="value" fill="${armColor(row.arm)}">${row.percent.toFixed(1)}%</text>`,
+      `<text x="${props.valueX}" y="${y + 25}" text-anchor="end" class="value" fill="${armColor(row.arm)}">${row.percent.toFixed(1)}%</text>`,
     );
   });
   return { body, height };
@@ -512,7 +523,7 @@ const renderPhaseChart = (
   // The track runs to where the value text begins rather than stopping at a
   // round number, because a bar that ends 300px short of the canvas reads as a
   // bar that fell short. Only the widest label needs to clear it.
-  const barMaximumWidth: number = width - margin - barX - 150;
+  const barMaximumWidth: number = width - margin - barX - 200;
   const valueX: number = width - margin;
   const groups: [string, IEvidenceBenchmarkReportCell[]][] = [
     ...Map.groupBy(report.cells, (cell) => cell.subject),
@@ -549,7 +560,18 @@ const renderPhaseChart = (
     groupContentHeight +
     notesHeight +
     footerHeight;
-  const maximum: number = Math.max(1, ...report.cells.map(metric.cellValue));
+  const maximum: number = Math.max(
+    1,
+    ...report.cells.map((cell) =>
+      Math.max(
+        metric.cellValue(cell),
+        phaseValues(cell, metric.stageValue).reduce(
+          (sum, phase) => sum + phase.value,
+          0,
+        ),
+      ),
+    ),
+  );
   let cursor: number = headerHeight + coverageHeight;
   const body: string[] = [
     ...coverage.body,
