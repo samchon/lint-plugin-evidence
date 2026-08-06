@@ -30,6 +30,17 @@ export interface IEvidenceBenchmarkReportCell {
     | "awaiting-supervision"
     | "rejected"
     | "interrupted"
+    /**
+     * A stage dispatched after the runner last wrote its record, still working.
+     *
+     * The runner cannot observe a stage it did not broker, so it never calls
+     * one finished. This replaces whatever the runner last said, including
+     * `completed`, because a pass dispatched after a completion is the later
+     * fact about where the cell is.
+     */
+    | "working"
+    /** The same, and the session carrying it went quiet without closing. */
+    | "stopped"
     | "completed";
   stage: string | null;
   launchedAt: string;

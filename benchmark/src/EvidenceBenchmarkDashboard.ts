@@ -6,6 +6,7 @@ import path from "node:path";
 import typia from "typia";
 
 import { collectEvidenceBenchmarkApiCost } from "./EvidenceBenchmarkApiCost";
+import { EvidenceBenchmarkDirectStage } from "./EvidenceBenchmarkDirectStage";
 import { EvidenceBenchmarkSessionCost } from "./EvidenceBenchmarkSessionCost";
 
 import { EvidenceBenchmarkStageLog } from "./EvidenceBenchmarkStageLog";
@@ -164,13 +165,23 @@ export const renderEvidenceBenchmarkDashboard = async (
     await EvidenceBenchmarkSessionCost.collect(
       report.cells[0]?.model ?? "gpt-5.6-luna",
     );
+  // A stage driven by hand never reaches a Goal record, so the runner's last
+  // word outlives the cell's real position: two cells here read `quality-failed`
+  // and `completed` while both were building frontends. The session that
+  // received the instruction is the one source that sees every dispatch, and it
+  // is the source the price already comes from.
+  const dispatches: ReadonlyMap<string, EvidenceBenchmarkDirectStage.IDirectStage> =
+    await EvidenceBenchmarkDirectStage.collect(
+      path.join(repository, "benchmark", "instructions"),
+    );
   const cells: IEvidenceBenchmarkReportCell[] = report.cells
     .filter((cell) => PUBLISHED.has(`${cell.subject}/${cell.arm}`))
     .map((cell) =>
       cell.apiCost !== null
         ? cell
         : { ...cell, apiCost: sessions.get(cell.runId) ?? null },
-    );
+    )
+    .map((cell) => applyDirectStage(cell, repository, dispatches.get(cell.runId)));
   const models: Map<string, IEvidenceBenchmarkReportCell[]> = Map.groupBy(
     cells,
     (cell) => cell.model,
@@ -178,6 +189,62 @@ export const renderEvidenceBenchmarkDashboard = async (
   return `${[...models]
     .map(([model, group]) => renderModel(model, group))
     .join("\n\n")}\n`;
+};
+
+/**
+ * How long a driving session may stay silent before it counts as stopped.
+ *
+ * The longest quiet gap any stage in this campaign produced was a single
+ * install-and-build tool call, minutes rather than tens of minutes, because a
+ * reasoning turn writes to the session as it goes. Half an hour is well past
+ * that and well short of any stage's length.
+ */
+const QUIET_MS: number = 30 * 60 * 1_000;
+
+/**
+ * Reports where a cell actually is when a hand-driven session took it further.
+ *
+ * The comparison is against when the runner last wrote its own record, not
+ * against the plan order, because a repair pass runs stages the chain already
+ * passed: the erp Plain re-run dispatched `backend-review` after its own
+ * `overall-final` had declared the cell complete. Plan order would call that
+ * going backwards and keep the stale word.
+ *
+ * A dispatch the runner itself issued is left alone. It reaches the session the
+ * same way, but the runner's record numbers the attempt — `backend-remind-3`
+ * against the instruction's unnumbered `backend-remind` — and the numbered name
+ * is the better one.
+ */
+const applyDirectStage = (
+  cell: IEvidenceBenchmarkReportCell,
+  repository: string,
+  dispatch: EvidenceBenchmarkDirectStage.IDirectStage | undefined,
+): IEvidenceBenchmarkReportCell => {
+  if (dispatch === undefined) return cell;
+  // The baseline is the last event the runner recorded, not when `state.json`
+  // was last written. Reconciliation rewrites that file long after the run
+  // ended, which would date the runner's knowledge to whenever the report was
+  // last repaired and suppress every real override behind it.
+  const observed: number | undefined = readLastRecordedTime(
+    path.join(
+      repository,
+      "benchmark",
+      "output",
+      cell.subject,
+      cell.engine,
+      cell.arm,
+      "runs",
+      cell.runId,
+      "events.jsonl",
+    ),
+  );
+  if (observed === undefined || dispatch.dispatchedAt <= observed) return cell;
+  // A stage still producing output and one abandoned mid-way both look the same
+  // to the runner, and a status view whose whole job is to say where the cohort
+  // is must not merge them. The session file grows on every turn, so silence
+  // longer than a turn ever lasts here is the cell having stopped.
+  const quiet: boolean = Date.now() - dispatch.lastActivityAt > QUIET_MS;
+  return { ...cell, stage: dispatch.stage, status: quiet ? "stopped" : "working" };
 };
 
 /** Collects the publishable latest-run aggregate used by every report view. */
