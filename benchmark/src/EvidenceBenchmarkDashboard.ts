@@ -135,8 +135,21 @@ export const renderEvidenceBenchmarkDashboard = async (
     true,
     false,
   );
+  // A cell the runner did not broker end to end leaves no request stream to
+  // replay, and every hand-driven cell in this campaign is one. Its Codex
+  // session still carries the counter, so the price is read from there rather
+  // than left blank; the replay stays preferred wherever it can answer.
+  const sessions: ReadonlyMap<string, IEvidenceBenchmarkApiCost> =
+    await EvidenceBenchmarkSessionCost.collect(
+      report.cells[0]?.model ?? "gpt-5.6-luna",
+    );
+  const cells: IEvidenceBenchmarkReportCell[] = report.cells.map((cell) =>
+    cell.apiCost !== null
+      ? cell
+      : { ...cell, apiCost: sessions.get(cell.runId) ?? null },
+  );
   const models: Map<string, IEvidenceBenchmarkReportCell[]> = Map.groupBy(
-    report.cells,
+    cells,
     (cell) => cell.model,
   );
   return `${[...models]
