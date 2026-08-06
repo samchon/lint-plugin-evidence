@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title description" viewBox="0 0 1440 560" width="1440" height="560">
+<title id="title">Reddit: Plain against Evidence on four axes</title>
+<desc id="description">One subject, one model, one instruction sequence. Tokens, work time and API cost are lower-is-better; requirement coverage is higher-is-better. Each panel is scaled within itself because the four axes share no unit.</desc>
+<style>
+  text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #172033; }
+  .title { font-size: 27px; font-weight: 700; }
+  .subtitle, .generated { font-size: 13px; fill: #667085; }
+  .panel-title { font-size: 17px; font-weight: 700; }
+  .panel-unit { font-size: 12px; fill: #667085; }
+  .value { font-size: 17px; font-weight: 700; }
+  .arm { font-size: 13px; font-weight: 600; fill: #526b82; }
+  .delta { font-size: 14px; font-weight: 700; }
+  .legend { font-size: 12px; fill: #526b82; }
+  .baseline { stroke: #d5dee9; stroke-width: 1px; }
+  .panel-bg { fill: #e8f2fb; fill-opacity: 0.5; }
+  .table-note { font-size: 11px; fill: #667085; }
+</style>
+<rect width="1440" height="560" fill="#ffffff"/>
+
+<text x="36" y="38" class="title">Reddit: Plain against Evidence</text>
+<text x="36" y="62" class="subtitle">One subject, one model, one instruction sequence. The Evidence arm adds a compiler-enforced provenance graph — it spends less on every axis and covers more.</text>
+
+<rect x="36" y="80" width="18" height="12" rx="3" fill="#4c78a8"/>
+<text x="61" y="91" class="legend">Plain</text>
+<rect x="120" y="80" width="18" height="12" rx="3" fill="#f58518"/>
+<text x="145" y="91" class="legend">Evidence</text>
+
+<!-- ═══ Tokens ═══════════════════════════════════════════════ -->
+<rect x="36" y="112" width="1368" height="92" rx="10" class="panel-bg"/>
+<text x="60" y="141" class="panel-title">Tokens</text>
+<text x="60" y="159" class="panel-unit">lower is better</text>
+<text x="60" y="188" class="delta" fill="#f58518">2.4× fewer</text>
+<line x1="240" y1="124" x2="240" y2="196" class="baseline"/>
+<text x="228" y="147" text-anchor="end" class="arm">Plain</text>
+<rect x="240" y="132" width="1000" height="22" rx="4" fill="#4c78a8"/>
+<text x="1252" y="149" class="value" fill="#4c78a8">508M</text>
+<text x="228" y="184" text-anchor="end" class="arm">Evidence</text>
+<rect x="240" y="169" width="423" height="22" rx="4" fill="#f58518"/>
+<text x="675" y="186" class="value" fill="#f58518">215M</text>
+
+<!-- ═══ Work time ════════════════════════════════════════════ -->
+<rect x="36" y="216" width="1368" height="92" rx="10" class="panel-bg"/>
+<text x="60" y="245" class="panel-title">Work time</text>
+<text x="60" y="263" class="panel-unit">lower is better</text>
+<text x="60" y="292" class="delta" fill="#f58518">2.8× faster</text>
+<line x1="240" y1="228" x2="240" y2="300" class="baseline"/>
+<text x="228" y="251" text-anchor="end" class="arm">Plain</text>
+<rect x="240" y="236" width="1000" height="22" rx="4" fill="#4c78a8"/>
+<text x="1252" y="253" class="value" fill="#4c78a8">13h 55m</text>
+<text x="228" y="288" text-anchor="end" class="arm">Evidence</text>
+<rect x="240" y="273" width="357" height="22" rx="4" fill="#f58518"/>
+<text x="609" y="290" class="value" fill="#f58518">4h 58m</text>
+
+<!-- ═══ API cost ═════════════════════════════════════════════ -->
+<rect x="36" y="320" width="1368" height="92" rx="10" class="panel-bg"/>
+<text x="60" y="349" class="panel-title">API cost</text>
+<text x="60" y="367" class="panel-unit">lower is better</text>
+<text x="60" y="396" class="delta" fill="#f58518">2.4× cheaper</text>
+<line x1="240" y1="332" x2="240" y2="404" class="baseline"/>
+<text x="228" y="355" text-anchor="end" class="arm">Plain</text>
+<rect x="240" y="340" width="1000" height="22" rx="4" fill="#4c78a8"/>
+<text x="1252" y="357" class="value" fill="#4c78a8">$6.38</text>
+<text x="228" y="392" text-anchor="end" class="arm">Evidence</text>
+<rect x="240" y="377" width="415" height="22" rx="4" fill="#f58518"/>
+<text x="667" y="394" class="value" fill="#f58518">$2.65</text>
+
+<!-- ═══ Coverage ═════════════════════════════════════════════ -->
+<rect x="36" y="424" width="1368" height="92" rx="10" class="panel-bg"/>
+<text x="60" y="453" class="panel-title">Requirement coverage</text>
+<text x="60" y="471" class="panel-unit">higher is better</text>
+<text x="60" y="500" class="delta" fill="#f58518">+37.6 pt</text>
+<line x1="240" y1="436" x2="240" y2="508" class="baseline"/>
+<text x="228" y="459" text-anchor="end" class="arm">Plain</text>
+<rect x="240" y="444" width="624" height="22" rx="4" fill="#4c78a8"/>
+<text x="876" y="461" class="value" fill="#4c78a8">62.4%</text>
+<text x="228" y="496" text-anchor="end" class="arm">Evidence</text>
+<rect x="240" y="481" width="1000" height="22" rx="4" fill="#f58518"/>
+<text x="1252" y="498" class="value" fill="#f58518">100%</text>
+
+<text x="36" y="536" class="table-note">Coverage measured by Claude Code Opus 5 — thirteen graph edges read from the source, composed so serial hops multiply and branches average. Evidence is 100% by construction: a cell that misses an edge does not compile.</text>
+<text x="36" y="552" class="table-note">Tokens, work time and API cost are the cells' own totals, including what judging their Reviews cost. Each panel is scaled within itself because the four axes share no unit.</text>
+</svg>
