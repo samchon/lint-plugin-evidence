@@ -6,6 +6,7 @@ import path from "node:path";
 import typia from "typia";
 
 import { collectEvidenceBenchmarkApiCost } from "./EvidenceBenchmarkApiCost";
+import { EvidenceBenchmarkSessionCost } from "./EvidenceBenchmarkSessionCost";
 
 import { EvidenceBenchmarkStageLog } from "./EvidenceBenchmarkStageLog";
 import type { IEvidenceBenchmarkApiCost } from "./structures/IEvidenceBenchmarkApiCost";
@@ -119,9 +120,9 @@ interface IOutputEvent {
   elapsedMs: number;
 }
 
-export const renderEvidenceBenchmarkDashboard = (
+export const renderEvidenceBenchmarkDashboard = async (
   repository: string,
-): string => {
+): Promise<string> => {
   // Priced from the retained request stream rather than from the token totals,
   // because the rate depends on how each request was composed: cached input,
   // freshly written cache, and output are billed differently, and a request
