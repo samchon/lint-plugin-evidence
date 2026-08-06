@@ -270,6 +270,9 @@ const main = async (): Promise<void> => {
         apiPackageName: `@benchmark/${cell.subject}-api`,
         backendPackageName: `@benchmark/${cell.subject}-backend`,
         frontendPackageName: `@benchmark/${cell.subject}-frontend`,
+        subject: cell.subject,
+        model: cell.model,
+        arm: cell.arm,
       },
       artifact:
         archive === undefined
@@ -390,6 +393,9 @@ const runFromBackendStartCheckpoint = async (props: {
           apiPackageName: `@benchmark/${requested.subject}-api`,
           backendPackageName: `@benchmark/${requested.subject}-backend`,
           frontendPackageName: `@benchmark/${requested.subject}-frontend`,
+          subject: requested.subject,
+          model: requested.model,
+          arm: requested.arm,
         },
       });
     const instructionSurfaceSha256: string = (() => {

@@ -16,4 +16,13 @@ export interface IEvidenceBenchmarkWorkspaceVariables {
 
   /** Workspace package name for the generated frontend. */
   frontendPackageName: string;
+
+  /** Subject this workspace realizes. */
+  subject: string;
+
+  /** Model that built it. */
+  model: string;
+
+  /** Treatment it was built under. */
+  arm: string;
 }

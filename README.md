@@ -1,11 +1,12 @@
 # `@samchon/lint-plugin-evidence`
 
-![Logo](https://raw.githubusercontent.com/samchon/lint-plugin-evidence/master/og.jpg)
+![Logo](https://ttsc.dev/og-evidence.png)
 
 Moved to [`@ttsc/evidence`](https://github.com/samchon/ttsc). Install that instead.
 
 ```bash
-npm install -D typescript ttsc @ttsc/lint @ttsc/evidence
+npm install -D typescript ttsc @ttsc/lint
+npm install -D @ttsc/evidence
 ```
 
 ## Benchmark
