@@ -186,6 +186,20 @@ export namespace EvidenceBenchmarkReconcile {
       const at: number = derived.indexOf(order);
       if (at !== -1) {
         const own: IBlock[] = taken[at]!;
+        // A dispatch boundary is not a stage boundary when the runner drove
+        // the stage: it holds one process across the whole stage while the
+        // thread may sit idle inside it for longer than the gap that splits
+        // blocks. One cell proved it — the runner recorded its first stage
+        // ending at 15,916,136, which falls in the middle of the fourth
+        // block. So where the previous stage carries the runner's own end
+        // reading, the derived stage opens there instead of on a block, and
+        // the stage totals then sum to the thread's exactly.
+        const before: Record<string, any> | undefined = records[order - 1];
+        const handoff: Record<string, number> | undefined =
+          before?.tokenUsageEnd == null
+            ? undefined
+            : asCounter(before.tokenUsageEnd);
+        if (handoff !== undefined && at === 0) own[0] = { ...own[0]!, opening: handoff };
         // A restarted stage is credited with what each attempt spent and with
         // the time each attempt ran, never with the idleness between them: no
         // work happened while nothing was dispatched, and charging that gap to
@@ -202,6 +216,14 @@ export namespace EvidenceBenchmarkReconcile {
         // stopped one reconciled cell from being resumed at all.
         record.tokenUsageStart = usageDelta(own[0]!.opening, {});
         record.tokenUsageEnd = usageDelta(own.at(-1)!.closing, {});
+        // A reconciled figure is a reconstruction, and a reader cannot tell one
+        // from a runner measurement by looking at it. One cell lost its
+        // reconciliation to a later write and the campaign's own table dropped
+        // 115M tokens without anything looking wrong; it was caught only
+        // because a count came out one short. A stage that was derived now says
+        // so, so a record that has silently reverted is visible as one.
+        record.derivedFromRollout = true;
+        record.derivedDispatches = own.length;
       }
       // `timeUsedSeconds` is the thread's running total, not this stage's
       // share: the report reads a stage as the difference between its own
@@ -341,6 +363,18 @@ export namespace EvidenceBenchmarkReconcile {
     if (previous !== undefined && from !== undefined)
       blocks.push({ from, to: previous[0], opening, closing: previous[1] });
     return blocks;
+  }
+
+  /** Reads a retained usage object in the rollout's own field spelling. */
+  function asCounter(usage: Record<string, number>): Record<string, number> {
+    return {
+      total_tokens: usage.totalTokens ?? 0,
+      input_tokens: usage.inputTokens ?? 0,
+      cached_input_tokens: usage.cachedInputTokens ?? 0,
+      cache_write_input_tokens: usage.cacheWriteInputTokens ?? 0,
+      output_tokens: usage.outputTokens ?? 0,
+      reasoning_output_tokens: usage.reasoningOutputTokens ?? 0,
+    };
   }
 
   /**
