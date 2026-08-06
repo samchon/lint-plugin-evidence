@@ -7,7 +7,7 @@
   .subtitle, .generated { font-size: 13px; fill: #667085; }
   .panel-title { font-size: 17px; font-weight: 700; }
   .panel-unit { font-size: 12px; fill: #667085; }
-  .value { font-size: 19px; font-weight: 700; }
+  .value { font-size: 17px; font-weight: 700; }
   .arm { font-size: 13px; font-weight: 600; fill: #526b82; }
   .delta { font-size: 14px; font-weight: 700; }
   .legend { font-size: 12px; fill: #526b82; }
@@ -30,78 +30,57 @@
 <text x="145" y="91" class="legend">Evidence</text>
 
 <!-- ═══ Tokens ═══════════════════════════════════════════════ -->
-<rect x="36" y="112" width="300" height="330" rx="10" class="panel-bg"/>
-<text x="186" y="140" text-anchor="middle" class="panel-title">Tokens</text>
-<text x="186" y="158" text-anchor="middle" class="panel-unit">lower is better</text>
-<line x1="60" y1="400" x2="312" y2="400" class="baseline"/>
-<rect x="86"  y="160" width="80" height="240" rx="4" fill="#4c78a8"/>
-<rect x="206" y="343" width="80" height="57"  rx="4" fill="#f58518"/>
-<text x="126" y="152" text-anchor="middle" class="value" fill="#4c78a8">550M</text>
-<text x="246" y="335" text-anchor="middle" class="value" fill="#f58518">130M</text>
-<text x="126" y="420" text-anchor="middle" class="arm">Plain</text>
-<text x="246" y="420" text-anchor="middle" class="arm">Evidence</text>
-<text x="186" y="444" text-anchor="middle" class="delta" fill="#f58518">4.2× fewer</text>
+<rect x="36" y="112" width="1368" height="92" rx="10" class="panel-bg"/>
+<text x="60" y="141" class="panel-title">Tokens</text>
+<text x="60" y="159" class="panel-unit">lower is better</text>
+<text x="60" y="188" class="delta" fill="#f58518">4.2× fewer</text>
+<line x1="240" y1="124" x2="240" y2="196" class="baseline"/>
+<text x="228" y="147" text-anchor="end" class="arm">Plain</text>
+<rect x="240" y="132" width="1000" height="22" rx="4" fill="#4c78a8"/>
+<text x="1252" y="149" class="value" fill="#4c78a8">550M</text>
+<text x="228" y="184" text-anchor="end" class="arm">Evidence</text>
+<rect x="240" y="169" width="237" height="22" rx="4" fill="#f58518"/>
+<text x="489" y="186" class="value" fill="#f58518">130M</text>
 
 <!-- ═══ Work time ════════════════════════════════════════════ -->
-<rect x="396" y="112" width="300" height="330" rx="10" class="panel-bg"/>
-<text x="546" y="140" text-anchor="middle" class="panel-title">Work time</text>
-<text x="546" y="158" text-anchor="middle" class="panel-unit">lower is better</text>
-<line x1="420" y1="400" x2="672" y2="400" class="baseline"/>
-<rect x="446" y="160" width="80" height="240" rx="4" fill="#4c78a8"/>
-<rect x="566" y="322" width="80" height="78"  rx="4" fill="#f58518"/>
-<text x="486" y="152" text-anchor="middle" class="value" fill="#4c78a8">11h 38m</text>
-<text x="606" y="314" text-anchor="middle" class="value" fill="#f58518">3h 47m</text>
-<text x="486" y="420" text-anchor="middle" class="arm">Plain</text>
-<text x="606" y="420" text-anchor="middle" class="arm">Evidence</text>
-<text x="546" y="444" text-anchor="middle" class="delta" fill="#f58518">3.1× faster</text>
+<rect x="36" y="216" width="1368" height="92" rx="10" class="panel-bg"/>
+<text x="60" y="245" class="panel-title">Work time</text>
+<text x="60" y="263" class="panel-unit">lower is better</text>
+<text x="60" y="292" class="delta" fill="#f58518">3.1× faster</text>
+<line x1="240" y1="228" x2="240" y2="300" class="baseline"/>
+<text x="228" y="251" text-anchor="end" class="arm">Plain</text>
+<rect x="240" y="236" width="1000" height="22" rx="4" fill="#4c78a8"/>
+<text x="1252" y="253" class="value" fill="#4c78a8">11h 38m</text>
+<text x="228" y="288" text-anchor="end" class="arm">Evidence</text>
+<rect x="240" y="273" width="325" height="22" rx="4" fill="#f58518"/>
+<text x="577" y="290" class="value" fill="#f58518">3h 47m</text>
 
 <!-- ═══ API cost ═════════════════════════════════════════════ -->
-<rect x="756" y="112" width="300" height="330" rx="10" class="panel-bg"/>
-<text x="906" y="140" text-anchor="middle" class="panel-title">API cost</text>
-<text x="906" y="158" text-anchor="middle" class="panel-unit">lower is better</text>
-<line x1="780" y1="400" x2="1032" y2="400" class="baseline"/>
-<rect x="806" y="160" width="80" height="240" rx="4" fill="#4c78a8"/>
-<rect x="926" y="344" width="80" height="56"  rx="4" fill="#f58518"/>
-<text x="846" y="152" text-anchor="middle" class="value" fill="#4c78a8">$7.04</text>
-<text x="966" y="336" text-anchor="middle" class="value" fill="#f58518">$1.64</text>
-<text x="846" y="420" text-anchor="middle" class="arm">Plain</text>
-<text x="966" y="420" text-anchor="middle" class="arm">Evidence</text>
-<text x="906" y="444" text-anchor="middle" class="delta" fill="#f58518">4.3× cheaper</text>
+<rect x="36" y="320" width="1368" height="92" rx="10" class="panel-bg"/>
+<text x="60" y="349" class="panel-title">API cost</text>
+<text x="60" y="367" class="panel-unit">lower is better</text>
+<text x="60" y="396" class="delta" fill="#f58518">4.3× cheaper</text>
+<line x1="240" y1="332" x2="240" y2="404" class="baseline"/>
+<text x="228" y="355" text-anchor="end" class="arm">Plain</text>
+<rect x="240" y="340" width="1000" height="22" rx="4" fill="#4c78a8"/>
+<text x="1252" y="357" class="value" fill="#4c78a8">$7.04</text>
+<text x="228" y="392" text-anchor="end" class="arm">Evidence</text>
+<rect x="240" y="377" width="233" height="22" rx="4" fill="#f58518"/>
+<text x="485" y="394" class="value" fill="#f58518">$1.64</text>
 
 <!-- ═══ Coverage ═════════════════════════════════════════════ -->
-<rect x="1116" y="112" width="300" height="330" rx="10" class="panel-bg"/>
-<text x="1266" y="140" text-anchor="middle" class="panel-title">Requirement coverage</text>
-<text x="1266" y="158" text-anchor="middle" class="panel-unit">higher is better</text>
-<line x1="1140" y1="400" x2="1392" y2="400" class="baseline"/>
-<rect x="1166" y="208" width="80" height="192" rx="4" fill="#4c78a8"/>
-<rect x="1286" y="160" width="80" height="240" rx="4" fill="#f58518"/>
-<text x="1206" y="200" text-anchor="middle" class="value" fill="#4c78a8">80.1%</text>
-<text x="1326" y="152" text-anchor="middle" class="value" fill="#f58518">100%</text>
-<text x="1206" y="420" text-anchor="middle" class="arm">Plain</text>
-<text x="1326" y="420" text-anchor="middle" class="arm">Evidence</text>
-<text x="1266" y="444" text-anchor="middle" class="delta" fill="#f58518">+19.9 pt</text>
+<rect x="36" y="424" width="1368" height="92" rx="10" class="panel-bg"/>
+<text x="60" y="453" class="panel-title">Requirement coverage</text>
+<text x="60" y="471" class="panel-unit">higher is better</text>
+<text x="60" y="500" class="delta" fill="#f58518">+19.9 pt</text>
+<line x1="240" y1="436" x2="240" y2="508" class="baseline"/>
+<text x="228" y="459" text-anchor="end" class="arm">Plain</text>
+<rect x="240" y="444" width="801" height="22" rx="4" fill="#4c78a8"/>
+<text x="1053" y="461" class="value" fill="#4c78a8">80.1%</text>
+<text x="228" y="496" text-anchor="end" class="arm">Evidence</text>
+<rect x="240" y="481" width="1000" height="22" rx="4" fill="#f58518"/>
+<text x="1252" y="498" class="value" fill="#f58518">100%</text>
 
-<!-- ═══ Detail ═══════════════════════════════════════════════ -->
-<text x="36" y="482" class="table-title">Measured values</text>
-<line x1="36" y1="494" x2="1404" y2="494" class="table-rule"/>
-<text x="60" y="512" class="table-header">Arm</text>
-<text x="360" y="512" text-anchor="end" class="table-header">Tokens</text>
-<text x="560" y="512" text-anchor="end" class="table-header">Work time</text>
-<text x="740" y="512" text-anchor="end" class="table-header">API cost</text>
-<text x="960" y="512" text-anchor="end" class="table-header">Coverage</text>
-<text x="1395" y="512" text-anchor="end" class="table-header">Stage</text>
-<line x1="36" y1="520" x2="1404" y2="520" class="table-rule"/>
-<text x="60" y="536" class="table-cell">Plain</text>
-<text x="360" y="536" text-anchor="end" class="table-cell">549,955,449</text>
-<text x="560" y="536" text-anchor="end" class="table-cell">11h 38m</text>
-<text x="740" y="536" text-anchor="end" class="table-cell">$7.04</text>
-<text x="960" y="536" text-anchor="end" class="table-cell">80.1%</text>
-<text x="1395" y="536" text-anchor="end" class="table-cell">overall-final · completed</text>
-<line x1="36" y1="543" x2="1404" y2="543" class="table-rule"/>
-<text x="60" y="557" class="table-cell">Evidence</text>
-<text x="360" y="557" text-anchor="end" class="table-cell">130,341,027</text>
-<text x="560" y="557" text-anchor="end" class="table-cell">3h 47m</text>
-<text x="740" y="557" text-anchor="end" class="table-cell">$1.64</text>
-<text x="960" y="557" text-anchor="end" class="table-cell">100% by construction</text>
-<text x="1395" y="557" text-anchor="end" class="table-cell">overall-final · completed</text>
+<text x="36" y="536" class="table-note">Coverage measured by Claude Code Opus 5 — thirteen graph edges read from the source, composed so serial hops multiply and branches average. Evidence is 100% by construction: a cell that misses an edge does not compile.</text>
+<text x="36" y="552" class="table-note">Tokens, work time and API cost are the cells' own totals, including what judging their Reviews cost. Each panel is scaled within itself because the four axes share no unit.</text>
 </svg>
