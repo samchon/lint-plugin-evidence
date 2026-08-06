@@ -120,6 +120,27 @@ interface IOutputEvent {
   elapsedMs: number;
 }
 
+/**
+ * The cells this report publishes: four subjects, one per arm.
+ *
+ * Five Evidence cells were re-run under a revised review skill. Publishing all
+ * nine beside four Plain cells makes the table unreadable and the comparison
+ * unclear, so each subject keeps the run that measured best on obedience —
+ * whether the code does what the requirement it cites says. Nothing is deleted:
+ * every run, record and price remains, and the comparisons that chose between
+ * them are published alongside.
+ */
+const PUBLISHED: ReadonlySet<string> = new Set([
+  "todo/evidence",
+  "todo/plain",
+  "reddit2/evidence",
+  "reddit/plain",
+  "shopping2/evidence",
+  "shopping/plain",
+  "erp/evidence",
+  "erp/plain",
+]);
+
 export const renderEvidenceBenchmarkDashboard = async (
   repository: string,
 ): Promise<string> => {
@@ -143,11 +164,13 @@ export const renderEvidenceBenchmarkDashboard = async (
     await EvidenceBenchmarkSessionCost.collect(
       report.cells[0]?.model ?? "gpt-5.6-luna",
     );
-  const cells: IEvidenceBenchmarkReportCell[] = report.cells.map((cell) =>
-    cell.apiCost !== null
-      ? cell
-      : { ...cell, apiCost: sessions.get(cell.runId) ?? null },
-  );
+  const cells: IEvidenceBenchmarkReportCell[] = report.cells
+    .filter((cell) => PUBLISHED.has(`${cell.subject}/${cell.arm}`))
+    .map((cell) =>
+      cell.apiCost !== null
+        ? cell
+        : { ...cell, apiCost: sessions.get(cell.runId) ?? null },
+    );
   const models: Map<string, IEvidenceBenchmarkReportCell[]> = Map.groupBy(
     cells,
     (cell) => cell.model,
@@ -383,14 +406,20 @@ const renderModel = (
   ].join("\n");
 };
 
+/** The base subject a repeat belongs to: `reddit2` sorts with `reddit`. */
+const baseSubject = (subject: string): string => subject.replace(/\d+$/u, "");
+
 const compareRuns = (left: IDashboardRun, right: IDashboardRun): number => {
   const subjects: readonly string[] = ["todo", "reddit", "shopping", "erp"];
-  const leftSubject: number = subjects.indexOf(left.file.cell.subject);
-  const rightSubject: number = subjects.indexOf(right.file.cell.subject);
+  const rank = (run: IDashboardRun): number => {
+    const at: number = subjects.indexOf(baseSubject(run.file.cell.subject));
+    return at === -1 ? Number.MAX_SAFE_INTEGER : at;
+  };
   return (
-    (leftSubject === -1 ? Number.MAX_SAFE_INTEGER : leftSubject) -
-      (rightSubject === -1 ? Number.MAX_SAFE_INTEGER : rightSubject) ||
-    left.file.cell.subject.localeCompare(right.file.cell.subject) ||
+    rank(left) - rank(right) ||
+    baseSubject(left.file.cell.subject).localeCompare(
+      baseSubject(right.file.cell.subject),
+    ) ||
     Number(left.file.cell.arm === "evidence") -
       Number(right.file.cell.arm === "evidence")
   );
