@@ -40,15 +40,15 @@
 <text x="60" y="200" class="row-label" fill="#4c78a8">Todo Plain</text>
 <rect x="210" y="179" width="1044" height="30" rx="7" class="track"/>
 <rect x="210" y="179" width="836.24" height="30" rx="7" fill="#4c78a8" data-coverage="80.1"/>
-<text x="1404" y="201" text-anchor="end" class="value">80.1%</text>
+<text x="1058.24" y="201" class="value" fill="#4c78a8">80.1%</text>
 <text x="60" y="240" class="row-label" fill="#4c78a8">Reddit Plain</text>
 <rect x="210" y="219" width="1044" height="30" rx="7" class="track"/>
 <rect x="210" y="219" width="651.46" height="30" rx="7" fill="#4c78a8" data-coverage="62.4"/>
-<text x="1404" y="241" text-anchor="end" class="value">62.4%</text>
+<text x="873.46" y="241" class="value" fill="#4c78a8">62.4%</text>
 <text x="60" y="280" class="row-label" fill="#f58518">Evidence (every)</text>
 <rect x="210" y="259" width="1044" height="30" rx="7" class="track"/>
 <rect x="210" y="259" width="1044.00" height="30" rx="7" fill="#f58518" data-coverage="100"/>
-<text x="1404" y="281" text-anchor="end" class="value">100.0% by construction</text>
+<text x="1266.00" y="281" class="value" fill="#f58518">100.0%</text>
 <text x="36" y="328" class="table-note">Coverage measured by Claude Code Opus 5 — thirteen graph edges read from the source, composed so serial hops multiply and branches average. Evidence is 100% by construction: a cell that misses an edge does not compile.</text>
 <rect x="28" y="346" width="1384" height="194" rx="10" class="group" fill-opacity="0.78"/>
 <text x="60" y="375" class="group-title">Todo</text>
@@ -110,5 +110,5 @@
 <text x="1404" y="711" text-anchor="end" class="cost-value">4h 58m · $2.65</text>
 <text x="36" y="797" class="table-note">Native Codex counters: Cached input is included in Input; Reasoning is included in Output.</text>
 <text x="36" y="812" class="table-note">API cost uses OpenRouter rates from 2026-08-01 and is emitted only after every measured request reconciles with retained counters. Review inspection runs on the cell&apos;s own model and effort, so its tokens, time, and price all sit inside these totals.</text>
-<text x="36" y="832" class="generated">Generated 2026-08-06T08:07:02.025Z</text>
+<text x="36" y="832" class="generated">Generated 2026-08-06T08:14:28.812Z</text>
 </svg>

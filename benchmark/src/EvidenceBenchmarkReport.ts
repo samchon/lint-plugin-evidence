@@ -474,13 +474,17 @@ const renderCoverage = (
     `<text x="${props.labelX}" y="${props.top + 31}" class="group-title">${escapeXml(props.title)}</text>`,
     `<text x="${props.valueX}" y="${props.top + 30}" text-anchor="end" class="group-meta">higher is better</text>`,
   ];
+  // Bars here reach 100% of their track, so a value pinned to the right margin
+  // sits on top of the bar it labels. Each reads just past its own end instead,
+  // which also puts the number where the eye already is.
   rows.forEach((row, index) => {
     const y: number = props.top + 52 + index * props.rowHeight;
+    const filled: number = (row.percent / 100) * props.barMaximumWidth;
     body.push(
       `<text x="${props.labelX}" y="${y + 24}" class="row-label" fill="${armColor(row.arm)}">${escapeXml(row.label)}</text>`,
       `<rect x="${props.barX}" y="${y + 3}" width="${props.barMaximumWidth}" height="30" rx="7" class="track"/>`,
-      `<rect x="${props.barX}" y="${y + 3}" width="${((row.percent / 100) * props.barMaximumWidth).toFixed(2)}" height="30" rx="7" fill="${armColor(row.arm)}" data-coverage="${row.percent}"/>`,
-      `<text x="${props.valueX}" y="${y + 25}" text-anchor="end" class="value">${row.percent.toFixed(1)}%${row.arm === "evidence" ? " by construction" : ""}</text>`,
+      `<rect x="${props.barX}" y="${y + 3}" width="${filled.toFixed(2)}" height="30" rx="7" fill="${armColor(row.arm)}" data-coverage="${row.percent}"/>`,
+      `<text x="${(props.barX + filled + 12).toFixed(2)}" y="${y + 25}" class="value" fill="${armColor(row.arm)}">${row.percent.toFixed(1)}%</text>`,
     );
   });
   return { body, height };
