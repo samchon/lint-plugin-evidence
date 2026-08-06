@@ -114,6 +114,7 @@ export namespace EvidenceBenchmarkReconcile {
     const blocks: IBlock[] = split(
       await readRollout(props.rollout),
       (props.idleMinutes ?? 3) * 60_000,
+      await readDispatches(props.rollout),
     );
     const statePath: string = path.join(props.runRoot, "state.json");
     const file: Record<string, any> = JSON.parse(
@@ -338,16 +339,32 @@ export namespace EvidenceBenchmarkReconcile {
    * from where the previous dispatch left off. Taking the first reading instead
    * loses one turn's cost per stage.
    */
+  /**
+   * Splits the rollout where a stage was actually handed over.
+   *
+   * Idleness alone cuts in the wrong place when a driver dispatches the next
+   * stage as soon as the last one settles: Shopping2 Evidence ran six stages
+   * back to back inside one seventy-seven minute block, so idle-gap splitting
+   * offered one block for six stages and the reconciliation stole blocks from
+   * the stages before it. The instruction turns are the boundaries themselves —
+   * the session records each one — and a gap is only used where no instruction
+   * separates two runs of activity, which is how a runner-brokered stage still
+   * splits from the next.
+   */
   function split(
     points: readonly [number, Record<string, number>][],
     idle: number,
+    dispatches: readonly number[] = [],
   ): IBlock[] {
     const blocks: IBlock[] = [];
     let opening: Record<string, number> = {};
     let from: number | undefined;
     let previous: [number, Record<string, number>] | undefined;
     for (const point of points) {
-      if (previous !== undefined && point[0] - previous[0] > idle) {
+      const handedOver: boolean =
+        previous !== undefined &&
+        dispatches.some((at) => at > previous![0] && at <= point[0]);
+      if (previous !== undefined && (handedOver || point[0] - previous[0] > idle)) {
         blocks.push({
           from: from!,
           to: previous[0],
@@ -396,6 +413,45 @@ export namespace EvidenceBenchmarkReconcile {
       outputTokens: rise("output_tokens"),
       reasoningOutputTokens: rise("reasoning_output_tokens"),
     };
+  }
+
+  /**
+   * When the session was handed an instruction, from its own record.
+   *
+   * Only a user-role turn counts: the same text appears in tool output and in
+   * compaction summaries, and cutting there would split a stage at the point it
+   * read about itself.
+   */
+  function readDispatches(file: string): Promise<number[]> {
+    return new Promise((resolve) => {
+      const at: number[] = [];
+      readline
+        .createInterface({ input: fs.createReadStream(file) })
+        .on("line", (line) => {
+          if (!line.includes('"user"')) return;
+          try {
+            const record: Record<string, any> = JSON.parse(line);
+            if (record.payload?.role !== "user") return;
+            const text: string = (record.payload.content ?? [])
+              .map((part: Record<string, any>) => part?.text ?? "")
+              .join("\n");
+            const heading: string | undefined = text
+              .split(/\r?\n/u)
+              .map((entry) => entry.trim())
+              .find((entry) => entry.length !== 0);
+            const when: number = Date.parse(record.timestamp);
+            if (
+              heading !== undefined &&
+              /^#\s|^Verify /u.test(heading) &&
+              Number.isFinite(when)
+            )
+              at.push(when);
+          } catch {
+            return;
+          }
+        })
+        .on("close", () => resolve(at.sort((left, right) => left - right)));
+    });
   }
 
   function readRollout(

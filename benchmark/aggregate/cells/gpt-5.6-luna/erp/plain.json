@@ -9,14 +9,14 @@
   "status": "working",
   "stage": "overall-review",
   "launchedAt": "2026-08-04T22:56:46.636Z",
-  "tokens": 635844779,
+  "tokens": 641131575,
   "tokenUsage": {
-    "totalTokens": 635844779,
-    "inputTokens": 634847796,
-    "cachedInputTokens": 625869824,
+    "totalTokens": 641131575,
+    "inputTokens": 640120452,
+    "cachedInputTokens": 631017216,
     "cacheWriteInputTokens": 0,
-    "outputTokens": 996983,
-    "reasoningOutputTokens": 247318
+    "outputTokens": 1011123,
+    "reasoningOutputTokens": 255818
   },
   "inspection": {
     "attempts": 0,
@@ -36,9 +36,9 @@
     "pricingAsOf": "2026-08-01",
     "priceSource": "https://openrouter.ai/api/v1/models",
     "currency": "USD",
-    "amountUsd": 7.76089746,
-    "requests": 5765,
-    "shortContextRequests": 5760,
+    "amountUsd": 7.83339571,
+    "requests": 5819,
+    "shortContextRequests": 5814,
     "longContextRequests": 5,
     "longContextThresholdTokens": 272000
   },
@@ -47,7 +47,7 @@
   "workElapsedMs": 77879958.3676,
   "worktree": {
     "files": 532,
-    "additions": 83197,
+    "additions": 83217,
     "deletions": 175
   },
   "reviewVerdicts": [],

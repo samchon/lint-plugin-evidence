@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-06T08:37:45.929Z",
+  "generatedAt": "2026-08-06T08:47:24.314Z",
   "cells": [
     {
       "engine": "codex",
@@ -564,7 +564,7 @@
       "workElapsedMs": 50074428.7455,
       "worktree": {
         "files": 157,
-        "additions": 21392,
+        "additions": 21402,
         "deletions": 145
       },
       "reviewVerdicts": [
@@ -920,10 +920,10 @@
       },
       "suspendedMs": 0,
       "suspensions": [],
-      "workElapsedMs": 40477213,
+      "workElapsedMs": 81518819.80919999,
       "worktree": {
         "files": 169,
-        "additions": 24633,
+        "additions": 24645,
         "deletions": 114
       },
       "reviewVerdicts": [
@@ -1007,43 +1007,85 @@
           "name": "backend-start",
           "tokens": 255451467,
           "elapsedMs": 21763000,
-          "tokenPercent": 39,
-          "timePercent": 65
+          "tokenPercent": 32,
+          "timePercent": 27
         },
         {
           "name": "backend-review",
           "tokens": 96330115,
-          "elapsedMs": 7271683.5983,
-          "tokenPercent": 15,
-          "timePercent": 22
+          "elapsedMs": 29034683.5983,
+          "tokenPercent": 12,
+          "timePercent": 36
         },
         {
           "name": "backend-remind-1",
           "tokens": 200349760,
           "elapsedMs": 16978096.0348,
-          "tokenPercent": 31,
-          "timePercent": 50
+          "tokenPercent": 25,
+          "timePercent": 21
         },
         {
           "name": "backend-remind-2",
           "tokens": 53548586,
           "elapsedMs": 2060624.6206,
-          "tokenPercent": 8,
-          "timePercent": 6
+          "tokenPercent": 7,
+          "timePercent": 3
         },
         {
           "name": "backend-remind-3",
           "tokens": 33982000,
           "elapsedMs": 1866808.7756,
-          "tokenPercent": 5,
-          "timePercent": 6
+          "tokenPercent": 4,
+          "timePercent": 2
         },
         {
           "name": "backend-remind-4",
           "tokens": 7430726,
           "elapsedMs": 860329.0654,
           "tokenPercent": 1,
+          "timePercent": 1
+        },
+        {
+          "name": "backend-final",
+          "tokens": 21481679,
+          "elapsedMs": 1148000,
+          "tokenPercent": 3,
+          "timePercent": 1
+        },
+        {
+          "name": "frontend-start",
+          "tokens": 34329031,
+          "elapsedMs": 2726000,
+          "tokenPercent": 4,
           "timePercent": 3
+        },
+        {
+          "name": "frontend-review",
+          "tokens": 32984528,
+          "elapsedMs": 2995000,
+          "tokenPercent": 4,
+          "timePercent": 4
+        },
+        {
+          "name": "frontend-final",
+          "tokens": 12675177,
+          "elapsedMs": 1128000,
+          "tokenPercent": 2,
+          "timePercent": 1
+        },
+        {
+          "name": "overall-review",
+          "tokens": 40754935,
+          "elapsedMs": 2429000,
+          "tokenPercent": 5,
+          "timePercent": 3
+        },
+        {
+          "name": "overall-final",
+          "tokens": 8880846,
+          "elapsedMs": 694000,
+          "tokenPercent": 1,
+          "timePercent": 1
         }
       ]
     },
@@ -1205,7 +1247,7 @@
       },
       "suspendedMs": 0,
       "suspensions": [],
-      "workElapsedMs": 30952076.0124,
+      "workElapsedMs": 30704076.0124,
       "worktree": {
         "files": 304,
         "additions": 22398,
@@ -1218,7 +1260,7 @@
           "tokens": 77076340,
           "elapsedMs": 6936000,
           "tokenPercent": 28,
-          "timePercent": 22
+          "timePercent": 23
         },
         {
           "name": "backend-review",
@@ -1228,11 +1270,46 @@
           "timePercent": 36
         },
         {
+          "name": "backend-final",
+          "tokens": 1450772,
+          "elapsedMs": 40000,
+          "tokenPercent": 1,
+          "timePercent": 0
+        },
+        {
+          "name": "frontend-start",
+          "tokens": 19691264,
+          "elapsedMs": 1736000,
+          "tokenPercent": 7,
+          "timePercent": 6
+        },
+        {
+          "name": "frontend-review",
+          "tokens": 12937317,
+          "elapsedMs": 1051000,
+          "tokenPercent": 5,
+          "timePercent": 3
+        },
+        {
+          "name": "frontend-final",
+          "tokens": 1350449,
+          "elapsedMs": 59000,
+          "tokenPercent": 0,
+          "timePercent": 0
+        },
+        {
+          "name": "overall-review",
+          "tokens": 15019791,
+          "elapsedMs": 1382000,
+          "tokenPercent": 6,
+          "timePercent": 5
+        },
+        {
           "name": "overall-final",
-          "tokens": 52362881,
-          "elapsedMs": 4641000,
-          "tokenPercent": 19,
-          "timePercent": 15
+          "tokens": 1913288,
+          "elapsedMs": 125000,
+          "tokenPercent": 1,
+          "timePercent": 0
         }
       ]
     },
@@ -1247,14 +1324,14 @@
       "status": "working",
       "stage": "overall-review",
       "launchedAt": "2026-08-04T22:56:46.636Z",
-      "tokens": 635844779,
+      "tokens": 641131575,
       "tokenUsage": {
-        "totalTokens": 635844779,
-        "inputTokens": 634847796,
-        "cachedInputTokens": 625869824,
+        "totalTokens": 641131575,
+        "inputTokens": 640120452,
+        "cachedInputTokens": 631017216,
         "cacheWriteInputTokens": 0,
-        "outputTokens": 996983,
-        "reasoningOutputTokens": 247318
+        "outputTokens": 1011123,
+        "reasoningOutputTokens": 255818
       },
       "inspection": {
         "attempts": 0,
@@ -1274,9 +1351,9 @@
         "pricingAsOf": "2026-08-01",
         "priceSource": "https://openrouter.ai/api/v1/models",
         "currency": "USD",
-        "amountUsd": 7.76089746,
-        "requests": 5765,
-        "shortContextRequests": 5760,
+        "amountUsd": 7.83339571,
+        "requests": 5819,
+        "shortContextRequests": 5814,
         "longContextRequests": 5,
         "longContextThresholdTokens": 272000
       },
@@ -1285,7 +1362,7 @@
       "workElapsedMs": 77879958.3676,
       "worktree": {
         "files": 532,
-        "additions": 83197,
+        "additions": 83217,
         "deletions": 175
       },
       "reviewVerdicts": [],

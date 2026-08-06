@@ -44,10 +44,10 @@
   },
   "suspendedMs": 0,
   "suspensions": [],
-  "workElapsedMs": 40477213,
+  "workElapsedMs": 81518819.80919999,
   "worktree": {
     "files": 169,
-    "additions": 24633,
+    "additions": 24645,
     "deletions": 114
   },
   "reviewVerdicts": [
@@ -131,43 +131,85 @@
       "name": "backend-start",
       "tokens": 255451467,
       "elapsedMs": 21763000,
-      "tokenPercent": 39,
-      "timePercent": 65
+      "tokenPercent": 32,
+      "timePercent": 27
     },
     {
       "name": "backend-review",
       "tokens": 96330115,
-      "elapsedMs": 7271683.5983,
-      "tokenPercent": 15,
-      "timePercent": 22
+      "elapsedMs": 29034683.5983,
+      "tokenPercent": 12,
+      "timePercent": 36
     },
     {
       "name": "backend-remind-1",
       "tokens": 200349760,
       "elapsedMs": 16978096.0348,
-      "tokenPercent": 31,
-      "timePercent": 50
+      "tokenPercent": 25,
+      "timePercent": 21
     },
     {
       "name": "backend-remind-2",
       "tokens": 53548586,
       "elapsedMs": 2060624.6206,
-      "tokenPercent": 8,
-      "timePercent": 6
+      "tokenPercent": 7,
+      "timePercent": 3
     },
     {
       "name": "backend-remind-3",
       "tokens": 33982000,
       "elapsedMs": 1866808.7756,
-      "tokenPercent": 5,
-      "timePercent": 6
+      "tokenPercent": 4,
+      "timePercent": 2
     },
     {
       "name": "backend-remind-4",
       "tokens": 7430726,
       "elapsedMs": 860329.0654,
       "tokenPercent": 1,
+      "timePercent": 1
+    },
+    {
+      "name": "backend-final",
+      "tokens": 21481679,
+      "elapsedMs": 1148000,
+      "tokenPercent": 3,
+      "timePercent": 1
+    },
+    {
+      "name": "frontend-start",
+      "tokens": 34329031,
+      "elapsedMs": 2726000,
+      "tokenPercent": 4,
       "timePercent": 3
+    },
+    {
+      "name": "frontend-review",
+      "tokens": 32984528,
+      "elapsedMs": 2995000,
+      "tokenPercent": 4,
+      "timePercent": 4
+    },
+    {
+      "name": "frontend-final",
+      "tokens": 12675177,
+      "elapsedMs": 1128000,
+      "tokenPercent": 2,
+      "timePercent": 1
+    },
+    {
+      "name": "overall-review",
+      "tokens": 40754935,
+      "elapsedMs": 2429000,
+      "tokenPercent": 5,
+      "timePercent": 3
+    },
+    {
+      "name": "overall-final",
+      "tokens": 8880846,
+      "elapsedMs": 694000,
+      "tokenPercent": 1,
+      "timePercent": 1
     }
   ]
 }

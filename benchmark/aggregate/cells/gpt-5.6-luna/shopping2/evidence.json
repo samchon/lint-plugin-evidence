@@ -44,7 +44,7 @@
   },
   "suspendedMs": 0,
   "suspensions": [],
-  "workElapsedMs": 30952076.0124,
+  "workElapsedMs": 30704076.0124,
   "worktree": {
     "files": 304,
     "additions": 22398,
@@ -57,7 +57,7 @@
       "tokens": 77076340,
       "elapsedMs": 6936000,
       "tokenPercent": 28,
-      "timePercent": 22
+      "timePercent": 23
     },
     {
       "name": "backend-review",
@@ -67,11 +67,46 @@
       "timePercent": 36
     },
     {
+      "name": "backend-final",
+      "tokens": 1450772,
+      "elapsedMs": 40000,
+      "tokenPercent": 1,
+      "timePercent": 0
+    },
+    {
+      "name": "frontend-start",
+      "tokens": 19691264,
+      "elapsedMs": 1736000,
+      "tokenPercent": 7,
+      "timePercent": 6
+    },
+    {
+      "name": "frontend-review",
+      "tokens": 12937317,
+      "elapsedMs": 1051000,
+      "tokenPercent": 5,
+      "timePercent": 3
+    },
+    {
+      "name": "frontend-final",
+      "tokens": 1350449,
+      "elapsedMs": 59000,
+      "tokenPercent": 0,
+      "timePercent": 0
+    },
+    {
+      "name": "overall-review",
+      "tokens": 15019791,
+      "elapsedMs": 1382000,
+      "tokenPercent": 6,
+      "timePercent": 5
+    },
+    {
       "name": "overall-final",
-      "tokens": 52362881,
-      "elapsedMs": 4641000,
-      "tokenPercent": 19,
-      "timePercent": 15
+      "tokens": 1913288,
+      "elapsedMs": 125000,
+      "tokenPercent": 1,
+      "timePercent": 0
     }
   ]
 }
