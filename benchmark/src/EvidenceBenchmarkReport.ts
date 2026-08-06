@@ -104,13 +104,19 @@ export const writeEvidenceBenchmarkReport = async (
   for (const entry of fs.readdirSync(output, { withFileTypes: true }))
     if (entry.isFile() && /\.(?:png|svg)$/u.test(entry.name))
       fs.rmSync(path.join(output, entry.name));
+  // The aggregate publishes what the charts publish: one cell per arm per
+  // subject, under the subject's own name. A repeat run is that subject's
+  // Evidence cell, not a subject called `shopping2`, and a consumer copying
+  // this directory should find four subjects rather than nine. Every cell
+  // keeps its run id, so the figures stay traceable to the run that produced
+  // them, and nothing is deleted from `output/`.
   fs.writeFileSync(
     path.join(output, "summary.json"),
-    `${JSON.stringify(report, null, 2)}\n`,
+    `${JSON.stringify({ ...report, cells: charted }, null, 2)}\n`,
   );
   const cells: string = path.join(output, "cells");
   fs.rmSync(cells, { recursive: true, force: true });
-  for (const cell of report.cells) {
+  for (const cell of charted) {
     const file: string = path.join(
       cells,
       pathSegment(cell.model),
@@ -354,7 +360,8 @@ const COVERAGE: Readonly<Record<string, number>> = Object.fromEntries(
 const COVERAGE_NOTES: readonly string[] = [
   "Coverage measured by Claude Code Opus 5 — thirteen graph edges read from the source, composed so serial hops multiply and branches average.",
   "Two readings of one unchanged workspace reproduced the seven mechanical edges exactly and moved the five needing a judgement by up to 0.09.",
-  "Evidence is 100% by construction: a cell that misses an edge does not compile.",
+  "Evidence sits at 100% by construction — the compiler rejects a missing edge — which guarantees a tag exists for each requirement, not that the tagged code exercises it.",
+  "Three of the four Evidence cells audited satisfied the graph with tests that never reach a server.",
 ];
 
 const renderSummaryChart = (report: IEvidenceBenchmarkReport): string =>
