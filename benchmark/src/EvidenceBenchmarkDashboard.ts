@@ -221,6 +221,14 @@ const applyDirectStage = (
   dispatch: EvidenceBenchmarkDirectStage.IDirectStage | undefined,
 ): IEvidenceBenchmarkReportCell => {
   if (dispatch === undefined) return cell;
+  // Finishing a chain by hand is not reopening one. Where the record already
+  // holds the chain complete and the last thing dispatched is the stage it
+  // completed on, the hand drive is how the cell got there, and the record is
+  // the better word. Only a dispatch naming some other stage means work
+  // resumed after the close — which is what separates Todo Plain, driven to
+  // its own `overall-final`, from Reddit and Erp Plain, both sent back to a
+  // frontend review their `overall-final` had already passed.
+  if (cell.status === "completed" && dispatch.stage === cell.stage) return cell;
   // The baseline is the last event the runner recorded, not when `state.json`
   // was last written. Reconciliation rewrites that file long after the run
   // ended, which would date the runner's knowledge to whenever the report was
