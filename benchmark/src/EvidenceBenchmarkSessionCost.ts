@@ -4,6 +4,7 @@ import path from "node:path";
 import readline from "node:readline";
 
 import type { IEvidenceBenchmarkApiCost } from "./structures/IEvidenceBenchmarkApiCost";
+import type { IEvidenceBenchmarkTokenUsage } from "./structures/IEvidenceBenchmarkTokenUsage";
 
 /**
  * Prices a run from the Codex session that produced it.
@@ -63,6 +64,37 @@ export namespace EvidenceBenchmarkSessionCost {
   const RUN_ID =
     /runs[\\/]+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/u;
 
+  /**
+   * What a run's sessions counted, beside what they cost.
+   *
+   * The price already falls back to the session where the runner's stream
+   * cannot answer. The token total had no such fallback and kept coming from
+   * the Goal records, so a hand-driven cell reported a price that counted its
+   * later stages and a token count that did not — two columns of one row
+   * describing two different moments.
+   */
+  export interface ISessionTotals {
+    cost: IEvidenceBenchmarkApiCost;
+    tokenUsage: IEvidenceBenchmarkTokenUsage;
+  }
+
+  /** Every benchmark run's session totals, keyed by run id. */
+  export const totals = async (
+    model: string,
+  ): Promise<ReadonlyMap<string, ISessionTotals>> => {
+    const costs: ReadonlyMap<string, IEvidenceBenchmarkApiCost> =
+      await collect(model);
+    const result: Map<string, ISessionTotals> = new Map();
+    for (const [runId, cost] of costs) {
+      const usage: IEvidenceBenchmarkTokenUsage | undefined = USAGE.get(runId);
+      if (usage !== undefined) result.set(runId, { cost, tokenUsage: usage });
+    }
+    return result;
+  };
+
+  /** Token totals gathered by the last `collect`, keyed by run id. */
+  const USAGE: Map<string, IEvidenceBenchmarkTokenUsage> = new Map();
+
   /** Every benchmark run priced from its sessions, keyed by run id. */
   export const collect = async (
     model: string,
@@ -98,6 +130,32 @@ export namespace EvidenceBenchmarkSessionCost {
         longContextRequests += Math.round(session.requests * share);
         shortContextRequests += session.requests - Math.round(session.requests * share);
       }
+      USAGE.set(runId, {
+        totalTokens: sessions.reduce(
+          (sum, session) => sum + (session.final.total_tokens ?? 0),
+          0,
+        ),
+        inputTokens: sessions.reduce(
+          (sum, session) => sum + (session.final.input_tokens ?? 0),
+          0,
+        ),
+        cachedInputTokens: sessions.reduce(
+          (sum, session) => sum + (session.final.cached_input_tokens ?? 0),
+          0,
+        ),
+        cacheWriteInputTokens: sessions.reduce(
+          (sum, session) => sum + (session.final.cache_write_input_tokens ?? 0),
+          0,
+        ),
+        outputTokens: sessions.reduce(
+          (sum, session) => sum + (session.final.output_tokens ?? 0),
+          0,
+        ),
+        reasoningOutputTokens: sessions.reduce(
+          (sum, session) => sum + (session.final.reasoning_output_tokens ?? 0),
+          0,
+        ),
+      });
       result.set(runId, {
         provider: "openrouter",
         pricingAsOf: PRICING_AS_OF,

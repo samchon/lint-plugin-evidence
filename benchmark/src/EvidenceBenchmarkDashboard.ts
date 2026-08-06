@@ -161,8 +161,8 @@ export const renderEvidenceBenchmarkDashboard = async (
   // replay, and every hand-driven cell in this campaign is one. Its Codex
   // session still carries the counter, so the price is read from there rather
   // than left blank; the replay stays preferred wherever it can answer.
-  const sessions: ReadonlyMap<string, IEvidenceBenchmarkApiCost> =
-    await EvidenceBenchmarkSessionCost.collect(
+  const sessions: ReadonlyMap<string, EvidenceBenchmarkSessionCost.ISessionTotals> =
+    await EvidenceBenchmarkSessionCost.totals(
       report.cells[0]?.model ?? "gpt-5.6-luna",
     );
   // A stage driven by hand never reaches a Goal record, so the runner's last
@@ -179,9 +179,10 @@ export const renderEvidenceBenchmarkDashboard = async (
     .map((cell) =>
       cell.apiCost !== null
         ? cell
-        : { ...cell, apiCost: sessions.get(cell.runId) ?? null },
+        : { ...cell, apiCost: sessions.get(cell.runId)?.cost ?? null },
     )
-    .map((cell) => applyDirectStage(cell, repository, dispatches.get(cell.runId)));
+    .map((cell) => applyDirectStage(cell, repository, dispatches.get(cell.runId)))
+    .map((cell) => applySessionTokens(cell, sessions.get(cell.runId)));
   const models: Map<string, IEvidenceBenchmarkReportCell[]> = Map.groupBy(
     cells,
     (cell) => cell.model,
@@ -189,6 +190,32 @@ export const renderEvidenceBenchmarkDashboard = async (
   return `${[...models]
     .map(([model, group]) => renderModel(model, group))
     .join("\n\n")}\n`;
+};
+
+/**
+ * Counts a hand-driven cell's tokens from the sessions its price came from.
+ *
+ * The Goal records stop at the last stage the runner brokered, so a cell driven
+ * past that reported a price counting every stage beside a token total counting
+ * only the early ones. Erp Plain read 510M against a session total that
+ * included four more stages, in the same row as a price that did include them.
+ *
+ * Only a cell the runner no longer speaks for is rewritten. Where its record is
+ * whole the record wins, because it separates the measured thread from what
+ * judging it cost and the session cannot.
+ */
+const applySessionTokens = (
+  cell: IEvidenceBenchmarkReportCell,
+  totals: EvidenceBenchmarkSessionCost.ISessionTotals | undefined,
+): IEvidenceBenchmarkReportCell => {
+  if (totals === undefined) return cell;
+  if (cell.status !== "working" && cell.status !== "stopped") return cell;
+  if (totals.tokenUsage.totalTokens <= cell.tokens) return cell;
+  return {
+    ...cell,
+    tokens: totals.tokenUsage.totalTokens,
+    tokenUsage: totals.tokenUsage,
+  };
 };
 
 /**
@@ -510,7 +537,17 @@ const renderRun = (run: IEvidenceBenchmarkReportCell): IRenderedRun => {
   return {
     summary: `| ${cell} | ${formatStage(run)} | ${formatDelta(run.worktree)} | ${formatCost(run.tokens)} | ${formatApiCost(run)} | ${formatTime(run.workElapsedMs)} |`,
     details: [
-      `- **${cell} stages**`,
+      // The breakdown comes from the Goal records, so it holds only what the
+      // runner brokered. Where a session was handed stages afterwards, the list
+      // is missing exactly those and reads as the cell's whole history — Erp
+      // Plain showed three stages ending at `overall-final` while four
+      // hand-driven ones had run past it. The list is still worth publishing;
+      // presenting it as complete is not.
+      `- **${cell} stages**${
+        run.status === "working" || run.status === "stopped"
+          ? ` — runner-brokered only; the stages driven since are not recorded here`
+          : ""
+      }`,
       ...run.stages.map(
         (measurement) =>
           `  - \`${measurement.name}\`: ${formatCost(measurement.tokens)} · ${formatTime(measurement.elapsedMs)} · ${measurement.tokenPercent}% tokens · ${measurement.timePercent}% time`,
