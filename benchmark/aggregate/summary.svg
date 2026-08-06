@@ -35,17 +35,17 @@
 <rect x="1036" y="82" width="18" height="12" rx="3" fill="#4c78a8" fill-opacity="1"/>
 <text x="1061" y="93" class="legend">Overall Review</text>
 <rect x="28" y="124" width="1384" height="186" rx="10" class="group" fill-opacity="0.78"/>
-<text x="60" y="155" class="group-title">Coverage</text>
+<text x="60" y="155" class="group-title">Requirement Coverage</text>
 <text x="1404" y="154" text-anchor="end" class="group-meta">higher is better</text>
-<text x="60" y="200" class="row-label" fill="#4c78a8">Reddit Plain</text>
+<text x="60" y="200" class="row-label" fill="#4c78a8">Todo Plain</text>
 <rect x="210" y="179" width="900" height="30" rx="7" class="track"/>
-<rect x="210" y="179" width="561.60" height="30" rx="7" fill="#4c78a8" data-coverage="62.4"/>
-<text x="1404" y="201" text-anchor="end" class="value">62.4%</text>
-<text x="60" y="240" class="row-label" fill="#4c78a8">Todo Plain</text>
+<rect x="210" y="179" width="720.90" height="30" rx="7" fill="#4c78a8" data-coverage="80.1"/>
+<text x="1404" y="201" text-anchor="end" class="value">80.1%</text>
+<text x="60" y="240" class="row-label" fill="#4c78a8">Reddit Plain</text>
 <rect x="210" y="219" width="900" height="30" rx="7" class="track"/>
-<rect x="210" y="219" width="720.90" height="30" rx="7" fill="#4c78a8" data-coverage="80.1"/>
-<text x="1404" y="241" text-anchor="end" class="value">80.1%</text>
-<text x="60" y="280" class="row-label" fill="#f58518">Evidence — every subject</text>
+<rect x="210" y="219" width="561.60" height="30" rx="7" fill="#4c78a8" data-coverage="62.4"/>
+<text x="1404" y="241" text-anchor="end" class="value">62.4%</text>
+<text x="60" y="280" class="row-label" fill="#f58518">Evidence (every)</text>
 <rect x="210" y="259" width="900" height="30" rx="7" class="track"/>
 <rect x="210" y="259" width="900.00" height="30" rx="7" fill="#f58518" data-coverage="100"/>
 <text x="1404" y="281" text-anchor="end" class="value">100.0% by construction</text>
@@ -109,5 +109,5 @@
 <text x="1404" y="711" text-anchor="end" class="cost-value">4h 58m · $2.65</text>
 <text x="36" y="797" class="table-note">Native Codex counters: Cached input is included in Input; Reasoning is included in Output.</text>
 <text x="36" y="812" class="table-note">API cost uses OpenRouter rates from 2026-08-01 and is emitted only after every measured request reconciles with retained counters. Review inspection runs on the cell&apos;s own model and effort, so its tokens, time, and price all sit inside these totals.</text>
-<text x="36" y="832" class="generated">Generated 2026-08-06T07:54:24.013Z</text>
+<text x="36" y="832" class="generated">Generated 2026-08-06T08:00:54.487Z</text>
 </svg>

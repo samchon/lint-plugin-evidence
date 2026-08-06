@@ -337,6 +337,7 @@ const renderSubjectChart = (
   const coverage = renderCoverage(
     { ...report, cells },
     {
+      title: "Coverage",
       top: header,
       margin,
       width,
@@ -444,13 +445,17 @@ const renderCoverage = (
     barMaximumWidth: number;
     valueX: number;
     rowHeight: number;
+    title: string;
   },
 ): { body: string[]; height: number } => {
+  // Ordered by subject size, the order every other view uses, rather than
+  // alphabetically — which put Reddit before Todo and broke the one reading the
+  // chart exists to support, that coverage falls as the subject grows.
   const subjects: string[] = [
     ...new Set(report.cells.map((cell) => cell.subject)),
   ]
     .filter((subject) => COVERAGE[subject] !== undefined)
-    .sort();
+    .sort((left, right) => subjectRank(left) - subjectRank(right));
   if (subjects.length === 0) return { body: [], height: 0 };
   const rows: { label: string; percent: number; arm: "plain" | "evidence" }[] = [
     ...subjects.map((subject) => ({
@@ -458,12 +463,12 @@ const renderCoverage = (
       percent: COVERAGE[subject]!,
       arm: "plain" as const,
     })),
-    { label: "Evidence — every subject", percent: 100, arm: "evidence" as const },
+    { label: "Evidence (every)", percent: 100, arm: "evidence" as const },
   ];
   const height: number = 52 + rows.length * props.rowHeight + 14;
   const body: string[] = [
     `<rect x="${props.margin - 8}" y="${props.top}" width="${props.width - 2 * props.margin + 16}" height="${height}" rx="10" class="group" fill-opacity="0.78"/>`,
-    `<text x="${props.labelX}" y="${props.top + 31}" class="group-title">Coverage</text>`,
+    `<text x="${props.labelX}" y="${props.top + 31}" class="group-title">${escapeXml(props.title)}</text>`,
     `<text x="${props.valueX}" y="${props.top + 30}" text-anchor="end" class="group-meta">higher is better</text>`,
   ];
   rows.forEach((row, index) => {
@@ -512,6 +517,7 @@ const renderPhaseChart = (
     ),
   );
   const coverage = renderCoverage(report, {
+    title: "Requirement Coverage",
     top: headerHeight,
     margin,
     width,
@@ -728,6 +734,14 @@ const formatPrice = (value: number): string =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+
+/** The campaign's subjects, smallest first — the order every view uses. */
+const SUBJECT_ORDER: readonly string[] = ["todo", "reddit", "shopping", "erp"];
+
+const subjectRank = (subject: string): number => {
+  const at: number = SUBJECT_ORDER.indexOf(subject);
+  return at === -1 ? Number.MAX_SAFE_INTEGER : at;
+};
 
 const armColor = (arm: "plain" | "evidence"): string =>
   arm === "plain" ? "#4c78a8" : "#f58518";

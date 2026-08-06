@@ -41,7 +41,7 @@
 <rect x="210" y="179" width="900" height="30" rx="7" class="track"/>
 <rect x="210" y="179" width="561.60" height="30" rx="7" fill="#4c78a8" data-coverage="62.4"/>
 <text x="1404" y="201" text-anchor="end" class="value">62.4%</text>
-<text x="60" y="240" class="row-label" fill="#f58518">Evidence — every subject</text>
+<text x="60" y="240" class="row-label" fill="#f58518">Evidence (every)</text>
 <rect x="210" y="219" width="900" height="30" rx="7" class="track"/>
 <rect x="210" y="219" width="900.00" height="30" rx="7" fill="#f58518" data-coverage="100"/>
 <text x="1404" y="241" text-anchor="end" class="value">100.0% by construction</text>
@@ -128,5 +128,5 @@
 <text x="518.75" y="865" text-anchor="middle" class="segment-label">Overall</text>
 <text x="1404" y="864" text-anchor="end" class="value">$2.65 (-59%)</text>
 <text x="36" y="966" class="table-note">API cost uses OpenRouter rates from 2026-08-01 and is emitted only after every measured request reconciles with retained counters. Review inspection runs on the cell&apos;s own model and effort, so its tokens, time, and price all sit inside these totals.</text>
-<text x="36" y="984" class="generated">Generated 2026-08-06T07:54:24.013Z</text>
+<text x="36" y="984" class="generated">Generated 2026-08-06T08:00:54.487Z</text>
 </svg>
