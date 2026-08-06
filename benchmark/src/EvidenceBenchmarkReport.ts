@@ -285,7 +285,10 @@ const renderSubjectChart = (
   const margin: number = 36;
   const labelX: number = 60;
   const barX: number = 210;
-  const barMaximumWidth: number = 900;
+  // The track runs to where the value text begins rather than stopping at a
+  // round number, because a bar that ends 300px short of the canvas reads as a
+  // bar that fell short. Only the widest label needs to clear it.
+  const barMaximumWidth: number = width - margin - barX - 150;
   const valueX: number = width - margin;
   const rowHeight: number = 68;
   const cells: IEvidenceBenchmarkReportCell[] = report.cells
@@ -498,7 +501,10 @@ const renderPhaseChart = (
   const notesHeight: number = metric.tableNotes.length * 15 + 30;
   const labelX: number = 60;
   const barX: number = 210;
-  const barMaximumWidth: number = 900;
+  // The track runs to where the value text begins rather than stopping at a
+  // round number, because a bar that ends 300px short of the canvas reads as a
+  // bar that fell short. Only the widest label needs to clear it.
+  const barMaximumWidth: number = width - margin - barX - 150;
   const valueX: number = width - margin;
   const groups: [string, IEvidenceBenchmarkReportCell[]][] = [
     ...Map.groupBy(report.cells, (cell) => cell.subject),

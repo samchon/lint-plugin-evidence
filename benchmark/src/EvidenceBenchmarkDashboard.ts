@@ -280,8 +280,18 @@ export const applyDirectStage = (
   // is must not merge them. The session file grows on every turn, so silence
   // longer than a turn ever lasts here is the cell having stopped.
   const quiet: boolean = Date.now() - dispatch.lastActivityAt > QUIET_MS;
+  // A hand-driven chain that reached its last instruction and then went quiet
+  // has finished, and saying otherwise leaves it `stopped` forever: the runner
+  // is the only thing that writes `completed` and it never saw these stages.
+  // Shopping Plain ran every stage to `overall-final` and would have been
+  // excluded from every chart on a technicality about who dispatched it.
+  if (quiet && dispatch.stage === TERMINAL_STAGE)
+    return { ...cell, stage: dispatch.stage, status: "completed" };
   return { ...cell, stage: dispatch.stage, status: quiet ? "stopped" : "working" };
 };
+
+/** The last instruction of either arm's sequence. */
+const TERMINAL_STAGE = "overall-final" as const;
 
 /** Collects the publishable latest-run aggregate used by every report view. */
 export const collectEvidenceBenchmarkReport = (
