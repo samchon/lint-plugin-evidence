@@ -151,27 +151,48 @@ type PhaseName =
   | "frontend-review"
   | "overall-review";
 
-const API_PRICE_NOTE =
-  "API cost uses OpenRouter rates from 2026-08-01 and is emitted only after every measured request reconciles with retained counters. Review inspection runs on the cell's own model and effort, so its tokens, time, and price all sit inside these totals.";
+/** Two lines rather than one: a single note ran 130px past the canvas. */
+const API_PRICE_NOTES: readonly string[] = [
+  "API cost uses OpenRouter rates from 2026-08-01, emitted only after every measured request reconciles with retained counters.",
+  "Review inspection runs on the cell's own model and effort, so its tokens, time and price all sit inside these totals.",
+];
 
 const PHASES: readonly {
   name: PhaseName;
   label: string;
   short: string;
+  hint: string;
 }[] = [
   {
     name: "backend-development",
     label: "Backend Dev",
     short: "BE Dev",
+    hint: "First implementation of the schema, the API and their tests",
   },
-  { name: "backend-review", label: "Backend Review", short: "BE Rev" },
+  {
+    name: "backend-review",
+    label: "Backend Review",
+    short: "BE Rev",
+    hint: "Read the requirements and the backend in full, loop until dry",
+  },
   {
     name: "frontend-development",
     label: "Frontend Dev",
     short: "FE Dev",
+    hint: "Hooks and screens built against the generated SDK",
   },
-  { name: "frontend-review", label: "Frontend Review", short: "FE Rev" },
-  { name: "overall-review", label: "Overall Review", short: "Overall" },
+  {
+    name: "frontend-review",
+    label: "Frontend Review",
+    short: "FE Rev",
+    hint: "The same loop until dry over the frontend, gated on live reloads rather than a build",
+  },
+  {
+    name: "overall-review",
+    label: "Overall Review",
+    short: "Overall",
+    hint: "Both layers and the live journeys together, loop until dry, then the closing gates",
+  },
 ];
 
 const PHASE_OPACITY: readonly number[] = [0.44, 0.58, 0.7, 0.84, 1];
@@ -212,7 +233,25 @@ const TOKEN_TABLE_COLUMNS: IPhaseMetric["tableColumns"] = [
 ];
 
 /** One stylesheet for every chart this module writes. */
-const CHART_STYLE ="<style>\n  text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #172033; }\n  .title { font-size: 27px; font-weight: 700; }\n  .subtitle, .generated, .group-meta, .row-status { font-size: 13px; fill: #667085; }\n  .group { fill: #e8f2fb; }\n  .group-title { font-size: 21px; font-weight: 700; }\n  .row-label { font-size: 17px; font-weight: 700; }\n  .value { font-size: 16px; font-weight: 700; }\n  .cost-value { font-size: 13px; font-weight: 600; fill: #526b82; }\n  .legend { font-size: 12px; fill: #526b82; }\n  .segment-label { font-size: 10px; font-weight: 700; fill: #ffffff; paint-order: stroke; stroke: #172033; stroke-opacity: 0.28; stroke-width: 1px; }\n  .phase-segment { stroke: #ffffff; stroke-opacity: 0.86; stroke-width: 1px; }\n  .track { fill: #e7edf4; stroke: #d5dee9; stroke-width: 1px; }\n  .empty { font-size: 15px; fill: #667085; }\n  .table-title { font-size: 15px; font-weight: 600; }\n  .table-header { font-size: 11px; font-weight: 600; fill: #667085; }\n  .table-cell { font-size: 12px; fill: #334155; }\n  .table-rule { stroke: #dbe4ee; stroke-width: 1px; }\n  .table-note { font-size: 11px; fill: #667085; }\n</style>";
+const CHART_STYLE: string = [
+  "<style>",
+  "  text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #172033; }",
+  "  .title { font-size: 27px; font-weight: 700; }",
+  "  .subtitle, .generated, .group-meta, .row-status { font-size: 13px; fill: #667085; }",
+  "  .group { fill: #e8f2fb; }",
+  "  .group-title { font-size: 21px; font-weight: 700; }",
+  "  .row-label { font-size: 17px; font-weight: 700; }",
+  "  .value { font-size: 16px; font-weight: 700; }",
+  "  .cost-value { font-size: 13px; font-weight: 600; fill: #526b82; }",
+  "  .legend { font-size: 12px; fill: #667085; }",
+  "  .legend-label { font-size: 12px; font-weight: 700; fill: #334155; }",
+  "  .segment-label { font-size: 10px; font-weight: 700; fill: #ffffff; paint-order: stroke; stroke: #172033; stroke-opacity: 0.28; stroke-width: 1px; }",
+  "  .phase-segment { stroke: #ffffff; stroke-opacity: 0.86; stroke-width: 1px; }",
+  "  .track { fill: #e7edf4; stroke: #d5dee9; stroke-width: 1px; }",
+  "  .empty { font-size: 15px; fill: #667085; }",
+  "  .table-note { font-size: 11px; fill: #667085; }",
+  "</style>",
+].join("\n");
 
 /**
  * What share of the provenance graph each Plain subject satisfied.
@@ -229,6 +268,7 @@ const CHART_STYLE ="<style>\n  text { font-family: Inter, ui-sans-serif, system-
 const COVERAGE: Readonly<Record<string, number>> = {
   todo: 80.1,
   reddit: 62.4,
+  shopping: 40.1,
 };
 
 const COVERAGE_NOTE =
@@ -256,7 +296,7 @@ const renderSummaryChart = (report: IEvidenceBenchmarkReport): string =>
     ],
     tableNotes: [
       "Native Codex counters: Cached input is included in Input; Reasoning is included in Output.",
-      API_PRICE_NOTE,
+      ...API_PRICE_NOTES,
     ],
     dataAttribute: "tokens",
     cellValue: (cell) => cell.tokens,
@@ -335,7 +375,7 @@ const renderSubjectChart = (
       format: (value) => `$${formatPrice(value)}`,
     },
   ];
-  const header: number = 124;
+  const header: number = HEADER_HEIGHT;
   const blockHeight: number = 44 + Math.max(1, cells.length) * rowHeight + 14;
   const coverage = renderCoverage(
     { ...report, cells },
@@ -427,7 +467,10 @@ const renderSubjectChart = (
     `<text x="${margin}" y="62" class="subtitle">One subject, one instruction sequence, ${escapeXml(models)}. The Evidence arm adds a compiler-enforced provenance graph.</text>`,
     ...phaseLegend(margin),
     ...body,
-    `<text x="${margin}" y="${height - 32}" class="table-note">${escapeXml(API_PRICE_NOTE)}</text>`,
+    ...API_PRICE_NOTES.map(
+      (note, index) =>
+        `<text x="${margin}" y="${height - 47 + index * 15}" class="table-note">${escapeXml(note)}</text>`,
+    ),
     `<text x="${margin}" y="${height - 14}" class="generated">Generated ${escapeXml(report.generatedAt)}</text>`,
     "</svg>",
     "",
@@ -435,22 +478,46 @@ const renderSubjectChart = (
 };
 
 /** The shared phase legend, drawn under every chart's subtitle. */
+/**
+ * The shade key, one entry per line with what the stage actually is.
+ *
+ * Six shades of one colour across a row said which segment was which and
+ * nothing about what any of them meant, and the names alone do not carry it:
+ * a reader cannot tell from "Backend Review" that it is a loop that repeats
+ * until a round changes nothing. Stacked vertically there is room to say so.
+ */
 const phaseLegend = (margin: number): string[] => {
-  const legend: string[] = [];
-  let legendX: number = margin;
-  PHASES.forEach((phase, index) => {
-    legend.push(
-      `<rect x="${legendX}" y="82" width="18" height="12" rx="3" fill="${armColor("plain")}" fill-opacity="${PHASE_OPACITY[index]}"/>`,
-      `<text x="${legendX + 25}" y="93" class="legend">${escapeXml(phase.label)}</text>`,
-    );
-    legendX += 250;
+  const entries: { fill: string; opacity: number; label: string; hint: string }[] =
+    [
+      ...PHASES.map((phase, index) => ({
+        fill: armColor("plain"),
+        opacity: PHASE_OPACITY[index] ?? 1,
+        label: phase.label,
+        hint: phase.hint,
+      })),
+      {
+        fill: "#94a3b8",
+        opacity: 1,
+        label: "Review inspection",
+        hint: "What judging a Review cost — spend that belongs to no stage",
+      },
+    ];
+  return entries.flatMap((entry, index) => {
+    const y: number = LEGEND_TOP + index * LEGEND_ROW_HEIGHT;
+    return [
+      `<rect x="${margin}" y="${y}" width="18" height="12" rx="3" fill="${entry.fill}" fill-opacity="${entry.opacity}"/>`,
+      `<text x="${margin + 26}" y="${y + 11}" class="legend-label">${escapeXml(entry.label)}</text>`,
+      `<text x="${margin + 176}" y="${y + 11}" class="legend">${escapeXml(entry.hint)}</text>`,
+    ];
   });
-  legend.push(
-    `<rect x="${legendX}" y="82" width="18" height="12" rx="3" fill="#94a3b8"/>`,
-    `<text x="${legendX + 25}" y="93" class="legend">Review inspection</text>`,
-  );
-  return legend;
 };
+
+const LEGEND_TOP: number = 80;
+const LEGEND_ROW_HEIGHT: number = 20;
+
+/** Where a chart's content begins, below title, subtitle and the shade key. */
+const HEADER_HEIGHT: number =
+  LEGEND_TOP + (PHASES.length + 1) * LEGEND_ROW_HEIGHT + 22;
 
 const renderCoverage = (
   report: IEvidenceBenchmarkReport,
@@ -511,7 +578,7 @@ const renderPhaseChart = (
 ): string => {
   const width: number = 1_440;
   const margin: number = 36;
-  const headerHeight: number = 124;
+  const headerHeight: number = HEADER_HEIGHT;
   const footerHeight: number = 36;
   const groupGap: number = 16;
   const groupHeaderHeight: number = 44;

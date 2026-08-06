@@ -7,16 +7,16 @@
   "model": "gpt-5.6-luna",
   "effort": "high",
   "status": "working",
-  "stage": "frontend-final",
+  "stage": "overall-review",
   "launchedAt": "2026-08-04T22:56:46.636Z",
-  "tokens": 630799670,
+  "tokens": 635844779,
   "tokenUsage": {
-    "totalTokens": 630799670,
-    "inputTokens": 629813660,
-    "cachedInputTokens": 620985600,
+    "totalTokens": 635844779,
+    "inputTokens": 634847796,
+    "cachedInputTokens": 625869824,
     "cacheWriteInputTokens": 0,
-    "outputTokens": 986010,
-    "reasoningOutputTokens": 242770
+    "outputTokens": 996983,
+    "reasoningOutputTokens": 247318
   },
   "inspection": {
     "attempts": 0,
@@ -36,9 +36,9 @@
     "pricingAsOf": "2026-08-01",
     "priceSource": "https://openrouter.ai/api/v1/models",
     "currency": "USD",
-    "amountUsd": 7.69046482,
-    "requests": 5715,
-    "shortContextRequests": 5710,
+    "amountUsd": 7.76089746,
+    "requests": 5765,
+    "shortContextRequests": 5760,
     "longContextRequests": 5,
     "longContextThresholdTokens": 272000
   },
@@ -46,8 +46,8 @@
   "suspensions": [],
   "workElapsedMs": 77879958.3676,
   "worktree": {
-    "files": 531,
-    "additions": 82542,
+    "files": 532,
+    "additions": 83197,
     "deletions": 175
   },
   "reviewVerdicts": [],
